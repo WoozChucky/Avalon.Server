@@ -272,9 +272,23 @@ Bring them into the catalog as under "How a chunk enters the catalog".
 
 ### 2. Define a ChunkPool
 
-A `ChunkPool` is a named bag of `ChunkPoolMember`s with weights. The procedural generator picks chunks from a pool weighted-random.
+A `ChunkPool` is a named bag of `ChunkPoolMember`s, each with a weight and an optional per-layout cap. The procedural
+generator picks chunks from a pool weighted-random.
 
 Pools are `Maps/chunk-pools.json`, seeded by `ChunkCatalogSeeder` on every World start (see "How a chunk enters the catalog"). Convention: one pool per biome.
+
+A pool entry is a chunk's name (weight 1, no cap) or an object `{ "chunk": "<name>", "weight": 2.5, "max": 1 }`, with
+`weight` (left out: 1) a finite number above 0 and `max` (left out: no limit) the most times one layout may place the
+chunk, 1 or more. The seeder writes both onto the pool's `ChunkPoolMembership` rows (`Weight`, `MaxPerLayout`) and
+refuses, naming the file and the chunk, a weight of 0 or below, NaN or infinite (the file may write `"NaN"`), a `max`
+below 1, or a chunk named twice in one pool.
+
+`ProceduralLayoutGenerator` weighs every pick: the entry among the entry-capable members, and each later step among its
+candidates, one per member and turn that fits (a set piece weighs 1), so a member's chance is its weight times the turns
+that fit. A member at its `max` is left out of the candidates for the rest of that layout. Candidates that all weigh the
+same are picked with the one draw a uniform pick always made, so a pool of equal weights and no caps generates the
+layouts it always did. A cap is part of `LayoutConfigVersion` only when set, so a pool without caps
+keeps its fingerprint; a changed weight or cap changes what an old seed generates.
 
 ### 3. Define a ProceduralMapConfig
 

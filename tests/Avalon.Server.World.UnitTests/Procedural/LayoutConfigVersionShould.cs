@@ -173,6 +173,16 @@ public class LayoutConfigVersionShould
     public void Keep_the_stamp_of_a_config_without_a_first_set_piece_step() =>
         Assert.Equal("7a4f752f", LayoutConfigVersion.Compute(Config(), Pool()));
 
+    /// <summary>A cap changes what a seed generates; a pool without one keeps the stamp above.</summary>
+    [Fact]
+    public void Change_when_a_pool_member_is_capped()
+    {
+        List<ChunkPoolMember> capped = Pool();
+        capped[1] = capped[1] with { MaxPerLayout = 1 };
+
+        Assert.NotEqual(LayoutConfigVersion.Compute(Config(), Pool()), LayoutConfigVersion.Compute(Config(), capped));
+    }
+
     [Fact]
     public void Stay_the_same_when_no_groups_are_given() =>
         Assert.Equal(LayoutConfigVersion.Compute(Config(), Pool()), LayoutConfigVersion.Compute(Config(), Pool(), []));

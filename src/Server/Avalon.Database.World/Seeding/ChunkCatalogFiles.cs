@@ -1,6 +1,7 @@
 // The DTO set of the files under Maps/ is kept in one file, beside the catalog record that holds them.
 #pragma warning disable MA0048
 
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Avalon.Database.World.Seeding;
@@ -12,10 +13,35 @@ namespace Avalon.Database.World.Seeding;
 public sealed record ChunkCatalogFiles(
     IReadOnlyList<ChunkMetaDto> Chunks,
     IReadOnlyList<(string Path, TownLayoutDto Layout)> Layouts,
-    IReadOnlyDictionary<string, string[]> Pools,
+    IReadOnlyDictionary<string, PoolMemberDto[]> Pools,
     IReadOnlyDictionary<string, GroupDto[]>? Groups,
     IReadOnlyDictionary<string, SpawnTableEntryDto[]>? SpawnTables,
     IReadOnlyList<(string Path, ProceduralMapDto Map)> ProceduralMaps);
+
+/// <summary>
+/// A member of a pool in Maps/chunk-pools.json: a chunk's name (weight 1, no cap), or an object naming the chunk with its
+/// weight (left out: 1) and the most times one layout may place it ("max", left out: no limit). The weight also reads
+/// "NaN" and "Infinity", so the seeder refuses them by name rather than as JSON it cannot read.
+/// </summary>
+[JsonConverter(typeof(PoolMemberDtoConverter))]
+public sealed record PoolMemberDto(string Chunk, float Weight = 1f, int? Max = null);
+
+/// <summary>Reads a pool member written as a name or as an object; the files are only read.</summary>
+public sealed class PoolMemberDtoConverter : JsonConverter<PoolMemberDto>
+{
+    public override PoolMemberDto? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.TokenType == JsonTokenType.String
+            ? new PoolMemberDto(reader.GetString()!)
+            : JsonSerializer.Deserialize<Entry>(ref reader, options) is { } e ? new PoolMemberDto(e.Chunk, e.Weight, e.Max) : null;
+
+    public override void Write(Utf8JsonWriter writer, PoolMemberDto value, JsonSerializerOptions options) =>
+        throw new NotSupportedException("chunk-pools.json is only read");
+
+    private sealed record Entry(
+        string Chunk,
+        [property: JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)] float Weight = 1f,
+        int? Max = null);
+}
 
 /// <summary>One entry of a spawn table in Maps/spawn-tables.json: a slot tag, a creature template, its weight and count range.</summary>
 public sealed record SpawnTableEntryDto(string Tag, ulong CreatureId, float Weight, byte Min, byte Max);

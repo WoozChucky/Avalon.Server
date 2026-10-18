@@ -1,4 +1,5 @@
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -17,6 +18,13 @@ namespace Avalon.World.ChunkLayouts;
 /// before the config's <see cref="ProceduralMapConfig.MinSetPieceStep"/>. Each chunk records its depth: the grid steps
 /// from the entry over stitched connections, a set piece's inner edges included.
 /// A pool without set pieces draws exactly the random numbers it always did, so its layouts are unchanged.
+/// </para>
+/// <para>
+/// Every pick is weighted: the entry by its member's weight, and each next step's candidates (a member at each turn
+/// that fits, or a set piece at weight 1) by theirs, so a member's chance is its weight times the turns that fit. A
+/// member with a <see cref="ChunkPoolMember.MaxPerLayout"/> is left out of the candidates once a layout has placed it
+/// that often. Candidates that all weigh the same are picked with the one draw a uniform pick always made, so a pool of
+/// equal weights and no caps generates the layouts it always did.
 /// </para>
 /// </summary>
 public class ProceduralLayoutGenerator
@@ -65,6 +73,9 @@ public class ProceduralLayoutGenerator
         if (entryCandidates.Count == 0) { error = "No entry-capable chunks"; return false; }
 
         ChunkPoolMember entryMember = WeightedPick(entryCandidates, rng);
+        // Placements of capped members only; null when the pool caps none.
+        Dictionary<ChunkTemplateId, int>? placedCapped = pool.Any(m => m.MaxPerLayout is not null) ? [] : null;
+        CountPlacement(placedCapped, entryMember);
         var entryRecord = new PlacedChunkRecord(entryMember.Template, 0, 0, 0, group: null);
         var mainPath = new List<Node> { new([entryRecord]) };
         var grid = new Dictionary<(int, int), PlacedChunkRecord> { [(0, 0)] = entryRecord };
@@ -81,7 +92,7 @@ public class ProceduralLayoutGenerator
             // through). Last step is exempt: boss has 1 exit by design.
             bool excludeSingleExit = !requiredBoss && !requiredForward;
 
-            if (!TryAttachNext(mainPath[^1], pool, groups, grid, links, usedGroups, rng,
+            if (!TryAttachNext(mainPath[^1], pool, groups, grid, links, usedGroups, placedCapped, rng,
                     new AttachRules(requiredBoss, requiredForward, excludeSingleExit, AllowGroups: true,
                         AllowSetPieces: step >= cfg.MinSetPieceStep), out Node? placed))
             {
@@ -100,7 +111,7 @@ public class ProceduralLayoutGenerator
             for (int b = 0; b < branchLen; b++)
             {
                 // Branches may end in deadends, so single-exit chunks are fair game.
-                if (!TryAttachNext(tail, pool, groups, grid, links, usedGroups, rng,
+                if (!TryAttachNext(tail, pool, groups, grid, links, usedGroups, placedCapped, rng,
                         new AttachRules(RequiredBoss: false, RequiredForward: false, ExcludeSingleExit: false, AllowGroups: false,
                             AllowSetPieces: false),
                         out Node? placed))
@@ -146,14 +157,20 @@ public class ProceduralLayoutGenerator
     private readonly record struct AttachRules(bool RequiredBoss, bool RequiredForward, bool ExcludeSingleExit, bool AllowGroups,
         bool AllowSetPieces);
 
-    /// <summary>A placement candidate: a single chunk at a rotation, or a set piece at a rotation with one member (the anchor) on the free cell.</summary>
+    /// <summary>
+    /// A placement candidate: a pool member at a rotation, or a set piece at a rotation with one member (the anchor) on the
+    /// free cell; a set piece weighs 1.
+    /// </summary>
     private readonly record struct Candidate(
-        ChunkTemplate? Template, byte Rotation, ChunkGroupDefinition? Group, ChunkGroupCell? Anchor, int OriginX, int OriginZ);
+        ChunkPoolMember? Member, byte Rotation, ChunkGroupDefinition? Group, ChunkGroupCell? Anchor, int OriginX, int OriginZ)
+    {
+        public float Weight => Member?.Weight ?? 1f;
+    }
 
     private static bool TryAttachNext(
         Node current, IReadOnlyList<ChunkPoolMember> pool, IReadOnlyList<ChunkGroupDefinition> groups,
         Dictionary<(int, int), PlacedChunkRecord> grid, List<((int, int) A, (int, int) B)> links, HashSet<string> usedGroups,
-        Random rng, AttachRules rules, out Node? placed)
+        Dictionary<ChunkTemplateId, int>? placedCapped, Random rng, AttachRules rules, out Node? placed)
     {
         placed = null;
         // A single chunk draws nothing here, so a pool without set pieces generates what it always did.
@@ -179,20 +196,21 @@ public class ProceduralLayoutGenerator
 
                     ExitSide neededSide = ExitMask.Opposite(side);
                     var candidates = new List<Candidate>();
-                    AddChunkCandidates(pool, rules, neededSide, slot, candidates);
+                    AddChunkCandidates(pool, placedCapped, rules, neededSide, slot, candidates);
 
                     if (rules.AllowGroups)
                         AddGroupCandidates(groups, grid, usedGroups, rules, nx, nz, neededSide, slot, candidates);
 
                     if (candidates.Count == 0) continue;
 
-                    Candidate choice = candidates[rng.Next(candidates.Count)];
+                    Candidate choice = candidates[PickIndex(candidates, rng)];
                     PlacedChunkRecord anchor;
                     if (choice.Group is null)
                     {
-                        anchor = new PlacedChunkRecord(choice.Template!, nx, nz, choice.Rotation, group: null);
+                        anchor = new PlacedChunkRecord(choice.Member!.Template, nx, nz, choice.Rotation, group: null);
                         grid[(nx, nz)] = anchor;
                         placed = new Node([anchor]);
+                        CountPlacement(placedCapped, choice.Member);
                     }
                     else
                     {
@@ -210,11 +228,12 @@ public class ProceduralLayoutGenerator
         return false;
     }
 
-    private static void AddChunkCandidates(IReadOnlyList<ChunkPoolMember> pool, AttachRules rules, ExitSide neededSide, byte slot,
-        List<Candidate> candidates)
+    private static void AddChunkCandidates(IReadOnlyList<ChunkPoolMember> pool, Dictionary<ChunkTemplateId, int>? placedCapped,
+        AttachRules rules, ExitSide neededSide, byte slot, List<Candidate> candidates)
     {
         foreach (ChunkPoolMember m in pool)
         {
+            if (m.MaxPerLayout is int max && placedCapped!.GetValueOrDefault(m.Template.Id) >= max) continue;
             if (rules.RequiredBoss && !HasTag(m.Template, "boss")) continue;
             if (rules.RequiredForward && !m.Template.PortalSlots.Any(p => p.Role == PortalRole.Forward)) continue;
             if (rules.ExcludeSingleExit && CountExits(m.Template.Exits) <= 1) continue;
@@ -222,7 +241,7 @@ public class ProceduralLayoutGenerator
             {
                 ushort rot = ExitMask.Rotate(m.Template.Exits, r);
                 if (ExitMask.Has(rot, neededSide, (ExitSlot)slot))
-                    candidates.Add(new Candidate(m.Template, r, null, null, 0, 0));
+                    candidates.Add(new Candidate(m, r, null, null, 0, 0));
             }
         }
     }
@@ -341,6 +360,37 @@ public class ProceduralLayoutGenerator
             list.Add(new PortalPlacement(PortalRole.Forward, fWorld, fwd));
         }
         return list;
+    }
+
+    private static void CountPlacement(Dictionary<ChunkTemplateId, int>? placedCapped, ChunkPoolMember member)
+    {
+        if (member.MaxPerLayout is not null)
+            placedCapped![member.Template.Id] = placedCapped.GetValueOrDefault(member.Template.Id) + 1;
+    }
+
+    /// <summary>
+    /// A uniform pick (rng.Next, the draw this pick always made) when every candidate weighs the same, otherwise one draw
+    /// over their summed weights.
+    /// </summary>
+    private static int PickIndex(List<Candidate> candidates, Random rng)
+    {
+        float first = candidates[0].Weight;
+        double total = 0;
+        bool uniform = true;
+        foreach (Candidate c in candidates)
+        {
+            total += c.Weight;
+            uniform &= c.Weight.Equals(first);
+        }
+        if (uniform) return rng.Next(candidates.Count);
+
+        double r = rng.NextDouble() * total;
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            r -= candidates[i].Weight;
+            if (r < 0) return i;
+        }
+        return candidates.Count - 1;
     }
 
     private static ChunkPoolMember WeightedPick(IList<ChunkPoolMember> items, Random rng)

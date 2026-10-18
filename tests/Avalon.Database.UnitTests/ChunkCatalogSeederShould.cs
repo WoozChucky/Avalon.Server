@@ -162,6 +162,64 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         File.WriteAllText(groupsPath, groups.ToJsonString());
     }
 
+    /// <summary>
+    /// A pool entry is a chunk's name (weight 1, no cap) or an object giving its weight and cap; the next start writes a
+    /// changed entry onto the membership already there.
+    /// </summary>
+    [Fact]
+    public async Task Store_each_pool_members_weight_and_cap_in_either_form()
+    {
+        string root = CopyOfCommittedMaps();
+        using var database = SqliteDatabase.World();
+        await using (WorldDbContext first = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(first, root);
+
+        EditForestPool(root, "\"forest_rocks_01\"", """{ "chunk": "forest_rocks_01", "weight": 2.5, "max": 1 }""");
+        EditForestPool(root, "\"forest_ruin_01\"", """{ "chunk": "forest_ruin_01", "weight": 0.5 }""");
+        await using (WorldDbContext second = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(second, root);
+
+        await using WorldDbContext read = database.CreateDbContext();
+        Dictionary<string, (float, int?)> members = await read.Set<ChunkPoolMembership>()
+            .Where(m => m.Pool.Name == "forest_pool")
+            .Select(m => new { m.Template.Name, m.Weight, m.MaxPerLayout })
+            .ToDictionaryAsync(m => m.Name, m => (m.Weight, m.MaxPerLayout), StringComparer.Ordinal);
+        Assert.Equal(17, members.Count);
+        Assert.Equal((2.5f, 1), members["forest_rocks_01"]);
+        Assert.Equal((0.5f, null), members["forest_ruin_01"]);
+        Assert.Equal((1f, null), members["forest_path_01"]);
+    }
+
+    /// <summary>A weight of 0, below 0, NaN or infinite, a cap below 1, and a chunk named twice in one pool.</summary>
+    [Theory]
+    [InlineData("""{ "chunk": "forest_rocks_01", "weight": 0 }""", "forest_rocks_01")]
+    [InlineData("""{ "chunk": "forest_rocks_01", "weight": -1 }""", "forest_rocks_01")]
+    [InlineData("""{ "chunk": "forest_rocks_01", "weight": "NaN" }""", "forest_rocks_01")]
+    [InlineData("""{ "chunk": "forest_rocks_01", "weight": "Infinity" }""", "forest_rocks_01")]
+    [InlineData("""{ "chunk": "forest_rocks_01", "max": 0 }""", "forest_rocks_01")]
+    [InlineData("""{ "chunk": "forest_rocks_01", "weight": 2, "max": -1 }""", "forest_rocks_01")]
+    [InlineData("\"forest_path_02\"", "forest_path_02")]
+    public async Task Refuse_a_bad_pool_member_naming_the_file_and_the_chunk(string entry, string chunk)
+    {
+        string root = CopyOfCommittedMaps();
+        EditForestPool(root, "\"forest_rocks_01\"", entry);
+        using var database = SqliteDatabase.World();
+        await using WorldDbContext db = database.CreateDbContext();
+
+        InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
+        Assert.Contains("chunk-pools.json", error.Message);
+        Assert.Contains($"'{chunk}'", error.Message);
+        Assert.Equal(0, await db.ChunkTemplates.CountAsync());
+    }
+
+    private static void EditForestPool(string root, string from, string to)
+    {
+        string path = Path.Combine(root, "chunk-pools.json");
+        string text = File.ReadAllText(path);
+        Assert.Contains(from, text, StringComparison.Ordinal);
+        File.WriteAllText(path, text.Replace(from, to, StringComparison.Ordinal));
+    }
+
     /// <summary>tools/Avalon.ChunkGen validates its output with this reader, so it must work with no database.</summary>
     [Fact]
     public async Task Read_the_committed_catalog_without_a_database()

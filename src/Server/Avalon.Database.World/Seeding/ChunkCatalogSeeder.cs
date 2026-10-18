@@ -46,7 +46,7 @@ public static class ChunkCatalogSeeder
         foreach ((string path, TownLayoutDto layout) in files.Layouts)
             await ReplaceLayoutAsync(db, path, layout, byName, ct);
 
-        foreach ((string pool, string[] members) in files.Pools)
+        foreach ((string pool, PoolMemberDto[] members) in files.Pools)
             await SyncPoolAsync(db, pool, members, byName, ct);
 
         if (files.Groups is not null)
@@ -71,7 +71,7 @@ public static class ChunkCatalogSeeder
         List<ChunkMetaDto> chunks = await LoadChunksAsync(mapsRoot, ct);
         var chunkNames = chunks.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
         List<(string, TownLayoutDto)> layouts = await LoadLayoutsAsync(mapsRoot, chunkNames, ct);
-        Dictionary<string, string[]> pools = await LoadPoolsAsync(mapsRoot, chunkNames, ct);
+        Dictionary<string, PoolMemberDto[]> pools = await LoadPoolsAsync(mapsRoot, chunkNames, ct);
         Dictionary<string, GroupDto[]>? groups = await LoadGroupsAsync(mapsRoot, chunks, pools, ct);
         Dictionary<string, SpawnTableEntryDto[]>? spawnTables = await LoadSpawnTablesAsync(mapsRoot, ct);
         List<(string, ProceduralMapDto)> maps = await LoadProceduralMapsAsync(mapsRoot, chunks, pools, groups, spawnTables, ct);
@@ -151,18 +151,38 @@ public static class ChunkCatalogSeeder
         return layouts;
     }
 
-    private static async Task<Dictionary<string, string[]>> LoadPoolsAsync(string mapsRoot,
+    /// <summary>
+    /// Maps/chunk-pools.json. Every member must name a chunk that exists, once per pool, with a weight that is a finite
+    /// number above 0 and a cap ("max") of 1 or more when it gives one.
+    /// </summary>
+    private static async Task<Dictionary<string, PoolMemberDto[]>> LoadPoolsAsync(string mapsRoot,
         HashSet<string> chunkNames, CancellationToken ct)
     {
         string path = Path.Combine(mapsRoot, "chunk-pools.json");
         if (!File.Exists(path)) return [];
 
-        Dictionary<string, string[]> pools = await ReadAsync<Dictionary<string, string[]>>(path, ct);
-        foreach ((string pool, string[] members) in pools)
+        Dictionary<string, PoolMemberDto[]> pools = await ReadAsync<Dictionary<string, PoolMemberDto[]>>(path, ct);
+        foreach ((string pool, PoolMemberDto[] members) in pools)
         {
-            var unknown = members.Where(n => !chunkNames.Contains(n)).ToList();
+            if (members.Any(m => m is null || string.IsNullOrWhiteSpace(m.Chunk)))
+                throw new InvalidDataException($"{path}: pool '{pool}' has a member with no chunk");
+            var unknown = members.Select(m => m.Chunk).Where(n => !chunkNames.Contains(n)).ToList();
             if (unknown.Count > 0)
                 throw new InvalidDataException($"{path}: pool '{pool}' names unknown chunks: {string.Join(", ", unknown)}");
+
+            HashSet<string> seen = new(StringComparer.Ordinal);
+            foreach (PoolMemberDto member in members)
+            {
+                if (!seen.Add(member.Chunk))
+                    throw new InvalidDataException($"{path}: pool '{pool}' names chunk '{member.Chunk}' twice");
+                if (!(member.Weight > 0f) || float.IsInfinity(member.Weight))
+                {
+                    throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture,
+                        $"{path}: pool '{pool}' member '{member.Chunk}' has weight {member.Weight}, not a finite number above 0"));
+                }
+                if (member.Max < 1)
+                    throw new InvalidDataException($"{path}: pool '{pool}' member '{member.Chunk}' has max {member.Max}, not 1 or more");
+            }
         }
         return pools;
     }
@@ -256,7 +276,7 @@ public static class ChunkCatalogSeeder
         await db.SaveChangesAsync(ct);
     }
 
-    private static async Task SyncPoolAsync(WorldDbContext db, string poolName, string[] members,
+    private static async Task SyncPoolAsync(WorldDbContext db, string poolName, PoolMemberDto[] members,
         Dictionary<string, ChunkTemplate> byName, CancellationToken ct)
     {
         ChunkPool? pool = await db.ChunkPools.Include(p => p.Memberships)
@@ -272,16 +292,20 @@ public static class ChunkCatalogSeeder
             db.ChunkPools.Add(pool);
         }
 
-        var wanted = members.Select(n => byName[n].Id.Value).ToHashSet();
+        var wanted = members.Select(m => byName[m.Chunk].Id.Value).ToHashSet();
         pool.Memberships.RemoveAll(m => !wanted.Contains(m.ChunkTemplateId.Value));
-        foreach (int id in wanted.Where(id => pool.Memberships.All(m => m.ChunkTemplateId.Value != id)))
+        foreach (PoolMemberDto member in members)
         {
-            pool.Memberships.Add(new ChunkPoolMembership
+            int id = byName[member.Chunk].Id.Value;
+            ChunkPoolMembership? membership = pool.Memberships.Find(m => m.ChunkTemplateId.Value == id);
+            if (membership is null)
             {
-                ChunkPoolId = pool.Id,
-                ChunkTemplateId = new ChunkTemplateId(id),
-                Weight = 1.0f,
-            });
+                membership = new ChunkPoolMembership { ChunkPoolId = pool.Id, ChunkTemplateId = new ChunkTemplateId(id) };
+                pool.Memberships.Add(membership);
+            }
+
+            membership.Weight = member.Weight;
+            membership.MaxPerLayout = member.Max;
         }
 
         await db.SaveChangesAsync(ct);
@@ -293,14 +317,14 @@ public static class ChunkCatalogSeeder
     /// no pool and no other group, fill a whole rectangle of cells, and declare no exit on a side facing another member.
     /// </summary>
     private static async Task<Dictionary<string, GroupDto[]>?> LoadGroupsAsync(string mapsRoot, IReadOnlyList<ChunkMetaDto> chunks,
-        Dictionary<string, string[]> pools, CancellationToken ct)
+        Dictionary<string, PoolMemberDto[]> pools, CancellationToken ct)
     {
         string path = Path.Combine(mapsRoot, "chunk-groups.json");
         if (!File.Exists(path)) return null;
 
         Dictionary<string, GroupDto[]> groups = await ReadAsync<Dictionary<string, GroupDto[]>>(path, ct);
         var metas = chunks.ToDictionary(c => c.Name, StringComparer.Ordinal);
-        var pooled = pools.Values.SelectMany(m => m).ToHashSet(StringComparer.Ordinal);
+        var pooled = pools.Values.SelectMany(m => m).Select(m => m.Chunk).ToHashSet(StringComparer.Ordinal);
         HashSet<string> groupNames = new(StringComparer.Ordinal);
         HashSet<string> grouped = new(StringComparer.Ordinal);
 
@@ -437,7 +461,7 @@ public static class ChunkCatalogSeeder
     /// the database by ValidateAgainstDatabaseAsync.
     /// </summary>
     private static async Task<List<(string, ProceduralMapDto)>> LoadProceduralMapsAsync(string mapsRoot,
-        IReadOnlyList<ChunkMetaDto> chunks, IReadOnlyDictionary<string, string[]> pools,
+        IReadOnlyList<ChunkMetaDto> chunks, IReadOnlyDictionary<string, PoolMemberDto[]> pools,
         IReadOnlyDictionary<string, GroupDto[]>? groups, IReadOnlyDictionary<string, SpawnTableEntryDto[]>? tables,
         CancellationToken ct)
     {
@@ -455,12 +479,12 @@ public static class ChunkCatalogSeeder
                 throw new InvalidDataException($"{path}: spawnTable is missing");
             if (!string.Equals(Path.GetFileNameWithoutExtension(path), map.MapTemplateId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal))
                 throw new InvalidDataException($"{path}: mapTemplateId {map.MapTemplateId} does not match the file name");
-            if (!pools.TryGetValue(map.ChunkPool, out string[]? members))
+            if (!pools.TryGetValue(map.ChunkPool, out PoolMemberDto[]? members))
                 throw new InvalidDataException($"{path}: pool '{map.ChunkPool}' is not in chunk-pools.json");
             if (tables is null || !tables.TryGetValue(map.SpawnTable, out SpawnTableEntryDto[]? entries))
                 throw new InvalidDataException($"{path}: spawn table '{map.SpawnTable}' is not in spawn-tables.json");
 
-            IEnumerable<string> chunkNames = members.Concat(
+            IEnumerable<string> chunkNames = members.Select(m => m.Chunk).Concat(
                 groups?.GetValueOrDefault(map.ChunkPool)?.SelectMany(g => g.Members.Select(m => m.Chunk)) ?? []);
             var slotTags = chunkNames
                 .SelectMany(n => metas[n].SpawnSlots.Select(s => s.Tag))

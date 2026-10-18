@@ -29,7 +29,7 @@ public class ProceduralLayoutInputsResolver : IProceduralLayoutInputsResolver
 
         var members = pool.Memberships
             .Where(m => byId.ContainsKey(m.ChunkTemplateId))
-            .Select(m => new ChunkPoolMember(byId[m.ChunkTemplateId], m.Weight))
+            .Select(m => new ChunkPoolMember(byId[m.ChunkTemplateId], m.Weight, m.MaxPerLayout))
             .ToList();
 
         var groups = pool.Groups
