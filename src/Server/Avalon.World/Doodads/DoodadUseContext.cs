@@ -2,9 +2,13 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
+using Avalon.World.Auras;
 using Avalon.World.Entities;
+using Avalon.World.Items;
 using Avalon.World.Loot;
 using Avalon.World.Public;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.World.Doodads;
 
@@ -15,11 +19,19 @@ namespace Avalon.World.Doodads;
 /// <see cref="InvalidOperationException" /> from every member. Its owner reads <see cref="Changed" /> and
 /// <see cref="RespawnRequested" /> before <see cref="End" />, to tell the instance and schedule the respawn. One per
 /// owner and thread: the use service's on the tick, and its own for each off-tick instance build (spawn mode, where the
-/// live acts do nothing and answer 0).
+/// live acts do nothing and answer 0). The area acts reach the players around the doodad, measured from it as the act
+/// runs, so as the use completes, through one list kept between uses.
 /// </summary>
-public sealed class DoodadUseContext(TimeProvider time) : IDoodadUseContext
+/// <param name="time">The clock the lines to the user are stamped with, and the aura failures' throttle reads.</param>
+/// <param name="logger">Where an aura that throws as a doodad applies it is logged, throttled; nowhere when omitted.</param>
+public sealed class DoodadUseContext(TimeProvider time, ILogger? logger = null) : IDoodadUseContext
 {
+    // The players an area act reaches, filled and emptied within the act, so it keeps none alive between uses.
+    private readonly List<CharacterEntity> _targets = [];
+    private readonly ThrottledErrorLog _auraFailures = new(logger ?? NullLogger.Instance, time, "A doodad's aura application");
+
     private Doodad? _doodad;
+    private IDoodadHost? _host;
     private ILootRandom? _random;
     private IWorldConnection? _connection;
     private CharacterEntity? _user;
@@ -47,6 +59,9 @@ public sealed class DoodadUseContext(TimeProvider time) : IDoodadUseContext
 
     private CharacterEntity User =>
         _user ?? (_doodad is null ? throw Closed() : throw new InvalidOperationException("This doodad hook has no user."));
+
+    private IDoodadHost Host =>
+        _host ?? (_doodad is null ? throw Closed() : throw new InvalidOperationException("This doodad hook has no instance."));
 
     public void SetState(DoodadState state)
     {
@@ -104,20 +119,76 @@ public sealed class DoodadUseContext(TimeProvider time) : IDoodadUseContext
 
     public int DropLoot()
     {
-        EnsureOpen();
-        return _spawning ? 0 : throw NotYet(nameof(DropLoot));
+        Doodad doodad = Doodad;
+        if (_spawning)
+            return 0;
+
+        return Host.DropLootAt(doodad, User);
     }
 
     public int ApplyAuraInRadius(AuraId aura, float radius)
     {
-        EnsureOpen();
-        return _spawning ? 0 : throw NotYet(nameof(ApplyAuraInRadius));
+        Doodad doodad = Doodad;
+        if (_spawning)
+            return 0;
+
+        IDoodadHost host = Host;
+        int applied = 0;
+        host.PlayersWithin(doodad.Position, radius, _targets);
+        try
+        {
+            for (int i = 0; i < _targets.Count; i++)
+            {
+                // Contained, as an item's aura is: a stats refresh or a hook inside the aura system can throw, and the
+                // others still get theirs. From nobody: no caster's stats, no combat, no credit.
+                try
+                {
+                    if (host.Auras.Apply(null, _targets[i], aura, AuraSource.None) != AuraApplyResult.Refused)
+                        applied++;
+                }
+                catch (Exception e)
+                {
+                    _auraFailures.Failed(e);
+                }
+            }
+        }
+        finally
+        {
+            _targets.Clear();
+        }
+
+        return applied;
     }
 
     public int RestoreInRadius(uint healthPct, uint powerPct, float radius)
     {
-        EnsureOpen();
-        return _spawning ? 0 : throw NotYet(nameof(RestoreInRadius));
+        Doodad doodad = Doodad;
+        if (_spawning)
+            return 0;
+
+        IDoodadHost host = Host;
+        CharacterEntity user = User;
+        int restored = 0;
+        host.PlayersWithin(doodad.Position, radius, _targets);
+        try
+        {
+            for (int i = 0; i < _targets.Count; i++)
+            {
+                // The combat service heals through the user, capped at the maximum, and never the dead; power likewise.
+                CharacterEntity target = _targets[i];
+                uint powerBefore = target.CurrentPower ?? 0;
+                uint healed = host.RestoreHealth(user, target, ItemUsePercent.Of(target.Health, healthPct));
+                target.GainPower(ItemUsePercent.Of(target.Power ?? 0, powerPct));
+                if (healed > 0 || (target.CurrentPower ?? 0) != powerBefore)
+                    restored++;
+            }
+        }
+        finally
+        {
+            _targets.Clear();
+        }
+
+        return restored;
     }
 
     public void Tell(string line)
@@ -130,14 +201,15 @@ public sealed class DoodadUseContext(TimeProvider time) : IDoodadUseContext
     }
 
     /// <summary>
-    /// Opens the context over <paramref name="doodad" />: for a use, with its <paramref name="user" /> and the user's
-    /// <paramref name="connection" />; for another tick hook, with neither; for OnSpawn, off the tick, with
-    /// <paramref name="spawning" />, where every live act does nothing.
+    /// Opens the context over <paramref name="doodad" /> of <paramref name="host" />: for a use, with its
+    /// <paramref name="user" /> and the user's <paramref name="connection" />; for another tick hook, with neither; for
+    /// OnSpawn, off the tick, with no host and <paramref name="spawning" />, where every live act does nothing.
     /// </summary>
-    internal void Begin(Doodad doodad, ILootRandom random, IWorldConnection? connection = null,
+    internal void Begin(Doodad doodad, IDoodadHost? host, ILootRandom random, IWorldConnection? connection = null,
         CharacterEntity? user = null, bool spawning = false)
     {
         _doodad = doodad;
+        _host = host;
         _random = random;
         _connection = connection;
         _user = user;
@@ -150,6 +222,7 @@ public sealed class DoodadUseContext(TimeProvider time) : IDoodadUseContext
     internal void End()
     {
         _doodad = null;
+        _host = null;
         _random = null;
         _connection = null;
         _user = null;
@@ -164,7 +237,4 @@ public sealed class DoodadUseContext(TimeProvider time) : IDoodadUseContext
 
     private static InvalidOperationException Closed() =>
         new("A doodad context is valid only during the script hook it was handed to.");
-
-    private static NotImplementedException NotYet(string act) =>
-        new($"The doodad act {act} comes with the stock doodad scripts.");
 }

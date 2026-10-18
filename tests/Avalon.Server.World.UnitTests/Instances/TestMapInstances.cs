@@ -28,7 +28,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
 /// A real MapInstance over a one-chunk layout and a substitute navigator, for tests that drive a
-/// kill through the instance's kill handling. Map template 1, no owner, seed 0.
+/// kill through the instance's kill handling. Map template 1, no owner unless one is given, seed 0.
 /// </summary>
 internal static class TestMapInstances
 {
@@ -90,13 +90,15 @@ internal static class TestMapInstances
     /// <param name="worldTicks">The world's tick count its state packets name (#1066); none when omitted, so tick 0.</param>
     /// <param name="doodadVisibility">Who may see and use each doodad; the instance's own, which asks no script, when omitted.</param>
     /// <param name="doodadUses">The doodad use service the instance's doodad casts and respawns answer to; none when omitted.</param>
+    /// <param name="ownerCharacterId">The character that owns the instance (a solo instance); none when omitted.</param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
         MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null,
         PartyId? ownerPartyId = null, MapTemplateId? templateId = null, PartyService? parties = null,
         QuestService? quests = null, ILootRoller? lootRoller = null, ILootAllocator? lootAllocator = null,
         AuraScripts? auraScripts = null, PacketEncoder? encoder = null, ChunkLayout? layout = null,
-        WorldTicks? worldTicks = null, DoodadVisibility? doodadVisibility = null, DoodadUseService? doodadUses = null)
+        WorldTicks? worldTicks = null, DoodadVisibility? doodadVisibility = null, DoodadUseService? doodadUses = null,
+        uint? ownerCharacterId = null)
     {
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         if (random is not null)
@@ -167,7 +169,7 @@ internal static class TestMapInstances
             serviceProvider,
             world,
             templateId ?? new MapTemplateId(1),
-            ownerCharacterId: null,
+            ownerCharacterId,
             layout,
             navigator ?? Substitute.For<IMapNavigator>(),
             seed: 0,

@@ -43,7 +43,7 @@ public sealed partial class DoodadUseService(
     private const string OnDespawnHook = nameof(DoodadScript.OnDespawn);
     private const string OnRespawnHook = nameof(DoodadScript.OnRespawn);
 
-    private readonly DoodadUseContext _context = new(time);
+    private readonly DoodadUseContext _context = new(time, logger);
     private readonly ILootRandom _random = random ?? new LootRandom(Random.Shared);
 
     /// <summary>The user's CMSG_INTERACT on the doodad <paramref name="doodadGuid" /> of its instance <paramref name="host" />.</summary>
@@ -119,7 +119,7 @@ public sealed partial class DoodadUseService(
         bool changed = false;
         if (scripts.For(doodad.Template) is { } script)
         {
-            _context.Begin(doodad, _random);
+            _context.Begin(doodad, host, _random);
             try
             {
                 script.OnRespawn(_context);
@@ -175,7 +175,9 @@ public sealed partial class DoodadUseService(
 
     private DoodadUseRefusal? AskCanUse(DoodadScript script, CharacterEntity character, Doodad doodad)
     {
-        _context.Begin(doodad, _random, user: character);
+        // No instance: CanUse is read only, so an act on the players around the doodad (loot, auras, restore) throws
+        // there, and the throw refuses.
+        _context.Begin(doodad, host: null, _random, user: character);
         try
         {
             if (script.CanUse(_context) is not { } line)
@@ -208,7 +210,7 @@ public sealed partial class DoodadUseService(
         bool ran = true;
         if (scripts.For(template) is { } script)
         {
-            _context.Begin(doodad, _random, connection, character);
+            _context.Begin(doodad, host, _random, connection, character);
             try
             {
                 script.OnUse(_context);
@@ -265,7 +267,7 @@ public sealed partial class DoodadUseService(
         if (before != DoodadState.Despawned && doodad.State == DoodadState.Despawned
             && scripts.For(doodad.Template) is { } script)
         {
-            _context.Begin(doodad, _random);
+            _context.Begin(doodad, host, _random);
             try
             {
                 script.OnDespawn(_context);
@@ -282,7 +284,9 @@ public sealed partial class DoodadUseService(
             }
         }
 
-        if (respawn is { } delay)
+        // Only a doodad that is not ready respawns: a request from an unlimited doodad's script, or from an OnUse that
+        // threw after it, would otherwise run OnRespawn on a doodad that was never spent.
+        if (respawn is { } delay && doodad.State != DoodadState.Ready)
             host.Respawns.Schedule(doodad, host.Clock.GetUtcNow().UtcDateTime + delay);
 
         if (changed || doodad.State != before)

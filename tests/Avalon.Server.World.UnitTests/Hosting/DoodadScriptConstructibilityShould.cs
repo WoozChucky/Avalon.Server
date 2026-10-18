@@ -46,10 +46,11 @@ public class DoodadScriptConstructibilityShould
             IScriptManager scripts = host.Services.GetRequiredService<IScriptManager>();
             scripts.Load();
 
-            // None is shipped before the stock scripts; from then on, the list is not empty.
+            // The stock chest, shrine and fountain at least: an empty list would prove nothing.
             var shipped = typeof(ScriptManager).Assembly.GetTypes()
                 .Where(t => t.IsSubclassOf(typeof(DoodadScript)) && !t.IsAbstract)
                 .ToList();
+            Assert.NotEmpty(shipped);
 
             foreach (Type type in shipped)
             {

@@ -19,4 +19,4 @@ public readonly record struct PendingDoodadUse(
     uint CastId,
     DateTime EndsAt,
     float CastTimeSeconds,
-    IWorldConnection? Connection = null);
+    IWorldConnection Connection);

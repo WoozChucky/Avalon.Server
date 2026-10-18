@@ -61,10 +61,16 @@ public interface IDoodadUseContext : IDoodadContext
     /// <summary>Drops the template's loot table and gold at the doodad, for the user and its party; how many drops.</summary>
     int DropLoot();
 
-    /// <summary>Applies <paramref name="aura" /> to every living player within <paramref name="radius" /> on X/Z; how many.</summary>
+    /// <summary>
+    /// Applies <paramref name="aura" />, from nobody, to every living player within <paramref name="radius" /> of the
+    /// doodad on X/Z, never a creature; how many it was applied to.
+    /// </summary>
     int ApplyAuraInRadius(AuraId aura, float radius);
 
-    /// <summary>Restores those shares of health and power to every living player within <paramref name="radius" />; how many.</summary>
+    /// <summary>
+    /// Restores those shares of their maximum health and power to every living player within <paramref name="radius" />
+    /// of the doodad on X/Z, capped; how many gained either.
+    /// </summary>
     int RestoreInRadius(uint healthPct, uint powerPct, float radius);
 
     /// <summary>A system line to the user.</summary>

@@ -43,8 +43,8 @@ public sealed class WorldHungryDoodadScript(IWorld world) : DoodadScript
 }
 
 /// <summary>
-/// Counts its uses and respawns, refuses with <see cref="Refusal" /> when set and throws from OnUse when
-/// <see cref="Throws" /> is. Shared by every doodad that names it: only DoodadUseShould uses it, its tests one at a time,
+/// Counts its uses and respawns, refuses with <see cref="Refusal" /> when set, asks for a respawn after
+/// <see cref="AsksRespawn" /> when set and then throws from OnUse when <see cref="Throws" /> is. Shared by every doodad that names it: only DoodadUseShould uses it, its tests one at a time,
 /// each starting from <see cref="Reset" />.
 /// </summary>
 public sealed class CountingDoodadScript : DoodadScript
@@ -57,12 +57,15 @@ public sealed class CountingDoodadScript : DoodadScript
 
     public static bool Throws { get; set; }
 
+    public static TimeSpan? AsksRespawn { get; set; }
+
     public static void Reset()
     {
         Uses = 0;
         Respawns = 0;
         Refusal = null;
         Throws = false;
+        AsksRespawn = null;
     }
 
     public override string? CanUse(IDoodadUseContext ctx) => Refusal;
@@ -70,6 +73,9 @@ public sealed class CountingDoodadScript : DoodadScript
     public override void OnUse(IDoodadUseContext ctx)
     {
         Uses++;
+        if (AsksRespawn is { } delay)
+            ctx.RespawnAfter(delay);
+
         if (Throws)
             throw new InvalidOperationException("OnUse");
     }

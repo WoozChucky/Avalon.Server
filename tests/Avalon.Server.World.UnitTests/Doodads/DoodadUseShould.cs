@@ -248,12 +248,16 @@ public class DoodadUseShould
         Assert.Equal(WorldDoodadState.Ready, doodad.State);
     }
 
-    /// <summary>A throwing OnUse is logged once per interval; the doodad stays ready, unspent, with no respawn due.</summary>
+    /// <summary>
+    /// A throwing OnUse is logged once per interval; the doodad stays ready, unspent, with no respawn due, not even the one
+    /// the script asked for before it threw: a doodad that was never spent never respawns.
+    /// </summary>
     [Fact]
     public async Task Leave_the_doodad_ready_when_its_script_throws()
     {
         using Fixture f = await Fixture.CreateAsync();
         CountingDoodadScript.Throws = true;
+        CountingDoodadScript.AsksRespawn = TimeSpan.FromSeconds(30);
         Doodad doodad = f.Place(1, Template(1, respawnSeconds: 60));
         MapInstanceClient a = f.Join(IdA, s_atA);
 
@@ -264,6 +268,30 @@ public class DoodadUseShould
         Assert.Equal(WorldDoodadState.Ready, doodad.State);
         Assert.Null(doodad.RespawnAt);
         Assert.Single(f.ScriptLog.Errors);
+        f.Time.Advance(TimeSpan.FromSeconds(60));
+        f.Tick();
+        Assert.Equal(0, CountingDoodadScript.Respawns);
+    }
+
+    /// <summary>The other way round from the theory above: a doodad use that passed its checks ends the user's item cast.</summary>
+    [Fact]
+    public async Task End_an_item_cast_when_its_user_uses_a_doodad_that_passed_its_checks()
+    {
+        using Fixture f = await Fixture.CreateAsync();
+        Doodad doodad = f.Place(1, Template(1));
+        MapInstanceClient a = f.Join(IdA, s_atA);
+        MapInstanceClient b = f.Join(IdB, s_atB);
+        a.Character.Container(InventoryType.Bag).Load([TestCharacters.Item(0, ItemUseWorld.Scroll, count: 2)]);
+        f.Items.Use(a.Connection, a.Character, 1, InventoryType.Bag, 0);
+
+        f.Use(a, doodad);
+
+        SCharacterInterruptedCastPacket interrupted = Assert.Single(
+            b.Read<SCharacterInterruptedCastPacket>(NetworkPacketType.SMSG_INTERRUPTED_CAST),
+            p => p.Caster == a.Character.Guid.RawValue);
+        Assert.Equal(ItemUseWorld.Scroll.Id.Value, interrupted.ItemTemplateId);
+        Assert.Equal(1, CountingDoodadScript.Uses);
+        Assert.Equal(2u, TestCharacters.At(a.Character, InventoryType.Bag, 0).Count);
     }
 
     [Fact]
@@ -312,8 +340,8 @@ public class DoodadUseShould
 
     /// <summary>
     /// A casting instance (CastAbilityHandler, the shape scripts) on a fake clock, with the use service the container
-    /// would hand it and the handler, and an item use service over the Tonic. The use service reads its quest catalog
-    /// through a world that is no substitute, so a refusal can be pinned at zero bytes.
+    /// would hand it and the handler, and an item use service over the Tonic and the Scroll (a 3 s cast). The use service
+    /// reads its quest catalog through a world that is no substitute, so a refusal can be pinned at zero bytes.
     /// </summary>
     private sealed class Fixture : IDisposable
     {
@@ -352,7 +380,7 @@ public class DoodadUseShould
         public ItemUseService Items { get; }
 
         public static async Task<Fixture> CreateAsync() =>
-            new(await TestStaticData.LoadAsync(items: [ItemUseWorld.Tonic]));
+            new(await TestStaticData.LoadAsync(items: [ItemUseWorld.Tonic, ItemUseWorld.Scroll]));
 
         /// <summary>A doodad at x 10, unless placed elsewhere, as an instance build places it.</summary>
         public Doodad Place(uint id, DoodadTemplateView template, Vector3? position = null)

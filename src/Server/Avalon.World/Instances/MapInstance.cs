@@ -1240,32 +1240,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 rolled.Add(questDrops[i].Drop);
             }
 
-            // Placed whole before any drop is stored, so a placement that throws leaves nothing on the ground.
-            List<GroundLoot> drops = buffers.Placed;
-            LootPlacement.Place(drops, creature.Position, rolled,
+            PlaceAndAnnounce(creature.Position, rolled,
                 new KillAllocations(_lootAllocator, OwnerCharacterId, OwnerPartyId, eligible, credited, table.Count, questDrops),
-                GetNavigatorForPosition(creature.Position), IObject.GenerateId);
-
-            for (int i = 0; i < drops.Count; i++)
-            {
-                _groundLoot.Add(drops[i]);
-            }
-
-            // Walked by index and through the dictionary's own enumerator: a kill allocates no boxed enumerator (#880).
-            List<LootDropDto> dtos = buffers.DescribePlaced();
-            // The same drops for every connection: encoded once, for the first, and shared by every one (#875).
-            OutboundPacket spawned = default;
-            foreach (IWorldConnection connection in _connections.Values)
-            {
-                if (spawned.Payload is null)
-                {
-                    spawned = SLootSpawnedPacket.Create(dtos, PacketEncoder.Shared);
-                }
-
-                connection.Send(spawned.Share());
-            }
-
-            spawned.Release();
+                buffers);
         }
         catch (Exception e)
         {
@@ -1273,6 +1250,124 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 creature.Guid, creature.Metadata.Id.Value);
         }
     }
+
+    /// <summary>
+    /// A doodad's drops (doodads, ruling R11), as a kill's: its template's table and copper range rolled now, against the
+    /// Loot and Items areas as they are, each drop allocated on its own among the user and the members of its party in
+    /// this instance (a party member anywhere here, dead or alive; a character leaves its party, and so this, at the start
+    /// of a leave countdown), placed on the ring around the doodad and told to everyone here in one shared packet. Its
+    /// lists are the instance's <see cref="KillBuffers" />, as a kill's are. Contained, as a kill's drop is: a failure is
+    /// logged, and what was stored before it stays (a placement that throws stores nothing). Tick thread.
+    /// </summary>
+    int IDoodadHost.DropLootAt(Doodad doodad, CharacterEntity user)
+    {
+        if (_lootRoller is null || _lootAllocator is null)
+            return 0;
+
+        int before = _groundLoot.Count;
+        bool nested = _killInProgress;
+        KillBuffers buffers = nested ? new KillBuffers() : _killBuffers;
+        _killInProgress = true;
+        try
+        {
+            List<ICharacter> eligible = buffers.Eligible;
+            eligible.Add(user);
+            if (user.PartyId is { } party)
+            {
+                // Through the dictionary's own enumerator: a use allocates no boxed one.
+                foreach (ICharacter character in _characters.Values)
+                {
+                    if (!ReferenceEquals(character, user) && character is CharacterEntity { PartyId: { } theirs }
+                        && theirs.Equals(party))
+                    {
+                        eligible.Add(character);
+                    }
+                }
+            }
+
+            DoodadTemplateView template = doodad.Template;
+            IReadOnlyList<RolledDrop> table = _lootRoller.Roll(template.LootTableId, template.MinGold, template.MaxGold,
+                _world.Data.Loot, _world.Data.ItemTemplates);
+            if (table.Count == 0)
+                return 0;
+
+            List<RolledDrop> rolled = buffers.Rolled;
+            Debug.Assert(rolled.Count == 0, "The list of rolled drops still holds an earlier kill's");
+            rolled.AddRange(table);
+            PlaceAndAnnounce(doodad.Position, rolled,
+                new KillAllocations(_lootAllocator, OwnerCharacterId, OwnerPartyId, eligible, credited: true, table.Count,
+                    buffers.QuestDrops),
+                buffers);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Could not drop loot for doodad {DoodadGuid} (template {TemplateId}) used by {CharacterGuid}",
+                doodad.Guid, doodad.Template.Id.Value, user.Guid);
+        }
+        finally
+        {
+            buffers.Clear();
+            _killInProgress = nested;
+        }
+
+        return _groundLoot.Count - before;
+    }
+
+    /// <summary>
+    /// Places <paramref name="rolled" /> on the ring around <paramref name="at" />, each drop allocated by
+    /// <paramref name="allocations" />, stores them and tells every connection here: a kill's drops and a doodad's alike.
+    /// Its lists are <paramref name="buffers" />.
+    /// </summary>
+    private void PlaceAndAnnounce(Vector3 at, List<RolledDrop> rolled, KillAllocations allocations, KillBuffers buffers)
+    {
+        // Placed whole before any drop is stored, so a placement that throws leaves nothing on the ground.
+        List<GroundLoot> drops = buffers.Placed;
+        LootPlacement.Place(drops, at, rolled, allocations, GetNavigatorForPosition(at), IObject.GenerateId);
+
+        for (int i = 0; i < drops.Count; i++)
+        {
+            _groundLoot.Add(drops[i]);
+        }
+
+        // Walked by index and through the dictionary's own enumerator: a kill allocates no boxed enumerator (#880).
+        List<LootDropDto> dtos = buffers.DescribePlaced();
+        // The same drops for every connection: encoded once, for the first, and shared by every one (#875).
+        OutboundPacket spawned = default;
+        foreach (IWorldConnection connection in _connections.Values)
+        {
+            if (spawned.Payload is null)
+            {
+                spawned = SLootSpawnedPacket.Create(dtos, PacketEncoder.Shared);
+            }
+
+            connection.Send(spawned.Share());
+        }
+
+        spawned.Release();
+    }
+
+    void IDoodadHost.PlayersWithin(Vector3 centre, float radius, List<CharacterEntity> into)
+    {
+        if (!float.IsFinite(radius) || radius < 0f)
+            return;
+
+        float radiusSquared = radius * radius;
+        foreach (ICharacter character in _characters.Values)
+        {
+            if (character is not CharacterEntity { IsDead: false } player)
+                continue;
+
+            float dx = player.Position.x - centre.x;
+            float dz = player.Position.z - centre.z;
+
+            // Written so a distance that is not a number is out of reach.
+            if (dx * dx + dz * dz <= radiusSquared)
+                into.Add(player);
+        }
+    }
+
+    uint IDoodadHost.RestoreHealth(IUnit healer, IUnit target, uint amount) =>
+        _combatService.RestoreHealth(healer, target, amount);
 
     /// <summary>
     /// Whom each of one kill's drops is for, by its place in the ring: a table drop is allocated on its own, among the
