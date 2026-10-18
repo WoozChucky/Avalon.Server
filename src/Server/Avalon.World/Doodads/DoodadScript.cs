@@ -41,11 +41,11 @@ public abstract class DoodadScript
     /// <summary>
     /// Whether one viewer is told the doodad exists: null keeps what its data gate answered
     /// (<see cref="IDoodadViewContext.DataGateAllows" />), true or false overrides it. Asked only when the gate is asked
-    /// again (the first view decision that finds the doodad in range, one after the viewer's quests moved, one after the
-    /// doodad did, <see cref="IDoodadContext.RefreshVisibility" /> included) and when the viewer uses the doodad (each
-    /// interact, and again as its cast completes), never per tick, and never for a solid doodad, which everyone sees.
-    /// Read only, and it must not allocate: it runs inside a view decision and an interact. A doodad hidden from a viewer
-    /// is never usable by it.
+    /// again (the first view decision that finds the doodad in range, one after the viewer's quests or level moved, one
+    /// after the doodad did, <see cref="IDoodadContext.RefreshVisibility" /> included) and when the viewer uses the
+    /// doodad (each interact, and again as its cast completes), never per tick, and never for a solid doodad, which
+    /// everyone sees. Read only, and it must not allocate: it runs inside a view decision and an interact. A doodad
+    /// hidden from a viewer is never usable by it.
     /// </summary>
     public virtual bool? CanSee(IDoodadViewContext ctx) => null;
 }

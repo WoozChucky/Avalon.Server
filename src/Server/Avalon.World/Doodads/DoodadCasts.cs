@@ -51,7 +51,7 @@ public sealed class DoodadCasts(
 
         try
         {
-            audience.BroadcastDoodadCastStart(use.Character, use.Doodad.Template.Id, use.CastTimeSeconds, use.CastId);
+            audience.BroadcastDoodadCastStart(use.Character, use.Doodad, use.CastTimeSeconds, use.CastId);
         }
         catch (Exception e)
         {
@@ -115,7 +115,7 @@ public sealed class DoodadCasts(
 
             try
             {
-                audience.BroadcastDoodadCastFinish(use.Character, use.Doodad.Template.Id, use.CastId);
+                audience.BroadcastDoodadCastFinish(use.Character, use.Doodad, use.CastId);
             }
             catch (Exception e)
             {
@@ -151,7 +151,7 @@ public sealed class DoodadCasts(
     {
         try
         {
-            audience.BroadcastDoodadCastInterrupted(use.Character, use.Doodad.Template.Id, use.CastId);
+            audience.BroadcastDoodadCastInterrupted(use.Character, use.Doodad, use.CastId);
         }
         catch (Exception e)
         {

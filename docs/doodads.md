@@ -61,7 +61,7 @@ Slice S1, the framework and the wire, seeds and places no doodad. Every rule bel
     17. `MinGold` is above `MaxGold`.
     18. `RestorePct` is above 100.
     19. An outcome's aura is not loaded, an outcome's weight is 0, or the weights total more than `uint.MaxValue`.
-  - `DoodadCatalogShould.Refuse_a_template_that_breaks_a_rule` holds one row per rule.
+  - `DoodadCatalogShould.Refuse_a_template_that_breaks_a_rule` holds a row for every rule above but the weights' total, each asserting its refusal reason (`DoodadRefusal.Reason`).
 - **Solid and scripted.** A template whose script declares its own `CanSee` (`DoodadScripts.OverridesCanSee`) has `ScriptCanSee` set. For a solid template the flag is forced off, with one Warning per template at load.
 - **Reload** (`/reload doodads`) works forward only. A doodad already placed keeps the template view it was placed from, and the next instance build places from the new catalog. A `/reload quests` moves every viewer's gates (see "Per-viewer views and gates").
 - **Export.** `tools/Avalon.Exporter -- doodad-catalog` writes `schema/doodads/doodad-catalog-v1.json` (empty in S1). It lists only what a client draws: the model kit and keys, the clips, the interaction kind, time and range, solidity and the spent look. It lists no gates, loot, gold, restore, radius or aura outcomes. `DoodadCatalogExportShould.List_only_what_a_client_draws` pins the field names, so nothing in the file can reveal a shrine's outcome. See [tooling](tooling.md).
@@ -74,7 +74,7 @@ Slice S1, the framework and the wire, seeds and places no doodad. Every rule bel
   - **Never moves.** Its `IWorldObject` setters throw.
   - **State** is `Ready`, `Used` or `Despawned`. It is per instance and is set on the tick only. Every change raises `ViewVersion`.
   - `MapInstance.AddDoodad` files it in the instance's `DoodadIndex`, at build time only, and refuses a guid of another type.
-- **`DoodadIndex`** is a grid on X/Z over the cells of the instance's spatial grid, written at build time only.
+- **`DoodadIndex`** is a grid on X/Z over the cells of the instance's spatial grid (`GridCells`, the one layout both are built on), written at build time only.
   - `Visit` hands a struct visitor exactly the doodads within a reach on X/Z, and allocates nothing.
   - A doodad whose X or Z is not finite is in `All` but in no cell.
   - `DoodadIndexShould` pins it.
@@ -85,7 +85,7 @@ Slice S1, the framework and the wire, seeds and places no doodad. Every rule bel
   - An add carries the position, the yaw, the template, the state, and `CanInteract`, the last only when it is true.
   - An update carries only what is marked, and `CanInteract` is the recipient's answer, false included. A client told it can use a doodad is therefore also told when it no longer can (`ObjectStateWriter.From(Doodad, ...)`).
 - **Change marks.** A change on the tick goes through `MapInstance.DoodadChanged`, which queues the doodad once. The next broadcast tick marks it `GameEntityFields.DoodadState | CanInteract`, bits 17 and 18, which are outside `All`. Nothing walks the doodads that did not change.
-- **Doodads are always encoded per recipient.** `CanInteract` is each recipient's own answer, so a doodad's add and update entries always take `StatePacketAssembler`'s per-recipient path, never the shared encoding (`MapInstance.DescribeNewObject` and `DescribeUpdatedObject`, through `CanInteractFor`).
+- **A doodad with rules is encoded per recipient.** For a doodad with rules (`DoodadVisibility.AsksRules`), `CanInteract` is each recipient's own answer, so its add and update entries take `StatePacketAssembler`'s per-recipient path (`MapInstance.OwnDoodadEntry`). Any other doodad's answer is what its state allows (`DoodadVisibility.Usable`), the same for every recipient, so its entries are encoded once per broadcast and shared, as a creature's are (`DoodadReplicationShould.Send_a_spent_doodad_as_used_and_a_despawned_one_as_removed`). Both read the recipient's view, which `MapInstance.DescribeNewObject` and `DescribeUpdatedObject` are handed (`CharacterCharacterGameState.CanInteractWith`).
 - **Cast packets** carry `DoodadTemplateId`: field 8 on `SUnitStartCastPacket`, field 5 on `SUnitFinishCastPacket` and `SCharacterInterruptedCastPacket` ([item-use protocol](item-use-protocol.md) §6).
 - No new opcode exists: the interact reuses `CMSG_INTERACT`, so no session filter changes. The full write-up is in [world simulation](world-simulation.md), in the "Doodads are world objects of their own type" bullet.
 
@@ -109,14 +109,15 @@ Slice S1, the framework and the wire, seeds and places no doodad. Every rule bel
 - **When the rules are asked.** Never per tick. A view keeps one `DoodadAnswer` per doodad with rules (seen, usable, and the `ViewVersion` it was decided at), and asks again only at these moments:
   - **first sight:** the first decision that finds the doodad in range;
   - **the viewer's quests move:** `QuestLog.GateVersion` moved, raised by every load, accept, count change, stage, state change, abandon and turn-in. A `/reload quests` counts too, since the view compares the catalog's reference. The answers held are then put aside for comparison. Those still within reach are asked again, and the rest are dropped, to be asked when they come back;
+  - **the viewer's level moves:** a script's `CanSee` may read `IDoodadViewContext.ViewerLevel`, so the view keeps the level it last decided at and counts a change as the quests moving (one compare per decision);
   - **the doodad moves:** its `ViewVersion` moved, raised by every state change and by `IDoodadContext.RefreshVisibility`;
   - **each interact:** the checks ask afresh;
   - **cast completion:** the checks run again as a doodad cast completes.
   - `Reset` (an instance move) drops every answer. A steady view over gated doodads asks nothing and allocates nothing (`DoodadReplicationShould.Decide_views_over_unchanged_gated_doodads_without_allocating`).
 - **Per-viewer `CanInteract`.** `CharacterCharacterGameState.CanInteractWith` gives the answer the view's decision holds for the doodad as it is now. When the view holds none, the answer is no, failing closed. When the answer changes for a viewer that goes on seeing the doodad, that viewer alone gets an update marked `CanInteract`. The update merges with the frame's state mark into one entry when there is one (`DoodadReplicationShould.Tell_each_viewer_whether_it_can_use_a_doodad`).
-- **A gated doodad never reaches a viewer its rules refuse.** This holds through the shared encoding, a `Reset` after an instance transfer, and a party member standing beside someone who may see it (`DoodadReplicationShould.Send_a_doodad_only_to_the_viewers_its_rules_allow`).
+- **A gated doodad never reaches a viewer its rules refuse.** This holds through the shared encoding, a `Reset` after an instance transfer, and a party member standing 1 m from someone who may see it (`DoodadReplicationShould.Send_a_doodad_only_to_the_viewers_its_rules_allow`), and through the cast bar (below).
 - **The script's `CanSee` is contained.**
-  - It reads the doodad and the viewer's name, level, class and quests through one `DoodadViewContext`. The container's `DoodadVisibility` reuses that context, opening it before the call and closing it after, so asking allocates nothing. A script that kept the context gets a throw from every member.
+  - It reads the doodad and the viewer's name, level, class and quests through one `DoodadViewContext`; a level gained or lost asks it again, as above. The container's `DoodadVisibility` reuses that context, opening it before the call and closing it after, so asking allocates nothing. A script that kept the context gets a throw from every member.
   - A throw is logged at Error, at most once per script per `ThrottledErrorLog.Interval`. The gate's answer then stands and is held like any other, so nothing escapes the view decision.
 - **A solid doodad is never hidden:**
   - the catalog refuses a gated solid template;
@@ -144,7 +145,7 @@ Slice S1, the framework and the wire, seeds and places no doodad. Every rule bel
 - **The cast bar** is `DoodadCasts`: one per instance, at most one cast per character, ticked right after the item cast bars. Only the active casts are visited, and a tick with none reads nothing.
   - Its end time (`PendingDoodadUse.EndsAt`) is absolute, on the instance's `TimeProvider`, so nothing counts it down.
   - Its cast ids come from the instance's ability cast ids.
-  - Its packets go to every connection that hears the user, as an item's do.
+  - Its packets name the doodad's template, so they go only to the user and to the connections that hear the user, as an item's do, whose view holds the doodad (`CharacterCharacterGameState.Knows`): a player a gated doodad is hidden from never learns of it through another's cast bar. That is one lookup per listener as the bar starts and ends, never per tick, and each packet is still encoded once and shared (`DoodadUseShould.Let_only_the_first_of_two_casts_spend_the_doodad`).
   - **It ends early, out loud**, when the user:
     - moves or dies, checked each tick against the start position (damage alone never ends it);
     - leaves the instance (`EndCastsOf`);
@@ -164,7 +165,7 @@ Slice S1, the framework and the wire, seeds and places no doodad. Every rule bel
 - **Respawns** are `DoodadRespawns`, one per instance: a min-heap (`PriorityQueue`) on absolute respawn times from the instance's `TimeProvider`.
   - Step 1b of `MapInstance.Update` peeks at the soonest once, and reads nothing while none waits. The cost is per respawn, never per doodad.
   - An instance nobody is in does not tick. It catches up on its next occupied tick.
-  - Scheduling a doodad again moves its time (`Doodad.RespawnAt`), and the superseded heap entry is dropped when it comes up.
+  - Scheduling a doodad again moves its time (`Doodad.RespawnAt`), and the superseded heap entry is dropped when it comes up. A doodad made `Ready` by any path, a script's early `SetState` included, has no respawn time, so an entry left for it is dropped too.
   - A respawn sets the doodad `Ready`, runs `OnRespawn` and calls `DoodadChanged`.
   - **A doodad that is already `Ready` is skipped.** A respawn request for it is never scheduled: one from an unlimited doodad's script, or from an `OnUse` that threw after asking. A respawn that comes due for one a script already made ready does nothing: no `OnRespawn` and no update (`DoodadUseShould.Respawn_a_spent_doodad_after_its_delay`).
 

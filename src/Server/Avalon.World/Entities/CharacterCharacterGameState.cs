@@ -24,6 +24,9 @@ public class CharacterCharacterGameState
 {
     private const int Capacity = 100;
 
+    // Doodads are fewer in a view than units are: a chest or two, a shrine, a few quest objects.
+    private const int DoodadCapacity = 16;
+
     private readonly EntityTrackingSystem _characterTrackingSystem;
     private readonly EntityTrackingSystem _creatureTrackingSystem;
     private readonly EntityTrackingSystem _worldObjectTrackingSystem;
@@ -40,16 +43,17 @@ public class CharacterCharacterGameState
     private readonly List<IWorldObject> _visibleCreatures = new(Capacity);
     private readonly List<IWorldObject> _visibleCharacters = new(Capacity);
     private readonly List<IWorldObject> _visibleWorldObjects = new(Capacity);
-    private readonly List<IWorldObject> _visibleDoodads = new(Capacity);
+    private readonly List<IWorldObject> _visibleDoodads = new(DoodadCapacity);
 
     // This viewer's answer about every doodad with rules it has decided, seen or hidden, so a decision asks a doodad's
-    // rules again only when the viewer's quests (_gateVersionSeen, or the catalog they are read against, _questsSeen)
-    // or the doodad (DoodadAnswer.ViewVersion) moved. When the quests move, the answers are put aside (_answersAside)
+    // rules again only when the viewer's quests (_gateVersionSeen, or the catalog they are read against, _questsSeen),
+    // its level (_levelSeen, which a script's CanSee may read) or the doodad (DoodadAnswer.ViewVersion) moved. When the quests move, the answers are put aside (_answersAside)
     // for the decision that asks again, which compares against them, and the ones it does not reach are dropped. The two
     // trade places, so neither allocates once grown.
     private Dictionary<ulong, DoodadAnswer> _doodadAnswers = [];
     private Dictionary<ulong, DoodadAnswer> _answersAside = [];
     private int _gateVersionSeen;
+    private ushort _levelSeen;
     private QuestCatalog? _questsSeen;
 
     // The doodads in view whose answer to "can I use it" changed in this decision, each owed one update with it.
@@ -84,7 +88,7 @@ public class CharacterCharacterGameState
         _worldObjectTrackingSystem.EntityUpdated += OnEntityUpdated;
         _worldObjectTrackingSystem.EntityRemoved += OnEntityRemoved;
 
-        _doodadTrackingSystem = new EntityTrackingSystem(Capacity);
+        _doodadTrackingSystem = new EntityTrackingSystem(DoodadCapacity);
         _doodadTrackingSystem.EntityAdded += OnEntityFound;
         _doodadTrackingSystem.EntityUpdated += OnDoodadUpdated;
         _doodadTrackingSystem.EntityRemoved += OnEntityRemoved;
@@ -288,11 +292,15 @@ public class CharacterCharacterGameState
 
     /// <summary>
     /// Whether the client has been told of this character, creature or doodad and not told it is gone, as of the last
-    /// decision of its view (auras): what it holds, which since #981 can be up to a broadcast period behind what is in
-    /// range.
+    /// decision of its view (auras, a doodad's cast bar): what it holds, which since #981 can be up to a broadcast period
+    /// behind what is in range. One lookup, in the tracker of the guid's kind.
     /// </summary>
-    public bool Knows(ObjectGuid guid) => _characterTrackingSystem.IsTracked(guid) || _creatureTrackingSystem.IsTracked(guid)
-                                          || _doodadTrackingSystem.IsTracked(guid);
+    public bool Knows(ObjectGuid guid) => guid.Type switch
+    {
+        ObjectType.Doodad => _doodadTrackingSystem.IsTracked(guid),
+        ObjectType.Creature => _creatureTrackingSystem.IsTracked(guid),
+        _ => _characterTrackingSystem.IsTracked(guid),
+    };
 
     /// <summary>
     /// Whether this viewer's client is to be offered the use of <paramref name="doodad" />, as of this tick's decision of
@@ -314,9 +322,9 @@ public class CharacterCharacterGameState
     /// interest rule creatures are (<see cref="Interest.IsVisible{TTracked}" />, the doodad tracker as what the client
     /// holds), and one with rules (<see cref="DoodadVisibility.AsksRules" />) by its rules for this viewer too. Those
     /// rules are asked only on the first decision that finds the doodad in range, on one after the viewer's quests moved
-    /// (<see cref="QuestLog.GateVersion" />, or the quest catalog was reloaded), and on one after the doodad did
-    /// (<see cref="Doodad.ViewVersion" />); every other decision reuses the answer held, so a steady view asks nothing
-    /// and allocates nothing. Returns how many doodads the index visited.
+    /// (<see cref="QuestLog.GateVersion" />, or the quest catalog was reloaded) or its level did, and on one after the
+    /// doodad did (<see cref="Doodad.ViewVersion" />); every other decision reuses the answer held, so a steady view asks
+    /// nothing and allocates nothing. Returns how many doodads the index visited.
     /// </summary>
     private int AddVisibleDoodads(ObjectGuid watcher, Vector3 watcherPosition, InterestRange range,
         in DoodadViewInputs doodads)
@@ -327,16 +335,19 @@ public class CharacterCharacterGameState
             return 0;
         }
 
-        // A /reload quests is a move too: an objective's stage or count may be another in the new catalog.
+        // A /reload quests is a move too: an objective's stage or count may be another in the new catalog. So is a level
+        // gained or lost, which a script's CanSee may read (IDoodadViewContext.ViewerLevel).
         int gateVersion = viewer.Quests.GateVersion;
-        bool gatesMoved = gateVersion != _gateVersionSeen || !ReferenceEquals(quests, _questsSeen);
+        ushort level = viewer.Level;
+        bool gatesMoved = gateVersion != _gateVersionSeen || level != _levelSeen || !ReferenceEquals(quests, _questsSeen);
         if (gatesMoved)
         {
-            // Every answer held was decided on quests that have moved since. Those within reach are asked again below,
-            // against the ones put aside; the rest are dropped, and asked when they come within reach again.
+            // Every answer held was decided on quests or a level that have moved since. Those within reach are asked
+            // again below, against the ones put aside; the rest are dropped, and asked when they come within reach again.
             (_answersAside, _doodadAnswers) = (_doodadAnswers, _answersAside);
             _doodadAnswers.Clear();
             _gateVersionSeen = gateVersion;
+            _levelSeen = level;
             _questsSeen = quests;
         }
 

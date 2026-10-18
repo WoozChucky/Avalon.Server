@@ -1252,12 +1252,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// A doodad's drops (doodads, ruling R11), as a kill's: its template's table and copper range rolled now, against the
-    /// Loot and Items areas as they are, each drop allocated on its own among the user and the members of its party in
-    /// this instance (a party member anywhere here, dead or alive; a character leaves its party, and so this, at the start
-    /// of a leave countdown; a user in one makes nobody eligible, as a killer in one does), placed on the ring around the doodad and told to everyone here in one shared packet. Its
-    /// lists are the instance's <see cref="KillBuffers" />, as a kill's are. Contained, as a kill's drop is: a failure is
-    /// logged, and what was stored before it stays (a placement that throws stores nothing). Tick thread.
+    /// A doodad's drops, on a kill's rules: its template's table and copper range rolled now, against the Loot and Items
+    /// areas as they are, each drop allocated on its own among the user and the members of its party in this instance (a
+    /// party member anywhere here, dead or alive; a character leaves its party, and so this, at the start of a leave
+    /// countdown; a user in one makes nobody eligible, as a killer in one does), placed on the ring around the doodad and
+    /// told to everyone here in one shared packet. Its lists are the instance's <see cref="KillBuffers" />, as a kill's
+    /// are. Contained, as a kill's drop is: a failure is logged, and what was stored before it stays (a placement that
+    /// throws stores nothing). Tick thread.
     /// </summary>
     int IDoodadHost.DropLootAt(Doodad doodad, CharacterEntity user)
     {
@@ -2083,14 +2084,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         long profileStart;
         if (newObjects.Count > 0 && !_shareStateEntries)
         {
-            SendWholeAdds(connection, character.Guid, newObjects);
+            SendWholeAdds(connection, character, newObjects);
         }
         else if (newObjects.Count > 0)
         {
             profileStart = _tickProfile.Timestamp();
             _stateAdds.BeginPacket();
             for (int i = 0; i < newObjects.Count; i++)
-                AppendAdd(newObjects[i], character.Guid);
+                AppendAdd(newObjects[i], character);
 
             if (!_stateAdds.IsEmpty)
                 SendStatePacket(connection, _stateAdds.Finish(_replicationEncoder), profileStart);
@@ -2111,14 +2112,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             character.CharacterGameState.UpdatedObjects;
         if (updatedObjects.Count > 0 && !_shareStateEntries)
         {
-            SendWholeUpdates(connection, character.Guid, updatedObjects);
+            SendWholeUpdates(connection, character, updatedObjects);
         }
         else if (updatedObjects.Count > 0)
         {
             profileStart = _tickProfile.Timestamp();
             _stateUpdates.BeginPacket();
             for (int i = 0; i < updatedObjects.Count; i++)
-                AppendUpdate(updatedObjects[i], character.Guid);
+                AppendUpdate(updatedObjects[i], character);
 
             if (!_stateUpdates.IsEmpty)
                 SendStatePacket(connection, _stateUpdates.Finish(_replicationEncoder), profileStart);
@@ -2139,13 +2140,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <see cref="StatePacketAssembler.MinRecipientsToShare" /> has nothing to share, and one encode of the list is
     /// cheaper than its entries one by one (#980).
     /// </summary>
-    private void SendWholeAdds(IWorldConnection connection, ObjectGuid recipientGuid, IReadOnlyList<ObjectGuid> added)
+    private void SendWholeAdds(IWorldConnection connection, CharacterEntity recipient, IReadOnlyList<ObjectGuid> added)
     {
         long start = _tickProfile.Timestamp();
         _described.Clear();
         for (int i = 0; i < added.Count; i++)
         {
-            if (DescribeNewObject(added[i], recipientGuid) is { } state)
+            if (DescribeNewObject(added[i], recipient) is { } state)
                 _described.Add(state);
         }
 
@@ -2153,14 +2154,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>The recipient's updates described and encoded whole, as one packet (<see cref="SendWholeAdds" />).</summary>
-    private void SendWholeUpdates(IWorldConnection connection, ObjectGuid recipientGuid,
+    private void SendWholeUpdates(IWorldConnection connection, CharacterEntity recipient,
         IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> updated)
     {
         long start = _tickProfile.Timestamp();
         _described.Clear();
         for (int i = 0; i < updated.Count; i++)
         {
-            if (DescribeUpdatedObject(updated[i], recipientGuid) is { } state)
+            if (DescribeUpdatedObject(updated[i], recipient) is { } state)
                 _described.Add(state);
         }
 
@@ -2184,19 +2185,19 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Appends one entity's update to the recipient's packet (#980): the entry every recipient shares, encoded by the
-    /// first that is sent it this broadcast, or, for the recipient's own character, the one entry that depends on who
-    /// receives it (<see cref="MaskForRecipient" />), described and encoded for it alone. Byte for byte the packet
-    /// <see cref="SInstanceStateUpdatePacket.Create" /> wrote from the recipient's described list.
+    /// first that is sent it this broadcast, or, for the recipient's own character and for a doodad with rules, the one
+    /// entry that depends on who receives it (<see cref="MaskForRecipient" />, <see cref="OwnDoodadEntry" />), described
+    /// and encoded for it alone. Byte for byte the packet <see cref="SInstanceStateUpdatePacket.Create" /> wrote from the
+    /// recipient's described list.
     /// </summary>
-    private void AppendUpdate((ObjectGuid Guid, GameEntityFields Fields) updated, ObjectGuid recipientGuid)
+    private void AppendUpdate((ObjectGuid Guid, GameEntityFields Fields) updated, CharacterEntity recipient)
     {
-        // A doodad's entry holds the recipient's own answer to whether it can use it, so it is never shared.
-        bool own = updated.Guid == recipientGuid || updated.Guid.Type == ObjectType.Doodad;
+        bool own = updated.Guid == recipient.Guid || OwnDoodadEntry(updated.Guid);
         if (!own && _stateUpdates.TryAppendShared(updated.Guid, updated.Fields))
             return;
 
         long describeStart = _tickProfile.Timestamp();
-        ObjectState? state = DescribeUpdatedObject(updated, recipientGuid);
+        ObjectState? state = DescribeUpdatedObject(updated, recipient);
         NoteDescribed(describeStart);
 
         if (own)
@@ -2212,20 +2213,20 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Appends one entity's add to the recipient's packet (#980): the entry every recipient shares, encoded by the first
-    /// that is sent it this tick, or, for the recipient's own character, the one entry that depends on who receives it
-    /// (<see cref="MaskForRecipient" />), described and encoded for it alone. An add describes the entity in full, so
-    /// its entry is kept as one of <see cref="GameEntityFields.All" />. Byte for byte the packet
-    /// <see cref="SInstanceStateAddPacket.Create" /> wrote from the recipient's described list.
+    /// that is sent it this tick, or, for the recipient's own character and for a doodad with rules, the one entry that
+    /// depends on who receives it (<see cref="MaskForRecipient" />, <see cref="OwnDoodadEntry" />), described and encoded
+    /// for it alone. An add describes the entity in full, so its entry is kept as one of
+    /// <see cref="GameEntityFields.All" />. Byte for byte the packet <see cref="SInstanceStateAddPacket.Create" /> wrote
+    /// from the recipient's described list.
     /// </summary>
-    private void AppendAdd(ObjectGuid added, ObjectGuid recipientGuid)
+    private void AppendAdd(ObjectGuid added, CharacterEntity recipient)
     {
-        // A doodad's entry holds the recipient's own answer to whether it can use it, so it is never shared.
-        bool own = added == recipientGuid || added.Type == ObjectType.Doodad;
+        bool own = added == recipient.Guid || OwnDoodadEntry(added);
         if (!own && _stateAdds.TryAppendShared(added, GameEntityFields.All))
             return;
 
         long describeStart = _tickProfile.Timestamp();
-        ObjectState? state = DescribeNewObject(added, recipientGuid);
+        ObjectState? state = DescribeNewObject(added, recipient);
         NoteDescribed(describeStart);
 
         if (own)
@@ -2238,6 +2239,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Described for a recipient other than the entity itself, which is how every recipient that shares it sees it.
         _stateAdds.AppendShared(added, GameEntityFields.All, state);
     }
+
+    /// <summary>
+    /// Whether <paramref name="guid" /> is a doodad with rules (<see cref="DoodadVisibility.AsksRules" />), whose entry
+    /// holds the recipient's own answer to whether it can use it and so is never shared. Any other doodad's answer is what
+    /// its state allows (<see cref="DoodadVisibility.Usable" />), the same for every recipient, so its entry is shared.
+    /// </summary>
+    private bool OwnDoodadEntry(ObjectGuid guid) =>
+        guid.Type == ObjectType.Doodad && _doodads.TryGet(guid, out Doodad? doodad) && DoodadVisibility.AsksRules(doodad);
 
     /// <summary>
     /// Counts the describing of an entry since <paramref name="start" /> as state preparation, rather than as the
@@ -2338,7 +2347,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// has left the instance between being noticed and being described. Portals are never tracked, so
     /// never described here: a client gets them with the map, in SChunkLayoutPacket.Portals (#612).
     /// </summary>
-    private ObjectState? DescribeNewObject(ObjectGuid guid, ObjectGuid recipientGuid)
+    private ObjectState? DescribeNewObject(ObjectGuid guid, CharacterEntity recipient)
     {
         switch (guid.Type)
         {
@@ -2347,7 +2356,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                     return null;
                 return ObjectStateWriter.From(
                     addedCharacter,
-                    MaskForRecipient(GameEntityFields.All, guid, recipientGuid),
+                    MaskForRecipient(GameEntityFields.All, guid, recipient.Guid),
                     _statePool);
 
             case ObjectType.Creature:
@@ -2364,7 +2373,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 if (!_doodads.TryGet(guid, out Doodad? addedDoodad) || !addedDoodad.Visible)
                     return null;
                 return ObjectStateWriter.From(addedDoodad, GameEntityFields.All,
-                    CanInteractFor(addedDoodad, recipientGuid), _statePool);
+                    recipient.CharacterGameState.CanInteractWith(addedDoodad), _statePool);
 
             default:
                 _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization", guid.Type);
@@ -2378,14 +2387,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     private ObjectState? DescribeUpdatedObject(
         (ObjectGuid Guid, GameEntityFields Fields) updatedObject,
-        ObjectGuid recipientGuid)
+        CharacterEntity recipient)
     {
         switch (updatedObject.Guid.Type)
         {
             case ObjectType.Character:
                 if (!_characters.TryGetValue(updatedObject.Guid, out ICharacter? updatedCharacter))
                     return null;
-                GameEntityFields fields = MaskForRecipient(updatedObject.Fields, updatedObject.Guid, recipientGuid);
+                GameEntityFields fields = MaskForRecipient(updatedObject.Fields, updatedObject.Guid, recipient.Guid);
                 // None is a sentinel bit, not zero. Motion alone has nothing left for its owner, whose ACK
                 // carries it, and experience alone nothing for anyone else (#993): no entry, and a packet
                 // left with no entry is not sent. Gameplay changes (including PvP turning off) must still
@@ -2421,7 +2430,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 }
 
                 return ObjectStateWriter.From(updatedDoodad, updatedObject.Fields,
-                    CanInteractFor(updatedDoodad, recipientGuid), _statePool);
+                    recipient.CharacterGameState.CanInteractWith(updatedDoodad), _statePool);
 
             default:
                 _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",
@@ -2429,15 +2438,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 return null;
         }
     }
-
-    /// <summary>
-    /// Whether the recipient's client should offer to use <paramref name="doodad" />: the answer its view's decision on
-    /// this tick holds (<see cref="CharacterCharacterGameState.CanInteractWith" />), its own and no other recipient's,
-    /// and no for a recipient that is not a character with a view, failing closed.
-    /// </summary>
-    private bool CanInteractFor(Doodad doodad, ObjectGuid recipientGuid) =>
-        _characters.TryGetValue(recipientGuid, out ICharacter? recipient) && recipient is CharacterEntity viewer
-        && viewer.CharacterGameState.CanInteractWith(doodad);
 
     public void BroadcastAttackAnimation(IUnit attacker, IAbility? spell)
     {
@@ -2601,8 +2601,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         interrupted.Release();
     }
 
-    void IDoodadCastAudience.BroadcastDoodadCastStart(IUnit caster, DoodadTemplateId doodad, float castTimeSeconds,
-        uint castId)
+    void IDoodadCastAudience.BroadcastDoodadCastStart(IUnit caster, Doodad doodad, float castTimeSeconds, uint castId)
     {
         if (!_characters.ContainsKey(caster.Guid)) return;
 
@@ -2610,12 +2609,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         OutboundPacket start = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
-            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
+            if (!HearsDoodadCast(guid, connection, caster, doodad)) continue;
             if (start.Payload is null)
             {
                 // The tick the bar started on, as an ability's and an item's start carry it (#1082).
-                start = SUnitStartCastPacket.CreateForDoodad(caster.Guid, castTimeSeconds, doodad.Value, castId,
-                    _worldTicks?.Completed ?? 0, PacketEncoder.Shared);
+                start = SUnitStartCastPacket.CreateForDoodad(caster.Guid, castTimeSeconds, doodad.Template.Id.Value,
+                    castId, _worldTicks?.Completed ?? 0, PacketEncoder.Shared);
             }
 
             connection.Send(start.Share());
@@ -2624,7 +2623,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         start.Release();
     }
 
-    void IDoodadCastAudience.BroadcastDoodadCastFinish(IUnit caster, DoodadTemplateId doodad, uint castId)
+    void IDoodadCastAudience.BroadcastDoodadCastFinish(IUnit caster, Doodad doodad, uint castId)
     {
         if (!_characters.ContainsKey(caster.Guid)) return;
 
@@ -2632,10 +2631,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         OutboundPacket finish = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
-            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
+            if (!HearsDoodadCast(guid, connection, caster, doodad)) continue;
             if (finish.Payload is null)
             {
-                finish = SUnitFinishCastPacket.CreateForDoodad(caster.Guid, doodad.Value, castId, PacketEncoder.Shared);
+                finish = SUnitFinishCastPacket.CreateForDoodad(caster.Guid, doodad.Template.Id.Value, castId,
+                    PacketEncoder.Shared);
             }
 
             connection.Send(finish.Share());
@@ -2644,7 +2644,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         finish.Release();
     }
 
-    void IDoodadCastAudience.BroadcastDoodadCastInterrupted(IUnit caster, DoodadTemplateId doodad, uint castId)
+    void IDoodadCastAudience.BroadcastDoodadCastInterrupted(IUnit caster, Doodad doodad, uint castId)
     {
         if (!_characters.ContainsKey(caster.Guid)) return;
 
@@ -2652,11 +2652,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         OutboundPacket interrupted = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
-            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
+            if (!HearsDoodadCast(guid, connection, caster, doodad)) continue;
             if (interrupted.Payload is null)
             {
-                interrupted = SCharacterInterruptedCastPacket.CreateForDoodad(caster.Guid, doodad.Value, castId,
-                    PacketEncoder.Shared);
+                interrupted = SCharacterInterruptedCastPacket.CreateForDoodad(caster.Guid, doodad.Template.Id.Value,
+                    castId, PacketEncoder.Shared);
             }
 
             connection.Send(interrupted.Share());
@@ -2664,6 +2664,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         interrupted.Release();
     }
+
+    /// <summary>
+    /// Whether a connection hears a doodad's cast bar, which names the doodad's template: the user always; anyone else
+    /// near it as an item's cast bar is heard (<see cref="Hears" />) only when its view holds the doodad, so a doodad
+    /// hidden from a player never reaches it through another's cast. One lookup per listener, as the bar starts and ends.
+    /// </summary>
+    private bool HearsDoodadCast(ObjectGuid guid, IWorldConnection connection, IUnit caster, Doodad doodad) =>
+        guid == caster.Guid
+        || (Hears(guid, connection, caster.Guid, null, caster.Position, null)
+            && connection.Character is CharacterEntity listener && listener.CharacterGameState.Knows(doodad.Guid));
 
     /// <summary>The doodad cast owner of an instance built without the use service, which never starts a doodad cast.</summary>
     private sealed class NoDoodadCastOwner : IDoodadCastOwner

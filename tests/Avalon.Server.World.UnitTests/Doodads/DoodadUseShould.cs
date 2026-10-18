@@ -49,10 +49,13 @@ public class DoodadUseShould
 {
     private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
-    private const uint IdA = 106_001, IdB = 106_002, ConeId = 200;
+    private const uint IdA = 106_001, IdB = 106_002, IdC = 106_003, ConeId = 200;
 
     // A gate no character here meets: quest 906 turned in.
     private static readonly DoodadGate s_neverMet = new(906, DoodadGateCondition.Completed, null);
+
+    // A gate every character here meets but one that has taken quest 906.
+    private static readonly DoodadGate s_notStarted = new(906, DoodadGateCondition.NotStarted, null);
 
     // The doodad stands at x 10; A at x 6 and B at x 14 are both 4 m from it, within its 5 m.
     private static readonly Vector3 s_atA = new(6f, 0f, 0f), s_atB = new(14f, 0f, 0f);
@@ -153,14 +156,21 @@ public class DoodadUseShould
         Assert.Equal(1, CountingDoodadScript.Uses);
     }
 
-    /// <summary>Both casts on one tick, both due on one tick: the first to complete spends it, the second ends refused.</summary>
+    /// <summary>
+    /// Both casts on one tick, both due on one tick: the first to complete spends it, the second ends refused. C stands
+    /// beside them, but has taken the quest that hides the doodad: its cast bars, which name the doodad's template, reach
+    /// only the viewers that see it.
+    /// </summary>
     [Fact]
     public async Task Let_only_the_first_of_two_casts_spend_the_doodad()
     {
         using Fixture f = await Fixture.CreateAsync();
-        Doodad doodad = f.Place(1, Template(1, castMs: 2000));
+        Doodad doodad = f.Place(1, Template(1, castMs: 2000, visible: s_notStarted));
         MapInstanceClient a = f.Join(IdA, s_atA);
         MapInstanceClient b = f.Join(IdB, s_atB);
+        MapInstanceClient c = f.Join(IdC, new Vector3(10f, 0f, 3f));
+        c.Character.Quests.Start(906, DateTime.UnixEpoch);
+        f.Tick();
 
         f.Use(a, doodad);
         f.Use(b, doodad);
@@ -189,6 +199,12 @@ public class DoodadUseShould
         Assert.Equal(1ul, finish.DoodadTemplateId);
         Assert.Equal(1ul, interrupted.DoodadTemplateId);
         Assert.NotEqual(finish.Caster, interrupted.Caster);
+        Assert.Single(b.Read<SUnitFinishCastPacket>(NetworkPacketType.SMSG_UNIT_FINISH_CAST));
+        Assert.Single(b.Read<SCharacterInterruptedCastPacket>(NetworkPacketType.SMSG_INTERRUPTED_CAST));
+
+        Assert.Empty(c.Read<SUnitStartCastPacket>(NetworkPacketType.SMSG_UNIT_START_CAST));
+        Assert.Empty(c.Read<SUnitFinishCastPacket>(NetworkPacketType.SMSG_UNIT_FINISH_CAST));
+        Assert.Empty(c.Read<SCharacterInterruptedCastPacket>(NetworkPacketType.SMSG_INTERRUPTED_CAST));
     }
 
     /// <summary>B watches A's cast end, out loud, with the doodad's template; damage alone is the item cast's test.</summary>
@@ -208,6 +224,8 @@ public class DoodadUseShould
         MapInstanceClient b = f.Join(IdB, s_atB);
         a.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Cone(ConeId))]);
         a.Character.Container(InventoryType.Bag).Load([TestCharacters.Item(0, ItemUseWorld.Tonic, count: 5)]);
+        // B's view holds the doodad, so B hears its cast bar.
+        f.Tick();
 
         f.Use(a, doodad);
         switch (row)
@@ -336,7 +354,8 @@ public class DoodadUseShould
 
     /// <summary>The doodad's state written as the tick writes it, without a use.</summary>
     private static void SetState(Doodad doodad, WorldDoodadState state) =>
-        typeof(Doodad).GetProperty(nameof(Doodad.State))!.SetValue(doodad, state);
+        (typeof(Doodad).GetProperty(nameof(Doodad.State))?.SetMethod
+         ?? throw new MissingMethodException(nameof(Doodad), "set_State")).Invoke(doodad, [state]);
 
     /// <summary>
     /// A casting instance (CastAbilityHandler, the shape scripts) on a fake clock, with the use service the container

@@ -89,6 +89,11 @@ public class WorldHostGraphShould
             Assert.Same(host.Services.GetRequiredService<IAuraTemplateRepository>(),
                 CapturedOfType<IAuraTemplateRepository>(host.Services.GetRequiredService<IWorld>().Data));
 
+            // Doodads, likewise: World takes the repository optionally and would otherwise load no doodad template, so
+            // no doodad could be placed: only this proves production hands it over.
+            Assert.Same(host.Services.GetRequiredService<IDoodadTemplateRepository>(),
+                CapturedOfType<IDoodadTemplateRepository>(host.Services.GetRequiredService<IWorld>().Data));
+
             // Quests (#433). Production registers the quest repository; that CharacterSelectHandler is handed it (it
             // takes it optionally and loads an empty log without it) is Hand_the_quest_service_to_the_handlers.
             Assert.NotNull(host.Services.GetRequiredService<ICharacterQuestRepository>());

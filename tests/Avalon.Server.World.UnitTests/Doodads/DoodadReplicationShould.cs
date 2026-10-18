@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Reflection;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
@@ -13,11 +14,13 @@ using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Loot;
+using Avalon.World.Parties;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Maps;
 using Avalon.World.Quests;
 using Avalon.World.Scripts;
+using Avalon.World.Serialization;
 using Avalon.World.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -50,9 +53,10 @@ public class DoodadReplicationShould
     private static readonly DoodadGate s_onObjective = new(Quest, DoodadGateCondition.OnObjective, Objective);
 
     /// <summary>
-    /// A's quest log lets the gate through and B's does not; the script rows decide by the viewer's name. A script is
-    /// asked only on first sight and after the viewer's quests or the doodad moved, never on a steady view, and a throw
-    /// from it leaves the gate's answer, held like any other.
+    /// A's quest log lets the gate through and B's does not, B standing 1 m from A in A's party, which shares nothing of
+    /// what A may see; the script rows decide by the viewer's name, or its level. A
+    /// script is asked only on first sight and after the viewer's quests, its level or the doodad moved, never on a steady
+    /// view, and a throw from it leaves the gate's answer, held like any other.
     /// </summary>
     [Theory]
     [InlineData("template gate")]
@@ -60,6 +64,7 @@ public class DoodadReplicationShould
     [InlineData("script hides what the gate shows")]
     [InlineData("script shows what the gate hides")]
     [InlineData("script refresh")]
+    [InlineData("script shows from a level")]
     [InlineData("script throws")]
     [InlineData("solid ignores the script")]
     public async Task Send_a_doodad_only_to_the_viewers_its_rules_allow(string rule)
@@ -77,6 +82,7 @@ public class DoodadReplicationShould
         RuledDoodadScript.Asked = 0;
         RuledDoodadScript.Rule = rule switch
         {
+            "script shows from a level" => ctx => ctx.ViewerLevel >= 5 ? true : null,
             "script hides what the gate shows" => ctx => ctx.ViewerName == TestCharacters.NameFor(IdA) ? null : false,
             "script shows what the gate hides" => ctx => ctx.ViewerName == TestCharacters.NameFor(IdB) ? true : null,
             "script refresh" => _ => shown ? null : false,
@@ -88,12 +94,16 @@ public class DoodadReplicationShould
             "template gate" => Place(town, 1, Template(visible: s_onObjective)),
             "spawn gate" => Place(town, 1, Template(), visibleGate: s_onObjective),
             "script hides what the gate shows" or "script refresh" => Place(town, 1, Scripted(catalogLog)),
-            "script shows what the gate hides" or "script throws" => Place(town, 1, Scripted(catalogLog, gated: true)),
+            "script shows what the gate hides" or "script throws" or "script shows from a level" =>
+                Place(town, 1, Scripted(catalogLog, gated: true)),
             _ => Place(town, 1, Scripted(catalogLog, solid: true)),
         };
         bool bSees = rule is "script shows what the gate hides" or "script refresh" or "solid ignores the script";
         MapInstanceClient a = JoinAt(town, IdA, Vector3.zero);
-        MapInstanceClient b = JoinAt(town, IdB, new Vector3(20f, 0f, 0f));
+        MapInstanceClient b = JoinAt(town, IdB, new Vector3(1f, 0f, 0f));
+        var party = new PartyId(104);
+        SetParty(a.Character, party);
+        SetParty(b.Character, party);
         ActiveQuest held = OnTheObjective(a.Character);
 
         Ticks(town, 30);
@@ -153,6 +163,16 @@ public class DoodadReplicationShould
             Assert.Contains(doodad.Guid.RawValue, a.Removed());
             Assert.Contains(doodad.Guid.RawValue, b.Removed());
         }
+
+        if (rule == "script shows from a level")
+        {
+            // B reaches the level: its next decision asks the script again, B's alone, and B is told of the doodad.
+            b.Character.Level = 5;
+            Ticks(town, 6);
+
+            Assert.Equal(1, RuledDoodadScript.Asked);
+            Assert.Single(b.Added(), s => s.Guid == doodad.Guid.RawValue);
+        }
     }
 
     [Fact]
@@ -193,8 +213,12 @@ public class DoodadReplicationShould
         Assert.All(viewers, v => Assert.True(Assert.Single(v.Added(), s => s.Guid == doodad.Guid.RawValue).CanInteract));
 
         Change(instance, doodad, WorldDoodadState.Used);
-        Ticks(instance, 6);
+        for (int i = 0; i < 6 && !viewers[0].StateUpdates().Any(s => s.Guid == doodad.Guid.RawValue); i++)
+            instance.Update(s_tick);
 
+        // No rule makes its answer differ between viewers, so its update was encoded once, by the broadcast that sent it,
+        // and copied to the second viewer.
+        Assert.True(SharedThisBroadcast(instance, doodad), "The ungated doodad's update was not a shared entry");
         foreach (MapInstanceClient viewer in viewers)
         {
             ObjectState used = Assert.Single(viewer.StateUpdates(), s => s.Guid == doodad.Guid.RawValue);
@@ -299,6 +323,11 @@ public class DoodadReplicationShould
         (typeof(Doodad).GetMethod("RefreshVisibility", BindingFlags.Instance | BindingFlags.NonPublic)
          ?? throw new MissingMethodException(nameof(Doodad), "RefreshVisibility")).Invoke(doodad, null);
 
+    /// <summary>The party a character is in, written as the party service writes it.</summary>
+    private static void SetParty(CharacterEntity character, PartyId party) =>
+        (typeof(CharacterEntity).GetProperty(nameof(CharacterEntity.PartyId))?.SetMethod
+         ?? throw new MissingMethodException(nameof(CharacterEntity), "set_PartyId")).Invoke(character, [party]);
+
     /// <summary>A doodad 10 m from the origin, unless placed elsewhere, as an instance build places it.</summary>
     private static Doodad Place(MapInstance instance, uint id, DoodadTemplateView template, Vector3? position = null,
         DoodadGate? visibleGate = null)
@@ -319,9 +348,21 @@ public class DoodadReplicationShould
     /// <summary>The doodad's state changed on the tick, as a use spends it: the state written, the instance told.</summary>
     private static void Change(MapInstance instance, Doodad doodad, WorldDoodadState state)
     {
-        typeof(Doodad).GetProperty(nameof(Doodad.State))!.SetValue(doodad, state);
-        typeof(MapInstance).GetMethod("DoodadChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(instance, [doodad]);
+        (typeof(Doodad).GetProperty(nameof(Doodad.State))?.SetMethod
+         ?? throw new MissingMethodException(nameof(Doodad), "set_State")).Invoke(doodad, [state]);
+        (typeof(MapInstance).GetMethod("DoodadChanged", BindingFlags.Instance | BindingFlags.NonPublic)
+         ?? throw new MissingMethodException(nameof(MapInstance), "DoodadChanged")).Invoke(instance, [doodad]);
+    }
+
+    /// <summary>Whether the last broadcast encoded the doodad's update as an entry every recipient shares (StatePacketAssembler).</summary>
+    private static bool SharedThisBroadcast(MapInstance instance, Doodad doodad)
+    {
+        const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
+        object updates = typeof(MapInstance).GetField("_stateUpdates", Private)?.GetValue(instance)
+                         ?? throw new MissingFieldException(nameof(MapInstance), "_stateUpdates");
+        IDictionary entries = typeof(StatePacketAssembler).GetField("_index", Private)?.GetValue(updates) as IDictionary
+                              ?? throw new MissingFieldException(nameof(StatePacketAssembler), "_index");
+        return entries.Contains(doodad.Guid.RawValue);
     }
 
     /// <summary>An instance over a world and connections that are no substitutes, which allocate on every call.</summary>

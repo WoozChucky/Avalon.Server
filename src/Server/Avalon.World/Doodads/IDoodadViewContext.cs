@@ -22,6 +22,10 @@ public interface IDoodadViewContext
 
     string ViewerName { get; }
 
+    /// <summary>
+    /// The viewer's level. A level gained or lost asks the viewer's doodads with rules again at its next view decision,
+    /// as a quest moving does, so an answer read from it never goes stale.
+    /// </summary>
     ushort ViewerLevel { get; }
 
     CharacterClass ViewerClass { get; }
