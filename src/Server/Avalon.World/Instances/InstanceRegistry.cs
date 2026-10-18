@@ -119,10 +119,10 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
     // characterId → { templateId → its private instances } for Normal map re-entry, in default order: the last live,
     // unexpired one is the default (#1104). Keyed by character (not account) so different characters on the same
     // account land in different instances even within the re-entry window.
-    private readonly Dictionary<uint, Dictionary<MapTemplateId, OwnerList>> _characterInstanceMap = [];
+    private readonly Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> _characterInstanceMap = [];
 
     // partyId → { templateId → its instances }: the party's instances (2026-09-30), in the same default order.
-    private readonly Dictionary<uint, Dictionary<MapTemplateId, OwnerList>> _partyInstanceMap = [];
+    private readonly Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> _partyInstanceMap = [];
 
     // Builds in flight (#442), one per town map, per character and map, per party and map.
     private readonly Dictionary<MapTemplateId, PendingBuild> _pendingTownBuilds = [];
@@ -132,11 +132,6 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
     // Creates in flight (#1104), private and party: nothing joins them, so they are not keyed; held so ForgetParty
     // can reach a party's, and a published one is dropped without a walk.
     private readonly HashSet<PendingBuild> _pendingCreates = [];
-
-    // How many times MakeDefault has moved an owner's default (#1104): each move stamps the list it changed with the new
-    // count, and each build records the count it started at, so its publish can tell whether its owner's default was
-    // chosen meanwhile. Tick thread only.
-    private long _defaultMoves;
 
     // Written by a build's last step, on whichever thread it ends on; read only by PublishFinished, on the tick.
     private readonly ConcurrentQueue<FinishedBuild> _finished = new();
@@ -309,7 +304,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
         DefaultOf(_partyInstanceMap, party, templateId);
 
     /// <summary>The owner's default instance of the map: the last of its list still live and unexpired.</summary>
-    private MapInstance? DefaultOf(Dictionary<uint, Dictionary<MapTemplateId, OwnerList>> index, uint owner,
+    private MapInstance? DefaultOf(Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index, uint owner,
         MapTemplateId templateId)
     {
         MapInstance? instance = null;
@@ -369,16 +364,24 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
         if (!_instances.TryGetValue(instance.InstanceId, out MapInstance? live))
             return;
 
-        long move = ++_defaultMoves;
-        if (live.OwnerCharacterId is { } character)
-            MoveToEnd(_characterInstanceMap, character, live.TemplateId, live.InstanceId, move);
+        // A plain build of the same owner and map still in flight is told: published, it must not take the default back.
+        if (live.OwnerCharacterId is { } character
+            && MoveToEnd(_characterInstanceMap, character, live.TemplateId, live.InstanceId)
+            && _pendingNormalBuilds.TryGetValue((character, live.TemplateId), out PendingBuild? plainBuild))
+        {
+            plainBuild.DefaultMoved = true;
+        }
 
-        if (live.OwnerPartyId is { } party)
-            MoveToEnd(_partyInstanceMap, party.Value, live.TemplateId, live.InstanceId, move);
+        if (live.OwnerPartyId is { } party
+            && MoveToEnd(_partyInstanceMap, party.Value, live.TemplateId, live.InstanceId)
+            && _pendingPartyBuilds.TryGetValue((party.Value, live.TemplateId), out PendingBuild? partyBuild))
+        {
+            partyBuild.DefaultMoved = true;
+        }
     }
 
     /// <summary>Instance <paramref name="instanceId" /> if the owner lists it for the map and it is live and unexpired.</summary>
-    private MapInstance? ListedLive(Dictionary<uint, Dictionary<MapTemplateId, OwnerList>> index, uint owner,
+    private MapInstance? ListedLive(Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index, uint owner,
         MapTemplateId templateId, Guid instanceId) =>
         ListOf(index, owner, templateId) is { } ids && ids.Contains(instanceId)
         && _instances.TryGetValue(instanceId, out MapInstance? instance) && !HasExpired(instance, _abandonedLifetime)
@@ -386,7 +389,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
             : null;
 
     /// <summary>The owner's live, unexpired instances of the map, from its default back; the first one flagged when asked.</summary>
-    private void AppendLive(Dictionary<uint, Dictionary<MapTemplateId, OwnerList>> index, uint owner,
+    private void AppendLive(Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index, uint owner,
         MapTemplateId templateId, InstanceKind kind, bool flagDefault, List<InstanceChoice> into)
     {
         if (ListOf(index, owner, templateId) is not { } ids)
@@ -647,7 +650,6 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
     private void StartBuild(PendingBuild pending, uint? ownerCharacterId, PartyId? ownerParty)
     {
         pending.StartedAt = _time.GetTimestamp();
-        pending.DefaultMovesAtStart = _defaultMoves;
         Task<MapInstance> build;
         try
         {
@@ -708,7 +710,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
     /// </summary>
     private void Index(PendingBuild pending, MapInstance instance)
     {
-        Dictionary<uint, Dictionary<MapTemplateId, OwnerList>> index;
+        Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index;
         switch (pending.Kind)
         {
             case PendingKind.Normal:
@@ -721,13 +723,13 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
                 return;
         }
 
-        if (!index.TryGetValue(pending.OwnerId, out Dictionary<MapTemplateId, OwnerList>? maps))
+        if (!index.TryGetValue(pending.OwnerId, out Dictionary<MapTemplateId, List<Guid>>? maps))
         {
             maps = [];
             index[pending.OwnerId] = maps;
         }
 
-        if (!maps.TryGetValue(pending.TemplateId, out OwnerList? ids))
+        if (!maps.TryGetValue(pending.TemplateId, out List<Guid>? ids))
         {
             ids = [];
             maps[pending.TemplateId] = ids;
@@ -735,14 +737,14 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
 
         if (pending.Create)
             ids.Insert(0, instance.InstanceId);
-        else if (ids.MadeDefaultAt > pending.DefaultMovesAtStart && LastLive(ids, out _) is var current and >= 0)
+        else if (pending.DefaultMoved && LastLive(ids, out _) is var current and >= 0)
             ids.Insert(current, instance.InstanceId);
         else
             ids.Add(instance.InstanceId);
     }
 
     /// <summary>The list's default, its last live unexpired entry, and where it stands; -1 and null when it has none.</summary>
-    private int LastLive(OwnerList ids, out MapInstance? instance)
+    private int LastLive(List<Guid> ids, out MapInstance? instance)
     {
         for (int i = ids.Count - 1; i >= 0; i--)
         {
@@ -764,11 +766,11 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
             Unindex(_partyInstanceMap, party.Value, instance.TemplateId, instance.InstanceId);
     }
 
-    private static void Unindex(Dictionary<uint, Dictionary<MapTemplateId, OwnerList>> index, uint owner,
+    private static void Unindex(Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index, uint owner,
         MapTemplateId templateId, Guid instanceId)
     {
-        if (!index.TryGetValue(owner, out Dictionary<MapTemplateId, OwnerList>? maps)
-            || !maps.TryGetValue(templateId, out OwnerList? ids) || !ids.Remove(instanceId) || ids.Count > 0)
+        if (!index.TryGetValue(owner, out Dictionary<MapTemplateId, List<Guid>>? maps)
+            || !maps.TryGetValue(templateId, out List<Guid>? ids) || !ids.Remove(instanceId) || ids.Count > 0)
         {
             return;
         }
@@ -779,25 +781,22 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
     }
 
     /// <summary>The owner's list for the map, if it has one.</summary>
-    private static OwnerList? ListOf(Dictionary<uint, Dictionary<MapTemplateId, OwnerList>> index, uint owner,
+    private static List<Guid>? ListOf(Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index, uint owner,
         MapTemplateId templateId) =>
-        index.TryGetValue(owner, out Dictionary<MapTemplateId, OwnerList>? maps)
-        && maps.TryGetValue(templateId, out OwnerList? ids)
+        index.TryGetValue(owner, out Dictionary<MapTemplateId, List<Guid>>? maps)
+        && maps.TryGetValue(templateId, out List<Guid>? ids)
             ? ids
             : null;
 
-    /// <summary>
-    /// Makes a listed instance its owner's default, the last of the list, stamping the list with
-    /// <paramref name="move" />; nothing for one not listed.
-    /// </summary>
-    private static void MoveToEnd(Dictionary<uint, Dictionary<MapTemplateId, OwnerList>> index, uint owner,
-        MapTemplateId templateId, Guid instanceId, long move)
+    /// <summary>Makes a listed instance its owner's default, the last of the list; false, and nothing, for one not listed.</summary>
+    private static bool MoveToEnd(Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index, uint owner,
+        MapTemplateId templateId, Guid instanceId)
     {
-        if (ListOf(index, owner, templateId) is { } ids && ids.Remove(instanceId))
-        {
-            ids.Add(instanceId);
-            ids.MadeDefaultAt = move;
-        }
+        if (ListOf(index, owner, templateId) is not { } ids || !ids.Remove(instanceId))
+            return false;
+
+        ids.Add(instanceId);
+        return true;
     }
 
     private static void RemoveIfSame<TKey>(Dictionary<TKey, PendingBuild> pending, TKey key, PendingBuild build)
@@ -839,8 +838,11 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
         /// <summary>When the build started, as the world clock's timestamp.</summary>
         public long StartedAt { get; set; }
 
-        /// <summary>The registry's count of default moves when the build started (#1104).</summary>
-        public long DefaultMovesAtStart { get; set; }
+        /// <summary>
+        /// A plain build whose owner's default <see cref="MakeDefault" /> moved while it ran (#1104): it is listed just
+        /// before that default, never over it.
+        /// </summary>
+        public bool DefaultMoved { get; set; }
 
         /// <summary>The timer of its <see cref="BuildDeadline" />, while it runs; disposed once it is published or abandoned.</summary>
         public ITimer? Deadline { get; set; }
@@ -854,15 +856,6 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
             Requesters++;
             return Done.Task;
         }
-    }
-
-    /// <summary>
-    /// An owner's live instances of one map, in default order (#1104), and the last default move
-    /// (<see cref="MakeDefault" />) made on it: 0 while none was.
-    /// </summary>
-    private sealed class OwnerList : List<Guid>
-    {
-        public long MadeDefaultAt { get; set; }
     }
 
     /// <param name="Outcome">The build's task, ended; null when it is the build's deadline that passed.</param>

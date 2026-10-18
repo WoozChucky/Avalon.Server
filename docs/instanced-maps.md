@@ -191,8 +191,7 @@ unexpired entry is the default**, the instance a plain entry takes.
 2. Otherwise: build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId, ct)` (same factory used for towns; the layout source resolver picks `ProceduralChunkLayoutSource` for `MapType.Normal`), register it, and
    append it to the list, so it becomes the default; unless `MakeDefault` moved the owner's default while it built (a
    member's plain entry built while the leader's new instance was made the party's default): then it goes just before
-   that default and leaves it the default (each list carries the stamp of its last default move, each build the count
-   it started at)
+   that default and leaves it the default (`MakeDefault` marks the owner's plain build of the map still in flight)
 
 **Creates.** `CreatePrivateInstanceAsync` and `CreatePartyInstanceAsync` always start a build of their own: no request
 joins it, and it joins none (they are kept apart from the per-owner de-duplicated builds, under the same deadline). Once
