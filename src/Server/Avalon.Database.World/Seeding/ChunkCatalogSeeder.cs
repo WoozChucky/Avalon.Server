@@ -508,6 +508,10 @@ public static class ChunkCatalogSeeder
                     $"{path}: {name} has minSpacing {rule.MinSpacing}; it must be finite and 0 or more"));
             }
 
+            if (rule.MinDepth is < 0)
+                throw new InvalidDataException($"{path}: {name} has minDepth {rule.MinDepth}; a depth is 0 or more");
+            if (rule.MaxDepth is < 0)
+                throw new InvalidDataException($"{path}: {name} has maxDepth {rule.MaxDepth}; a depth is 0 or more");
             if (rule.MinDepth is { } from && rule.MaxDepth is { } to && from > to)
                 throw new InvalidDataException($"{path}: {name} has minDepth {from} above maxDepth {to}");
             CheckDoodadGate(path, name, "visibleGate", rule.VisibleGate);

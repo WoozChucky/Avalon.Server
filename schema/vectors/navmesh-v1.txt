@@ -7,6 +7,7 @@
 #   Emitted by  tools/Avalon.Exporter  (Avalon.Server)
 #   Regenerate  dotnet run --project tools/Avalon.Exporter -- navmesh
 #   Source      src/Server/Avalon.World/ChunkLayouts/IChunkLayoutNavmeshBuilder.cs
+#               src/Server/Avalon.World.Generation/DoodadObstacleGeometry.cs
 #               src/Server/Avalon.World/Maps/Navigation/NavmeshBuildSettings.cs
 #               src/Server/Avalon.World/Maps/Navigation/MapNavigator.cs
 #               src/Server/Avalon.Server.World/Maps/Chunks/*.obj
@@ -24,9 +25,18 @@
 #
 #   layout <name> cell <cellSize>
 #   chunk  <template> <gridX> <gridZ> <rotation>       (repeated; origin = grid * cellSize)
+#   obstacle <minX> <maxX> <minZ> <maxZ> <baseY> <topY> (repeated, or none; world space)
 #   mesh   tiles <n> polys <n> verts <n>
 #   ray    <fx> <fy> <fz> <tx> <ty> <tz> -> <outcome> <px> <py> <pz> <t>   # label
 #   ground <x> <y> <z> -> <height>                                         # label
+#
+# AN OBSTACLE IS A SOLID DOODAD'S BOX, as SChunkLayoutPacket.Obstacles carries it, and it is baked
+# after every chunk, in the order listed. Each is appended to the combined mesh as 8 vertices,
+# (minX,baseY,minZ) (maxX,baseY,minZ) (maxX,baseY,maxZ) (minX,baseY,maxZ) and then the same four
+# at topY, and 10 triangles with no bottom face, 1-based on those 8 and offset by the vertices
+# already written: the top (5 6 7) (5 7 8), then the sides (1 2 6) (1 6 5) (2 3 7) (2 7 6)
+# (3 4 8) (3 8 7) (4 1 5) (4 5 8). A box is axis-aligned: a doodad turns by quarter turns only,
+# and the server swaps its half extents on an odd one before it writes the box.
 #
 # <outcome> IS THE BRANCH, NOT AN INFERENCE FROM THE POSITION. RaycastWalkable returns a bare
 # position and collapses three branches onto it -- no start polygon hands back `from`, a
@@ -202,3 +212,10 @@ ground 45 3 15 -> 0.2 # forest_path_01, floor top at local y = 0
 ground 15 3 45 -> 0.2 # forest_clearing_01, floor top at local y = 0.05
 ground 45 3 45 -> 0.2 # forest_path_03, floor top at local y = 0.05
 ground 15 3 30 -> 0.2 # on the seam between the two heights
+
+layout forest-doodad cell 30
+chunk forest_path_01 0 0 0
+obstacle 13.8 16.2 14.4 15.6 1 2.8
+mesh tiles 15 polys 19 verts 63
+ray 5 0.1 15 25 0.1 15 -> clamped 13.200001 0.1 15 0.41000003 # east along the path's middle into the box's west face
+ground 15 3 13 -> 0.2 # beside the box, 1.4 m south of its south face: the floor

@@ -74,15 +74,17 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
         bool[] taken = new bool[candidates.Count];
         List<PlannedDoodad> placed = [];
         List<DoodadSpawn> requiredShort = [];
+        List<DoodadObstacle> obstacles = [];
         List<int> pool = [];
 
         foreach (ProceduralDoodadRule rule in config.DoodadRules.OrderByDescending(r => r.Required).ThenBy(r => r.Sequence))
         {
             if (!catalog.TryGet(rule.DoodadTemplateId, out DoodadTemplateView? template))
             {
-                _logger.LogWarning("Doodad rule {Sequence} of map {MapId} names doodad template {DoodadTemplateId}, which the " +
-                                   "catalog does not hold; it places nothing", rule.Sequence, config.MapTemplateId.Value,
-                    rule.DoodadTemplateId.Value);
+                // A required doodad that is not placed leaves its quest uncompletable: an Error, not a Warning.
+                _logger.Log(rule.Required ? LogLevel.Error : LogLevel.Warning,
+                    "Doodad rule {Sequence} of map {MapId} names doodad template {DoodadTemplateId}, which the catalog " +
+                    "does not hold; it places nothing", rule.Sequence, config.MapTemplateId.Value, rule.DoodadTemplateId.Value);
                 continue;
             }
 
@@ -120,7 +122,9 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
                     continue;
 
                 taken[index] = true;
-                placed.Add(new PlannedDoodad(template, c.Position, c.Yaw, AtSlot: true, rule.Required, visible, usable));
+                placed.Add(new PlannedDoodad(template, c.Position, c.Yaw, rule.Required, visible, usable));
+                if (template.Solid)
+                    obstacles.Add(Obstacle(template, c.Position, c.Yaw));
                 got++;
             }
 
@@ -131,7 +135,21 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
             }
         }
 
-        return new DoodadPlan(placed, requiredShort, []);
+        return new DoodadPlan(placed, requiredShort, obstacles);
+    }
+
+    /// <summary>
+    /// A solid doodad's box in world space, standing at <paramref name="position" /> (its slot, whose height it keeps):
+    /// the template's half extents on X and Z, swapped on an odd quarter turn of <paramref name="yawDegrees" />, from the
+    /// slot's height up by its collision height. A slot's yaw is always a quarter turn, so the box stays axis-aligned.
+    /// </summary>
+    private static DoodadObstacle Obstacle(DoodadTemplateView template, Vector3 position, int yawDegrees)
+    {
+        bool turned = ((yawDegrees / 90) & 1) == 1;
+        float halfX = turned ? template.CollisionHalfZ : template.CollisionHalfX;
+        float halfZ = turned ? template.CollisionHalfX : template.CollisionHalfZ;
+        return new DoodadObstacle(position.x - halfX, position.x + halfX, position.z - halfZ, position.z + halfZ, position.y,
+            position.y + template.CollisionHeight);
     }
 
     public Task PlaceAsync(MapInstance instance, ChunkLayout layout, DoodadPlan plan, MapTemplateId map, CancellationToken ct)
@@ -248,9 +266,10 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
     }
 
     /// <summary>
-    /// A required doodad no slot was left for: at a random open navmesh point, clear of walls, the entry, every portal
-    /// and every doodad placed, facing yaw 0; after <see cref="FallbackTries" /> points, given up with an Error. A solid
-    /// one is never placed off its slot: its box is not in the navmesh, so it would be an unseen wall to every path.
+    /// A required doodad no slot was left for: at a random open navmesh point the entry spawn reaches (never on an
+    /// island), clear of walls, the entry, every portal and every doodad placed, facing yaw 0; after
+    /// <see cref="FallbackTries" /> points, given up with an Error. A solid one is never placed off its slot: its box is
+    /// not in the navmesh, so it would be an unseen wall to every path.
     /// </summary>
     private void PlaceOnOpenNavmesh(Placement placement, DoodadSpawn spawn)
     {
@@ -267,7 +286,8 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
         {
             for (int attempt = 0; attempt < FallbackTries; attempt++)
             {
-                if (!navigator.TryFindOpenPoint(placement.Random, WallClearance, out Vector3 point)
+                if (!navigator.TryFindOpenPoint(placement.Random, placement.Layout.EntrySpawnWorldPos, WallClearance,
+                        out Vector3 point)
                     || !Clear(point, placement.Layout) || placement.Crowded(point))
                 {
                     continue;

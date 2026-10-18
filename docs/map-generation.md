@@ -338,6 +338,40 @@ navmesh floor, and is a reachability target too: a walk over the piece's (or the
 the first exit, as it reaches every exit and spawn slot. Each yaw is the quarter turn that best faces the piece's centre
 (a set piece's, for its members).
 
+### Solid doodads in the bake
+
+A solid doodad (a template with `Collision` other than `None`: the fountain and the shrine) is a wall in the instance's
+navmesh, and the client is sent its box to bake the same wall (see [doodads](doodads.md#placement)).
+
+- **The box.** The doodad plan (`DoodadPlacementService.Plan`, before the bake) gives each solid doodad it puts at a slot
+  one `DoodadObstacle`: the template's `CollisionHalfX` on X and `CollisionHalfZ` on Z around the slot's world position,
+  swapped on an odd quarter turn (yaw 90 or 270), from `BaseY`, the slot's world height (every slot is written at
+  local y = 1, and a solid doodad keeps its slot's height), up to `TopY = BaseY + CollisionHeight`. The boxes are in plan
+  order. `ChunkLayoutInstanceFactory` sets them on the layout (`ChunkLayout.Obstacles`) before the bake, so the instance
+  keeps them with its layout.
+- **Quarter turns only.** A slot's yaw is 0, 90, 180 or 270 (the seeder refuses any other), so a box is always
+  axis-aligned and needs no rotation.
+- **Never quest-gated, never off a slot.** A wall in the navmesh is there for everyone, so a solid doodad is never hidden:
+  the catalog refuses a gate on a solid template, a spawn's gate on one is dropped, and the seeder refuses a required
+  rule on one. The fallback, which places a required doodad on open navmesh after the bake, never places a solid one,
+  so every solid doodad standing in an instance has its box in that instance's bake.
+- **The bake.** `ChunkLayoutNavmeshBuilder` appends every box after the last chunk, through
+  `DoodadObstacleGeometry.Append`: 8 vertices, (MinX, BaseY, MinZ), (MaxX, BaseY, MinZ), (MaxX, BaseY, MaxZ),
+  (MinX, BaseY, MaxZ), then the same four at TopY, and 10 triangles with no bottom face, 1-based on those 8 and offset
+  by the vertices already written: the top (5 6 7) (5 7 8), then the sides (1 2 6) (1 6 5), (2 3 7) (2 7 6),
+  (3 4 8) (3 8 7), (4 1 5) (4 5 8), numbers written with the invariant culture. Every solid template stands at least
+  1.05 m tall, above the agent's 0.9 m climb, and the floor under its sides keeps less than the agent's 2 m of
+  headroom, so a walk stops at the box's sides, an agent radius short of them.
+- **The wire.** `SChunkLayoutPacket.Obstacles` (field 8, `DoodadObstacleDto` with fields 1-6: `MinX`, `MaxX`, `MinZ`,
+  `MaxZ`, `BaseY`, `TopY`) carries the boxes in the same order; `MapLayoutEntries` builds the list once, with the
+  instance. A client that does not know the field skips it, and bakes no box.
+- **The client mirror.** A client bakes the boxes after its chunks, with exactly these vertices and faces, or its mesh
+  and the server's differ around the doodad. `schema/vectors/navmesh-v1.txt` pins it: its `obstacle <minX> <maxX> <minZ>
+  <maxZ> <baseY> <topY>` lines (after a layout's `chunk` lines) are baked in order, and the `forest-doodad` layout puts
+  one box on `forest_path_01` with a ray that stops at it and a ground probe beside it. `SolidDoodadNavmeshShould`
+  builds an instance through the factory and proves the walk stops at the box, at yaw 0 and 90, and that the layout
+  packet carries the planned box.
+
 ## Generated town squares
 
 Glimmerdell's four squares (`town_sw_01`, `town_se_01`, `town_nw_01`, `town_ne_01`, map 1) are generated too, since the

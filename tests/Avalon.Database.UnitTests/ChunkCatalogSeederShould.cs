@@ -474,6 +474,8 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     [InlineData("spacing NaN", "minSpacing NaN")]
     [InlineData("spacing negative", "minSpacing -1")]
     [InlineData("depths reversed", "minDepth 5 above maxDepth 2")]
+    [InlineData("min depth negative", "minDepth -1")]
+    [InlineData("max depth negative", "maxDepth -2")]
     [InlineData("unknown condition", "condition 'sometimes'")]
     [InlineData("required solid template", "names doodad template 2, which is solid")]
     [InlineData("required beyond the slots", "has only")]
@@ -489,6 +491,8 @@ public sealed class ChunkCatalogSeederShould : IDisposable
             "spacing NaN" => Rule(1, spacing: "\"NaN\""),
             "spacing negative" => Rule(1, spacing: "-1"),
             "depths reversed" => Rule(1, extra: "\"minDepth\": 5, \"maxDepth\": 2"),
+            "min depth negative" => Rule(1, extra: "\"minDepth\": -1"),
+            "max depth negative" => Rule(1, extra: "\"maxDepth\": -2"),
             "unknown condition" => Rule(1, extra: "\"usableGate\": { \"questId\": 7, \"condition\": \"sometimes\" }"),
             "required solid template" => Rule(2, tag: "doodad_large", required: true),
             "required beyond the slots" => Rule(1, max: 50, required: true),

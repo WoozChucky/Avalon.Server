@@ -15,10 +15,10 @@ public sealed record DoodadSpawn(DoodadTemplateView Template, bool Required = fa
 
 /// <summary>
 /// A doodad the plan put at a chunk doodad slot: where it stands (the slot's world position, its height the slot's
-/// until the placement snaps a walk-through one to the ground) and the yaw it faces. AtSlot is false only for a spot the
-/// fallback found on open navmesh.
+/// until the placement snaps a walk-through one to the ground) and the yaw it faces. Only a slot is planned: the
+/// fallback's spots on open navmesh are found after the bake, and never become one of these.
 /// </summary>
-public sealed record PlannedDoodad(DoodadTemplateView Template, Vector3 Position, float YawDegrees, bool AtSlot,
+public sealed record PlannedDoodad(DoodadTemplateView Template, Vector3 Position, float YawDegrees,
     bool Required = false, DoodadGate? VisibleGate = null, DoodadGate? UsableGate = null)
 {
     /// <summary>The same doodad without its spot, for the fallback.</summary>
@@ -29,7 +29,8 @@ public sealed record PlannedDoodad(DoodadTemplateView Template, Vector3 Position
 /// What an instance build places of its procedural doodads, decided before the navmesh bake from the layout, its map's
 /// rules and the catalog alone, so the same seed always gives the same plan: the doodads at slots, in the order they are
 /// placed, the required ones no slot was left for (placed on open navmesh once the mesh is baked), and the solid doodads'
-/// boxes for the bake to cut out.
+/// boxes for the bake to cut out, in the order of the doodads they belong to (the instance build sets them on the layout,
+/// which the bake and the layout packet read).
 /// </summary>
 public sealed record DoodadPlan(IReadOnlyList<PlannedDoodad> Placed, IReadOnlyList<DoodadSpawn> RequiredShort,
     IReadOnlyList<DoodadObstacle> Obstacles)

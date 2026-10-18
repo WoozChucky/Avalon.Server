@@ -23,6 +23,10 @@ public record PortalPlacement(
     ushort TargetMapId,
     float Radius = 1.5f);
 
+/// <param name="Obstacles">
+/// The solid doodads' boxes the navmesh bake cuts out and the layout packet carries, set by the instance build from its
+/// doodad plan before the bake; null (none) for a layout no plan has touched.
+/// </param>
 public record ChunkLayout(
     int Seed,
     IReadOnlyList<PlacedChunk> Chunks,
@@ -33,10 +37,12 @@ public record ChunkLayout(
     float CellSize,
     ProceduralMapConfig? Config = null,
     string? ConfigVersion = null,
-    int MainPathLength = 0);
+    int MainPathLength = 0,
+    IReadOnlyList<DoodadObstacle>? Obstacles = null);
 
 /// <summary>
-/// A solid doodad's box as the navmesh bake cuts it out: its world X/Z bounds, the ground it stands on and its top. Planned
-/// with the doodads, before the bake (DoodadPlan.Obstacles).
+/// A solid doodad's box as the navmesh bake cuts it out: its world X/Z bounds, the height it stands at (its slot's) and
+/// its top. Planned with the doodads, before the bake (DoodadPlan.Obstacles); written into the bake by
+/// DoodadObstacleGeometry.
 /// </summary>
 public readonly record struct DoodadObstacle(float MinX, float MaxX, float MinZ, float MaxZ, float BaseY, float TopY);

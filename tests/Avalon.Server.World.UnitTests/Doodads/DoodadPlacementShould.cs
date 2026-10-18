@@ -51,6 +51,7 @@ public class DoodadPlacementShould
         DoodadPlacementService service = Service(out _);
         DoodadCatalog catalog = Catalog();
         ChunkLayout baked = s_baked.Value.Layout;
+        List<IReadOnlyList<PlannedDoodad>> plans = [];
 
         for (int seed = 0; seed < 200; seed++)
         {
@@ -65,41 +66,63 @@ public class DoodadPlacementShould
             PlannedDoodad shrine = Assert.Single(plan.Placed, p => p.Template.Id.Value == Shrine);
             Assert.Contains(Slot(layout, shrine), s => s.Tag == "doodad_large" && s.Depth >= 2);
 
-            Assert.All(plan.Placed, p => Assert.True(p.AtSlot && FlatDistance(p.Position, layout.EntrySpawnWorldPos) >= 15f));
+            Assert.All(plan.Placed, p => Assert.True(FlatDistance(p.Position, layout.EntrySpawnWorldPos) >= 15f));
             Assert.Empty(plan.RequiredShort);
 
             DoodadPlan again = service.Plan(layout, config, catalog, Reference.Chunks);
             Assert.Equal(plan.Placed, again.Placed);
+            plans.Add(plan.Placed);
         }
+
+        // The same seed gives the same plan, and the seed is what picks it: a plan that ignored it would pass the above.
+        Assert.Contains(plans, p => !p.SequenceEqual(plans[0]));
     }
 
+    /// <summary>
+    /// A required doodad no slot fits stands on open navmesh, clear of walls, the entry and the portals, and on the
+    /// navmesh the entry reaches: the forest's blocker tops bake as islands nothing walks onto, and a strongbox on one is
+    /// a quest no one can finish. Over several seeds, so the fallback's draws land in several places.
+    /// </summary>
     [Fact]
     public async Task Fall_back_to_open_navmesh_when_no_slot_fits_a_required_rule()
     {
-        (ChunkLayout layout, DtNavMesh navMesh) = s_baked.Value;
+        (ChunkLayout baked, DtNavMesh navMesh) = s_baked.Value;
         ProceduralMapConfig config = Config(Rule(1, Strongbox, "nowhere", 1, 1, required: true));
-        DoodadPlacementService service = Service(out TestLog log);
-
-        DoodadPlan plan = service.Plan(layout, config, Catalog(), Reference.Chunks);
-        Assert.Empty(plan.Placed);
-        Assert.Equal(Strongbox, Assert.Single(plan.RequiredShort).Template.Id.Value);
-
-        MapInstance instance = Instance(layout, navMesh, MapInstanceClients.NewWorld());
-        await service.PlaceAsync(instance, layout, plan, new MapTemplateId(2), CancellationToken.None);
-
-        Doodad strongbox = Assert.Single(instance.Doodads.All);
-        Assert.Empty(log.Errors);
         var navigator = new MapNavigator(NullLoggerFactory.Instance);
         navigator.LoadFromNavMesh(navMesh);
-        Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(strongbox.Position, out _));
-
         var query = new DtNavMeshQuery(navMesh);
-        var at = new RcVec3f(strongbox.Position.x, strongbox.Position.y, strongbox.Position.z);
-        query.FindNearestPoly(at, new RcVec3f(0.5f, 2f, 0.5f), new DtQueryDefaultFilter(), out long poly, out _, out _);
-        query.FindDistanceToWall(poly, at, 5f, new DtQueryDefaultFilter(), out float toWall, out _, out _);
-        Assert.True(toWall >= 1.5f, $"the strongbox stands {toWall} m from a wall");
-        Assert.True(FlatDistance(strongbox.Position, layout.EntrySpawnWorldPos) >= 15f);
-        Assert.True(FlatDistance(strongbox.Position, layout.Portals.Single(p => p.Role == PortalRole.Back).WorldPos) >= 8f);
+        var filter = new DtQueryDefaultFilter();
+        var pick = new RcVec3f(0.5f, 2f, 0.5f);
+        long[] route = new long[4096];
+
+        for (int seed = 0; seed < 200; seed++)
+        {
+            ChunkLayout layout = baked with { Seed = seed };
+            DoodadPlacementService service = Service(out TestLog log);
+            DoodadPlan plan = service.Plan(layout, config, Catalog(), Reference.Chunks);
+            Assert.Empty(plan.Placed);
+            Assert.Equal(Strongbox, Assert.Single(plan.RequiredShort).Template.Id.Value);
+
+            MapInstance instance = Instance(layout, navMesh, MapInstanceClients.NewWorld());
+            await service.PlaceAsync(instance, layout, plan, new MapTemplateId(2), CancellationToken.None);
+
+            Doodad strongbox = Assert.Single(instance.Doodads.All);
+            Assert.Empty(log.Errors);
+            Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(strongbox.Position, out _));
+
+            var at = new RcVec3f(strongbox.Position.x, strongbox.Position.y, strongbox.Position.z);
+            query.FindNearestPoly(at, pick, filter, out long poly, out _, out _);
+            query.FindDistanceToWall(poly, at, 5f, filter, out float toWall, out _, out _);
+            Assert.True(toWall >= 1.5f, $"seed {seed}: the strongbox stands {toWall} m from a wall");
+            Assert.True(FlatDistance(strongbox.Position, layout.EntrySpawnWorldPos) >= 15f);
+            Assert.True(FlatDistance(strongbox.Position, layout.Portals.Single(p => p.Role == PortalRole.Back).WorldPos) >= 8f);
+
+            var entry = new RcVec3f(layout.EntrySpawnWorldPos.x, layout.EntrySpawnWorldPos.y, layout.EntrySpawnWorldPos.z);
+            query.FindNearestPoly(entry, pick, filter, out long entryPoly, out _, out _);
+            query.FindPath(entryPoly, poly, entry, at, filter, route, out int count, route.Length);
+            Assert.True(count > 0 && route[count - 1] == poly,
+                $"seed {seed}: the strongbox at {strongbox.Position} stands on navmesh the entry does not reach");
+        }
     }
 
     /// <summary>
@@ -118,9 +141,9 @@ public class DoodadPlacementShould
         Vector3[] spots = layout.Chunks.Where(c => c.Depth > 0).Take(3).Select(c => c.WorldPos + new Vector3(15f, 1f, 15f)).ToArray();
         var plan = new DoodadPlan(
         [
-            new PlannedDoodad(Template(catalog, Barrel), spots[0], 90f, AtSlot: true, VisibleGate: onObjective),
-            new PlannedDoodad(Template(catalog, Gated), spots[1], 0f, AtSlot: true, UsableGate: unknownQuest),
-            new PlannedDoodad(Template(catalog, Shrine), spots[2], 180f, AtSlot: true, VisibleGate: onObjective),
+            new PlannedDoodad(Template(catalog, Barrel), spots[0], 90f, VisibleGate: onObjective),
+            new PlannedDoodad(Template(catalog, Gated), spots[1], 0f, UsableGate: unknownQuest),
+            new PlannedDoodad(Template(catalog, Shrine), spots[2], 180f, VisibleGate: onObjective),
         ], [], []);
         DoodadPlacementService service = Service(out TestLog log);
         MapInstance instance = Instance(layout, navMesh, MapInstanceClients.NewWorld(data));

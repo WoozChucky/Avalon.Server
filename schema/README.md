@@ -37,7 +37,7 @@ than a client that decodes into the wrong field.
 The three files under `vectors/` have no such guard yet: nothing fails if the server's rotation,
 guid packing, navmesh bake settings or chunk `.obj`s change and they are not re-exported. Until one
 exists, re-export them by hand when `ChunkRotation`, `ObjectGuid`, `NavmeshBuildSettings`,
-`MapNavigator` or `Maps/Chunks/*.obj` changes.
+`MapNavigator`, `DoodadObstacleGeometry` or `Maps/Chunks/*.obj` changes.
 
 `items/item-catalog-v1.json`, `abilities/ability-catalog-v1.json`, `auras/aura-catalog-v1.json`, `doodads/doodad-catalog-v1.json` and `quests/quest-catalog-v1.json` are the only artifacts read from
 a database rather than from the code. Their content changes when game data changes, and they are reviewed as data

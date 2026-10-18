@@ -62,6 +62,11 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
         DoodadPlan doodads = _doodadPlace.Plan(layout, layout.Config, world.Data?.Doodads ?? DoodadCatalog.Empty,
             _sp.GetRequiredService<IChunkLibrary>());
 
+        // The bake cuts the solid doodads' boxes out, and the instance keeps this layout, so its layout packet carries
+        // them to the client. A layout with none stays the one its source built.
+        if (doodads.Obstacles.Count > 0)
+            layout = layout with { Obstacles = doodads.Obstacles };
+
         DtNavMesh navMesh = await _navBuilder.BuildAsync(layout, ct);
 
         var navigator = new MapNavigator(_lf);

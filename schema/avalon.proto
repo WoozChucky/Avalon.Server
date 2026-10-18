@@ -397,6 +397,14 @@ enum DisconnectReason {
    DisconnectReason_Deactivated = 8;
    DisconnectReason_SlowConnection = 9;
 }
+message DoodadObstacleDto {
+   float MinX = 1;
+   float MaxX = 2;
+   float MinZ = 3;
+   float MaxZ = 4;
+   float BaseY = 5;
+   float TopY = 6;
+}
 enum DoodadState {
    DoodadState_Unknown = 0;
    DoodadState_Ready = 1;
@@ -964,6 +972,7 @@ message SChunkLayoutPacket {
    Vector3Dto EntrySpawn = 5;
    repeated PortalPlacementDto Portals = 6;
    uint32 MapId = 7;
+   repeated DoodadObstacleDto Obstacles = 8;
 }
 message SDialogueEndPacket {
    uint64 SpeakerGuid = 1;
