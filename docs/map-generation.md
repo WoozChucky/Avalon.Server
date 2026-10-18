@@ -539,7 +539,7 @@ ways: each must stand inside its building's proxy, and it draws that proxy, so t
 town (`MapDoodadSpawns`, [doodads](doodads.md#placement)) at the same spot and yaw, with a template whose `ModelKey` is
 the item's model; `TownDoodadSpawnsShould` pins one seed row per item and none without one. The box stays whatever
 the doodad shows, so a doodad-drawn prop is never hidden: no visibility gate on its row or template, no despawn once
-spent, no script (the same test). Glimmerdell's notice board
+spent, no script, which could despawn it or hide it through `CanSee` (the same test). Glimmerdell's notice board
 (`avalon_notice_board` at local (9, 24), yaw 90, in `town_sw_01`) is the one today: it left
 `Maps/Decor/town_sw_01.json` and is doodad 6, the board of quest 9's objective 902.
 

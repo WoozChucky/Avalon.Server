@@ -105,7 +105,8 @@ public class QuestDoodadCreditShould
     /// <summary>
     /// The seeded strongbox end to end (quest 9's objective 901, doodad 5, as the World database seeds them): shown to two
     /// players on the step, opened by one through its cast bar, it credits that user alone, whose next view decision
-    /// removes it. It stays ready and in the other player's view, who then opens it for their own credit and remove.
+    /// removes it. It stays ready and in the other player's view; that player then opens it for their own credit, and it
+    /// is removed from their view.
     /// </summary>
     [Fact]
     public void Hide_the_seeded_strongbox_from_its_user_once_opened()

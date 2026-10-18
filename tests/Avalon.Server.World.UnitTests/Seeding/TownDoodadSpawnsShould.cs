@@ -41,7 +41,7 @@ public class TownDoodadSpawnsShould
                 Assert.Equal((item.Yaw + 90 * chunk.Rotation) % 360, row.Yaw);
 
                 // Never hidden: no visibility gate on the row or its template, no use that spends it into a despawn,
-                // and no script, which could despawn it on a use or a respawn.
+                // and no script, which could despawn it on a use or a respawn, or hide it through CanSee.
                 DoodadTemplate template = templates[row.DoodadTemplateId.Value];
                 Assert.Null(row.VisibleQuestId);
                 Assert.Null(template.VisibleQuestId);
