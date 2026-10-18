@@ -16,6 +16,9 @@ public static class ChunkGenCli
     public const string Usage =
         "usage: Avalon.ChunkGen forest|town [--maps <Maps directory>] | kit-bounds --kit <glTF directory> [--props <glTF directory>] [--props-kit <glTF directory>] [--nature-kit <glTF directory>] [--forest-props <glTF directory>]";
 
+    /// <summary>The kit-bounds directories, in the order they are read: the art kit (required), then the optional ones.</summary>
+    private static readonly string[] s_kitDirectories = ["--kit", "--props", "--props-kit", "--nature-kit", "--forest-props"];
+
     public static async Task<int> RunAsync(
         string[] args, Func<IReadOnlyList<ChunkPiece>> singles, Func<IReadOnlyList<ChunkGroupPiece>> groups,
         Func<IReadOnlyList<TownSquare>> town, TextWriter output, TextWriter error)
@@ -149,9 +152,6 @@ public static class ChunkGenCli
             error.WriteLine($"could not remove the temporary copy {staging}: {ex.GetType().Name}: {ex.Message}");
         }
     }
-
-    /// <summary>The kit-bounds directories, in the order they are read: the art kit (required), then the optional ones.</summary>
-    private static readonly string[] s_kitDirectories = ["--kit", "--props", "--props-kit", "--nature-kit", "--forest-props"];
 
     /// <summary>
     /// Measures every *.gltf directly in the kit directory and in each optional one (the custom props, the props kit, the
