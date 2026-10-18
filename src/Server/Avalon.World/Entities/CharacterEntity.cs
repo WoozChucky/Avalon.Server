@@ -287,6 +287,13 @@ public partial class CharacterEntity : ICharacter
     /// </summary>
     public PartyId? PartyId { get; internal set; }
 
+    /// <summary>
+    /// When this character may next open a new instance at a portal (#1104): set by EnterMapHandler, on the tick, as it
+    /// accepts a create, to that moment plus <c>Game:InstanceCreateCooldownSeconds</c>. In memory only, never saved, so
+    /// a new session starts without a cooldown. World-side, never on ICharacter.
+    /// </summary>
+    public DateTimeOffset InstanceCreateAllowedAt { get; internal set; }
+
     /// <summary>Called by PvpToggle after it writes the row: replicates the flag and marks the save.</summary>
     public void MarkPvpChanged()
     {

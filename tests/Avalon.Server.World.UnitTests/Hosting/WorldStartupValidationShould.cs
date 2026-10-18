@@ -71,6 +71,8 @@ public class WorldStartupValidationShould
     [InlineData("PartyLeaveGraceSeconds", "0")]
     [InlineData("PartyReturnRetrySeconds", "0")]
     [InlineData("PartyReturnRetrySeconds", "3601")]
+    [InlineData("InstanceCreateCooldownSeconds", "-1")]
+    [InlineData("InstanceCreateCooldownSeconds", "3601")]
     [InlineData("PartyExperienceModeCooldownSeconds", "-1")]
     [InlineData("PartyHealthPerExtraPlayer", "-0.1")]
     [InlineData("PartyEligibilityRange", "0.5")]

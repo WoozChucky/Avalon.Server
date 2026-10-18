@@ -196,6 +196,15 @@ public class GameConfiguration
     [Range(0, int.MaxValue)]
     public int AbandonedInstanceLifetimeMinutes { get; set; } = DefaultAbandonedInstanceLifetimeMinutes;
 
+    /// <summary>
+    /// Seconds after a character opens a new instance at a portal, a private or a party one (#1104), before it may open
+    /// another. Counted from when the create is accepted, so a build that fails still costs it; entering an instance
+    /// that is already live is never held back. Kept in memory only, per character: a new session starts without one.
+    /// 0 turns it off.
+    /// </summary>
+    [Range(0, 3600)]
+    public int InstanceCreateCooldownSeconds { get; set; } = 10;
+
     /// <summary>Seconds an invite stays open before it expires.</summary>
     [Range(1, 3600)]
     public int PartyInviteTimeoutSeconds { get; set; } = 60;

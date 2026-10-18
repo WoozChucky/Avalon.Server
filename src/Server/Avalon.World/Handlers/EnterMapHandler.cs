@@ -4,6 +4,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
+using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.World;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
@@ -124,13 +125,25 @@ public partial class EnterMapHandler(
             return;
         }
 
-        // 7. Resolve the target instance; the rest runs once it is ready. The request is accepted, so the move is
-        // under way from here: a second portal entry in this same pass, before the first one's continuation has run,
-        // is refused in step 1 rather than arriving and saving once more.
+        // 7. A choice other than Default (#1104), checked before anything is built: an instance picked by id, or a new
+        // one. A plain entry reads nothing of it.
+        MapEntryChoice choice = packet.Choice;
+        IMapInstance? picked = null;
+        if (choice != MapEntryChoice.Default && RefusesChoice(connection, character, targetTemplate, packet, out picked))
+        {
+            return;
+        }
+
+        // Resolve the target instance; the rest runs once it is ready. The request is accepted, so the move is under
+        // way from here: a second portal entry in this same pass, before the first one's continuation has run, is
+        // refused in step 1 rather than arriving and saving once more.
         connection.RespawnInFlight = true;
         try
         {
-            ResolveTarget(connection, character, targetTemplate, targetMap, reResolved: false);
+            if (choice == MapEntryChoice.Default)
+                ResolveTarget(connection, character, targetTemplate, targetMap, reResolved: false);
+            else
+                ResolveChoice(connection, character, targetTemplate, targetMap, choice, picked);
         }
         catch
         {
@@ -156,7 +169,7 @@ public partial class EnterMapHandler(
 
     /// <summary>
     /// The <c>reason</c> a refused portal entry is counted under: a fixed set, one per place the handler refuses,
-    /// since <c>MapNotFound</c> alone answers five of them. Since the refusals log at Debug, the count is what shows
+    /// since <c>MapNotFound</c> alone answers six of them. Since the refusals log at Debug, the count is what shows
     /// them at the level a world ships with: a rate of <see cref="NotNearPortal" /> is clients and the server
     /// disagreeing about where characters stand, or a client asking for portals it is not at.
     /// </summary>
@@ -191,6 +204,27 @@ public partial class EnterMapHandler(
 
         /// <summary>On arrival: the party's instance is full (<c>InstanceFull</c>).</summary>
         public const string InstanceFull = "instance_full";
+
+        /// <summary>The packet's <c>Choice</c> is none the server knows (<c>MapNotFound</c>): a bad request.</summary>
+        public const string UnknownChoice = "unknown_choice";
+
+        /// <summary>A choice other than Default for a town, which has no instances to choose (<c>NotInstanced</c>).</summary>
+        public const string NotInstanced = "not_instanced";
+
+        /// <summary>
+        /// The picked instance is not one the character may enter, or was released before the arrival
+        /// (<c>InstanceUnavailable</c>).
+        /// </summary>
+        public const string InstanceUnavailable = "instance_unavailable";
+
+        /// <summary>A new instance asked for inside the character's creation cooldown (<c>CreateOnCooldown</c>).</summary>
+        public const string CreateOnCooldown = "create_on_cooldown";
+
+        /// <summary>A new party instance asked for by a member who is not the leader (<c>NotPartyLeader</c>).</summary>
+        public const string NotPartyLeader = "not_party_leader";
+
+        /// <summary>A new party instance asked for by a character in no party (<c>NotInParty</c>).</summary>
+        public const string CreateNotInParty = "create_not_in_party";
     }
 
     /// <summary>The first portal of <paramref name="instance" /> that leads to <paramref name="targetMap" />, or null.</summary>
@@ -207,6 +241,125 @@ public partial class EnterMapHandler(
 
         return null;
     }
+
+    /// <summary>
+    /// The checks of a choice other than Default (#1104), in order: one the server knows, for a Normal map; for
+    /// <c>Existing</c>, an instance the character may enter (<see cref="IInstanceChoices.FindChoosable" />: its own
+    /// private one or its current party's, live, of this map; one answer for every other id); for <c>NewParty</c>, a
+    /// party the character leads; for a create, outside the character's creation cooldown. Sends the refusal and returns
+    /// true when one fails; otherwise <paramref name="picked" /> is the instance an <c>Existing</c> choice named.
+    /// Nothing here starts or extends the cooldown.
+    /// </summary>
+    private bool RefusesChoice(IWorldConnection connection, ICharacter character, MapTemplate targetTemplate,
+        CEnterMapPacket packet, out IMapInstance? picked)
+    {
+        picked = null;
+        MapEntryChoice choice = packet.Choice;
+        if (choice is not (MapEntryChoice.Existing or MapEntryChoice.NewPrivate or MapEntryChoice.NewParty))
+        {
+            Log.Refused(logger, character.Name, packet.TargetMapId, "UnknownChoice");
+            Refuse(connection, MapTransitionResult.MapNotFound, Refusal.UnknownChoice);
+            return true;
+        }
+
+        if (targetTemplate.MapType != MapType.Normal)
+        {
+            Log.Refused(logger, character.Name, packet.TargetMapId, nameof(MapTransitionResult.NotInstanced));
+            Refuse(connection, MapTransitionResult.NotInstanced, Refusal.NotInstanced);
+            return true;
+        }
+
+        uint characterId = character.Guid.Id;
+        Party? party = parties?.PartyOf(characterId);
+        if (choice == MapEntryChoice.Existing)
+        {
+            picked = world.InstanceChoices.FindChoosable(characterId, party?.Id, targetTemplate.Id, packet.InstanceId);
+            if (picked is not null)
+                return false;
+
+            Log.Refused(logger, character.Name, packet.TargetMapId, nameof(MapTransitionResult.InstanceUnavailable));
+            Refuse(connection, MapTransitionResult.InstanceUnavailable, Refusal.InstanceUnavailable);
+            return true;
+        }
+
+        if (choice == MapEntryChoice.NewParty && party is null)
+        {
+            Log.Refused(logger, character.Name, packet.TargetMapId, nameof(MapTransitionResult.NotInParty));
+            Refuse(connection, MapTransitionResult.NotInParty, Refusal.CreateNotInParty);
+            return true;
+        }
+
+        if (choice == MapEntryChoice.NewParty && !party!.IsLeader(characterId))
+        {
+            Log.Refused(logger, character.Name, packet.TargetMapId, nameof(MapTransitionResult.NotPartyLeader));
+            Refuse(connection, MapTransitionResult.NotPartyLeader, Refusal.NotPartyLeader);
+            return true;
+        }
+
+        // A create. The time left goes out as a system line: the transition has no field for it.
+        if (character is CharacterEntity entity && entity.Clock.GetUtcNow() is var now && now < entity.InstanceCreateAllowedAt)
+        {
+            Log.Refused(logger, character.Name, packet.TargetMapId, nameof(MapTransitionResult.CreateOnCooldown));
+            Refuse(connection, MapTransitionResult.CreateOnCooldown, Refusal.CreateOnCooldown);
+            int seconds = (int)Math.Ceiling((entity.InstanceCreateAllowedAt - now).TotalSeconds);
+            connection.Send(SChatMessagePacket.System(
+                $"You can open a new instance in {seconds} {(seconds == 1 ? "second" : "seconds")}.", now.UtcDateTime,
+                PacketEncoder.Shared));
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The request for an accepted choice other than Default (#1104), and its arrival queued as a plain entry's is: the
+    /// instance picked, which is the party's when it is one of the character's current party's (its arrival then re-checks
+    /// the party and the seats), or a new one built for the character or for the party it leads. A create starts the
+    /// character's cooldown here, as it is accepted, whatever becomes of its build.
+    /// </summary>
+    private void ResolveChoice(IWorldConnection connection, ICharacter character, MapTemplate targetTemplate,
+        MapId targetMapId, MapEntryChoice choice, IMapInstance? picked)
+    {
+        uint characterId = character.Guid.Id;
+        Party? party = parties?.PartyOf(characterId);
+        PartyId? partyId = null;
+        Task<IMapInstance> request;
+        if (choice == MapEntryChoice.Existing)
+        {
+            if (party is not null && world.PartyInstances.IsPartyInstance(party.Id, picked!.InstanceId))
+                partyId = party.Id;
+
+            request = Task.FromResult(picked!);
+        }
+        else
+        {
+            if (character is CharacterEntity entity)
+            {
+                entity.InstanceCreateAllowedAt =
+                    entity.Clock.GetUtcNow().AddSeconds(world.Configuration.InstanceCreateCooldownSeconds);
+            }
+
+            if (choice == MapEntryChoice.NewParty)
+            {
+                partyId = party!.Id;
+                request = world.InstanceChoices.CreatePartyInstanceAsync(partyId, targetTemplate.Id);
+            }
+            else
+            {
+                request = world.InstanceChoices.CreatePrivateInstanceAsync(characterId, targetTemplate.Id);
+            }
+        }
+
+        int capacity = partyId is null ? int.MaxValue : PartyCapacity(targetTemplate);
+        SettledOf(connection).EnqueueSettled(request,
+            done => Arrive(connection, character, done, targetTemplate, targetMapId, partyId, capacity, reResolved: false,
+                choice));
+    }
+
+    /// <summary>The seats of a party's instance of the map: <c>min(MaxPartySize, MaxPlayers ?? MaxPartySize)</c>.</summary>
+    private int PartyCapacity(MapTemplate targetTemplate) =>
+        Math.Min(world.Configuration.MaxPartySize,
+            targetTemplate.MaxPlayers is { } max ? max : world.Configuration.MaxPartySize);
 
     /// <summary>
     /// Resolves the target instance and enqueues the arrival. Procedural maps key per CHARACTER (not per account) so
@@ -228,25 +381,24 @@ public partial class EnterMapHandler(
             SettledOf(connection).EnqueueSettled(
                 world.InstanceRegistry.GetOrCreateTownInstanceAsync(targetTemplate.Id, targetTemplate.MaxPlayers ?? 30),
                 request => Arrive(connection, character, request, targetTemplate, targetMapId, null, int.MaxValue,
-                    reResolved));
+                    reResolved, MapEntryChoice.Default));
         }
         else if (parties?.PartyOf(characterId) is { } party)
         {
             PartyId partyId = party.Id;
-            int capacity = Math.Min(world.Configuration.MaxPartySize,
-                targetTemplate.MaxPlayers is { } max ? max : world.Configuration.MaxPartySize);
+            int capacity = PartyCapacity(targetTemplate);
 
             SettledOf(connection).EnqueueSettled(
                 world.PartyInstances.GetOrCreatePartyInstanceAsync(partyId, targetTemplate.Id),
                 request => Arrive(connection, character, request, targetTemplate, targetMapId, partyId, capacity,
-                    reResolved));
+                    reResolved, MapEntryChoice.Default));
         }
         else
         {
             SettledOf(connection).EnqueueSettled(
                 world.InstanceRegistry.GetOrCreateNormalInstanceAsync(characterId, targetTemplate.Id),
                 request => Arrive(connection, character, request, targetTemplate, targetMapId, null, int.MaxValue,
-                    reResolved));
+                    reResolved, MapEntryChoice.Default));
         }
     }
 
@@ -264,8 +416,10 @@ public partial class EnterMapHandler(
     /// or whatever stops it. Whichever it is, the move is over and RespawnInFlight is cleared, on every path out, a
     /// throw included, unless the move was handed to a second resolve, which then ends it the same way.
     /// </summary>
+    /// <param name="choice">What the request chose (#1104): Default for a plain entry, which arrives as it always has.</param>
     private void Arrive(IWorldConnection connection, ICharacter character, Task<IMapInstance> request,
-        MapTemplate targetTemplate, MapId targetMapId, PartyId? partyId, int capacity, bool reResolved)
+        MapTemplate targetTemplate, MapId targetMapId, PartyId? partyId, int capacity, bool reResolved,
+        MapEntryChoice choice)
     {
         // The character can leave the connection while the instance loads: a select of it on
         // another connection despawns it here and kicks this one. Transferring then would put a
@@ -312,9 +466,11 @@ public partial class EnterMapHandler(
 #pragma warning restore MA0045
 
             // Before the membership and capacity checks: a released instance holds nobody, and the second resolve
-            // repeats both.
-            if (ArrivesInReleasedInstance(connection, character, targetInstance, targetTemplate, targetMapId, reResolved,
-                    out resolvingAgain))
+            // repeats both. A chosen instance is never swapped for another: released, it is refused.
+            if (choice != MapEntryChoice.Default
+                    ? ChosenInstanceReleased(connection, character, targetInstance, targetMapId)
+                    : ArrivesInReleasedInstance(connection, character, targetInstance, targetTemplate, targetMapId,
+                        reResolved, out resolvingAgain))
             {
                 return;
             }
@@ -327,6 +483,8 @@ public partial class EnterMapHandler(
             }
 
             Enter(connection, character, targetInstance, targetTemplate, targetMapId);
+            if (choice != MapEntryChoice.Default)
+                ArrivedByChoice(character, targetInstance, targetTemplate, choice, partyId);
         }
         finally
         {
@@ -391,6 +549,41 @@ public partial class EnterMapHandler(
             targetInstance.InstanceId, targetMapId, character.Name);
         Refuse(connection, MapTransitionResult.MapNotFound, Refusal.InstanceReleased);
         return true;
+    }
+
+    /// <summary>
+    /// A chosen instance (#1104) released before the arrival reached it: refused <c>InstanceUnavailable</c>, as a pick of
+    /// it would now be, and never resolved again to another instance, which the character did not choose.
+    /// </summary>
+    private bool ChosenInstanceReleased(IWorldConnection connection, ICharacter character, IMapInstance targetInstance,
+        MapId targetMapId)
+    {
+        if (world.InstanceRegistry.GetInstanceById(targetInstance.InstanceId) is not null)
+            return false;
+
+        logger.LogInformation("EnterMap: chosen instance {InstanceId} of map {MapId} was released before {Name} arrived",
+            targetInstance.InstanceId, targetMapId, character.Name);
+        Refuse(connection, MapTransitionResult.InstanceUnavailable, Refusal.InstanceUnavailable);
+        return true;
+    }
+
+    /// <summary>
+    /// After an arrival by choice (#1104): the instance becomes its owner's default, the one a plain entry takes, for a
+    /// private one picked or opened, and for the party's new one its leader opened, whose other online members are then
+    /// told. A member going back to an older party instance leaves the party's default where it is: only the leader's
+    /// arrival in a new one moves it.
+    /// </summary>
+    private void ArrivedByChoice(ICharacter character, IMapInstance targetInstance, MapTemplate targetTemplate,
+        MapEntryChoice choice, PartyId? partyId)
+    {
+        if (choice == MapEntryChoice.Existing && partyId is not null)
+            return;
+
+        world.InstanceChoices.MakeDefault(targetInstance);
+
+        uint characterId = character.Guid.Id;
+        if (choice == MapEntryChoice.NewParty && parties?.PartyOf(characterId) is { } party)
+            parties.SendLine(party, $"{character.Name} opened a new {targetTemplate.Name}.", exceptCharacterId: characterId);
     }
 
     /// <summary>
@@ -495,5 +688,12 @@ public partial class EnterMapHandler(
         [LoggerMessage(Level = LogLevel.Debug,
             Message = "EnterMap: {Name} died before its target instance was ready; not moved")]
         public static partial void DiedBeforeInstanceReady(ILogger logger, string name);
+
+        /// <summary>
+        /// A choice other than Default refused (#1104); <paramref name="result" /> is a constant naming why, never a value
+        /// the packet carries.
+        /// </summary>
+        [LoggerMessage(Level = LogLevel.Debug, Message = "EnterMap: {Name}'s choice for map {TargetMapId} refused: {Result}")]
+        public static partial void Refused(ILogger logger, string name, ushort targetMapId, string result);
     }
 }

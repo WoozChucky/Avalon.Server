@@ -32,9 +32,11 @@ internal sealed class PartyTestWorld
     public FakePartyInstances Instances { get; } = new();
     public PartyService Parties { get; }
 
-    public PartyClient Online(uint id, string? name = null, ushort level = 1, Guid? instance = null)
+    /// <param name="time">The character's clock; the system clock when omitted.</param>
+    public PartyClient Online(uint id, string? name = null, ushort level = 1, Guid? instance = null,
+        TimeProvider? time = null)
     {
-        CharacterEntity character = TestCharacters.New(id);
+        CharacterEntity character = TestCharacters.New(id, time: time);
         character.Name = name ?? $"Tester{id}";
         character.Level = level;
         character.InstanceId = instance ?? Guid.Empty;
