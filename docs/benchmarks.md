@@ -3701,6 +3701,8 @@ with the committed figure, in every build (Debug and Release, see below) and for
   in every scenario: the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole
   scenario. Any one object allocated every tick, anywhere on the measured path, fails every steady scenario (the
   smallest, 24 B, is 1,440 B per window).
+  `town-doodads` reads 0 from its first entry (doodads S1, 2026-10-18), its row added alone, with no other row
+  regenerated: a view decision over 40 doodads, half of them gated, allocates nothing.
   `town-social` reads 728 B per window since #973 (3,904 B from #972), all of it its events' own, one of each kind a
   window ([a social town, quieter](#results--a-social-town-quieter-973-2026-10-15)): the floor decides for it too (1% is
   7 B), so it fails above 984 B, and one more 40 B enumerator on each of its seven events (280 B) fails it. Its Debug
@@ -4588,6 +4590,54 @@ the drift allocate nothing: the moved list is as long as the grid's entries and 
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- hit-candidates
 ```
+
+### Results — doodads in the view decision (doodads S1, 2026-10-18)
+
+Doodads (see [doodads](doodads.md)) add a fourth kind to every view decision: the doodads of the instance's
+`DoodadIndex` within reach, each listed by distance, and one with rules by the answer the view holds
+(`CharacterCharacterGameState.AddVisibleDoodads`). `InterestVisibilityBenchmarks` gained a `Doodads` parameter. With 0,
+the instance holds none. With 20, it holds 20 doodads without rules and 20 behind a quest gate the watcher meets, on a
+ring 15 m round it, so all 40 are in view. The setup throws unless every one is. `Indexed` is the instance's own
+decision (`MapInstance.DecideView`). Main has no doodads, so its rows are the 0 column alone.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InterestVisibilityBenchmarks.Indexed*" --job short --warmupCount 5 --iterationCount 8 --affinity 4
+```
+
+The runs were out of process, with a short job, five warmups, eight iterations and `--affinity 4`. Two runs of the
+branch before the fix below were interleaved with two of main at `b7ae41fc`: branch, main, branch, main. The machine
+was BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.9457), 12th Gen Intel Core i9-12900K 3.20GHz, 24 logical and 16
+physical cores, .NET 10.0.13, X64 RyuJIT x86-64-v3. Every row allocated 0 B.
+
+| Layout | Main, 0 doodads | Branch, 0 doodads | Branch, 20 + 20 doodads |
+|---|---:|---:|---:|
+| dense (all 200 creatures within 20 m) | 2,245 / 1,955 ns | 2,276 / 2,693 ns | 3,421 / 2,582 ns |
+| sparse (9 in view) | 176.6 / 168.5 ns | 194.3 / 173.9 ns | 701 / 661 ns |
+| far (none in view) | 42.5 / 42.0 ns | 46.0 / 46.5 ns | 517.7 / 539.5 ns |
+| margin (all 200 tracked at 65 m) | 2,657 / 2,639 ns | 2,898 / 3,092 ns | 3,573 / 3,705 ns |
+
+- **A doodad in view costs about 12 ns per decision.** The far row isolates it: no creature is in view, so 40 doodads
+  add 472 to 493 ns, 11.8 to 12.3 ns each. The dense rows swung by a fifth between runs on both sides (main 2,245 then
+  1,955 ns), so they bound nothing.
+- **With no doodad, the far row costs about 4 ns more than main** (46.0 to 46.5 ns against 42.0 to 42.5). That is the
+  doodad pass's early return on an empty index, once per decision.
+- **The margin row with no doodad was 9% to 17% dearer than main**, a cost no doodad explains. The JIT inlined
+  `AddVisibleDoodads` into `MapInstance.DecideView`. That grew the method from 5,172 to 6,279 bytes of code and its
+  stack frame from 616 to 776 bytes, which slowed the per-creature grid walk inlined into it. All 200 margin creatures
+  read their entity and ask the tracked set, so that walk is most of the margin row's cost. The fix marks
+  `AddVisibleDoodads` `[MethodImpl(MethodImplOptions.NoInlining)]`, so the doodad pass is one call per decision.
+  - The fix's figures come from the perf reviewer's runs of a scratch copy of the branch carrying the attribute, not
+    from this branch's commit, because no confirming run was made: margin with no doodad 2,795 / 2,811 ns, against
+    main 2,647 / 2,627 ns in the same session.
+  - With 20 + 20 doodads, the same copy read margin 3,584 / 3,283 ns and far 510.0 / 530.8 ns. The branch without the
+    attribute read margin 3,771 / 3,725 ns and far 514.2 / 518.0 ns.
+- **About 5% remains on the margin row with no doodad** after the fix (2.80 against 2.64 µs). It matches no code
+  difference, and it is within this machine's swing: another pair of main runs read 2,765 and 3,032 ns. With tiered
+  compilation off, the branch and main read the same, 4,890 / 4,898 ns against 4,905 / 4,926 ns. The margin row is a
+  layout no real view has, all 200 creatures held in the margin at once.
+
+The scenario allocation gate's new `town-doodads` scenario (see [what each scenario models](#what-each-scenario-models))
+reads 0 B per window: in Release before the fix and in Debug with it. The other scenarios are unchanged.
 
 ### Results — hit queries over a spatial grid (#982, 2026-10-15)
 
