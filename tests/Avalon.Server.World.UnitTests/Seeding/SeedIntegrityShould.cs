@@ -1200,7 +1200,7 @@ public class SeedIntegrityShould
 
         var catalog = new QuestCatalog(SeededQuests(context), context.CreatureTemplates.AsNoTracking().ToList(),
             context.ItemTemplates.AsNoTracking().ToList(), context.DialogueNodes.AsNoTracking().ToList(), _ => null,
-            NullLoggerFactory.Instance);
+            NullLoggerFactory.Instance, context.DoodadTemplates.AsNoTracking().ToList());
 
         Assert.Empty(catalog.Refused);
         Assert.Equal(8, catalog.All.Count);

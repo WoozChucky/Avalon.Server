@@ -10,6 +10,7 @@ public enum QuestObjectiveKind
     Collect = 2,
     Talk = 3,
     Scripted = 4,
+    UseDoodad = 5,
 }
 
 /// <summary>Why SMSG_QUEST_OFFER was sent (#433). Append-only.</summary>
@@ -22,7 +23,10 @@ public enum QuestOfferMode
     TurnIn = 2,
 }
 
-/// <summary>One objective, as the client shows it. TargetId is a creature template (Kill, Talk) or item template (Collect); 0 for Scripted.</summary>
+/// <summary>
+/// One objective, as the client shows it. TargetId is a creature template (Kill, Talk), an item template (Collect) or a
+/// doodad template (UseDoodad); 0 for Scripted.
+/// </summary>
 [ProtoContract]
 public class QuestObjectiveDto
 {

@@ -9,11 +9,14 @@ public enum QuestObjectiveType
     Collect = 2,
     Talk = 3,
     Scripted = 4,
+
+    /// <summary>Use a doodad of the named template: each use by the character counts one.</summary>
+    UseDoodad = 5,
 }
 
 /// <summary>
 /// One objective of a quest stage. A check constraint pins the target per type: Kill and Talk name a
-/// creature template, Collect an item template, Scripted neither.
+/// creature template, Collect an item template, UseDoodad a doodad template, Scripted none.
 /// </summary>
 public class QuestObjective
 {
@@ -23,6 +26,10 @@ public class QuestObjective
     public QuestObjectiveType Type { get; set; }
     public CreatureTemplateId? CreatureTemplateId { get; set; }
     public ItemTemplateId? ItemTemplateId { get; set; }
+
+    /// <summary>For a UseDoodad objective: the doodad template whose use counts.</summary>
+    public DoodadTemplateId? DoodadTemplateId { get; set; }
+
     public uint Count { get; set; }
     public LocalizedTextId DescriptionTextId { get; set; } = default!;
 

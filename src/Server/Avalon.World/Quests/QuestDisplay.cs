@@ -19,7 +19,7 @@ public static class QuestDisplay
             {
                 ObjectiveId = o.Id,
                 Kind = KindOf(o.Type),
-                TargetId = o.CreatureTemplateId?.Value ?? o.ItemTemplateId?.Value ?? 0,
+                TargetId = o.CreatureTemplateId?.Value ?? o.ItemTemplateId?.Value ?? o.DoodadTemplateId?.Value ?? 0,
                 Count = o.Count,
                 Text = text.Get(o.DescriptionTextId, context),
             }).ToList(),
@@ -39,6 +39,7 @@ public static class QuestDisplay
         QuestObjectiveType.Collect => QuestObjectiveKind.Collect,
         QuestObjectiveType.Talk => QuestObjectiveKind.Talk,
         QuestObjectiveType.Scripted => QuestObjectiveKind.Scripted,
+        QuestObjectiveType.UseDoodad => QuestObjectiveKind.UseDoodad,
         _ => QuestObjectiveKind.Unknown,
     };
 }

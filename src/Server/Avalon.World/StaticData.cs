@@ -148,8 +148,8 @@ public class StaticData(
 
             case ReloadArea.Quests:
             {
-                // Validated against the creatures and items read here, never the ones applied, so the quests and
-                // what they name are one generation. No repository (tests that build StaticData without one) is empty.
+                // Validated against the creatures, items and doodads read here, never the ones applied, so the quests
+                // and what they name are one generation. No repository (tests that build StaticData without one) is empty.
                 IReadOnlyCollection<QuestTemplate> quests = questRepository is null
                     ? Array.Empty<QuestTemplate>()
                     : await questRepository.GetAllAsync(ct);
@@ -157,8 +157,12 @@ public class StaticData(
                 IReadOnlyCollection<ItemTemplate> items = (await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly();
                 // The dialogue roots too (#737): a giver, ender or Talk target with none could never be talked to.
                 IReadOnlyCollection<DialogueNode> nodes = await dialogueRepository.GetAllNodesAsync(ct);
+                // The doodad templates a UseDoodad objective may name (doodads S3).
+                IReadOnlyCollection<DoodadTemplate> doodads = doodadTemplateRepository is null
+                    ? Array.Empty<DoodadTemplate>()
+                    : await doodadTemplateRepository.GetAllAsync(ct);
                 Func<string, Type?> findScript = scriptManager is null ? static _ => null : scriptManager.GetQuestScript;
-                return new QuestsPatch(new QuestCatalog(quests, creatures, items, nodes, findScript, loggerFactory));
+                return new QuestsPatch(new QuestCatalog(quests, creatures, items, nodes, findScript, loggerFactory, doodads));
             }
 
             case ReloadArea.Doodads:

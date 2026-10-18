@@ -29,9 +29,9 @@ namespace Avalon.World.Quests;
 
 /// <summary>
 /// Everything a quest does at run time (#433): availability, the dialogue options and offers, accept, progress
-/// (kills, talk, collect, scripts), stages, turn-in and abandon. A DI singleton, World-side, and <b>tick thread
+/// (kills, talk, collect, doodad uses, scripts), stages, turn-in and abandon. A DI singleton, World-side, and <b>tick thread
 /// only</b>: every caller (the quest handlers, InteractHandler, DialogueChooseHandler, MapInstance.CreatureKilled,
-/// QuestFlusher) runs on the tick. No timers and no awaits; the clock is read only to stamp accept and completion.
+/// DoodadUseService, QuestFlusher) runs on the tick. No timers and no awaits; the clock is read only to stamp accept and completion.
 /// It changes a character only through its QuestLog, its IInventoryService and its IWallet.
 /// </summary>
 public sealed class QuestService(
@@ -434,6 +434,44 @@ public sealed class QuestService(
                 }
 
                 OnInteracted(character, quest, active, npc);
+            }
+        }
+        finally
+        {
+            character.Quests.EndWalk(held);
+        }
+    }
+
+    /// <summary>
+    /// The character used a doodad of <paramref name="template" /> (doodads S3): +1, capped, on each UseDoodad objective
+    /// for that template in the current stage of each of its Active quests, settled as a kill is. The user alone is
+    /// credited, never its party (ruling R12). DoodadUseService calls this once a use completes and its script's OnUse
+    /// did not throw. A use that moves no quest allocates nothing: the quests are walked through the copy the log keeps
+    /// for the walk, and each stage's objectives by index, as in CreatureKilled.
+    /// </summary>
+    public void DoodadUsed(CharacterEntity character, DoodadTemplateId template)
+    {
+        uint doodad = template.Value;
+        QuestCatalog catalog = Catalog;
+        List<ActiveQuest> held = character.Quests.BeginWalk();
+        try
+        {
+            for (int i = 0; i < held.Count; i++)
+            {
+                ActiveQuest active = held[i];
+                if (active.State != CharacterQuestState.Active || !catalog.TryGet(active.QuestId, out QuestView? quest)
+                    || CurrentStage(quest, active) is not { } stage)
+                {
+                    continue;
+                }
+
+                IReadOnlyList<QuestObjectiveView> objectives = stage.Objectives;
+                for (int o = 0; o < objectives.Count; o++)
+                {
+                    QuestObjectiveView objective = objectives[o];
+                    if (objective.Type == Domain.World.QuestObjectiveType.UseDoodad && objective.DoodadTemplateId?.Value == doodad)
+                        AddProgress(character, quest.Id, objective.Id, 1);
+                }
             }
         }
         finally

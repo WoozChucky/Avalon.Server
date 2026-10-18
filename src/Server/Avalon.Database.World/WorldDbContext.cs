@@ -795,15 +795,16 @@ public class WorldDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<QuestObjective> builder)
     {
-        // The target per type (#433). Type is stored as its number: Kill 1, Collect 2, Talk 3, Scripted 4.
+        // The target per type (#433). Type is stored as its number: Kill 1, Collect 2, Talk 3, Scripted 4, UseDoodad 5.
         // Written to read the same on Postgres and on the SQLite the tests build the model on.
         builder.ToTable("QuestObjectives", t =>
         {
             t.HasCheckConstraint("CK_QuestObjectives_TargetFitsType",
-                "(\"Type\" = 1 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL)" +
-                " OR (\"Type\" = 2 AND \"ItemTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL)" +
-                " OR (\"Type\" = 3 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL)" +
-                " OR (\"Type\" = 4 AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL)");
+                "(\"Type\" = 1 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 2 AND \"ItemTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 3 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 4 AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 5 AND \"DoodadTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL)");
             t.HasCheckConstraint("CK_QuestObjectives_CountPositive", "\"Count\" >= 1");
         });
         builder.HasKey(b => b.Id);
@@ -825,6 +826,11 @@ public class WorldDbContext : DbContext
             .HasConversion(v => v!.Value, v => new ItemTemplateId(v))
             .IsRequired(false);
         builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(b => b.ItemTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(b => b.DoodadTemplateId)
+            .HasConversion(v => v!.Value, v => new DoodadTemplateId(v))
+            .IsRequired(false);
+        builder.HasOne<DoodadTemplate>().WithMany().HasForeignKey(b => b.DoodadTemplateId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(b => b.Drops).WithOne().HasForeignKey(d => d.ObjectiveId).OnDelete(DeleteBehavior.Cascade);
 

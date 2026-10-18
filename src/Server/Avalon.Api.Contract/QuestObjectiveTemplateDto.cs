@@ -11,6 +11,9 @@ public sealed class QuestObjectiveTemplateDto
     /// <summary>The quest item a Collect objective names; null otherwise.</summary>
     public ulong? ItemTemplateId { get; set; }
 
+    /// <summary>The doodad template a UseDoodad objective names; null otherwise.</summary>
+    public ulong? DoodadTemplateId { get; set; }
+
     public uint Count { get; set; }
     public string Text { get; set; } = "";
     public int TextId { get; set; }

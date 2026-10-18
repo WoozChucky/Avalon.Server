@@ -41,6 +41,7 @@ public static class QuestMapping
                     Type = (Avalon.Api.Contract.QuestObjectiveType)o.Type,
                     CreatureTemplateId = o.CreatureTemplateId?.Value,
                     ItemTemplateId = o.ItemTemplateId?.Value,
+                    DoodadTemplateId = o.DoodadTemplateId?.Value,
                     Count = o.Count,
                     Text = Text(texts, o.DescriptionTextId.Value),
                     TextId = o.DescriptionTextId.Value,

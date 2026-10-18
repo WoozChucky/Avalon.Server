@@ -10,4 +10,5 @@ public enum QuestObjectiveType
     Collect = 2,
     Talk = 3,
     Scripted = 4,
+    UseDoodad = 5,
 }

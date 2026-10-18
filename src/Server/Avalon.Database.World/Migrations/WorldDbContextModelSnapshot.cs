@@ -7881,6 +7881,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("DescriptionTextId")
                         .HasColumnType("integer");
 
+                    b.Property<long?>("DoodadTemplateId")
+                        .HasColumnType("bigint");
+
                     b.Property<decimal?>("ItemTemplateId")
                         .HasColumnType("numeric(20,0)");
 
@@ -7897,6 +7900,8 @@ namespace Avalon.Database.World.Migrations
 
                     b.HasIndex("CreatureTemplateId");
 
+                    b.HasIndex("DoodadTemplateId");
+
                     b.HasIndex("ItemTemplateId");
 
                     b.HasIndex("QuestId", "StageSequence");
@@ -7905,7 +7910,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             t.HasCheckConstraint("CK_QuestObjectives_CountPositive", "\"Count\" >= 1");
 
-                            t.HasCheckConstraint("CK_QuestObjectives_TargetFitsType", "(\"Type\" = 1 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL) OR (\"Type\" = 2 AND \"ItemTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL) OR (\"Type\" = 3 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL) OR (\"Type\" = 4 AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL)");
+                            t.HasCheckConstraint("CK_QuestObjectives_TargetFitsType", "(\"Type\" = 1 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL) OR (\"Type\" = 2 AND \"ItemTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL) OR (\"Type\" = 3 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL) OR (\"Type\" = 4 AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL) OR (\"Type\" = 5 AND \"DoodadTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL)");
                         });
 
                     b.HasData(
@@ -9036,6 +9041,11 @@ namespace Avalon.Database.World.Migrations
                     b.HasOne("Avalon.Domain.World.CreatureTemplate", null)
                         .WithMany()
                         .HasForeignKey("CreatureTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Avalon.Domain.World.DoodadTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("DoodadTemplateId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Avalon.Domain.World.ItemTemplate", null)

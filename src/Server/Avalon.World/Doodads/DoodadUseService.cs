@@ -46,6 +46,9 @@ public sealed partial class DoodadUseService(
     private readonly DoodadUseContext _context = new(time, logger);
     private readonly ILootRandom _random = random ?? new LootRandom(Random.Shared);
 
+    // A quest credit that threw, logged at most once per ThrottledErrorLog.Interval. Tick thread only.
+    private readonly ThrottledErrorLog _creditFailures = new(logger, time, "The quest credit for a doodad use");
+
     /// <summary>The user's CMSG_INTERACT on the doodad <paramref name="doodadGuid" /> of its instance <paramref name="host" />.</summary>
     public void Interact(IWorldConnection connection, CharacterEntity character, IDoodadHost? host, ObjectGuid doodadGuid)
     {
@@ -248,15 +251,23 @@ public sealed partial class DoodadUseService(
     }
 
     /// <summary>
-    /// The use-doodad objective's credit, for any doodad an objective names: QuestService takes it with that objective
-    /// kind. Until then a use credits no quest.
+    /// The use-doodad objectives' credit, the user's alone (ruling R12): QuestService gives +1 to each one for this
+    /// template in the current stage of the user's Active quests. Contained, as a kill's credit is: a throw costs this
+    /// use its credit, never the spending after it, so a once-per-instance doodad is still spent.
     /// </summary>
     private void CreditQuests(CharacterEntity character, DoodadTemplateView template)
     {
         if (quests is null)
             return;
 
-        // QuestService.DoodadUsed(character, template.Id) goes here with the objective kind.
+        try
+        {
+            quests.DoodadUsed(character, template.Id);
+        }
+        catch (Exception e)
+        {
+            _creditFailures.Failed(e);
+        }
     }
 
     /// <summary>

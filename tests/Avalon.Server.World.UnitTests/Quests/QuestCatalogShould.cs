@@ -17,7 +17,7 @@ public class QuestCatalogShould
     private static QuestCatalog Build(IEnumerable<QuestTemplate> quests, List<ItemTemplate>? items = null,
         Func<string, Type?>? scripts = null, List<DialogueNode>? nodes = null) =>
         new(quests.ToList(), QuestTestData.Creatures(), items ?? Items(), nodes ?? Roots(Giver, Ender, TalkTarget),
-            scripts ?? FindScript, NullLoggerFactory.Instance);
+            scripts ?? FindScript, NullLoggerFactory.Instance, QuestDoodads());
 
     private static void AssertRefused(QuestCatalog catalog, uint id, string reasonFragment)
     {
@@ -209,27 +209,33 @@ public class QuestCatalogShould
         Assert.True(catalog.TryGet(2, out _));
     }
 
-    public static TheoryData<QuestObjectiveType, ulong?, ulong?, string> MisfitTargets => new()
+    public static TheoryData<QuestObjectiveType, ulong?, ulong?, uint?, string> MisfitTargets => new()
     {
-        { QuestObjectiveType.Kill, null, null, "is Kill and must name a creature template" },
-        { QuestObjectiveType.Kill, Boar, Tusk, "is Kill and must name a creature template and no item" },
-        { QuestObjectiveType.Talk, null, null, "is Talk and must name a creature template" },
-        { QuestObjectiveType.Talk, TalkTarget, Tusk, "is Talk and must name a creature template and no item" },
-        { QuestObjectiveType.Collect, null, null, "is Collect and must name an item template" },
-        { QuestObjectiveType.Collect, Boar, Tusk, "is Collect and must name an item template and no creature" },
-        { QuestObjectiveType.Scripted, Boar, null, "is Scripted and must name neither" },
-        { QuestObjectiveType.Scripted, null, Tusk, "is Scripted and must name neither" },
-        { (QuestObjectiveType)99, null, null, "unknown type 99" },
+        { QuestObjectiveType.Kill, null, null, null, "is Kill and must name a creature template" },
+        { QuestObjectiveType.Kill, Boar, Tusk, null, "is Kill and must name a creature template and no item" },
+        { QuestObjectiveType.Kill, Boar, null, Lever, "is Kill and must name a creature template and no item or doodad" },
+        { QuestObjectiveType.Talk, null, null, null, "is Talk and must name a creature template" },
+        { QuestObjectiveType.Talk, TalkTarget, Tusk, null, "is Talk and must name a creature template and no item" },
+        { QuestObjectiveType.Collect, null, null, null, "is Collect and must name an item template" },
+        { QuestObjectiveType.Collect, Boar, Tusk, null, "is Collect and must name an item template and no creature" },
+        { QuestObjectiveType.Scripted, Boar, null, null, "is Scripted and must name neither" },
+        { QuestObjectiveType.Scripted, null, Tusk, null, "is Scripted and must name neither" },
+        { QuestObjectiveType.UseDoodad, Boar, null, Lever, "is UseDoodad and must name a doodad template and no creature" },
+        { QuestObjectiveType.UseDoodad, null, null, null, "is UseDoodad and must name a doodad template" },
+        { QuestObjectiveType.UseDoodad, null, null, 999u, "names doodad template 999, which does not exist" },
+        { QuestObjectiveType.UseDoodad, null, null, Scenery, $"names doodad template {Scenery}, which cannot be used" },
+        { (QuestObjectiveType)99, null, null, null, "unknown type 99" },
     };
 
     /// <summary>
     /// A database check pins each type's target, but the catalog checks again, so a row that slipped past (a Collect
-    /// with no item used to throw on its null and fail the whole area, at startup too) refuses only its quest.
+    /// with no item used to throw on its null and fail the whole area, at startup too) refuses only its quest. A
+    /// UseDoodad target must also be a doodad template a player can click, or the objective could never be met.
     /// </summary>
     [Theory]
     [MemberData(nameof(MisfitTargets))]
     public void Refuse_an_objective_whose_target_does_not_fit_its_type(QuestObjectiveType type, ulong? creature,
-        ulong? item, string reasonFragment)
+        ulong? item, uint? doodad, string reasonFragment)
     {
         var objective = new QuestObjective
         {
@@ -239,9 +245,10 @@ public class QuestCatalogShould
             DescriptionTextId = ObjectiveText,
             CreatureTemplateId = creature is { } c ? new CreatureTemplateId(c) : null,
             ItemTemplateId = item is { } i ? new ItemTemplateId(i) : null,
+            DoodadTemplateId = doodad is { } d ? new DoodadTemplateId(d) : null,
         };
 
-        QuestCatalog catalog = Build([Quest(1).WithStage(0, objective), Quest(2).WithStage(0, Kill(21, Boar, 1))]);
+        QuestCatalog catalog = Build([Quest(1).WithStage(0, objective), Quest(2).WithStage(0, UseDoodad(21, Lever, 1))]);
 
         AssertRefused(catalog, 1, reasonFragment);
         Assert.StartsWith("objective 11 ", Assert.Single(catalog.Refused).Reason, StringComparison.Ordinal);

@@ -34,22 +34,22 @@ variant populated
   field 3 Objectives : List<QuestObjectiveDto> = 2 elements
     element 0
       field 1 ObjectiveId : uint = 4000000000
-      field 2 Kind : QuestObjectiveKind = Collect (2)
+      field 2 Kind : QuestObjectiveKind = UseDoodad (5)
       field 3 TargetId : ulong = 19
       field 4 Count : uint = 65535
       field 5 Text : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
     element 1
       field 1 ObjectiveId : uint = 1000000
-      field 2 Kind : QuestObjectiveKind = Talk (3)
+      field 2 Kind : QuestObjectiveKind = Kill (1)
       field 3 TargetId : ulong = 42
       field 4 Count : uint = 7
       field 5 Text : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
   bytes 105
     08 13 12 18 22 71 75 6f 74 65 64 22 20 61 6e 64
     20 5c 62 61 63 6b 73 6c 61 73 68 5c 1a 25 08 80
-    d0 ac f3 0e 10 02 18 13 20 ff ff 03 2a 15 65 6d
+    d0 ac f3 0e 10 05 18 13 20 ff ff 03 2a 15 65 6d
     6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61 73 74
-    72 61 6c 1a 24 08 c0 84 3d 10 03 18 2a 20 07 2a
+    72 61 6c 1a 24 08 c0 84 3d 10 01 18 2a 20 07 2a
     18 e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae e3 83 86
     e3 82 ad e3 82 b9 e3 83 88
 
@@ -59,19 +59,19 @@ variant maxima
   field 3 Objectives : List<QuestObjectiveDto> = 3 elements
     element 0
       field 1 ObjectiveId : uint = 4294967295
-      field 2 Kind : QuestObjectiveKind = Scripted (4)
+      field 2 Kind : QuestObjectiveKind = UseDoodad (5)
       field 3 TargetId : ulong = 18446744073709551615
       field 4 Count : uint = 4294967295
       field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
     element 1
       field 1 ObjectiveId : uint = 4294967295
-      field 2 Kind : QuestObjectiveKind = Scripted (4)
+      field 2 Kind : QuestObjectiveKind = UseDoodad (5)
       field 3 TargetId : ulong = 18446744073709551615
       field 4 Count : uint = 4294967295
       field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
     element 2
       field 1 ObjectiveId : uint = 4294967295
-      field 2 Kind : QuestObjectiveKind = Scripted (4)
+      field 2 Kind : QuestObjectiveKind = UseDoodad (5)
       field 3 TargetId : ulong = 18446744073709551615
       field 4 Count : uint = 4294967295
       field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
@@ -85,7 +85,7 @@ variant maxima
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 1a a0 01
-    08 ff ff ff ff 0f 10 04 18 ff ff ff ff ff ff ff
+    08 ff ff ff ff 0f 10 05 18 ff ff ff ff ff ff ff
     ff ff 01 20 ff ff ff ff 0f 2a 84 01 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -95,7 +95,7 @@ variant maxima
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    1a a0 01 08 ff ff ff ff 0f 10 04 18 ff ff ff ff
+    1a a0 01 08 ff ff ff ff 0f 10 05 18 ff ff ff ff
     ff ff ff ff ff 01 20 ff ff ff ff 0f 2a 84 01 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -105,7 +105,7 @@ variant maxima
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 1a a0 01 08 ff ff ff ff 0f 10 04 18 ff
+    ce a9 78 1a a0 01 08 ff ff ff ff 0f 10 05 18 ff
     ff ff ff ff ff ff ff ff 01 20 ff ff ff ff 0f 2a
     84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -137,13 +137,13 @@ variant varint-edges
   field 3 Objectives : List<QuestObjectiveDto> = 2 elements
     element 0
       field 1 ObjectiveId : uint = 16384
-      field 2 Kind : QuestObjectiveKind = <not a declared member> (5)
+      field 2 Kind : QuestObjectiveKind = <not a declared member> (6)
       field 3 TargetId : ulong = 268435456
       field 4 Count : uint = 127
       field 5 Text : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
     element 1
       field 1 ObjectiveId : uint = 127
-      field 2 Kind : QuestObjectiveKind = <not a declared member> (5)
+      field 2 Kind : QuestObjectiveKind = <not a declared member> (6)
       field 3 TargetId : ulong = 34359738367
       field 4 Count : uint = 16384
       field 5 Text : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
@@ -157,7 +157,7 @@ variant varint-edges
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 1a 8f 01 08 80 80 01
-    10 05 18 80 80 80 80 01 20 7f 2a 7f 78 78 78 78
+    10 06 18 80 80 80 80 01 20 7f 2a 7f 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
@@ -166,7 +166,7 @@ variant varint-edges
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 1a 92 01 08 7f
-    10 05 18 ff ff ff ff 7f 20 80 80 01 2a 81 01 c3
+    10 06 18 ff ff ff ff 7f 20 80 80 01 2a 81 01 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
