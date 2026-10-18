@@ -74,7 +74,7 @@ namespace Avalon.World.Instances;
 /// instance was published or removed since the last walk, so a tick that changes nothing allocates nothing for it.
 /// </para>
 /// </remarks>
-public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInstanceChoices
+public partial class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInstanceChoices
 {
     /// <summary>
     /// How long a Normal or party instance nobody has entered yet lives: its requester's arrival, or a disbanded
@@ -275,9 +275,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
         MapInstance? existing = DefaultOf(_characterInstanceMap, characterId, templateId);
         if (existing is not null)
         {
-            _logger.LogInformation(
-                "Returning existing Normal instance {InstanceId} for character {CharacterId}, map {TemplateId}",
-                existing.InstanceId, characterId, templateId);
+            Log.ReturningExistingNormalInstance(_logger, existing.InstanceId, characterId, templateId);
         }
 
         return existing;
@@ -705,8 +703,9 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
     /// <summary>
     /// Lists a published instance for its owner: a default build at the end, so it becomes the default, a create at
     /// the front, listed but not the default (#1104). A default build whose owner's default was chosen
-    /// (<see cref="MakeDefault" />) while it built goes just before that default, which it leaves alone; at the end
-    /// still when that default is gone. A party's build is not listed once the party was forgotten.
+    /// (<see cref="MakeDefault" />) while it built goes just before the list's last live, unexpired entry, which stays
+    /// the default; it is appended only when the list has no live entry left. A party's build is not listed once the
+    /// party was forgotten.
     /// </summary>
     private void Index(PendingBuild pending, MapInstance instance)
     {
@@ -856,6 +855,18 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInst
             Requesters++;
             return Done.Task;
         }
+    }
+
+    /// <summary>
+    /// The lines written on every request they describe: each formats and allocates nothing unless its level is written.
+    /// </summary>
+    private static partial class Log
+    {
+        /// <summary>A plain private entry taking the character's default instance: every accepted re-entry writes it.</summary>
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "Returning existing Normal instance {InstanceId} for character {CharacterId}, map {TemplateId}")]
+        public static partial void ReturningExistingNormalInstance(ILogger logger, Guid instanceId, uint characterId,
+            MapTemplateId templateId);
     }
 
     /// <param name="Outcome">The build's task, ended; null when it is the build's deadline that passed.</param>
