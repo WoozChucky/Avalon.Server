@@ -1,14 +1,17 @@
 using System.Text.Json;
 using Avalon.ChunkGen;
 using Avalon.Common.Mathematics;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Maps.Navigation;
+using Avalon.World.Testing.Scenarios;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
 /// <summary>
 /// The forest's generated pieces (forest content pass): what is committed is what the tool writes, every slot and exit
 /// is clear of blockers, every doodad slot stands off the paths, and the baked navmesh lets a creature stand on every
-/// slot and walk from every exit to every slot (doodad slots included), across a set piece's open inner edges too.
+/// slot and walk from every exit to every slot (doodad slots included), across a set piece's open inner edges too, with
+/// the largest seeded solid doodad's box baked at every doodad_large slot.
 /// </summary>
 public class ForestPiecesShould
 {
@@ -177,42 +180,100 @@ public class ForestPiecesShould
         }
     }
 
+    /// <summary>
+    /// With the largest seeded solid doodad's box baked at every doodad_large slot (as a plan may put one there), every
+    /// exit, spawn slot and doodad slot is reached from the first exit, and a large slot's doodad from beside its box.
+    /// </summary>
     [Theory]
     [MemberData(nameof(Singles))]
     public void Walk_between_every_exit_and_every_slot_of_a_piece(string name)
     {
         ChunkPiece piece = ForestPieces.Singles().Single(p => p.Name == name);
-        MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(piece), 0, 0)]);
+        MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(piece), 0, 0)], LargestSolidBoxes(piece.DoodadSlots));
         List<Vector3> targets =
         [
             .. piece.Exits.Select(e => ExitPoint(e, 0, 0)), .. piece.Slots.Select(s => new Vector3(s.X, 1f, s.Z)),
-            .. piece.DoodadSlots.Select(s => new Vector3(s.X, ChunkPiece.DoodadSlotY, s.Z)),
+            .. piece.DoodadSlots.Where(s => s.Tag != "doodad_large").Select(s => new Vector3(s.X, ChunkPiece.DoodadSlotY, s.Z)),
         ];
 
         AssertAllConnected(navigator, targets, name);
+        AssertLargeSlotsReached(navigator, targets[0], piece.DoodadSlots, name);
     }
 
-    /// <summary>The four members baked together, as the generator places them unrotated: their inner edges must be open.</summary>
+    /// <summary>
+    /// The four members baked together, as the generator places them unrotated: their inner edges must be open. Every
+    /// slot stands on the floor of the bare bake; the walks are made with the largest solid box at every doodad_large slot.
+    /// </summary>
     [Theory]
     [MemberData(nameof(Groups))]
     public void Walk_across_a_set_pieces_open_inner_edges(string name)
     {
         ChunkGroupPiece group = ForestPieces.Groups().Single(g => g.Name == name);
-        var members = group.Members().ToList();
-        MapNavigator navigator = GeneratedChunkBake.Bake(members.Select(m => (ObjWriter.Write(m.Piece), m.CellX, m.CellZ)));
-
-        List<Vector3> targets =
-        [
-            .. group.OuterExits.Select(e => ExitPoint(e.Side, e.CellX, e.CellZ)), .. group.Slots.Select(s => new Vector3(s.X, 1f, s.Z)),
-            .. group.DoodadSlots.Select(s => new Vector3(s.X, ChunkPiece.DoodadSlotY, s.Z)),
-        ];
+        var members = group.Members().Select(m => (ObjWriter.Write(m.Piece), m.CellX, m.CellZ)).ToList();
+        MapNavigator bare = GeneratedChunkBake.Bake(members);
         foreach ((float x, float y, float z) in group.Slots.Select(s => (s.X, 1f, s.Z))
                      .Concat(group.DoodadSlots.Select(s => (s.X, ChunkPiece.DoodadSlotY, s.Z))))
         {
-            Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(x, y, z), out Vector3 ground));
+            Assert.Equal(NavmeshGroundKind.Under, bare.FindGround(new Vector3(x, y, z), out Vector3 ground));
             Assert.InRange(ground.y, -0.3f, 0.3f);
         }
+
+        MapNavigator navigator = GeneratedChunkBake.Bake(members, LargestSolidBoxes(group.DoodadSlots));
+        List<Vector3> targets =
+        [
+            .. group.OuterExits.Select(e => ExitPoint(e.Side, e.CellX, e.CellZ)), .. group.Slots.Select(s => new Vector3(s.X, 1f, s.Z)),
+            .. group.DoodadSlots.Where(s => s.Tag != "doodad_large").Select(s => new Vector3(s.X, ChunkPiece.DoodadSlotY, s.Z)),
+        ];
         AssertAllConnected(navigator, targets, name);
+        AssertLargeSlotsReached(navigator, targets[0], group.DoodadSlots, name);
+    }
+
+    /// <summary>
+    /// The box of the largest solid doodad seeded (its widest half extent on both axes, so a turn changes nothing, and
+    /// its greatest height) at every doodad_large slot, standing on the slot as a placed solid doodad does.
+    /// </summary>
+    private static List<DoodadObstacle> LargestSolidBoxes(IEnumerable<DoodadSlot> slots)
+    {
+        (float half, float height) = LargestSolidBox();
+        return
+        [
+            .. slots.Where(s => s.Tag == "doodad_large").Select(s => new DoodadObstacle(s.X - half, s.X + half, s.Z - half,
+                s.Z + half, ChunkPiece.DoodadSlotY, ChunkPiece.DoodadSlotY + height)),
+        ];
+    }
+
+    /// <summary>The widest half extent and the greatest height of the seeded solid doodads (the World seed, as loaded).</summary>
+    private static (float Half, float Height) LargestSolidBox()
+    {
+        var solid = ScenarioReferenceData.Shared.Data.Doodads.Templates.Where(t => t.Solid).ToList();
+        Assert.NotEmpty(solid);
+        return (solid.Max(t => Math.Max(t.CollisionHalfX, t.CollisionHalfZ)), solid.Max(t => t.CollisionHeight));
+    }
+
+    /// <summary>
+    /// A doodad at a doodad_large slot, its box baked, is reached when a walk from <paramref name="from" /> ends beside
+    /// the box, a metre out on one of its four sides: within any doodad's use range.
+    /// </summary>
+    private static void AssertLargeSlotsReached(MapNavigator navigator, Vector3 from, IEnumerable<DoodadSlot> slots, string name)
+    {
+        float reach = LargestSolidBox().Half + 1f;
+        foreach (DoodadSlot slot in slots.Where(s => s.Tag == "doodad_large"))
+        {
+            Vector3[] beside =
+            [
+                new(slot.X - reach, ChunkPiece.DoodadSlotY, slot.Z), new(slot.X + reach, ChunkPiece.DoodadSlotY, slot.Z),
+                new(slot.X, ChunkPiece.DoodadSlotY, slot.Z - reach), new(slot.X, ChunkPiece.DoodadSlotY, slot.Z + reach),
+            ];
+            Assert.True(beside.Any(to => Reaches(navigator, from, to)), $"{name}: no walk from {from} reaches the box at {slot}");
+        }
+    }
+
+    private static bool Reaches(MapNavigator navigator, Vector3 from, Vector3 to)
+    {
+        List<Vector3> path = navigator.FindPath(from, to);
+        if (path.Count == 0) return false;
+        Vector3 end = path[^1];
+        return (end.x - to.x) * (end.x - to.x) + (end.z - to.z) * (end.z - to.z) <= 1f;
     }
 
     [Fact]

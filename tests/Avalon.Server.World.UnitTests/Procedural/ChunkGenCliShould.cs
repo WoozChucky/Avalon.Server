@@ -1,4 +1,5 @@
 using Avalon.ChunkGen;
+using Avalon.World.Testing.Scenarios;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -51,14 +52,15 @@ public sealed class ChunkGenCliShould : IDisposable
     }
 
     /// <summary>
-    /// The props kit is measured with the art kit and the custom props, and a model name found in two of the three
-    /// directories leaves the committed table as it was.
+    /// The props kit is read with the art kit and the custom props, and a model name found in two of the three
+    /// directories is refused, leaving the committed table as it was. The table is the repository's own, so a run that
+    /// wrote it anyway is undone.
     /// </summary>
     [Fact]
-    public async Task Measure_the_props_kit_and_refuse_a_name_it_shares_with_the_kit()
+    public async Task Refuse_a_model_name_the_props_kit_shares_with_the_kit_and_keep_the_table()
     {
         string root = Path.Combine(Path.GetTempPath(), $"avalon-kit-bounds-cli-{Guid.NewGuid():N}");
-        string table = Path.Combine(RepositoryRootOf(AppContext.BaseDirectory), "tools", "Avalon.ChunkGen", "Kit", "kit-bounds.json");
+        string table = Path.Combine(TownNavmesh.RepositoryRoot, "tools", "Avalon.ChunkGen", "Kit", "kit-bounds.json");
         string before = File.ReadAllText(table);
         try
         {
@@ -76,6 +78,7 @@ public sealed class ChunkGenCliShould : IDisposable
         finally
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            if (File.ReadAllText(table) != before) File.WriteAllText(table, before);
         }
     }
 
@@ -95,13 +98,6 @@ public sealed class ChunkGenCliShould : IDisposable
         Directory.CreateDirectory(directory);
         foreach (string name in names) File.WriteAllText(Path.Combine(directory, name + ".gltf"), Gltf);
         return directory;
-    }
-
-    private static string RepositoryRootOf(string start)
-    {
-        var directory = new DirectoryInfo(start);
-        while (!File.Exists(Path.Combine(directory!.FullName, "Avalon.sln"))) directory = directory.Parent;
-        return directory.FullName;
     }
 
     [Fact]
