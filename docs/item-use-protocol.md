@@ -138,9 +138,12 @@ packets with the doodad variant: `SUnitStartCastPacket` with `AbilityId` 0, `Ite
 interrupt with the same `CastId` and `DoodadTemplateId` 5, `AbilityId` and `ItemTemplateId` 0. Exactly one of
 `AbilityId`, `ItemTemplateId` and `DoodadTemplateId` is set on a cast. Draw the bar with the doodad's name from the
 doodad catalog. They go to the user and to the clients near it that have been told of the doodad, never to one the
-doodad is hidden from. It ends on the item cast's rules (moving, dying, leaving, an accepted ability cast, an item
-use that passed its checks, gear included), and also when the character uses another doodad; it ends interrupted too
-when, at its end, the doodad can no longer be used (another player spent it first).
+doodad is hidden from. A client that loses the doodad from its view mid-cast (it despawned, a quest moved, or it
+walked out of the doodad's reach) is sent no finish or interrupt for it, as one that walks out of range of an item
+or ability cast is not: time a bar out by its cast time. It ends on the item cast's rules (moving, dying, leaving,
+an accepted ability cast, an item use that passed its checks, gear included), and also when the character uses
+another doodad; it ends interrupted too when, at its end, the doodad can no longer be used (another player spent it
+first).
 
 **What interrupts it:** the character moving, dying or leaving the instance; using another item (gear included, and
 taking a worn item off); casting an ability the server accepts; using a doodad that passed its checks. Using another
