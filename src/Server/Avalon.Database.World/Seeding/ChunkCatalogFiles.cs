@@ -73,8 +73,15 @@ public sealed record SpawnSlotDto(string Tag, float LocalX, float LocalY, float 
 
 public sealed record PortalSlotDto(string Role, float LocalX, float LocalY, float LocalZ);
 
-/// <summary>A doodad slot: a tag procedural doodad rules name, chunk-local metres, and a yaw of 0, 90, 180 or 270 degrees.</summary>
-public sealed record DoodadSlotDto(string Tag, float LocalX, float LocalY, float LocalZ, int Yaw);
+/// <summary>
+/// A doodad slot: a tag procedural doodad rules name, chunk-local metres, and a yaw of 0, 90, 180 or 270 degrees. The
+/// position also reads "NaN" and "Infinity", so the seeder refuses them by name rather than as JSON it cannot read.
+/// </summary>
+public sealed record DoodadSlotDto(string Tag,
+    [property: JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)] float LocalX,
+    [property: JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)] float LocalY,
+    [property: JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)] float LocalZ,
+    int Yaw);
 
 /// <summary>One town layout, Maps/TownLayouts/*.json.</summary>
 public sealed record TownLayoutDto(int MapTemplateId, string MapName, float CellSize, List<TownChunkPlacementDto> Chunks);

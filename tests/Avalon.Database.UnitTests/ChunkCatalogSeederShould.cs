@@ -463,8 +463,9 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     /// <summary>
     /// A doodad rule the world could not honour is refused, naming the file: a template that does not exist, a tag no
     /// doodad slot of the pool carries, a count range reversed or above 50, a spacing that is not a finite 0 or more, a
-    /// reversed depth range, a gate condition that is no condition, a required rule on a solid template or wanting more
-    /// doodads than the pool has slots, and a gate on a solid template.
+    /// reversed or negative depth range, a gate condition that is no condition, a solid template at a slot other than
+    /// doodad_large, a required rule on a solid template or wanting more doodads than the pool has slots, and a gate on a
+    /// solid template.
     /// </summary>
     [Theory]
     [InlineData("unknown template", "doodad template 99, which does not exist")]
@@ -477,6 +478,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     [InlineData("min depth negative", "minDepth -1")]
     [InlineData("max depth negative", "maxDepth -2")]
     [InlineData("unknown condition", "condition 'sometimes'")]
+    [InlineData("solid template at a small slot", "which is solid, at 'doodad' slots")]
     [InlineData("required solid template", "names doodad template 902, which is solid")]
     [InlineData("required beyond the slots", "has only")]
     [InlineData("gate on solid template", "which is solid and never hidden")]
@@ -494,6 +496,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
             "min depth negative" => Rule(901, extra: "\"minDepth\": -1"),
             "max depth negative" => Rule(901, extra: "\"maxDepth\": -2"),
             "unknown condition" => Rule(901, extra: "\"usableGate\": { \"questId\": 7, \"condition\": \"sometimes\" }"),
+            "solid template at a small slot" => Rule(902),
             "required solid template" => Rule(902, tag: "doodad_large", required: true),
             "required beyond the slots" => Rule(901, max: 50, required: true),
             _ => Rule(902, tag: "doodad_large", extra: "\"visibleGate\": { \"questId\": 7, \"condition\": \"completed\" }"),
@@ -599,20 +602,22 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     }
 
     /// <summary>
-    /// A doodad slot with a blank tag, a yaw that is not a quarter turn, or a position outside the chunk's own cell (its
-    /// edges included) is refused, naming the file and the fault.
+    /// A doodad slot with a blank tag, a yaw that is not a quarter turn, a position outside the chunk's own cell (its
+    /// edges included) or a height that is not finite is refused, naming the file and the fault.
     /// </summary>
     [Theory]
-    [InlineData("doodad", 5f, 5f, 45, "has yaw 45")]
-    [InlineData("doodad", 5f, 5f, 360, "has yaw 360")]
-    [InlineData("doodad", 5f, 5f, -90, "has yaw -90")]
-    [InlineData(" ", 5f, 5f, 90, "has no tag")]
-    [InlineData("doodad", -1f, 5f, 90, "lies outside the chunk")]
-    [InlineData("doodad", 5f, 30.5f, 90, "lies outside the chunk")]
-    public async Task Refuse_a_bad_doodad_slot_naming_the_file_and_the_fault(string tag, float x, float z, int yaw, string fault)
+    [InlineData("doodad", 5f, "0", 5f, 45, "has yaw 45")]
+    [InlineData("doodad", 5f, "0", 5f, 360, "has yaw 360")]
+    [InlineData("doodad", 5f, "0", 5f, -90, "has yaw -90")]
+    [InlineData(" ", 5f, "0", 5f, 90, "has no tag")]
+    [InlineData("doodad", -1f, "0", 5f, 90, "lies outside the chunk")]
+    [InlineData("doodad", 5f, "0", 30.5f, 90, "lies outside the chunk")]
+    [InlineData("doodad", 5f, "\"NaN\"", 5f, 90, "has localY NaN")]
+    [InlineData("doodad", 5f, "\"-Infinity\"", 5f, 90, "has localY -Infinity")]
+    public async Task Refuse_a_bad_doodad_slot_naming_the_file_and_the_fault(string tag, float x, string y, float z, int yaw, string fault)
     {
         string root = CopyOfCommittedMaps();
-        string path = WriteDoodadSlot(root, tag, x, z, yaw);
+        string path = WriteDoodadSlot(root, tag, x, y, z, yaw);
 
         InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
         Assert.StartsWith(path + ":", error.Message, StringComparison.Ordinal);
@@ -620,7 +625,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     }
 
     /// <summary>Gives the copy's forest_path_01 (a hand-made chunk with no doodad slots) one doodad slot; returns its file.</summary>
-    private static string WriteDoodadSlot(string root, string tag, float x, float z, int yaw)
+    private static string WriteDoodadSlot(string root, string tag, float x, string y, float z, int yaw)
     {
         string path = Path.Combine(root, "Chunks", "forest_path_01.json");
         JsonObject chunk = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
@@ -628,7 +633,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         {
             ["tag"] = tag,
             ["localX"] = x,
-            ["localY"] = 1f,
+            ["localY"] = JsonNode.Parse(y),
             ["localZ"] = z,
             ["yaw"] = yaw,
         });

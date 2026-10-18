@@ -98,9 +98,9 @@ public static class ChunkCatalogSeeder
     }
 
     /// <summary>
-    /// Refuses a doodad slot with a blank tag, a yaw that is not 0, 90, 180 or 270, or a position outside the chunk's own
-    /// cells on X/Z (their edges included; NaN is outside). Doodad slot tags are not spawn-table tags: the slot tag check
-    /// (LoadProceduralMapsAsync) never sees them.
+    /// Refuses a doodad slot with a blank tag, a yaw that is not 0, 90, 180 or 270, a position outside the chunk's own
+    /// cells on X/Z (their edges included; NaN is outside), or a height that is not a finite number. Doodad slot tags are
+    /// not spawn-table tags: the slot tag check (LoadProceduralMapsAsync) never sees them.
     /// </summary>
     private static void CheckDoodadSlots(string path, ChunkMetaDto meta)
     {
@@ -117,6 +117,11 @@ public static class ChunkCatalogSeeder
             {
                 throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture,
                     $"{path}: doodad slot '{slot.Tag}' at ({slot.LocalX}, {slot.LocalZ}) lies outside the chunk"));
+            }
+            if (!float.IsFinite(slot.LocalY))
+            {
+                throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture,
+                    $"{path}: doodad slot '{slot.Tag}' has localY {slot.LocalY}, not a finite height"));
             }
         }
     }
@@ -601,9 +606,13 @@ public static class ChunkCatalogSeeder
         }
     }
 
+    /// <summary>The doodad slot tag kept furthest from blockers, paths and spawns: the only one a solid doodad's box fits.</summary>
+    private const string LargeDoodadSlotTag = "doodad_large";
+
     /// <summary>
-    /// Each doodad rule's template exists, and a solid one (Collision not 0) is neither required, since a required doodad
-    /// may stand on open navmesh its box was never baked into, nor gated, since a solid doodad is never hidden.
+    /// Each doodad rule's template exists, and a solid one (Collision not 0) stands only at a doodad_large slot, the only one its
+    /// box fits; is not required, since a required doodad may stand on open navmesh
+    /// its box was never baked into; and is not gated, since a solid doodad is never hidden.
     /// </summary>
     private static async Task ValidateDoodadRulesAsync(WorldDbContext db, ChunkCatalogFiles files, CancellationToken ct)
     {
@@ -621,6 +630,11 @@ public static class ChunkCatalogSeeder
                 if (!collisions.TryGetValue(rule.DoodadTemplateId, out DoodadCollision collision))
                     throw new InvalidDataException($"{path}: {name} names doodad template {rule.DoodadTemplateId}, which does not exist");
                 if (collision == DoodadCollision.None) continue;
+                if (!string.Equals(rule.SlotTag, LargeDoodadSlotTag, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        $"{path}: {name} puts doodad template {rule.DoodadTemplateId}, which is solid, at '{rule.SlotTag}' slots; a solid doodad stands only at '{LargeDoodadSlotTag}' slots");
+                }
                 if (rule.Required)
                     throw new InvalidDataException($"{path}: required {name} names doodad template {rule.DoodadTemplateId}, which is solid");
                 if (rule.VisibleGate is not null || rule.UsableGate is not null)
