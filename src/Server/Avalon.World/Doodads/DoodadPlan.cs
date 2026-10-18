@@ -27,10 +27,11 @@ public sealed record PlannedDoodad(DoodadTemplateView Template, Vector3 Position
 
 /// <summary>
 /// What an instance build places of its procedural doodads, decided before the navmesh bake from the layout, its map's
-/// rules and the catalog alone, so the same seed always gives the same plan: the doodads at slots, in the order they are
-/// placed, the required ones no slot was left for (placed on open navmesh once the mesh is baked), and the solid doodads'
-/// boxes for the bake to cut out, in the order of the doodads they belong to (the instance build sets them on the layout,
-/// which the bake and the layout packet read).
+/// rules and the catalog alone, so the same seed always gives the same plan, in every process (each chunk's slots are
+/// sorted, never taken in the order the database loaded them): the doodads at slots, in the order they are placed, the
+/// required ones no slot was left for (placed on open navmesh once the mesh is baked), and the solid doodads' boxes for
+/// the bake to cut out, in the order of the doodads they belong to (the instance build sets them on the layout, which
+/// the bake and the layout packet read).
 /// </summary>
 public sealed record DoodadPlan(IReadOnlyList<PlannedDoodad> Placed, IReadOnlyList<DoodadSpawn> RequiredShort,
     IReadOnlyList<DoodadObstacle> Obstacles)

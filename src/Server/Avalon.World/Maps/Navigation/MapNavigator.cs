@@ -420,28 +420,44 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
     private const float OpenPointReach = 100_000f;
 
     /// <summary>
-    /// A random point on the navmesh connected to the polygon under <paramref name="from" />, polygons drawn by area
-    /// from <paramref name="random" />, kept only when no wall is within <paramref name="wallClearance" /> of it. Only
-    /// the polygons a walk from <paramref name="from" /> reaches are drawn from, so never an island (a blocker's flat top,
-    /// a pocket of ground walled in). False, <paramref name="point" /> zero, with no mesh, no polygon under
-    /// <paramref name="from" />, when the draw fails or the point stands nearer a wall. One draw per call, each walking
-    /// every connected polygon: a caller wanting a point tries again. For the off-tick instance build (a required doodad's
-    /// fallback), which owns the navigator's query until it is published.
+    /// The polygon under <paramref name="from" /> (or nearest it) and the point on it, where
+    /// <see cref="TryFindOpenPoint" /> starts its walk: found once for a caller that draws many points from one start.
+    /// False, both zero, with no mesh or no polygon near <paramref name="from" />. For the off-tick instance build, which
+    /// owns the navigator's query until it is published.
     /// </summary>
-    public bool TryFindOpenPoint(Random random, Vector3 from, float wallClearance, out Vector3 point)
+    public bool TryFindOpenPointStart(Vector3 from, out long startRef, out Vector3 startAt)
     {
-        point = Vector3.zero;
+        startRef = 0;
+        startAt = Vector3.zero;
         if (_navMesh == null) return false;
 
-        ReusingNavMeshQuery query = _query!;
-        var start = new RcVec3f(from.x, from.y, from.z);
-        DtStatus status = _standingSearch.FindNearestPoly(query, start, _queryFilter, out long startRef, out RcVec3f startAt,
-            out _);
-        if (status.Failed() || startRef == 0)
+        DtStatus status = _standingSearch.FindNearestPoly(_query!, new RcVec3f(from.x, from.y, from.z), _queryFilter,
+            out long poly, out RcVec3f at, out _);
+        if (status.Failed() || poly == 0)
             return false;
 
-        status = query.FindRandomPointAroundCircle(startRef, startAt, OpenPointReach, _queryFilter, new RcRand(random),
-            out long polyRef, out RcVec3f found);
+        startRef = poly;
+        startAt = ToVector3(at);
+        return true;
+    }
+
+    /// <summary>
+    /// A random point on the navmesh connected to <paramref name="startRef" /> (found by
+    /// <see cref="TryFindOpenPointStart" />), polygons drawn by area from <paramref name="random" />, kept only when no
+    /// wall is within <paramref name="wallClearance" /> of it. Only the polygons a walk from the start reaches are drawn
+    /// from, so never an island (a blocker's flat top, a pocket of ground walled in). False, <paramref name="point" />
+    /// zero, with no mesh, when the draw fails or the point stands nearer a wall. One draw per call, each walking every
+    /// connected polygon: a caller wanting a point tries again. For the off-tick instance build (a required doodad's
+    /// fallback), which owns the navigator's query until it is published.
+    /// </summary>
+    public bool TryFindOpenPoint(IRcRand random, long startRef, Vector3 startAt, float wallClearance, out Vector3 point)
+    {
+        point = Vector3.zero;
+        if (_navMesh == null || startRef == 0) return false;
+
+        ReusingNavMeshQuery query = _query!;
+        DtStatus status = query.FindRandomPointAroundCircle(startRef, new RcVec3f(startAt.x, startAt.y, startAt.z),
+            OpenPointReach, _queryFilter, random, out long polyRef, out RcVec3f found);
         if (status.Failed() || polyRef == 0)
             return false;
 

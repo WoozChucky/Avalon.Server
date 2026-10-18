@@ -16,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Doodads;
@@ -51,6 +52,7 @@ public class DoodadPlacementShould
         DoodadPlacementService service = Service(out _);
         DoodadCatalog catalog = Catalog();
         ChunkLayout baked = s_baked.Value.Layout;
+        IChunkLibrary reversed = SlotsReversed(Reference.Chunks);
         List<IReadOnlyList<PlannedDoodad>> plans = [];
 
         for (int seed = 0; seed < 200; seed++)
@@ -71,6 +73,8 @@ public class DoodadPlacementShould
 
             DoodadPlan again = service.Plan(layout, config, catalog, Reference.Chunks);
             Assert.Equal(plan.Placed, again.Placed);
+            // A chunk's slots are owned rows, loaded in no guaranteed order: another order must plan the same doodads.
+            Assert.Equal(plan.Placed, service.Plan(layout, config, catalog, reversed).Placed);
             plans.Add(plan.Placed);
         }
 
@@ -158,6 +162,17 @@ public class DoodadPlacementShould
         Assert.Equal(spots[2], shrine.Position);   // a solid doodad keeps its slot's height
         Assert.Equal(2, log.Entries.Count(e => e.Level == LogLevel.Warning));
         Assert.Equal((DoodadState.Ready, DoodadState.Used), (barrel.State, gated.State));
+    }
+
+    /// <summary>The library's chunks with each one's doodad slots in reverse order, as another database load might give them.</summary>
+    private static IChunkLibrary SlotsReversed(IChunkLibrary chunks)
+    {
+        IChunkLibrary reversed = Substitute.For<IChunkLibrary>();
+        reversed.GetById(Arg.Any<ChunkTemplateId>()).Returns(call => new ChunkTemplate
+        {
+            DoodadSlots = [.. chunks.GetById(call.Arg<ChunkTemplateId>()).DoodadSlots.AsEnumerable().Reverse()],
+        });
+        return reversed;
     }
 
     private static DoodadPlacementService Service(out TestLog log)

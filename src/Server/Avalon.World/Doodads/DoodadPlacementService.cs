@@ -9,6 +9,7 @@ using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
 using Avalon.World.Public.Maps;
 using Avalon.World.Quests;
+using DotRecast.Core;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Doodads;
@@ -210,15 +211,19 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
     }
 
     /// <summary>
-    /// Every doodad slot of the layout in world space, in chunk order and each chunk's slots in file order, but those
-    /// within <see cref="EntryClearance" /> of the entry spawn or <see cref="PortalClearance" /> of a portal.
+    /// Every doodad slot of the layout in world space, in chunk order and each chunk's slots in <see cref="SlotOrder" />,
+    /// but those within <see cref="EntryClearance" /> of the entry spawn or <see cref="PortalClearance" /> of a portal.
     /// </summary>
     private static List<Candidate> Candidates(ChunkLayout layout, IChunkLibrary chunks)
     {
         List<Candidate> candidates = [];
+        List<ChunkDoodadSlot> slots = [];
         foreach (PlacedChunk chunk in layout.Chunks)
         {
-            foreach (ChunkDoodadSlot slot in chunks.GetById(chunk.TemplateId).DoodadSlots)
+            slots.Clear();
+            slots.AddRange(chunks.GetById(chunk.TemplateId).DoodadSlots);
+            slots.Sort(SlotOrder);
+            foreach (ChunkDoodadSlot slot in slots)
             {
                 Vector3 world = ChunkRotation.LocalToWorld(slot.LocalX, slot.LocalY, slot.LocalZ, chunk.Rotation,
                     layout.CellSize, chunk.WorldPos);
@@ -230,6 +235,21 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
         }
 
         return candidates;
+    }
+
+    /// <summary>
+    /// A chunk's doodad slots by tag (ordinal), then LocalX, LocalZ, Yaw and LocalY. A template's slots are owned rows,
+    /// which Postgres loads in no guaranteed order, so the plan sorts them rather than trust the load: the same seed gives
+    /// the same plan in every process.
+    /// </summary>
+    private static int SlotOrder(ChunkDoodadSlot a, ChunkDoodadSlot b)
+    {
+        int order = string.CompareOrdinal(a.Tag, b.Tag);
+        if (order == 0) order = a.LocalX.CompareTo(b.LocalX);
+        if (order == 0) order = a.LocalZ.CompareTo(b.LocalZ);
+        if (order == 0) order = a.Yaw.CompareTo(b.Yaw);
+        if (order == 0) order = a.LocalY.CompareTo(b.LocalY);
+        return order;
     }
 
     /// <summary>Whether <paramref name="position" /> keeps its distance from the entry spawn and from every portal.</summary>
@@ -282,12 +302,13 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
             return;
         }
 
-        if (placement.Navigator is MapNavigator navigator)
+        // The entry's polygon found once, outside the tries: each try then only draws and measures.
+        if (placement.Navigator is MapNavigator navigator
+            && navigator.TryFindOpenPointStart(placement.Layout.EntrySpawnWorldPos, out long startRef, out Vector3 startAt))
         {
             for (int attempt = 0; attempt < FallbackTries; attempt++)
             {
-                if (!navigator.TryFindOpenPoint(placement.Random, placement.Layout.EntrySpawnWorldPos, WallClearance,
-                        out Vector3 point)
+                if (!navigator.TryFindOpenPoint(placement.NavRandom, startRef, startAt, WallClearance, out Vector3 point)
                     || !Clear(point, placement.Layout) || placement.Crowded(point))
                 {
                     continue;
@@ -418,8 +439,10 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
         public ChunkLayout Layout { get; } = layout;
         public MapTemplateId Map { get; } = map;
         public QuestCatalog Quests { get; } = quests;
-        public Random Random { get; } = random;
         public ILootRandom LootRandom { get; } = new LootRandom(random);
+
+        /// <summary>The fallback's navmesh draws, over the same stream as <see cref="LootRandom" />.</summary>
+        public IRcRand NavRandom { get; } = new RcRand(random);
         public DoodadUseContext Context { get; } = context;
         public IMapNavigator Navigator { get; } = instance.GetNavigatorForPosition(layout.EntrySpawnWorldPos);
 
