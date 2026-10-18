@@ -782,16 +782,19 @@ public sealed class ScenarioWorld : IDisposable
 
     /// <summary>
     /// One seed's forest as <see cref="ChunkLayoutInstanceFactory" /> asks for it: the cached layout as the procedural
-    /// source's, the cached navmesh as the bake's, so a build generates and bakes nothing.
+    /// source's, the cached navmesh as the bake's, so a build generates and bakes nothing. The factory hands the bake
+    /// the source's layout with its doodad plan's boxes set on it, so the bake takes the cached layout with exactly the
+    /// boxes the cached navmesh was baked with, and refuses any other.
     /// </summary>
     private sealed class CachedForest(ForestLayout forest) : IChunkLayoutSource, IChunkLayoutNavmeshBuilder
     {
         public Task<ChunkLayout> BuildAsync(MapTemplate template, CancellationToken ct) => Task.FromResult(forest.Layout);
 
         public Task<DtNavMesh> BuildAsync(ChunkLayout layout, CancellationToken ct) =>
-            ReferenceEquals(layout, forest.Layout)
+            (layout with { Obstacles = forest.Layout.Obstacles }).Equals(forest.Layout)
+            && (layout.Obstacles ?? []).SequenceEqual(forest.Obstacles)
                 ? Task.FromResult(forest.NavMesh)
-                : throw new InvalidOperationException("Only the cached forest's own layout is baked");
+                : throw new InvalidOperationException("Only the cached forest's own layout, with its own doodads' boxes, is baked");
     }
 
     /// <summary>Only the map templates the scenario has built instances of: the registry reads them as a build starts.</summary>

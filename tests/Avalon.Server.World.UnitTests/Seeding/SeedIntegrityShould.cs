@@ -9,11 +9,14 @@ using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
+using Avalon.World.Doodads;
+using Avalon.World.Doodads.Scripts;
 using Avalon.World.Loot;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Avalon.World.Quests;
+using Avalon.World.Scripts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -298,9 +301,10 @@ public class SeedIntegrityShould
         var catalog = new LootCatalog(tables, NullLoggerFactory.Instance);
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal(11, catalog.TableCount);
+        Assert.Equal(13, catalog.TableCount);
         // Table 1: 2. Tables 2-8: 6 each. Table 9: 4 weapons. Table 10: 3 scrolls. Table 11: 20 armour pieces.
-        Assert.Equal(2 + (7 * 6) + 4 + 3 + 20, catalog.EntryCount);
+        // Table 12, the forest chest: 6. Table 13, the forest barrel: 2.
+        Assert.Equal(2 + (7 * 6) + 4 + 3 + 20 + 6 + 2, catalog.EntryCount);
         Assert.All(context.CreatureTemplates.AsNoTracking().ToList().Where(t => t.LootTableId is not null),
             t => Assert.True(catalog.TryGet(t.LootTableId!, out _), $"{t.Name} names a table the catalog does not hold"));
     }
@@ -506,6 +510,33 @@ public class SeedIntegrityShould
             Assert.True(Math.Max(wizard, healer) < hunter, $"{slot}: cloth {wizard}/{healer} is not below leather {hunter}");
             Assert.True(hunter < warrior, $"{slot}: leather {hunter} is not below plate {warrior}");
         }
+    }
+
+    /// <summary>
+    /// The forest's doodad tables: the chest rolls potions, then the creatures' shared pools (the common table and the
+    /// armour table every time, the weapon group at 10 % and the scroll group at 25 %, richer than a kill); the barrel
+    /// rolls a potion or two and nothing else.
+    /// </summary>
+    [Fact]
+    public void Seed_the_forest_chest_and_barrel_tables_as_designed()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        static IEnumerable<(int, ulong?, int?, float, int, int, int?)> Rows(LootTable table) =>
+            table.Entries.OrderBy(e => e.Sequence).Select(e =>
+                (e.Sequence, e.ItemTemplateId?.Value, e.ReferenceTableId?.Value, e.Chance, e.MinCount, e.MaxCount, e.GroupId));
+
+        LootTable chest = LoadTable(context, new LootTableId(12));
+        Assert.Equal("Forest chest", chest.Name);
+        Assert.Equal(
+            [(1, 1ul, null, 60f, 1, 2, null), (2, 2ul, null, 40f, 1, 1, null), (3, null, 1, 100f, 1, 1, null),
+             (4, null, 9, 10f, 1, 1, null), (5, null, 10, 25f, 1, 1, null), (6, null, 11, 100f, 1, 1, null)],
+            Rows(chest));
+
+        LootTable barrel = LoadTable(context, new LootTableId(13));
+        Assert.Equal("Forest barrel", barrel.Name);
+        Assert.Equal([(1, 1ul, null, 25f, 1, 1, null), (2, 2ul, null, 15f, 1, 1, null)], Rows(barrel));
     }
 
     /// <summary>Every creature table rolls both potions itself, outside any group.</summary>
@@ -849,7 +880,7 @@ public class SeedIntegrityShould
         Assert.Equal((18u, 0.4f, 25u, 3f), (burst.EffectValue, burst.ScalingCoefficient, burst.Cost, burst.Radius));
     }
 
-    /// <summary>Auras: the seven seeded auras, each as designed.</summary>
+    /// <summary>Auras: the ten seeded auras, each as designed (8-10 the forest shrine's outcomes).</summary>
     [Theory]
     [InlineData(1u, "Bleed", AuraKind.Harmful, 12000u, 3000u, AuraPeriodicKind.Damage, 12f, ScalingStat.Attack, 0.25f, 0f, AuraStacking.Stack, 3u)]
     [InlineData(2u, "Burn", AuraKind.Harmful, 9000u, 3000u, AuraPeriodicKind.Damage, 24f, ScalingStat.Ability, 0.6f, 0f, AuraStacking.Refresh, 1u)]
@@ -858,6 +889,9 @@ public class SeedIntegrityShould
     [InlineData(5u, "Fortified", AuraKind.Helpful, 30000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u)]
     [InlineData(6u, "Poison", AuraKind.Harmful, 9000u, 3000u, AuraPeriodicKind.Damage, 3f, ScalingStat.Attack, 0f, 1f, AuraStacking.Stack, 3u)]
     [InlineData(7u, "Sundered", AuraKind.Harmful, 10000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u)]
+    [InlineData(8u, "Blessed", AuraKind.Helpful, 120000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u)]
+    [InlineData(9u, "Emboldened", AuraKind.Helpful, 120000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u)]
+    [InlineData(10u, "Hexed", AuraKind.Harmful, 60000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u)]
     public void Seed_each_aura_as_designed(uint id, string name, AuraKind kind, uint duration, uint interval,
         AuraPeriodicKind periodic, float periodicBase, ScalingStat stat, float coefficient, float baseDamage,
         AuraStacking stacking, uint maxStacks)
@@ -874,15 +908,17 @@ public class SeedIntegrityShould
     }
 
     [Fact]
-    public void Seed_exactly_three_aura_modifiers()
+    public void Seed_exactly_eight_aura_modifiers()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         Assert.Equal(
             [(3u, AuraStat.MovementSpeed, AuraModifierKind.Flat, -30f), (5u, AuraStat.Armor, AuraModifierKind.Percent, 20f),
-             (7u, AuraStat.Armor, AuraModifierKind.Percent, -25f)],
-            context.AuraStatModifiers.AsNoTracking().AsEnumerable().OrderBy(m => m.AuraId.Value)
+             (7u, AuraStat.Armor, AuraModifierKind.Percent, -25f), (8u, AuraStat.MaxHealth, AuraModifierKind.Percent, 10f),
+             (9u, AuraStat.AttackDamage, AuraModifierKind.Percent, 10f), (9u, AuraStat.AbilityDamage, AuraModifierKind.Percent, 10f),
+             (10u, AuraStat.Armor, AuraModifierKind.Percent, -10f), (10u, AuraStat.MovementSpeed, AuraModifierKind.Flat, -15f)],
+            context.AuraStatModifiers.AsNoTracking().AsEnumerable().OrderBy(m => m.AuraId.Value).ThenBy(m => m.Stat)
                 .Select(m => (m.AuraId.Value, m.Stat, m.Kind, m.Value)));
     }
 
@@ -1318,5 +1354,60 @@ public class SeedIntegrityShould
             Assert.All(new[] { t.UsedModelKey, t.ReadyClip, t.UseClip, t.UsedClip }.Where(n => n is not null),
                 n => Assert.True(AssetNames.IsPlain(n), $"doodad {t.Id.Value} asset '{n}'"));
         });
+    }
+
+    /// <summary>The forest's doodads (doodads S2): the chest, the barrel, the shrine and the fountain, every column.</summary>
+    [Theory]
+    [InlineData(1u, "Forest Chest", "props-kit", "Chest_Wood", null, "Chest_Closed", "Chest_Open", "Chest_Opened", 0u, 5f, 0f,
+        DoodadUseLimit.OncePerInstance, DoodadSpentLook.ShowUsed, nameof(LootDoodadScript), 12, 50, 150, 0u, DoodadCollision.None, "")]
+    [InlineData(2u, "Old Barrel", "props-kit", "Barrel", "avalon_barrel_broken", null, null, null, 0u, 5f, 0f,
+        DoodadUseLimit.OncePerInstance, DoodadSpentLook.ShowUsed, nameof(LootDoodadScript), 13, 0, 20, 0u, DoodadCollision.None, "")]
+    [InlineData(3u, "Wayside Shrine", "town-kit", "avalon_shrine", "avalon_shrine_spent", null, null, null, 0u, 5f, 10f,
+        DoodadUseLimit.OncePerInstance, DoodadSpentLook.ShowUsed, nameof(ShrineDoodadScript), 0, 0, 0, 0u, DoodadCollision.Box,
+        "8:40 9:40 10:20")]
+    [InlineData(4u, "Mossy Fountain", "town-kit", "avalon_forest_fountain", "avalon_forest_fountain_dry", null, null, null, 2000u,
+        5f, 10f, DoodadUseLimit.OncePerInstance, DoodadSpentLook.ShowUsed, nameof(FountainDoodadScript), 0, 0, 0, 50u,
+        DoodadCollision.Box, "")]
+    public void Seed_each_forest_doodad_as_designed(uint id, string name, string kit, string model, string? usedModel,
+        string? readyClip, string? useClip, string? usedClip, uint timeMs, float range, float radius, DoodadUseLimit limit,
+        DoodadSpentLook look, string script, int lootTable, int minGold, int maxGold, uint restorePct,
+        DoodadCollision collision, string outcomes)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        DoodadTemplate t = context.DoodadTemplates.AsNoTracking().Include(d => d.AuraOutcomes).AsEnumerable()
+            .Single(d => d.Id.Value == id);
+
+        Assert.Equal((name, kit, model, usedModel, readyClip, useClip, usedClip),
+            (t.Name, t.ModelKit, t.ModelKey, t.UsedModelKey, t.ReadyClip, t.UseClip, t.UsedClip));
+        Assert.Equal((DoodadInteraction.Click, timeMs, range, radius, limit, look, (uint?)null, script),
+            (t.Interaction, t.InteractionTimeMs, t.InteractionRange, t.AreaRadius, t.UseLimit, t.SpentLook, t.RespawnSeconds,
+                t.ScriptName));
+        Assert.Equal((lootTable == 0 ? null : lootTable, minGold, maxGold, restorePct, collision),
+            (t.LootTableId?.Value, t.MinGold, t.MaxGold, t.RestorePct, t.Collision));
+        Assert.Equal(outcomes, string.Join(' ', t.AuraOutcomes.OrderBy(o => o.AuraId.Value).Select(o => $"{o.AuraId.Value}:{o.Weight}")));
+        // No forest doodad is gated: a chest, a barrel, a shrine or a fountain is for everyone.
+        Assert.Equal(((uint?)null, (uint?)null), (t.VisibleQuestId, t.UsableQuestId));
+    }
+
+    /// <summary>The seeded doodads are content the catalog refuses at load if they are wrong, so load them as the world does.</summary>
+    [Fact]
+    public void Load_every_seeded_doodad_through_the_catalog_without_refusing_any()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        var scripts = new ScriptManager(NullLoggerFactory.Instance);
+        scripts.Load();
+
+        var catalog = new DoodadCatalog(
+            context.DoodadTemplates.AsNoTracking().Include(d => d.AuraOutcomes).ToList(),
+            new LootCatalog(context.LootTables.AsNoTracking().Include(t => t.Entries).ToList(), NullLoggerFactory.Instance),
+            context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
+            SeededQuests(context), scripts.GetDoodadScript, NullLoggerFactory.Instance);
+
+        Assert.Empty(catalog.Refused);
+        Assert.Equal([1u, 2u, 3u, 4u], catalog.Templates.Select(t => t.Id.Value));
+        Assert.All(catalog.Templates, t => Assert.NotNull(t.ScriptType));
     }
 }

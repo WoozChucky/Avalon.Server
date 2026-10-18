@@ -13,7 +13,8 @@ namespace Avalon.Server.World.UnitTests.Procedural;
 public class ForestPiecesShould
 {
     private const float SlotClearance = 2.5f;
-    private const float EdgeClearance = 2f;
+    /// <summary>How far every slot stands from its cell's edges: a solid doodad's box must fit inside it (DoodadCollisionShould).</summary>
+    internal const float EdgeClearance = 2f;
 
     // Doodad slots stand off the paths and clear of blockers and spawns (doodads spec): a "doodad_large" slot may hold a
     // solid doodad, so it keeps further away. A path runs from an exit's throat centre to the piece centre (for a set

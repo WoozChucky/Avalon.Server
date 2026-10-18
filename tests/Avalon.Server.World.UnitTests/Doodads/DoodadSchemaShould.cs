@@ -43,7 +43,8 @@ public class DoodadSchemaShould
             await context.SaveChangesAsync();
         }
 
-        DoodadTemplate read = Assert.Single(await new DoodadTemplateRepository(database).GetAllAsync(CancellationToken.None));
+        DoodadTemplate read = Assert.Single(await new DoodadTemplateRepository(database).GetAllAsync(CancellationToken.None),
+            t => t.Id.Value == 900);
 
         Assert.Equal(("Chest_Wood", "Chest_Opened", 1500u), (read.ModelKey, read.UsedClip, read.InteractionTimeMs));
         Assert.Equal(1, read.LootTableId!.Value);

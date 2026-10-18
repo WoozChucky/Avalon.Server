@@ -10,7 +10,7 @@ This page is the authority on the subsystem. Other pages cover their own side of
 - [tick profiling](tick-profiling.md): how doodads count in `candidateChecks` and `visiblePairs`;
 - [tooling](tooling.md): the `doodad-catalog` export.
 
-Slice S1 was the framework and the wire. Slice S2 places procedural doodads from each map's rules (see "Placement"); no doodad template is seeded yet.
+Slice S1 was the framework and the wire. Slice S2 places procedural doodads from each map's rules (see "Placement") and seeds the forest's set (see "The forest set").
 
 ## Templates and catalog
 
@@ -64,7 +64,7 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
   - `DoodadCatalogShould.Refuse_a_template_that_breaks_a_rule` holds a row for every rule above but the weights' total, each asserting its refusal reason (`DoodadRefusal.Reason`).
 - **Solid and scripted.** A template whose script declares its own `CanSee` (`DoodadScripts.OverridesCanSee`) has `ScriptCanSee` set. For a solid template the flag is forced off, with one Warning per template at load.
 - **Reload** (`/reload doodads`) works forward only. A doodad already placed keeps the template view it was placed from, and the next instance build places from the new catalog. A `/reload quests` moves every viewer's gates (see "Per-viewer views and gates").
-- **Export.** `tools/Avalon.Exporter -- doodad-catalog` writes `schema/doodads/doodad-catalog-v1.json` (empty in S1). It lists only what a client draws: the model kit and keys, the clips, the interaction kind, time and range, solidity and the spent look. It lists no gates, loot, gold, restore, radius or aura outcomes. `DoodadCatalogExportShould.List_only_what_a_client_draws` pins the field names, so nothing in the file can reveal a shrine's outcome. See [tooling](tooling.md).
+- **Export.** `tools/Avalon.Exporter -- doodad-catalog` writes `schema/doodads/doodad-catalog-v1.json` (the forest set, templates 1 to 4). It lists only what a client draws: the model kit and keys, the clips, the interaction kind, time and range, solidity and the spent look. It lists no gates, loot, gold, restore, radius or aura outcomes. `DoodadCatalogExportShould.List_only_what_a_client_draws` pins the field names, so nothing in the file can reveal a shrine's outcome. See [tooling](tooling.md).
 
 ## The object type and the wire fields
 
@@ -224,6 +224,27 @@ The stock scripts are in `Avalon.World/Doodads/Scripts/`, and `StockDoodadScript
   - The health goes through the combat service, with the user as the healer, capped at the maximum. Power is capped likewise.
   - **Players only:** creatures never.
 
+## The forest set
+
+Migration `SeedForestDoodads` seeds the first doodads (`WorldDbContext`, `Configure(EntityTypeBuilder<DoodadTemplate>)` and `Configure(EntityTypeBuilder<DoodadAuraOutcome>)`), with what they name: loot tables 12 and 13 and auras 8 to 10. Its inserts run in foreign-key order, the auras and loot tables before the doodads, and the doodads before their outcomes. Every one is clicked, used from 5 m, once per instance (`OncePerInstance`), shows its used look once spent (`ShowUsed`), never respawns and has no gate. `SeedIntegrityShould.Seed_each_forest_doodad_as_designed` pins every column, and `Load_every_seeded_doodad_through_the_catalog_without_refusing_any` loads them as the world does.
+
+| Id | Name | Kit / model / used model | Cast | Radius | Script | What a use does | Collision |
+|---|---|---|---|---|---|---|---|
+| 1 | Forest Chest | `props-kit` / `Chest_Wood` / none (clips `Chest_Closed`, `Chest_Open`, `Chest_Opened`) | instant | 0 | `LootDoodadScript` | table 12, 50 to 150 copper | none |
+| 2 | Old Barrel | `props-kit` / `Barrel` / `avalon_barrel_broken` | instant | 0 | `LootDoodadScript` | table 13, 0 to 20 copper | none |
+| 3 | Wayside Shrine | `town-kit` / `avalon_shrine` / `avalon_shrine_spent` | instant | 10 m | `ShrineDoodadScript` | one of Blessed (weight 40), Emboldened (40) or Hexed (20) | box 0.8 x 0.8 m, 2.2 m tall |
+| 4 | Mossy Fountain | `town-kit` / `avalon_forest_fountain` / `avalon_forest_fountain_dry` | 2 s | 10 m | `FountainDoodadScript` | 50 % of health and power | box 1.05 x 1.05 m, 1.8 m tall |
+
+- **The loot tables** are listed under "The seeded loot" in [world simulation](world-simulation.md): table 12 "Forest chest" rolls potions and then the creatures' shared pools, richer than a kill; table 13 "Forest barrel" rolls only potions.
+- **The auras** are listed in [auras](auras.md): 8 Blessed, 9 Emboldened and 10 Hexed, stat auras of 2 minutes, 2 minutes and 1 minute.
+- **A solid box is measured from the model** in the kit's bounds table (`tools/Avalon.ChunkGen/Kit/kit-bounds.json`). Its half extents are half the model's footprint rounded up to 0.05 m, and its height is the model's, rounded up to 0.05 m and never below 1.05 m. The fountain's footprint is round, and a box over its full ±1.2 m would reach 0.5 m past the basin at the corners. So its box is drawn in by the decor tolerance (0.15 m) on each side, to ±1.05 m: its sides stay within the tolerance of the rim. `DoodadCollisionShould` pins the rule for every seeded solid template, checks the box against both the ready and the used model within the tolerance, and checks it fits a `doodad_large` slot, whose 2 m edge clearance (`ForestPiecesShould.EdgeClearance`) is the most a half extent may be.
+- **The forest's rules** (`Maps/ProceduralMaps/2.json`, `doodadRules`), none of them required:
+  1. the chest at a `doodad` slot, 1 to 3 per run, 25 m apart, from depth 2 on;
+  2. the barrel at a `doodad` slot, 2 to 5 per run, 10 m apart;
+  3. the shrine at a `doodad_large` slot, at most one, from depth 3 on;
+  4. the fountain at a `doodad_large` slot, at most one, from depth 1 on.
+- **The scenarios place them too.** The forest scenarios (`ScenarioWorld.NewForestInstance`) build through `ChunkLayoutInstanceFactory`, so they plan and place the forest's doodads. `ForestLayouts` plans each seed's doodads as the factory does and bakes the navmesh with their boxes, and the cached bake refuses a layout whose boxes differ.
+
 ## Placement
 
 A procedural map's doodads come from its doodad rules (`ProceduralDoodadRule`, written by `ChunkCatalogSeeder` from `Maps/ProceduralMaps/<mapId>.json`; see [map generation](map-generation.md#spawn-tables-and-procedural-map-configs)) and the doodad slots of its pieces (`ChunkTemplate.DoodadSlots`). `ChunkLayoutInstanceFactory` runs `IDoodadPlacementService` (`DoodadPlacementService`) in two steps of the off-tick build. S3 adds the town's fixed spawns and the quest doodads.
@@ -244,7 +265,7 @@ A procedural map's doodads come from its doodad rules (`ProceduralDoodadRule`, w
 
 ## What a doodad-unaware client does
 
-Today's game client (`C:\dev\vulkan-multithreaded`, inspected read-only at `2ef944d5`) knows nothing of doodads. S1 sends it none, since nothing is seeded or placed. Once doodads are placed, it behaves like this:
+Today's game client (`C:\dev\vulkan-multithreaded`, inspected read-only at `2ef944d5`) knows nothing of doodads. S1 sent it none. From S2 the forest places the set above, and the client behaves like this:
 
 - **An unknown type is decoded, not refused.** Any type above Portal (5) decodes to `WorldObjectKind::Unknown` (`gamenet/src/ObjectGuid.h:26-33`).
 - **The object is stored but never drawn.** It is kept in the snapshot (`gamenet/src/session/SessionWorldState.cpp:50`) but never given an entity (`game/src/WorldReplicationSystem.cpp:313-319`, `Refuse(... "carries a type this client has no name for")`). The client says so once per instance and counts the rest (`:478-484` and `:497-507`). There is no assert, throw or disconnect.

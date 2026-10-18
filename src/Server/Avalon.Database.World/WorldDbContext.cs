@@ -2608,7 +2608,8 @@ public class WorldDbContext : DbContext
 
         // The forest roster (issue #460). Tables 2-8 are one per hostile creature template (the
         // creature rows name them in Configure(EntityTypeBuilder<CreatureTemplate>)); tables 1 and
-        // 9-11 are shared pools the creature tables reference.
+        // 9-11 are shared pools the creature tables reference. Tables 12 and 13 are the forest chest's and barrel's
+        // (doodads; the doodad rows name them in Configure(EntityTypeBuilder<DoodadTemplate>)).
         builder.HasData(
             new LootTable { Id = 1, Name = "Forest common" },
             new LootTable { Id = 2, Name = "Thornback Boar" },
@@ -2620,7 +2621,9 @@ public class WorldDbContext : DbContext
             new LootTable { Id = 8, Name = "Mother Bramble" },
             new LootTable { Id = 9, Name = "Forest weapons" },
             new LootTable { Id = 10, Name = "Forest scrolls" },
-            new LootTable { Id = 11, Name = "Forest armour" });
+            new LootTable { Id = 11, Name = "Forest armour" },
+            new LootTable { Id = 12, Name = "Forest chest" },
+            new LootTable { Id = 13, Name = "Forest barrel" });
     }
 
     private static void Configure(EntityTypeBuilder<LootTableEntry> builder)
@@ -2707,6 +2710,21 @@ public class WorldDbContext : DbContext
             ForestArmourEntry(sequence: 18, item: 29),
             ForestArmourEntry(sequence: 19, item: 30),
             ForestArmourEntry(sequence: 20, item: 31));
+
+        // Table 12, the forest chest: richer than a kill. Its own potions, then the creatures' shared pools, the common
+        // table and the armour table every time, the weapon group at 10 % and the scroll group at 25 %.
+        builder.HasData(
+            new LootTableEntry { LootTableId = 12, Sequence = 1, ItemTemplateId = 1, Chance = 60f, MinCount = 1, MaxCount = 2 },
+            new LootTableEntry { LootTableId = 12, Sequence = 2, ItemTemplateId = 2, Chance = 40f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 12, Sequence = 3, ReferenceTableId = 1, Chance = 100f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 12, Sequence = 4, ReferenceTableId = 9, Chance = 10f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 12, Sequence = 5, ReferenceTableId = 10, Chance = 25f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 12, Sequence = 6, ReferenceTableId = 11, Chance = 100f, MinCount = 1, MaxCount = 1 });
+
+        // Table 13, the forest barrel: a potion now and then, and nothing else.
+        builder.HasData(
+            new LootTableEntry { LootTableId = 13, Sequence = 1, ItemTemplateId = 1, Chance = 25f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 13, Sequence = 2, ItemTemplateId = 2, Chance = 15f, MinCount = 1, MaxCount = 1 });
     }
 
     /// <summary>The shape every forest creature's table shares; only the chances and counts differ.</summary>
@@ -3070,7 +3088,8 @@ public class WorldDbContext : DbContext
         // damage, a Healer 46). A creature has no damage stats, so Poison scales through one roll of its natural damage
         // (base damage coefficient 1.0) and grows with its level as its hits do; base 3 keeps a floor under a low roll.
         // Every other aura has no base damage term: Bleed already scales with attack damage, the spells (Burn, Renew)
-        // with ability damage, and the stat auras have no periodic amount.
+        // with ability damage, and the stat auras have no periodic amount. Auras 8-10 are the forest shrine's outcomes
+        // (doodads), applied with no caster: two blessings and a curse, long enough to matter over a few pulls.
         builder.HasData(
             Aura(1, "Bleed", AuraKind.Harmful, 12000, 3000, AuraPeriodicKind.Damage, 12f, ScalingStat.Attack, 0.25f, AuraStacking.Stack, 3),
             Aura(2, "Burn", AuraKind.Harmful, 9000, 3000, AuraPeriodicKind.Damage, 24f, ScalingStat.Ability, 0.6f, AuraStacking.Refresh, 1),
@@ -3079,7 +3098,10 @@ public class WorldDbContext : DbContext
             Aura(5, "Fortified", AuraKind.Helpful, 30000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
             Aura(6, "Poison", AuraKind.Harmful, 9000, 3000, AuraPeriodicKind.Damage, 3f, ScalingStat.Attack, 0f, AuraStacking.Stack, 3,
                 baseDamage: 1f),
-            Aura(7, "Sundered", AuraKind.Harmful, 10000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1));
+            Aura(7, "Sundered", AuraKind.Harmful, 10000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
+            Aura(8, "Blessed", AuraKind.Helpful, 120000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
+            Aura(9, "Emboldened", AuraKind.Helpful, 120000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
+            Aura(10, "Hexed", AuraKind.Harmful, 60000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1));
     }
 
     /// <summary>
@@ -3125,10 +3147,17 @@ public class WorldDbContext : DbContext
         builder.Property(b => b.AuraId).HasConversion(v => v.Value, v => new AuraId(v)).IsRequired();
 
         // Crippled slows by 30 points of movement speed; Fortified raises armour by a fifth; Sundered takes a quarter.
+        // The shrine's: Blessed raises maximum health by a tenth, Emboldened both damages by a tenth, and Hexed slows by
+        // 15 points and takes a tenth of the armour.
         builder.HasData(
             new AuraStatModifier { AuraId = 3, Stat = AuraStat.MovementSpeed, Kind = AuraModifierKind.Flat, Value = -30f },
             new AuraStatModifier { AuraId = 5, Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 20f },
-            new AuraStatModifier { AuraId = 7, Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = -25f });
+            new AuraStatModifier { AuraId = 7, Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = -25f },
+            new AuraStatModifier { AuraId = 8, Stat = AuraStat.MaxHealth, Kind = AuraModifierKind.Percent, Value = 10f },
+            new AuraStatModifier { AuraId = 9, Stat = AuraStat.AttackDamage, Kind = AuraModifierKind.Percent, Value = 10f },
+            new AuraStatModifier { AuraId = 9, Stat = AuraStat.AbilityDamage, Kind = AuraModifierKind.Percent, Value = 10f },
+            new AuraStatModifier { AuraId = 10, Stat = AuraStat.MovementSpeed, Kind = AuraModifierKind.Flat, Value = -15f },
+            new AuraStatModifier { AuraId = 10, Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = -10f });
     }
 
     /// <summary>
@@ -3252,7 +3281,55 @@ public class WorldDbContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(b => b.AuraOutcomes).WithOne().HasForeignKey(o => o.DoodadTemplateId).OnDelete(DeleteBehavior.Cascade);
+
+        // The forest's doodads (doodads S2), placed by Maps/ProceduralMaps/2.json's doodad rules. The chest and the barrel
+        // drop from tables 12 and 13; the shrine draws one of auras 8-10 (Configure(EntityTypeBuilder<DoodadAuraOutcome>)).
+        // A solid doodad's box is half its model's footprint in the kit's bounds table (tools/Avalon.ChunkGen/Kit/
+        // kit-bounds.json) rounded up to 0.05 m, and its height the model's, never below 1.05 m; the fountain's footprint
+        // is round, so its box is drawn in by 0.15 m a side to keep its corners near the basin (DoodadCollisionShould).
+        builder.HasData(
+            ForestDoodad(1, "Forest Chest", "props-kit", "Chest_Wood", null, 0, "LootDoodadScript", radius: 0f, lootTable: 12,
+                minGold: 50, maxGold: 150, clips: ("Chest_Closed", "Chest_Open", "Chest_Opened")),
+            ForestDoodad(2, "Old Barrel", "props-kit", "Barrel", "avalon_barrel_broken", 0, "LootDoodadScript", radius: 0f,
+                lootTable: 13, minGold: 0, maxGold: 20),
+            ForestDoodad(3, "Wayside Shrine", "town-kit", "avalon_shrine", "avalon_shrine_spent", 0, "ShrineDoodadScript",
+                radius: 10f, box: (0.8f, 0.8f, 2.2f)),
+            ForestDoodad(4, "Mossy Fountain", "town-kit", "avalon_forest_fountain", "avalon_forest_fountain_dry", 2000,
+                "FountainDoodadScript", radius: 10f, restorePct: 50, box: (1.05f, 1.05f, 1.8f)));
     }
+
+    /// <summary>
+    /// A forest doodad row: clicked, 5 m to use, once per instance, showing its used look once spent and never respawning,
+    /// with no gate. <paramref name="box" /> is a solid doodad's half extents and height; null is walk-through.
+    /// </summary>
+    private static DoodadTemplate ForestDoodad(uint id, string name, string kit, string model, string? usedModel,
+        uint timeMs, string script, float radius, int? lootTable = null, int minGold = 0, int maxGold = 0, uint restorePct = 0,
+        (string Ready, string Use, string Used)? clips = null, (float HalfX, float HalfZ, float Height)? box = null) => new()
+        {
+            Id = id,
+            Name = name,
+            ModelKit = kit,
+            ModelKey = model,
+            UsedModelKey = usedModel,
+            ReadyClip = clips?.Ready,
+            UseClip = clips?.Use,
+            UsedClip = clips?.Used,
+            Interaction = DoodadInteraction.Click,
+            InteractionTimeMs = timeMs,
+            InteractionRange = 5f,
+            AreaRadius = radius,
+            UseLimit = DoodadUseLimit.OncePerInstance,
+            SpentLook = DoodadSpentLook.ShowUsed,
+            ScriptName = script,
+            LootTableId = lootTable is { } table ? new LootTableId(table) : null,
+            MinGold = minGold,
+            MaxGold = maxGold,
+            RestorePct = restorePct,
+            Collision = box is null ? DoodadCollision.None : DoodadCollision.Box,
+            CollisionHalfX = box?.HalfX ?? 0f,
+            CollisionHalfZ = box?.HalfZ ?? 0f,
+            CollisionHeight = box?.Height ?? 0f,
+        };
 
     /// <summary>One aura a doodad's use may apply, at most one row per aura, drawn by its weight (at least 1).</summary>
     private static void Configure(EntityTypeBuilder<DoodadAuraOutcome> builder)
@@ -3264,6 +3341,12 @@ public class WorldDbContext : DbContext
             .IsRequired();
         builder.Property(b => b.AuraId).HasConversion(v => v.Value, v => new AuraId(v)).IsRequired();
         builder.HasOne<AuraTemplate>().WithMany().HasForeignKey(b => b.AuraId).OnDelete(DeleteBehavior.Restrict);
+
+        // The wayside shrine's gamble (doodad 3): Blessed or Emboldened two times in five, Hexed one time in five.
+        builder.HasData(
+            new DoodadAuraOutcome { DoodadTemplateId = 3, AuraId = 8, Weight = 40 },
+            new DoodadAuraOutcome { DoodadTemplateId = 3, AuraId = 9, Weight = 40 },
+            new DoodadAuraOutcome { DoodadTemplateId = 3, AuraId = 10, Weight = 20 });
     }
 
     /// <summary>0 or more and below Infinity, which refuses NaN too (Postgres sorts it above every number).</summary>

@@ -437,8 +437,8 @@ public sealed class ChunkCatalogSeederShould : IDisposable
               "depthBands": [ { "minDepth": 1, "maxDepth": 3, "minLevel": 1, "maxLevel": 3 },
                               { "minDepth": 4, "maxDepth": null, "minLevel": 3, "maxLevel": 6 } ],
               "doodadRules": [
-                { "doodadTemplateId": 2, "slotTag": "doodad_large", "min": 0, "max": 2, "required": false, "minSpacing": 40 },
-                { "doodadTemplateId": 1, "slotTag": "doodad", "min": 1, "max": 1, "required": true, "minSpacing": 0,
+                { "doodadTemplateId": 902, "slotTag": "doodad_large", "min": 0, "max": 2, "required": false, "minSpacing": 40 },
+                { "doodadTemplateId": 901, "slotTag": "doodad", "min": 1, "max": 1, "required": true, "minSpacing": 0,
                   "minDepth": 8, "visibleGate": { "questId": 7, "condition": "onObjective", "objectiveId": 701 } } ] }
             """);
         using var database = SqliteDatabase.World();
@@ -452,7 +452,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         ProceduralMapConfig config = await read.ProceduralMapConfigs.SingleAsync(c => c.MapTemplateId == new MapTemplateId(2));
         Assert.Equal([1, 4], config.DepthBands.Select(b => b.MinDepth).Order());
         var rules = config.DoodadRules.OrderBy(r => r.Sequence).ToList();
-        Assert.Equal([(1, 2u, "doodad_large", false, 40f), (2, 1u, "doodad", true, 0f)],
+        Assert.Equal([(1, 902u, "doodad_large", false, 40f), (2, 901u, "doodad", true, 0f)],
             rules.Select(r => (r.Sequence, r.DoodadTemplateId.Value, r.SlotTag, r.Required, r.MinSpacing)));
         Assert.Equal((8, (int?)null, 7u, DoodadGateCondition.OnObjective, 701u),
             (rules[1].MinDepth!.Value, rules[1].MaxDepth, rules[1].VisibleQuestId!.Value, rules[1].VisibleCondition!.Value,
@@ -477,7 +477,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     [InlineData("min depth negative", "minDepth -1")]
     [InlineData("max depth negative", "maxDepth -2")]
     [InlineData("unknown condition", "condition 'sometimes'")]
-    [InlineData("required solid template", "names doodad template 2, which is solid")]
+    [InlineData("required solid template", "names doodad template 902, which is solid")]
     [InlineData("required beyond the slots", "has only")]
     [InlineData("gate on solid template", "which is solid and never hidden")]
     public async Task Refuse_a_doodad_rule_the_catalog_cannot_honour(string row, string fault)
@@ -485,18 +485,18 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         string rule = row switch
         {
             "unknown template" => Rule(99),
-            "tag no slot carries" => Rule(1, tag: "nowhere"),
-            "min above max" => Rule(1, min: 3, max: 2),
-            "max above 50" => Rule(1, max: 51),
-            "spacing NaN" => Rule(1, spacing: "\"NaN\""),
-            "spacing negative" => Rule(1, spacing: "-1"),
-            "depths reversed" => Rule(1, extra: "\"minDepth\": 5, \"maxDepth\": 2"),
-            "min depth negative" => Rule(1, extra: "\"minDepth\": -1"),
-            "max depth negative" => Rule(1, extra: "\"maxDepth\": -2"),
-            "unknown condition" => Rule(1, extra: "\"usableGate\": { \"questId\": 7, \"condition\": \"sometimes\" }"),
-            "required solid template" => Rule(2, tag: "doodad_large", required: true),
-            "required beyond the slots" => Rule(1, max: 50, required: true),
-            _ => Rule(2, tag: "doodad_large", extra: "\"visibleGate\": { \"questId\": 7, \"condition\": \"completed\" }"),
+            "tag no slot carries" => Rule(901, tag: "nowhere"),
+            "min above max" => Rule(901, min: 3, max: 2),
+            "max above 50" => Rule(901, max: 51),
+            "spacing NaN" => Rule(901, spacing: "\"NaN\""),
+            "spacing negative" => Rule(901, spacing: "-1"),
+            "depths reversed" => Rule(901, extra: "\"minDepth\": 5, \"maxDepth\": 2"),
+            "min depth negative" => Rule(901, extra: "\"minDepth\": -1"),
+            "max depth negative" => Rule(901, extra: "\"maxDepth\": -2"),
+            "unknown condition" => Rule(901, extra: "\"usableGate\": { \"questId\": 7, \"condition\": \"sometimes\" }"),
+            "required solid template" => Rule(902, tag: "doodad_large", required: true),
+            "required beyond the slots" => Rule(901, max: 50, required: true),
+            _ => Rule(902, tag: "doodad_large", extra: "\"visibleGate\": { \"questId\": 7, \"condition\": \"completed\" }"),
         };
         string root = CopyOfCommittedMaps();
         string path = Path.Combine(root, "ProceduralMaps", "2.json");
@@ -518,11 +518,14 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         string spacing = "0", string? extra = null) =>
         $$"""{ "doodadTemplateId": {{template}}, "slotTag": "{{tag}}", "min": {{min}}, "max": {{max}}, "required": {{(required ? "true" : "false")}}, "minSpacing": {{spacing}}{{(extra is null ? "" : ", " + extra)}} }""";
 
-    /// <summary>Doodad template 1, a walk-through crate, and 2, a solid shrine: what the rules above name.</summary>
+    /// <summary>
+    /// Doodad template 901, a walk-through crate, and 902, a solid shrine: what the rules above name, beside the seeded
+    /// forest doodads the committed 2.json names.
+    /// </summary>
     private static async Task AddDoodadTemplatesAsync(SqliteDatabase<WorldDbContext> database)
     {
         await using WorldDbContext db = database.CreateDbContext();
-        db.DoodadTemplates.AddRange(DoodadRow(1, "Crate", DoodadCollision.None), DoodadRow(2, "Shrine", DoodadCollision.Box));
+        db.DoodadTemplates.AddRange(DoodadRow(901, "Crate", DoodadCollision.None), DoodadRow(902, "Shrine", DoodadCollision.Box));
         await db.SaveChangesAsync();
     }
 
