@@ -63,6 +63,7 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
             NetworkPacketType.CMSG_QUEST_ACCEPT => true,
             NetworkPacketType.CMSG_QUEST_TURN_IN => true,
             NetworkPacketType.CMSG_QUEST_ABANDON => true,
+            NetworkPacketType.CMSG_INSTANCE_LIST => true,
             _ => false
         };
     }

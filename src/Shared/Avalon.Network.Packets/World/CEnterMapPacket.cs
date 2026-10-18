@@ -15,11 +15,20 @@ public class CEnterMapPacket : Packet
     /// <summary>The template ID of the map the client wants to enter.</summary>
     [ProtoMember(1)] public ushort TargetMapId { get; set; }
 
-    public static NetworkPacket Create(ushort targetMapId, EncryptFunc encrypt)
+    /// <summary>Which instance to enter (#1104); <see cref="MapEntryChoice.Default" /> when the client sends none.</summary>
+    [ProtoMember(2)] public MapEntryChoice Choice { get; set; }
+
+    /// <summary>The instance to enter, read for <see cref="MapEntryChoice.Existing" /> only.</summary>
+    [ProtoMember(3)] public Guid InstanceId { get; set; }
+
+    public static NetworkPacket Create(ushort targetMapId, EncryptFunc encrypt) =>
+        Create(targetMapId, MapEntryChoice.Default, Guid.Empty, encrypt);
+
+    public static NetworkPacket Create(ushort targetMapId, MapEntryChoice choice, Guid instanceId, EncryptFunc encrypt)
     {
         using var memoryStream = new MemoryStream();
 
-        var packet = new CEnterMapPacket { TargetMapId = targetMapId };
+        var packet = new CEnterMapPacket { TargetMapId = targetMapId, Choice = choice, InstanceId = instanceId };
         Serializer.Serialize(memoryStream, packet);
 
         byte[] buffer = encrypt(memoryStream.ToArray());

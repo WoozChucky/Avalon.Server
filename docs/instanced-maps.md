@@ -118,7 +118,12 @@ public interface IInstanceRegistry
 Both factory methods are async because a build (layout reads, the doodad plan, the navmesh bake, construction, creature
 placement and doodad placement) runs off the tick; the finished instance is published on the tick, and the task
 completes then (#639, [world simulation](world-simulation.md)). Party instances come from the World-side
-`IPartyInstanceRegistry` (`GetOrCreatePartyInstanceAsync`), which `InstanceRegistry` also implements.
+`IPartyInstanceRegistry` (`GetOrCreatePartyInstanceAsync`), which `InstanceRegistry` also implements. So does the
+World-side `IInstanceChoices` (`World.InstanceChoices`, #1104), for choosing an instance at a portal:
+`CreatePrivateInstanceAsync` and `CreatePartyInstanceAsync` (a build of its own, never joined), `FindChoosable` (an
+instance by id, only if it is the character's own live private one of the map or one of its party's), `ListChoosable`
+(those instances, each flagged whether a plain entry would take it) and `MakeDefault`. All of it is tick thread only,
+and it reads only the asking character's and its party's lists, never every instance.
 
 ---
 
@@ -175,12 +180,26 @@ construction, so an instance nobody ever entered expires too. `AddCharacter` cle
 
 ### Normal Map Re-entry
 
-`GetOrCreateNormalInstanceAsync`:
-1. Check the character's existing instance map — if the Guid maps to an existing, non-expired instance: return it
-   (party instances: the party's map, the same rule)
-2. Otherwise: build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId, ct)` (same factory used for towns; the layout source resolver picks `ProceduralChunkLayoutSource` for `MapType.Normal`), register it
+An owner, a character or a party, may hold **several live instances of the same map** (#1104). The registry keeps a
+list per owner and map (character → map → instances, party → map → instances) in default order: the **last live,
+unexpired entry is the default**, the instance a plain entry takes.
 
-The cache is keyed by `characterId` (the in-game character id surfaced via `ObjectGuid.Id`), NOT by `accountId`. Two characters on the same account that walk into the same procedural map within the re-entry window get separate instances.
+`GetOrCreateNormalInstanceAsync`:
+1. Walk the character's list for the map from the end and return the first instance still live and not expired: the
+   default (party instances: the party's list, the same rule, so when the party's default has expired while another
+   listed one is still live, the party is routed to the last live one in the list)
+2. Otherwise: build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId, ct)` (same factory used for towns; the layout source resolver picks `ProceduralChunkLayoutSource` for `MapType.Normal`), register it, and
+   append it to the list, so it becomes the default; unless `MakeDefault` moved the owner's default while it built (a
+   member's plain entry built while the leader's new instance was made the party's default): then it goes just before
+   that default and leaves it the default (`MakeDefault` marks the owner's plain build of the map still in flight)
+
+**Creates.** `CreatePrivateInstanceAsync` and `CreatePartyInstanceAsync` always start a build of their own: no request
+joins it, and it joins none (they are kept apart from the per-owner de-duplicated builds, under the same deadline). Once
+published the instance is **inserted at the front** of its owner's list: listed, but not the default until
+`MakeDefault` moves it to the end (the portal entry does that on arrival, see
+[Choosing an instance](#choosing-an-instance)). A create that fails or times out leaves the list as it was. `MakeDefault` on an instance its owner no longer lists (freed, or its party forgotten) does nothing.
+
+The lists are keyed by `characterId` (the in-game character id surfaced via `ObjectGuid.Id`), NOT by `accountId`. Two characters on the same account that walk into the same procedural map within the re-entry window get separate instances.
 
 ### Expiry Cleanup
 
@@ -194,6 +213,9 @@ The cache is keyed by `characterId` (the in-game character id surfaced via `Obje
     build is published at the start of `World.Update` and its requester enters it in a connection continuation after
     the expiry pass, so at 0 it would otherwise be freed before anyone arrived. A disbanded party's orphaned build
     expires on this clock too.
+- Takes each freed instance out of its owner's list (`RemoveInstance` does the same), dropping a list, and an owner,
+  left empty; an older instance of the same owner and map stays listed, and becomes the default if it is the last live
+  one.
 - Logs: `"Normal map instance {InstanceId} for map {TemplateId} freed after expiry"`
 
 **At 0** (the load-test world): an emptied dungeon is never reused, and the expiry pass of the tick after the last
@@ -276,7 +298,17 @@ No instance is built at startup. A town's first instance is built the first time
 ```csharp
 public class CEnterMapPacket : Packet
 {
-    public ushort TargetMapId { get; set; }
+    public ushort         TargetMapId { get; set; }
+    public MapEntryChoice Choice      { get; set; }   // #1104; Default (0) when the client sends none
+    public Guid           InstanceId  { get; set; }   // read for Existing only
+}
+
+public enum MapEntryChoice
+{
+    Default    = 0,   // a plain entry: the default instance (Normal Map Re-entry), built if none is live
+    Existing   = 1,   // the live instance InstanceId names: the character's own private one or its party's
+    NewPrivate = 2,   // a new private instance, for the character alone, in a party too
+    NewParty   = 3,   // a new instance for the party, the leader's to ask for
 }
 ```
 
@@ -293,6 +325,11 @@ public enum MapTransitionResult : byte
     InstanceFull     = 6,   // a party's instance is full (docs/party-protocol.md)
     NoWalkableGround = 7,   // an item teleport found no ground (docs/item-use-protocol.md)
     MoveInProgress   = 8,   // another move to a map is already under way
+    InstanceUnavailable = 9,  // #1104: the picked instance is not one the character may enter (one answer for every id)
+    CreateOnCooldown = 10,  // #1104: a new instance inside Game:InstanceCreateCooldownSeconds
+    NotPartyLeader   = 11,  // #1104: NewParty from a member who does not lead the party
+    NotInParty       = 12,  // #1104: NewParty from a character in no party
+    NotInstanced     = 13,  // #1104: a choice other than Default for a town
 }
 
 public class SMapTransitionPacket : Packet
@@ -307,6 +344,54 @@ public class SMapTransitionPacket : Packet
     public string              MapDescription { get; set; }
 }
 ```
+
+`CInstanceListPacket` (`CMSG_INSTANCE_LIST`, #1104) — the portal's menu, sent on a right-click of a portal: which live
+instances of its target map the character may enter. `InstanceListHandler` answers it with one `SInstanceListPacket`
+(`SMSG_INSTANCE_LIST`):
+```csharp
+public class CInstanceListPacket : Packet
+{
+    public ushort TargetMapId { get; set; }
+}
+
+public class SInstanceListPacket : Packet
+{
+    public ushort                  TargetMapId { get; set; }
+    public MapTransitionResult     Result      { get; set; }   // Success, or the portal's refusal
+    public bool                    InParty     { get; set; }
+    public bool                    IsLeader    { get; set; }   // a client may offer a new party instance
+    public List<InstanceChoiceDto> Instances   { get; set; }   // none with a refusal
+}
+
+public class InstanceChoiceDto
+{
+    public Guid         InstanceId  { get; set; }   // what CEnterMapPacket names with Existing
+    public InstanceKind Kind        { get; set; }   // Private = 0, Party = 1
+    public bool         InUse       { get; set; }   // someone is inside: no timer runs
+    public uint         ExpiresInMs { get; set; }   // an empty one's time left; 0 in use
+    public bool         IsDefault   { get; set; }   // the one a Default entry takes
+}
+```
+
+- **The portal's checks.** The request is asked what an entry asks of the portal (steps 2 to 6 below, the shared
+  `PortalChecks`), in the same order: an unknown map, no live current instance or no portal to the map → `MapNotFound`;
+  too far → `NotNearPortal`; outside the level band → `LevelTooLow` / `LevelTooHigh`; then a town target →
+  `NotInstanced`, since a town has nothing to choose. A refusal is the result and no instances
+  (`SInstanceListPacket.CreateFailure`). The menu moves nothing, so there is no move-under-way check, and a refusal is
+  not a refused portal entry: nothing is counted in `world.portal_entry.refusals`. A character not in the game, or
+  dead, is answered nothing, as its entry would be.
+- **The entries** are `IInstanceChoices.ListChoosable`'s: the character's own live private instances of the map and,
+  in a party, the party's, read from those owners' lists alone. In a party only the party's default is flagged
+  `IsDefault` (a plain entry goes to the party's instance), out of one the character's own.
+- **The timer.** `InUse` is `PlayerCount > 0`, and then `ExpiresInMs` is 0. An empty instance's `ExpiresInMs` is its
+  lifetime less the time since `LastEmptyAt` on the world's clock: `Game:AbandonedInstanceLifetimeMinutes` once it has
+  been entered, the fixed `InstanceRegistry.UnenteredInstanceLifetime` (15 minutes) while nobody has, from its build;
+  floored at 0 and clamped to a `uint`. The same lifetimes the expiry pass frees it by, so the client counts it down
+  from the answer.
+- **The order.** The default first, then the party's instances, then the private ones; within each, the ones in use,
+  then the most time left first; the instance id breaks a tie.
+- The handler is built once per world and runs on the tick: the lists it fills (the choices, the DTOs) are its own,
+  kept from one request to the next and emptied once the answer is encoded, so a request allocates only its encoding.
 
 ### `EnterMapHandler` Flow
 
@@ -329,6 +414,7 @@ where characters stand (`not_near_portal`).
     Another move under way (connection.RespawnInFlight: a scroll return, an item teleport,
        a respawn, a party return, or an earlier portal entry that has not ended) → send
        MoveInProgress, return, before anything is looked up
+Steps 2 to 6 are PortalChecks.Check, which the portal's menu (CMSG_INSTANCE_LIST) runs too:
 2.  Resolve the current instance: InstanceRegistry.GetInstanceById(character.InstanceId)
 3.  Find the MapTemplate of packet.TargetMapId among world.MapTemplates, by id
        (MapTemplateRows.FindById: the map manager holds the templates with a lookup by id)
@@ -343,18 +429,33 @@ where characters stand (`not_near_portal`).
        → too far: send NotNearPortal, return
 6.  Level checks against the template's MinLevel and MaxLevel, each only when set
        → send LevelTooLow / LevelTooHigh, return
-7.  The request is accepted: set connection.RespawnInFlight (the move is under way until it
+7.  A Choice other than Default (#1104, see Choosing an instance below) is checked first, in
+       this order, each refusal sent before anything is built or the move is under way:
+       a Choice the server does not know → MapNotFound; a target that is not a Normal map →
+       NotInstanced; Existing: InstanceChoices.FindChoosable(characterId, partyId, map,
+       packet.InstanceId) is null → InstanceUnavailable; NewParty: in no party → NotInParty,
+       not its leader → NotPartyLeader; NewPrivate or NewParty: inside the character's
+       creation cooldown → CreateOnCooldown, and a system line with the seconds left, once per window.
+       A Default entry reads none of it.
+    The request is accepted: set connection.RespawnInFlight (the move is under way until it
        ends, see below), then resolve the target instance (built off the tick when there is
        none to reuse):
+       Default:
        Town   → GetOrCreateTownInstanceAsync(templateId, MaxPlayers ?? 30)
        Normal → in a party: GetOrCreatePartyInstanceAsync(partyId, templateId), then re-check the
                 party (MapNotFound) and the seats (InstanceFull) once it is built;
                 otherwise GetOrCreateNormalInstanceAsync(characterId, templateId)
+       Existing   → the instance picked; one of the party's gets the same party and seat checks
+       NewPrivate → start the cooldown, then CreatePrivateInstanceAsync(characterId, templateId)
+       NewParty   → start the cooldown, then CreatePartyInstanceAsync(partyId, templateId), with
+                    the party and seat checks on arrival
        The arrival continuation first checks the character is still the connection's (a select
        on another connection can take it meanwhile: nothing is done, no reply), then that it is
        still alive (one that died meanwhile is not moved: no reply), then that the
-       instance is still registered; one released meanwhile is resolved again once (see Expiry
-       Cleanup), and a second release in a row → send MapNotFound, return
+       instance is still registered; for a Default entry one released meanwhile is resolved
+       again once (see Expiry Cleanup), and a second release in a row → send MapNotFound,
+       return; a chosen instance released meanwhile → send InstanceUnavailable, return, never
+       resolved again to another
 8.  Exit path: drop the character from any encounter in progress on the source instance
        (CombatService.DropPlayerFromEncounter); the transfer moves instance membership only
 9.  world.TransferPlayer(connection, targetInstance):
@@ -374,7 +475,46 @@ where characters stand (`not_near_portal`).
     11 and 12 are MapArrival.Send, the one place every arrival's packets are sent from (below)
 13. Save the character (ICharacterSaver.Save: the row's map, instance and the spawn of step 10
        as its position, with any dirty inventory and money)
+    After an arrival by choice: InstanceChoices.MakeDefault(instance) for a private instance
+       picked, NewPrivate and NewParty (never for a member's pick of a party instance); for
+       NewParty, then PartyService.SendLine(party, "<leader> opened a new <map name>.",
+       exceptCharacterId: leader)
 ```
+
+### Choosing an instance
+
+A portal entry may name which instance it wants (`CEnterMapPacket.Choice`, #1104); an old client sends none, so
+`Default`, today's entry. The choices are for Normal maps only: a town has one shared set of instances, and any choice
+but `Default` to a town is answered `NotInstanced`. A client learns which instances it may pick from the portal's menu
+(`CMSG_INSTANCE_LIST`, under Packets above).
+
+- **`Existing`** enters the instance `InstanceId` names, only if it is live, unexpired, of the portal's map and the
+  character's own private one or one of its **current** party's (`IInstanceChoices.FindChoosable`, which reads only those
+  owners' lists). Every other id, whether it does not exist, expired, is another character's, another party's or a
+  former party's, gets the one answer `InstanceUnavailable`. A pick has no cooldown. A party instance picked keeps a
+  party entry's arrival checks (still in that party, else `MapNotFound`; a seat free, else `InstanceFull`).
+- **`NewPrivate`** builds a new private instance for the character (`CreatePrivateInstanceAsync`, a build of its own),
+  in a party too: the party stays where it is.
+- **`NewParty`** builds a new instance for the party (`CreatePartyInstanceAsync`); only its leader may ask
+  (`NotInParty`, `NotPartyLeader`). The arrival keeps the party and seat checks.
+- **The cooldown.** A create is refused `CreateOnCooldown` inside `Game:InstanceCreateCooldownSeconds` (10 by default,
+  0 turns it off) of the character's last accepted create, with the seconds left as a system line ("You can open a new
+  instance in 4 seconds."), since the transition has no field for it; the line goes out once per window
+  (`CharacterEntity.InstanceCreateCooldownTold`), and a create refused again inside it gets the result alone, which
+  allocates nothing however often a client repeats it. It starts when a create is accepted, before its
+  build is asked for, so a build that fails still costs it, and nothing else starts or extends it: a refused create
+  does not, and a `Default` entry or a pick neither reads nor writes it. It is kept on the World-side `CharacterEntity`
+  (`InstanceCreateAllowedAt`) on the container's clock, in memory only: a new session starts without one.
+- **The default moves on arrival.** Once the character has entered, the instance becomes its owner's default
+  (`MakeDefault`): a private instance picked or opened is the one the character's plain entries take from then on; a
+  new party instance becomes the party's, and every other online member is told "Kaela opened a new forest." (the
+  leader's name, the map template's `Name`). A member's pick of an older party instance leaves the party's default
+  where it is. While the leader's instance builds nothing changes for the party (a create is never joined by plain
+  entries); a build that fails or times out, a leader who left the party or died meanwhile, leaves the default as it
+  was and tells the members nothing. A member's plain entry whose build started before the leader's arrival and
+  publishes after it still takes its requesters to that build's instance, but never takes the default back.
+- **A chosen instance released before the arrival** (at a lifetime of 0, or freed meanwhile) is refused
+  `InstanceUnavailable`, never resolved again to another instance the character did not choose.
 
 ### A portal entry is a move under way
 
@@ -394,6 +534,7 @@ every path out of it; the one that does not (asking for the instance throws, so 
 | The character died while the instance was being built | nothing, as a dead character's request in step 1: it is not moved, and respawns from where it died | cleared |
 | The instance was released before the arrival, the first time | nothing yet: the target is resolved again | kept: the second resolve is the move now, and ends as any other |
 | Released a second time | `MapNotFound` | cleared |
+| A chosen instance (#1104) was released before the arrival | `InstanceUnavailable`, never resolved again | cleared |
 | No longer in the party the instance is for, or the instance is full | `MapNotFound`, `InstanceFull` | cleared |
 | The instance could not be built (its request faulted or was cancelled) | nothing, as before; logged at Error by the arrival, on the tick, once, before any other check: also when the character died or left meanwhile, since nothing else logs a failed build | cleared, in the same `finally`: a log provider that throws does not keep it (for a character that left, as that row says) |
 | The build ran past its deadline and was abandoned (#969) | no transition; the system line "The way could not be opened. Please try again." (not to a character that left meanwhile); logged at Warning by the arrival, since the registry logged the timeout at Error | cleared, as for any failed build |

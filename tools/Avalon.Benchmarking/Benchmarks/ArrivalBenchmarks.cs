@@ -405,6 +405,7 @@ public class ArrivalBenchmarks
         public string CurrentVersion => throw new NotSupportedException();
         public GameTime Time => throw new NotSupportedException();
         public IPartyInstanceRegistry PartyInstances => throw new NotSupportedException();
+        public IInstanceChoices InstanceChoices => throw new NotSupportedException();
         public void SpawnInInstance(IWorldConnection connection, IMapInstance instance) => throw new NotSupportedException();
         public Task DeSpawnPlayerAsync(IWorldConnection connection) => throw new NotSupportedException();
         public Task<bool> LeaveWorldAsync(IWorldConnection connection) => throw new NotSupportedException();

@@ -218,6 +218,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_INSTANCE_LIST",
+      "opcode": 8227,
+      "hex": "0x2023",
+      "message": "CInstanceListPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_INTERACT",
       "opcode": 8240,
       "hex": "0x2030",
@@ -672,6 +681,15 @@
       "opcode": 12338,
       "hex": "0x3032",
       "message": "SChunkLayoutPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_INSTANCE_LIST",
+      "opcode": 12339,
+      "hex": "0x3033",
+      "message": "SInstanceListPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

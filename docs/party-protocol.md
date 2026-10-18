@@ -202,6 +202,8 @@ System lines the party produces (X is a character name):
 - "X is now the party leader."
 - "Experience is now shared evenly." / "Experience is now shared by level."
 - "The party was disbanded."
+- "X opened a new <map>." (#1104): to every other online member once the leader X has arrived in a new instance of
+  the party's, `<map>` being the map's name; see section 6.
 
 ## 6. Map entry
 
@@ -214,6 +216,16 @@ character in no party still gets its own instance.
 
 A party that ends (or a character that leaves it) while the instance is being built is answered
 `MapNotFound` (1).
+
+**A new party instance (#1104).** `CEnterMapPacket.Choice` `NewParty` asks for a new instance of the map for the party,
+apart from its current one ([choosing an instance](instanced-maps.md#choosing-an-instance)). Only the leader may ask;
+`SMapTransitionPacket.Result` gains, among the choice's answers:
+- `NotPartyLeader` (11): a member who is not the leader asked.
+- `NotInParty` (12): a character in no party asked.
+
+Once the leader has arrived in it, the new instance is the party's default, the one every member's plain entry takes,
+and every other online member gets "X opened a new <map>." (section 5). Members already inside the old instance stay;
+any member may go back to it through the portal's menu (`Existing`), which leaves the default where it is.
 
 **Login always lands in a town**, never back in a party's instance. A member who logs out inside it walks back
 in through the portal.

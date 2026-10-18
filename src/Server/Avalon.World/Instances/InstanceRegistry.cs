@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Maps;
@@ -33,7 +34,18 @@ namespace Avalon.World.Instances;
 /// </para>
 /// <para>
 /// One build per town map, per character and Normal map, and per party and map is in flight at a time (#442):
-/// requesters arriving while it runs share it rather than baking a second copy.
+/// requesters arriving while it runs share it rather than baking a second copy. A create
+/// (<see cref="CreatePrivateInstanceAsync" />, <see cref="CreatePartyInstanceAsync" />, #1104) is the exception: it
+/// always starts a build of its own, which nothing joins.
+/// </para>
+/// <para>
+/// <b>Several instances per owner and map (#1104).</b> A character, and a party, holds a list of its live instances of
+/// each Normal map, in default order: the last live, unexpired entry is the default, the one a plain entry takes. A
+/// default build is appended, so it becomes the default; a create is inserted at the front, listed but not the default
+/// until <see cref="MakeDefault" /> moves it to the end. A default build that publishes after <see cref="MakeDefault" />
+/// ran on its owner's list since it started (a member's plain entry built while the leader's create was made the
+/// party's default) is inserted just before the default instead, so it never takes the default back. Expiry and removal
+/// take an instance out of its owner's list.
 /// </para>
 /// <para>
 /// <b>A build has a deadline (#969).</b> One still running <see cref="BuildDeadline" /> after it started is abandoned
@@ -62,7 +74,7 @@ namespace Avalon.World.Instances;
 /// instance was published or removed since the last walk, so a tick that changes nothing allocates nothing for it.
 /// </para>
 /// </remarks>
-public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
+public partial class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry, IInstanceChoices
 {
     /// <summary>
     /// How long a Normal or party instance nobody has entered yet lives: its requester's arrival, or a disbanded
@@ -104,18 +116,22 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     private IMapInstance[] _tickSnapshot = [];
     private bool _tickSnapshotStale;
 
-    // characterId → { templateId → instanceId } for Normal map re-entry. Keyed by character
-    // (not account) so different characters on the same account land in different instances
-    // even within the re-entry window.
-    private readonly Dictionary<uint, Dictionary<MapTemplateId, Guid>> _characterInstanceMap = [];
+    // characterId → { templateId → its private instances } for Normal map re-entry, in default order: the last live,
+    // unexpired one is the default (#1104). Keyed by character (not account) so different characters on the same
+    // account land in different instances even within the re-entry window.
+    private readonly Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> _characterInstanceMap = [];
 
-    // partyId → { templateId → instanceId }: the party's instances (2026-09-30).
-    private readonly Dictionary<uint, Dictionary<MapTemplateId, Guid>> _partyInstanceMap = [];
+    // partyId → { templateId → its instances }: the party's instances (2026-09-30), in the same default order.
+    private readonly Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> _partyInstanceMap = [];
 
     // Builds in flight (#442), one per town map, per character and map, per party and map.
     private readonly Dictionary<MapTemplateId, PendingBuild> _pendingTownBuilds = [];
     private readonly Dictionary<(uint CharacterId, MapTemplateId TemplateId), PendingBuild> _pendingNormalBuilds = [];
     private readonly Dictionary<(uint PartyId, MapTemplateId TemplateId), PendingBuild> _pendingPartyBuilds = [];
+
+    // Creates in flight (#1104), private and party: nothing joins them, so they are not keyed; held so ForgetParty
+    // can reach a party's, and a published one is dropped without a walk.
+    private readonly HashSet<PendingBuild> _pendingCreates = [];
 
     // Written by a build's last step, on whichever thread it ends on; read only by PublishFinished, on the tick.
     private readonly ConcurrentQueue<FinishedBuild> _finished = new();
@@ -253,21 +269,16 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         return pending.Done.Task;
     }
 
-    /// <summary>The character's unexpired instance of this map, if it still has one.</summary>
+    /// <summary>The character's default instance of this map, its last live unexpired one, if it still has one.</summary>
     private MapInstance? FindReentryInstance(uint characterId, MapTemplateId templateId)
     {
-        if (_characterInstanceMap.TryGetValue(characterId, out Dictionary<MapTemplateId, Guid>? characterMap) &&
-            characterMap.TryGetValue(templateId, out Guid existingId) &&
-            _instances.TryGetValue(existingId, out MapInstance? existing) &&
-            !HasExpired(existing, _abandonedLifetime))
+        MapInstance? existing = DefaultOf(_characterInstanceMap, characterId, templateId);
+        if (existing is not null)
         {
-            _logger.LogInformation(
-                "Returning existing Normal instance {InstanceId} for character {CharacterId}, map {TemplateId}",
-                existingId, characterId, templateId);
-            return existing;
+            Log.ReturningExistingNormalInstance(_logger, existing.InstanceId, characterId, templateId);
         }
 
-        return null;
+        return existing;
     }
 
     public Task<IMapInstance> GetOrCreatePartyInstanceAsync(PartyId party, MapTemplateId templateId)
@@ -288,12 +299,109 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     }
 
     private MapInstance? FindPartyInstance(uint party, MapTemplateId templateId) =>
-        _partyInstanceMap.TryGetValue(party, out Dictionary<MapTemplateId, Guid>? maps)
-        && maps.TryGetValue(templateId, out Guid id)
-        && _instances.TryGetValue(id, out MapInstance? instance)
-        && !HasExpired(instance, _abandonedLifetime)
+        DefaultOf(_partyInstanceMap, party, templateId);
+
+    /// <summary>The owner's default instance of the map: the last of its list still live and unexpired.</summary>
+    private MapInstance? DefaultOf(Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index, uint owner,
+        MapTemplateId templateId)
+    {
+        MapInstance? instance = null;
+        if (ListOf(index, owner, templateId) is { } ids)
+            LastLive(ids, out instance);
+
+        return instance;
+    }
+
+    public Task<IMapInstance> CreatePrivateInstanceAsync(uint characterId, MapTemplateId templateId)
+    {
+        _tick?.AssertOnTick("InstanceRegistry.CreatePrivateInstanceAsync");
+
+        var pending = new PendingBuild(PendingKind.Normal, characterId, templateId, create: true);
+        _pendingCreates.Add(pending);
+        StartBuild(pending, characterId, ownerParty: null);
+        return pending.Done.Task;
+    }
+
+    public Task<IMapInstance> CreatePartyInstanceAsync(PartyId party, MapTemplateId templateId)
+    {
+        _tick?.AssertOnTick("InstanceRegistry.CreatePartyInstanceAsync");
+
+        var pending = new PendingBuild(PendingKind.Party, party.Value, templateId, create: true);
+        _pendingCreates.Add(pending);
+        StartBuild(pending, ownerCharacterId: null, party);
+        return pending.Done.Task;
+    }
+
+    public IMapInstance? FindChoosable(uint characterId, PartyId? party, MapTemplateId templateId, Guid instanceId)
+    {
+        _tick?.AssertOnTick("InstanceRegistry.FindChoosable");
+
+        return ListedLive(_characterInstanceMap, characterId, templateId, instanceId)
+               ?? (party is null ? null : ListedLive(_partyInstanceMap, party.Value, templateId, instanceId));
+    }
+
+    /// <remarks>
+    /// The party's first, then the character's, each from its default back. In a party a plain entry takes the
+    /// party's default, so only that one is flagged; out of one, the character's.
+    /// </remarks>
+    public void ListChoosable(uint characterId, PartyId? party, MapTemplateId templateId, List<InstanceChoice> into)
+    {
+        _tick?.AssertOnTick("InstanceRegistry.ListChoosable");
+
+        if (party is not null)
+            AppendLive(_partyInstanceMap, party.Value, templateId, InstanceKind.Party, flagDefault: true, into);
+
+        AppendLive(_characterInstanceMap, characterId, templateId, InstanceKind.Private, flagDefault: party is null,
+            into);
+    }
+
+    public void MakeDefault(IMapInstance instance)
+    {
+        _tick?.AssertOnTick("InstanceRegistry.MakeDefault");
+
+        if (!_instances.TryGetValue(instance.InstanceId, out MapInstance? live))
+            return;
+
+        // A plain build of the same owner and map still in flight is told: published, it must not take the default back.
+        if (live.OwnerCharacterId is { } character
+            && MoveToEnd(_characterInstanceMap, character, live.TemplateId, live.InstanceId)
+            && _pendingNormalBuilds.TryGetValue((character, live.TemplateId), out PendingBuild? plainBuild))
+        {
+            plainBuild.DefaultMoved = true;
+        }
+
+        if (live.OwnerPartyId is { } party
+            && MoveToEnd(_partyInstanceMap, party.Value, live.TemplateId, live.InstanceId)
+            && _pendingPartyBuilds.TryGetValue((party.Value, live.TemplateId), out PendingBuild? partyBuild))
+        {
+            partyBuild.DefaultMoved = true;
+        }
+    }
+
+    /// <summary>Instance <paramref name="instanceId" /> if the owner lists it for the map and it is live and unexpired.</summary>
+    private MapInstance? ListedLive(Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index, uint owner,
+        MapTemplateId templateId, Guid instanceId) =>
+        ListOf(index, owner, templateId) is { } ids && ids.Contains(instanceId)
+        && _instances.TryGetValue(instanceId, out MapInstance? instance) && !HasExpired(instance, _abandonedLifetime)
             ? instance
             : null;
+
+    /// <summary>The owner's live, unexpired instances of the map, from its default back; the first one flagged when asked.</summary>
+    private void AppendLive(Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index, uint owner,
+        MapTemplateId templateId, InstanceKind kind, bool flagDefault, List<InstanceChoice> into)
+    {
+        if (ListOf(index, owner, templateId) is not { } ids)
+            return;
+
+        for (int i = ids.Count - 1; i >= 0; i--)
+        {
+            if (!_instances.TryGetValue(ids[i], out MapInstance? instance) || HasExpired(instance, _abandonedLifetime))
+                continue;
+
+            into.Add(new InstanceChoice(instance, kind, flagDefault));
+            flagDefault = false;
+        }
+    }
 
     public bool IsPartyInstance(PartyId party, Guid instanceId) =>
         _instances.TryGetValue(instanceId, out MapInstance? instance) && party.Equals(instance.OwnerPartyId);
@@ -304,11 +412,17 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
 
         _partyInstanceMap.Remove(party.Value);
 
-        // A build still in flight would index its instance once it is published; it is told not to. Left unindexed,
-        // its instance empties and expires like any instance nobody enters.
+        // A build still in flight, a default one or a create, would index its instance once it is published; it is
+        // told not to. Left unindexed, its instance empties and expires like any instance nobody enters.
         foreach (((uint PartyId, MapTemplateId) key, PendingBuild pending) in _pendingPartyBuilds)
         {
             if (key.PartyId == party.Value)
+                pending.Forgotten = true;
+        }
+
+        foreach (PendingBuild pending in _pendingCreates)
+        {
+            if (pending.Kind == PendingKind.Party && pending.OwnerId == party.Value)
                 pending.Forgotten = true;
         }
     }
@@ -324,6 +438,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         if (_instances.TryRemove(instanceId, out MapInstance? instance))
         {
             Untrack(instance);
+            Unindex(instance);
             instance.Dispose();
             _logger.LogInformation("Instance {InstanceId} removed from registry", instanceId);
         }
@@ -347,6 +462,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             }
 
             Untrack(removed);
+            Unindex(removed);
 
             // Without this the log line below is untrue: the instance stays rooted by the static
             // entity events it subscribed to in its constructor.
@@ -355,13 +471,6 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             _logger.LogInformation(
                 "Normal map instance {InstanceId} for map {TemplateId} freed after expiry",
                 id, instance.TemplateId);
-
-            // Only while each entry still names this instance: a newer build of the map may have replaced it.
-            if (instance.OwnerCharacterId is { } character)
-                Unindex(_characterInstanceMap, character, instance.TemplateId, id);
-
-            if (instance.OwnerPartyId is { } party)
-                Unindex(_partyInstanceMap, party.Value, instance.TemplateId, id);
         }
     }
 
@@ -571,6 +680,12 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
 
     private void Forget(PendingBuild pending)
     {
+        if (pending.Create)
+        {
+            _pendingCreates.Remove(pending);
+            return;
+        }
+
         switch (pending.Kind)
         {
             case PendingKind.Town:
@@ -585,36 +700,76 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         }
     }
 
+    /// <summary>
+    /// Lists a published instance for its owner: a default build at the end, so it becomes the default, a create at
+    /// the front, listed but not the default (#1104). A default build whose owner's default was chosen
+    /// (<see cref="MakeDefault" />) while it built goes just before the list's last live, unexpired entry, which stays
+    /// the default; it is appended only when the list has no live entry left. A party's build is not listed once the
+    /// party was forgotten.
+    /// </summary>
     private void Index(PendingBuild pending, MapInstance instance)
     {
+        Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index;
         switch (pending.Kind)
         {
             case PendingKind.Normal:
-                IndexOf(_characterInstanceMap, pending.OwnerId)[pending.TemplateId] = instance.InstanceId;
+                index = _characterInstanceMap;
                 break;
             case PendingKind.Party when !pending.Forgotten:
-                IndexOf(_partyInstanceMap, pending.OwnerId)[pending.TemplateId] = instance.InstanceId;
+                index = _partyInstanceMap;
                 break;
+            default:
+                return;
         }
-    }
 
-    private static Dictionary<MapTemplateId, Guid> IndexOf(Dictionary<uint, Dictionary<MapTemplateId, Guid>> index,
-        uint owner)
-    {
-        if (!index.TryGetValue(owner, out Dictionary<MapTemplateId, Guid>? maps))
+        if (!index.TryGetValue(pending.OwnerId, out Dictionary<MapTemplateId, List<Guid>>? maps))
         {
             maps = [];
-            index[owner] = maps;
+            index[pending.OwnerId] = maps;
         }
 
-        return maps;
+        if (!maps.TryGetValue(pending.TemplateId, out List<Guid>? ids))
+        {
+            ids = [];
+            maps[pending.TemplateId] = ids;
+        }
+
+        if (pending.Create)
+            ids.Insert(0, instance.InstanceId);
+        else if (pending.DefaultMoved && LastLive(ids, out _) is var current and >= 0)
+            ids.Insert(current, instance.InstanceId);
+        else
+            ids.Add(instance.InstanceId);
     }
 
-    private static void Unindex(Dictionary<uint, Dictionary<MapTemplateId, Guid>> index, uint owner,
+    /// <summary>The list's default, its last live unexpired entry, and where it stands; -1 and null when it has none.</summary>
+    private int LastLive(List<Guid> ids, out MapInstance? instance)
+    {
+        for (int i = ids.Count - 1; i >= 0; i--)
+        {
+            if (_instances.TryGetValue(ids[i], out instance) && !HasExpired(instance, _abandonedLifetime))
+                return i;
+        }
+
+        instance = null;
+        return -1;
+    }
+
+    /// <summary>Takes an instance leaving the registry out of its owner's list, dropping a list or an owner left empty.</summary>
+    private void Unindex(MapInstance instance)
+    {
+        if (instance.OwnerCharacterId is { } character)
+            Unindex(_characterInstanceMap, character, instance.TemplateId, instance.InstanceId);
+
+        if (instance.OwnerPartyId is { } party)
+            Unindex(_partyInstanceMap, party.Value, instance.TemplateId, instance.InstanceId);
+    }
+
+    private static void Unindex(Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index, uint owner,
         MapTemplateId templateId, Guid instanceId)
     {
-        if (!index.TryGetValue(owner, out Dictionary<MapTemplateId, Guid>? maps)
-            || !maps.TryGetValue(templateId, out Guid named) || named != instanceId)
+        if (!index.TryGetValue(owner, out Dictionary<MapTemplateId, List<Guid>>? maps)
+            || !maps.TryGetValue(templateId, out List<Guid>? ids) || !ids.Remove(instanceId) || ids.Count > 0)
         {
             return;
         }
@@ -622,6 +777,25 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         maps.Remove(templateId);
         if (maps.Count == 0)
             index.Remove(owner);
+    }
+
+    /// <summary>The owner's list for the map, if it has one.</summary>
+    private static List<Guid>? ListOf(Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index, uint owner,
+        MapTemplateId templateId) =>
+        index.TryGetValue(owner, out Dictionary<MapTemplateId, List<Guid>>? maps)
+        && maps.TryGetValue(templateId, out List<Guid>? ids)
+            ? ids
+            : null;
+
+    /// <summary>Makes a listed instance its owner's default, the last of the list; false, and nothing, for one not listed.</summary>
+    private static bool MoveToEnd(Dictionary<uint, Dictionary<MapTemplateId, List<Guid>>> index, uint owner,
+        MapTemplateId templateId, Guid instanceId)
+    {
+        if (ListOf(index, owner, templateId) is not { } ids || !ids.Remove(instanceId))
+            return false;
+
+        ids.Add(instanceId);
+        return true;
     }
 
     private static void RemoveIfSame<TKey>(Dictionary<TKey, PendingBuild> pending, TKey key, PendingBuild build)
@@ -639,9 +813,12 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     }
 
     /// <summary>A build in flight and the task every requester of it holds. Tick thread only.</summary>
-    private sealed class PendingBuild(PendingKind kind, uint ownerId, MapTemplateId templateId)
+    private sealed class PendingBuild(PendingKind kind, uint ownerId, MapTemplateId templateId, bool create = false)
     {
         public PendingKind Kind { get; } = kind;
+
+        /// <summary>A create (#1104): never joined, kept in the creates list, and listed at the front once published.</summary>
+        public bool Create { get; } = create;
 
         /// <summary>The character (Normal) or party (Party) it is built for; 0 for a town.</summary>
         public uint OwnerId { get; } = ownerId;
@@ -660,6 +837,12 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         /// <summary>When the build started, as the world clock's timestamp.</summary>
         public long StartedAt { get; set; }
 
+        /// <summary>
+        /// A plain build whose owner's default <see cref="MakeDefault" /> moved while it ran (#1104): it is listed just
+        /// before that default, never over it.
+        /// </summary>
+        public bool DefaultMoved { get; set; }
+
         /// <summary>The timer of its <see cref="BuildDeadline" />, while it runs; disposed once it is published or abandoned.</summary>
         public ITimer? Deadline { get; set; }
 
@@ -672,6 +855,18 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             Requesters++;
             return Done.Task;
         }
+    }
+
+    /// <summary>
+    /// The lines written on every request they describe: each formats and allocates nothing unless its level is written.
+    /// </summary>
+    private static partial class Log
+    {
+        /// <summary>A plain private entry taking the character's default instance: every accepted re-entry writes it.</summary>
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "Returning existing Normal instance {InstanceId} for character {CharacterId}, map {TemplateId}")]
+        public static partial void ReturningExistingNormalInstance(ILogger logger, Guid instanceId, uint characterId,
+            MapTemplateId templateId);
     }
 
     /// <param name="Outcome">The build's task, ended; null when it is the build's deadline that passed.</param>

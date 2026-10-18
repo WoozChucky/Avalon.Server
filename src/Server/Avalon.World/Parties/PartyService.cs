@@ -358,7 +358,12 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// The line to every online member: the same line for each, so it is encoded once, for the first, and shared by the
     /// others, and the clock is read once (#973, as a said line is shared since #875).
     /// </summary>
-    public void SendLine(Party party, string text)
+    public void SendLine(Party party, string text) => SendLine(party, text, except: null);
+
+    /// <summary>The line to every online member but <paramref name="exceptCharacterId" />, encoded once, as above.</summary>
+    public void SendLine(Party party, string text, uint exceptCharacterId) => SendLine(party, text, (uint?)exceptCharacterId);
+
+    private void SendLine(Party party, string text, uint? except)
     {
         IReadOnlyList<PartyMember> members = party.Members;
         OutboundPacket line = default;
@@ -366,7 +371,8 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         {
             for (int i = 0; i < members.Count; i++)
             {
-                if (OnlineConnection(members[i].Id.Value) is not { } connection)
+                uint memberId = members[i].Id.Value;
+                if (memberId == except || OnlineConnection(memberId) is not { } connection)
                     continue;
 
                 if (line.Payload is null)

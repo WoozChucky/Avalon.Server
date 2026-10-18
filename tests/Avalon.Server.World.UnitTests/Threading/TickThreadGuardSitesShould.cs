@@ -118,7 +118,7 @@ public class TickThreadGuardSitesShould
         world.PublishBuiltInstances();
     }
 
-    public static TheoryData<string> RegistryWrites() =>
+    public static TheoryData<string> RegistryTickOnlyCalls() =>
     [
         "InstanceRegistry.GetOrCreateTownInstanceAsync",
         "InstanceRegistry.GetOrCreateNormalInstanceAsync",
@@ -128,11 +128,16 @@ public class TickThreadGuardSitesShould
         "InstanceRegistry.ProcessExpiredInstances",
         "InstanceRegistry.PublishFinished",
         "InstanceRegistry.TickInstances",
+        "InstanceRegistry.CreatePrivateInstanceAsync",
+        "InstanceRegistry.CreatePartyInstanceAsync",
+        "InstanceRegistry.FindChoosable",
+        "InstanceRegistry.ListChoosable",
+        "InstanceRegistry.MakeDefault",
     ];
 
     [Theory]
-    [MemberData(nameof(RegistryWrites))]
-    public void Guard_every_registry_index_write(string operation)
+    [MemberData(nameof(RegistryTickOnlyCalls))]
+    public void Guard_every_tick_only_registry_call(string operation)
     {
         IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([]); // every build fails at once: only the guard is under test
@@ -147,6 +152,11 @@ public class TickThreadGuardSitesShould
             "InstanceRegistry.RemoveInstance" => () => registry.RemoveInstance(Guid.NewGuid()),
             "InstanceRegistry.ProcessExpiredInstances" => () => registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15)),
             "InstanceRegistry.TickInstances" => () => _ = registry.TickInstances(),
+            "InstanceRegistry.CreatePrivateInstanceAsync" => () => _ = registry.CreatePrivateInstanceAsync(1, new MapTemplateId(2)),
+            "InstanceRegistry.CreatePartyInstanceAsync" => () => _ = registry.CreatePartyInstanceAsync(new PartyId(1), new MapTemplateId(2)),
+            "InstanceRegistry.FindChoosable" => () => _ = registry.FindChoosable(1, new PartyId(1), new MapTemplateId(2), Guid.NewGuid()),
+            "InstanceRegistry.ListChoosable" => () => registry.ListChoosable(1, new PartyId(1), new MapTemplateId(2), []),
+            "InstanceRegistry.MakeDefault" => () => registry.MakeDefault(Substitute.For<IMapInstance>()),
             _ => () => registry.PublishFinished(),
         };
 

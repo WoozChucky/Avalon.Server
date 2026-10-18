@@ -199,6 +199,11 @@ meter it carries no world of its own: the world is the label the collector gives
 | `instance_released` | `MapNotFound` | on arrival: the instance was released before the arrival, twice in a row |
 | `not_in_party` | `MapNotFound` | on arrival: the character is no longer in the party the instance is for |
 | `instance_full` | `InstanceFull` | on arrival: the party's instance is full |
+| `unknown_choice` | `MapNotFound` | the request's `Choice` is none the server knows (#1104) |
+| `not_instanced` | `NotInstanced` | a choice other than `Default` for a town, which has no instances to choose (#1104) |
+| `instance_unavailable` | `InstanceUnavailable` | the instance picked by id is not one the character may enter, or was released before the arrival (#1104) |
+| `create_not_in_party`, `not_party_leader` | `NotInParty`, `NotPartyLeader` | a new party instance asked for by a character in no party, or by a member who does not lead it (#1104) |
+| `create_on_cooldown` | `CreateOnCooldown` | a new instance asked for inside the character's `Game:InstanceCreateCooldownSeconds` (#1104) |
 
 A client asks for a portal it stands on, of a map it can see, so in ordinary play the series is close to flat. Each of
 these refusals writes a Debug line at most, which a world does not write at the level it ships with, so the count is
