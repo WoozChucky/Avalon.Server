@@ -4,6 +4,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Abilities;
 using Avalon.World.Dialogue;
+using Avalon.World.Doodads;
 using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
@@ -158,6 +159,16 @@ public sealed record QuestsPatch(Quests.QuestCatalog Catalog) : StaticDataPatch(
 /// aura link is checked by the Abilities area against the auras its own prepare reads.
 /// </summary>
 public sealed record AurasPatch(Auras.AuraCatalog Catalog) : StaticDataPatch(ReloadArea.Auras)
+{
+    public override string Describe() => Catalog.Describe();
+}
+
+/// <summary>
+/// Doodad templates, validated against the loot tables, auras and quests read in the same prepare and the doodad
+/// scripts loaded. Forward-only: a doodad already placed keeps the template it was placed with; what changes is what
+/// the next instance build places.
+/// </summary>
+public sealed record DoodadsPatch(DoodadCatalog Catalog) : StaticDataPatch(ReloadArea.Doodads)
 {
     public override string Describe() => Catalog.Describe();
 }

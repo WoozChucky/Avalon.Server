@@ -21,6 +21,10 @@ public enum GameEntityFields
     IsDead = 1 << 15,
     PvpEnabled = 1 << 16,
 
+    // A doodad's two changing members. Neither joins All: a doodad's add describes it in full on its own terms.
+    DoodadState = 1 << 17,
+    CanInteract = 1 << 18,
+
     WorldObjectUpdate = Position | Velocity | Orientation,
     CreatureUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | PowerType,
     CharacterUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Health | Power | PowerType | Experience | RequiredExperience | IsDead | PvpEnabled,

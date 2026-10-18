@@ -120,7 +120,7 @@ public class ReloadCommandShould
         fixture.Execute(area);
 
         Assert.Equal(
-            ["Usage: /reload <dialogue|creatures|abilities|items|progression|loot|vendors|combat|quests|auras|all>"],
+            ["Usage: /reload <dialogue|creatures|abilities|items|progression|loot|vendors|combat|quests|auras|doodads|all>"],
             fixture.CaptureSentMessages());
         _ = fixture.Reloader.DidNotReceiveWithAnyArgs().ReloadAsync(default!, default);
     }

@@ -78,6 +78,12 @@ internal static class Exports
                 Path.Combine(root, AuraCatalogExport.DirectoryName, AuraCatalogExport.FileName)),
             AuraCatalogExport.Readiness),
 
+        new("doodad-catalog", DoodadCatalogExport.DirectoryName + "/" + DoodadCatalogExport.FileName,
+            "every doodad's model, clips, interaction and solidity, nothing of what a use does (needs a World database)",
+            root => DoodadCatalogExport.Write(
+                Path.Combine(root, DoodadCatalogExport.DirectoryName, DoodadCatalogExport.FileName)),
+            DoodadCatalogExport.Readiness),
+
         new("quest-catalog", QuestCatalogExport.DirectoryName + "/" + QuestCatalogExport.FileName,
             "every quest's title, stages, objectives and rewards, for tooling (needs a World database)",
             root => QuestCatalogExport.Write(

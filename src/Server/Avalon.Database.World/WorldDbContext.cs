@@ -102,6 +102,8 @@ public class WorldDbContext : DbContext
     public DbSet<VendorStockCost> VendorStockCosts { get; set; } = null!;
     public DbSet<CombatFormula> CombatFormulas { get; set; } = null!;
     public DbSet<ClassStatFactors> ClassStatFactors { get; set; } = null!;
+    public DbSet<DoodadTemplate> DoodadTemplates { get; set; } = null!;
+    public DbSet<DoodadAuraOutcome> DoodadAuraOutcomes { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -158,6 +160,8 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<VendorStockCost>());
         Configure(modelBuilder.Entity<CombatFormula>());
         Configure(modelBuilder.Entity<ClassStatFactors>());
+        Configure(modelBuilder.Entity<DoodadTemplate>());
+        Configure(modelBuilder.Entity<DoodadAuraOutcome>());
 
         modelBuilder.Entity<ChunkPoolMembership>(e =>
         {
@@ -3158,6 +3162,78 @@ public class WorldDbContext : DbContext
         builder.HasKey(b => b.Class);
 
         builder.HasData(CombatSeed.ClassFactors());
+    }
+
+    /// <summary>
+    /// Doodads: interactable world objects (chests, barrels, shrines, fountains, quest objects). Reference data; the
+    /// world's doodad catalog validates it on load. Interaction 0 None, 1 Click; UseLimit 1 OncePerInstance, 2 Unlimited;
+    /// SpentLook 1 ShowUsed, 2 Despawn; Collision 0 None, 1 Box; the gate conditions 1 NotStarted, 2 OnObjective,
+    /// 3 Completed, 4 NotCompleted. The gate quest and objective ids are plain columns, no foreign key, so seed order
+    /// never trips them; the catalog checks them. Every check reads the same on Postgres and on the SQLite the tests
+    /// build the model on, and an upper bound refuses NaN too, which Postgres sorts above every number.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<DoodadTemplate> builder)
+    {
+        builder.ToTable("DoodadTemplates", t =>
+        {
+            t.HasCheckConstraint("CK_DoodadTemplates_Interaction", "\"Interaction\" IN (0, 1)");
+            t.HasCheckConstraint("CK_DoodadTemplates_UseLimit", "\"UseLimit\" IN (1, 2)");
+            t.HasCheckConstraint("CK_DoodadTemplates_SpentLook", "\"SpentLook\" IN (1, 2)");
+            // A solid doodad's box is finite, has room in both directions, and stands at least 1.05 m tall. The bound
+            // is 1.049, not 1.05: the column is a float, and both databases compare it as a double, where a stored
+            // 1.05f reads 1.0499999523 and would fail ">= 1.05". The catalog keeps the exact ">= 1.05f" rule.
+            t.HasCheckConstraint("CK_DoodadTemplates_Collision",
+                "(\"Collision\" = 0)" +
+                " OR (\"Collision\" = 1" +
+                " AND \"CollisionHalfX\" > 0 AND \"CollisionHalfX\" < 'Infinity'" +
+                " AND \"CollisionHalfZ\" > 0 AND \"CollisionHalfZ\" < 'Infinity'" +
+                " AND \"CollisionHeight\" >= 1.049 AND \"CollisionHeight\" < 'Infinity')");
+            t.HasCheckConstraint("CK_DoodadTemplates_Range", "\"InteractionRange\" > 0 AND \"InteractionRange\" <= 10");
+            t.HasCheckConstraint("CK_DoodadTemplates_AreaRadius", "\"AreaRadius\" >= 0 AND \"AreaRadius\" <= 30");
+            t.HasCheckConstraint("CK_DoodadTemplates_Gold", "\"MinGold\" >= 0 AND \"MinGold\" <= \"MaxGold\"");
+            t.HasCheckConstraint("CK_DoodadTemplates_RestorePct", "\"RestorePct\" <= 100");
+            // Each side of = is a boolean: the quest and its condition are both set or both null.
+            t.HasCheckConstraint("CK_DoodadTemplates_VisibleGate",
+                "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");
+            t.HasCheckConstraint("CK_DoodadTemplates_UsableGate",
+                "(\"UsableQuestId\" IS NULL) = (\"UsableCondition\" IS NULL)");
+        });
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new DoodadTemplateId(v))
+            .IsRequired()
+            .ValueGeneratedNever();
+        builder.Property(b => b.Name).IsRequired().HasMaxLength(100);
+        builder.Property(b => b.ModelKit).IsRequired().HasMaxLength(64);
+        builder.Property(b => b.ModelKey).IsRequired().HasMaxLength(128);
+        builder.Property(b => b.UsedModelKey).IsRequired(false).HasMaxLength(128);
+        builder.Property(b => b.ReadyClip).IsRequired(false).HasMaxLength(128);
+        builder.Property(b => b.UseClip).IsRequired(false).HasMaxLength(128);
+        builder.Property(b => b.UsedClip).IsRequired(false).HasMaxLength(128);
+        builder.Property(b => b.ScriptName).IsRequired(false).HasMaxLength(200);
+
+        // Deleting a loot table a doodad drops from is refused, not silently emptied.
+        builder.Property(b => b.LootTableId)
+            .HasConversion(v => v!.Value, v => new LootTableId(v))
+            .IsRequired(false);
+        builder.HasOne<LootTable>()
+            .WithMany()
+            .HasForeignKey(b => b.LootTableId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(b => b.AuraOutcomes).WithOne().HasForeignKey(o => o.DoodadTemplateId).OnDelete(DeleteBehavior.Cascade);
+    }
+
+    /// <summary>One aura a doodad's use may apply, at most one row per aura, drawn by its weight (at least 1).</summary>
+    private static void Configure(EntityTypeBuilder<DoodadAuraOutcome> builder)
+    {
+        builder.ToTable("DoodadAuraOutcomes", t => t.HasCheckConstraint("CK_DoodadAuraOutcomes_Weight", "\"Weight\" >= 1"));
+        builder.HasKey(b => new { b.DoodadTemplateId, b.AuraId });
+        builder.Property(b => b.DoodadTemplateId)
+            .HasConversion(v => v.Value, v => new DoodadTemplateId(v))
+            .IsRequired();
+        builder.Property(b => b.AuraId).HasConversion(v => v.Value, v => new AuraId(v)).IsRequired();
+        builder.HasOne<AuraTemplate>().WithMany().HasForeignKey(b => b.AuraId).OnDelete(DeleteBehavior.Restrict);
     }
 
     /// <summary>0 or more and below Infinity, which refuses NaN too (Postgres sorts it above every number).</summary>

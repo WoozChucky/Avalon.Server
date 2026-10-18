@@ -7,6 +7,7 @@ using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Combat;
+using Avalon.World.Doodads;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Loot;
@@ -27,7 +28,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
 /// A real MapInstance over a one-chunk layout and a substitute navigator, for tests that drive a
-/// kill through the instance's kill handling. Map template 1, no owner, seed 0.
+/// kill through the instance's kill handling. Map template 1, no owner unless one is given, seed 0.
 /// </summary>
 internal static class TestMapInstances
 {
@@ -40,9 +41,11 @@ internal static class TestMapInstances
     /// <param name="time">The container's clock; the system clock when omitted.</param>
     /// <param name="auraScripts">Runs the auras' scripts; none runs when omitted.</param>
     /// <param name="worldTicks">The world's tick count the instance stamps its broadcasts with (#1066, #1082); none when omitted, so tick 0.</param>
+    /// <param name="doodadVisibility">Who may see and use each doodad; the instance's own when omitted.</param>
+    /// <param name="doodadUses">The doodad use service the instance's doodad casts and respawns answer to; none when omitted.</param>
     public static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal,
         IWorld? world = null, ICombatRandom? random = null, TimeProvider? time = null, AuraScripts? auraScripts = null,
-        WorldTicks? worldTicks = null)
+        WorldTicks? worldTicks = null, DoodadVisibility? doodadVisibility = null, DoodadUseService? doodadUses = null)
     {
         IScriptManager scripts = Substitute.For<IScriptManager>();
         foreach (Type script in new[] { typeof(CircleAbilityScript), typeof(ConeAbilityScript), typeof(ProjectileAbilityScript) })
@@ -54,7 +57,7 @@ internal static class TestMapInstances
         navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
         world ??= MapInstanceClients.NewWorld();
         MapInstance instance = Build(world, scripts, navigator, mapType: mapType, time: time, random: random,
-            auraScripts: auraScripts, worldTicks: worldTicks);
+            auraScripts: auraScripts, worldTicks: worldTicks, doodadVisibility: doodadVisibility, doodadUses: doodadUses);
         world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
         // The handler and the instance share the container's clock, as in production.
         handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig(),
@@ -85,13 +88,17 @@ internal static class TestMapInstances
     /// <param name="encoder">What the instance encodes its world-state and aura packets with; the process's own when omitted.</param>
     /// <param name="layout">The instance's layout; one 30 m chunk at the origin when omitted.</param>
     /// <param name="worldTicks">The world's tick count its state packets name (#1066); none when omitted, so tick 0.</param>
+    /// <param name="doodadVisibility">Who may see and use each doodad; the instance's own, which asks no script, when omitted.</param>
+    /// <param name="doodadUses">The doodad use service the instance's doodad casts and respawns answer to; none when omitted.</param>
+    /// <param name="ownerCharacterId">The character that owns the instance (a solo instance); none when omitted.</param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
         MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null,
         PartyId? ownerPartyId = null, MapTemplateId? templateId = null, PartyService? parties = null,
         QuestService? quests = null, ILootRoller? lootRoller = null, ILootAllocator? lootAllocator = null,
         AuraScripts? auraScripts = null, PacketEncoder? encoder = null, ChunkLayout? layout = null,
-        WorldTicks? worldTicks = null)
+        WorldTicks? worldTicks = null, DoodadVisibility? doodadVisibility = null, DoodadUseService? doodadUses = null,
+        uint? ownerCharacterId = null)
     {
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         if (random is not null)
@@ -137,6 +144,14 @@ internal static class TestMapInstances
         {
             serviceProvider.GetService(typeof(WorldTicks)).Returns(worldTicks);
         }
+        if (doodadVisibility is not null)
+        {
+            serviceProvider.GetService(typeof(DoodadVisibility)).Returns(doodadVisibility);
+        }
+        if (doodadUses is not null)
+        {
+            serviceProvider.GetService(typeof(DoodadUseService)).Returns(doodadUses);
+        }
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
         layout ??= new ChunkLayout(
@@ -154,7 +169,7 @@ internal static class TestMapInstances
             serviceProvider,
             world,
             templateId ?? new MapTemplateId(1),
-            ownerCharacterId: null,
+            ownerCharacterId,
             layout,
             navigator ?? Substitute.For<IMapNavigator>(),
             seed: 0,

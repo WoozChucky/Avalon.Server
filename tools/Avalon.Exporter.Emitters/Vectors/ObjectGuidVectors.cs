@@ -19,7 +19,7 @@ public static class ObjectGuidVectors
 
         ObjectType[] types = new[] { ObjectType.None, ObjectType.Character, ObjectType.Creature,
                             ObjectType.Spell, ObjectType.SpellProjectile, ObjectType.Portal,
-                            ObjectType.Loot };
+                            ObjectType.Loot, ObjectType.Doodad };
         // Zero, one, a value with bits in every byte of the low 32, and the top of the range.
         uint[] ids = new uint[] { 0u, 1u, 0x12345678u, uint.MaxValue };
 
@@ -62,9 +62,9 @@ public static class ObjectGuidVectors
         # rows cannot show it, being built from a uint id that has no such bits -- a raw value that did
         # would be a server change, and it would arrive here as one.
         #
-        # Types are None=0, Character=1, Creature=2, Spell=3, SpellProjectile=4, Portal=5, Loot=6. The ids are
-        # chosen so a wrong shift or a wrong mask lands somewhere else: zero, one, a value with bits in
-        # every byte of the low 32, and the top of the range.
+        # Types are None=0, Character=1, Creature=2, Spell=3, SpellProjectile=4, Portal=5, Loot=6,
+        # Doodad=7. The ids are chosen so a wrong shift or a wrong mask lands somewhere else: zero, one, a
+        # value with bits in every byte of the low 32, and the top of the range.
         #
         # Format: raw <hex16> type <n> id <n>
 

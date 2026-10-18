@@ -1,5 +1,6 @@
 using Avalon.Combat;
 using Avalon.Common;
+using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.World;
@@ -1298,5 +1299,24 @@ public class SeedIntegrityShould
         Assert.All(context.ItemTemplates.AsNoTracking().ToList().Where(i => i.UseScript is null), i =>
             Assert.Equal(((uint?)null, (uint?)null, (string?)null, (uint?)null),
                 (i.UseCastTimeMs, i.UseCooldownMs, i.UseCooldownGroup, i.UseValue)));
+    }
+
+    /// <summary>
+    /// Every seeded doodad's model kit, model keys and clips are plain asset names (the game client's rule): a bad one
+    /// fails here, before the catalog refuses the template at load and the client draws nothing.
+    /// </summary>
+    [Fact]
+    public void Seed_every_doodad_model_kit_key_and_clip_as_a_plain_asset_name()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Assert.All(context.DoodadTemplates.AsNoTracking().ToList(), t =>
+        {
+            Assert.True(AssetNames.IsPlain(t.ModelKit), $"doodad {t.Id.Value} model kit '{t.ModelKit}'");
+            Assert.True(AssetNames.IsPlain(t.ModelKey), $"doodad {t.Id.Value} model key '{t.ModelKey}'");
+            Assert.All(new[] { t.UsedModelKey, t.ReadyClip, t.UseClip, t.UsedClip }.Where(n => n is not null),
+                n => Assert.True(AssetNames.IsPlain(n), $"doodad {t.Id.Value} asset '{n}'"));
+        });
     }
 }

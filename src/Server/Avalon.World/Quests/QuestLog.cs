@@ -91,6 +91,14 @@ public sealed class QuestLog(SaveStateTracker save)
     /// </summary>
     public int HeldVersion { get; private set; }
 
+    /// <summary>
+    /// Raised by every change a doodad's quest gate can see: which quests are held or turned in, a held quest's state,
+    /// its stage, or one of its objectives' counts (a load, an accept, a count that changed, a stage, a state, an
+    /// abandon, a turn-in). A view decision asks a gated doodad's rules again only when this moved since the last one
+    /// (CharacterCharacterGameState), so a viewer whose quests stand still costs its gated doodads one lookup each.
+    /// </summary>
+    public int GateVersion { get; private set; }
+
     public ActiveQuest? Get(uint questId) => _active.GetValueOrDefault(questId);
 
     /// <summary>
@@ -232,6 +240,7 @@ public sealed class QuestLog(SaveStateTracker save)
 
         HeldVersion++;
         MarkerVersion++;
+        GateVersion++;
         FlushOwed = true;
     }
 
@@ -241,6 +250,7 @@ public sealed class QuestLog(SaveStateTracker save)
         _active[questId] = quest;
         HeldVersion++;
         MarkerVersion++;
+        GateVersion++;
         Changed(questId, QuestClientChange.Accepted);
         return quest;
     }
@@ -251,6 +261,7 @@ public sealed class QuestLog(SaveStateTracker save)
         if (!quest.Set(objectiveId, value))
             return false;
 
+        GateVersion++;
         Changed(quest.QuestId, QuestClientChange.Progress);
         return true;
     }
@@ -258,6 +269,7 @@ public sealed class QuestLog(SaveStateTracker save)
     public void SetStage(ActiveQuest quest, int stage)
     {
         quest.Stage = stage;
+        GateVersion++;
         Changed(quest.QuestId, QuestClientChange.Progress);
     }
 
@@ -268,6 +280,7 @@ public sealed class QuestLog(SaveStateTracker save)
 
         quest.State = state;
         MarkerVersion++;
+        GateVersion++;
         Changed(quest.QuestId, QuestClientChange.Progress);
     }
 
@@ -279,6 +292,7 @@ public sealed class QuestLog(SaveStateTracker save)
 
         HeldVersion++;
         MarkerVersion++;
+        GateVersion++;
         Changed(questId, QuestClientChange.Removed);
         return true;
     }
@@ -293,6 +307,7 @@ public sealed class QuestLog(SaveStateTracker save)
         _completed.TryAdd(questId, now);
         HeldVersion++;
         MarkerVersion++;
+        GateVersion++;
         Changed(questId, QuestClientChange.Completed);
     }
 

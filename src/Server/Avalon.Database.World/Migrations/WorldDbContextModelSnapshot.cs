@@ -3998,6 +3998,158 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.DoodadAuraOutcome", b =>
+                {
+                    b.Property<long>("DoodadTemplateId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("AuraId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Weight")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("DoodadTemplateId", "AuraId");
+
+                    b.HasIndex("AuraId");
+
+                    b.ToTable("DoodadAuraOutcomes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DoodadAuraOutcomes_Weight", "\"Weight\" >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.DoodadTemplate", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("bigint");
+
+                    b.Property<float>("AreaRadius")
+                        .HasColumnType("real");
+
+                    b.Property<byte>("Collision")
+                        .HasColumnType("smallint");
+
+                    b.Property<float>("CollisionHalfX")
+                        .HasColumnType("real");
+
+                    b.Property<float>("CollisionHalfZ")
+                        .HasColumnType("real");
+
+                    b.Property<float>("CollisionHeight")
+                        .HasColumnType("real");
+
+                    b.Property<byte>("Interaction")
+                        .HasColumnType("smallint");
+
+                    b.Property<float>("InteractionRange")
+                        .HasColumnType("real");
+
+                    b.Property<long>("InteractionTimeMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("LootTableId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MaxGold")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinGold")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModelKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ModelKit")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ReadyClip")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<long?>("RespawnSeconds")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("RestorePct")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ScriptName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<byte>("SpentLook")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte?>("UsableCondition")
+                        .HasColumnType("smallint");
+
+                    b.Property<long?>("UsableObjectiveId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("UsableQuestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UseClip")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<byte>("UseLimit")
+                        .HasColumnType("smallint");
+
+                    b.Property<string>("UsedClip")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("UsedModelKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<byte?>("VisibleCondition")
+                        .HasColumnType("smallint");
+
+                    b.Property<long?>("VisibleObjectiveId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("VisibleQuestId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LootTableId");
+
+                    b.ToTable("DoodadTemplates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DoodadTemplates_AreaRadius", "\"AreaRadius\" >= 0 AND \"AreaRadius\" <= 30");
+
+                            t.HasCheckConstraint("CK_DoodadTemplates_Collision", "(\"Collision\" = 0) OR (\"Collision\" = 1 AND \"CollisionHalfX\" > 0 AND \"CollisionHalfX\" < 'Infinity' AND \"CollisionHalfZ\" > 0 AND \"CollisionHalfZ\" < 'Infinity' AND \"CollisionHeight\" >= 1.049 AND \"CollisionHeight\" < 'Infinity')");
+
+                            t.HasCheckConstraint("CK_DoodadTemplates_Gold", "\"MinGold\" >= 0 AND \"MinGold\" <= \"MaxGold\"");
+
+                            t.HasCheckConstraint("CK_DoodadTemplates_Interaction", "\"Interaction\" IN (0, 1)");
+
+                            t.HasCheckConstraint("CK_DoodadTemplates_Range", "\"InteractionRange\" > 0 AND \"InteractionRange\" <= 10");
+
+                            t.HasCheckConstraint("CK_DoodadTemplates_RestorePct", "\"RestorePct\" <= 100");
+
+                            t.HasCheckConstraint("CK_DoodadTemplates_SpentLook", "\"SpentLook\" IN (1, 2)");
+
+                            t.HasCheckConstraint("CK_DoodadTemplates_UsableGate", "(\"UsableQuestId\" IS NULL) = (\"UsableCondition\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_DoodadTemplates_UseLimit", "\"UseLimit\" IN (1, 2)");
+
+                            t.HasCheckConstraint("CK_DoodadTemplates_VisibleGate", "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ItemTemplate", b =>
                 {
                     b.Property<decimal>("Id")
@@ -8373,6 +8525,29 @@ namespace Avalon.Database.World.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.DoodadAuraOutcome", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.AuraTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("AuraId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.DoodadTemplate", null)
+                        .WithMany("AuraOutcomes")
+                        .HasForeignKey("DoodadTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.DoodadTemplate", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.LootTable", null)
+                        .WithMany()
+                        .HasForeignKey("LootTableId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.LootTableEntry", b =>
                 {
                     b.HasOne("Avalon.Domain.World.ItemTemplate", null)
@@ -8613,6 +8788,11 @@ namespace Avalon.Database.World.Migrations
             modelBuilder.Entity("Avalon.Domain.World.CreaturePath", b =>
                 {
                     b.Navigation("Points");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.DoodadTemplate", b =>
+                {
+                    b.Navigation("AuraOutcomes");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.LootTable", b =>

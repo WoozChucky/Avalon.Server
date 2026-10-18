@@ -146,10 +146,10 @@ Otherwise, in this order:
 ```
 0. resume paused auras; rescale creature health when the party size changed;
    send owed loot snapshots and PvP states to characters that just arrived
-1. _corpseRemover.Update(deltaTime); expired item-use summons leave
+1. _corpseRemover.Update(deltaTime); expired item-use summons leave; due doodad respawns (a min-heap peeked once)
 2. foreach character → its in-map packets (MapSessionFilter) + character.Update(deltaTime)
    then the vendor pass, once a shop has been opened here
-3. combat: the ability cast system, the aura pass, item cast bars, the combat service, threat broadcasts
+3. combat: the ability cast system, the aura pass, item and doodad cast bars, the combat service, threat broadcasts
 4. creature scripts, then the locomotion that executes what they decided
 5. snapshot dirty fields, then per character: its view (decided on the broadcast tick, #981) and the state broadcast
 ```

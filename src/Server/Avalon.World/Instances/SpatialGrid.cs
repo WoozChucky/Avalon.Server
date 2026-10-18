@@ -91,15 +91,8 @@ internal sealed class SpatialGrid
     private const int InitialCharacterCapacity = 8;
     private const int Unlinked = -1;
 
-    // A layout far larger than any generated or authored map gets coarser cells rather than an array of this many.
-    private const int MaxCells = 1 << 16;
-
-    private readonly float _originX;
-    private readonly float _originZ;
-    private readonly float _cellSize;
-    private readonly float _inverseCellSize;
-    private readonly int _columns;
-    private readonly int _rows;
+    // The cells, shared with the doodad index.
+    private readonly GridCells _cells;
 
     // Each cell's first slot, then, at _unplaced, the first slot of the entries in no cell (a non-finite position).
     private readonly int[] _heads;
@@ -141,15 +134,10 @@ internal sealed class SpatialGrid
     // The largest step of each recorded tick, by tick (#1082): the rewind cap's ticks and the history's margin.
     private readonly (long Tick, float Step)[] _steps = new (long Tick, float Step)[PositionHistory.Capacity];
 
-    private SpatialGrid(float originX, float originZ, float cellSize, int columns, int rows)
+    private SpatialGrid(GridCells cells)
     {
-        _originX = originX;
-        _originZ = originZ;
-        _cellSize = cellSize;
-        _inverseCellSize = 1f / cellSize;
-        _columns = columns;
-        _rows = rows;
-        _unplaced = columns * rows;
+        _cells = cells;
+        _unplaced = cells.Count;
         _heads = new int[_unplaced + 1];
         Array.Fill(_heads, Unlinked);
         _characterCounts = new int[_unplaced + 1];
@@ -162,33 +150,7 @@ internal sealed class SpatialGrid
     /// cell per chunk cell (<see cref="ChunkLayout.CellSize" />). A layout with no chunk or no usable cell size gets one
     /// cell, which every query visits whole.
     /// </summary>
-    public static SpatialGrid For(ChunkLayout layout)
-    {
-        float cellSize = layout.CellSize;
-        if (layout.Chunks.Count == 0 || !float.IsFinite(cellSize) || cellSize <= 0f)
-            return new SpatialGrid(0f, 0f, 1f, 1, 1);
-
-        float minX = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxZ = float.MinValue;
-        foreach (PlacedChunk chunk in layout.Chunks)
-        {
-            minX = MathF.Min(minX, chunk.WorldPos.x);
-            minZ = MathF.Min(minZ, chunk.WorldPos.z);
-            maxX = MathF.Max(maxX, chunk.WorldPos.x);
-            maxZ = MathF.Max(maxZ, chunk.WorldPos.z);
-        }
-
-        if (!float.IsFinite(minX) || !float.IsFinite(minZ) || !float.IsFinite(maxX) || !float.IsFinite(maxZ))
-            return new SpatialGrid(0f, 0f, 1f, 1, 1);
-
-        double width = (double)maxX - minX + cellSize;
-        double depth = (double)maxZ - minZ + cellSize;
-        while (Math.Ceiling(width / cellSize) * Math.Ceiling(depth / cellSize) > MaxCells)
-            cellSize *= 2f;
-
-        int columns = Math.Max(1, (int)Math.Ceiling(width / cellSize));
-        int rows = Math.Max(1, (int)Math.Ceiling(depth / cellSize));
-        return new SpatialGrid(minX, minZ, cellSize, columns, rows);
-    }
+    public static SpatialGrid For(ChunkLayout layout) => new(GridCells.For(layout));
 
     /// <summary>
     /// Adds a member of the instance, at its position now. One already here is left as it is; one indexed by another
@@ -473,7 +435,7 @@ internal sealed class SpatialGrid
             int lastRow = Row(maxZ);
             for (int row = Row(minZ); row <= lastRow; row++)
             {
-                int rowStart = row * _columns;
+                int rowStart = row * _cells.Columns;
                 for (int column = firstColumn; column <= lastColumn; column++)
                     VisitCell(_heads[rowStart + column], ref visitor);
             }
@@ -508,8 +470,8 @@ internal sealed class SpatialGrid
     private bool RowSpan(int row, float x, float z, float reach, out int first, out int last)
     {
         // How far the row's band is from the centre on Z; the edge rows reach on outwards, as their cells are clamped.
-        float bandLow = row == 0 ? float.NegativeInfinity : _originZ + row * _cellSize;
-        float bandHigh = row == _rows - 1 ? float.PositiveInfinity : _originZ + (row + 1) * _cellSize;
+        float bandLow = row == 0 ? float.NegativeInfinity : _cells.OriginZ + row * _cells.CellSize;
+        float bandHigh = row == _cells.Rows - 1 ? float.PositiveInfinity : _cells.OriginZ + (row + 1) * _cells.CellSize;
         float dz = z < bandLow ? bandLow - z : z > bandHigh ? z - bandHigh : 0f;
         if (dz > reach)
         {
@@ -519,7 +481,7 @@ internal sealed class SpatialGrid
         }
 
         float halfWidth = MathF.Sqrt(reach * reach - dz * dz);
-        int rowStart = row * _columns;
+        int rowStart = row * _cells.Columns;
         first = rowStart + Column(x - halfWidth);
         last = rowStart + Column(x + halfWidth);
         return true;
@@ -777,20 +739,12 @@ internal sealed class SpatialGrid
         if (!float.IsFinite(position.x) || !float.IsFinite(position.y) || !float.IsFinite(position.z))
             return _unplaced;
 
-        return Row(position.z) * _columns + Column(position.x);
+        return Row(position.z) * _cells.Columns + Column(position.x);
     }
 
-    private int Column(float x)
-    {
-        float cell = (x - _originX) * _inverseCellSize;
-        return cell <= 0f ? 0 : cell >= _columns - 1 ? _columns - 1 : (int)cell;
-    }
+    private int Column(float x) => _cells.Column(x);
 
-    private int Row(float z)
-    {
-        float cell = (z - _originZ) * _inverseCellSize;
-        return cell <= 0f ? 0 : cell >= _rows - 1 ? _rows - 1 : (int)cell;
-    }
+    private int Row(float z) => _cells.Row(z);
 
     private void Link(int slot, int cell)
     {

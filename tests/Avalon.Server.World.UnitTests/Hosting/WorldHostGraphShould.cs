@@ -89,6 +89,11 @@ public class WorldHostGraphShould
             Assert.Same(host.Services.GetRequiredService<IAuraTemplateRepository>(),
                 CapturedOfType<IAuraTemplateRepository>(host.Services.GetRequiredService<IWorld>().Data));
 
+            // Doodads, likewise: World takes the repository optionally and would otherwise load no doodad template, so
+            // no doodad could be placed: only this proves production hands it over.
+            Assert.Same(host.Services.GetRequiredService<IDoodadTemplateRepository>(),
+                CapturedOfType<IDoodadTemplateRepository>(host.Services.GetRequiredService<IWorld>().Data));
+
             // Quests (#433). Production registers the quest repository; that CharacterSelectHandler is handed it (it
             // takes it optionally and loads an empty log without it) is Hand_the_quest_service_to_the_handlers.
             Assert.NotNull(host.Services.GetRequiredService<ICharacterQuestRepository>());
@@ -108,6 +113,9 @@ public class WorldHostGraphShould
             // silently build a second toggle over a different clock. /pvp is found through ICommand.
             Assert.NotNull(host.Services.GetRequiredService<PvpToggle>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PvpCommand);
+
+            // Doodad gates. MapInstance reads them with GetService, so only this proves production registers them.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Doodads.DoodadVisibility>());
 
             // Parties (2026-09-30). World, MapInstance and EnterMapHandler take it optionally (WorldServer requires it,
             // pinned below), so only this proves production supplies one.
@@ -394,6 +402,14 @@ public class WorldHostGraphShould
             Assert.Same(host.Services.GetRequiredService<QuestService>(), CapturedOfType<QuestService>(handler));
             if (handlerType == typeof(DialogueChooseHandler))
                 Assert.Same(host.Services.GetRequiredService<IQuestProgress>(), CapturedOfType<IQuestProgress>(handler));
+            // Doodads. The handler takes the use service optionally and drops every doodad interact without it, and
+            // MapInstance reads it with GetService for its doodad casts and respawns, so only this proves production
+            // hands over the one both use.
+            if (handlerType == typeof(InteractHandler))
+            {
+                Assert.Same(host.Services.GetRequiredService<Avalon.World.Doodads.DoodadUseService>(),
+                    CapturedOfType<Avalon.World.Doodads.DoodadUseService>(handler));
+            }
             if (handlerType == typeof(CharacterSelectHandler))
             {
                 Assert.Same(host.Services.GetRequiredService<ICharacterQuestRepository>(),

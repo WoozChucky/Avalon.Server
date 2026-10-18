@@ -23,6 +23,7 @@ variant absent
   field 5 Footprint : AbilityFootprintDto = null
   field 6 ItemTemplateId : ulong = 0
   field 7 WorldTick : long = 0
+  field 8 DoodadTemplateId : ulong = 0
   bytes 0
 
 variant empty
@@ -40,6 +41,7 @@ variant empty
     field 7 ArcDegrees : float = 0 (0x00000000)
   field 6 ItemTemplateId : ulong = 0
   field 7 WorldTick : long = 0
+  field 8 DoodadTemplateId : ulong = 0
   bytes 2
     2a 00
 
@@ -67,13 +69,15 @@ variant populated
     field 7 ArcDegrees : float = 1.5 (0x3fc00000)
   field 6 ItemTemplateId : ulong = 300
   field 7 WorldTick : long = 70000
-  bytes 96
+  field 8 DoodadTemplateId : ulong = 7
+  bytes 98
     08 80 d0 ac f3 0e 15 cd cc cc 3d 18 80 d0 ac f3
     0e 20 07 2a 44 08 01 12 0f 0d b0 0f a1 b3 15 00
     00 10 c0 1d b0 0f a1 b3 1a 0f 0d b0 0f a1 b3 15
     00 00 10 c0 1d b0 0f a1 b3 22 0f 0d b0 0f a1 b3
     15 00 00 10 c0 1d b0 0f a1 b3 2d cd cc cc 3d 35
     b0 0f a1 b3 3d 00 00 c0 3f 30 ac 02 38 f0 a2 04
+    40 07
 
 variant maxima
   field 1 Caster : ulong = 18446744073709551615
@@ -99,7 +103,8 @@ variant maxima
     field 7 ArcDegrees : float = 3.40282347E+38 (0x7f7fffff)
   field 6 ItemTemplateId : ulong = 18446744073709551615
   field 7 WorldTick : long = 9223372036854775807
-  bytes 119
+  field 8 DoodadTemplateId : ulong = 18446744073709551615
+  bytes 130
     08 ff ff ff ff ff ff ff ff ff 01 15 ff ff 7f 7f
     18 ff ff ff ff 0f 20 ff ff ff ff 0f 2a 44 08 02
     12 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f
@@ -107,7 +112,8 @@ variant maxima
     7f 7f 22 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff
     ff 7f 7f 2d ff ff 7f 7f 35 ff ff 7f 7f 3d ff ff
     7f 7f 30 ff ff ff ff ff ff ff ff ff 01 38 ff ff
-    ff ff ff ff ff ff 7f
+    ff ff ff ff ff ff 7f 40 ff ff ff ff ff ff ff ff
+    ff 01
 
 variant minima
   field 1 Caster : ulong = 0
@@ -133,6 +139,7 @@ variant minima
     field 7 ArcDegrees : float = -3.40282347E+38 (0xff7fffff)
   field 6 ItemTemplateId : ulong = 0
   field 7 WorldTick : long = -9223372036854775808
+  field 8 DoodadTemplateId : ulong = 0
   bytes 84
     15 ff ff 7f ff 2a 42 12 0f 0d ff ff 7f ff 15 ff
     ff 7f ff 1d ff ff 7f ff 1a 0f 0d ff ff 7f ff 15
@@ -165,14 +172,15 @@ variant varint-edges
     field 7 ArcDegrees : float = 1.17549435E-38 (0x00800000)
   field 6 ItemTemplateId : ulong = 268435456
   field 7 WorldTick : long = 34359738368
-  bytes 103
+  field 8 DoodadTemplateId : ulong = 16384
+  bytes 107
     08 80 80 80 80 01 15 00 00 80 00 18 ff 7f 20 80
     80 80 80 01 2a 44 08 03 12 0f 0d 00 00 80 00 15
     00 00 80 00 1d 00 00 80 00 1a 0f 0d 00 00 80 00
     15 00 00 80 00 1d 00 00 80 00 22 0f 0d 00 00 80
     00 15 00 00 80 00 1d 00 00 80 00 2d 00 00 80 00
     35 00 00 80 00 3d 00 00 80 00 30 80 80 80 80 01
-    38 80 80 80 80 80 01
+    38 80 80 80 80 80 01 40 80 80 01
 
 variant float-specials
   field 1 Caster : ulong = 4000000000
@@ -198,10 +206,11 @@ variant float-specials
     field 7 ArcDegrees : float = NaN (0xffc00000)
   field 6 ItemTemplateId : ulong = 300
   field 7 WorldTick : long = 70000
-  bytes 91
+  field 8 DoodadTemplateId : ulong = 7
+  bytes 93
     08 80 d0 ac f3 0e 18 80 d0 ac f3 0e 20 07 2a 44
     08 01 12 0f 0d 01 00 c0 7f 15 00 00 80 7f 1d 00
     00 80 ff 1a 0f 0d 01 00 c0 7f 15 00 00 80 7f 1d
     00 00 80 ff 22 0f 0d 01 00 c0 7f 15 00 00 80 7f
     1d 00 00 80 ff 2d 01 00 c0 7f 35 00 00 80 7f 3d
-    00 00 c0 ff 30 ac 02 38 f0 a2 04
+    00 00 c0 ff 30 ac 02 38 f0 a2 04 40 07

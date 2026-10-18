@@ -248,8 +248,8 @@ Convert duration ticks with `milliseconds = ticks * 1000 / frequency`. These are
 | stateEncodingTicks | Encoding each entity's add and update entry once per broadcast, copying the entries into each recipient's add and update packet, and creating those and the remove packets (#980) |
 | auraTicks | Aura replication, including its packet creation and enqueue |
 | enqueueTicks | Passing state add/update/remove packets to the connection |
-| candidateChecks | Entity candidates visited by visibility decisions, summed across recipients: since #982 the entries the spatial index visits (the recipient's own character included) plus the projectiles |
-| visiblePairs | Visible recipient/entity pairs, including the watcher itself |
+| candidateChecks | Entity candidates visited by visibility decisions, summed across recipients: since #982 the entries the spatial index visits (the recipient's own character included) plus the projectiles, plus the doodads the doodad index visits within reach |
+| visiblePairs | Visible recipient/entity pairs, including the watcher itself and the doodads in view |
 | dirtyEntities | Entities in the instance dirty snapshot |
 | added / updated / removed | Recipient tracking deltas; these are pairs, not unique entities |
 | statePackets / stateBytes | State packets handed to Send and their plain header-plus-payload bytes; excludes aura packets, sealing and TLS |

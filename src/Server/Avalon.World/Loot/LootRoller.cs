@@ -6,17 +6,26 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.World.Loot;
 
 /// <summary>
-/// Rolls what a dying creature drops. Tick thread. It allocates the list it hands back, and nothing
-/// else: each entry that hits finds its item template by id.
+/// Rolls what a dying creature, or a used doodad, drops. Tick thread. It allocates the list it hands back,
+/// and nothing else: each entry that hits finds its item template by id.
 /// </summary>
 public interface ILootRoller
 {
     /// <summary>
     /// Item stacks in roll order, then at most one gold pile, always last. Reads
     /// <paramref name="template"/>'s table from <paramref name="catalog"/> as it is now, so a Loot
-    /// reload applies to the next kill.
+    /// reload applies to the next kill. It is the roll by table below, over the creature's table and copper range.
     /// </summary>
     IReadOnlyList<RolledDrop> Roll(CreatureTemplate template, LootCatalog catalog, IReadOnlyCollection<ItemTemplate> items);
+
+    /// <summary>
+    /// Item stacks from <paramref name="table"/> (none when null) in roll order, then at most one gold pile of
+    /// <paramref name="minGold"/> to <paramref name="maxGold"/> copper, always last. Reads the table from
+    /// <paramref name="catalog"/> as it is now; a table it does not hold drops only gold, and sets
+    /// <paramref name="tableMissing"/>, so the caller logs it under the template that named it.
+    /// </summary>
+    IReadOnlyList<RolledDrop> Roll(LootTableId? table, int minGold, int maxGold, LootCatalog catalog,
+        IReadOnlyCollection<ItemTemplate> items, out bool tableMissing);
 }
 
 public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) : ILootRoller
@@ -29,23 +38,33 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
 
     public IReadOnlyList<RolledDrop> Roll(CreatureTemplate template, LootCatalog catalog, IReadOnlyCollection<ItemTemplate> items)
     {
-        var drops = new List<RolledDrop>();
-
-        if (template.LootTableId is { } tableId)
+        IReadOnlyList<RolledDrop> drops = Roll(template.LootTableId, template.MinGold, template.MaxGold, catalog, items,
+            out bool tableMissing);
+        if (tableMissing)
         {
-            if (catalog.TryGet(tableId, out LootTableView? table))
-            {
-                RollTable(table, 0, catalog, items, drops);
-            }
-            else
-            {
-                logger.LogWarning(
-                    "Creature template {TemplateId} names loot table {TableId}, which is missing or was refused; it drops only gold",
-                    template.Id.Value, tableId.Value);
-            }
+            logger.LogWarning(
+                "Creature template {TemplateId} names loot table {TableId}, which is missing or was refused; it drops only gold",
+                template.Id.Value, template.LootTableId!.Value);
         }
 
-        if (RollGold(template) is { } copper)
+        return drops;
+    }
+
+    public IReadOnlyList<RolledDrop> Roll(LootTableId? table, int minGold, int maxGold, LootCatalog catalog,
+        IReadOnlyCollection<ItemTemplate> items, out bool tableMissing)
+    {
+        var drops = new List<RolledDrop>();
+        tableMissing = false;
+
+        if (table is { } tableId)
+        {
+            if (catalog.TryGet(tableId, out LootTableView? view))
+                RollTable(view, 0, catalog, items, drops);
+            else
+                tableMissing = true;
+        }
+
+        if (RollGold(minGold, maxGold) is { } copper)
             drops.Add(RolledDrop.GoldPile(copper));
 
         return drops;
@@ -171,10 +190,10 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
         return null;
     }
 
-    private ulong? RollGold(CreatureTemplate template)
+    private ulong? RollGold(int minGold, int maxGold)
     {
-        long min = Math.Max(0, template.MinGold);
-        long max = Math.Max(min, template.MaxGold);
+        long min = Math.Max(0, minGold);
+        long max = Math.Max(min, maxGold);
         if (max == 0)
             return null;
 

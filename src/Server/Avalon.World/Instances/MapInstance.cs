@@ -23,6 +23,7 @@ using Avalon.World.Combat;
 using Avalon.World.Configuration;
 using Avalon.World.Creatures;
 using Avalon.World.Creatures.Locomotion;
+using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Items;
 using Avalon.World.Loot;
@@ -53,7 +54,7 @@ using Microsoft.Extensions.Options;
 namespace Avalon.World.Instances;
 
 public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, ICombatOutcomes,
-    IItemUseHost, IItemCastAudience, IAuraHost, IPlayerCastHost, IDisposable
+    IItemUseHost, IItemCastAudience, IDoodadHost, IDoodadCastAudience, IAuraHost, IPlayerCastHost, IDisposable
 {
     private InstanceTickProfile _tickProfile;
 
@@ -65,6 +66,22 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     // The characters and creatures above by where they stand (#982): who can be in a client's view is looked for in the
     // cells around it. Holds exactly the dictionaries' entities: every change to either changes it too.
     private readonly SpatialGrid _members;
+
+    // The doodads placed here, by where they stand, in the cells of the grid above. Filled as the instance is built and
+    // never again: doodads do not move.
+    private readonly DoodadIndex _doodads;
+
+    // The doodads whose state changed since the last broadcast, each once (Doodad.ChangeQueued), marked dirty for it.
+    private readonly List<Doodad> _changedDoodads = new(8);
+
+    // Who may see and use a doodad, asked by each view decision of a doodad with rules (CharacterCharacterGameState).
+    private readonly DoodadVisibility _doodadVisibility;
+
+    // Doodad use: the container's use service (none in a test that builds an instance without it, which then uses no
+    // doodad), the cast bars it starts here, and the spent doodads waiting to respawn.
+    private readonly DoodadUseService? _doodadUses;
+    private readonly DoodadCasts _doodadCasts;
+    private readonly DoodadRespawns _doodadRespawns = new();
 
     // Off only for a test that compares the views over the index against the full scan (DecideViewsByFullScan).
     private bool _viewsOverIndex = true;
@@ -255,6 +272,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
         _members = SpatialGrid.For(layout);
+        _doodads = DoodadIndex.For(layout);
         _scheduler = new CreatureScheduler(_creatures, this, _members);
         _world = world;
         InstanceId = Guid.NewGuid();
@@ -346,6 +364,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Item cast bars, numbered with the cast system's own ids.
         _itemUses = new ItemUseCasts(this, _abilityCastSystem.TakeCastId, loggerFactory.CreateLogger<ItemUseCasts>());
 
+        // Doodad cast bars, numbered the same way, on the container's clock, answering to the use service that starts
+        // them. Without one nothing starts a doodad cast, so the stand-in owner is never asked.
+        _doodadUses = serviceProvider.GetService<DoodadUseService>();
+        _doodadCasts = new DoodadCasts(this, this, (IDoodadCastOwner?)_doodadUses ?? NoDoodadCastOwner.Instance,
+            _abilityCastSystem.TakeCastId, _time, loggerFactory.CreateLogger<DoodadCasts>());
+
         // Optional so an instance built without one (tests) simply has no periodic save.
         _saveScheduler = serviceProvider.GetService<ICharacterSaveScheduler>();
 
@@ -363,6 +387,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Vendor quest gates (#432). Falls back, so an instance built without it (tests) still
         // ticks; production registers it.
         _quests = serviceProvider.GetService<IQuestProgress>() ?? NoQuestProgress.Instance;
+
+        // Doodad gates: the container's one set of rules, and a set of its own for an instance built without (tests).
+        _doodadVisibility = serviceProvider.GetService<DoodadVisibility>() ?? new DoodadVisibility();
     }
 
     /// <summary>
@@ -419,6 +446,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public Vector3 EntrySpawnWorldPos { get; }
     public IReadOnlyList<PortalInstance> Portals => _portals;
 
+    /// <summary>The doodads placed here. World-side, not on IMapInstance. Read-only once the instance is published.</summary>
+    public DoodadIndex Doodads => _doodads;
+
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
 
     /// <summary>
@@ -435,6 +465,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>The item cast bars here. World-side, not on IMapInstance.</summary>
     public ItemUseCasts ItemUses => _itemUses;
+
+    /// <summary>The doodad cast bars here. World-side, not on IMapInstance.</summary>
+    public DoodadCasts DoodadCasts => _doodadCasts;
+
+    DoodadRespawns IDoodadHost.Respawns => _doodadRespawns;
+
+    TimeProvider IDoodadHost.Clock => _time;
+
+    void IDoodadHost.DoodadChanged(Doodad doodad) => DoodadChanged(doodad);
 
     uint IItemUseHost.RestoreHealth(IUnit healer, IUnit target, uint amount) =>
         _combatService.RestoreHealth(healer, target, amount);
@@ -653,8 +692,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Ends everything the character has casting here as it leaves: its ability casts, its running ability scripts and
-    /// its item cast bar. Each step is contained, so a failure cannot keep the character a member.
+    /// Ends everything the character has casting here as it leaves: its ability casts, its running ability scripts, its
+    /// item cast bar and its doodad cast bar. Each step is contained, so a failure cannot keep the character a member.
     /// </summary>
     private void EndCastsOf(ICharacter character)
     {
@@ -696,6 +735,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         catch (Exception e)
         {
             _logger.LogError(e, "Interrupting the item use of {CharacterGuid} as it left instance {InstanceId} failed",
+                guid, InstanceId);
+        }
+
+        // And its doodad's cast bar, out loud, while it is still a member, so everyone here sees it end.
+        try
+        {
+            _doodadCasts.Interrupt(guid);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Interrupting the doodad use of {CharacterGuid} as it left instance {InstanceId} failed",
                 guid, InstanceId);
         }
     }
@@ -767,6 +817,32 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                     creature.Guid, character.Guid, InstanceId);
             }
         }
+    }
+
+    /// <summary>
+    /// Places a doodad here. Build time only, off the tick, before the instance is published: the index is never written
+    /// once a tick can read it. Its guid must be a doodad's, which is what routes its description.
+    /// </summary>
+    public void AddDoodad(Doodad doodad)
+    {
+        if (doodad.Guid.Type != ObjectType.Doodad)
+            throw new ArgumentException($"A doodad's guid must be of type Doodad, not {doodad.Guid.Type}.", nameof(doodad));
+
+        _doodads.Add(doodad);
+    }
+
+    /// <summary>
+    /// Tick thread only: <paramref name="doodad" />'s state changed, so every client that sees it is owed an update of its
+    /// state and of whether it can use it, on the next broadcast. Queued once however often it changes before then;
+    /// nothing walks the doodads that did not change.
+    /// </summary>
+    internal void DoodadChanged(Doodad doodad)
+    {
+        if (doodad.ChangeQueued)
+            return;
+
+        doodad.ChangeQueued = true;
+        _changedDoodads.Add(doodad);
     }
 
     public void AddCreature(ICreature creature)
@@ -1164,37 +1240,141 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 rolled.Add(questDrops[i].Drop);
             }
 
-            // Placed whole before any drop is stored, so a placement that throws leaves nothing on the ground.
-            List<GroundLoot> drops = buffers.Placed;
-            LootPlacement.Place(drops, creature.Position, rolled,
+            PlaceAndAnnounce(creature.Position, rolled,
                 new KillAllocations(_lootAllocator, OwnerCharacterId, OwnerPartyId, eligible, credited, table.Count, questDrops),
-                GetNavigatorForPosition(creature.Position), IObject.GenerateId);
-
-            for (int i = 0; i < drops.Count; i++)
-            {
-                _groundLoot.Add(drops[i]);
-            }
-
-            // Walked by index and through the dictionary's own enumerator: a kill allocates no boxed enumerator (#880).
-            List<LootDropDto> dtos = buffers.DescribePlaced();
-            // The same drops for every connection: encoded once, for the first, and shared by every one (#875).
-            OutboundPacket spawned = default;
-            foreach (IWorldConnection connection in _connections.Values)
-            {
-                if (spawned.Payload is null)
-                {
-                    spawned = SLootSpawnedPacket.Create(dtos, PacketEncoder.Shared);
-                }
-
-                connection.Send(spawned.Share());
-            }
-
-            spawned.Release();
+                buffers);
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Could not drop loot for creature {CreatureGuid} (template {TemplateId}); the kill still counts",
                 creature.Guid, creature.Metadata.Id.Value);
+        }
+    }
+
+    /// <summary>
+    /// A doodad's drops, on a kill's rules: its template's table and copper range rolled now, against the Loot and Items
+    /// areas as they are, each drop allocated on its own among the user and the members of its party in this instance (a
+    /// party member anywhere here, dead or alive; a character leaves its party, and so this, at the start of a leave
+    /// countdown; a user in one makes nobody eligible, as a killer in one does), placed on the ring around the doodad and
+    /// told to everyone here in one shared packet. Its lists are the instance's <see cref="KillBuffers" />, as a kill's
+    /// are. Contained, as a kill's drop is: a failure is logged, and what was stored before it stays (a placement that
+    /// throws stores nothing). Tick thread.
+    /// </summary>
+    int IDoodadHost.DropLootAt(Doodad doodad, CharacterEntity user)
+    {
+        if (_lootRoller is null || _lootAllocator is null)
+            return 0;
+
+        int before = _groundLoot.Count;
+        bool nested = _killInProgress;
+        KillBuffers buffers = nested ? new KillBuffers() : _killBuffers;
+        _killInProgress = true;
+        try
+        {
+            // As for a kill: a user in a party leave countdown makes nobody eligible, so a party instance's drops are free
+            // for all at once rather than reserved for one who has left the party.
+            List<ICharacter> eligible = buffers.Eligible;
+            if (!_inCountdown(user.Guid.Id))
+                eligible.Add(user);
+
+            if (eligible.Count > 0 && user.PartyId is { } party)
+            {
+                // Through the dictionary's own enumerator: a use allocates no boxed one.
+                foreach (ICharacter character in _characters.Values)
+                {
+                    if (!ReferenceEquals(character, user) && character is CharacterEntity { PartyId: { } theirs }
+                        && theirs.Equals(party))
+                    {
+                        eligible.Add(character);
+                    }
+                }
+            }
+
+            DoodadTemplateView template = doodad.Template;
+            IReadOnlyList<RolledDrop> table = _lootRoller.Roll(template.LootTableId, template.MinGold, template.MaxGold,
+                _world.Data.Loot, _world.Data.ItemTemplates, out bool tableMissing);
+            if (tableMissing)
+            {
+                _logger.LogWarning(
+                    "Doodad template {DoodadTemplateId} names loot table {TableId}, which is missing or was refused; it drops only gold",
+                    template.Id.Value, template.LootTableId!.Value);
+            }
+
+            if (table.Count == 0)
+                return 0;
+
+            List<RolledDrop> rolled = buffers.Rolled;
+            Debug.Assert(rolled.Count == 0, "The list of rolled drops still holds an earlier kill's");
+            rolled.AddRange(table);
+            PlaceAndAnnounce(doodad.Position, rolled,
+                new KillAllocations(_lootAllocator, OwnerCharacterId, OwnerPartyId, eligible, credited: true, table.Count,
+                    buffers.QuestDrops),
+                buffers);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Could not drop loot for doodad {DoodadGuid} (template {TemplateId}) used by {CharacterGuid}",
+                doodad.Guid, doodad.Template.Id.Value, user.Guid);
+        }
+        finally
+        {
+            buffers.Clear();
+            _killInProgress = nested;
+        }
+
+        return _groundLoot.Count - before;
+    }
+
+    /// <summary>
+    /// Places <paramref name="rolled" /> on the ring around <paramref name="at" />, each drop allocated by
+    /// <paramref name="allocations" />, stores them and tells every connection here: a kill's drops and a doodad's alike.
+    /// Its lists are <paramref name="buffers" />.
+    /// </summary>
+    private void PlaceAndAnnounce(Vector3 at, List<RolledDrop> rolled, KillAllocations allocations, KillBuffers buffers)
+    {
+        // Placed whole before any drop is stored, so a placement that throws leaves nothing on the ground.
+        List<GroundLoot> drops = buffers.Placed;
+        LootPlacement.Place(drops, at, rolled, allocations, GetNavigatorForPosition(at), IObject.GenerateId);
+
+        for (int i = 0; i < drops.Count; i++)
+        {
+            _groundLoot.Add(drops[i]);
+        }
+
+        // Walked by index and through the dictionary's own enumerator: a kill allocates no boxed enumerator (#880).
+        List<LootDropDto> dtos = buffers.DescribePlaced();
+        // The same drops for every connection: encoded once, for the first, and shared by every one (#875).
+        OutboundPacket spawned = default;
+        foreach (IWorldConnection connection in _connections.Values)
+        {
+            if (spawned.Payload is null)
+            {
+                spawned = SLootSpawnedPacket.Create(dtos, PacketEncoder.Shared);
+            }
+
+            connection.Send(spawned.Share());
+        }
+
+        spawned.Release();
+    }
+
+    void IDoodadHost.PlayersWithin(Vector3 centre, float radius, List<CharacterEntity> into)
+    {
+        if (!float.IsFinite(radius) || radius < 0f)
+            return;
+
+        float radiusSquared = radius * radius;
+        foreach (ICharacter character in _characters.Values)
+        {
+            if (character is not CharacterEntity { IsDead: false } player)
+                continue;
+
+            float dx = player.Position.x - centre.x;
+            float dz = player.Position.z - centre.z;
+
+            // Written so a distance that is not a number is out of reach.
+            if (dx * dx + dz * dz <= radiusSquared)
+                into.Add(player);
         }
     }
 
@@ -1374,8 +1554,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Step 1: remove the corpses whose BodyRemoveTimer has run out. Creatures do not respawn.
         _corpseRemover.Update(deltaTime);
 
-        // Step 1b: summons whose lifetime has passed leave (item use).
+        // Step 1b: summons whose lifetime has passed leave (item use), and spent doodads whose time has come are ready
+        // again: the soonest is peeked at once, and nothing is read while none waits.
         DespawnExpiredSummons();
+        if (_doodadRespawns.Count > 0 && _doodadUses is { } doodadUses)
+            _doodadRespawns.Update(this, _time.GetUtcNow().UtcDateTime, doodadUses);
 
         // Step 2: Process character packets
         long profileStart = _tickProfile.Timestamp();
@@ -1559,8 +1742,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Step 3 of <see cref="Update" />: the cast system, the auras, the item cast bars, then the combat service, then the
-    /// threat mirror.
+    /// Step 3 of <see cref="Update" />: the cast system, the auras, the item and doodad cast bars, then the combat service,
+    /// then the threat mirror.
     /// </summary>
     private void UpdateCombat(TimeSpan deltaTime, List<IWorldObject> objectAbilities)
     {
@@ -1578,8 +1761,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _auraPassFailures.Failed(e);
         }
 
-        // Step 3b: item cast bars, after this tick's movement was applied by the packets above.
+        // Step 3b: item cast bars, then doodad cast bars (the active ones only), after this tick's movement was applied by
+        // the packets above.
         _itemUses.Update(deltaTime);
+        _doodadCasts.Update();
 
         // Step 3c: Tick combat service — decays threat, ends stale encounters.
         _combatService.Update(deltaTime);
@@ -1673,6 +1858,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                         _frameDirtyFields[ability.Guid] = dirty;
                 }
             }
+
+            // Only the doodads that changed since the last broadcast (DoodadChanged), each marked once.
+            for (int i = 0; i < _changedDoodads.Count; i++)
+            {
+                Doodad doodad = _changedDoodads[i];
+                doodad.ChangeQueued = false;
+                _frameDirtyFields[doodad.Guid] = GameEntityFields.DoodadState | GameEntityFields.CanInteract;
+            }
+
+            _changedDoodads.Clear();
         }
     }
 
@@ -1793,15 +1988,21 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private void DecideView(CharacterEntity entity, List<IWorldObject> objectAbilities)
     {
         CharacterCharacterGameState view = entity.CharacterGameState;
+
+        // The doodads go by the viewer's own rules (its quest gates), read against the catalog of this tick; an instance
+        // without doodads lists none and reads nothing.
+        DoodadViewInputs doodads = _doodads.Count == 0
+            ? default
+            : new DoodadViewInputs(_doodads, entity, _world.Data?.Quests ?? QuestCatalog.Empty, _doodadVisibility);
         if (_viewsOverIndex)
         {
-            view.UpdateProfiled(entity.Guid, entity.Position, _interest, _members, objectAbilities, _frameDirtyFields,
-                ref _tickProfile);
+            view.UpdateProfiled(entity.Guid, entity.Position, _interest, _members, objectAbilities, doodads,
+                _frameDirtyFields, ref _tickProfile);
         }
         else
         {
             view.UpdateProfiled(entity.Guid, entity.Position, _interest, _creatures, _characters, objectAbilities,
-                _frameDirtyFields, ref _tickProfile);
+                doodads, _frameDirtyFields, ref _tickProfile);
         }
     }
 
@@ -1883,14 +2084,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         long profileStart;
         if (newObjects.Count > 0 && !_shareStateEntries)
         {
-            SendWholeAdds(connection, character.Guid, newObjects);
+            SendWholeAdds(connection, character, newObjects);
         }
         else if (newObjects.Count > 0)
         {
             profileStart = _tickProfile.Timestamp();
             _stateAdds.BeginPacket();
             for (int i = 0; i < newObjects.Count; i++)
-                AppendAdd(newObjects[i], character.Guid);
+                AppendAdd(newObjects[i], character);
 
             if (!_stateAdds.IsEmpty)
                 SendStatePacket(connection, _stateAdds.Finish(_replicationEncoder), profileStart);
@@ -1911,14 +2112,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             character.CharacterGameState.UpdatedObjects;
         if (updatedObjects.Count > 0 && !_shareStateEntries)
         {
-            SendWholeUpdates(connection, character.Guid, updatedObjects);
+            SendWholeUpdates(connection, character, updatedObjects);
         }
         else if (updatedObjects.Count > 0)
         {
             profileStart = _tickProfile.Timestamp();
             _stateUpdates.BeginPacket();
             for (int i = 0; i < updatedObjects.Count; i++)
-                AppendUpdate(updatedObjects[i], character.Guid);
+                AppendUpdate(updatedObjects[i], character);
 
             if (!_stateUpdates.IsEmpty)
                 SendStatePacket(connection, _stateUpdates.Finish(_replicationEncoder), profileStart);
@@ -1939,13 +2140,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <see cref="StatePacketAssembler.MinRecipientsToShare" /> has nothing to share, and one encode of the list is
     /// cheaper than its entries one by one (#980).
     /// </summary>
-    private void SendWholeAdds(IWorldConnection connection, ObjectGuid recipientGuid, IReadOnlyList<ObjectGuid> added)
+    private void SendWholeAdds(IWorldConnection connection, CharacterEntity recipient, IReadOnlyList<ObjectGuid> added)
     {
         long start = _tickProfile.Timestamp();
         _described.Clear();
         for (int i = 0; i < added.Count; i++)
         {
-            if (DescribeNewObject(added[i], recipientGuid) is { } state)
+            if (DescribeNewObject(added[i], recipient) is { } state)
                 _described.Add(state);
         }
 
@@ -1953,14 +2154,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>The recipient's updates described and encoded whole, as one packet (<see cref="SendWholeAdds" />).</summary>
-    private void SendWholeUpdates(IWorldConnection connection, ObjectGuid recipientGuid,
+    private void SendWholeUpdates(IWorldConnection connection, CharacterEntity recipient,
         IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> updated)
     {
         long start = _tickProfile.Timestamp();
         _described.Clear();
         for (int i = 0; i < updated.Count; i++)
         {
-            if (DescribeUpdatedObject(updated[i], recipientGuid) is { } state)
+            if (DescribeUpdatedObject(updated[i], recipient) is { } state)
                 _described.Add(state);
         }
 
@@ -1984,20 +2185,22 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Appends one entity's update to the recipient's packet (#980): the entry every recipient shares, encoded by the
-    /// first that is sent it this broadcast, or, for the recipient's own character, the one entry that depends on who
-    /// receives it (<see cref="MaskForRecipient" />), described and encoded for it alone. Byte for byte the packet
-    /// <see cref="SInstanceStateUpdatePacket.Create" /> wrote from the recipient's described list.
+    /// first that is sent it this broadcast, or, for the recipient's own character and for a doodad with rules, the one
+    /// entry that depends on who receives it (<see cref="MaskForRecipient" />, <see cref="OwnDoodadEntry" />), described
+    /// and encoded for it alone. Byte for byte the packet <see cref="SInstanceStateUpdatePacket.Create" /> wrote from the
+    /// recipient's described list.
     /// </summary>
-    private void AppendUpdate((ObjectGuid Guid, GameEntityFields Fields) updated, ObjectGuid recipientGuid)
+    private void AppendUpdate((ObjectGuid Guid, GameEntityFields Fields) updated, CharacterEntity recipient)
     {
-        if (updated.Guid != recipientGuid && _stateUpdates.TryAppendShared(updated.Guid, updated.Fields))
+        bool own = updated.Guid == recipient.Guid || OwnDoodadEntry(updated.Guid);
+        if (!own && _stateUpdates.TryAppendShared(updated.Guid, updated.Fields))
             return;
 
         long describeStart = _tickProfile.Timestamp();
-        ObjectState? state = DescribeUpdatedObject(updated, recipientGuid);
+        ObjectState? state = DescribeUpdatedObject(updated, recipient);
         NoteDescribed(describeStart);
 
-        if (updated.Guid == recipientGuid)
+        if (own)
         {
             if (state is not null)
                 _stateUpdates.AppendOwn(state);
@@ -2010,21 +2213,23 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Appends one entity's add to the recipient's packet (#980): the entry every recipient shares, encoded by the first
-    /// that is sent it this tick, or, for the recipient's own character, the one entry that depends on who receives it
-    /// (<see cref="MaskForRecipient" />), described and encoded for it alone. An add describes the entity in full, so
-    /// its entry is kept as one of <see cref="GameEntityFields.All" />. Byte for byte the packet
-    /// <see cref="SInstanceStateAddPacket.Create" /> wrote from the recipient's described list.
+    /// that is sent it this tick, or, for the recipient's own character and for a doodad with rules, the one entry that
+    /// depends on who receives it (<see cref="MaskForRecipient" />, <see cref="OwnDoodadEntry" />), described and encoded
+    /// for it alone. An add describes the entity in full, so its entry is kept as one of
+    /// <see cref="GameEntityFields.All" />. Byte for byte the packet <see cref="SInstanceStateAddPacket.Create" /> wrote
+    /// from the recipient's described list.
     /// </summary>
-    private void AppendAdd(ObjectGuid added, ObjectGuid recipientGuid)
+    private void AppendAdd(ObjectGuid added, CharacterEntity recipient)
     {
-        if (added != recipientGuid && _stateAdds.TryAppendShared(added, GameEntityFields.All))
+        bool own = added == recipient.Guid || OwnDoodadEntry(added);
+        if (!own && _stateAdds.TryAppendShared(added, GameEntityFields.All))
             return;
 
         long describeStart = _tickProfile.Timestamp();
-        ObjectState? state = DescribeNewObject(added, recipientGuid);
+        ObjectState? state = DescribeNewObject(added, recipient);
         NoteDescribed(describeStart);
 
-        if (added == recipientGuid)
+        if (own)
         {
             if (state is not null)
                 _stateAdds.AppendOwn(state);
@@ -2034,6 +2239,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Described for a recipient other than the entity itself, which is how every recipient that shares it sees it.
         _stateAdds.AppendShared(added, GameEntityFields.All, state);
     }
+
+    /// <summary>
+    /// Whether <paramref name="guid" /> is a doodad with rules (<see cref="DoodadVisibility.AsksRules" />), whose entry
+    /// holds the recipient's own answer to whether it can use it and so is never shared. Any other doodad's answer is what
+    /// its state allows (<see cref="DoodadVisibility.Usable" />), the same for every recipient, so its entry is shared.
+    /// </summary>
+    private bool OwnDoodadEntry(ObjectGuid guid) =>
+        guid.Type == ObjectType.Doodad && _doodads.TryGet(guid, out Doodad? doodad) && DoodadVisibility.AsksRules(doodad);
 
     /// <summary>
     /// Counts the describing of an entry since <paramref name="start" /> as state preparation, rather than as the
@@ -2134,7 +2347,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// has left the instance between being noticed and being described. Portals are never tracked, so
     /// never described here: a client gets them with the map, in SChunkLayoutPacket.Portals (#612).
     /// </summary>
-    private ObjectState? DescribeNewObject(ObjectGuid guid, ObjectGuid recipientGuid)
+    private ObjectState? DescribeNewObject(ObjectGuid guid, CharacterEntity recipient)
     {
         switch (guid.Type)
         {
@@ -2143,7 +2356,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                     return null;
                 return ObjectStateWriter.From(
                     addedCharacter,
-                    MaskForRecipient(GameEntityFields.All, guid, recipientGuid),
+                    MaskForRecipient(GameEntityFields.All, guid, recipient.Guid),
                     _statePool);
 
             case ObjectType.Creature:
@@ -2154,6 +2367,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             case ObjectType.SpellProjectile:
                 IWorldObject? addedAbility = _abilityCastSystem.GetAbility(guid);
                 return addedAbility is null ? null : ObjectStateWriter.From(addedAbility, _statePool);
+
+            case ObjectType.Doodad:
+                // A despawned doodad is never described: it is removed from every view instead.
+                if (!_doodads.TryGet(guid, out Doodad? addedDoodad) || !addedDoodad.Visible)
+                    return null;
+                return ObjectStateWriter.From(addedDoodad, GameEntityFields.All,
+                    recipient.CharacterGameState.CanInteractWith(addedDoodad), _statePool);
 
             default:
                 _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization", guid.Type);
@@ -2167,14 +2387,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     private ObjectState? DescribeUpdatedObject(
         (ObjectGuid Guid, GameEntityFields Fields) updatedObject,
-        ObjectGuid recipientGuid)
+        CharacterEntity recipient)
     {
         switch (updatedObject.Guid.Type)
         {
             case ObjectType.Character:
                 if (!_characters.TryGetValue(updatedObject.Guid, out ICharacter? updatedCharacter))
                     return null;
-                GameEntityFields fields = MaskForRecipient(updatedObject.Fields, updatedObject.Guid, recipientGuid);
+                GameEntityFields fields = MaskForRecipient(updatedObject.Fields, updatedObject.Guid, recipient.Guid);
                 // None is a sentinel bit, not zero. Motion alone has nothing left for its owner, whose ACK
                 // carries it, and experience alone nothing for anyone else (#993): no entry, and a packet
                 // left with no entry is not sent. Gameplay changes (including PvP turning off) must still
@@ -2199,6 +2419,18 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 return updatedAbility is null
                     ? null
                     : ObjectStateWriter.From(updatedAbility, updatedObject.Fields, _statePool);
+
+            case ObjectType.Doodad:
+                // Its state and the recipient's answer are all that change: a mark of neither has nothing to say, and a
+                // despawned doodad is removed rather than described.
+                if ((updatedObject.Fields & (GameEntityFields.DoodadState | GameEntityFields.CanInteract)) == 0
+                    || !_doodads.TryGet(updatedObject.Guid, out Doodad? updatedDoodad) || !updatedDoodad.Visible)
+                {
+                    return null;
+                }
+
+                return ObjectStateWriter.From(updatedDoodad, updatedObject.Fields,
+                    recipient.CharacterGameState.CanInteractWith(updatedDoodad), _statePool);
 
             default:
                 _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",
@@ -2367,6 +2599,96 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
 
         interrupted.Release();
+    }
+
+    void IDoodadCastAudience.BroadcastDoodadCastStart(IUnit caster, Doodad doodad, float castTimeSeconds, uint castId)
+    {
+        if (!_characters.ContainsKey(caster.Guid)) return;
+
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket start = default;
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!HearsDoodadCast(guid, connection, caster, doodad)) continue;
+            if (start.Payload is null)
+            {
+                // The tick the bar started on, as an ability's and an item's start carry it (#1082).
+                start = SUnitStartCastPacket.CreateForDoodad(caster.Guid, castTimeSeconds, doodad.Template.Id.Value,
+                    castId, _worldTicks?.Completed ?? 0, PacketEncoder.Shared);
+            }
+
+            connection.Send(start.Share());
+        }
+
+        start.Release();
+    }
+
+    void IDoodadCastAudience.BroadcastDoodadCastFinish(IUnit caster, Doodad doodad, uint castId)
+    {
+        if (!_characters.ContainsKey(caster.Guid)) return;
+
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket finish = default;
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!HearsDoodadCast(guid, connection, caster, doodad)) continue;
+            if (finish.Payload is null)
+            {
+                finish = SUnitFinishCastPacket.CreateForDoodad(caster.Guid, doodad.Template.Id.Value, castId,
+                    PacketEncoder.Shared);
+            }
+
+            connection.Send(finish.Share());
+        }
+
+        finish.Release();
+    }
+
+    void IDoodadCastAudience.BroadcastDoodadCastInterrupted(IUnit caster, Doodad doodad, uint castId)
+    {
+        if (!_characters.ContainsKey(caster.Guid)) return;
+
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket interrupted = default;
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!HearsDoodadCast(guid, connection, caster, doodad)) continue;
+            if (interrupted.Payload is null)
+            {
+                interrupted = SCharacterInterruptedCastPacket.CreateForDoodad(caster.Guid, doodad.Template.Id.Value,
+                    castId, PacketEncoder.Shared);
+            }
+
+            connection.Send(interrupted.Share());
+        }
+
+        interrupted.Release();
+    }
+
+    /// <summary>
+    /// Whether a connection hears a doodad's cast bar, which names the doodad's template: the user always; anyone else
+    /// near it as an item's cast bar is heard (<see cref="Hears" />) only when its view holds the doodad, so a doodad
+    /// hidden from a player never reaches it through another's cast. One lookup per listener, as the bar starts and ends.
+    /// </summary>
+    private bool HearsDoodadCast(ObjectGuid guid, IWorldConnection connection, IUnit caster, Doodad doodad) =>
+        guid == caster.Guid
+        || (Hears(guid, connection, caster.Guid, null, caster.Position, null)
+            && connection.Character is CharacterEntity listener && listener.CharacterGameState.Knows(doodad.Guid));
+
+    /// <summary>The doodad cast owner of an instance built without the use service, which never starts a doodad cast.</summary>
+    private sealed class NoDoodadCastOwner : IDoodadCastOwner
+    {
+        public static readonly NoDoodadCastOwner Instance = new();
+
+        public bool CanComplete(IDoodadHost host, in PendingDoodadUse use) => false;
+
+        public void Completed(IDoodadHost host, in PendingDoodadUse use)
+        {
+        }
+
+        public void Interrupted(IDoodadHost host, in PendingDoodadUse use)
+        {
+        }
     }
 
     /// <summary>

@@ -397,6 +397,11 @@ enum DisconnectReason {
    DisconnectReason_Deactivated = 8;
    DisconnectReason_SlowConnection = 9;
 }
+enum DoodadState {
+   DoodadState_Unknown = 0;
+   DoodadState_Ready = 1;
+   DoodadState_Used = 2;
+}
 enum GameAdmissionResult {
    GameAdmissionResult_Accepted = 0;
    GameAdmissionResult_InvalidRequest = 1;
@@ -684,6 +689,8 @@ message ObjectState {
    optional CharacterClass Class = 23;
    optional CharacterGender Gender = 24;
    optional uint32 DisplayId = 25;
+   optional uint32 DoodadTemplateId = 26;
+   optional DoodadState DoodadState = 27;
 }
 enum PartyExperienceMode {
    PartyExperienceMode_Unknown = 0;
@@ -909,6 +916,7 @@ message SCharacterInterruptedCastPacket {
    uint32 AbilityId = 2;
    uint32 CastId = 3;
    uint64 ItemTemplateId = 4;
+   uint64 DoodadTemplateId = 5;
 }
 message SCharacterLeaveResultPacket {
    CharacterLeaveResult Result = 1;
@@ -1167,6 +1175,7 @@ message SUnitFinishCastPacket {
    uint32 AbilityId = 2;
    uint32 CastId = 3;
    uint64 ItemTemplateId = 4;
+   uint64 DoodadTemplateId = 5;
 }
 message SUnitHealedPacket {
    uint64 Healer = 1;
@@ -1190,6 +1199,7 @@ message SUnitStartCastPacket {
    AbilityFootprintDto Footprint = 5;
    uint64 ItemTemplateId = 6;
    int64 WorldTick = 7;
+   uint64 DoodadTemplateId = 8;
 }
 message SVendorListPacket {
    uint64 VendorGuid = 1;

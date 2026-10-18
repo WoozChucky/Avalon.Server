@@ -379,7 +379,8 @@ instance, alive or dead, who is in the creature's encounter or within `PartyElig
 
 ### Loot
 
-`ILootRoller` rolls the template's `LootTableId` and its `MinGold`/`MaxGold` range (copper).
+`ILootRoller` rolls the template's `LootTableId` and its `MinGold`/`MaxGold` range (copper), through
+its roll by table, which a used chest doodad rolls too.
 `ILootAllocator` picks an owner for each drop on its own. The only implementation,
 `PartyLootAllocator`, reserves every drop of a solo instance for its owner character, and each drop
 of a party's instance for one eligible member drawn at random (through `ICombatRandom`), in both

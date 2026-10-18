@@ -17,6 +17,7 @@ using Avalon.World.Characters;
 using Avalon.World.Chat;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
+using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.GameAuth;
 using Avalon.World.Inventory;
@@ -198,6 +199,15 @@ public static class ServiceExtensions
         services.AddSingleton<ItemUseTools>();
         services.AddSingleton<ItemUseService>();
         services.AddSingleton<AuraScripts>();
+
+        // Doodads: their scripts, built once per type, and who may see and use each one, asked by every instance's view
+        // decisions (with the scripts, so a CanSee is never silently skipped).
+        services.AddSingleton<DoodadScripts>();
+        services.AddSingleton(sp => new DoodadVisibility(sp.GetRequiredService<DoodadScripts>()));
+
+        // Doodad use: the interact handler hands it a doodad's CMSG_INTERACT, and every instance's doodad casts and
+        // respawns answer to it (MapInstance reads it with GetService).
+        services.AddSingleton<DoodadUseService>();
 
         // Combat (Phase D): V1 uses default CombatConfig values. EncounterRegistry +
         // CombatService are constructed per MapInstance, not registered as singletons.

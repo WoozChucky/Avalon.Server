@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Characters;
+using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
@@ -20,17 +21,17 @@ namespace Avalon.World.Items;
 /// slot (Bag or Equipment); a worn item is taken off to the lowest free Bag slot (ItemEquip.Unequip: TargetFull when
 /// there is none; asked before the template, so an item whose template is gone comes off too) and nothing else is asked;
 /// the template; gear is equipped (ItemEquip, then the stats refresh a drag-to-equip runs; an equip or unequip that
-/// passed its checks ends the item cast running, answered Interrupted, just before it moves anything) and nothing
-/// else is asked; otherwise a script is needed, then an ability cast refuses (AlreadyCasting), then the item's and its
-/// group's cooldown, then the script found and built and the user's instance (InternalError), then the script's
-/// CanUse. A use that passed all of them ends the item cast running, which is answered Interrupted, then runs OnUse at
-/// once or starts a cast bar (UseCastTimeMs) whose completion needs the same item instance still in the same Bag slot,
-/// asks CanUse again and runs OnUse. After OnUse returns: the cooldown starts and what it consumed is taken through the
-/// inventory service, so it is saved and sent like any change. Every script hook is contained: a throw is logged at
-/// Error and answered InternalError, with nothing consumed and no cooldown. These per-request Error logs (a missing or
-/// unbuildable script type, a hook that throws) are written at most once per script and step per
-/// <see cref="ThrottledErrorLog.Interval" />, counting the ones left out. Scripts are built once per type through
-/// QuestScriptServices (loggers and the clock only). Tick thread only; a DI singleton.
+/// passed its checks ends the item cast running, answered Interrupted, and the doodad cast running, just before it moves
+/// anything) and nothing else is asked; otherwise a script is needed, then an ability cast refuses (AlreadyCasting), then
+/// the item's and its group's cooldown, then the script found and built and the user's instance (InternalError), then the
+/// script's CanUse. A use that passed all of them ends the item cast running, which is answered Interrupted, and the doodad
+/// cast running, then runs OnUse at once or starts a cast bar (UseCastTimeMs) whose completion needs the same item instance
+/// still in the same Bag slot, asks CanUse again and runs OnUse. After OnUse returns: the cooldown starts and what it
+/// consumed is taken through the inventory service, so it is saved and sent like any change. Every script hook is
+/// contained: a throw is logged at Error and answered InternalError, with nothing consumed and no cooldown. These
+/// per-request Error logs (a missing or unbuildable script type, a hook that throws) are written at most once per script
+/// and step per <see cref="ThrottledErrorLog.Interval" />, counting the ones left out. Scripts are built once per type
+/// through QuestScriptServices (loggers and the clock only). Tick thread only; a DI singleton.
 /// </summary>
 public sealed class ItemUseService(
     ItemUseTools tools,
@@ -101,7 +102,7 @@ public sealed class ItemUseService(
     private ItemUseAnswer Equip(CharacterEntity character, byte bagSlot, ItemTemplate template)
     {
         ItemUseResult equipped = ItemEquip.Equip(character, tools.Economy.InventoryOf(character), FindTemplate, bagSlot,
-            template, logger, () => HostOf(character)?.ItemUses.Interrupt(character.Guid));
+            template, logger, () => InterruptCasts(HostOf(character), character));
         if (equipped == ItemUseResult.Ok)
             CharacterStatsRefresh.AfterGearChange(character, tools.World.Data, logger);
         return ItemUseAnswer.Of(equipped);
@@ -114,7 +115,7 @@ public sealed class ItemUseService(
     private ItemUseAnswer Unequip(CharacterEntity character, byte equipmentSlot)
     {
         ItemUseResult unequipped = ItemEquip.Unequip(character, tools.Economy.InventoryOf(character), FindTemplate,
-            equipmentSlot, () => HostOf(character)?.ItemUses.Interrupt(character.Guid));
+            equipmentSlot, () => InterruptCasts(HostOf(character), character));
         if (unequipped == ItemUseResult.Ok)
             CharacterStatsRefresh.AfterGearChange(character, tools.World.Data, logger);
         return ItemUseAnswer.Of(unequipped);
@@ -149,8 +150,8 @@ public sealed class ItemUseService(
         if (refusal is not null)
             return ItemUseAnswer.Refusal(refusal);
 
-        // A use that passed its checks ends the item cast running, which is answered Interrupted.
-        host.ItemUses.Interrupt(character.Guid);
+        // A use that passed its checks ends the item cast running, which is answered Interrupted, and the doodad cast.
+        InterruptCasts(host, character);
 
         if (template.UseCastTimeMs is { } castMs && castMs > 0)
         {
@@ -317,6 +318,16 @@ public sealed class ItemUseService(
 
     private ItemUseContext ContextOf(ItemUse use) => new(use.Connection, use.Character, use.Host, use.Item, use.Template,
         tools);
+
+    /// <summary>
+    /// What a use that passed its checks ends first: the user's item cast, answered Interrupted, and its doodad cast, both
+    /// out loud.
+    /// </summary>
+    private static void InterruptCasts(IItemUseHost? host, CharacterEntity character)
+    {
+        host?.ItemUses.Interrupt(character.Guid);
+        (host as IDoodadHost)?.DoodadCasts.Interrupt(character.Guid);
+    }
 
     private IItemUseHost? HostOf(CharacterEntity character) =>
         tools.World.InstanceRegistry.GetInstanceById(character.InstanceId) as IItemUseHost;

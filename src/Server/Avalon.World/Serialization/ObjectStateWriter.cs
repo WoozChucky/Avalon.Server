@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
+using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -7,7 +8,9 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 
+using WireDoodadState = Avalon.Network.Packets.State.DoodadState;
 using WireRarity = Avalon.Network.Packets.State.CreatureRarity;
+using WorldDoodadState = Avalon.World.Doodads.DoodadState;
 using WorldRarity = Avalon.World.Public.Enums.CreatureRarity;
 
 namespace Avalon.World.Serialization;
@@ -129,6 +132,46 @@ public static class ObjectStateWriter
         return state;
     }
 
+    /// <summary>
+    /// A doodad, for one recipient: <paramref name="canInteract" /> is that recipient's answer, so the entry is never
+    /// shared with another. An add (<paramref name="fields" /> include <see cref="GameEntityFields.Position" />) carries
+    /// its placement, its template and its state, and <see cref="ObjectState.CanInteract" /> only as true; an update
+    /// carries only what is marked, <see cref="GameEntityFields.CanInteract" /> as its value, false included, so a client
+    /// told a doodad is usable is also told when it stops being. A despawned doodad is never described, so its state is
+    /// left out if one is ever asked for.
+    /// </summary>
+    public static ObjectState From(Doodad doodad, GameEntityFields fields, bool canInteract, ObjectStatePool? pool = null)
+    {
+        ObjectState state = New(pool, doodad.Guid.RawValue);
+
+        if (Has(fields, GameEntityFields.Position))
+        {
+            // A doodad never moves, so its placement goes out once, on its add, with what never changes after it.
+            state.Position = Of(pool, doodad.Position);
+            state.Orientation = doodad.Orientation.y;
+            state.DoodadTemplateId = doodad.Template.Id.Value;
+            state.DoodadState = ToWire(doodad.State);
+            if (canInteract)
+            {
+                state.CanInteract = true;
+            }
+
+            return state;
+        }
+
+        if (Has(fields, GameEntityFields.DoodadState))
+        {
+            state.DoodadState = ToWire(doodad.State);
+        }
+
+        if (Has(fields, GameEntityFields.CanInteract))
+        {
+            state.CanInteract = canInteract;
+        }
+
+        return state;
+    }
+
     private static ObjectState FromUnit(IUnit unit, GameEntityFields fields, ObjectStatePool? pool)
     {
         ObjectState state = New(pool, unit.Guid.RawValue);
@@ -217,6 +260,17 @@ public static class ObjectStateWriter
         WorldRarity.Elite => WireRarity.Elite,
         WorldRarity.Rare => WireRarity.Rare,
         WorldRarity.Boss => WireRarity.Boss,
+        _ => null,
+    };
+
+    /// <summary>
+    /// The server's doodad state as the wire's, value by value. Despawned has no wire value, as a despawned doodad is told
+    /// by a remove: left out.
+    /// </summary>
+    public static WireDoodadState? ToWire(WorldDoodadState doodadState) => doodadState switch
+    {
+        WorldDoodadState.Ready => WireDoodadState.Ready,
+        WorldDoodadState.Used => WireDoodadState.Used,
         _ => null,
     };
 

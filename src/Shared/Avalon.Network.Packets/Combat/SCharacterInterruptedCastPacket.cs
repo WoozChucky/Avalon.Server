@@ -27,12 +27,25 @@ public class SCharacterInterruptedCastPacket : Packet
     /// <summary>The item whose cast bar this ends (item use), with AbilityId 0; 0 for an ability's cast.</summary>
     [ProtoMember(4)] public ulong ItemTemplateId { get; set; }
 
+    /// <summary>The doodad template whose cast bar this ends (doodads), with AbilityId and ItemTemplateId 0; 0 otherwise.</summary>
+    [ProtoMember(5)] public ulong DoodadTemplateId { get; set; }
+
     public static OutboundPacket CreateForItem(ObjectGuid caster, ulong itemTemplateId, uint castId, PacketEncoder encoder)
     {
         SCharacterInterruptedCastPacket message = PacketEncoder.Scratch<SCharacterInterruptedCastPacket>();
         message.Caster = caster.RawValue;
         message.CastId = castId;
         message.ItemTemplateId = itemTemplateId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
+
+    public static OutboundPacket CreateForDoodad(ObjectGuid caster, ulong doodadTemplateId, uint castId,
+        PacketEncoder encoder)
+    {
+        SCharacterInterruptedCastPacket message = PacketEncoder.Scratch<SCharacterInterruptedCastPacket>();
+        message.Caster = caster.RawValue;
+        message.CastId = castId;
+        message.DoodadTemplateId = doodadTemplateId;
         return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 

@@ -100,5 +100,7 @@ public sealed class ObjectStatePool
         state.Class = null;
         state.Gender = null;
         state.DisplayId = null;
+        state.DoodadTemplateId = null;
+        state.DoodadState = null;
     }
 }

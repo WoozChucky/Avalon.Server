@@ -98,6 +98,11 @@ public class ObjectState
     ///     spells never carry it, so a missing value means false. It is fixed when the creature
     ///     spawns and sent on every creature state, like <see cref="CreatureMetadataId" />, so a
     ///     client that first sees the creature mid-stream still learns it.
+    ///
+    ///     A doodad carries it on other terms, as it is decided per recipient and changes while the
+    ///     doodad is in view (a use spends it, a quest step opens it): its add carries it only as
+    ///     true, and an update that marks it carries the recipient's answer, false included. An
+    ///     update that does not mark it leaves the last answer standing.
     /// </remarks>
     [ProtoMember(20)] public bool? CanInteract { get; set; }
 
@@ -153,4 +158,25 @@ public class ObjectState
     ///     the creature spawns, from its template.
     /// </remarks>
     [ProtoMember(25)] public uint? DisplayId { get; set; }
+
+    /// <summary>
+    ///     The template a doodad was placed from, so a client knows which model to draw and how long its use takes.
+    /// </summary>
+    /// <remarks>
+    ///     Only a doodad carries it, and a doodad's add always does. An update carries only what changed, and the
+    ///     template never changes while the doodad exists, so an update leaves it out. Characters, creatures, portals
+    ///     and spells never carry it.
+    /// </remarks>
+    [ProtoMember(26)] public uint? DoodadTemplateId { get; set; }
+
+    /// <summary>
+    ///     Whether a doodad is ready to use or spent, showing its used look.
+    /// </summary>
+    /// <remarks>
+    ///     A doodad's add always carries it, and an update carries it when it changed. A despawned doodad is never
+    ///     described: a client is told it is gone by a remove. For a doodad, <see cref="CanInteract" /> is the
+    ///     recipient's own answer: an add carries it only as true, an update that carries it may carry false. Only
+    ///     doodads carry this member.
+    /// </remarks>
+    [ProtoMember(27)] public DoodadState? DoodadState { get; set; }
 }
