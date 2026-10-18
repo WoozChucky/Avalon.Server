@@ -797,7 +797,9 @@ the fully active intervals overlap widely (718.0–974.0 / 647.9–949.0 µs), s
 The setup/cleanup population assertion was added after the baseline; the measured loop and population are unchanged.
 
 The separate deterministic `forest-combat` scenario exercises real kits, movement, casts and replication over
-four forests and twelve players. One paired run measured mean tick 0.1060 → 0.0864 ms and p99 0.2792 → 0.1869 ms,
+four forests and twelve players. Since the doodads' slice S2 its forests also hold the doodads each seed plans and places
+(chests, barrels, shrines and fountains), and their navmeshes have the solid ones' boxes baked in, so a figure from
+before S2 measured forests without them. One paired run measured mean tick 0.1060 → 0.0864 ms and p99 0.2792 → 0.1869 ms,
 with the same 16,244 B per 60-tick window and no collections. It used server GC and a 15-second rehearsal before
 600 warmup and 3,600 measured ticks. A separate diagnostic replay preserved every pre-tick state-count total and
 all 71 kills: 97.8% of creature states were idle, and 98.4% of searching-detector visits were waiting for their timer.
@@ -1001,8 +1003,9 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScan
 
 The navigator's queries against the same queries with DotRecast's own full nearest-polygon searches
 (`DetourNavigationReference` in `Avalon.World.Testing`, the navigator as it was before #978), on the committed town
-navmesh and on forest seed 7's. Each invocation visits 256 queries, results per query; the bake, the input selection
-and the check that both give the same answer for every query are setup. `NavigationMovementBenchmarks` is a player's
+navmesh and on forest seed 7's (`ForestLayouts`, which since the doodads' slice S2 bakes the solid boxes the seed's
+doodad plan puts in it, as an instance build does). Each invocation visits 256 queries, results per query; the bake,
+the input selection and the check that both give the same answer for every query are setup. `NavigationMovementBenchmarks` is a player's
 grounded step, `MoveOnGround`: idle inputs do not move, walking inputs take an unobstructed 4/60 m step, blocked
 inputs press into a real wall from where a raycast stopped, mixed inputs are two idle to three walking, and beside
 inputs step from half a metre off the mesh's edge, where no polygon is under the player. `NavigationQueryBenchmarks`

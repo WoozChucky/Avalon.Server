@@ -9,7 +9,7 @@ The world is built from **chunks** — modular 30×30m geometry blocks (cell siz
 - **Town maps** (MapType.Town) — chunk placements are PREDEFINED in the database (`MapChunkPlacement` table). Multi-player shared instances. Same layout every time.
 - **Procedural maps** (MapType.Normal) — chunk placements are GENERATED at runtime by `ProceduralChunkLayoutSource` using a chunk pool + RNG seed + per-map config (`ProceduralMapConfig`). Per-player private instances.
 
-Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell size, optional config + seed). One factory (`ChunkLayoutInstanceFactory`) builds a `MapInstance` from the layout, bakes a navmesh from the stitched chunk geometry via DotRecast, and ships the layout to the client over `SChunkLayoutPacket`. The client bakes its own navmesh from the same chunk `.obj` files for prediction parity.
+Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell size, optional config + seed). One factory (`ChunkLayoutInstanceFactory`) builds a `MapInstance` from the layout, bakes a navmesh from the stitched chunk geometry via DotRecast, and ships the layout to the client over `SChunkLayoutPacket`. The client bakes its own navmesh from the chunk `.obj` files plus the layout's obstacle boxes (its solid doodads', `SChunkLayoutPacket.Obstacles`) for prediction parity; today's client bakes the chunks alone (see [doodads](doodads.md#what-todays-client-does)).
 
 ```
                   MapTemplate (MapType: Town | Normal)
@@ -141,8 +141,9 @@ A chunk is two files in `Maps/Chunks/` with the same name: `<name>.obj` (geometr
   `tag` + chunk-local `localX/Y/Z` + `yaw`, a spot a procedural map may place a doodad at (see `docs/doodads.md`).
   `yaw` is the degrees the doodad faces (`Orientation.y`, 0 along +Z, 90 along +X), a quarter turn: 0, 90, 180 or 270.
   Tags: `doodad` (a walk-through doodad) and `doodad_large` (may hold a solid one). Doodad slot tags are not spawn-table
-  tags and need no entry there. The seeder refuses a doodad slot with a blank tag, a yaw that is not a quarter turn, or
-  a position outside the chunk's own cells on X/Z (their edges included). A doodad slot stands on the floor (`localY` 0 in
+  tags and need no entry there. The seeder refuses a doodad slot with a blank tag, a yaw that is not a quarter turn,
+  a position outside the chunk's own cells on X/Z (their edges included), or a `localY` that is not finite (the file
+  may write `"NaN"` or `"Infinity"`, refused by name). A doodad slot stands on the floor (`localY` 0 in
   the generated forest, whose floor top is y = 0), where a spawn slot stands 1 m up: a walk-through doodad is snapped to
   the navmesh as a spawn is, so for it `localY` only centres the ground search, but a solid doodad keeps its slot's
   height, so its box and model stand where the slot does. Stored in `ChunkDoodadSlot` (owned by `ChunkTemplate`,
@@ -359,19 +360,30 @@ navmesh, and the client is sent its box to bake the same wall (see [doodads](doo
   the catalog refuses a gate on a solid template, a spawn's gate on one is dropped, and the seeder refuses a required
   rule on one. The fallback, which places a required doodad on open navmesh after the bake, never places a solid one,
   so every solid doodad standing in an instance has its box in that instance's bake.
+- **A solid doodad that throws as it is placed keeps its box.** The box was planned and baked before placement, so a
+  solid doodad whose `Place` step threw (it is logged and skipped) leaves its box in the navmesh and in the layout
+  packet: a wall with nothing drawn in it. No realistic path throws there: building its script and running `OnSpawn`
+  are contained, and what is left only files the doodad.
 - **The bake.** `ChunkLayoutNavmeshBuilder` appends every box after the last chunk, through
   `DoodadObstacleGeometry.Append`: 8 vertices, (MinX, BaseY, MinZ), (MaxX, BaseY, MinZ), (MaxX, BaseY, MaxZ),
   (MinX, BaseY, MaxZ), then the same four at TopY, and 10 triangles with no bottom face, 1-based on those 8 and offset
   by the vertices already written: the top (5 6 7) (5 7 8), then the sides (1 2 6) (1 6 5), (2 3 7) (2 7 6),
   (3 4 8) (3 8 7), (4 1 5) (4 5 8), numbers written with the invariant culture. Every solid template stands at least
   1.05 m tall, above the agent's 0.9 m climb, so a walk stops an agent radius short of the box's sides.
+- **The top winds downward on purpose.** Its normal points down, so the bake marks it unwalkable and no island of
+  navmesh forms on a box's flat top. Copy the faces exactly as written and never re-wind them: a top wound upward
+  bakes walkable, and the `forest-doodad` vector's probe above the box catches it.
+- **A tall box bakes an island inside it.** A box 2.0 m tall or more (the agent's height; the shrine's is 2.2 m)
+  leaves room under its top for the floor inside it to bake, as an enclosed island no walk reaches. It is harmless:
+  nothing stands there, and the fallback never draws from it, since it draws only polygons connected to the entry's.
 - **The wire.** `SChunkLayoutPacket.Obstacles` (field 8, `DoodadObstacleDto` with fields 1-6: `MinX`, `MaxX`, `MinZ`,
   `MaxZ`, `BaseY`, `TopY`) carries the boxes in the same order; `MapLayoutEntries` builds the list once, with the
   instance. A client that does not know the field skips it, and bakes no box.
 - **The client mirror.** A client bakes the boxes after its chunks, with exactly these vertices and faces, or its mesh
   and the server's differ around the doodad. `schema/vectors/navmesh-v1.txt` pins it: its `obstacle <minX> <maxX> <minZ>
   <maxZ> <baseY> <topY>` lines (after a layout's `chunk` lines) are baked in order, and the `forest-doodad` layout puts
-  one box on `forest_path_01` with a ray that stops at it and a ground probe beside it. `SolidDoodadNavmeshShould`
+  one 4 x 4 m box, 1.8 m tall, on `forest_path_01` with a ray that stops at it, a ground probe beside it and one above
+  its centre that finds no ground (a top wound upward would answer with its height). `SolidDoodadNavmeshShould`
   builds an instance through the factory and proves the walk stops at the box, at yaw 0 and 90, and that the layout
   packet carries the planned box.
 
@@ -596,9 +608,10 @@ whose tags do not match the slot tags its pool's chunks (set pieces included) us
 `leader_pack` beside `leader` slots), and every slot tag but `entry` and `empty` has an entry. Rows with no file are
 left alone. A doodad rule is refused for a template with no `DoodadTemplates` row, a slot tag no doodad slot of the
 pool (set pieces included) carries, `min` above `max` or `max` above 50, a `minSpacing` that is not a finite 0 or more
-(the file may write `"NaN"`, refused by name), `minDepth` above `maxDepth`, a gate condition that is no condition name
-(or an `objectiveId` with any condition but `onObjective`, or none with it), a gate on a solid template, and, for a
-required rule, a solid template or a `max` above the pool's slots of its tag that its depth range reaches (the slots of
+(the file may write `"NaN"`, refused by name), `minDepth` above `maxDepth` or either below 0, a gate condition that is
+no condition name (or an `objectiveId` with any condition but `onObjective`, or none with it), a solid template at any
+slot tag but `doodad_large` (the only slot its box fits), a gate on a solid template, and, for a required rule, a
+solid template or a `max` above the pool's slots of its tag that its depth range reaches (the slots of
 every chunk and set piece, the entry-capable chunks alone for a range ending at depth 0).
 `CommittedForestDoodadsShould` proves the committed forest places every required doodad at a slot for seeds 0 to 999.
 A change to these files takes a World server restart. Trade-offs: the balance simulator reads `HasData`
@@ -706,7 +719,7 @@ so the client's reset input sequence is accepted.
 9. **Server `PlayerInputHandler`:** validates seq, integrates the same way (its own `MapNavigator.RaycastWalkable`), updates `entity.Position`, sends `SPlayerStateAckPacket`.
 10. **Client on the ack:** if drift > 1mm, takes the server's position and replays the unacknowledged inputs; above 0.15 m it snaps, below that the correction is smoothed.
 
-Identical bake on both sides (same `.obj` source, same Recast settings) keeps drift sub-mm in practice — so reconciliation rarely fires.
+Identical bake on both sides (the same chunk `.obj` files plus the layout's obstacle boxes, the same Recast settings) keeps drift sub-mm in practice — so reconciliation rarely fires.
 
 ---
 
