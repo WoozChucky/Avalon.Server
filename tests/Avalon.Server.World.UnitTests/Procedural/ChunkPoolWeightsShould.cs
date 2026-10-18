@@ -112,6 +112,20 @@ public class ChunkPoolWeightsShould
         Assert.InRange(first, 170, 200);
     }
 
+    /// <summary>
+    /// The database returns a pool's rows in no promised order, and the candidates follow the pool's order, so the generator
+    /// walks the pool in chunk id order (the order LayoutConfigVersion hashes it in) whatever order it is handed.
+    /// </summary>
+    [Fact]
+    public void Generate_the_same_layout_whatever_order_the_pool_is_given_in()
+    {
+        List<ChunkPoolMember> reversed = Pool();
+        reversed.Reverse();
+
+        for (int seed = 0; seed < 24; seed++)
+            Assert.Equal(Fingerprint(TryGenerate(Pool(), seed)), Fingerprint(TryGenerate(reversed, seed)));
+    }
+
     private static string Fingerprint(ChunkLayout? layout)
     {
         if (layout is null) return "failed";

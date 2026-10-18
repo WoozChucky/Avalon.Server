@@ -17,7 +17,8 @@ public class ChunkPoolRepository(IDbContextFactory<WorldDbContext> contextFactor
         await using WorldDbContext context = await CreateContextAsync(ct);
 
         return await context.ChunkPools.AsNoTracking()
-            .Include(p => p.Memberships)
+            // In chunk id order: the rows come back in no promised order, and the generator's candidates follow the pool's.
+            .Include(p => p.Memberships.OrderBy(m => m.ChunkTemplateId))
             .Include(p => p.Groups).ThenInclude(g => g.Members)
             // Two collections: one query per collection rather than their cartesian product (and EF's warning about it).
             .AsSplitQuery()

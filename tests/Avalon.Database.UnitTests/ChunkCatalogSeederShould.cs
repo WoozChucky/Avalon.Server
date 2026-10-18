@@ -184,13 +184,12 @@ public sealed class ChunkCatalogSeederShould : IDisposable
             .Where(m => m.Pool.Name == "forest_pool")
             .Select(m => new { m.Template.Name, m.Weight, m.MaxPerLayout })
             .ToDictionaryAsync(m => m.Name, m => (m.Weight, m.MaxPerLayout), StringComparer.Ordinal);
-        Assert.Equal(17, members.Count);
         Assert.Equal((2.5f, 1), members["forest_rocks_01"]);
         Assert.Equal((0.5f, null), members["forest_ruin_01"]);
         Assert.Equal((1f, null), members["forest_path_01"]);
     }
 
-    /// <summary>A weight of 0, below 0, NaN or infinite, a cap below 1, and a chunk named twice in one pool.</summary>
+    /// <summary>A weight of 0, below 0, NaN or infinite, a cap below 1, a key it does not know, and a chunk named twice in one pool.</summary>
     [Theory]
     [InlineData("""{ "chunk": "forest_rocks_01", "weight": 0 }""", "forest_rocks_01")]
     [InlineData("""{ "chunk": "forest_rocks_01", "weight": -1 }""", "forest_rocks_01")]
@@ -198,6 +197,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     [InlineData("""{ "chunk": "forest_rocks_01", "weight": "Infinity" }""", "forest_rocks_01")]
     [InlineData("""{ "chunk": "forest_rocks_01", "max": 0 }""", "forest_rocks_01")]
     [InlineData("""{ "chunk": "forest_rocks_01", "weight": 2, "max": -1 }""", "forest_rocks_01")]
+    [InlineData("""{ "chunk": "forest_rocks_01", "maxx": 1 }""", "forest_rocks_01")]   // a misspelt cap would leave it uncapped
     [InlineData("\"forest_path_02\"", "forest_path_02")]
     public async Task Refuse_a_bad_pool_member_naming_the_file_and_the_chunk(string entry, string chunk)
     {

@@ -67,7 +67,7 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` + `.json` | Chunk geometry (navmesh bake) and metadata (see "The chunk format"). The forest pieces and Glimmerdell's four squares are written by `tools/Avalon.ChunkGen`; the rest (`forest_boss_01`, `town_corner_01`, `town_house_01`, `town_path_01`, `town_square_01`) are committed as they are and no tool writes them |
 | `src/Server/Avalon.Server.World/Maps/Decor/<chunkName>.json` | What the client draws on a generated town square from the art kit (see "Decor and building recipes"). Written by `tools/Avalon.ChunkGen` beside the chunks, outside `Maps/Chunks/` because the seeder reads every `*.json` there as chunk metadata; the server never reads it |
 | `src/Server/Avalon.Server.World/Maps/TownLayouts/<MapTemplateId>.json` | Town layouts: which chunk sits on which grid cell, edited directly (see "Creating a town"). ChunkGen writes the squares' geometry, not this file |
-| `src/Server/Avalon.Server.World/Maps/chunk-pools.json` | Procedural pool membership (`{ "<pool>": ["<chunk>", …] }`), edited by hand |
+| `src/Server/Avalon.Server.World/Maps/chunk-pools.json` | Procedural pool membership (`{ "<pool>": ["<chunk>", …] }`, a member also `{ "chunk", "weight", "max" }`: see "Define a ChunkPool"), edited by hand |
 | `src/Server/Avalon.Server.World/Maps/chunk-groups.json` | Set pieces per pool (see "Chunk groups (set pieces)"), edited by hand |
 | `src/Server/Avalon.Server.World/Maps/spawn-tables.json` + `ProceduralMaps/<mapId>.json` | Spawn tables and procedural map configs with their depth bands (see "Spawn tables and procedural map configs"), edited by hand |
 | `tools/Avalon.ChunkGen/` | Generates the forest pieces' and the town squares' `.obj` + `.json`, and the squares' decor files (see "Generated forest chunks" and "Generated town squares") |
@@ -280,14 +280,17 @@ Pools are `Maps/chunk-pools.json`, seeded by `ChunkCatalogSeeder` on every World
 A pool entry is a chunk's name (weight 1, no cap) or an object `{ "chunk": "<name>", "weight": 2.5, "max": 1 }`, with
 `weight` (left out: 1) a finite number above 0 and `max` (left out: no limit) the most times one layout may place the
 chunk, 1 or more. The seeder writes both onto the pool's `ChunkPoolMembership` rows (`Weight`, `MaxPerLayout`) and
-refuses, naming the file and the chunk, a weight of 0 or below, NaN or infinite (the file may write `"NaN"`), a `max`
-below 1, or a chunk named twice in one pool.
+refuses, naming the file, the pool and the chunk, a weight of 0 or below or infinite, a weight of NaN (which the file
+can write only as the string `"NaN"`, and which is refused like any other bad weight), a `max` below 1, any other key
+(a misspelt `"max"` would leave the chunk uncapped), or a chunk named twice in one pool.
 
 `ProceduralLayoutGenerator` weighs every pick: the entry among the entry-capable members, and each later step among its
 candidates, one per member and turn that fits (a set piece weighs 1), so a member's chance is its weight times the turns
 that fit. A member at its `max` is left out of the candidates for the rest of that layout. Candidates that all weigh the
 same are picked with the one draw a uniform pick always made, so a pool of equal weights and no caps generates the
-layouts it always did. A cap is part of `LayoutConfigVersion` only when set, so a pool without caps
+layouts it always did. The generator walks a pool in chunk id order whatever order it is handed (and
+`ChunkPoolRepository` reads the rows in that order), so the database's row order cannot change a layout; that is also
+the order `LayoutConfigVersion` hashes the members in. A cap is part of `LayoutConfigVersion` only when set, so a pool without caps
 keeps its fingerprint; a changed weight or cap changes what an old seed generates.
 
 ### 3. Define a ProceduralMapConfig

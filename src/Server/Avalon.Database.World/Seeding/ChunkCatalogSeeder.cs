@@ -153,7 +153,7 @@ public static class ChunkCatalogSeeder
 
     /// <summary>
     /// Maps/chunk-pools.json. Every member must name a chunk that exists, once per pool, with a weight that is a finite
-    /// number above 0 and a cap ("max") of 1 or more when it gives one.
+    /// number above 0, a cap ("max") of 1 or more when it gives one, and no other key.
     /// </summary>
     private static async Task<Dictionary<string, PoolMemberDto[]>> LoadPoolsAsync(string mapsRoot,
         HashSet<string> chunkNames, CancellationToken ct)
@@ -175,6 +175,11 @@ public static class ChunkCatalogSeeder
             {
                 if (!seen.Add(member.Chunk))
                     throw new InvalidDataException($"{path}: pool '{pool}' names chunk '{member.Chunk}' twice");
+                if (member.UnknownKeys.Count > 0)
+                {
+                    throw new InvalidDataException(
+                        $"{path}: pool '{pool}' member '{member.Chunk}' has unknown keys: {string.Join(", ", member.UnknownKeys)}");
+                }
                 if (!(member.Weight > 0f) || float.IsInfinity(member.Weight))
                 {
                     throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture,

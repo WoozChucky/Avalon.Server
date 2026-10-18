@@ -14,7 +14,8 @@ namespace Avalon.World.ChunkLayouts;
 /// admin SPA that the geometry it is about to draw may not match the player's client.
 ///
 /// FNV-1a over a canonical text encoding. Pool members are ordered by ChunkTemplateId
-/// before hashing so DB row order cannot change the result. Floats use round-trip
+/// before hashing, the order ProceduralLayoutGenerator walks them in, so DB row order
+/// cannot change the result. Floats use round-trip
 /// ("R") invariant formatting so the encoding is stable across platforms.
 /// </summary>
 public static class LayoutConfigVersion

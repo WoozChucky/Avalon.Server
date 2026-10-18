@@ -21,10 +21,14 @@ public sealed record ChunkCatalogFiles(
 /// <summary>
 /// A member of a pool in Maps/chunk-pools.json: a chunk's name (weight 1, no cap), or an object naming the chunk with its
 /// weight (left out: 1) and the most times one layout may place it ("max", left out: no limit). The weight also reads
-/// "NaN" and "Infinity", so the seeder refuses them by name rather than as JSON it cannot read.
+/// "NaN" and "Infinity", and the object's other keys are kept in UnknownKeys, so the seeder refuses them by name (a
+/// misspelt "max" would otherwise leave the chunk uncapped) rather than as JSON it cannot read.
 /// </summary>
 [JsonConverter(typeof(PoolMemberDtoConverter))]
-public sealed record PoolMemberDto(string Chunk, float Weight = 1f, int? Max = null);
+public sealed record PoolMemberDto(string Chunk, float Weight = 1f, int? Max = null)
+{
+    public IReadOnlyList<string> UnknownKeys { get; init; } = [];
+}
 
 /// <summary>Reads a pool member written as a name or as an object; the files are only read.</summary>
 public sealed class PoolMemberDtoConverter : JsonConverter<PoolMemberDto>
@@ -32,7 +36,9 @@ public sealed class PoolMemberDtoConverter : JsonConverter<PoolMemberDto>
     public override PoolMemberDto? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
         reader.TokenType == JsonTokenType.String
             ? new PoolMemberDto(reader.GetString()!)
-            : JsonSerializer.Deserialize<Entry>(ref reader, options) is { } e ? new PoolMemberDto(e.Chunk, e.Weight, e.Max) : null;
+            : JsonSerializer.Deserialize<Entry>(ref reader, options) is { } e
+                ? new PoolMemberDto(e.Chunk, e.Weight, e.Max) { UnknownKeys = e.Unknown?.Keys.Order(StringComparer.Ordinal).ToArray() ?? [] }
+                : null;
 
     public override void Write(Utf8JsonWriter writer, PoolMemberDto value, JsonSerializerOptions options) =>
         throw new NotSupportedException("chunk-pools.json is only read");
@@ -40,7 +46,10 @@ public sealed class PoolMemberDtoConverter : JsonConverter<PoolMemberDto>
     private sealed record Entry(
         string Chunk,
         [property: JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)] float Weight = 1f,
-        int? Max = null);
+        int? Max = null)
+    {
+        [JsonExtensionData] public Dictionary<string, JsonElement>? Unknown { get; init; }
+    }
 }
 
 /// <summary>One entry of a spawn table in Maps/spawn-tables.json: a slot tag, a creature template, its weight and count range.</summary>

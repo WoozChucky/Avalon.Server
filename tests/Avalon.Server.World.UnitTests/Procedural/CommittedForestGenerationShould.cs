@@ -34,7 +34,7 @@ public class CommittedForestGenerationShould
         ProceduralMapConfig config = db.ProceduralMapConfigs.AsNoTracking().Single(c => c.MapTemplateId == new MapTemplateId(2));
 
         return (config,
-            pool.Memberships.Select(m => new ChunkPoolMember(templates[m.ChunkTemplateId], m.Weight, m.MaxPerLayout)).ToList(),
+            pool.Memberships.OrderBy(m => m.ChunkTemplateId.Value).Select(m => new ChunkPoolMember(templates[m.ChunkTemplateId], m.Weight, m.MaxPerLayout)).ToList(),
             pool.Groups.Select(g => ChunkGroupDefinition.From(g, templates)!).ToList());
     }
 

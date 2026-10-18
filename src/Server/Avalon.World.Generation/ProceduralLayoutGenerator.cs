@@ -24,7 +24,8 @@ namespace Avalon.World.ChunkLayouts;
 /// that fits, or a set piece at weight 1) by theirs, so a member's chance is its weight times the turns that fit. A
 /// member with a <see cref="ChunkPoolMember.MaxPerLayout"/> is left out of the candidates once a layout has placed it
 /// that often. Candidates that all weigh the same are picked with the one draw a uniform pick always made, so a pool of
-/// equal weights and no caps generates the layouts it always did.
+/// equal weights and no caps generates the layouts it always did. The pool is walked in chunk id order whatever order it
+/// is handed in, so the database's row order cannot change a layout.
 /// </para>
 /// </summary>
 public class ProceduralLayoutGenerator
@@ -42,6 +43,7 @@ public class ProceduralLayoutGenerator
         IReadOnlyList<ChunkGroupDefinition>? groups = null)
     {
         IReadOnlyList<ChunkGroupDefinition> sets = groups ?? [];
+        pool = InIdOrder(pool);
         string? error = null;
         for (int attempt = 0; attempt < MaxRetries; attempt++)
         {
@@ -360,6 +362,20 @@ public class ProceduralLayoutGenerator
             list.Add(new PortalPlacement(PortalRole.Forward, fWorld, fwd));
         }
         return list;
+    }
+
+    /// <summary>
+    /// The pool in chunk id order, the order LayoutConfigVersion hashes it in: the candidates follow the pool's order, and
+    /// the database returns its rows in no promised order. A pool already in that order is returned as it is.
+    /// </summary>
+    private static IReadOnlyList<ChunkPoolMember> InIdOrder(IReadOnlyList<ChunkPoolMember> pool)
+    {
+        for (int i = 1; i < pool.Count; i++)
+        {
+            if (pool[i - 1].Template.Id.Value > pool[i].Template.Id.Value)
+                return pool.OrderBy(m => m.Template.Id.Value).ToArray();
+        }
+        return pool;
     }
 
     private static void CountPlacement(Dictionary<ChunkTemplateId, int>? placedCapped, ChunkPoolMember member)
