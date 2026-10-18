@@ -43,10 +43,10 @@ public class InstanceListHandlerShould
         left.AddCharacter(visitor);
         left.RemoveCharacter(visitor); // entered, and empty from here
         menu.Clock.Advance(TimeSpan.FromMinutes(4));
-        MapInstance partyDefault = menu.Forest(ownerPartyId: party); // the leader's newest, built, never entered
+        MapInstance partyDefault = menu.Forest(ownerPartyId: party); // the party's default, never entered
         MapInstance partyOccupied = menu.Forest(ownerPartyId: party);
         partyOccupied.AddCharacter(menu.Parties.Online(10).Connection);
-        MapInstance partyEmpty = menu.Forest(ownerPartyId: party); // an older one of the party's, never entered
+        MapInstance partyEmpty = menu.Forest(ownerPartyId: party); // another of the party's, never entered
         MapInstance privateOccupied = menu.Forest(ownerCharacterId: kaela.Id);
         privateOccupied.AddCharacter(menu.Parties.Online(11).Connection);
         MapInstance opened = menu.Forest(ownerCharacterId: kaela.Id); // built, never entered

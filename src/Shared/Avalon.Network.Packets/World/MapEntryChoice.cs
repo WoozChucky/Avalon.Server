@@ -15,9 +15,9 @@ public enum MapEntryChoice : byte
     /// <summary>The live instance the packet's InstanceId names, from an SMSG_INSTANCE_LIST answer.</summary>
     Existing = 1,
 
-    /// <summary>A new private instance, which becomes the character's default.</summary>
+    /// <summary>A new private instance, which becomes the character's default once arrived in.</summary>
     NewPrivate = 2,
 
-    /// <summary>A new party instance, which becomes the party's default; the party's leader only.</summary>
+    /// <summary>A new party instance, which becomes the party's default once the leader arrived in it; the party's leader only.</summary>
     NewParty = 3,
 }

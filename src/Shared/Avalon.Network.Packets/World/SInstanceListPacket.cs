@@ -21,6 +21,7 @@ public class InstanceChoiceDto
     /// <summary>What a <see cref="CEnterMapPacket" /> with <see cref="MapEntryChoice.Existing" /> names.</summary>
     [ProtoMember(1)] public Guid InstanceId { get; set; }
 
+    /// <summary>The character's own private instance, or one of its party's.</summary>
     [ProtoMember(2)] public InstanceKind Kind { get; set; }
 
     /// <summary>Someone is inside, so no expiry timer is running.</summary>
@@ -45,11 +46,13 @@ public class SInstanceListPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
+    /// <summary>The map the request asked about, echoed so a client can match the answer to its portal.</summary>
     [ProtoMember(1)] public ushort TargetMapId { get; set; }
 
     /// <summary><see cref="MapTransitionResult.Success" />, or the reason the portal would refuse the character.</summary>
     [ProtoMember(2)] public MapTransitionResult Result { get; set; }
 
+    /// <summary>The character is in a party, so the party's instances are listed and plain entries take its default.</summary>
     [ProtoMember(3)] public bool InParty { get; set; }
 
     /// <summary>The character leads its party, so a client may offer a new party instance.</summary>

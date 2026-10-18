@@ -189,7 +189,10 @@ unexpired entry is the default**, the instance a plain entry takes.
    default (party instances: the party's list, the same rule, so when the party's default has expired while another
    listed one is still live, the party is routed to the last live one in the list)
 2. Otherwise: build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId, ct)` (same factory used for towns; the layout source resolver picks `ProceduralChunkLayoutSource` for `MapType.Normal`), register it, and
-   append it to the list, so it becomes the default
+   append it to the list, so it becomes the default; unless `MakeDefault` moved the owner's default while it built (a
+   member's plain entry built while the leader's new instance was made the party's default): then it goes just before
+   that default and leaves it the default (each list carries the stamp of its last default move, each build the count
+   it started at)
 
 **Creates.** `CreatePrivateInstanceAsync` and `CreatePartyInstanceAsync` always start a build of their own: no request
 joins it, and it joins none (they are kept apart from the per-owner de-duplicated builds, under the same deadline). Once
@@ -509,7 +512,8 @@ but `Default` to a town is answered `NotInstanced`. A client learns which instan
   leader's name, the map template's `Name`). A member's pick of an older party instance leaves the party's default
   where it is. While the leader's instance builds nothing changes for the party (a create is never joined by plain
   entries); a build that fails or times out, a leader who left the party or died meanwhile, leaves the default as it
-  was and tells the members nothing.
+  was and tells the members nothing. A member's plain entry whose build started before the leader's arrival and
+  publishes after it still takes its requesters to that build's instance, but never takes the default back.
 - **A chosen instance released before the arrival** (at a lifetime of 0, or freed meanwhile) is refused
   `InstanceUnavailable`, never resolved again to another instance the character did not choose.
 
