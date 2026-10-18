@@ -225,22 +225,25 @@ public static class NavmeshVectors
                 new("forest_path_03", 1, 1, 0),
             ]),
 
-        // One solid doodad's box on a forest path, as a doodad_large slot puts one: 2.4 by 1.2 m, 1.8 m tall, standing on
-        // the floor at the slot's height (every doodad slot is written at local y = 0). The client appends the box
-        // after the chunks, with the vertices and faces DoodadObstacleGeometry writes, and its walk stops where the
-        // server's does; the floor beside the box is untouched.
+        // One solid doodad's box on a forest path, standing on the floor at a slot's height (every doodad slot is
+        // written at local y = 0): 4 by 4 m, 1.8 m tall, wider than any seeded doodad so that its top would keep
+        // walkable ground after the agent-radius erosion if it were wound upward. The client appends the box after the
+        // chunks, with the vertices and faces DoodadObstacleGeometry writes, and its walk stops where the server's does;
+        // the floor beside the box is untouched, and the probe above its centre finds no ground (the sample height
+        // comes back unchanged), where a top wound the other way would answer with its own height.
         new("forest-doodad", 30f,
             [
                 Ray(5f, 15f, 25f, 15f, "east along the path's middle into the box's west face", y: 0.1f),
             ],
             [
-                Ground(15f, 13f, "beside the box, 1.4 m south of its south face: the floor"),
+                Ground(15f, 11f, "beside the box, 2 m south of its south face: the floor"),
+                Ground(15f, 15f, "above the box's centre: no ground, since its top bakes unwalkable"),
             ],
             [
                 new("forest_path_01", 0, 0, 0),
             ],
             [
-                new DoodadObstacle(13.8f, 16.2f, 14.4f, 15.6f, 0f, 1.8f),
+                new DoodadObstacle(13f, 17f, 13f, 17f, 0f, 1.8f),
             ]),
     ];
 
@@ -506,6 +509,11 @@ public static class NavmeshVectors
         # already written: the top (5 6 7) (5 7 8), then the sides (1 2 6) (1 6 5) (2 3 7) (2 7 6)
         # (3 4 8) (3 8 7) (4 1 5) (4 5 8). A box is axis-aligned: a doodad turns by quarter turns only,
         # and the server swaps its half extents on an odd one before it writes the box.
+        #
+        # THE TOP WINDS DOWNWARD ON PURPOSE. Its normal points down, so the bake marks it unwalkable and
+        # no island of navmesh forms on a box's flat top. Copy the faces exactly as written and never
+        # re-wind them: a top wound upward bakes walkable, and the forest-doodad probe above the box's
+        # centre then answers with the box's height instead of the height it was sampled from.
         #
         # <outcome> IS THE BRANCH, NOT AN INFERENCE FROM THE POSITION. RaycastWalkable returns a bare
         # position and collapses three branches onto it -- no start polygon hands back `from`, a

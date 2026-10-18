@@ -38,6 +38,11 @@
 # (3 4 8) (3 8 7) (4 1 5) (4 5 8). A box is axis-aligned: a doodad turns by quarter turns only,
 # and the server swaps its half extents on an odd one before it writes the box.
 #
+# THE TOP WINDS DOWNWARD ON PURPOSE. Its normal points down, so the bake marks it unwalkable and
+# no island of navmesh forms on a box's flat top. Copy the faces exactly as written and never
+# re-wind them: a top wound upward bakes walkable, and the forest-doodad probe above the box's
+# centre then answers with the box's height instead of the height it was sampled from.
+#
 # <outcome> IS THE BRANCH, NOT AN INFERENCE FROM THE POSITION. RaycastWalkable returns a bare
 # position and collapses three branches onto it -- no start polygon hands back `from`, a
 # failed raycast hands back `from`, and a clamp at t = 0 lands on `from` as well -- so a
@@ -215,7 +220,8 @@ ground 15 3 30 -> 0.2 # on the seam between the two heights
 
 layout forest-doodad cell 30
 chunk forest_path_01 0 0 0
-obstacle 13.8 16.2 14.4 15.6 0 1.8
-mesh tiles 15 polys 19 verts 63
-ray 5 0.1 15 25 0.1 15 -> clamped 13.200001 0.1 15 0.41000003 # east along the path's middle into the box's west face
-ground 15 3 13 -> 0.2 # beside the box, 1.4 m south of its south face: the floor
+obstacle 13 17 13 17 0 1.8
+mesh tiles 15 polys 18 verts 62
+ray 5 0.1 15 25 0.1 15 -> clamped 12.3 0.1 15 0.365 # east along the path's middle into the box's west face
+ground 15 3 11 -> 0.2 # beside the box, 2 m south of its south face: the floor
+ground 15 3 15 -> 3 # above the box's centre: no ground, since its top bakes unwalkable
