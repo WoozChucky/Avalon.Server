@@ -11,7 +11,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.World.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    [Migration("20261018112415_AddMapDoodadSpawns")]
+    [Migration("20261018121950_AddMapDoodadSpawns")]
     partial class AddMapDoodadSpawns
     {
         /// <inheritdoc />
@@ -7803,6 +7803,12 @@ namespace Avalon.Database.World.Migrations
 
                     b.ToTable("MapDoodadSpawns", null, t =>
                         {
+                            t.HasCheckConstraint("CK_MapDoodadSpawns_OffsetX", "\"OffsetX\" > -1000000 AND \"OffsetX\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_MapDoodadSpawns_OffsetY", "\"OffsetY\" > -1000000 AND \"OffsetY\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_MapDoodadSpawns_OffsetZ", "\"OffsetZ\" > -1000000 AND \"OffsetZ\" < 'Infinity'");
+
                             t.HasCheckConstraint("CK_MapDoodadSpawns_UsableGate", "(\"UsableQuestId\" IS NULL) = (\"UsableCondition\" IS NULL)");
 
                             t.HasCheckConstraint("CK_MapDoodadSpawns_VisibleGate", "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");

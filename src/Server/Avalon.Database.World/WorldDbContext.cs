@@ -2264,6 +2264,9 @@ public class WorldDbContext : DbContext
     {
         builder.ToTable("MapDoodadSpawns", t =>
         {
+            t.HasCheckConstraint("CK_MapDoodadSpawns_OffsetX", SignedFinite("OffsetX"));
+            t.HasCheckConstraint("CK_MapDoodadSpawns_OffsetY", SignedFinite("OffsetY"));
+            t.HasCheckConstraint("CK_MapDoodadSpawns_OffsetZ", SignedFinite("OffsetZ"));
             t.HasCheckConstraint("CK_MapDoodadSpawns_Yaw", "\"Yaw\" >= 0 AND \"Yaw\" < 360");
             t.HasCheckConstraint("CK_MapDoodadSpawns_VisibleGate",
                 "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");
@@ -3513,6 +3516,14 @@ public class WorldDbContext : DbContext
 
     /// <summary>0 or more and below Infinity, which refuses NaN too (Postgres sorts it above every number).</summary>
     private static string Finite(string column) => $"\"{column}\" >= 0 AND \"{column}\" < 'Infinity'";
+
+    /// <summary>
+    /// Finite and possibly negative, as an offset is: above -1,000,000 and below Infinity, which refuses NaN too. The lower
+    /// bound is a number, not the text '-Infinity', because SQLite (the tests) sorts every number below any text; Postgres
+    /// refuses -Infinity by it too (as AuraStatModifiers' value check).
+    /// </summary>
+    private static string SignedFinite(string column) =>
+        $"\"{column}\" > -1000000 AND \"{column}\" < 'Infinity'";
 
     private static string Percentage(string column) => $"\"{column}\" >= 0 AND \"{column}\" <= 100";
 }

@@ -33,6 +33,9 @@ namespace Avalon.Database.World.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_MapDoodadSpawns", x => x.Id);
+                    table.CheckConstraint("CK_MapDoodadSpawns_OffsetX", "\"OffsetX\" > -1000000 AND \"OffsetX\" < 'Infinity'");
+                    table.CheckConstraint("CK_MapDoodadSpawns_OffsetY", "\"OffsetY\" > -1000000 AND \"OffsetY\" < 'Infinity'");
+                    table.CheckConstraint("CK_MapDoodadSpawns_OffsetZ", "\"OffsetZ\" > -1000000 AND \"OffsetZ\" < 'Infinity'");
                     table.CheckConstraint("CK_MapDoodadSpawns_UsableGate", "(\"UsableQuestId\" IS NULL) = (\"UsableCondition\" IS NULL)");
                     table.CheckConstraint("CK_MapDoodadSpawns_VisibleGate", "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");
                     table.CheckConstraint("CK_MapDoodadSpawns_Yaw", "\"Yaw\" >= 0 AND \"Yaw\" < 360");
