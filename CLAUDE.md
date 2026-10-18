@@ -129,6 +129,7 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 - [Auras](docs/auras.md) / [protocol](docs/aura-protocol.md): `AuraSystem` per instance, snapshots, schedules anchored at expiry, stacking, saves, replication.
 - [Inventory, gold, vendors and saves](docs/inventory-and-saves.md): Character DB ownership, `ICharacterSaver` (one transaction, chained per character), one world session per account, Change Character, character names, item requests, equipment, bank, vendors, stats and the character sheet.
 - [Item use](docs/item-use.md) / [protocol](docs/item-use-protocol.md): equip or run an `ItemScript` through `IItemUseContext`; cooldowns, cast bar, consumption.
+- [Doodads](docs/doodads.md): DoodadCatalog, per-viewer views and quest gates, interaction and the cast bar, DoodadScript, placement.
 - [Chat and commands](docs/chat-and-commands.md): adding a command, channels, whispers, rate limit, ignore list.
 
 ### Operations and tooling
