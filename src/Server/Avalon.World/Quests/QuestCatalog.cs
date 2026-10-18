@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.World.Doodads;
 using Avalon.World.Public.Dialogue;
 using Microsoft.Extensions.Logging;
 
@@ -169,6 +170,40 @@ public sealed class QuestCatalog
                 quest.Objectives.Where(o => o.Type == QuestObjectiveType.Talk && o.CreatureTemplateId is not null)
                     .OrderBy(o => o.Id).Select(o => (o.Id, o.CreatureTemplateId!.Value)),
                 creature => dialogue.GetRoot(new CreatureTemplateId(creature)) is not null).ToList();
+            if (found.Count > 0)
+                problems.Add($"quest {quest.Id}: {string.Join("; ", found)}");
+        }
+
+        return problems;
+    }
+
+    /// <summary>
+    /// Every loaded quest with a UseDoodad objective whose doodad template <paramref name="doodads" /> lacks, or that a
+    /// player cannot click there, one line per quest listing all of its problems ("quest N: ...; ..."), by quest id. The
+    /// quests were checked against the doodad rows read with them, not the accepted catalog, and a /reload doodads since
+    /// can refuse a template or change how it is used, so StaticData logs these after either apply. It refuses nothing.
+    /// </summary>
+    public IReadOnlyList<string> DoodadObjectivesNotUsable(DoodadCatalog doodads)
+    {
+        List<string> problems = [];
+        foreach (QuestView quest in _byId.Values.OrderBy(q => q.Id))
+        {
+            List<string> found = [];
+            foreach (QuestObjectiveView objective in quest.Objectives.OrderBy(o => o.Id))
+            {
+                if (objective is not { Type: QuestObjectiveType.UseDoodad, DoodadTemplateId: { } doodadId })
+                    continue;
+                if (!doodads.TryGet(doodadId, out DoodadTemplateView? template))
+                {
+                    found.Add($"objective {objective.Id} names doodad template {doodadId.Value}, which the live doodads lack");
+                }
+                else if (template.Interaction != DoodadInteraction.Click)
+                {
+                    found.Add($"objective {objective.Id} names doodad template {doodadId.Value}, whose live interaction is " +
+                              $"{template.Interaction}, not Click");
+                }
+            }
+
             if (found.Count > 0)
                 problems.Add($"quest {quest.Id}: {string.Join("; ", found)}");
         }

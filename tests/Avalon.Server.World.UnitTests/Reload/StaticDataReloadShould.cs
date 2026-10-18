@@ -377,6 +377,44 @@ public class StaticDataReloadShould
         Assert.True(data.Quests.TryGet(Quests.QuestTestData.Howl, out _));
     }
 
+    /// <summary>
+    /// A /reload doodads that refuses the template a loaded quest's UseDoodad objective names, or makes it one nobody can
+    /// click, logs an Error naming the quest and the template, and refuses nothing: the quests prepare checked the rows it
+    /// read, not the catalog applied since.
+    /// </summary>
+    [Theory]
+    [InlineData(false, "which the live doodads lack")]
+    [InlineData(true, "whose live interaction is None, not Click")]
+    public async Task Log_each_loaded_quest_a_doodad_reload_leaves_with_an_unusable_doodad(bool unclickable, string problem)
+    {
+        const uint QuestId = 7601, ObjectiveId = 76011;
+        var log = new TestLog();
+        List<DoodadTemplate> doodads = Quests.QuestTestData.QuestDoodads();
+        var data = TestStaticData.Repositories(
+            creatures: Quests.QuestTestData.Creatures,
+            nodes: () => Quests.QuestTestData.Roots(Quests.QuestTestData.Giver),
+            quests: Quests.QuestRepositories.Of(() =>
+            [
+                Quests.QuestTestData.WithStage(Quests.QuestTestData.Quest(QuestId), 0,
+                    Quests.QuestTestData.UseDoodad(ObjectiveId, Quests.QuestTestData.Lever, 1)),
+            ]),
+            doodads: () => doodads).ToStaticData(log);
+        await data.LoadAsync();
+        Assert.Empty(log.Errors);
+
+        DoodadTemplate lever = doodads.Single(d => d.Id.Value == Quests.QuestTestData.Lever);
+        if (unclickable)
+            lever.Interaction = DoodadInteraction.None;
+        else
+            lever.InteractionRange = 0f;   // the catalog refuses it
+        data.Apply(await data.PrepareAsync(ReloadArea.Doodads));
+
+        string error = Assert.Single(log.Errors, e => e.Message.Contains($"quest {QuestId}", StringComparison.Ordinal)).Message;
+        Assert.Contains($"objective {ObjectiveId} names doodad template {Quests.QuestTestData.Lever}, {problem}", error,
+            StringComparison.Ordinal);
+        Assert.True(data.Quests.TryGet(QuestId, out _));
+    }
+
     private static async Task<(StaticData Data, Repos Repos)> LoadedData(int creatureCount)
     {
         var repos = new Repos

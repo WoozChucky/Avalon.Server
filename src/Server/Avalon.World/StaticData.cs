@@ -224,12 +224,14 @@ public class StaticData(
             case QuestsPatch p:
                 _quests = p;
                 LogQuestsWithoutDialogue();
+                LogQuestsWithUnusableDoodads();
                 break;
             case AurasPatch p:
                 _auras = p;
                 break;
             case DoodadsPatch p:
                 _doodads = p;
+                LogQuestsWithUnusableDoodads();
                 break;
             default:
                 throw new NotSupportedException($"No apply for {patch.GetType().Name}");
@@ -257,6 +259,30 @@ public class StaticData(
         {
             logger.LogError("The live dialogue leaves {Problem}; the quest cannot be talked through until the dialogue is fixed " +
                             "(a /reload quests would refuse it)", problem);
+        }
+    }
+
+    /// <summary>
+    /// After a quests or a doodads apply: each loaded quest whose UseDoodad objective names a template the live doodad
+    /// catalog lacks (refused, or gone), or one a player cannot click, is logged at Error, once per quest, listing its
+    /// problems. Nothing is refused: the quests prepare checks the doodad rows it reads, not the catalog they become, and
+    /// a /reload doodads since can refuse a template or change its interaction, so the objective could never be met until
+    /// the doodad template is fixed and reloaded. Either area missing (early in the startup load) checks nothing.
+    /// </summary>
+    private void LogQuestsWithUnusableDoodads()
+    {
+        if (_quests is not { } quests || _doodads is not { } doodads)
+            return;
+
+        IReadOnlyList<string> problems = quests.Catalog.DoodadObjectivesNotUsable(doodads.Catalog);
+        if (problems.Count == 0)
+            return;
+
+        ILogger<StaticData> logger = loggerFactory.CreateLogger<StaticData>();
+        foreach (string problem in problems)
+        {
+            logger.LogError("The live doodads leave {Problem}; the objective cannot be met until the doodad template is " +
+                            "fixed and reloaded", problem);
         }
     }
 
