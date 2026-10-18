@@ -74,6 +74,7 @@ public class InterestVisibilityBenchmarks
         Indexed();
         RequireStable(_state);
         RequireStable(_watcher.CharacterGameState);
+        RequireDoodadsInView();
     }
 
     [Benchmark]
@@ -151,6 +152,20 @@ public class InterestVisibilityBenchmarks
             if (i < Dirty && ReferenceEquals(creatures, _creatures))
                 _dirty.Add(creature.Guid, GameEntityFields.Position);
             i++;
+        }
+    }
+
+    /// <summary>
+    /// Every doodad placed is in the indexed view, so a row with doodads never measures the empty path if the wiring that
+    /// hands a view its doodads drifts.
+    /// </summary>
+    private void RequireDoodadsInView()
+    {
+        for (int i = 0; i < Doodads * 2; i++)
+        {
+            var guid = new ObjectGuid(ObjectType.Doodad, (uint)(1 + i));
+            if (!_watcher.CharacterGameState.Knows(guid))
+                throw new InvalidOperationException($"Doodad {guid.Id} is not in the watcher's view: the row would measure no doodad.");
         }
     }
 

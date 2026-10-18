@@ -74,7 +74,10 @@ public class DoodadCatalogShould
         {
             case "id 0": t.Id = new DoodadTemplateId(0); break;
             case "blank name": t.Name = "  "; break;
-            case "unknown enum": t.UseLimit = (DoodadUseLimit)9; break;
+            case "unknown interaction": t.Interaction = (DoodadInteraction)9; break;
+            case "unknown use limit": t.UseLimit = (DoodadUseLimit)9; break;
+            case "unknown spent look": t.SpentLook = (DoodadSpentLook)9; break;
+            case "unknown collision": t.Collision = (DoodadCollision)9; break;
             case "half-set gate": t.VisibleQuestId = 1; break;
             case "on objective without objective": t.UsableObjectiveId = null; break;
             case "model ../x": t.ModelKey = "../x"; break;
@@ -121,7 +124,10 @@ public class DoodadCatalogShould
     [InlineData("used model a/b", "UsedModelKey 'a/b' is not a plain asset name")]
     [InlineData("clip x:y", "UseClip 'x:y' is not a plain asset name")]
     [InlineData("kit .kit", "ModelKit '.kit' is not a plain asset name")]
-    [InlineData("unknown enum", "UseLimit 9 is unknown")]
+    [InlineData("unknown interaction", "Interaction 9 is unknown")]
+    [InlineData("unknown use limit", "UseLimit 9 is unknown")]
+    [InlineData("unknown spent look", "SpentLook 9 is unknown")]
+    [InlineData("unknown collision", "Collision 9 is unknown")]
     [InlineData("half-set gate", "its visible gate needs both a quest and a condition")]
     [InlineData("interaction 120000 ms", "InteractionTimeMs 120000 is above 60000")]
     [InlineData("range NaN", "InteractionRange")]
