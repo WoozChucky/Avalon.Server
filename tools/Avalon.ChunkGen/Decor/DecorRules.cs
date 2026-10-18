@@ -2,10 +2,10 @@ namespace Avalon.ChunkGen;
 
 /// <summary>
 /// What a player sees and what they collide with agree (spec of 2026-10-17). Every solid decor item's footprint, its
-/// model's box from the bounds table turned by its yaw, lies within <see cref="Tolerance" /> of its building's
-/// non-walkable proxies (a <see cref="Walls" /> item: of the square's wall boxes), so nothing drawn stands where a
-/// player can walk. And every <see cref="Material.Collision" /> proxy, which the client does not draw, has solid decor
-/// on it, and one standing at body height (below <see cref="BodyHeight" />) reaches no more than
+/// model's box from the bounds table scaled and turned by its yaw, lies within <see cref="Tolerance" /> of its
+/// building's non-walkable proxies (a <see cref="Walls" /> item: of the square's wall boxes), so nothing drawn stands
+/// where a player can walk. And every <see cref="Material.Collision" /> proxy, which the client does not draw, has
+/// solid decor on it, and one standing at body height (below <see cref="BodyHeight" />) reaches no more than
 /// <see cref="Tolerance" /> past the decor drawn over its -X and -Z faces, the sides the fixed camera sees, so no
 /// invisible wall shows. A square whose walls or floor decor draws (<see cref="TownSquare.WallsAsDecor" />,
 /// <see cref="TownSquare.Paved" />) has every wall box covered by its wall sections and the whole floor tiled. Flat
@@ -30,9 +30,9 @@ public static class DecorRules
     private static readonly Lazy<IReadOnlyDictionary<string, ModelBounds>> s_kit = new(KitBounds.Load, isThreadSafe: true);
 
     /// <summary>
-    /// The item's model box turned by its yaw about the model's origin (as <see cref="TownBuilding.Place" /> turns a
-    /// recipe) and moved to the item's position: chunk-local metres. A model the bounds table does not have, or a yaw
-    /// that is not a quarter turn, is refused (InvalidOperationException).
+    /// The item's model box scaled by its scale and turned by its yaw about the model's origin (as
+    /// <see cref="TownBuilding.Place" /> turns a recipe) and moved to the item's position: chunk-local metres. A model
+    /// the bounds table does not have, or a yaw that is not a quarter turn, is refused (InvalidOperationException).
     /// </summary>
     public static (float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ) WorldBounds(DecorItem item)
     {
@@ -41,8 +41,10 @@ public static class DecorRules
         if (item.Yaw is not (0 or 90 or 180 or 270))
             throw new InvalidOperationException($"{item.Model} has yaw {item.Yaw}, not 0, 90, 180 or 270");
 
-        (float minX, float maxX, float minZ, float maxZ) = TownBuilding.Footprint(b.MinX, b.MaxX, b.MinZ, b.MaxZ, item.X, item.Z, item.Yaw / 90);
-        return (minX, maxX, item.Y + b.MinY, item.Y + b.MaxY, minZ, maxZ);
+        float s = item.Scale;
+        (float minX, float maxX, float minZ, float maxZ) =
+            TownBuilding.Footprint(b.MinX * s, b.MaxX * s, b.MinZ * s, b.MaxZ * s, item.X, item.Z, item.Yaw / 90);
+        return (minX, maxX, item.Y + b.MinY * s, item.Y + b.MaxY * s, minZ, maxZ);
     }
 
     /// <summary>Whether a player could collide with the item: anything but ground tiles and hanging dressing.</summary>

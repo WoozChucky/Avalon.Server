@@ -22,7 +22,8 @@ public static class ChunkFiles
         squares.Select(s =>
         {
             s.Validate();
-            return (s.Name, ObjWriter.Write(s), ChunkJsonWriter.Write(s.ToMeta()), (string?)DecorJsonWriter.Write(s.Name, s.Decor));
+            return (s.Name, ObjWriter.Write(s), ChunkJsonWriter.Write(s.ToMeta()),
+                (string?)DecorJsonWriter.Write(s.Name, s.Decor, DecorJsonWriter.TownKit));
         }).ToList();
 
     /// <summary>

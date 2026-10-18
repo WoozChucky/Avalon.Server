@@ -497,12 +497,20 @@ south-west corner, `+X` east, `+Z` north, `y` up) and a yaw of 0, 90, 180 or 270
 }
 ```
 
+An item may also carry `"scale"`, a uniform scale about the model's origin, finite and in (0, 4], written (with at
+most 3 decimals) only when it is not 1, so a file whose items are all at their kit size has none. The yaw rule follows
+the file's `kit`: a town square's (`medieval-village-megakit-standard`) keeps quarter turns, since its pieces meet on
+a grid; a forest piece's (`stylized-nature-megakit-standard`) may carry any whole degree, 0-359, so trees, rocks and
+ground cover do not all face four ways. `DecorItem.Check` takes the rule from its caller (`DecorYaw.QuarterTurns` or
+`DecorYaw.AnyDegree`) and refuses anything else.
+
 ChunkGen writes one for every generated square (`"items": []` when it has none), staged and checked with the chunks
-and written only when they are, items sorted by model, then x, z, y and yaw, numbers with at most 3 decimals, LF line
-ends; `TownPiecesShould` compares them with a fresh run as it does the chunks, and a decor file with the command's
-prefix that the run did not write is listed, never deleted, as the chunks are. The seeder never reads `Maps/Decor/`.
-A proxy part that decor draws is written `usemtl collision`, which the client does not draw: every proxy of a placed
-building, the square's walls when `TownSquare.WallsAsDecor` is set, and the floor when `TownSquare.Paved` is.
+and written only when they are, items sorted by model, then x, z, y, yaw and scale, numbers with at most 3 decimals,
+LF line ends; `TownPiecesShould` compares them with a fresh run as it does the chunks, and a decor file with the
+command's prefix that the run did not write is listed, never deleted, as the chunks are. The seeder never reads
+`Maps/Decor/`. A proxy part that decor draws is written `usemtl collision`, which the client does not draw: every
+proxy of a placed building, the square's walls when `TownSquare.WallsAsDecor` is set, and the floor when
+`TownSquare.Paved` is.
 
 A building is a recipe, `tools/Avalon.ChunkGen/Recipes/<id>.json` (copied next to the tool's assembly and read by
 `BuildingRecipe.Load`), its coordinates relative to the building's anchor:
@@ -533,7 +541,7 @@ set on a square the same way, and that each item stands inside the 0-30 m cell.
 What a player sees and what they collide with must agree, so `TownSquare.Validate` then runs `DecorRules`. A decor
 item is solid unless it is flat ground or thin hanging dressing (`DecorRules.DressingPrefixes`: `Prop_Vine`,
 `WindowShutters_`, `Window_`, `Floor_`, `Prop_ExteriorBorder_`, `HoleCover_`). A solid item's footprint, its model's
-box turned by its yaw and moved to its position (`DecorRules.WorldBounds`), must lie within 0.15 m
+box scaled by its scale, turned by its yaw and moved to its position (`DecorRules.WorldBounds`), must lie within 0.15 m
 (`DecorRules.Tolerance`) of the union of its building's non-walkable proxies, or, for an item placed under the
 building `Walls` (the square's own wall sections), of the square's wall boxes: no drawn wall to walk through. A solid
 item whose building has no non-walkable proxy is refused. The reverse holds proxy by proxy: every `collision` proxy,
