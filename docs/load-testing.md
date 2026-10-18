@@ -501,8 +501,9 @@ the world. Its first trip waits a random 0 to 30 seconds after it entered (a par
 together, once their party has formed or gone solo), so that the forests' builds, each a navmesh bake of a quarter to
 half a second on the thread pool, do not all land at once. A trip:
 
-1. **To the portal.** From the town's spawn (15, 15) it walks straight north to the forest portal (15, 45), until its
-   acked position is within 2.5 m of it (the world takes the portal within 3 m).
+1. **To the portal.** From the town's spawn (15, 15) it walks straight north up the road to the forest portal in the
+   gate (15, 58.75), until its acked position is within 1 m of it (the world takes the portal within 1.5 m, on the
+   ground).
 2. **In.** It sends `CMSG_ENTER_MAP` for map 2 and stands until `SMSG_MAP_TRANSITION` answers. The **forest entry
    time** is the portal request to that transition; an entry builds the instance, off the tick, so it includes the
    bake.

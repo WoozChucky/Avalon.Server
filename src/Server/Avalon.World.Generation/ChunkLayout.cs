@@ -21,7 +21,7 @@ public record PortalPlacement(
     PortalRole Role,
     Vector3 WorldPos,
     ushort TargetMapId,
-    float Radius = 3.0f);
+    float Radius = 1.5f);
 
 public record ChunkLayout(
     int Seed,

@@ -121,7 +121,7 @@ chunk town_sw_01 0 0 0
 chunk town_se_01 1 0 0
 chunk town_nw_01 0 1 0
 chunk town_ne_01 1 1 0
-mesh tiles 49 polys 268 verts 675
+mesh tiles 49 polys 269 verts 674
 ray 15 0.15 15 16 0.15 15 -> reached 16 0.15 15 3.4028235E+38 # open floor, one metre
 ray 15 0.15 15 25 0.15 15 -> reached 25 0.15 15 3.4028235E+38 # open floor, the length of a tile and then some
 ray 45 0.15 45 35 0.15 35 -> clamped 41.850002 0.15 41.850002 0.31499985 # diagonal, north-east quadrant, starting within the agent radius of the well's north post: no step
@@ -151,7 +151,7 @@ ground 45 3 43.5 -> 0.15 # on the well's rim: no polygon under the point, only b
 ground 11.65 3 17 -> 0.15 # on a curb beside the arrival road: the floor's height
 ground 15 1 42 -> 0.15 # under the gate arch's lintel, sampled from a metre up: the floor
 ground 17.3 1 37 -> 0.15 # under the hunter's lodge's awning, sampled from a metre up: the floor
-ground 15 7 42 -> 6.35 # on top of the gate arch: the island on its flat top
+ground 15 7 42 -> 7 # on top of the gate arch: the island on its flat top
 ground 9.35 3 9.35 -> 0.15 # on the tile corner at 9.35, open floor
 ground 28 3 8 -> 0.15 # two metres from the x = 30 wall
 ground 15 3 30 -> 0.15 # in the z = 30 doorway

@@ -478,7 +478,7 @@ public class TownNpcPlacementShould
             (new Vector3(45f, 0.15f, 25f), new Vector3(45f, 0.15f, 35f), "the Z = 30 doorway at X = 45, north"),
             (new Vector3(25f, 0.15f, 15f), new Vector3(35f, 0.15f, 15f), "the X = 30 doorway at Z = 15, east"),
             (new Vector3(25f, 0.15f, 45f), new Vector3(35f, 0.15f, 45f), "the X = 30 doorway at Z = 45, east"),
-            (new Vector3(15f, 0.15f, 38f), new Vector3(15f, 0.15f, 45f), "under the gate arch to the portal"),
+            (new Vector3(15f, 0.15f, 50f), new Vector3(15f, 0.15f, TownPieces.PortalZ), "up the road into the gate arch and the portal"),
         ];
         foreach ((Vector3 from, Vector3 to, string label) in walks)
         {
@@ -488,8 +488,9 @@ public class TownNpcPlacementShould
             Assert.True(MathF.Abs(back.x - from.x) < 0.5f && MathF.Abs(back.z - from.z) < 0.5f, $"{label}, back: stopped at ({back.x:0.00}, {back.z:0.00})");
         }
 
-        List<Vector3> path = navigator.FindPath(s_town.Value.Entry + new Vector3(0f, 1f, 0f), new Vector3(15f, 1f, 45f));
+        List<Vector3> path = navigator.FindPath(s_town.Value.Entry + new Vector3(0f, 1f, 0f), new Vector3(TownPieces.PortalX, 1f, TownPieces.PortalZ));
         Assert.NotEmpty(path);
-        Assert.True(MathF.Abs(path[^1].x - 15f) <= 1f && MathF.Abs(path[^1].z - 45f) <= 1f, $"the path to the portal ends at {path[^1]}");
+        Assert.True(MathF.Abs(path[^1].x - TownPieces.PortalX) <= 1f && MathF.Abs(path[^1].z - TownPieces.PortalZ) <= 1f,
+                    $"the path to the portal ends at {path[^1]}");
     }
 }

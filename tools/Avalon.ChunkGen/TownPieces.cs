@@ -19,7 +19,8 @@ public static class TownPieces
     public const float ArrivalX = 15f;
     public const float ArrivalZ = 15f;
     public const float PortalX = 15f;
-    public const float PortalZ = 45f;
+    // In the gate: the portal square's north wall is world Z 60, and the arch stands just inside it, its middle here.
+    public const float PortalZ = 58.75f;
 
     /// <summary>A solid prop's collision never tops out lower than this (owner decision 8).</summary>
     private const float MinSolidTop = 1.05f;
@@ -44,21 +45,23 @@ public static class TownPieces
     [
         Square("town_sw_01", 0, 0, [Side.N, Side.E], [s_wallNL, s_wallNR, s_wallEL, s_wallER, s_wallS, s_wallW], Arrival, isEntry: true, hasForwardPortal: false, ["town", "entry"]),
         Square("town_se_01", 1, 0, [Side.N, Side.W], [s_wallNL, s_wallNR, s_wallE, s_wallS, s_wallWL, s_wallWR], Market, isEntry: false, hasForwardPortal: false, ["town"]),
-        Square("town_nw_01", 0, 1, [Side.E, Side.S], [s_wallN, s_wallEL, s_wallER, s_wallSL, s_wallSR, s_wallW], Portal, isEntry: false, hasForwardPortal: true, ["town"]),
+        Square("town_nw_01", 0, 1, [Side.E, Side.S], [s_wallNL, s_wallNR, s_wallEL, s_wallER, s_wallSL, s_wallSR, s_wallW], Portal, isEntry: false, hasForwardPortal: true, ["town"], gate: Side.N),
         Square("town_ne_01", 1, 1, [Side.S, Side.W], [s_wallN, s_wallE, s_wallSL, s_wallSR, s_wallWL, s_wallWR], BankAndInn, isEntry: false, hasForwardPortal: false, ["town"]),
     ];
 
     private static TownSquare Square(
         string name, int gridX, int gridZ, IReadOnlyList<Side> exits, IReadOnlyList<WallSegment> walls, Action<SquareBuilder> build,
-        bool isEntry, bool hasForwardPortal, IReadOnlyList<string> tags)
+        bool isEntry, bool hasForwardPortal, IReadOnlyList<string> tags, Side? gate = null)
     {
         var square = new SquareBuilder();
         build(square);
-        square.Pave(exits);
+        IReadOnlyList<Side> roads = gate is { } g ? [.. exits, g] : exits;
+        square.Pave(roads);
         square.DrawWalls(walls);
-        square.Curbs(exits, walls);
+        square.Curbs(roads, walls);
         return new TownSquare(name, gridX, gridZ, exits, walls, square.Pieces, isEntry, hasForwardPortal, tags)
         {
+            Gate = gate,
             Decor = square.Decor,
             WallsAsDecor = true,
             Paved = true,
@@ -95,8 +98,9 @@ public static class TownPieces
     /// <summary>North-west: the gate on the road to the portal, the watchtower, the hunter's lodge, a cart, crates, fires.</summary>
     private static void Portal(SquareBuilder s)
     {
-        // The road from the arrival point runs north through the gate (its lintel 3.12 m up over X 12-18) to the portal.
-        s.Building("gate_arch", "Gate arch", 15f, 12f, 0);
+        // The way out of town: the road runs north to the gate in the north wall (its lintel 3.12 m up over X 12-18),
+        // the arch just inside the opening with its north face on the wall line, and the portal in it.
+        s.Building("gate_arch", TownRules.GateArch, 15f, 28.765f, 0);
         s.Building("watchtower", "Watchtower", 6f, 24f, 0);
         // Facing west, its awning over the door; south of the east doorway lane and north of the south one.
         s.Building("hunters_lodge", "Hunter's lodge", 22.7f, 7.2f, 0);

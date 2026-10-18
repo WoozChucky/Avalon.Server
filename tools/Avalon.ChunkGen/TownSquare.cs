@@ -172,8 +172,8 @@ public sealed record WallSegment(string Name, float MinX, float MaxX, float MinZ
 /// <summary>
 /// One 30 x 30 m town square: today's floor (y -0.05 to 0.05) and wall boxes, reproduced exactly, plus the buildings and
 /// props the approved layout puts on it. A 1x1 chunk with exits at the centre of the named sides; the entry square
-/// carries the "entry" spawn slot at (15, 0, 15) and the portal square the Forward portal slot at (15, 0, 15), as the
-/// hand-authored files did.
+/// carries the "entry" spawn slot at (15, 0, 15), and the portal square the Forward portal slot in its gate
+/// (<see cref="TownPieces.PortalX" />, <see cref="TownPieces.PortalZ" />).
 /// </summary>
 public sealed record TownSquare(
     string Name, int GridX, int GridZ, IReadOnlyList<Side> Exits, IReadOnlyList<WallSegment> Walls,
@@ -182,6 +182,15 @@ public sealed record TownSquare(
     public const float CellSize = ChunkPiece.CellSize;
     public const float FloorBottom = -0.05f;
     public const float FloorTop = 0.05f;
+
+    /// <summary>
+    /// The side whose wall holds the town's gate: an opening at the end of a road, not a doorway to another square, so
+    /// it is in <see cref="RoadSides" /> and not in <see cref="Exits" /> (no doorway lane, no exit in the chunk's meta).
+    /// </summary>
+    public Side? Gate { get; init; }
+
+    /// <summary>The sides a red-brick road runs to: the exits, and the gate.</summary>
+    public IReadOnlyList<Side> RoadSides => Gate is { } gate ? [.. Exits, gate] : Exits;
 
     /// <summary>What the client draws on this square from the art kit (Maps/Decor/&lt;name&gt;.json), chunk-local.</summary>
     public IReadOnlyList<DecorItem> Decor { get; init; } = [];
@@ -273,7 +282,7 @@ public sealed record TownSquare(
             ["W"] = Exits.Contains(Side.W) ? ["center"] : [],
         },
         IsEntry ? [new SpawnSlotDto("entry", CellSize / 2f, 0f, CellSize / 2f)] : [],
-        HasForwardPortal ? [new PortalSlotDto("Forward", CellSize / 2f, 0f, CellSize / 2f)] : [],
+        HasForwardPortal ? [new PortalSlotDto("Forward", TownPieces.PortalX - Origin.X, 0f, TownPieces.PortalZ - Origin.Z)] : [],
         [.. Tags]);
 
     /// <summary>
@@ -306,7 +315,7 @@ public sealed record TownSquare(
 
 /// <summary>
 /// The owner's layout rules (spec of 2026-10-01): nothing within 2 m of a wall, roofs included; the doorway lanes clear
-/// (6 m wide, 3 m deep each side of an opening); the arrival-to-portal corridor (world X 13-17, Z 15-45) clear below
+/// (6 m wide, 3 m deep each side of an opening); the arrival-to-portal corridor (world X 13-17, Z 15 to the portal in the gate) clear below
 /// 2.5 m; at least 2.5 m of headroom under any roof a unit stands under; a walkable riser of at most 0.3 m. Each is
 /// checked here, chunk-local, so the tool refuses a square before it bakes; the NPC rules need the seeded rows and live
 /// in the tests.
@@ -314,6 +323,9 @@ public sealed record TownSquare(
 public static class TownRules
 {
     public const float WallClearance = 2f;
+
+    /// <summary>The building that stands in a square's gate (<see cref="TownSquare.Gate" />), exempt from the wall clearance.</summary>
+    public const string GateArch = "Gate arch";
     public const float DoorwayLaneDepth = 3f;
     public const float DoorwayFrom = 12f;
     public const float DoorwayTo = 18f;
@@ -322,7 +334,7 @@ public static class TownRules
     public const float CorridorMinX = 13f;
     public const float CorridorMaxX = 17f;
     public const float CorridorMinZ = 15f;
-    public const float CorridorMaxZ = 45f;
+    public const float CorridorMaxZ = TownPieces.PortalZ;
     public const float CorridorClearHeight = 2.5f;
 
     /// <summary>An NPC stands at least this far from any solid below <see cref="SolidBelow" />.</summary>
@@ -350,8 +362,12 @@ public static class TownRules
         {
             string what = $"{square.Name}: {piece.Building}/{piece.Part}";
 
+            // The gate arch stands in its wall's opening, so its pillars meet the wall on either side by design.
+            bool gateArch = square.Gate is not null && piece.PartOfBuilding && piece.Building == GateArch;
             foreach (WallSegment wall in square.Walls)
             {
+                if (gateArch)
+                    break;
                 float d = wall.DistanceTo(piece);
                 if (d < WallClearance - 1e-6f)
                     throw new InvalidOperationException($"{what} is {d:0.00} m from {wall.Name} (under {WallClearance} m)");

@@ -346,7 +346,12 @@ wooden fence say, is lower). Roof tops and building interiors are navmesh island
 blocker tops are. It also fails when a free-standing piece a player would bump into (below body height, not part of
 a building) reaches into a red-brick road (`TownSquare.OverlapsRoad`, owner decision 2026-10-18): the roads are the
 routes through the town, and the props stand in the open ground beside them. Buildings are where they are, the bank's
-and the inn's bodies reaching into the north-east square's roads and the gate arch over its own. `TownNpcPlacementShould`
+and the inn's bodies reaching into the north-east square's roads. The portal square's road also runs north to a gate
+in its wall (`TownSquare.Gate`, a road side that is not an exit: no doorway lane, no exit in the chunk's meta): the
+north wall is two stubs with the opening at X 12-18 between them, the gate arch stands just inside it (its north face
+on the wall line, exempt from the wall clearance its pillars meet), and the forward portal is in the arch, at world
+(15, 58.75) (owner decision, 2026-10-18). Every portal's reach is 1.5 m, measured on the ground (`EnterMapHandler`),
+and the forest's portal slots stand on the ground. `TownNpcPlacementShould`
 checks the seven NPC spots against the same data. The market's middle stays
 open for the walking benchmarks, whose 8 m loop about world (45, 10) (`TownNavmesh.LoopCentre` in
 `tests/Avalon.World.Testing`) needs nothing solid 7-9 m from it, and the ground round the arrival point stays open for

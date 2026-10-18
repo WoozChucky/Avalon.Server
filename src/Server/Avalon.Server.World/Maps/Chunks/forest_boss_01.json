@@ -14,7 +14,7 @@
     { "tag": "boss", "localX": 15, "localY": 1, "localZ": 15 }
   ],
   "portalSlots": [
-    { "role": "Forward", "localX": 15, "localY": 1, "localZ": 25 }
+    { "role": "Forward", "localX": 15, "localY": 0, "localZ": 25 }
   ],
   "tags": ["boss", "forest"]
 }

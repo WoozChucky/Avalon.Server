@@ -100,8 +100,10 @@ public partial class EnterMapHandler(
             return;
         }
 
-        // 5. Proximity check: the server's position of the character against the portal's radius.
-        float distance = Vector3.Distance(character.Position, match.Position);
+        // 5. Proximity check: the server's position of the character against the portal's radius, on the ground: a
+        // portal's height is where it is drawn, not how far a character standing at it is from it.
+        float dx = character.Position.x - match.Position.x, dz = character.Position.z - match.Position.z;
+        float distance = MathF.Sqrt((dx * dx) + (dz * dz));
         if (distance > match.Radius)
         {
             Log.TooFarFromPortal(logger, character.Name, targetMap, distance, match.Radius);

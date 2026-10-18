@@ -55,7 +55,8 @@ public class TownPiecesShould
     [InlineData("town_se_01", "Wall_S", 0f, 30f, -0.25f, 0.25f)]
     [InlineData("town_se_01", "Wall_W_L", -0.25f, 0.25f, 0f, 12f)]
     [InlineData("town_se_01", "Wall_W_R", -0.25f, 0.25f, 18f, 30f)]
-    [InlineData("town_nw_01", "Wall_N", 0f, 30f, 29.75f, 30.25f)]
+    [InlineData("town_nw_01", "Wall_N_L", 0f, 12f, 29.75f, 30.25f)]   // the gate's opening at X 12-18
+    [InlineData("town_nw_01", "Wall_N_R", 18f, 30f, 29.75f, 30.25f)]
     [InlineData("town_nw_01", "Wall_E_L", 29.75f, 30.25f, 0f, 12f)]
     [InlineData("town_nw_01", "Wall_E_R", 29.75f, 30.25f, 18f, 30f)]
     [InlineData("town_nw_01", "Wall_S_L", 0f, 12f, -0.25f, 0.25f)]
@@ -72,7 +73,7 @@ public class TownPiecesShould
         TownSquare s = TownPieces.Squares().Single(q => q.Name == square);
         WallSegment w = Assert.Single(s.Walls, x => x.Name == wall);
         Assert.Equal((minX, maxX, minZ, maxZ), (w.MinX, w.MaxX, w.MinZ, w.MaxZ));
-        Assert.Equal(6, s.Walls.Count);
+        Assert.Equal(s.Gate is null ? 6 : 7, s.Walls.Count);   // a gate splits its wall in two
     }
 
     [Fact]
@@ -145,6 +146,23 @@ public class TownPiecesShould
         Assert.Equal("avalon_stall_goods", market.Single(d => d.Building == "General-goods stall").Model);
     }
 
+    /// <summary>
+    /// The way out of town: the portal square's red-brick road runs north to a gate in its wall (an opening, not a
+    /// doorway to another square), and the portal stands in that gate.
+    /// </summary>
+    [Fact]
+    public void Lead_the_road_to_the_gate_and_put_the_portal_in_it()
+    {
+        TownSquare square = TownPieces.Squares().Single(s => s.HasForwardPortal);
+        Assert.Equal(Side.N, square.Gate);
+        Assert.DoesNotContain(Side.N, square.Exits);
+        Assert.DoesNotContain(square.Walls, w => w.Name == "Wall_N");
+        Assert.True(TownSquare.OnRoad(15f, 29f, square.RoadSides), "the road does not reach the gate");
+        (float ox, float oz) = square.Origin;
+        Assert.InRange(TownPieces.PortalZ - oz, 27.5f, 29.5f);
+        Assert.Equal(15f, TownPieces.PortalX - ox);
+    }
+
     [Fact]
     public void Reach_the_portal_from_the_arrival_point()
     {
@@ -158,9 +176,9 @@ public class TownPiecesShould
         Vector3 end = path[^1];
         Assert.True(MathF.Abs(end.x - portal.x) <= 1f && MathF.Abs(end.z - portal.z) <= 1f, $"the path ends at {end}");
 
-        // The corridor itself: a straight walk north along x = 15 through the doorway and under the arch.
-        Vector3 stop = s_town.Value.RaycastWalkable(new Vector3(15f, 0.15f, 15f), new Vector3(15f, 0.15f, 45f));
-        Assert.True(stop.z >= 44.5f, $"the walk north along x = 15 stopped at z = {stop.z}");
+        // The corridor itself: a straight walk north along x = 15 through the doorway, up the road and into the gate.
+        Vector3 stop = s_town.Value.RaycastWalkable(new Vector3(15f, 0.15f, 15f), new Vector3(15f, 0.15f, TownPieces.PortalZ));
+        Assert.True(stop.z >= TownPieces.PortalZ - 0.5f, $"the walk north along x = 15 stopped at z = {stop.z}");
     }
 
     /// <summary>Every solid piece: non-walkable and standing below 2 m (roof slabs and gables above that are never walked against).</summary>
