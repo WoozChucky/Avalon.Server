@@ -256,7 +256,8 @@ Migration `SeedLostCaravan` seeds the two doodads of quest 9, "The Lost Caravan"
 | 6 | Notice Board | `town-kit` / `avalon_notice_board` / `avalon_notice_board_pinned` | instant | usable only `OnObjective(9, 902)`; seen by everyone | not yet: Glimmerdell's fixed doodad spawns place it |
 
 - **Each used model lives in its template's own kit folder** (`usedModelKey` resolves in `modelKit`). The strongbox is a props-kit `Crate_Metal`, so `avalon_strongbox_open` belongs in the client's props-kit folder, and the board's `avalon_notice_board_pinned` in town-kit. Neither model exists yet; the catalog checks only that the names are plain, so seeding them ahead of the art is safe.
-- **The strongbox is hidden from everyone but a player on its step.** Once its use credits objective 901, the user's quest moves to stage 1, which raises `QuestLog.GateVersion`, so the user's next view decision removes it. Another player still on the step goes on seeing it (`QuestDoodadCreditShould.Hide_the_seeded_strongbox_from_its_user_once_opened`).
+- **The used looks never show in v1.** Both templates are `Unlimited` and have no script, so nothing ever spends them: each stays `Ready`, and `avalon_strongbox_open` and `avalon_notice_board_pinned` are never displayed. They are catalogued so that a future script, or a change to the template, can show them.
+- **The strongbox is hidden from everyone but a player on its step.** Once its use credits objective 901, the user's quest moves to stage 1, which raises `QuestLog.GateVersion`, so the user's next view decision removes it. The strongbox stays `Ready`, and another player still on the step goes on seeing it and can open it for their own credit (`QuestDoodadCreditShould.Hide_the_seeded_strongbox_from_its_user_once_opened`).
 - **Neither is solid**, so their gates are allowed (a solid doodad is never hidden).
 
 ## Placement

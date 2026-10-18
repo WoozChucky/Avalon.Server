@@ -22,6 +22,7 @@ public class CommittedForestDoodadsShould
         ProceduralMapConfig config = reference.ForestConfig;
         DoodadCatalog catalog = reference.Data.Doodads;
         Assert.NotEmpty(config.DoodadRules);   // a forest with no rules would pass everything below
+        Assert.Contains(config.DoodadRules, r => r.Required);   // nor would one with no required rule
         Assert.All(config.DoodadRules, rule => Assert.True(catalog.TryGet(rule.DoodadTemplateId, out _),
             $"doodad rule {rule.Sequence} names template {rule.DoodadTemplateId.Value}, which the catalog does not hold"));
 

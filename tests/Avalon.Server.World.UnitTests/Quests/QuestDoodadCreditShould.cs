@@ -99,9 +99,9 @@ public class QuestDoodadCreditShould
     }
 
     /// <summary>
-    /// The seeded strongbox end to end (quest 9's objective 901, doodad 5, as the World database seeds them): shown to its
-    /// user on the step, opened through its cast bar, it credits the user, whose next view decision removes it. Being
-    /// never spent, it stays for a player beside them who is still on the step.
+    /// The seeded strongbox end to end (quest 9's objective 901, doodad 5, as the World database seeds them): shown to two
+    /// players on the step, opened by one through its cast bar, it credits that user alone, whose next view decision
+    /// removes it. It stays ready and in the other player's view, who then opens it for their own credit and remove.
     /// </summary>
     [Fact]
     public void Hide_the_seeded_strongbox_from_its_user_once_opened()
@@ -128,6 +128,7 @@ public class QuestDoodadCreditShould
         beside.Character.Quests.Start(LostCaravan, DateTime.UnixEpoch);
         Tick(instance, 30);
         Assert.Contains(user.Added(), s => s.Guid == doodad.Guid.RawValue);
+        Assert.Contains(beside.Added(), s => s.Guid == doodad.Guid.RawValue);
 
         uses.Interact(user.Connection, user.Character, instance, doodad.Guid);
         clock.Advance(TimeSpan.FromMilliseconds(1500));
@@ -136,8 +137,19 @@ public class QuestDoodadCreditShould
         ActiveQuest opened = user.Character.Quests.Get(LostCaravan)!;
         Assert.Equal((1u, 1), (opened.ProgressOf(Opened), opened.Stage));
         Assert.Contains(doodad.Guid.RawValue, user.Removed());
+        // Never spent: still ready, still in the view of the player beside, whose quest the use did not move.
+        Assert.Equal(DoodadState.Ready, doodad.State);
         Assert.Equal(0, beside.Character.Quests.Get(LostCaravan)!.Stage);
         Assert.DoesNotContain(doodad.Guid.RawValue, beside.Removed());
+
+        // So that player opens it too, and gets their own credit and their own remove.
+        uses.Interact(beside.Connection, beside.Character, instance, doodad.Guid);
+        clock.Advance(TimeSpan.FromMilliseconds(1500));
+        Tick(instance, 6);
+
+        ActiveQuest theirs = beside.Character.Quests.Get(LostCaravan)!;
+        Assert.Equal((1u, 1), (theirs.ProgressOf(Opened), theirs.Stage));
+        Assert.Contains(doodad.Guid.RawValue, beside.Removed());
     }
 
     private static void Tick(MapInstance instance, int count)
