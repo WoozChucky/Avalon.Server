@@ -196,6 +196,31 @@ public class InstanceChoicesShould : IDisposable
         Assert.Equal(2, _builds.Count); // a new build, not the orphan
     }
 
+    /// <summary>
+    /// A member's plain entry starts the party's build; the leader's create, started after it, publishes first and is
+    /// made the default on the leader's arrival. The plain build, published later, still goes to its requesters but
+    /// does not take the default back.
+    /// </summary>
+    [Fact]
+    public async Task Keep_a_create_made_default_when_a_plain_build_started_before_it_publishes_after()
+    {
+        Task<IMapInstance> plain = _registry.GetOrCreatePartyInstanceAsync(s_party, s_dungeonId);
+        Task<IMapInstance> createdBuild = _registry.CreatePartyInstanceAsync(s_party, s_dungeonId);
+        Publish(only: 1);
+        IMapInstance created = await createdBuild.WaitAsync(s_bound);
+        _registry.MakeDefault(created);
+        Publish();
+        IMapInstance late = await plain.WaitAsync(s_bound);
+
+        Assert.NotSame(created, late);
+        Assert.Same(created, await _registry.GetOrCreatePartyInstanceAsync(s_party, s_dungeonId).WaitAsync(s_bound));
+        var listed = new List<InstanceChoice>();
+        _registry.ListChoosable(1, s_party, s_dungeonId, listed);
+        Assert.Equal(2, listed.Count);
+        Assert.True(listed.Single(c => c.Instance == created).IsDefault);
+        Assert.False(listed.Single(c => c.Instance == late).IsDefault);
+    }
+
     public void Dispose()
     {
         foreach (MapInstance instance in _instances)
@@ -210,12 +235,15 @@ public class InstanceChoicesShould : IDisposable
         return await entry.WaitAsync(s_bound);
     }
 
-    /// <summary>Finishes every build still running, for its owner and map, and publishes them as the tick does (#639).</summary>
-    private void Publish()
+    /// <summary>
+    /// Finishes every build still running (or only build number <paramref name="only" />), for its owner and map, and
+    /// publishes them as the tick does (#639).
+    /// </summary>
+    private void Publish(int? only = null)
     {
         for (int i = 0; i < _builds.Count; i++)
         {
-            if (_builds[i].Task.IsCompleted)
+            if (_builds[i].Task.IsCompleted || (only is { } one && i != one))
                 continue;
 
             MapInstance instance = TestMapInstances.Build(MapInstanceClients.NewWorld(), time: _clock,
