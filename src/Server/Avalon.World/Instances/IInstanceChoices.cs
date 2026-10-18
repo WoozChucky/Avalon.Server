@@ -32,6 +32,6 @@ public interface IInstanceChoices
     void ListChoosable(uint characterId, PartyId? party, MapTemplateId templateId, List<InstanceChoice> into);
 
     /// <summary>Makes the instance its owner's default for its map (the character's for a private one, the party's
-    /// for a party one); nothing for an instance no longer listed (expired, or its party forgotten).</summary>
+    /// for a party one); nothing for an instance no longer listed (freed, or its party forgotten).</summary>
     void MakeDefault(IMapInstance instance);
 }

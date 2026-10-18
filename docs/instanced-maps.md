@@ -186,8 +186,8 @@ unexpired entry is the default**, the instance a plain entry takes.
 
 `GetOrCreateNormalInstanceAsync`:
 1. Walk the character's list for the map from the end and return the first instance still live and not expired: the
-   default (party instances: the party's list, the same rule, so when the party's newest instance has expired while an
-   older one is still live, the party is routed to the older one)
+   default (party instances: the party's list, the same rule, so when the party's default has expired while another
+   listed one is still live, the party is routed to the last live one in the list)
 2. Otherwise: build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId, ct)` (same factory used for towns; the layout source resolver picks `ProceduralChunkLayoutSource` for `MapType.Normal`), register it, and
    append it to the list, so it becomes the default
 

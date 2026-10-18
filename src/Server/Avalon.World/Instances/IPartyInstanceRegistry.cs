@@ -11,8 +11,8 @@ namespace Avalon.World.Instances;
 public interface IPartyInstanceRegistry
 {
     /// <summary>
-    /// The party's default instance of <paramref name="templateId" />, its newest live one (#1104), or a new one; members
-    /// entering at once share one build. Not expired: an instance abandoned for longer than
+    /// The party's default instance of <paramref name="templateId" />, the last live entry of its list in default order
+    /// (#1104), or a new one; members entering at once share one build. Not expired: an instance abandoned for longer than
     /// Game:AbandonedInstanceLifetimeMinutes (15 by default) is skipped, and with none live a new one is built.
     /// </summary>
     Task<IMapInstance> GetOrCreatePartyInstanceAsync(PartyId party, MapTemplateId templateId);

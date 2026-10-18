@@ -54,7 +54,7 @@ public class InstanceChoicesShould : IDisposable
     {
         IMapInstance first = await EnterDefault(character: 7);
         Task<IMapInstance> created = _registry.CreatePrivateInstanceAsync(7, s_dungeonId);
-        Assert.Equal(2, _builds.Count); // never joined to anything
+        Assert.Equal(2, _builds.Count); // a build of its own, not the live default
         Publish();
         IMapInstance second = await created.WaitAsync(s_bound);
 
@@ -68,6 +68,25 @@ public class InstanceChoicesShould : IDisposable
         Assert.True(listed.Single(c => c.Instance == second).IsDefault);
         Assert.False(listed.Single(c => c.Instance == first).IsDefault);
         Assert.All(listed, c => Assert.Equal(InstanceKind.Private, c.Kind));
+    }
+
+    /// <summary>
+    /// A create and a default build of the same owner and map in flight together, whichever came first: neither joins
+    /// the other, so each requester gets its own instance.
+    /// </summary>
+    [Fact]
+    public async Task Never_join_a_create_and_a_default_build_of_the_same_owner_and_map()
+    {
+        Task<IMapInstance> privateDefault = _registry.GetOrCreateNormalInstanceAsync(7, s_dungeonId);
+        Task<IMapInstance> privateCreate = _registry.CreatePrivateInstanceAsync(7, s_dungeonId);
+        Task<IMapInstance> partyCreate = _registry.CreatePartyInstanceAsync(s_party, s_dungeonId);
+        Task<IMapInstance> partyDefault = _registry.GetOrCreatePartyInstanceAsync(s_party, s_dungeonId);
+
+        Assert.Equal(4, _builds.Count);
+        Publish();
+        IMapInstance[] got = await Task.WhenAll(privateDefault, privateCreate, partyCreate, partyDefault).WaitAsync(s_bound);
+
+        Assert.Equal(4, got.Distinct().Count());
     }
 
     [Fact] // the newest party instance expired, an older one is occupied

@@ -118,7 +118,7 @@ public class TickThreadGuardSitesShould
         world.PublishBuiltInstances();
     }
 
-    public static TheoryData<string> RegistryWrites() =>
+    public static TheoryData<string> RegistryTickOnlyCalls() =>
     [
         "InstanceRegistry.GetOrCreateTownInstanceAsync",
         "InstanceRegistry.GetOrCreateNormalInstanceAsync",
@@ -136,8 +136,8 @@ public class TickThreadGuardSitesShould
     ];
 
     [Theory]
-    [MemberData(nameof(RegistryWrites))]
-    public void Guard_every_registry_index_write(string operation)
+    [MemberData(nameof(RegistryTickOnlyCalls))]
+    public void Guard_every_tick_only_registry_call(string operation)
     {
         IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
         mapManager.Templates.Returns([]); // every build fails at once: only the guard is under test
