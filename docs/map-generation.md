@@ -546,12 +546,16 @@ spent, no script, which could despawn it or hide it through `CanSee` (the same t
 The bounds table, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, holds each model's box in its own space, so pieces can
 be checked against the art without the kit, which stays out of the repository:
 
-    dotnet run --project tools/Avalon.ChunkGen -- kit-bounds --kit <glTF directory> [--props <glTF directory>] [--props-kit <glTF directory>]
+    dotnet run --project tools/Avalon.ChunkGen -- kit-bounds --kit <glTF directory> [--props <glTF directory>] [--props-kit <glTF directory>] [--nature-kit <glTF directory>] [--forest-props <glTF directory>]
 
-measures every `*.gltf` directly in the kit directory (and the custom props' directory, and the props kit's: Fantasy
-Props MegaKit, CC0, whose `Chest_Wood`, `Barrel` and `Crate_Metal` the forest's doodads wear) from its accessors'
-bounds through the node transforms, and rewrites the table; a model in two of the directories, an empty directory or
-a file it cannot measure leaves the table as it was.
+measures every `*.gltf` directly in the kit directory (and the custom props' directory; the props kit's: Fantasy
+Props MegaKit, CC0, whose `Chest_Wood`, `Barrel` and `Crate_Metal` the forest's doodads wear; the nature kit's:
+Stylized Nature MegaKit, Standard, CC0, the forest's trees, plants, rocks and stepping stones; and the custom forest
+models', the `avalon_*` rocks, logs, ruins and dirt paths) from its accessors' bounds through the node transforms, and
+rewrites the table; a model in two of the directories, an empty directory or a file it cannot measure leaves the
+table as it was. The committed table is measured from the village kit's `glTF`, `avalon-art\town-kit\gltf`, the props
+kit's `Exports\glTF`, `avalon-art\forest-kit\kit` (the nature kit's `glTF`, its colour textures darkened for the
+forest) and `avalon-art\forest-kit\gltf`.
 
 ## Chunk groups (set pieces)
 
