@@ -18,6 +18,8 @@
   <ItemGroup>
     <!-- The art kit's model boxes (KitBounds.Load), measured from the kit by the "kit-bounds" command; the kit itself stays out of the repository. -->
     <None Include="Kit\kit-bounds.json" CopyToOutputDirectory="PreserveNewest"/>
+    <!-- The custom forest models' solid footprints (ForestFootprints.Load), copied from the art by the same command. -->
+    <None Include="Kit\forest-footprints.json" CopyToOutputDirectory="PreserveNewest"/>
     <!-- One building per file (BuildingRecipe.Load): kit pieces and collision proxies, relative to the building's anchor. -->
     <None Include="Recipes\*.json" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>

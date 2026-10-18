@@ -1,0 +1,53 @@
+{
+  "avalon_log_fallen_1": { "walkThrough": false, "solid": [
+    { "part": "log", "kind": "box", "minX": -2.5, "maxX": 2.5, "minZ": -0.6, "maxZ": 0.6, "top": 1.16 }
+  ] },
+  "avalon_log_fallen_2": { "walkThrough": false, "solid": [
+    { "part": "log", "kind": "box", "minX": -2.05, "maxX": 2.05, "minZ": -0.5, "maxZ": 0.5, "top": 0.78 }
+  ] },
+  "avalon_path_dirt_2m": { "walkThrough": true, "solid": [] },
+  "avalon_path_dirt_hub": { "walkThrough": true, "solid": [] },
+  "avalon_rock_arch": { "walkThrough": false, "solid": [
+    { "part": "leg_e", "kind": "circle", "x": 3.55, "z": -0.15, "radius": 1.35, "blockerRadius": 1.4, "top": 3.6 },
+    { "part": "leg_w", "kind": "circle", "x": -3.55, "z": 0.15, "radius": 1.35, "blockerRadius": 1.4, "top": 3.6 }
+  ] },
+  "avalon_rock_large_1": { "walkThrough": false, "solid": [
+    { "part": "rock", "kind": "circle", "x": -0.45, "z": -0.05, "radius": 2.5, "blockerRadius": 2.6, "top": 2.93 },
+    { "part": "rock_e", "kind": "circle", "x": 1.7, "z": -0.8, "radius": 1, "blockerRadius": 1.05, "top": 1.29 }
+  ] },
+  "avalon_rock_large_2": { "walkThrough": false, "solid": [
+    { "part": "rock", "kind": "circle", "x": 0.1, "z": -0.1, "radius": 2.2, "blockerRadius": 2.3, "top": 3.25 }
+  ] },
+  "avalon_rock_large_3": { "walkThrough": false, "solid": [
+    { "part": "rock_e", "kind": "circle", "x": 1.65, "z": -0.35, "radius": 1.55, "blockerRadius": 1.65, "top": 1.66 },
+    { "part": "rock_w", "kind": "circle", "x": -1.05, "z": -0.1, "radius": 2.1, "blockerRadius": 2.2, "top": 1.94 }
+  ] },
+  "avalon_rock_leaning_1": { "walkThrough": false, "solid": [
+    { "part": "chunk", "kind": "circle", "x": 0.55, "z": 0.25, "radius": 0.55, "blockerRadius": 0.6, "top": 0.65 },
+    { "part": "slab", "kind": "box", "minX": -1.05, "maxX": 1, "minZ": -0.9, "maxZ": 0.9, "top": 3.8 }
+  ] },
+  "avalon_rock_leaning_2": { "walkThrough": false, "solid": [
+    { "part": "chunk", "kind": "circle", "x": -0.85, "z": 0.3, "radius": 0.55, "blockerRadius": 0.6, "top": 0.54 },
+    { "part": "slab", "kind": "circle", "x": 0, "z": -0.1, "radius": 1.35, "blockerRadius": 1.4, "top": 2.19 }
+  ] },
+  "avalon_rock_overhang": { "walkThrough": false, "solid": [
+    { "part": "base_e", "kind": "circle", "x": 1.5, "z": 0.3, "radius": 1.6, "blockerRadius": 1.7, "top": 3.4 },
+    { "part": "base_n", "kind": "circle", "x": -0.05, "z": -0.8, "radius": 1.5, "blockerRadius": 1.6, "top": 4.52 },
+    { "part": "base_w", "kind": "circle", "x": -1.4, "z": 0.65, "radius": 1.75, "blockerRadius": 1.85, "top": 3.63 }
+  ] },
+  "avalon_ruin_pillar_1": { "walkThrough": false, "solid": [
+    { "part": "pillar", "kind": "box", "minX": -0.65, "maxX": 0.65, "minZ": -0.65, "maxZ": 0.65, "top": 1.97 }
+  ] },
+  "avalon_ruin_pillar_2": { "walkThrough": false, "solid": [
+    { "part": "pillar", "kind": "box", "minX": -0.65, "maxX": 0.65, "minZ": -0.65, "maxZ": 0.65, "top": 0.75 }
+  ] },
+  "avalon_ruin_wall_1": { "walkThrough": false, "solid": [
+    { "part": "wall", "kind": "box", "minX": -1.2, "maxX": 1.2, "minZ": -0.4, "maxZ": 0.4, "top": 1.64 }
+  ] },
+  "avalon_ruin_wall_2": { "walkThrough": false, "solid": [
+    { "part": "wall", "kind": "box", "minX": -2.1, "maxX": 2.1, "minZ": -0.4, "maxZ": 0.4, "top": 2.49 }
+  ] },
+  "avalon_ruin_wall_3": { "walkThrough": false, "solid": [
+    { "part": "wall", "kind": "box", "minX": -3, "maxX": 3, "minZ": -0.4, "maxZ": 0.4, "top": 2.04 }
+  ] }
+}

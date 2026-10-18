@@ -9,7 +9,8 @@ namespace Avalon.ChunkGen;
 /// its own ChunkLayoutNavmeshBuilder, each set piece with its members at their cells and the town with its four squares
 /// together; only when all of that passes are the files copied into Maps/Chunks, and each town square's decor file
 /// into Maps/Decor (which the seeder never reads). Any failure before that exits 1 and writes nothing to Maps/.
-/// "kit-bounds" measures the art kit's glTF files into Kit/kit-bounds.json (KitBounds).
+/// "kit-bounds" measures the art kit's glTF files into Kit/kit-bounds.json (KitBounds), and copies the custom forest
+/// models' footprints into Kit/forest-footprints.json (ForestFootprints).
 /// </summary>
 public static class ChunkGenCli
 {
@@ -155,13 +156,16 @@ public static class ChunkGenCli
 
     /// <summary>
     /// Measures every *.gltf directly in the kit directory and in each optional one (the custom props, the props kit, the
-    /// nature kit, the custom forest models), and rewrites Kit/kit-bounds.json. A name found in two of them, an empty
-    /// directory or a file that cannot be measured exits 1 and leaves the table as it was.
+    /// nature kit, the custom forest models), and rewrites Kit/kit-bounds.json; with the custom forest models, also
+    /// copies their footprints.json into Kit/forest-footprints.json. A name found in two of them, an empty directory, a
+    /// file that cannot be measured or a footprints file that does not match its models exits 1 and leaves both tables as
+    /// they were.
     /// </summary>
     private static async Task<int> WriteKitBoundsAsync(IReadOnlyDictionary<string, string> options, TextWriter output, TextWriter error)
     {
         string path;
         string json;
+        string? footprints;
         int count;
         try
         {
@@ -181,6 +185,7 @@ public static class ChunkGenCli
             }
             json = KitBounds.Write(table);
             count = table.Count;
+            footprints = options.TryGetValue("--forest-props", out string? forestProps) ? FootprintsOf(forestProps) : null;
         }
         catch (Exception ex)
         {
@@ -188,9 +193,11 @@ public static class ChunkGenCli
             return 1;
         }
 
+        string footprintsPath = Path.Combine(Path.GetDirectoryName(path)!, "forest-footprints.json");
         try
         {
             await File.WriteAllTextAsync(path, json);
+            if (footprints is not null) await File.WriteAllTextAsync(footprintsPath, footprints);
         }
         catch (Exception ex)
         {
@@ -199,7 +206,24 @@ public static class ChunkGenCli
         }
 
         await output.WriteLineAsync($"measured {count} models into {path}");
+        if (footprints is not null) await output.WriteLineAsync($"copied the forest props' footprints into {footprintsPath}");
         return 0;
+    }
+
+    /// <summary>
+    /// The custom forest models' footprints (ForestFootprints), read from the art's footprints.json beside their glTF
+    /// files and written as committed. A file missing, a model without a footprint or a footprint without a model is refused.
+    /// </summary>
+    private static string FootprintsOf(string directory)
+    {
+        string file = Path.Combine(Path.GetFullPath(directory), ForestFootprints.ArtFile);
+        if (!File.Exists(file)) throw new InvalidOperationException($"no {ForestFootprints.ArtFile} in {directory}");
+        IReadOnlyDictionary<string, IReadOnlyList<FootprintPart>> footprints = ForestFootprints.Read(File.ReadAllText(file));
+        string[] models = [.. Directory.EnumerateFiles(Path.GetFullPath(directory), "*.gltf").Select(Path.GetFileNameWithoutExtension).OfType<string>()];
+        string[] unmatched = [.. models.Except(footprints.Keys).Concat(footprints.Keys.Except(models)).Order(StringComparer.Ordinal)];
+        if (unmatched.Length > 0)
+            throw new InvalidOperationException($"{file} and the models beside it disagree on: {string.Join(", ", unmatched)}");
+        return ForestFootprints.Write(footprints);
     }
 
     /// <summary>
