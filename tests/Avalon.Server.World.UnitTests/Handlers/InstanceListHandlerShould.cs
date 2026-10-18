@@ -26,7 +26,8 @@ public class InstanceListHandlerShould
     /// #1104: the portal's menu lists the character's own live instances of the forest and its party's, each with its
     /// kind, whether someone is inside, the time left before an empty one expires (Game:AbandonedInstanceLifetimeMinutes,
     /// here 20, once entered; the fixed 15 minutes while nobody has entered it) and the one a plain entry takes: the
-    /// default first, then the party's, then the private ones, each in use first and then by most time left.
+    /// default first, then the party's, then the private ones, each in use first and then by most time left (the
+    /// instance id breaks a tie, which none of these needs).
     /// </summary>
     [Fact]
     public void List_the_character_s_and_its_party_s_instances_with_kind_timer_and_default()
@@ -45,18 +46,23 @@ public class InstanceListHandlerShould
         MapInstance partyDefault = menu.Forest(ownerPartyId: party); // the leader's newest, built, never entered
         MapInstance partyOccupied = menu.Forest(ownerPartyId: party);
         partyOccupied.AddCharacter(menu.Parties.Online(10).Connection);
+        MapInstance partyEmpty = menu.Forest(ownerPartyId: party); // an older one of the party's, never entered
         MapInstance privateOccupied = menu.Forest(ownerCharacterId: kaela.Id);
         privateOccupied.AddCharacter(menu.Parties.Online(11).Connection);
         MapInstance opened = menu.Forest(ownerCharacterId: kaela.Id); // built, never entered
 
-        // Scrambled, so the answer's order is the handler's: each key apart from the others, a default that is empty
-        // ahead of a party instance in use, and a party instance ahead of a private one in use.
+        // Scrambled, so the answer's order is the handler's. Each key is pinned against the next: the empty default
+        // ahead of a party instance in use (default before in use), an empty party instance ahead of a private one in
+        // use (party before in use), a private one in use ahead of an empty one (in use before time left), and 16
+        // minutes ahead of 15 (most time left first).
         menu.Lists(kaela.Id, party, new InstanceChoice(opened, InstanceKind.Private, false),
             new InstanceChoice(privateOccupied, InstanceKind.Private, false),
             new InstanceChoice(partyOccupied, InstanceKind.Party, false),
             new InstanceChoice(left, InstanceKind.Private, false),
+            new InstanceChoice(partyEmpty, InstanceKind.Party, false),
             new InstanceChoice(partyDefault, InstanceKind.Party, true));
         menu.Lists(borin.Id, party, new InstanceChoice(partyOccupied, InstanceKind.Party, false),
+            new InstanceChoice(partyEmpty, InstanceKind.Party, false),
             new InstanceChoice(partyDefault, InstanceKind.Party, true));
 
         menu.Request(kaela);
@@ -70,6 +76,7 @@ public class InstanceListHandlerShould
         [
             (partyDefault.InstanceId, InstanceKind.Party, false, fifteen, true),
             (partyOccupied.InstanceId, InstanceKind.Party, true, 0u, false),
+            (partyEmpty.InstanceId, InstanceKind.Party, false, fifteen, false),
             (privateOccupied.InstanceId, InstanceKind.Private, true, 0u, false),
             (left.InstanceId, InstanceKind.Private, false, (uint)TimeSpan.FromMinutes(16).TotalMilliseconds, false),
             (opened.InstanceId, InstanceKind.Private, false, fifteen, false),
@@ -77,7 +84,7 @@ public class InstanceListHandlerShould
 
         SInstanceListPacket toBorin = Assert.Single(menu.Answers(borin));
         Assert.Equal((true, false), (toBorin.InParty, toBorin.IsLeader));
-        Assert.Equal([partyDefault.InstanceId, partyOccupied.InstanceId],
+        Assert.Equal([partyDefault.InstanceId, partyOccupied.InstanceId, partyEmpty.InstanceId],
             toBorin.Instances.ConvertAll(e => e.InstanceId));
     }
 
