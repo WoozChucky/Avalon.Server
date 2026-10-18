@@ -427,7 +427,8 @@ part or exit:
   where a player walks;
 - a blocker with no solid part within it: no invisible wall;
 - an exit with no 2.8 m strip ending on its side's midpoint and running straight in, a strip that breaks off before
-  the hub (each segment must start 0.2 m back from the last one's end, within 0.01 m), a segment at another scale,
+  the hub (each segment must start 0.2 m back over the last one's end along its own direction, within 0.01 m, so a
+  start ahead of the end or beside it is refused), a segment at another scale,
   outside the frame or on no exit's path, and anything but one hub;
 - a segment that bends more than 6 degrees from the one before it, or lies at its height; two segments that overlap at
   one height outside the hub (two paths' strips drawn over each other would z-fight);

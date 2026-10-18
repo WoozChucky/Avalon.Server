@@ -135,6 +135,7 @@ public class ForestPiecesShould
     [InlineData("a wider strip", "would not be 2.8 m wide")]
     [InlineData("a fern in a throat", "hide the way out")]
     [InlineData("a sharp bend", "more than 6: the strip would open a gap")]
+    [InlineData("a gap before a segment", "does not start 0.2 m back over the end of the segment before it")]
     [InlineData("two strips at one height", "overlap at one height outside the hub")]
     [InlineData("tall cover on open floor", "walk-through cover there stays under 1.2 m")]
     public void Refuse_decor_that_breaks_a_forest_decor_rule(string broken, string refusal)
@@ -169,12 +170,22 @@ public class ForestPiecesShould
                 break;
             case "a sharp bend":
             {
-                // The north path's second segment turned 20 degrees about its start, which still overlaps the first's end.
+                // The north path's second segment turned 20 degrees, still starting the overlap back over the first's
+                // end at (15, 28) along its new direction, so it links and only its bend is wrong.
                 int second = decor.FindIndex(d => d.Model == ForestPaths.Segment && MathF.Abs(d.X - 15f) < 0.3f && MathF.Abs(d.Z - 27.2f) < 0.1f);
-                DecorItem old = decor[second];
-                (float startX, float startZ) = (old.X - Forward(old.Yaw).X, old.Z - Forward(old.Yaw).Z);
-                int yaw = (old.Yaw + 20) % 360;
-                decor[second] = old with { X = startX + Forward(yaw).X, Z = startZ + Forward(yaw).Z, Yaw = yaw };
+                int yaw = (decor[second].Yaw + 20) % 360;
+                (float fx, float fz) = Forward(yaw);
+                (float startX, float startZ) = (15f - fx * ForestPaths.Overlap, 28f - fz * ForestPaths.Overlap);
+                decor[second] = decor[second] with { X = startX + fx, Z = startZ + fz, Yaw = yaw };
+                break;
+            }
+            case "a gap before a segment":
+            {
+                // The north path's second segment moved twice the overlap along its way: it starts that far ahead of the
+                // first's end instead of back over it, which a distance alone would not tell apart.
+                int second = decor.FindIndex(d => d.Model == ForestPaths.Segment && MathF.Abs(d.X - 15f) < 0.3f && MathF.Abs(d.Z - 27.2f) < 0.1f);
+                (float fx, float fz) = Forward(decor[second].Yaw);
+                decor[second] = decor[second] with { X = decor[second].X + fx * 2f * ForestPaths.Overlap, Z = decor[second].Z + fz * 2f * ForestPaths.Overlap };
                 break;
             }
             case "two strips at one height":

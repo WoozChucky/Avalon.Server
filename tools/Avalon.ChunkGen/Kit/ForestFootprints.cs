@@ -117,9 +117,17 @@ public static class ForestFootprints
             CirclePart c => c.Radius > 0f && c.BlockerRadius >= c.Radius,
             _ => false,
         };
-        if (!shaped || top <= 0f) throw new InvalidDataException($"part {name} is empty or inverted: {read}");
+        if (!shaped || top <= 0f) throw new InvalidDataException($"part {name} is empty or inverted: {Describe(read)}");
         return read;
     }
+
+    /// <summary>A part's numbers in the invariant culture, for a refusal.</summary>
+    private static string Describe(FootprintPart part) => part switch
+    {
+        BoxPart b => $"box x {F(b.MinX)}..{F(b.MaxX)}, z {F(b.MinZ)}..{F(b.MaxZ)}, top {F(b.Top)}",
+        CirclePart c => $"circle at ({F(c.X)}, {F(c.Z)}), radius {F(c.Radius)}, blockerRadius {F(c.BlockerRadius)}, top {F(c.Top)}",
+        _ => part.Part,
+    };
 
     private static float Number(JsonElement part, string name)
     {

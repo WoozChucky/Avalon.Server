@@ -183,7 +183,7 @@ public static class ForestDecorRules
         {
             DecorItem? first = segments.FirstOrDefault(s =>
                 (Yaw.Normal(s.Yaw) == exit.InwardYaw || Yaw.Normal(s.Yaw + 180) == exit.InwardYaw)
-                && (Meets(ForestPaths.Ends(s).A, exit.X, exit.Z, 0f) || Meets(ForestPaths.Ends(s).B, exit.X, exit.Z, 0f)));
+                && (Near(ForestPaths.Ends(s).A, exit.X, exit.Z) || Near(ForestPaths.Ends(s).B, exit.X, exit.Z)));
             if (first is null)
             {
                 throw new InvalidOperationException(
@@ -192,21 +192,25 @@ public static class ForestDecorRules
             }
 
             DecorItem current = first;
-            bool forward = Meets(ForestPaths.Ends(first).A, exit.X, exit.Z, 0f);
+            bool forward = Near(ForestPaths.Ends(first).A, exit.X, exit.Z);
             (float X, float Z) end = forward ? ForestPaths.Ends(first).B : ForestPaths.Ends(first).A;
             reached.Add(current);
             while (ForestPaths.Distance(end.X, end.Z, hub.X, hub.Z) > ForestPaths.HubReach + PathTolerance)
             {
                 (float X, float Z) at = end;
-                DecorItem? next = segments.FirstOrDefault(s => !reached.Contains(s)
-                    && (Meets(ForestPaths.Ends(s).A, at.X, at.Z, ForestPaths.Overlap) || Meets(ForestPaths.Ends(s).B, at.X, at.Z, ForestPaths.Overlap)));
+                DecorItem? next = segments.FirstOrDefault(s => !reached.Contains(s) && (StartsBack(s, true, at) || StartsBack(s, false, at)));
                 if (next is null)
                 {
-                    throw new InvalidOperationException(
-                        $"{frame.Name}: the path from the {exit.Side} exit breaks off at ({ForestText.N(at.X)}, {ForestText.N(at.Z)}) before the hub");
+                    DecorItem? near = segments.FirstOrDefault(s => !reached.Contains(s)
+                        && (ForestPaths.Distance(ForestPaths.Ends(s).A.X, ForestPaths.Ends(s).A.Z, at.X, at.Z) <= 2f * ForestPaths.Overlap + PathTolerance
+                            || ForestPaths.Distance(ForestPaths.Ends(s).B.X, ForestPaths.Ends(s).B.Z, at.X, at.Z) <= 2f * ForestPaths.Overlap + PathTolerance));
+                    throw new InvalidOperationException(near is not null
+                        ? $"{What(frame, near)} does not start {ForestText.N(ForestPaths.Overlap)} m back over the end of the segment before it, at " +
+                          $"({ForestText.N(at.X)}, {ForestText.N(at.Z)}): the strip would show a gap or a step"
+                        : $"{frame.Name}: the path from the {exit.Side} exit breaks off at ({ForestText.N(at.X)}, {ForestText.N(at.Z)}) before the hub");
                 }
 
-                bool nextForward = Meets(ForestPaths.Ends(next).A, at.X, at.Z, ForestPaths.Overlap);
+                bool nextForward = StartsBack(next, true, at);
                 int bend = Math.Abs(Yaw.Normal(Travel(next, nextForward) - Travel(current, forward)));
                 if (Math.Min(bend, 360 - bend) > ForestPaths.MaxBend)
                 {
@@ -227,46 +231,104 @@ public static class ForestDecorRules
         if (stray is not null) throw new InvalidOperationException($"{What(frame, stray)} is a path segment on no exit's path");
     }
 
-    /// <summary>Whether a segment's end lies <paramref name="back" /> from (x, z), within <see cref="PathTolerance" />.</summary>
-    private static bool Meets((float X, float Z) end, float x, float z, float back) =>
-        MathF.Abs(ForestPaths.Distance(end.X, end.Z, x, z) - back) <= PathTolerance;
+    /// <summary>Whether a segment's end lies on (x, z), within <see cref="PathTolerance" />.</summary>
+    private static bool Near((float X, float Z) end, float x, float z) => ForestPaths.Distance(end.X, end.Z, x, z) <= PathTolerance;
+
+    /// <summary>
+    /// Whether the segment, walked from its A end (<paramref name="fromA" />) or its B end, starts exactly
+    /// <see cref="ForestPaths.Overlap" /> back over the last segment's end <paramref name="at" />, along its own direction
+    /// of travel: its start equals at − Forward(travel) × Overlap within <see cref="PathTolerance" />, so a start ahead of
+    /// the end (a gap) or beside it (a step) does not link.
+    /// </summary>
+    private static bool StartsBack(DecorItem segment, bool fromA, (float X, float Z) at)
+    {
+        ((float X, float Z) a, (float X, float Z) b) = ForestPaths.Ends(segment);
+        (float X, float Z) start = fromA ? a : b;
+        (float fx, float fz) = Yaw.Forward(Travel(segment, fromA));
+        return Near(start, at.X - fx * ForestPaths.Overlap, at.Z - fz * ForestPaths.Overlap);
+    }
 
     /// <summary>The yaw a segment is walked along: its own from its A end, the reverse from its B end.</summary>
     private static int Travel(DecorItem segment, bool fromA) => fromA ? segment.Yaw : segment.Yaw + 180;
 
     /// <summary>
     /// No two segments at one height overlap outside the hub (whose top is above every strip): consecutive segments of a
-    /// path differ in height by construction (checked above), so this catches strips of two paths, or of one path
-    /// folding back, drawn over each other. A segment's strip is sampled every 0.25 m along and 0.35 m across.
+    /// path differ in height (checked above), so this catches strips of two paths, or of one path folding back, drawn
+    /// over each other. Exact: each pair's strips, 2 cm inside their edges so a touch is no overlap, are clipped against
+    /// each other, and the convex overlap lies within the hub's disc only if all its corners do.
     /// </summary>
     private static void CheckOverlaps(ForestFrame frame, List<DecorItem> segments, DecorItem hub)
     {
-        const float Half = ForestPaths.SegmentLength / 2f, Across = ForestPaths.Width / 2f, Inset = 0.02f;
+        const float Reach = ForestPaths.SegmentLength / 2f + ForestPaths.Width / 2f;
         for (int i = 0; i < segments.Count; i++)
         {
             DecorItem a = segments[i];
-            (float ax, float az) = Yaw.Forward(a.Yaw);
             for (int j = i + 1; j < segments.Count; j++)
             {
                 DecorItem b = segments[j];
-                if (MathF.Abs(a.Y - b.Y) >= ForestPaths.Lift / 2f || ForestPaths.Distance(a.X, a.Z, b.X, b.Z) > 2f * (Half + Across)) continue;
-                (float bx, float bz) = Yaw.Forward(b.Yaw);
-                for (float u = -Half; u <= Half + 0.001f; u += 0.25f)
+                if (MathF.Abs(a.Y - b.Y) >= ForestPaths.Lift / 2f || ForestPaths.Distance(a.X, a.Z, b.X, b.Z) > 2f * Reach) continue;
+                List<(float X, float Z)> overlap = Clip(Strip(a), b);
+                if (Area(overlap) > 1e-4f && overlap.Any(p => ForestPaths.Distance(p.X, p.Z, hub.X, hub.Z) > ForestPaths.HubRadius + PathTolerance))
                 {
-                    for (float v = -Across; v <= Across + 0.001f; v += 0.35f)
-                    {
-                        float px = a.X + ax * u + az * v, pz = a.Z + az * u - ax * v;
-                        if (ForestPaths.Distance(px, pz, hub.X, hub.Z) <= ForestPaths.HubRadius) continue;
-                        float bu = (px - b.X) * bx + (pz - b.Z) * bz, bv = (px - b.X) * bz - (pz - b.Z) * bx;
-                        if (MathF.Abs(bu) < Half - Inset && MathF.Abs(bv) < Across - Inset)
-                        {
-                            throw new InvalidOperationException(
-                                $"{What(frame, a)} and the segment at ({ForestText.N(b.X)}, {ForestText.N(b.Z)}) overlap at one height outside the hub: they would z-fight");
-                        }
-                    }
+                    throw new InvalidOperationException(
+                        $"{What(frame, a)} and the segment at ({ForestText.N(b.X)}, {ForestText.N(b.Z)}) overlap at one height outside the hub: they would z-fight");
                 }
             }
         }
+    }
+
+    /// <summary>How far inside its edges a strip is taken for <see cref="CheckOverlaps" />.</summary>
+    private const float OverlapInset = 0.02f;
+
+    /// <summary>A segment's strip, <see cref="OverlapInset" /> inside its edges, as four corners in order round it.</summary>
+    private static List<(float X, float Z)> Strip(DecorItem segment)
+    {
+        (float fx, float fz) = Yaw.Forward(segment.Yaw);
+        float u = ForestPaths.SegmentLength / 2f - OverlapInset, v = ForestPaths.Width / 2f - OverlapInset;
+        return
+        [
+            .. new[] { (-u, -v), (u, -v), (u, v), (-u, v) }.Select(c =>
+                (segment.X + fx * c.Item1 + fz * c.Item2, segment.Z + fz * c.Item1 - fx * c.Item2)),
+        ];
+    }
+
+    /// <summary>The convex polygon clipped to the inside of the segment's strip (each of its four sides a half-plane).</summary>
+    private static List<(float X, float Z)> Clip(List<(float X, float Z)> polygon, DecorItem segment)
+    {
+        (float fx, float fz) = Yaw.Forward(segment.Yaw);
+        float u = ForestPaths.SegmentLength / 2f - OverlapInset, v = ForestPaths.Width / 2f - OverlapInset;
+        // Each side: a unit normal pointing out and the limit along it, measured from the segment's origin.
+        foreach ((float nx, float nz, float limit) in new[] { (fx, fz, u), (-fx, -fz, u), (fz, -fx, v), (-fz, fx, v) })
+        {
+            List<(float X, float Z)> kept = [];
+            for (int k = 0; k < polygon.Count; k++)
+            {
+                (float X, float Z) p = polygon[k], q = polygon[(k + 1) % polygon.Count];
+                float dp = (p.X - segment.X) * nx + (p.Z - segment.Z) * nz - limit;
+                float dq = (q.X - segment.X) * nx + (q.Z - segment.Z) * nz - limit;
+                if (dp <= 0f) kept.Add(p);
+                if ((dp < 0f && dq > 0f) || (dp > 0f && dq < 0f))
+                {
+                    float t = dp / (dp - dq);
+                    kept.Add((p.X + (q.X - p.X) * t, p.Z + (q.Z - p.Z) * t));
+                }
+            }
+            polygon = kept;
+            if (polygon.Count == 0) break;
+        }
+        return polygon;
+    }
+
+    /// <summary>A polygon's area (the shoelace formula); 0 for fewer than three corners.</summary>
+    private static float Area(List<(float X, float Z)> polygon)
+    {
+        float twice = 0f;
+        for (int k = 0; k < polygon.Count; k++)
+        {
+            (float X, float Z) p = polygon[k], q = polygon[(k + 1) % polygon.Count];
+            twice += p.X * q.Z - q.X * p.Z;
+        }
+        return MathF.Abs(twice) / 2f;
     }
 
     /// <summary>A segment's four corners: its centre line's ends, half the strip's width to either side.</summary>
