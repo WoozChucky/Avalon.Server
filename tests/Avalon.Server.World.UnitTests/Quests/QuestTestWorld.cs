@@ -106,7 +106,8 @@ internal sealed class QuestTestWorld
         PartyService? parties = null,
         List<CharacterLevelExperience>? levels = null,
         Action<List<DialogueNode>, List<DialogueOption>>? dialogue = null,
-        TestLog? log = null)
+        TestLog? log = null,
+        List<DoodadTemplate>? doodads = null)
     {
         List<QuestTemplate> rows = quests ?? Chain();
         List<DialogueNode> nodes =
@@ -136,7 +137,8 @@ internal sealed class QuestTestWorld
                 new CharacterLevelExperience { Level = 3, Experience = 1400 },
             ],
             quests: QuestRepositories.Of(() => rows),
-            scripts: scripts ?? ScriptManager()));
+            scripts: scripts ?? ScriptManager(),
+            doodads: doodads is null ? null : () => doodads));
 
         var config = new GameConfiguration();
         configure?.Invoke(config);

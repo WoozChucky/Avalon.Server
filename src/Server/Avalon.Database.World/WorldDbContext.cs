@@ -89,6 +89,7 @@ public class WorldDbContext : DbContext
     public DbSet<ProceduralMapConfig> ProceduralMapConfigs { get; set; } = null!;
     public DbSet<MapChunkPlacement> MapChunkPlacements { get; set; } = null!;
     public DbSet<MapCreatureSpawn> MapCreatureSpawns { get; set; } = null!;
+    public DbSet<MapDoodadSpawn> MapDoodadSpawns { get; set; } = null!;
     public DbSet<CreaturePath> CreaturePaths { get; set; } = null!;
     public DbSet<CreaturePathPoint> CreaturePathPoints { get; set; } = null!;
     public DbSet<LocalizedText> LocalizedTexts { get; set; } = null!;
@@ -147,6 +148,7 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<ProceduralMapConfig>());
         Configure(modelBuilder.Entity<MapChunkPlacement>());
         Configure(modelBuilder.Entity<MapCreatureSpawn>());
+        Configure(modelBuilder.Entity<MapDoodadSpawn>());
         Configure(modelBuilder.Entity<CreaturePath>());
         Configure(modelBuilder.Entity<CreaturePathPoint>());
         Configure(modelBuilder.Entity<LocalizedText>());
@@ -766,6 +768,23 @@ public class WorldDbContext : DbContext
                 RewardExperience = 1500,
                 RewardMoney = 1000,
             });
+
+        // "The Lost Caravan" (doodads S3): Marta's sequel to quest 6, the strongbox, the notice board, then Marta again.
+        // Its use-doodad objectives name doodad templates 5 and 6. Numbers are first drafts for the balance tool.
+        builder.HasData(
+            new QuestTemplate
+            {
+                Id = 9,
+                TitleTextId = 67,
+                DescriptionTextId = 68,
+                CompletionTextId = 69,
+                GiverCreatureId = 11,
+                EnderCreatureId = 11,
+                LevelRequirement = 4,
+                RequiredQuestId = 6,
+                RewardExperience = 600,
+                RewardMoney = 350,
+            });
     }
 
     private static void Configure(EntityTypeBuilder<QuestStage> builder)
@@ -791,19 +810,25 @@ public class WorldDbContext : DbContext
             new QuestStage { QuestId = 7, Sequence = 0 },
             new QuestStage { QuestId = 8, Sequence = 0, DescriptionTextId = 65 },
             new QuestStage { QuestId = 8, Sequence = 1, DescriptionTextId = 66 });
+
+        builder.HasData(
+            new QuestStage { QuestId = 9, Sequence = 0, DescriptionTextId = 72 },
+            new QuestStage { QuestId = 9, Sequence = 1, DescriptionTextId = 73 },
+            new QuestStage { QuestId = 9, Sequence = 2, DescriptionTextId = 74 });
     }
 
     private static void Configure(EntityTypeBuilder<QuestObjective> builder)
     {
-        // The target per type (#433). Type is stored as its number: Kill 1, Collect 2, Talk 3, Scripted 4.
+        // The target per type (#433). Type is stored as its number: Kill 1, Collect 2, Talk 3, Scripted 4, UseDoodad 5.
         // Written to read the same on Postgres and on the SQLite the tests build the model on.
         builder.ToTable("QuestObjectives", t =>
         {
             t.HasCheckConstraint("CK_QuestObjectives_TargetFitsType",
-                "(\"Type\" = 1 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL)" +
-                " OR (\"Type\" = 2 AND \"ItemTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL)" +
-                " OR (\"Type\" = 3 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL)" +
-                " OR (\"Type\" = 4 AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL)");
+                "(\"Type\" = 1 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 2 AND \"ItemTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 3 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 4 AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL)" +
+                " OR (\"Type\" = 5 AND \"DoodadTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL)");
             t.HasCheckConstraint("CK_QuestObjectives_CountPositive", "\"Count\" >= 1");
         });
         builder.HasKey(b => b.Id);
@@ -825,6 +850,11 @@ public class WorldDbContext : DbContext
             .HasConversion(v => v!.Value, v => new ItemTemplateId(v))
             .IsRequired(false);
         builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(b => b.ItemTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(b => b.DoodadTemplateId)
+            .HasConversion(v => v!.Value, v => new DoodadTemplateId(v))
+            .IsRequired(false);
+        builder.HasOne<DoodadTemplate>().WithMany().HasForeignKey(b => b.DoodadTemplateId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(b => b.Drops).WithOne().HasForeignKey(d => d.ObjectiveId).OnDelete(DeleteBehavior.Cascade);
 
@@ -850,6 +880,13 @@ public class WorldDbContext : DbContext
             new QuestObjective { Id = 801, QuestId = 8, StageSequence = 0, Type = QuestObjectiveType.Talk, CreatureTemplateId = 12, Count = 1, DescriptionTextId = 62 },
             new QuestObjective { Id = 802, QuestId = 8, StageSequence = 1, Type = QuestObjectiveType.Kill, CreatureTemplateId = 8, Count = 2, DescriptionTextId = 63 },
             new QuestObjective { Id = 803, QuestId = 8, StageSequence = 1, Type = QuestObjectiveType.Collect, ItemTemplateId = 63, Count = 1, DescriptionTextId = 64 });
+
+        // "The Lost Caravan": doodads 5 Caravan Strongbox and 6 Notice Board, then Marta (11), whose talk objective reuses
+        // text 38 ("Speak with Marta Ledgerwell").
+        builder.HasData(
+            new QuestObjective { Id = 901, QuestId = 9, StageSequence = 0, Type = QuestObjectiveType.UseDoodad, DoodadTemplateId = 5, Count = 1, DescriptionTextId = 70 },
+            new QuestObjective { Id = 902, QuestId = 9, StageSequence = 1, Type = QuestObjectiveType.UseDoodad, DoodadTemplateId = 6, Count = 1, DescriptionTextId = 71 },
+            new QuestObjective { Id = 903, QuestId = 9, StageSequence = 2, Type = QuestObjectiveType.Talk, CreatureTemplateId = 11, Count = 1, DescriptionTextId = 38 });
     }
 
     private static void Configure(EntityTypeBuilder<QuestItemReward> builder)
@@ -869,6 +906,8 @@ public class WorldDbContext : DbContext
             new QuestItemReward { QuestId = 6, ItemTemplateId = 56, Count = 2 },   // Greater Health Potions
             new QuestItemReward { QuestId = 7, ItemTemplateId = 64, Count = 1 },   // Heartwood Band
             new QuestItemReward { QuestId = 8, ItemTemplateId = 65, Count = 1 });  // Thornheart Signet
+
+        builder.HasData(new QuestItemReward { QuestId = 9, ItemTemplateId = 56, Count = 2 });   // Greater Health Potions
     }
 
     private static void Configure(EntityTypeBuilder<QuestItemDrop> builder)
@@ -2215,6 +2254,58 @@ public class WorldDbContext : DbContext
             });
     }
 
+    /// <summary>
+    /// A map's fixed doodads (doodads S3), offsets from the entry spawn like MapCreatureSpawns. The template is a foreign
+    /// key (deleting a placed template is refused); the gate quest and objective ids are plain columns, which the world
+    /// checks against its quests at placement. Each gate's quest and condition are both set or both null, and the yaw is
+    /// 0 to 360 (an upper bound refuses NaN too, which Postgres sorts above every number).
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<MapDoodadSpawn> builder)
+    {
+        builder.ToTable("MapDoodadSpawns", t =>
+        {
+            t.HasCheckConstraint("CK_MapDoodadSpawns_OffsetX", SignedFinite("OffsetX"));
+            t.HasCheckConstraint("CK_MapDoodadSpawns_OffsetY", SignedFinite("OffsetY"));
+            t.HasCheckConstraint("CK_MapDoodadSpawns_OffsetZ", SignedFinite("OffsetZ"));
+            t.HasCheckConstraint("CK_MapDoodadSpawns_Yaw", "\"Yaw\" >= 0 AND \"Yaw\" < 360");
+            t.HasCheckConstraint("CK_MapDoodadSpawns_VisibleGate",
+                "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");
+            t.HasCheckConstraint("CK_MapDoodadSpawns_UsableGate",
+                "(\"UsableQuestId\" IS NULL) = (\"UsableCondition\" IS NULL)");
+        });
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new MapDoodadSpawnId(v))
+            .IsRequired()
+            .ValueGeneratedOnAdd();
+
+        builder.Property(b => b.MapTemplateId)
+            .HasConversion(v => v.Value, v => new MapTemplateId(v))
+            .IsRequired();
+        builder.Property(b => b.DoodadTemplateId)
+            .HasConversion(v => v.Value, v => new DoodadTemplateId(v))
+            .IsRequired();
+        builder.HasOne<DoodadTemplate>().WithMany().HasForeignKey(b => b.DoodadTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        // Placement reads every row for one map at instance-build time.
+        builder.HasIndex(b => b.MapTemplateId);
+
+        // Glimmerdell's notice board (quest 9's objective 902), doodad 6, at world (9, 0, 24) facing yaw 90: the entry
+        // spawn is (15, 0, 15) and the arrival square town_sw_01 stands at grid (0, 0) unturned, so the board's spot in
+        // TownPieces (local 9, 24) is this offset from the entry (TownDoodadSpawnsShould). No gate: the template's usable
+        // gate stands, and everyone sees it.
+        builder.HasData(new MapDoodadSpawn
+        {
+            Id = 1,
+            MapTemplateId = 1,
+            DoodadTemplateId = 6,
+            OffsetX = -6f,
+            OffsetY = 0f,
+            OffsetZ = 9f,
+            Yaw = 90f,
+        });
+    }
+
     private static void Configure(EntityTypeBuilder<CreaturePath> builder)
     {
         builder.ToTable("CreaturePaths");
@@ -2294,6 +2385,7 @@ public class WorldDbContext : DbContext
 
         SeedForestStorylineTexts(builder);
         SeedForestChainTexts(builder);
+        SeedLostCaravanTexts(builder);
     }
 
     /// <summary>The forest storyline (#433): three quests' titles, descriptions, completion lines, objectives and stages.</summary>
@@ -2354,6 +2446,23 @@ public class WorldDbContext : DbContext
             new LocalizedText { Id = 66, Text = "Break the Bramblemaw Alphas' hold and cut out the Bramble Heart." });
     }
 
+    /// <summary>
+    /// Quest 9, "The Lost Caravan" (doodads S3): its title, description, completion line, two use-doodad objectives and
+    /// three stage lines. Its talk objective reuses text 38 ("Speak with Marta Ledgerwell").
+    /// </summary>
+    private static void SeedLostCaravanTexts(EntityTypeBuilder<LocalizedText> builder)
+    {
+        builder.HasData(
+            new LocalizedText { Id = 67, Text = "The Lost Caravan" },
+            new LocalizedText { Id = 68, Text = "Those pages were the last of the caravan's accounts, {name}. Somewhere in the wold its strongbox still lies where the wagons fell. Find it and open it, and tell me what it holds." },
+            new LocalizedText { Id = 69, Text = "So that is how it ended. Thank you, {name}. Now the town knows, and I can stop waiting for wagons that will never come." },
+            new LocalizedText { Id = 70, Text = "Caravan strongbox opened" },
+            new LocalizedText { Id = 71, Text = "The caravan's fate posted" },
+            new LocalizedText { Id = 72, Text = "Find the caravan's strongbox in the forest." },
+            new LocalizedText { Id = 73, Text = "Pin the caravan's fate to the notice board in Glimmerdell." },
+            new LocalizedText { Id = 74, Text = "Tell Marta what you found." });
+    }
+
     private static void Configure(EntityTypeBuilder<LocalizedTextLocale> builder)
     {
         builder.ToTable("LocalizedTextLocales");
@@ -2404,6 +2513,7 @@ public class WorldDbContext : DbContext
 
         SeedForestStorylineTranslations(builder);
         SeedForestChainTranslations(builder);
+        SeedLostCaravanTranslations(builder);
     }
 
     /// <summary>
@@ -2464,6 +2574,23 @@ public class WorldDbContext : DbContext
             new LocalizedTextLocale { TextId = 64, Locale = AccountLocale.ptPT, Text = "Coração de Bramble obtido" },
             new LocalizedTextLocale { TextId = 65, Locale = AccountLocale.ptPT, Text = "Pergunta ao Garrick como enfrentar os espinhos." },
             new LocalizedTextLocale { TextId = 66, Locale = AccountLocale.ptPT, Text = "Quebra o domínio dos Bramblemaw Alphas e arranca o Coração de Bramble." });
+    }
+
+    /// <summary>
+    /// Quest 9, "The Lost Caravan" (doodads S3), in ptPT. Marta speaks the completion line, so its thanks agree with her
+    /// (feminine). A draft: needs native-speaker review before deploying, like the rows above.
+    /// </summary>
+    private static void SeedLostCaravanTranslations(EntityTypeBuilder<LocalizedTextLocale> builder)
+    {
+        builder.HasData(
+            new LocalizedTextLocale { TextId = 67, Locale = AccountLocale.ptPT, Text = "A Caravana Perdida" },
+            new LocalizedTextLocale { TextId = 68, Locale = AccountLocale.ptPT, Text = "Aquelas páginas eram as últimas contas da caravana, {name}. Algures na mata, o cofre dela ainda jaz onde as carroças tombaram. Encontra-o, abre-o e conta-me o que guarda." },
+            new LocalizedTextLocale { TextId = 69, Locale = AccountLocale.ptPT, Text = "Então foi assim que acabou. Obrigada, {name}. Agora a vila sabe, e eu posso deixar de esperar por carroças que nunca hão de chegar." },
+            new LocalizedTextLocale { TextId = 70, Locale = AccountLocale.ptPT, Text = "Cofre da caravana aberto" },
+            new LocalizedTextLocale { TextId = 71, Locale = AccountLocale.ptPT, Text = "Destino da caravana afixado" },
+            new LocalizedTextLocale { TextId = 72, Locale = AccountLocale.ptPT, Text = "Encontra o cofre da caravana na floresta." },
+            new LocalizedTextLocale { TextId = 73, Locale = AccountLocale.ptPT, Text = "Afixa o destino da caravana no quadro de avisos de Glimmerdell." },
+            new LocalizedTextLocale { TextId = 74, Locale = AccountLocale.ptPT, Text = "Conta à Marta o que encontraste." });
     }
 
     private static void Configure(EntityTypeBuilder<DialogueNode> builder)
@@ -3296,7 +3423,45 @@ public class WorldDbContext : DbContext
                 radius: 10f, box: (0.8f, 0.8f, 2.2f)),
             ForestDoodad(4, "Mossy Fountain", "town-kit", "avalon_forest_fountain", "avalon_forest_fountain_dry", 2000,
                 "FountainDoodadScript", radius: 10f, restorePct: 50, box: (1.05f, 1.05f, 1.8f)));
+
+        // "The Lost Caravan" (quest 9, doodads S3): its use-doodad objects, walk-through, never spent and without a script,
+        // since a use only credits the quest. The strongbox, placed by the forest's required rule, is seen only by a player
+        // on objective 901. The notice board, for Glimmerdell's fixed doodad spawns, is seen by everyone and usable only on
+        // objective 902.
+        // Each used model belongs in its own template's kit folder: the strongbox is a props-kit Crate_Metal.
+        builder.HasData(
+            CaravanDoodad(5, "Caravan Strongbox", "props-kit", "Crate_Metal", "avalon_strongbox_open", 1500,
+                visible: (9, 901)),
+            CaravanDoodad(6, "Notice Board", "town-kit", "avalon_notice_board", "avalon_notice_board_pinned", 0,
+                usable: (9, 902)));
     }
+
+    /// <summary>
+    /// A quest doodad row: clicked, 5 m to use, by every player for themselves (Unlimited), never respawning, walk-through
+    /// and without a script, gated on a quest objective (OnObjective) for visibility or for use.
+    /// </summary>
+    private static DoodadTemplate CaravanDoodad(uint id, string name, string kit, string model, string usedModel,
+        uint timeMs, (uint Quest, uint Objective)? visible = null, (uint Quest, uint Objective)? usable = null) => new()
+        {
+            Id = id,
+            Name = name,
+            ModelKit = kit,
+            ModelKey = model,
+            UsedModelKey = usedModel,
+            Interaction = DoodadInteraction.Click,
+            InteractionTimeMs = timeMs,
+            InteractionRange = 5f,
+            AreaRadius = 0f,
+            UseLimit = DoodadUseLimit.Unlimited,
+            SpentLook = DoodadSpentLook.ShowUsed,
+            Collision = DoodadCollision.None,
+            VisibleQuestId = visible?.Quest,
+            VisibleCondition = visible is null ? null : DoodadGateCondition.OnObjective,
+            VisibleObjectiveId = visible?.Objective,
+            UsableQuestId = usable?.Quest,
+            UsableCondition = usable is null ? null : DoodadGateCondition.OnObjective,
+            UsableObjectiveId = usable?.Objective,
+        };
 
     /// <summary>
     /// A forest doodad row: clicked, 5 m to use, once per instance, showing its used look once spent and never respawning,
@@ -3351,6 +3516,14 @@ public class WorldDbContext : DbContext
 
     /// <summary>0 or more and below Infinity, which refuses NaN too (Postgres sorts it above every number).</summary>
     private static string Finite(string column) => $"\"{column}\" >= 0 AND \"{column}\" < 'Infinity'";
+
+    /// <summary>
+    /// Finite and possibly negative, as an offset is: above -1,000,000 and below Infinity, which refuses NaN too. The lower
+    /// bound is a number, not the text '-Infinity', because SQLite (the tests) sorts every number below any text; Postgres
+    /// refuses -Infinity by it too (as AuraStatModifiers' value check).
+    /// </summary>
+    private static string SignedFinite(string column) =>
+        $"\"{column}\" > -1000000 AND \"{column}\" < 'Infinity'";
 
     private static string Percentage(string column) => $"\"{column}\" >= 0 AND \"{column}\" <= 100";
 }

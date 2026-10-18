@@ -63,6 +63,7 @@ public static class TownPieces
         {
             Gate = gate,
             Decor = square.Decor,
+            DoodadDrawn = square.DoodadDrawn,
             WallsAsDecor = true,
             Paved = true,
         };
@@ -85,7 +86,8 @@ public static class TownPieces
         s.Torch("torch 3", 20.5f, 11f);
         s.Torch("torch 4", 25.5f, 11f);
         s.Brazier("brazier", 6f, 5f);
-        s.Prop("avalon_notice_board", "Notice board", "board", 9f, 24f, 90);
+        // Drawn as a doodad (Glimmerdell's MapDoodadSpawns row 1, quest 9's objective 902), not from the decor file.
+        s.DoodadProp("avalon_notice_board", "Notice board", "board", 9f, 24f, 90);
         // A house in the south-east corner, south of the east doorway lane: south-west of every NPC is kept low, so
         // the camera sees each one over it.
         s.Building("house_a", "House A", 23.5f, 7.1f, 0);
@@ -185,6 +187,9 @@ public static class TownPieces
 
         public List<DecorItem> Decor { get; } = [];
 
+        /// <summary>The props the client draws as doodads: their boxes are in <see cref="Pieces" />, their models not in the decor file.</summary>
+        public List<DecorItem> DoodadDrawn { get; } = [];
+
         public void Building(string recipe, string name, float x, float z, int rotation)
         {
             (IReadOnlyList<TownPiece> proxies, IReadOnlyList<DecorItem> decor) = TownBuilding.Place(BuildingRecipe.Load(recipe), name, x, z, rotation);
@@ -193,12 +198,24 @@ public static class TownPieces
         }
 
         /// <summary>A model with one collision box around its turned bounds, standing at least <see cref="MinSolidTop" />.</summary>
-        public void Prop(string model, string building, string part, float x, float z, int yaw)
+        public void Prop(string model, string building, string part, float x, float z, int yaw) =>
+            Decor.Add(PropBox(model, building, part, x, z, yaw));
+
+        /// <summary>
+        /// A <see cref="Prop" /> the client draws as a doodad (a town's MapDoodadSpawns row places it, TownDoodadSpawnsShould)
+        /// rather than from the decor file: the same collision box, so the navmesh is the same, and its model in
+        /// <see cref="TownSquare.DoodadDrawn" /> instead of the decor.
+        /// </summary>
+        public void DoodadProp(string model, string building, string part, float x, float z, int yaw) =>
+            DoodadDrawn.Add(PropBox(model, building, part, x, z, yaw));
+
+        /// <summary>A prop's item, its collision box around its turned bounds added to the pieces.</summary>
+        private DecorItem PropBox(string model, string building, string part, float x, float z, int yaw)
         {
             var item = new DecorItem(building, model, x, 0f, z, yaw);
             (float minX, float maxX, _, float maxY, float minZ, float maxZ) = DecorRules.WorldBounds(item);
-            Decor.Add(item);
             Pieces.Add(new BoxPiece(building, part, Material.Collision, minX, maxX, minZ, maxZ, 0f, Math.Max(maxY, MinSolidTop)));
+            return item;
         }
 
         /// <summary>

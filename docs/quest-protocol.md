@@ -100,9 +100,9 @@ language:
 3 `Objectives` (repeated `QuestObjectiveDto`).
 
 `QuestObjectiveDto`: 1 `ObjectiveId` (uint32, unique across all quests), 2 `Kind` (`QuestObjectiveKind`:
-`Kill` 1, `Collect` 2, `Talk` 3, `Scripted` 4), 3 `TargetId` (uint64: the creature template for `Kill` and
-`Talk`, the item template for `Collect`, 0 for `Scripted`), 4 `Count` (how many are needed), 5 `Text` (e.g.
-"Thornback Boars slain").
+`Kill` 1, `Collect` 2, `Talk` 3, `Scripted` 4, `UseDoodad` 5), 3 `TargetId` (uint64: the creature template for
+`Kill` and `Talk`, the item template for `Collect`, the doodad template for `UseDoodad`, 0 for `Scripted`),
+4 `Count` (how many are needed), 5 `Text` (e.g. "Thornback Boars slain").
 
 `QuestRewardsDto`: 1 `Experience`, 2 `Money` (copper), 3 `Items` (repeated `QuestRewardItemDto`:
 1 `ItemTemplateId`, 2 `Count`). Rewards are fixed; there is no choice of reward.

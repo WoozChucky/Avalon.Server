@@ -1,5 +1,6 @@
 using Avalon.Combat;
 using Avalon.Common;
+using Avalon.Common.Accounts;
 using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
@@ -1140,7 +1141,7 @@ public class SeedIntegrityShould
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        var quests = SeededQuests(context).Where(q => q.Id.Value >= 4).ToList();
+        var quests = SeededQuests(context).Where(q => q.Id.Value is >= 4 and <= 8).ToList();
 
         Assert.Equal([4u, 5u, 6u, 7u, 8u], quests.Select(q => q.Id.Value));
         Assert.Equal([(14ul, 14ul), (13ul, 13ul), (3ul, 11ul), (2ul, 2ul), (1ul, 1ul)],
@@ -1200,10 +1201,57 @@ public class SeedIntegrityShould
 
         var catalog = new QuestCatalog(SeededQuests(context), context.CreatureTemplates.AsNoTracking().ToList(),
             context.ItemTemplates.AsNoTracking().ToList(), context.DialogueNodes.AsNoTracking().ToList(), _ => null,
-            NullLoggerFactory.Instance);
+            NullLoggerFactory.Instance, context.DoodadTemplates.AsNoTracking().ToList());
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal(8, catalog.All.Count);
+        Assert.Equal(9, catalog.All.Count);
+    }
+
+    /// <summary>
+    /// "The Lost Caravan" (doodads S3): Marta's quest after quest 6, in three stages. Open the caravan's strongbox
+    /// (doodad 5, seen only on that step), pin its fate to the notice board (doodad 6, seen by all, used only on that
+    /// step), then tell Marta. Pins the structure the doodads and the quest must agree on, not the seeded values.
+    /// </summary>
+    [Fact]
+    public void Seed_the_lost_caravan_as_designed()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        QuestTemplate quest = SeededQuests(context).Single(q => q.Id.Value == 9);
+
+        // Marta's sequel to quest 6: she gives it and takes it back.
+        Assert.Equal((uint?)6, quest.RequiredQuestId?.Value);
+        Assert.Equal(quest.GiverCreatureId, quest.EnderCreatureId);
+
+        // One objective per stage: the strongbox, the board, then a word with the giver.
+        Assert.Equal(
+            [(901u, 0, QuestObjectiveType.UseDoodad, 5ul), (902u, 1, QuestObjectiveType.UseDoodad, 6ul),
+             (903u, 2, QuestObjectiveType.Talk, quest.GiverCreatureId.Value)],
+            quest.Objectives.OrderBy(o => o.Id).Select(o => (o.Id, o.StageSequence, o.Type,
+                o.DoodadTemplateId?.Value ?? o.CreatureTemplateId!.Value)));
+        Assert.Equal([0, 1, 2], quest.Stages.Select(s => s.Sequence).Order());
+
+        // The strongbox is seen only on its step (901); the board is seen by all and used only on its step (902).
+        var doodads = context.DoodadTemplates.AsNoTracking().ToList();
+        DoodadTemplate strongbox = doodads.Single(d => d.Id.Value == 5), board = doodads.Single(d => d.Id.Value == 6);
+        Assert.Equal(((uint?)9u, (DoodadGateCondition?)DoodadGateCondition.OnObjective, (uint?)901u, (uint?)null),
+            (strongbox.VisibleQuestId, strongbox.VisibleCondition, strongbox.VisibleObjectiveId, strongbox.UsableQuestId));
+        Assert.Equal(((uint?)null, (uint?)9u, (DoodadGateCondition?)DoodadGateCondition.OnObjective, (uint?)902u),
+            (board.VisibleQuestId, board.UsableQuestId, board.UsableCondition, board.UsableObjectiveId));
+        Assert.All([strongbox, board], d => Assert.Equal(DoodadInteraction.Click, d.Interaction));
+
+        // Every text the quest names resolves in the base wording and in ptPT.
+        int[] named =
+        [
+            quest.TitleTextId.Value, quest.DescriptionTextId.Value, quest.CompletionTextId.Value,
+            .. quest.Stages.Where(s => s.DescriptionTextId is not null).Select(s => s.DescriptionTextId!.Value),
+            .. quest.Objectives.Select(o => o.DescriptionTextId.Value),
+        ];
+        var english = context.LocalizedTexts.AsNoTracking().ToList().Select(t => t.Id.Value).ToHashSet();
+        var portuguese = context.LocalizedTextLocales.AsNoTracking().ToList()
+            .Where(t => t.Locale == AccountLocale.ptPT).Select(t => t.TextId.Value).ToHashSet();
+        Assert.All(named, id => Assert.Contains(id, english));
+        Assert.All(named, id => Assert.Contains(id, portuguese));
     }
 
     [Fact]
@@ -1407,7 +1455,8 @@ public class SeedIntegrityShould
             SeededQuests(context), scripts.GetDoodadScript, NullLoggerFactory.Instance);
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal([1u, 2u, 3u, 4u], catalog.Templates.Select(t => t.Id.Value));
-        Assert.All(catalog.Templates, t => Assert.NotNull(t.ScriptType));
+        Assert.Equal([1u, 2u, 3u, 4u, 5u, 6u], catalog.Templates.Select(t => t.Id.Value));
+        // The forest set runs its scripts; the caravan's strongbox and notice board need none, as a use only credits the quest.
+        Assert.All(catalog.Templates, t => Assert.Equal(t.Id.Value <= 4, t.ScriptType is not null));
     }
 }

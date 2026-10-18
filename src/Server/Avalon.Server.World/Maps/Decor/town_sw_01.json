@@ -359,7 +359,6 @@
     { "model": "avalon_bench", "x": 19.75, "y": 0, "z": 7.5, "yaw": 270 },
     { "model": "avalon_brazier", "x": 6, "y": 0, "z": 5, "yaw": 0 },
     { "model": "avalon_fountain", "x": 15, "y": 0, "z": 7.5, "yaw": 0 },
-    { "model": "avalon_notice_board", "x": 9, "y": 0, "z": 24, "yaw": 90 },
     { "model": "avalon_torch", "x": 10.5, "y": 0, "z": 10, "yaw": 0 },
     { "model": "avalon_torch", "x": 10.5, "y": 0, "z": 20.5, "yaw": 0 },
     { "model": "avalon_torch", "x": 20.5, "y": 0, "z": 11, "yaw": 0 },

@@ -1,6 +1,8 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Quests;
@@ -40,6 +42,9 @@ public class DoodadPlacementShould
     ];
 
     private static readonly Lazy<(ChunkLayout Layout, DtNavMesh NavMesh)> s_baked = new(Bake, isThreadSafe: true);
+
+    /// <summary>A gate of the seeded quests other than the board template's: the caravan quest's first step.</summary>
+    private static readonly DoodadGate s_rowGate = new(9, DoodadGateCondition.OnObjective, 901);
 
     private static ScenarioReferenceData Reference => ScenarioReferenceData.Shared;
 
@@ -164,6 +169,72 @@ public class DoodadPlacementShould
         Assert.Equal((DoodadState.Ready, DoodadState.Used), (barrel.State, gated.State));
     }
 
+    /// <summary>
+    /// Glimmerdell's fixed spawns: the seeded notice board (MapDoodadSpawns row 1) stands at the entry spawn plus its
+    /// offset, (9, 24), facing its row's yaw, with its template's usable gate (the row sets none). Beside it, rows over the
+    /// seeded templates: a walk-through doodad authored a metre up stands on the navmesh's ground, a solid shrine keeps its
+    /// authored height, and a solid one off a quarter turn is refused, with one Warning.
+    /// </summary>
+    [Fact]
+    public async Task Place_a_town_doodad_at_its_offset_on_the_ground()
+    {
+        const uint NoticeBoard = 6, SeededShrine = 3;
+        ChunkLayout town = Reference.TownLayout;
+        var navigator = new MapNavigator(NullLoggerFactory.Instance);
+        navigator.LoadFromNavMesh(TownNavmesh.Shared);
+        using var database = SqliteDatabase.World();
+        IReadOnlyList<MapDoodadSpawn> seeded =
+            await new MapDoodadSpawnRepository(database).FindByMapAsync(ScenarioReferenceData.TownMap, CancellationToken.None);
+        IMapDoodadSpawnRepository spawns = Substitute.For<IMapDoodadSpawnRepository>();
+        spawns.FindByMapAsync(ScenarioReferenceData.TownMap, Arg.Any<CancellationToken>()).Returns(Task.FromResult<IReadOnlyList<MapDoodadSpawn>>(
+        [
+            .. seeded,
+            TownSpawn(101, NoticeBoard, 0f, 1f, 0f, 0f, usable: s_rowGate),       // at the entry, a metre up
+            TownSpawn(102, SeededShrine, -10f, 0.3f, -10f, 180f),
+            TownSpawn(103, SeededShrine, 10f, 0f, -10f, 45f),
+        ]));
+        DoodadPlacementService service = Service(out TestLog log, spawns);
+        MapInstance instance = TestMapInstances.Build(MapInstanceClients.NewWorld(Reference.Data), navigator: navigator,
+            layout: town, templateId: ScenarioReferenceData.TownMap);
+
+        await service.PlaceAsync(instance, town, DoodadPlan.Empty, ScenarioReferenceData.TownMap, CancellationToken.None);
+
+        Assert.Equal(3, instance.Doodads.Count);
+        Doodad board = instance.Doodads.All[0], lifted = instance.Doodads.All[1], shrine = instance.Doodads.All[2];
+        Assert.Equal(NoticeBoard, board.Template.Id.Value);
+        Assert.Equal((9f, 24f), (board.Position.x, board.Position.z));
+        Assert.Equal(90f, board.Orientation.y);
+        Assert.NotNull(board.UsableGate);
+        Assert.Equal(board.Template.Usable, board.UsableGate);
+
+        Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(15f, 1f, 15f), out Vector3 ground));
+        Assert.Equal(new Vector3(15f, ground.y, 15f), lifted.Position);
+        // The row's usable gate replaces the template's (9, 902), in its own column: the template has no visible gate.
+        Assert.Equal(s_rowGate, lifted.UsableGate);
+        Assert.Null(lifted.VisibleGate);
+        Assert.True(ground.y < 0.5f, $"the ground at the entry is {ground.y} m up");
+        Assert.Equal(new Vector3(5f, 0.3f, 5f), shrine.Position);
+        Assert.Equal(1, log.Entries.Count(e => e.Level >= LogLevel.Warning));
+    }
+
+    private static MapDoodadSpawn TownSpawn(int id, uint template, float x, float y, float z, float yaw,
+        DoodadGate? usable = null)
+    {
+        return new MapDoodadSpawn
+        {
+            Id = id,
+            MapTemplateId = ScenarioReferenceData.TownMap,
+            DoodadTemplateId = template,
+            OffsetX = x,
+            OffsetY = y,
+            OffsetZ = z,
+            Yaw = yaw,
+            UsableQuestId = usable?.QuestId,
+            UsableCondition = usable?.Condition,
+            UsableObjectiveId = usable?.ObjectiveId,
+        };
+    }
+
     /// <summary>The library's chunks with each one's doodad slots in reverse order, as another database load might give them.</summary>
     private static IChunkLibrary SlotsReversed(IChunkLibrary chunks)
     {
@@ -175,12 +246,13 @@ public class DoodadPlacementShould
         return reversed;
     }
 
-    private static DoodadPlacementService Service(out TestLog log)
+    /// <summary>The placement, over <paramref name="townSpawns" /> or, without them, a map with no fixed doodad spawns.</summary>
+    private static DoodadPlacementService Service(out TestLog log, IMapDoodadSpawnRepository? townSpawns = null)
     {
         log = new TestLog();
         var time = new FakeTimeProvider();
         var scripts = new DoodadScripts(new ServiceCollection().BuildServiceProvider(), time, new Logger<DoodadScripts>(log));
-        return new DoodadPlacementService(scripts, time, log);
+        return new DoodadPlacementService(scripts, time, log, townSpawns ?? FixedDoodadSpawns.None());
     }
 
     private static ProceduralMapConfig Config(params ProceduralDoodadRule[] rules) => new()

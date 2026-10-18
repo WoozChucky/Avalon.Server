@@ -50,7 +50,7 @@ public static class ForestLayouts
         // same seed plans the same boxes there: its solid doodads' boxes are baked in as the factory bakes them.
         var doodads = new DoodadPlacementService(
             new DoodadScripts(new ServiceCollection().BuildServiceProvider(), TimeProvider.System, NullLogger<DoodadScripts>.Instance),
-            TimeProvider.System, NullLoggerFactory.Instance);
+            TimeProvider.System, NullLoggerFactory.Instance, reference.DoodadSpawns);
         IReadOnlyList<DoodadObstacle> obstacles = doodads.Plan(layout, config, reference.Data.Doodads, reference.Chunks).Obstacles;
         ChunkLayout baked = obstacles.Count > 0 ? layout with { Obstacles = obstacles } : layout;
 

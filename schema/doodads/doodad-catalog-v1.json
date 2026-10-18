@@ -60,6 +60,36 @@
       "interactionRange": 5,
       "solid": true,
       "spentLook": 1
+    },
+    {
+      "id": 5,
+      "name": "Caravan Strongbox",
+      "modelKit": "props-kit",
+      "modelKey": "Crate_Metal",
+      "usedModelKey": "avalon_strongbox_open",
+      "readyClip": null,
+      "useClip": null,
+      "usedClip": null,
+      "interaction": 1,
+      "interactionTimeMs": 1500,
+      "interactionRange": 5,
+      "solid": false,
+      "spentLook": 1
+    },
+    {
+      "id": 6,
+      "name": "Notice Board",
+      "modelKit": "town-kit",
+      "modelKey": "avalon_notice_board",
+      "usedModelKey": "avalon_notice_board_pinned",
+      "readyClip": null,
+      "useClip": null,
+      "usedClip": null,
+      "interaction": 1,
+      "interactionTimeMs": 0,
+      "interactionRange": 5,
+      "solid": false,
+      "spentLook": 1
     }
   ]
 }

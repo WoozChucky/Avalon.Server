@@ -83,6 +83,7 @@ public class QuestPacketsShould
         Assert.Equal(2, (int)QuestObjectiveKind.Collect);
         Assert.Equal(3, (int)QuestObjectiveKind.Talk);
         Assert.Equal(4, (int)QuestObjectiveKind.Scripted);
+        Assert.Equal(5, (int)QuestObjectiveKind.UseDoodad);
         Assert.Equal(0, (int)QuestOfferMode.Unknown);
         Assert.Equal(1, (int)QuestOfferMode.Offer);
         Assert.Equal(2, (int)QuestOfferMode.TurnIn);

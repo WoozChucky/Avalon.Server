@@ -14,6 +14,7 @@ internal static class QuestTestData
 {
     public const ulong Giver = 701, Ender = 702, TalkTarget = 703, Boar = 704, Wolf = 705;
     public const ulong Tusk = 7101, Tonic = 7102, Charm = 7103;
+    public const uint Lever = 7501, Scenery = 7502;
     public const uint Hunt = 7201, Tusks = 7202, Howl = 7203;
     public const uint HuntKill = 72011, TusksCollect = 72021, HowlKill = 72031, HowlTalk = 72032, HowlScripted = 72033;
     public const int TitleText = 7300, ObjectiveText = 7301, StageText = 7302, BodyText = 7303, DoneText = 7304;
@@ -111,6 +112,24 @@ internal static class QuestTestData
 
     public static QuestObjective Scripted(uint id, uint count) => new()
     { Id = id, Type = QuestObjectiveType.Scripted, Count = count, DescriptionTextId = ObjectiveText };
+
+    public static QuestObjective UseDoodad(uint id, uint doodad, uint count) => new()
+    { Id = id, Type = QuestObjectiveType.UseDoodad, DoodadTemplateId = doodad, Count = count, DescriptionTextId = ObjectiveText };
+
+    /// <summary>A doodad template a UseDoodad objective may name: clicked, instant, once per instance, no script.</summary>
+    public static DoodadTemplate DoodadRow(uint id, DoodadInteraction interaction = DoodadInteraction.Click) => new()
+    {
+        Id = id,
+        Name = $"Doodad {id}",
+        ModelKit = "props-kit",
+        ModelKey = "Crate",
+        Interaction = interaction,
+        UseLimit = DoodadUseLimit.OncePerInstance,
+        SpentLook = DoodadSpentLook.ShowUsed,
+    };
+
+    /// <summary>The lever a UseDoodad objective names, and a scenery template nobody can use.</summary>
+    public static List<DoodadTemplate> QuestDoodads() => [DoodadRow(Lever), DoodadRow(Scenery, DoodadInteraction.None)];
 
     public static QuestObjective Collect(uint id, ulong item, uint count, params (ulong Creature, float Chance)[] drops)
     {

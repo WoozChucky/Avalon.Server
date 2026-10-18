@@ -113,7 +113,7 @@ public class SolidDoodadNavmeshShould
             ChunkLayoutNavmeshBuilder.ForTesting(NullLoggerFactory.Instance, chunks, Path.GetDirectoryName(TownNavmesh.ContentRoot)!),
             Substitute.For<ICreaturePlacementService>(), Substitute.For<IPortalPlacementService>(),
             new DoodadPlacementService(new DoodadScripts(new ServiceCollection().BuildServiceProvider(), TimeProvider.System,
-                NullLogger<DoodadScripts>.Instance), TimeProvider.System, NullLoggerFactory.Instance),
+                NullLogger<DoodadScripts>.Instance), TimeProvider.System, NullLoggerFactory.Instance, FixedDoodadSpawns.None()),
             services);
 
         MapInstance instance = await factory.BuildAsync(template, ownerCharacterId: 1, CancellationToken.None);

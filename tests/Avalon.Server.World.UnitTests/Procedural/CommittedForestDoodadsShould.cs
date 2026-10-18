@@ -1,9 +1,11 @@
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Doodads;
 using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -22,6 +24,7 @@ public class CommittedForestDoodadsShould
         ProceduralMapConfig config = reference.ForestConfig;
         DoodadCatalog catalog = reference.Data.Doodads;
         Assert.NotEmpty(config.DoodadRules);   // a forest with no rules would pass everything below
+        Assert.Contains(config.DoodadRules, r => r.Required);   // nor would one with no required rule
         Assert.All(config.DoodadRules, rule => Assert.True(catalog.TryGet(rule.DoodadTemplateId, out _),
             $"doodad rule {rule.Sequence} names template {rule.DoodadTemplateId.Value}, which the catalog does not hold"));
 
@@ -31,7 +34,7 @@ public class CommittedForestDoodadsShould
         var service = new DoodadPlacementService(
             new DoodadScripts(new ServiceCollection().BuildServiceProvider(),
                 TimeProvider.System, NullLogger<DoodadScripts>.Instance),
-            TimeProvider.System, NullLoggerFactory.Instance);
+            TimeProvider.System, NullLoggerFactory.Instance, Substitute.For<IMapDoodadSpawnRepository>());
 
         for (int seed = 0; seed < 1000; seed++)
         {

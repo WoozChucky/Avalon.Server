@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Instances;
@@ -15,9 +16,9 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.World.Doodads;
 
 /// <summary>
-/// Plans and places a procedural map's doodads as its instance is built, off the tick: <see cref="Plan" /> before the
-/// navmesh bake, from the layout, the map's rules and the catalog; <see cref="PlaceAsync" /> after it, on the instance
-/// being built, before it is published. Nothing here runs on the tick.
+/// Plans and places a map's doodads as its instance is built, off the tick: <see cref="Plan" /> before the navmesh bake,
+/// from a procedural layout, the map's rules and the catalog; <see cref="PlaceAsync" /> after it, on the instance being
+/// built, before it is published, the map's fixed spawns (a town's) first. Nothing here runs on the tick.
 /// </summary>
 public interface IDoodadPlacementService
 {
@@ -28,8 +29,9 @@ public interface IDoodadPlacementService
     DoodadPlan Plan(ChunkLayout layout, ProceduralMapConfig? config, DoodadCatalog catalog, IChunkLibrary chunks);
 
     /// <summary>
-    /// Places <paramref name="plan" /> in <paramref name="instance" />, built on <paramref name="layout" />'s baked
-    /// navmesh: a walk-through doodad snapped to the ground, a solid one at its slot's height, a required one with no slot
+    /// Places the map's fixed doodad spawns (a town's MapDoodadSpawns rows, for every layout kind), then
+    /// <paramref name="plan" />, in <paramref name="instance" />, built on <paramref name="layout" />'s baked navmesh: a
+    /// walk-through doodad on the ground, a solid one at its slot's (or its spawn's) height, a required one with no slot
     /// left on open navmesh, each with its script's OnSpawn run. One that fails costs that doodad alone (logged).
     /// </summary>
     Task PlaceAsync(MapInstance instance, ChunkLayout layout, DoodadPlan plan, MapTemplateId map, CancellationToken ct);
@@ -38,8 +40,9 @@ public interface IDoodadPlacementService
 /// <inheritdoc />
 /// <param name="scripts">The doodads' scripts, whose OnSpawn runs on each doodad placed.</param>
 /// <param name="time">The clock the spawn-mode context's throttled logs read.</param>
-public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider time, ILoggerFactory loggerFactory)
-    : IDoodadPlacementService
+/// <param name="fixedSpawnRepository">Each map's fixed doodad spawns (MapDoodadSpawns: a town's), read once per build.</param>
+public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider time, ILoggerFactory loggerFactory,
+    IMapDoodadSpawnRepository fixedSpawnRepository) : IDoodadPlacementService
 {
     /// <summary>Mixed into the layout's seed, so the doodads draw from a stream of their own, apart from the creatures'.</summary>
     public const int DoodadSeedSalt = 0x0D00DAD5;
@@ -153,15 +156,33 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
             position.y + template.CollisionHeight);
     }
 
-    public Task PlaceAsync(MapInstance instance, ChunkLayout layout, DoodadPlan plan, MapTemplateId map, CancellationToken ct)
+    public async Task PlaceAsync(MapInstance instance, ChunkLayout layout, DoodadPlan plan, MapTemplateId map,
+        CancellationToken ct)
     {
-        if (plan.Placed.Count == 0 && plan.RequiredShort.Count == 0)
-            return Task.CompletedTask;
+        IReadOnlyList<MapDoodadSpawn> fixedSpawns = await fixedSpawnRepository.FindByMapAsync(map, ct);
+        if (fixedSpawns.Count == 0 && plan.Placed.Count == 0 && plan.RequiredShort.Count == 0)
+            return;
 
         // One context and one random stream for this build alone: a build runs on one thread, and owns its navigator's
         // query until the instance is published.
         var placement = new Placement(instance, layout, map, instance.Quests, new Random(layout.Seed ^ FallbackSeedSalt),
             new DoodadUseContext(time, _contextLogger));
+
+        // The map's fixed spawns first (a town's), then the plan's.
+        foreach (MapDoodadSpawn spawn in fixedSpawns)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                PlaceFixed(placement, spawn);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Could not place doodad spawn {SpawnId} (doodad {DoodadTemplateId}) on map {MapId}; " +
+                                    "skipping it", spawn.Id.Value, spawn.DoodadTemplateId.Value, map.Value);
+            }
+        }
+
         List<DoodadSpawn> fallback = [.. plan.RequiredShort];
 
         foreach (PlannedDoodad planned in plan.Placed)
@@ -206,8 +227,43 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
                     spawn.Template.Id.Value, map.Value);
             }
         }
+    }
 
-        return Task.CompletedTask;
+    /// <summary>
+    /// One fixed spawn, at the entry spawn plus its offset: a walk-through doodad on the navmesh's height there (the
+    /// authored height kept off the mesh, as a town creature's is), a solid one at its authored height and only on a
+    /// quarter turn (nothing is baked from a fixed spawn, so v1 seeds none), with the spawn's gates when set.
+    /// </summary>
+    private void PlaceFixed(Placement placement, MapDoodadSpawn spawn)
+    {
+        if (!placement.Instance.DoodadTemplates.TryGet(spawn.DoodadTemplateId, out DoodadTemplateView? template))
+        {
+            _logger.LogError("Doodad spawn {SpawnId} of map {MapId} names doodad template {DoodadTemplateId}, which the " +
+                             "catalog does not hold; it is not placed", spawn.Id.Value, placement.Map.Value,
+                spawn.DoodadTemplateId.Value);
+            return;
+        }
+
+        Vector3 position = placement.Layout.EntrySpawnWorldPos + new Vector3(spawn.OffsetX, spawn.OffsetY, spawn.OffsetZ);
+        if (template.Solid)
+        {
+            if (spawn.Yaw is not (0f or 90f or 180f or 270f))
+            {
+                _logger.LogWarning("Doodad spawn {SpawnId} of map {MapId} places solid doodad {DoodadTemplateId} '{Name}' " +
+                                   "at yaw {Yaw}, not a quarter turn; it is not placed", spawn.Id.Value,
+                    placement.Map.Value, template.Id.Value, template.Name, spawn.Yaw);
+                return;
+            }
+        }
+        else
+        {
+            position.y = placement.Navigator.SampleGroundHeight(position.x, position.y, position.z);
+        }
+
+        Place(placement, new DoodadSpawn(template, Required: false,
+                Gate(spawn.VisibleQuestId, spawn.VisibleCondition, spawn.VisibleObjectiveId),
+                Gate(spawn.UsableQuestId, spawn.UsableCondition, spawn.UsableObjectiveId)),
+            position, spawn.Yaw);
     }
 
     /// <summary>

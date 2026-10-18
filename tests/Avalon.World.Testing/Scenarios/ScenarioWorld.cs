@@ -176,7 +176,8 @@ public sealed class ScenarioWorld : IDisposable
             _placement = new CreaturePlacementService(new CreatureSpawner(_errorLog, _world), reference.Chunks,
                 reference.SpawnTables, reference.AuthoredSpawns, reference.Scripts, _services, _errorLog);
             _doodads = new DoodadPlacementService(
-                new DoodadScripts(_services, Clock, new Logger<DoodadScripts>(_errorLog)), Clock, _errorLog);
+                new DoodadScripts(_services, Clock, new Logger<DoodadScripts>(_errorLog)), Clock, _errorLog,
+                reference.DoodadSpawns);
         }
     }
 

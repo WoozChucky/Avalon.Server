@@ -788,6 +788,7 @@ enum QuestObjectiveKind {
    QuestObjectiveKind_Collect = 2;
    QuestObjectiveKind_Talk = 3;
    QuestObjectiveKind_Scripted = 4;
+   QuestObjectiveKind_UseDoodad = 5;
 }
 enum QuestOfferMode {
    QuestOfferMode_Unknown = 0;

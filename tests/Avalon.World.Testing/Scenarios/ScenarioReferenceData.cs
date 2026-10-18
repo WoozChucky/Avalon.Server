@@ -33,7 +33,7 @@ public sealed class ScenarioReferenceData
 
     /// <summary>
     /// The scenarios' kill quest, in this reference data only (never in the World database's seed): see
-    /// <see cref="NewKillQuest" />. Its id is far from the seeded quests' (1 to 8).
+    /// <see cref="NewKillQuest" />. Its id is far from the seeded quests' (1 to 9).
     /// </summary>
     public const uint KillQuest = 9001;
 
@@ -102,6 +102,9 @@ public sealed class ScenarioReferenceData
 
     /// <summary>The authored creature spawns the creature placement places after the rolled ones.</summary>
     internal IMapCreatureSpawnRepository AuthoredSpawns => _repositories.GetRequiredService<IMapCreatureSpawnRepository>();
+
+    /// <summary>The fixed doodad spawns the doodad placement places before a procedural map's plan (none in the forest).</summary>
+    internal IMapDoodadSpawnRepository DoodadSpawns => _repositories.GetRequiredService<IMapDoodadSpawnRepository>();
 
     private (MapTemplate, ChunkLayout) LoadTown()
     {

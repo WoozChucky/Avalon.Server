@@ -4344,6 +4344,54 @@ namespace Avalon.Database.World.Migrations
                             SpentLook = (byte)1,
                             UseLimit = (byte)1,
                             UsedModelKey = "avalon_forest_fountain_dry"
+                        },
+                        new
+                        {
+                            Id = 5L,
+                            AreaRadius = 0f,
+                            Collision = (byte)0,
+                            CollisionHalfX = 0f,
+                            CollisionHalfZ = 0f,
+                            CollisionHeight = 0f,
+                            Interaction = (byte)1,
+                            InteractionRange = 5f,
+                            InteractionTimeMs = 1500L,
+                            MaxGold = 0,
+                            MinGold = 0,
+                            ModelKey = "Crate_Metal",
+                            ModelKit = "props-kit",
+                            Name = "Caravan Strongbox",
+                            RestorePct = 0L,
+                            SpentLook = (byte)1,
+                            UseLimit = (byte)2,
+                            UsedModelKey = "avalon_strongbox_open",
+                            VisibleCondition = (byte)2,
+                            VisibleObjectiveId = 901L,
+                            VisibleQuestId = 9L
+                        },
+                        new
+                        {
+                            Id = 6L,
+                            AreaRadius = 0f,
+                            Collision = (byte)0,
+                            CollisionHalfX = 0f,
+                            CollisionHalfZ = 0f,
+                            CollisionHeight = 0f,
+                            Interaction = (byte)1,
+                            InteractionRange = 5f,
+                            InteractionTimeMs = 0L,
+                            MaxGold = 0,
+                            MinGold = 0,
+                            ModelKey = "avalon_notice_board",
+                            ModelKit = "town-kit",
+                            Name = "Notice Board",
+                            RestorePct = 0L,
+                            SpentLook = (byte)1,
+                            UsableCondition = (byte)2,
+                            UsableObjectiveId = 902L,
+                            UsableQuestId = 9L,
+                            UseLimit = (byte)2,
+                            UsedModelKey = "avalon_notice_board_pinned"
                         });
                 });
 
@@ -6193,6 +6241,46 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 66,
                             Text = "Break the Bramblemaw Alphas' hold and cut out the Bramble Heart."
+                        },
+                        new
+                        {
+                            Id = 67,
+                            Text = "The Lost Caravan"
+                        },
+                        new
+                        {
+                            Id = 68,
+                            Text = "Those pages were the last of the caravan's accounts, {name}. Somewhere in the wold its strongbox still lies where the wagons fell. Find it and open it, and tell me what it holds."
+                        },
+                        new
+                        {
+                            Id = 69,
+                            Text = "So that is how it ended. Thank you, {name}. Now the town knows, and I can stop waiting for wagons that will never come."
+                        },
+                        new
+                        {
+                            Id = 70,
+                            Text = "Caravan strongbox opened"
+                        },
+                        new
+                        {
+                            Id = 71,
+                            Text = "The caravan's fate posted"
+                        },
+                        new
+                        {
+                            Id = 72,
+                            Text = "Find the caravan's strongbox in the forest."
+                        },
+                        new
+                        {
+                            Id = 73,
+                            Text = "Pin the caravan's fate to the notice board in Glimmerdell."
+                        },
+                        new
+                        {
+                            Id = 74,
+                            Text = "Tell Marta what you found."
                         });
                 });
 
@@ -6608,6 +6696,54 @@ namespace Avalon.Database.World.Migrations
                             TextId = 66,
                             Locale = "ptPT",
                             Text = "Quebra o domínio dos Bramblemaw Alphas e arranca o Coração de Bramble."
+                        },
+                        new
+                        {
+                            TextId = 67,
+                            Locale = "ptPT",
+                            Text = "A Caravana Perdida"
+                        },
+                        new
+                        {
+                            TextId = 68,
+                            Locale = "ptPT",
+                            Text = "Aquelas páginas eram as últimas contas da caravana, {name}. Algures na mata, o cofre dela ainda jaz onde as carroças tombaram. Encontra-o, abre-o e conta-me o que guarda."
+                        },
+                        new
+                        {
+                            TextId = 69,
+                            Locale = "ptPT",
+                            Text = "Então foi assim que acabou. Obrigada, {name}. Agora a vila sabe, e eu posso deixar de esperar por carroças que nunca hão de chegar."
+                        },
+                        new
+                        {
+                            TextId = 70,
+                            Locale = "ptPT",
+                            Text = "Cofre da caravana aberto"
+                        },
+                        new
+                        {
+                            TextId = 71,
+                            Locale = "ptPT",
+                            Text = "Destino da caravana afixado"
+                        },
+                        new
+                        {
+                            TextId = 72,
+                            Locale = "ptPT",
+                            Text = "Encontra o cofre da caravana na floresta."
+                        },
+                        new
+                        {
+                            TextId = 73,
+                            Locale = "ptPT",
+                            Text = "Afixa o destino da caravana no quadro de avisos de Glimmerdell."
+                        },
+                        new
+                        {
+                            TextId = 74,
+                            Locale = "ptPT",
+                            Text = "Conta à Marta o que encontraste."
                         });
                 });
 
@@ -7612,6 +7748,84 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.MapDoodadSpawn", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<long>("DoodadTemplateId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("MapTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<float>("OffsetX")
+                        .HasColumnType("real");
+
+                    b.Property<float>("OffsetY")
+                        .HasColumnType("real");
+
+                    b.Property<float>("OffsetZ")
+                        .HasColumnType("real");
+
+                    b.Property<byte?>("UsableCondition")
+                        .HasColumnType("smallint");
+
+                    b.Property<long?>("UsableObjectiveId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("UsableQuestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte?>("VisibleCondition")
+                        .HasColumnType("smallint");
+
+                    b.Property<long?>("VisibleObjectiveId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("VisibleQuestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<float>("Yaw")
+                        .HasColumnType("real");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DoodadTemplateId");
+
+                    b.HasIndex("MapTemplateId");
+
+                    b.ToTable("MapDoodadSpawns", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MapDoodadSpawns_OffsetX", "\"OffsetX\" > -1000000 AND \"OffsetX\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_MapDoodadSpawns_OffsetY", "\"OffsetY\" > -1000000 AND \"OffsetY\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_MapDoodadSpawns_OffsetZ", "\"OffsetZ\" > -1000000 AND \"OffsetZ\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_MapDoodadSpawns_UsableGate", "(\"UsableQuestId\" IS NULL) = (\"UsableCondition\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_MapDoodadSpawns_VisibleGate", "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_MapDoodadSpawns_Yaw", "\"Yaw\" >= 0 AND \"Yaw\" < 360");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            DoodadTemplateId = 6L,
+                            MapTemplateId = 1,
+                            OffsetX = -6f,
+                            OffsetY = 0f,
+                            OffsetZ = 9f,
+                            Yaw = 90f
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.MapTemplate", b =>
                 {
                     b.Property<int>("Id")
@@ -7864,6 +8078,12 @@ namespace Avalon.Database.World.Migrations
                             QuestId = 8L,
                             ItemTemplateId = 65m,
                             Count = 1L
+                        },
+                        new
+                        {
+                            QuestId = 9L,
+                            ItemTemplateId = 56m,
+                            Count = 2L
                         });
                 });
 
@@ -7881,6 +8101,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("DescriptionTextId")
                         .HasColumnType("integer");
 
+                    b.Property<long?>("DoodadTemplateId")
+                        .HasColumnType("bigint");
+
                     b.Property<decimal?>("ItemTemplateId")
                         .HasColumnType("numeric(20,0)");
 
@@ -7897,6 +8120,8 @@ namespace Avalon.Database.World.Migrations
 
                     b.HasIndex("CreatureTemplateId");
 
+                    b.HasIndex("DoodadTemplateId");
+
                     b.HasIndex("ItemTemplateId");
 
                     b.HasIndex("QuestId", "StageSequence");
@@ -7905,7 +8130,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             t.HasCheckConstraint("CK_QuestObjectives_CountPositive", "\"Count\" >= 1");
 
-                            t.HasCheckConstraint("CK_QuestObjectives_TargetFitsType", "(\"Type\" = 1 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL) OR (\"Type\" = 2 AND \"ItemTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL) OR (\"Type\" = 3 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL) OR (\"Type\" = 4 AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL)");
+                            t.HasCheckConstraint("CK_QuestObjectives_TargetFitsType", "(\"Type\" = 1 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL) OR (\"Type\" = 2 AND \"ItemTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL) OR (\"Type\" = 3 AND \"CreatureTemplateId\" IS NOT NULL AND \"ItemTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL) OR (\"Type\" = 4 AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL AND \"DoodadTemplateId\" IS NULL) OR (\"Type\" = 5 AND \"DoodadTemplateId\" IS NOT NULL AND \"CreatureTemplateId\" IS NULL AND \"ItemTemplateId\" IS NULL)");
                         });
 
                     b.HasData(
@@ -8048,6 +8273,36 @@ namespace Avalon.Database.World.Migrations
                             QuestId = 8L,
                             StageSequence = 1,
                             Type = 2
+                        },
+                        new
+                        {
+                            Id = 901L,
+                            Count = 1L,
+                            DescriptionTextId = 70,
+                            DoodadTemplateId = 5L,
+                            QuestId = 9L,
+                            StageSequence = 0,
+                            Type = 5
+                        },
+                        new
+                        {
+                            Id = 902L,
+                            Count = 1L,
+                            DescriptionTextId = 71,
+                            DoodadTemplateId = 6L,
+                            QuestId = 9L,
+                            StageSequence = 1,
+                            Type = 5
+                        },
+                        new
+                        {
+                            Id = 903L,
+                            Count = 1L,
+                            CreatureTemplateId = 11m,
+                            DescriptionTextId = 38,
+                            QuestId = 9L,
+                            StageSequence = 2,
+                            Type = 3
                         });
                 });
 
@@ -8129,6 +8384,24 @@ namespace Avalon.Database.World.Migrations
                             QuestId = 8L,
                             Sequence = 1,
                             DescriptionTextId = 66
+                        },
+                        new
+                        {
+                            QuestId = 9L,
+                            Sequence = 0,
+                            DescriptionTextId = 72
+                        },
+                        new
+                        {
+                            QuestId = 9L,
+                            Sequence = 1,
+                            DescriptionTextId = 73
+                        },
+                        new
+                        {
+                            QuestId = 9L,
+                            Sequence = 2,
+                            DescriptionTextId = 74
                         });
                 });
 
@@ -8329,6 +8602,23 @@ namespace Avalon.Database.World.Migrations
                             RewardExperience = 1500L,
                             RewardMoney = 1000m,
                             TitleTextId = 59,
+                            Type = 0
+                        },
+                        new
+                        {
+                            Id = 9L,
+                            CompletionTextId = 69,
+                            DescriptionTextId = 68,
+                            EnderCreatureId = 11m,
+                            Environment = 0,
+                            GiverCreatureId = 11m,
+                            IsRepeatable = false,
+                            LevelRequirement = 4,
+                            Rarity = 0,
+                            RequiredQuestId = 6L,
+                            RewardExperience = 600L,
+                            RewardMoney = 350m,
+                            TitleTextId = 67,
                             Type = 0
                         });
                 });
@@ -8895,6 +9185,15 @@ namespace Avalon.Database.World.Migrations
                     b.Navigation("Path");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.MapDoodadSpawn", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.DoodadTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("DoodadTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ProceduralMapConfig", b =>
                 {
                     b.OwnsMany("Avalon.Domain.World.ProceduralDepthBand", "DepthBands", b1 =>
@@ -9036,6 +9335,11 @@ namespace Avalon.Database.World.Migrations
                     b.HasOne("Avalon.Domain.World.CreatureTemplate", null)
                         .WithMany()
                         .HasForeignKey("CreatureTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Avalon.Domain.World.DoodadTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("DoodadTemplateId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Avalon.Domain.World.ItemTemplate", null)

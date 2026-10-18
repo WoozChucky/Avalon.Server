@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.World.Doodads;
 using Avalon.World.Public.Dialogue;
 using Microsoft.Extensions.Logging;
 
@@ -9,7 +10,8 @@ namespace Avalon.World.Quests;
 
 public sealed record QuestObjectiveView(
     uint Id, uint QuestId, int StageSequence, QuestObjectiveType Type,
-    CreatureTemplateId? CreatureTemplateId, ItemTemplateId? ItemTemplateId, uint Count, LocalizedTextId DescriptionTextId);
+    CreatureTemplateId? CreatureTemplateId, ItemTemplateId? ItemTemplateId, uint Count, LocalizedTextId DescriptionTextId,
+    DoodadTemplateId? DoodadTemplateId);
 
 public sealed record QuestStageView(int Sequence, LocalizedTextId? DescriptionTextId, IReadOnlyList<QuestObjectiveView> Objectives);
 
@@ -50,7 +52,8 @@ public sealed record QuestRefusal(uint QuestId, string Reason)
 /// <summary>
 /// Every quest that passed validation (#433), built off the tick by the Quests reload area and immutable
 /// afterwards, so the tick reads it without locking. A bad quest is refused with an error naming it and every other
-/// quest still loads; a quest whose prerequisite is refused is refused too.
+/// quest still loads; a quest whose prerequisite is refused is refused too. The doodad templates it is built with are
+/// the ones a UseDoodad objective may name, read in the same prepare; none (the default) refuses every quest with one.
 /// </summary>
 public sealed class QuestCatalog
 {
@@ -72,7 +75,8 @@ public sealed class QuestCatalog
         IReadOnlyCollection<ItemTemplate> items,
         IReadOnlyCollection<DialogueNode> dialogueNodes,
         Func<string, Type?> findScript,
-        ILoggerFactory loggerFactory)
+        ILoggerFactory loggerFactory,
+        IReadOnlyCollection<DoodadTemplate>? doodads = null)
     {
         ILogger<QuestCatalog> logger = loggerFactory.CreateLogger<QuestCatalog>();
         var knownCreatures = creatures.Select(c => c.Id.Value).ToHashSet();
@@ -81,13 +85,16 @@ public sealed class QuestCatalog
         Dictionary<ulong, ItemTemplate> knownItems = [];
         foreach (ItemTemplate item in items)
             knownItems.TryAdd(item.Id.Value, item);
+        Dictionary<uint, DoodadTemplate> knownDoodads = [];
+        foreach (DoodadTemplate doodad in doodads ?? [])
+            knownDoodads.TryAdd(doodad.Id.Value, doodad);
 
         List<QuestRefusal> refused = [];
         Dictionary<uint, (QuestTemplate Row, Type? Script)> candidates = [];
 
         foreach (QuestTemplate quest in quests.OrderBy(q => q.Id.Value))
         {
-            string? reason = Problem(quest, knownCreatures, knownItems, findScript, out Type? script)
+            string? reason = Problem(quest, knownCreatures, knownItems, knownDoodads, findScript, out Type? script)
                              ?? DialogueProblem(quest.GiverCreatureId.Value, quest.EnderCreatureId.Value,
                                  quest.Objectives.OrderBy(o => o.Id)
                                      .Where(o => o.Type == QuestObjectiveType.Talk && o.CreatureTemplateId is not null)
@@ -171,6 +178,40 @@ public sealed class QuestCatalog
     }
 
     /// <summary>
+    /// Every loaded quest with a UseDoodad objective whose doodad template <paramref name="doodads" /> lacks, or that a
+    /// player cannot click there, one line per quest listing all of its problems ("quest N: ...; ..."), by quest id. The
+    /// quests were checked against the doodad rows read with them, not the accepted catalog, and a /reload doodads since
+    /// can refuse a template or change how it is used, so StaticData logs these after either apply. It refuses nothing.
+    /// </summary>
+    public IReadOnlyList<string> DoodadObjectivesNotUsable(DoodadCatalog doodads)
+    {
+        List<string> problems = [];
+        foreach (QuestView quest in _byId.Values.OrderBy(q => q.Id))
+        {
+            List<string> found = [];
+            foreach (QuestObjectiveView objective in quest.Objectives.OrderBy(o => o.Id))
+            {
+                if (objective is not { Type: QuestObjectiveType.UseDoodad, DoodadTemplateId: { } doodadId })
+                    continue;
+                if (!doodads.TryGet(doodadId, out DoodadTemplateView? template))
+                {
+                    found.Add($"objective {objective.Id} names doodad template {doodadId.Value}, which the live doodads lack");
+                }
+                else if (template.Interaction != DoodadInteraction.Click)
+                {
+                    found.Add($"objective {objective.Id} names doodad template {doodadId.Value}, whose live interaction is " +
+                              $"{template.Interaction}, not Click");
+                }
+            }
+
+            if (found.Count > 0)
+                problems.Add($"quest {quest.Id}: {string.Join("; ", found)}");
+        }
+
+        return problems;
+    }
+
+    /// <summary>
     /// What a quest needs to be talked through (#737): InteractHandler opens a conversation only with an NPC that has a
     /// dialogue root, so a giver, an ender or a Talk target without one would leave the quest unacceptable, unready or
     /// unfinishable. Each problem in order: the giver, the ender, then each Talk objective by id.
@@ -194,7 +235,7 @@ public sealed class QuestCatalog
         : $"{_byId.Count} quests, {Refused.Count} refused ({string.Join("; ", Refused)})";
 
     private static string? Problem(QuestTemplate quest, HashSet<ulong> creatures, Dictionary<ulong, ItemTemplate> items,
-        Func<string, Type?> findScript, out Type? script)
+        Dictionary<uint, DoodadTemplate> doodads, Func<string, Type?> findScript, out Type? script)
     {
         script = null;
         uint id = quest.Id.Value;
@@ -252,6 +293,18 @@ public sealed class QuestCatalog
                     return collect;
             }
 
+            // A doodad nobody can click is never used, so its objective could never be met.
+            if (objective.DoodadTemplateId is { } doodadId)
+            {
+                if (!doodads.TryGetValue(doodadId.Value, out DoodadTemplate? doodad))
+                    return $"objective {objective.Id} names doodad template {doodadId.Value}, which does not exist";
+                if (doodad.Interaction != DoodadInteraction.Click)
+                {
+                    return $"objective {objective.Id} names doodad template {doodadId.Value}, which cannot be used: its " +
+                           $"interaction is {doodad.Interaction}, not Click";
+                }
+            }
+
             foreach (QuestItemDrop drop in objective.Drops)
             {
                 // No database check can say this: the drop names its objective, not the objective's type.
@@ -285,23 +338,27 @@ public sealed class QuestCatalog
     }
 
     /// <summary>
-    /// The objective's target must fit its type: Kill and Talk name a creature and no item, Collect an item and no
-    /// creature, Scripted neither. A database check says the same; the catalog says it again, as LootCatalog does,
-    /// so a row that slipped past is refused by name rather than failing the whole area.
+    /// The objective's target must fit its type: Kill and Talk name a creature and nothing else, Collect an item,
+    /// UseDoodad a doodad template, Scripted none. A database check says the same; the catalog says it again, as
+    /// LootCatalog does, so a row that slipped past is refused by name rather than failing the whole area.
     /// </summary>
     private static string? TargetProblem(QuestObjective objective)
     {
         bool creature = objective.CreatureTemplateId is not null;
         bool item = objective.ItemTemplateId is not null;
+        bool doodad = objective.DoodadTemplateId is not null;
         return objective.Type switch
         {
-            QuestObjectiveType.Kill or QuestObjectiveType.Talk when !creature || item =>
-                $"objective {objective.Id} is {objective.Type} and must name a creature template and no item template",
-            QuestObjectiveType.Collect when !item || creature =>
-                $"objective {objective.Id} is Collect and must name an item template and no creature template",
-            QuestObjectiveType.Scripted when creature || item =>
-                $"objective {objective.Id} is Scripted and must name neither a creature template nor an item template",
-            QuestObjectiveType.Kill or QuestObjectiveType.Talk or QuestObjectiveType.Collect or QuestObjectiveType.Scripted => null,
+            QuestObjectiveType.Kill or QuestObjectiveType.Talk when !creature || item || doodad =>
+                $"objective {objective.Id} is {objective.Type} and must name a creature template and no item or doodad template",
+            QuestObjectiveType.Collect when !item || creature || doodad =>
+                $"objective {objective.Id} is Collect and must name an item template and no creature or doodad template",
+            QuestObjectiveType.UseDoodad when !doodad || creature || item =>
+                $"objective {objective.Id} is UseDoodad and must name a doodad template and no creature or item template",
+            QuestObjectiveType.Scripted when creature || item || doodad =>
+                $"objective {objective.Id} is Scripted and must name neither a creature, an item nor a doodad template",
+            QuestObjectiveType.Kill or QuestObjectiveType.Talk or QuestObjectiveType.Collect or QuestObjectiveType.Scripted
+                or QuestObjectiveType.UseDoodad => null,
             _ => $"objective {objective.Id} has unknown type {(int)objective.Type}",
         };
     }
@@ -388,7 +445,7 @@ public sealed class QuestCatalog
         q.Stages.OrderBy(s => s.Sequence).Select(s => new QuestStageView(s.Sequence, s.DescriptionTextId,
             q.Objectives.Where(o => o.StageSequence == s.Sequence).OrderBy(o => o.Id)
                 .Select(o => new QuestObjectiveView(o.Id, q.Id.Value, o.StageSequence, o.Type, o.CreatureTemplateId,
-                    o.ItemTemplateId, o.Count, o.DescriptionTextId))
+                    o.ItemTemplateId, o.Count, o.DescriptionTextId, o.DoodadTemplateId))
                 .ToList())).ToList(),
         q.ItemRewards.OrderBy(r => r.ItemTemplateId.Value).Select(r => new QuestItemRewardView(r.ItemTemplateId, r.Count)).ToList());
 }
