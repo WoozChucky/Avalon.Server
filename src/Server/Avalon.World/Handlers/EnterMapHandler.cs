@@ -129,7 +129,9 @@ public partial class EnterMapHandler(
         // one. A plain entry reads nothing of it.
         MapEntryChoice choice = packet.Choice;
         IMapInstance? picked = null;
-        if (choice != MapEntryChoice.Default && RefusesChoice(connection, character, targetTemplate, packet, out picked))
+        Party? party = null;
+        if (choice != MapEntryChoice.Default
+            && RefusesChoice(connection, character, targetTemplate, packet, out picked, out party))
         {
             return;
         }
@@ -143,7 +145,7 @@ public partial class EnterMapHandler(
             if (choice == MapEntryChoice.Default)
                 ResolveTarget(connection, character, targetTemplate, targetMap, reResolved: false);
             else
-                ResolveChoice(connection, character, targetTemplate, targetMap, choice, picked);
+                ResolveChoice(connection, character, targetTemplate, targetMap, choice, picked, party);
         }
         catch
         {
@@ -247,13 +249,15 @@ public partial class EnterMapHandler(
     /// <c>Existing</c>, an instance the character may enter (<see cref="IInstanceChoices.FindChoosable" />: its own
     /// private one or its current party's, live, of this map; one answer for every other id); for <c>NewParty</c>, a
     /// party the character leads; for a create, outside the character's creation cooldown. Sends the refusal and returns
-    /// true when one fails; otherwise <paramref name="picked" /> is the instance an <c>Existing</c> choice named.
+    /// true when one fails; otherwise <paramref name="picked" /> is the instance an <c>Existing</c> choice named, and
+    /// <paramref name="party" /> the character's party, read once for the checks and the request alike.
     /// Nothing here starts or extends the cooldown.
     /// </summary>
     private bool RefusesChoice(IWorldConnection connection, ICharacter character, MapTemplate targetTemplate,
-        CEnterMapPacket packet, out IMapInstance? picked)
+        CEnterMapPacket packet, out IMapInstance? picked, out Party? party)
     {
         picked = null;
+        party = null;
         MapEntryChoice choice = packet.Choice;
         if (choice is not (MapEntryChoice.Existing or MapEntryChoice.NewPrivate or MapEntryChoice.NewParty))
         {
@@ -270,7 +274,7 @@ public partial class EnterMapHandler(
         }
 
         uint characterId = character.Guid.Id;
-        Party? party = parties?.PartyOf(characterId);
+        party = parties?.PartyOf(characterId);
         if (choice == MapEntryChoice.Existing)
         {
             picked = world.InstanceChoices.FindChoosable(characterId, party?.Id, targetTemplate.Id, packet.InstanceId);
@@ -296,15 +300,21 @@ public partial class EnterMapHandler(
             return true;
         }
 
-        // A create. The time left goes out as a system line: the transition has no field for it.
+        // A create. The time left goes out as a system line, since the transition has no field for it, once per window:
+        // a create refused again inside it is answered with the result alone, which allocates nothing.
         if (character is CharacterEntity entity && entity.Clock.GetUtcNow() is var now && now < entity.InstanceCreateAllowedAt)
         {
             Log.Refused(logger, character.Name, packet.TargetMapId, nameof(MapTransitionResult.CreateOnCooldown));
             Refuse(connection, MapTransitionResult.CreateOnCooldown, Refusal.CreateOnCooldown);
-            int seconds = (int)Math.Ceiling((entity.InstanceCreateAllowedAt - now).TotalSeconds);
-            connection.Send(SChatMessagePacket.System(
-                $"You can open a new instance in {seconds} {(seconds == 1 ? "second" : "seconds")}.", now.UtcDateTime,
-                PacketEncoder.Shared));
+            if (entity.InstanceCreateCooldownTold != entity.InstanceCreateAllowedAt)
+            {
+                entity.InstanceCreateCooldownTold = entity.InstanceCreateAllowedAt;
+                int seconds = (int)Math.Ceiling((entity.InstanceCreateAllowedAt - now).TotalSeconds);
+                connection.Send(SChatMessagePacket.System(
+                    $"You can open a new instance in {seconds} {(seconds == 1 ? "second" : "seconds")}.", now.UtcDateTime,
+                    PacketEncoder.Shared));
+            }
+
             return true;
         }
 
@@ -318,10 +328,9 @@ public partial class EnterMapHandler(
     /// character's cooldown here, as it is accepted, whatever becomes of its build.
     /// </summary>
     private void ResolveChoice(IWorldConnection connection, ICharacter character, MapTemplate targetTemplate,
-        MapId targetMapId, MapEntryChoice choice, IMapInstance? picked)
+        MapId targetMapId, MapEntryChoice choice, IMapInstance? picked, Party? party)
     {
         uint characterId = character.Guid.Id;
-        Party? party = parties?.PartyOf(characterId);
         PartyId? partyId = null;
         Task<IMapInstance> request;
         if (choice == MapEntryChoice.Existing)

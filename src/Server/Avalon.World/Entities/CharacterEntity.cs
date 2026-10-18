@@ -294,6 +294,13 @@ public partial class CharacterEntity : ICharacter
     /// </summary>
     public DateTimeOffset InstanceCreateAllowedAt { get; internal set; }
 
+    /// <summary>
+    /// The end of the cooldown window (an <see cref="InstanceCreateAllowedAt" />) whose time left this character was
+    /// already told, by one system line (#1104): a create refused again inside the same window is answered with the
+    /// result alone, so a client repeating it allocates no line. A new create opens a new window, told afresh.
+    /// </summary>
+    internal DateTimeOffset InstanceCreateCooldownTold { get; set; }
+
     /// <summary>Called by PvpToggle after it writes the row: replicates the flag and marks the save.</summary>
     public void MarkPvpChanged()
     {

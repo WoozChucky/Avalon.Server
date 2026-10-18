@@ -89,8 +89,8 @@ public class InstanceChoicesShould : IDisposable
         Assert.Equal(4, got.Distinct().Count());
     }
 
-    [Fact] // the newest party instance expired, an older one is occupied
-    public async Task Route_a_party_to_its_newest_live_instance_when_the_default_expired()
+    [Fact] // the default, the last of the party's list, expired while an earlier entry is occupied
+    public async Task Route_a_party_to_its_last_live_instance_in_default_order_when_the_default_expired()
     {
         Task<IMapInstance> oldBuild = _registry.GetOrCreatePartyInstanceAsync(s_party, s_dungeonId);
         Publish();

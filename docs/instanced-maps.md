@@ -384,7 +384,7 @@ where characters stand (`not_near_portal`).
        NotInstanced; Existing: InstanceChoices.FindChoosable(characterId, partyId, map,
        packet.InstanceId) is null → InstanceUnavailable; NewParty: in no party → NotInParty,
        not its leader → NotPartyLeader; NewPrivate or NewParty: inside the character's
-       creation cooldown → CreateOnCooldown, and a system line with the seconds left.
+       creation cooldown → CreateOnCooldown, and a system line with the seconds left, once per window.
        A Default entry reads none of it.
     The request is accepted: set connection.RespawnInFlight (the move is under way until it
        ends, see below), then resolve the target instance (built off the tick when there is
@@ -447,7 +447,9 @@ but `Default` to a town is answered `NotInstanced`.
   (`NotInParty`, `NotPartyLeader`). The arrival keeps the party and seat checks.
 - **The cooldown.** A create is refused `CreateOnCooldown` inside `Game:InstanceCreateCooldownSeconds` (10 by default,
   0 turns it off) of the character's last accepted create, with the seconds left as a system line ("You can open a new
-  instance in 4 seconds."), since the transition has no field for it. It starts when a create is accepted, before its
+  instance in 4 seconds."), since the transition has no field for it; the line goes out once per window
+  (`CharacterEntity.InstanceCreateCooldownTold`), and a create refused again inside it gets the result alone, which
+  allocates nothing however often a client repeats it. It starts when a create is accepted, before its
   build is asked for, so a build that fails still costs it, and nothing else starts or extends it: a refused create
   does not, and a `Default` entry or a pick neither reads nor writes it. It is kept on the World-side `CharacterEntity`
   (`InstanceCreateAllowedAt`) on the container's clock, in memory only: a new session starts without one.

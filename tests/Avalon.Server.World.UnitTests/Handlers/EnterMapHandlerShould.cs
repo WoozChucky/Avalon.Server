@@ -459,6 +459,7 @@ public class EnterMapHandlerShould
     [InlineData("former party's")]
     [InlineData("expired")]
     [InlineData("unknown id")]
+    [InlineData("the town's")]
     [InlineData("released before the arrival")]
     public void Refuse_a_picked_instance_the_character_may_not_enter(string case_)
     {
@@ -490,6 +491,9 @@ public class EnterMapHandlerShould
                 portal.Enter(kaela);
                 asked = Guid.NewGuid();
                 break;
+            case "the town's": // live, and she stands in it, but no instance of the forest
+                asked = portal.Town.InstanceId;
+                break;
             default: // her own, freed between the pick and the arrival
                 asked = portal.Enter(kaela).InstanceId;
                 break;
@@ -512,8 +516,8 @@ public class EnterMapHandlerShould
 
     /// <summary>
     /// #1104: a new instance may be opened once every Game:InstanceCreateCooldownSeconds (10): a second create inside
-    /// the window is refused, with the time left as a system line, a plain entry meanwhile is not held back, and the
-    /// refused create did not move the window's end.
+    /// the window is refused, with the time left as a system line once per window, a plain entry meanwhile is not held
+    /// back, and the refused create did not move the window's end.
     /// </summary>
     [Fact]
     public void Refuse_a_second_create_inside_the_cooldown_and_take_it_at_its_end()
@@ -534,6 +538,13 @@ public class EnterMapHandlerShould
 
         Assert.Equal([MapTransitionResult.CreateOnCooldown], portal.Results(kaela));
         Assert.Single(kaela.Lines());
+
+        // Again in the same window: the result alone, the time left was told once.
+        portal.Request(kaela, MapEntryChoice.NewPrivate);
+        portal.Settle();
+        Assert.Equal([MapTransitionResult.CreateOnCooldown, MapTransitionResult.CreateOnCooldown], portal.Results(kaela));
+        Assert.Single(kaela.Lines());
+
         Assert.Same(opened, portal.Enter(kaela));
         Assert.Equal(1, portal.Builds);
 
