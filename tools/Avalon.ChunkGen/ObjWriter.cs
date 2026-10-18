@@ -5,29 +5,34 @@ namespace Avalon.ChunkGen;
 
 /// <summary>
 /// Writes a piece or a town square as chunk-local OBJ (x/z 0-30, y up), the format ChunkLayoutNavmeshBuilder and the
-/// client bake read: "o", "v x y z" and "f a b c" lines, plus, on a town square, one "usemtl" line after each tagged
-/// object for the client's colours (the server ignores them, ChunkObjParserShould). LF line ends. Every face is wound
+/// client bake read: "o", "v x y z" and "f a b c" lines, plus one "usemtl" line after each tagged object for the
+/// client's colours (the server ignores them, ChunkObjParserShould). LF line ends. Every face is wound
 /// so (b-a)x(c-a) points out of its solid (a ring's out of its own segment), which is how Recast tells a walkable top
 /// from a wall.
 /// </summary>
 public static class ObjWriter
 {
+    /// <summary>
+    /// The floor, tagged <c>forest_floor</c>, then each blocker in order as Blocker_1, Blocker_2, ...: a dressed one
+    /// (<see cref="Blocker.Dressing" />) tagged <c>collision</c>, since the decor draws it, an undressed one untagged.
+    /// </summary>
     public static string Write(ChunkPiece piece)
     {
         var obj = new ObjBuilder();
-        obj.Box("Floor", null, 0f, ChunkPiece.CellSize, -ChunkPiece.FloorThickness, 0f, 0f, ChunkPiece.CellSize);
+        obj.Box("Floor", Materials.Name(Material.ForestFloor), 0f, ChunkPiece.CellSize, -ChunkPiece.FloorThickness, 0f, 0f, ChunkPiece.CellSize);
 
         int n = 1;
         foreach (Blocker blocker in piece.Blockers)
         {
             string name = $"Blocker_{n++}";
+            string? material = blocker.Dressing == Dressing.None ? null : Materials.Name(Material.Collision);
             switch (blocker)
             {
                 case BoxBlocker box:
-                    obj.Box(name, null, box.MinX, box.MaxX, 0f, ChunkPiece.BlockerHeight, box.MinZ, box.MaxZ);
+                    obj.Box(name, material, box.MinX, box.MaxX, 0f, ChunkPiece.BlockerHeight, box.MinZ, box.MaxZ);
                     break;
                 case CylinderBlocker cylinder:
-                    obj.Cylinder(name, null, cylinder.X, cylinder.Z, cylinder.Radius, 0f, ChunkPiece.BlockerHeight);
+                    obj.Cylinder(name, material, cylinder.X, cylinder.Z, cylinder.Radius, 0f, ChunkPiece.BlockerHeight);
                     break;
             }
         }

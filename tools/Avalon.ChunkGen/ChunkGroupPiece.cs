@@ -12,6 +12,9 @@ public sealed record ChunkGroupPiece(
     /// <summary>The set piece's doodad slots in its 60 x 60 m frame, none unless listed; split into members as spawn slots are.</summary>
     public IReadOnlyList<DoodadSlot> DoodadSlots { get; init; } = [];
 
+    /// <summary>How the forest dresser dresses the set piece, in its 60 x 60 m frame (ForestDresser).</summary>
+    public DressingHints Hints { get; init; } = new();
+
     private static readonly (int X, int Z, string Suffix)[] s_cells = [(0, 0, "sw"), (1, 0, "se"), (0, 1, "nw"), (1, 1, "ne")];
 
     public static string MemberName(string group, int cellX, int cellZ) =>
