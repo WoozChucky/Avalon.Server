@@ -5,8 +5,8 @@ namespace Avalon.ChunkGen;
 /// rocks and ruined walls, cylinders for tree clusters and pillars; placeholders until real art exists. Every slot is
 /// at least 2.5 m from any blocker and every exit's throat is clear (ForestPiecesShould).
 /// Each single piece has two doodad slots and one large one, each set-piece member one doodad slot (the arena's members
-/// a large one too), off the paths and clear of blockers and spawn slots, each yaw the quarter turn that best faces the
-/// piece's (or the set piece's) centre.
+/// a large one too), off the paths and clear of blockers and spawn slots (a set piece's in its 60 x 60 m frame, where
+/// its paths cross the inner edges), each yaw the quarter turn that best faces the piece's (or the set piece's) centre.
 /// </summary>
 public static class ForestPieces
 {
@@ -63,7 +63,7 @@ public static class ForestPieces
              Leader(40, 20), Leader(20, 40)],
             ["forest", "setpiece", "clearing"])
         {
-            DoodadSlots = [Doodad(3, 17.5f, 90), Doodad(33, 3, 0), Doodad(3, 33, 90), Doodad(33, 33, 270)],
+            DoodadSlots = [Doodad(3, 17.5f, 90), Doodad(33, 3, 0), Doodad(15.5f, 57, 180), Doodad(57, 44.5f, 270)],
         },
         new("forest_grove_ruin", [(0, 0, Side.S), (1, 0, Side.E), (1, 1, Side.N)],
             [Cyl(20, 20, 1.5f), Cyl(40, 20, 1.5f), Cyl(20, 40, 1.5f), Cyl(40, 40, 1.5f), Box(4, 12, 50, 54), Box(48, 52, 3, 9)],
@@ -71,7 +71,7 @@ public static class ForestPieces
              Leader(45, 40), Leader(15, 40), Rare(45, 15)],
             ["forest", "setpiece", "ruins"])
         {
-            DoodadSlots = [Doodad(3, 3, 90), Doodad(33, 27, 0), Doodad(3, 33, 90), Doodad(51, 33, 270)],
+            DoodadSlots = [Doodad(3, 3, 90), Doodad(33, 16.5f, 0), Doodad(3, 33, 90), Doodad(57, 57, 270)],
         },
         new("forest_arena", [(0, 0, Side.S)],
             [Cyl(16, 16, 1.5f), Cyl(44, 16, 1.5f), Cyl(16, 44, 1.5f), Cyl(44, 44, 1.5f),

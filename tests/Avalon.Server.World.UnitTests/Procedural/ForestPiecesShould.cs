@@ -8,7 +8,7 @@ namespace Avalon.Server.World.UnitTests.Procedural;
 /// <summary>
 /// The forest's generated pieces (forest content pass): what is committed is what the tool writes, every slot and exit
 /// is clear of blockers, every doodad slot stands off the paths, and the baked navmesh lets a creature stand on every
-/// slot (doodad slots included) and walk from every exit to every spawn slot, across a set piece's open inner edges too.
+/// slot and walk from every exit to every slot (doodad slots included), across a set piece's open inner edges too.
 /// </summary>
 public class ForestPiecesShould
 {
@@ -16,7 +16,8 @@ public class ForestPiecesShould
     private const float EdgeClearance = 2f;
 
     // Doodad slots stand off the paths and clear of blockers and spawns (doodads spec): a "doodad_large" slot may hold a
-    // solid doodad, so it keeps further away. A path is the segment from an exit's throat centre to the piece centre.
+    // solid doodad, so it keeps further away. A path runs from an exit's throat centre to the piece centre (for a set
+    // piece, its frame's centre, and between every two of its outer exits).
     private const float DoodadSlotClearance = 2.5f;
     private const float LargeDoodadSlotClearance = 4f;
     private const float DoodadPathClearance = 4f;
@@ -77,31 +78,65 @@ public class ForestPiecesShould
         });
         Assert.All(ForestPieces.Groups().SelectMany(g => g.Members()), m => Assert.Equal(1, m.Piece.DoodadSlots.Count(s => s.Tag == "doodad")));
 
+        // Every piece the tool writes, in its own cell: away from the edges and out of its exits' throats.
         foreach (ChunkPiece piece in Pieces())
         {
             foreach (DoodadSlot slot in piece.DoodadSlots)
             {
                 Assert.True(slot.Tag is "doodad" or "doodad_large", $"{piece.Name}: {slot} has an unknown tag");
-                bool large = slot.Tag == "doodad_large";
                 Assert.InRange(slot.X, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
                 Assert.InRange(slot.Z, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
-                foreach (Blocker blocker in piece.Blockers)
-                {
-                    Assert.True(blocker.DistanceTo(slot.X, slot.Z) >= (large ? LargeDoodadSlotClearance : DoodadSlotClearance),
-                        $"{piece.Name}: {slot} is {blocker.DistanceTo(slot.X, slot.Z):0.00} m from {blocker}");
-                }
-                foreach (Slot spawn in piece.Slots)
-                {
-                    float d = MathF.Sqrt((slot.X - spawn.X) * (slot.X - spawn.X) + (slot.Z - spawn.Z) * (slot.Z - spawn.Z));
-                    Assert.True(d >= (large ? LargeDoodadSpawnClearance : DoodadSpawnClearance), $"{piece.Name}: {slot} is {d:0.00} m from {spawn}");
-                }
                 foreach (Side side in piece.Exits)
                 {
                     (float minX, float maxX, float minZ, float maxZ) = Throat(side);
                     Assert.False(slot.X >= minX && slot.X <= maxX && slot.Z >= minZ && slot.Z <= maxZ, $"{piece.Name}: {slot} stands in its {side} exit");
-                    float d = DistanceToSegment(slot.X, slot.Z, (minX + maxX) / 2f, (minZ + maxZ) / 2f, ChunkPiece.CellSize / 2f, ChunkPiece.CellSize / 2f);
-                    Assert.True(d >= (large ? LargeDoodadPathClearance : DoodadPathClearance), $"{piece.Name}: {slot} is {d:0.00} m from its {side} path");
                 }
+            }
+        }
+
+        // A single piece's paths run from each exit's throat centre to the piece centre.
+        const float Centre = ChunkPiece.CellSize / 2f;
+        foreach (ChunkPiece piece in ForestPieces.Singles())
+        {
+            var paths = piece.Exits.Select(e => (From: ThroatCentre(e, 0, 0), To: (X: Centre, Z: Centre))).ToList();
+            AssertDoodadSlotsClear(piece.Name, piece.DoodadSlots, piece.Blockers, piece.Slots, paths);
+        }
+
+        // A set piece's paths cross its inner edges: from each outer exit's throat centre to the frame centre, and
+        // straight between every two outer exits. Checked in its 60 x 60 m frame, against all its blockers and slots.
+        foreach (ChunkGroupPiece group in ForestPieces.Groups())
+        {
+            var exits = group.OuterExits.Select(e => ThroatCentre(e.Side, e.CellX, e.CellZ)).ToList();
+            List<((float X, float Z) From, (float X, float Z) To)> paths = [.. exits.Select(e => (e, (ChunkPiece.CellSize, ChunkPiece.CellSize)))];
+            for (int i = 0; i < exits.Count; i++)
+            {
+                for (int j = i + 1; j < exits.Count; j++)
+                    paths.Add((exits[i], exits[j]));
+            }
+            AssertDoodadSlotsClear(group.Name, group.DoodadSlots, group.Blockers, group.Slots, paths);
+        }
+    }
+
+    private static void AssertDoodadSlotsClear(string name, IEnumerable<DoodadSlot> doodadSlots, IEnumerable<Blocker> blockers,
+        IEnumerable<Slot> spawns, IEnumerable<((float X, float Z) From, (float X, float Z) To)> paths)
+    {
+        foreach (DoodadSlot slot in doodadSlots)
+        {
+            bool large = slot.Tag == "doodad_large";
+            foreach (Blocker blocker in blockers)
+            {
+                Assert.True(blocker.DistanceTo(slot.X, slot.Z) >= (large ? LargeDoodadSlotClearance : DoodadSlotClearance),
+                    $"{name}: {slot} is {blocker.DistanceTo(slot.X, slot.Z):0.00} m from {blocker}");
+            }
+            foreach (Slot spawn in spawns)
+            {
+                float d = MathF.Sqrt((slot.X - spawn.X) * (slot.X - spawn.X) + (slot.Z - spawn.Z) * (slot.Z - spawn.Z));
+                Assert.True(d >= (large ? LargeDoodadSpawnClearance : DoodadSpawnClearance), $"{name}: {slot} is {d:0.00} m from {spawn}");
+            }
+            foreach (((float X, float Z) from, (float X, float Z) to) in paths)
+            {
+                float d = DistanceToSegment(slot.X, slot.Z, from.X, from.Z, to.X, to.Z);
+                Assert.True(d >= (large ? LargeDoodadPathClearance : DoodadPathClearance), $"{name}: {slot} is {d:0.00} m from the path {from} to {to}");
             }
         }
     }
@@ -145,7 +180,11 @@ public class ForestPiecesShould
     {
         ChunkPiece piece = ForestPieces.Singles().Single(p => p.Name == name);
         MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(piece), 0, 0)]);
-        List<Vector3> targets = [.. piece.Exits.Select(e => ExitPoint(e, 0, 0)), .. piece.Slots.Select(s => new Vector3(s.X, 1f, s.Z))];
+        List<Vector3> targets =
+        [
+            .. piece.Exits.Select(e => ExitPoint(e, 0, 0)), .. piece.Slots.Select(s => new Vector3(s.X, 1f, s.Z)),
+            .. piece.DoodadSlots.Select(s => new Vector3(s.X, 1f, s.Z)),
+        ];
 
         AssertAllConnected(navigator, targets, name);
     }
@@ -159,7 +198,11 @@ public class ForestPiecesShould
         var members = group.Members().ToList();
         MapNavigator navigator = GeneratedChunkBake.Bake(members.Select(m => (ObjWriter.Write(m.Piece), m.CellX, m.CellZ)));
 
-        List<Vector3> targets = [.. group.OuterExits.Select(e => ExitPoint(e.Side, e.CellX, e.CellZ)), .. group.Slots.Select(s => new Vector3(s.X, 1f, s.Z))];
+        List<Vector3> targets =
+        [
+            .. group.OuterExits.Select(e => ExitPoint(e.Side, e.CellX, e.CellZ)), .. group.Slots.Select(s => new Vector3(s.X, 1f, s.Z)),
+            .. group.DoodadSlots.Select(s => new Vector3(s.X, 1f, s.Z)),
+        ];
         foreach ((float x, float z) in group.Slots.Select(s => (s.X, s.Z)).Concat(group.DoodadSlots.Select(s => (s.X, s.Z))))
         {
             Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(x, 1f, z), out Vector3 ground));
@@ -205,6 +248,13 @@ public class ForestPiecesShould
         Side.E => (24f, 30f, 10f, 20f),
         _ => (0f, 6f, 10f, 20f),
     };
+
+    /// <summary>The centre of an exit's throat, in the frame whose cell (cellX, cellZ) holds the exit.</summary>
+    private static (float X, float Z) ThroatCentre(Side side, int cellX, int cellZ)
+    {
+        (float minX, float maxX, float minZ, float maxZ) = Throat(side);
+        return ((minX + maxX) / 2f + cellX * ChunkPiece.CellSize, (minZ + maxZ) / 2f + cellZ * ChunkPiece.CellSize);
+    }
 
     private static float DistanceToSegment(float px, float pz, float ax, float az, float bx, float bz)
     {

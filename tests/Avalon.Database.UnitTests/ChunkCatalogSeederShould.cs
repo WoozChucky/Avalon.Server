@@ -501,32 +501,25 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         Assert.Contains("'rare' slots", error.Message);
     }
 
+    /// <summary>
+    /// A doodad slot with a blank tag, a yaw that is not a quarter turn, or a position outside the chunk's own cell (its
+    /// edges included) is refused, naming the file and the fault.
+    /// </summary>
     [Theory]
-    [InlineData(45)]
-    [InlineData(360)]
-    [InlineData(-90)]
-    public async Task Refuse_a_doodad_slot_whose_yaw_is_not_a_quarter_turn(int yaw)
+    [InlineData("doodad", 5f, 5f, 45, "has yaw 45")]
+    [InlineData("doodad", 5f, 5f, 360, "has yaw 360")]
+    [InlineData("doodad", 5f, 5f, -90, "has yaw -90")]
+    [InlineData(" ", 5f, 5f, 90, "has no tag")]
+    [InlineData("doodad", -1f, 5f, 90, "lies outside the chunk")]
+    [InlineData("doodad", 5f, 30.5f, 90, "lies outside the chunk")]
+    public async Task Refuse_a_bad_doodad_slot_naming_the_file_and_the_fault(string tag, float x, float z, int yaw, string fault)
     {
         string root = CopyOfCommittedMaps();
-        string path = WriteDoodadSlot(root, "doodad", 5, 5, yaw);
+        string path = WriteDoodadSlot(root, tag, x, z, yaw);
 
         InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
         Assert.StartsWith(path + ":", error.Message, StringComparison.Ordinal);
-        Assert.Contains($"yaw {yaw}", error.Message, StringComparison.Ordinal);
-    }
-
-    /// <summary>A doodad slot with a blank tag, or one outside the chunk's own cell (its edges included), is refused.</summary>
-    [Theory]
-    [InlineData(" ", 5f, 5f)]
-    [InlineData("doodad", -1f, 5f)]
-    [InlineData("doodad", 5f, 30.5f)]
-    public async Task Refuse_a_doodad_slot_with_a_blank_tag_or_outside_the_cell(string tag, float x, float z)
-    {
-        string root = CopyOfCommittedMaps();
-        string path = WriteDoodadSlot(root, tag, x, z, 90);
-
-        InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
-        Assert.StartsWith(path + ":", error.Message, StringComparison.Ordinal);
+        Assert.Contains(fault, error.Message, StringComparison.Ordinal);
     }
 
     /// <summary>Gives the copy's forest_path_01 (a hand-made chunk with no doodad slots) one doodad slot; returns its file.</summary>
