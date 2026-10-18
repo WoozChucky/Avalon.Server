@@ -35,6 +35,7 @@ public enum NetworkPacketType : short
     // Map
     CMSG_ENTER_MAP = 0x2021,
     CMSG_RESPAWN_AT_TOWN = 0x2022,
+    CMSG_INSTANCE_LIST = 0x2023,
 
     // World
     CMSG_INTERACT = 0x2030,
@@ -117,6 +118,7 @@ public enum NetworkPacketType : short
     SMSG_MAP_TELEPORT = 0x3030,
     SMSG_MAP_TRANSITION = 0x3031,
     SMSG_CHUNK_LAYOUT = 0x3032,
+    SMSG_INSTANCE_LIST = 0x3033,
 
     // World
     SMSG_WORLD_STATE_ADD = 0x3040,

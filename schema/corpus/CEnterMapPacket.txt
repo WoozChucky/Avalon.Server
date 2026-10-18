@@ -17,27 +17,42 @@ message CEnterMapPacket
 
 variant absent
   field 1 TargetMapId : ushort = 0
+  field 2 Choice : MapEntryChoice = Default (0)
+  field 3 InstanceId : Guid = 00000000-0000-0000-0000-000000000000
   bytes 0
 
 variant empty
   field 1 TargetMapId : ushort = 0
+  field 2 Choice : MapEntryChoice = Default (0)
+  field 3 InstanceId : Guid = 00000000-0000-0000-0000-000000000000
   bytes 0
 
 variant populated
   field 1 TargetMapId : ushort = 42
-  bytes 2
-    08 2a
+  field 2 Choice : MapEntryChoice = NewPrivate (2)
+  field 3 InstanceId : Guid = 0f8fad5b-d9cb-469f-a165-70867728950e
+  bytes 24
+    08 2a 10 02 1a 12 09 5b ad 8f 0f cb d9 9f 46 11
+    a1 65 70 86 77 28 95 0e
 
 variant maxima
   field 1 TargetMapId : ushort = 65535
-  bytes 4
-    08 ff ff 03
+  field 2 Choice : MapEntryChoice = NewParty (3)
+  field 3 InstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
+  bytes 26
+    08 ff ff 03 10 03 1a 12 09 ff ff ff ff ff ff ff
+    ff 11 ff ff ff ff ff ff ff ff
 
 variant minima
   field 1 TargetMapId : ushort = 0
+  field 2 Choice : MapEntryChoice = Default (0)
+  field 3 InstanceId : Guid = 00000000-0000-0000-0000-000000000000
   bytes 0
 
 variant varint-edges
   field 1 TargetMapId : ushort = 127
-  bytes 2
-    08 7f
+  field 2 Choice : MapEntryChoice = <not a declared member> (4)
+  field 3 InstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
+  bytes 24
+    08 7f 10 04 1a 12 09 04 03 02 01 06 05 08 07 11
+    09 0a 0b 0c 0d 0e 0f 10

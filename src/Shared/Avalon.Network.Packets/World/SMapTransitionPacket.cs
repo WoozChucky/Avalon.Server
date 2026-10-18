@@ -18,6 +18,16 @@ public enum MapTransitionResult : byte
     NoWalkableGround = 7,
     /// <summary>Another move to a map is already under way (a scroll return, an item teleport, a respawn or a party return).</summary>
     MoveInProgress = 8,
+    /// <summary>The picked instance is not one the character may enter (#1104); it says nothing about whether it exists.</summary>
+    InstanceUnavailable = 9,
+    /// <summary>A new instance was asked for before the character's creation cooldown ran out (#1104).</summary>
+    CreateOnCooldown = 10,
+    /// <summary>A new party instance was asked for by a member who is not the party's leader (#1104).</summary>
+    NotPartyLeader = 11,
+    /// <summary>A new party instance was asked for by a character in no party (#1104).</summary>
+    NotInParty = 12,
+    /// <summary>The target map is a town, which has no instances to list or choose (#1104).</summary>
+    NotInstanced = 13,
 }
 
 [ProtoContract]

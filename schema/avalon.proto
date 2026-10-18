@@ -191,6 +191,8 @@ message CDialogueChoosePacket {
 }
 message CEnterMapPacket {
    uint32 TargetMapId = 1;
+   MapEntryChoice Choice = 2;
+   .bcl.Guid InstanceId = 3; // default value could not be applied: 00000000-0000-0000-0000-000000000000
 }
 message CGameAdmissionPacket {
    optional string JoinTicket = 1;
@@ -198,6 +200,9 @@ message CGameAdmissionPacket {
 }
 message CHandshakePacket {
    optional bytes HandshakeData = 1;
+}
+message CInstanceListPacket {
+   uint32 TargetMapId = 1;
 }
 message CInteractPacket {
    uint64 TargetGuid = 1;
@@ -429,6 +434,17 @@ message IgnoredCharacterDto {
    uint32 CharacterId = 1;
    optional string Name = 2;
 }
+message InstanceChoiceDto {
+   .bcl.Guid InstanceId = 1; // default value could not be applied: 00000000-0000-0000-0000-000000000000
+   InstanceKind Kind = 2;
+   bool InUse = 3;
+   uint32 ExpiresInMs = 4;
+   bool IsDefault = 5;
+}
+enum InstanceKind {
+   InstanceKind_Private = 0;
+   InstanceKind_Party = 1;
+}
 message InventorySlotUpdateDto {
    InventoryType Container = 1;
    uint32 Slot = 2;
@@ -507,6 +523,12 @@ enum MFAOperationResult {
    MFAOperationResult_NotEnabled = 3;
    MFAOperationResult_Error = 4;
 }
+enum MapEntryChoice {
+   MapEntryChoice_Default = 0;
+   MapEntryChoice_Existing = 1;
+   MapEntryChoice_NewPrivate = 2;
+   MapEntryChoice_NewParty = 3;
+}
 message MapInfo {
    int32 MapId = 1;
    .bcl.Guid InstanceId = 2; // default value could not be applied: 00000000-0000-0000-0000-000000000000
@@ -523,6 +545,11 @@ enum MapTransitionResult {
    MapTransitionResult_InstanceFull = 6;
    MapTransitionResult_NoWalkableGround = 7;
    MapTransitionResult_MoveInProgress = 8;
+   MapTransitionResult_InstanceUnavailable = 9;
+   MapTransitionResult_CreateOnCooldown = 10;
+   MapTransitionResult_NotPartyLeader = 11;
+   MapTransitionResult_NotInParty = 12;
+   MapTransitionResult_NotInstanced = 13;
 }
 enum MoveState {
    MoveState_Idle = 0;
@@ -573,6 +600,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_LEAVE_WORLD = 8223;
    NetworkPacketType_CMSG_ENTER_MAP = 8225;
    NetworkPacketType_CMSG_RESPAWN_AT_TOWN = 8226;
+   NetworkPacketType_CMSG_INSTANCE_LIST = 8227;
    NetworkPacketType_CMSG_INTERACT = 8240;
    NetworkPacketType_CMSG_DIALOGUE_CHOOSE = 8241;
    NetworkPacketType_CMSG_PLAYER_INPUT = 8288;
@@ -624,6 +652,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_MAP_TELEPORT = 12336;
    NetworkPacketType_SMSG_MAP_TRANSITION = 12337;
    NetworkPacketType_SMSG_CHUNK_LAYOUT = 12338;
+   NetworkPacketType_SMSG_INSTANCE_LIST = 12339;
    NetworkPacketType_SMSG_WORLD_STATE_ADD = 12352;
    NetworkPacketType_SMSG_WORLD_STATE_UPDATE = 12353;
    NetworkPacketType_SMSG_WORLD_STATE_REMOVE = 12354;
@@ -1008,6 +1037,13 @@ message SHandshakeResultPacket {
 }
 message SIgnoreListPacket {
    repeated IgnoredCharacterDto Characters = 1;
+}
+message SInstanceListPacket {
+   uint32 TargetMapId = 1;
+   MapTransitionResult Result = 2;
+   bool InParty = 3;
+   bool IsLeader = 4;
+   repeated InstanceChoiceDto Instances = 5;
 }
 message SInstanceStateAddPacket {
    repeated ObjectState Adds = 1;
