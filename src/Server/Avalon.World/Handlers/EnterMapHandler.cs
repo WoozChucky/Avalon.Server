@@ -546,8 +546,7 @@ public partial class EnterMapHandler(
         if (world.InstanceRegistry.GetInstanceById(targetInstance.InstanceId) is not null)
             return false;
 
-        logger.LogInformation("EnterMap: chosen instance {InstanceId} of map {MapId} was released before {Name} arrived",
-            targetInstance.InstanceId, targetMapId, character.Name);
+        Log.ChosenInstanceReleased(logger, targetInstance.InstanceId, targetMapId.Value, character.Name);
         Refuse(connection, MapTransitionResult.InstanceUnavailable, Refusal.InstanceUnavailable);
         return true;
     }
@@ -680,5 +679,10 @@ public partial class EnterMapHandler(
         /// </summary>
         [LoggerMessage(Level = LogLevel.Debug, Message = "EnterMap: {Name}'s choice for map {TargetMapId} refused: {Result}")]
         public static partial void Refused(ILogger logger, string name, ushort targetMapId, string result);
+
+        /// <summary>A chosen instance (#1104) released before the arrival reached it: a pick of one about to expire causes it.</summary>
+        [LoggerMessage(Level = LogLevel.Information,
+            Message = "EnterMap: chosen instance {InstanceId} of map {MapId} was released before {Name} arrived")]
+        public static partial void ChosenInstanceReleased(ILogger logger, Guid instanceId, ushort mapId, string name);
     }
 }
