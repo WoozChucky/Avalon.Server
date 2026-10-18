@@ -91,7 +91,7 @@ jobs:
       - name: Restore the servers
         run: |
           set -euo pipefail
-          for p in src/Server/Avalon.Server.World/Avalon.Server.World.csproj src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj \
+          for p in src/Server/Avalon.Server.World/Avalon.Server.World.csproj \
                    src/Server/Avalon.Api/Avalon.Api.csproj src/Server/Avalon.Balance.Service/Avalon.Balance.Service.csproj; do
             dotnet restore "$p"
           done

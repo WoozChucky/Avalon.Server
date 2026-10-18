@@ -1,7 +1,7 @@
 using Avalon.Infrastructure;
 using NSubstitute;
 
-namespace Avalon.Server.Auth.UnitTests.Services;
+namespace Avalon.Api.Testing;
 
 /// <summary>
 /// A cache whose counters behave like the Redis scripts the budgets use, expiry included, on a

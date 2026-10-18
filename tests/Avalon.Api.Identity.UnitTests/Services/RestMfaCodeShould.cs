@@ -5,7 +5,6 @@ using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
-using Avalon.Server.Auth.UnitTests.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using OtpNet;

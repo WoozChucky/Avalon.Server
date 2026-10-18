@@ -4,7 +4,7 @@ using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 
-namespace Avalon.Server.Auth.UnitTests.Services;
+namespace Avalon.Api.Testing;
 
 /// <summary>
 /// Forwards to the real repository, but can hand out reads taken earlier (a request that read

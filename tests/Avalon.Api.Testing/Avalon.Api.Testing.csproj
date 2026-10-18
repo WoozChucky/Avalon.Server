@@ -31,8 +31,6 @@
   <ItemGroup>
     <!-- The Auth tests' Redis counter fake and stale-read repository: the REST login runs the same
          budgets and the same writes (#478), so it is tested against the same fakes. They are internal. -->
-    <Compile Include="..\Avalon.Server.Auth.UnitTests\Services\CounterCache.cs" Link="Shared\CounterCache.cs"/>
-    <Compile Include="..\Avalon.Server.Auth.UnitTests\Services\StaleAccountRepository.cs" Link="Shared\StaleAccountRepository.cs"/>
     <!-- Every SQLite world and characters database starts as a copy of one EnsureCreated made. -->
     <Compile Include="..\Avalon.World.Testing\SqliteTemplates.cs" Link="Shared\SqliteTemplates.cs"/>
     <InternalsVisibleTo Include="Avalon.Api.UnitTests"/>

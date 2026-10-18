@@ -18,7 +18,6 @@
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.World\Avalon.World.csproj"/>
-    <ProjectReference Include="..\..\src\Server\Avalon.Server.Auth\Avalon.Server.Auth.csproj"/>
     <ProjectReference Include="..\..\tests\Avalon.World.Testing\Avalon.World.Testing.csproj"/>
   </ItemGroup>
 

@@ -24,7 +24,6 @@ runs:
         # and every assembly above DotRecast would then compile a second time, differing in its identity bytes only.
         revision="$(git rev-parse HEAD)"
         dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore -p:SourceRevisionId="$revision" -o src/Server/Avalon.Server.World/out
-        dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-restore -p:SourceRevisionId="$revision" -o src/Server/Avalon.Server.Auth/out
         dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore -p:SourceRevisionId="$revision" -o src/Server/Avalon.Api/out
         dotnet publish src/Server/Avalon.Balance.Service/Avalon.Balance.Service.csproj -c Release --no-restore -p:SourceRevisionId="$revision" -o src/Server/Avalon.Balance.Service/out
     - uses: docker/login-action@v4.6.0
@@ -49,7 +48,7 @@ runs:
         # The four images build and push at once, each into its own log, printed in order once all are done.
         logs="$(mktemp -d)"
         jobs=()
-        for c in world:Avalon.Server.World auth:Avalon.Server.Auth api:Avalon.Api balance:Avalon.Balance.Service; do
+        for c in world:Avalon.Server.World api:Avalon.Api balance:Avalon.Balance.Service; do
           image_push "${c%%:*}" "${c#*:}" > "$logs/${c%%:*}.log" 2>&1 &
           jobs+=("${c%%:*}:$!")
         done
