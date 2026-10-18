@@ -128,6 +128,11 @@ public class TickThreadGuardSitesShould
         "InstanceRegistry.ProcessExpiredInstances",
         "InstanceRegistry.PublishFinished",
         "InstanceRegistry.TickInstances",
+        "InstanceRegistry.CreatePrivateInstanceAsync",
+        "InstanceRegistry.CreatePartyInstanceAsync",
+        "InstanceRegistry.FindChoosable",
+        "InstanceRegistry.ListChoosable",
+        "InstanceRegistry.MakeDefault",
     ];
 
     [Theory]
@@ -147,6 +152,11 @@ public class TickThreadGuardSitesShould
             "InstanceRegistry.RemoveInstance" => () => registry.RemoveInstance(Guid.NewGuid()),
             "InstanceRegistry.ProcessExpiredInstances" => () => registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15)),
             "InstanceRegistry.TickInstances" => () => _ = registry.TickInstances(),
+            "InstanceRegistry.CreatePrivateInstanceAsync" => () => _ = registry.CreatePrivateInstanceAsync(1, new MapTemplateId(2)),
+            "InstanceRegistry.CreatePartyInstanceAsync" => () => _ = registry.CreatePartyInstanceAsync(new PartyId(1), new MapTemplateId(2)),
+            "InstanceRegistry.FindChoosable" => () => _ = registry.FindChoosable(1, new PartyId(1), new MapTemplateId(2), Guid.NewGuid()),
+            "InstanceRegistry.ListChoosable" => () => registry.ListChoosable(1, new PartyId(1), new MapTemplateId(2), []),
+            "InstanceRegistry.MakeDefault" => () => registry.MakeDefault(Substitute.For<IMapInstance>()),
             _ => () => registry.PublishFinished(),
         };
 

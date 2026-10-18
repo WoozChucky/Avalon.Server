@@ -27,6 +27,7 @@ internal sealed class ScenarioWorldHost(GameConfiguration configuration, StaticD
     public IReadOnlyList<MapTemplate> MapTemplates { get; } = mapTemplates;
 
     public IInstanceRegistry InstanceRegistry { get; } = registry;
+    public IInstanceChoices InstanceChoices { get; } = registry;
 
     public Avalon.Domain.Auth.WorldId Id => throw new NotSupportedException();
     public string MinVersion => throw new NotSupportedException();

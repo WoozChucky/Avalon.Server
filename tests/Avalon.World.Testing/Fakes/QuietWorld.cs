@@ -22,6 +22,7 @@ public sealed class QuietWorld(StaticData data) : IWorld
     public GameTime Time => throw new NotSupportedException();
     public IInstanceRegistry InstanceRegistry => throw new NotSupportedException();
     public IPartyInstanceRegistry PartyInstances => throw new NotSupportedException();
+    public IInstanceChoices InstanceChoices => throw new NotSupportedException();
     public void SpawnInInstance(IWorldConnection connection, IMapInstance instance) => throw new NotSupportedException();
     public void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance) => throw new NotSupportedException();
     public Task DeSpawnPlayerAsync(IWorldConnection connection) => throw new NotSupportedException();

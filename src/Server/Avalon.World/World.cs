@@ -46,6 +46,12 @@ public interface IWorld
     /// <summary>The registry's party side (2026-09-30). World-side, not on the modding API's IInstanceRegistry.</summary>
     IPartyInstanceRegistry PartyInstances { get; }
 
+    /// <summary>
+    /// The registry's side for choosing an instance at a portal (#1104): each owner's live instances of a map, its
+    /// default, and creates. World-side, not on the modding API's IInstanceRegistry.
+    /// </summary>
+    IInstanceChoices InstanceChoices { get; }
+
     /// <summary>All map templates loaded by the map manager. Convenience accessor for handlers.</summary>
     IReadOnlyList<MapTemplate> MapTemplates { get; }
 
@@ -177,6 +183,7 @@ public class World : IWorld
     public GameTime Time { get; }
     public IInstanceRegistry InstanceRegistry { get; private set; } = null!;
     public IPartyInstanceRegistry PartyInstances { get; private set; } = null!;
+    public IInstanceChoices InstanceChoices { get; private set; } = null!;
     public IReadOnlyList<MapTemplate> MapTemplates => _mapManager.Templates;
     public StaticData Data { get; }
 
@@ -503,6 +510,7 @@ public class World : IWorld
         _registry = registry;
         InstanceRegistry = registry;
         PartyInstances = registry;
+        InstanceChoices = registry;
         // A disband forgets the party's instances in this registry, so no member is routed to them again.
         _parties?.AttachInstances(registry);
     }

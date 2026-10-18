@@ -118,7 +118,12 @@ public interface IInstanceRegistry
 Both factory methods are async because a build (layout reads, the doodad plan, the navmesh bake, construction, creature
 placement and doodad placement) runs off the tick; the finished instance is published on the tick, and the task
 completes then (#639, [world simulation](world-simulation.md)). Party instances come from the World-side
-`IPartyInstanceRegistry` (`GetOrCreatePartyInstanceAsync`), which `InstanceRegistry` also implements.
+`IPartyInstanceRegistry` (`GetOrCreatePartyInstanceAsync`), which `InstanceRegistry` also implements. So does the
+World-side `IInstanceChoices` (`World.InstanceChoices`, #1104), for choosing an instance at a portal:
+`CreatePrivateInstanceAsync` and `CreatePartyInstanceAsync` (a build of its own, never joined), `FindChoosable` (an
+instance by id, only if it is the character's own live private one of the map or one of its party's), `ListChoosable`
+(those instances, each flagged whether a plain entry would take it) and `MakeDefault`. All of it is tick thread only,
+and it reads only the asking character's and its party's lists, never every instance.
 
 ---
 
@@ -175,12 +180,24 @@ construction, so an instance nobody ever entered expires too. `AddCharacter` cle
 
 ### Normal Map Re-entry
 
-`GetOrCreateNormalInstanceAsync`:
-1. Check the character's existing instance map — if the Guid maps to an existing, non-expired instance: return it
-   (party instances: the party's map, the same rule)
-2. Otherwise: build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId, ct)` (same factory used for towns; the layout source resolver picks `ProceduralChunkLayoutSource` for `MapType.Normal`), register it
+An owner, a character or a party, may hold **several live instances of the same map** (#1104). The registry keeps a
+list per owner and map (character → map → instances, party → map → instances) in default order: the **last live,
+unexpired entry is the default**, the instance a plain entry takes.
 
-The cache is keyed by `characterId` (the in-game character id surfaced via `ObjectGuid.Id`), NOT by `accountId`. Two characters on the same account that walk into the same procedural map within the re-entry window get separate instances.
+`GetOrCreateNormalInstanceAsync`:
+1. Walk the character's list for the map from the end and return the first instance still live and not expired: the
+   default (party instances: the party's list, the same rule, so when the party's newest instance has expired while an
+   older one is still live, the party is routed to the older one)
+2. Otherwise: build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId, ct)` (same factory used for towns; the layout source resolver picks `ProceduralChunkLayoutSource` for `MapType.Normal`), register it, and
+   append it to the list, so it becomes the default
+
+**Creates.** `CreatePrivateInstanceAsync` and `CreatePartyInstanceAsync` always start a build of their own: no request
+joins it, and it joins none (they are kept apart from the per-owner de-duplicated builds, under the same deadline). Once
+published the instance is **inserted at the front** of its owner's list: listed, but not the default until
+`MakeDefault` moves it to the end (the portal entry does that on arrival). A create that fails or times out leaves the
+list as it was. `MakeDefault` on an instance its owner no longer lists (freed, or its party forgotten) does nothing.
+
+The lists are keyed by `characterId` (the in-game character id surfaced via `ObjectGuid.Id`), NOT by `accountId`. Two characters on the same account that walk into the same procedural map within the re-entry window get separate instances.
 
 ### Expiry Cleanup
 
@@ -194,6 +211,9 @@ The cache is keyed by `characterId` (the in-game character id surfaced via `Obje
     build is published at the start of `World.Update` and its requester enters it in a connection continuation after
     the expiry pass, so at 0 it would otherwise be freed before anyone arrived. A disbanded party's orphaned build
     expires on this clock too.
+- Takes each freed instance out of its owner's list (`RemoveInstance` does the same), dropping a list, and an owner,
+  left empty; an older instance of the same owner and map stays listed, and becomes the default if it is the last live
+  one.
 - Logs: `"Normal map instance {InstanceId} for map {TemplateId} freed after expiry"`
 
 **At 0** (the load-test world): an emptied dungeon is never reused, and the expiry pass of the tick after the last
