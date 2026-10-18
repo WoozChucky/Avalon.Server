@@ -8,7 +8,6 @@ using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.World;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
-using Avalon.World.Maps;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
@@ -68,62 +67,17 @@ public partial class EnterMapHandler(
             return;
         }
 
-        // 2. Resolve the current instance
-        IMapInstance? currentInstance = world.InstanceRegistry.GetInstanceById(character.InstanceId);
-
-        // 3. The target map's template, by id.
+        // 2 to 6, the checks the portal's menu makes too (PortalChecks): the current instance, the target map's template,
+        // a portal to it on the current map, the portal's radius, the map's level band.
         ushort targetMap = packet.TargetMapId;
-        MapTemplate? targetTemplate = world.MapTemplates.FindById(targetMap);
-
-        if (targetTemplate == null)
+        PortalCheck portal = PortalChecks.Check(world, character, targetMap);
+        if (portal.Refusal != PortalRefusal.None)
         {
-            Log.MapNotFound(logger, targetMap);
-            Refuse(connection, MapTransitionResult.MapNotFound, Refusal.UnknownMap);
+            RefuseAtPortal(connection, character, targetMap, portal);
             return;
         }
 
-        // 4. Find a portal on the current map that leads to the target. Every instance is built from a chunk layout,
-        // and its portals are the PortalInstances PortalPlacementService placed from Layout.Portals as it was built:
-        // there is no other source of portals.
-        if (currentInstance is not MapInstance mi)
-        {
-            logger.LogError("EnterMap: no live map instance for character {Name}; refusing teleport",
-                character.Name);
-            Refuse(connection, MapTransitionResult.MapNotFound, Refusal.NoInstance);
-            return;
-        }
-
-        PortalInstance? match = PortalTo(mi, targetMap);
-        if (match is null)
-        {
-            Log.NoPortal(logger, targetMap);
-            Refuse(connection, MapTransitionResult.MapNotFound, Refusal.NoPortal);
-            return;
-        }
-
-        // 5. Proximity check: the server's position of the character against the portal's radius, on the ground: a
-        // portal's height is where it is drawn, not how far a character standing at it is from it.
-        float dx = character.Position.x - match.Position.x, dz = character.Position.z - match.Position.z;
-        float distance = MathF.Sqrt((dx * dx) + (dz * dz));
-        if (distance > match.Radius)
-        {
-            Log.TooFarFromPortal(logger, character.Name, targetMap, distance, match.Radius);
-            Refuse(connection, MapTransitionResult.NotNearPortal, Refusal.NotNearPortal);
-            return;
-        }
-
-        // 6. Level checks
-        if (targetTemplate.MinLevel.HasValue && character.Level < targetTemplate.MinLevel.Value)
-        {
-            Refuse(connection, MapTransitionResult.LevelTooLow, Refusal.LevelTooLow);
-            return;
-        }
-
-        if (targetTemplate.MaxLevel.HasValue && character.Level > targetTemplate.MaxLevel.Value)
-        {
-            Refuse(connection, MapTransitionResult.LevelTooHigh, Refusal.LevelTooHigh);
-            return;
-        }
+        MapTemplate targetTemplate = portal.Template!;
 
         // 7. A choice other than Default (#1104), checked before anything is built: an instance picked by id, or a new
         // one. A plain entry reads nothing of it.
@@ -160,6 +114,43 @@ public partial class EnterMapHandler(
     {
         Count(reason);
         connection.Send(SMapTransitionPacket.CreateFailure(result, PacketEncoder.Shared));
+    }
+
+    /// <summary>
+    /// A refusal of steps 2 to 6: the Debug line of each a client can cause by what it sends (the Error line of a
+    /// character in no live instance, the server's own fault), the answer, and the count under the step's reason.
+    /// </summary>
+    private void RefuseAtPortal(IWorldConnection connection, ICharacter character, ushort targetMap, PortalCheck portal)
+    {
+        string reason;
+        switch (portal.Refusal)
+        {
+            case PortalRefusal.UnknownMap:
+                Log.MapNotFound(logger, targetMap);
+                reason = Refusal.UnknownMap;
+                break;
+            case PortalRefusal.NoInstance:
+                logger.LogError("EnterMap: no live map instance for character {Name}; refusing teleport",
+                    character.Name);
+                reason = Refusal.NoInstance;
+                break;
+            case PortalRefusal.NoPortal:
+                Log.NoPortal(logger, targetMap);
+                reason = Refusal.NoPortal;
+                break;
+            case PortalRefusal.NotNearPortal:
+                Log.TooFarFromPortal(logger, character.Name, targetMap, portal.Distance, portal.Portal!.Radius);
+                reason = Refusal.NotNearPortal;
+                break;
+            case PortalRefusal.LevelTooLow:
+                reason = Refusal.LevelTooLow;
+                break;
+            default:
+                reason = Refusal.LevelTooHigh;
+                break;
+        }
+
+        Refuse(connection, portal.Result, reason);
     }
 
     /// <summary>
@@ -227,21 +218,6 @@ public partial class EnterMapHandler(
 
         /// <summary>A new party instance asked for by a character in no party (<c>NotInParty</c>).</summary>
         public const string CreateNotInParty = "create_not_in_party";
-    }
-
-    /// <summary>The first portal of <paramref name="instance" /> that leads to <paramref name="targetMap" />, or null.</summary>
-    private static PortalInstance? PortalTo(MapInstance instance, ushort targetMap)
-    {
-        IReadOnlyList<PortalInstance> portals = instance.Portals;
-        for (int i = 0; i < portals.Count; i++)
-        {
-            if (portals[i].TargetMapId == targetMap)
-            {
-                return portals[i];
-            }
-        }
-
-        return null;
     }
 
     /// <summary>

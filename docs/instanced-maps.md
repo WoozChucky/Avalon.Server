@@ -343,6 +343,54 @@ public class SMapTransitionPacket : Packet
 }
 ```
 
+`CInstanceListPacket` (`CMSG_INSTANCE_LIST`, #1104) — the portal's menu, sent on a right-click of a portal: which live
+instances of its target map the character may enter. `InstanceListHandler` answers it with one `SInstanceListPacket`
+(`SMSG_INSTANCE_LIST`):
+```csharp
+public class CInstanceListPacket : Packet
+{
+    public ushort TargetMapId { get; set; }
+}
+
+public class SInstanceListPacket : Packet
+{
+    public ushort                  TargetMapId { get; set; }
+    public MapTransitionResult     Result      { get; set; }   // Success, or the portal's refusal
+    public bool                    InParty     { get; set; }
+    public bool                    IsLeader    { get; set; }   // a client may offer a new party instance
+    public List<InstanceChoiceDto> Instances   { get; set; }   // none with a refusal
+}
+
+public class InstanceChoiceDto
+{
+    public Guid         InstanceId  { get; set; }   // what CEnterMapPacket names with Existing
+    public InstanceKind Kind        { get; set; }   // Private = 0, Party = 1
+    public bool         InUse       { get; set; }   // someone is inside: no timer runs
+    public uint         ExpiresInMs { get; set; }   // an empty one's time left; 0 in use
+    public bool         IsDefault   { get; set; }   // the one a Default entry takes
+}
+```
+
+- **The portal's checks.** The request is asked what an entry asks of the portal (steps 2 to 6 below, the shared
+  `PortalChecks`), in the same order: an unknown map, no live current instance or no portal to the map → `MapNotFound`;
+  too far → `NotNearPortal`; outside the level band → `LevelTooLow` / `LevelTooHigh`; then a town target →
+  `NotInstanced`, since a town has nothing to choose. A refusal is the result and no instances
+  (`SInstanceListPacket.CreateFailure`). The menu moves nothing, so there is no move-under-way check, and a refusal is
+  not a refused portal entry: nothing is counted in `world.portal_entry.refusals`. A character not in the game, or
+  dead, is answered nothing, as its entry would be.
+- **The entries** are `IInstanceChoices.ListChoosable`'s: the character's own live private instances of the map and,
+  in a party, the party's, read from those owners' lists alone. In a party only the party's default is flagged
+  `IsDefault` (a plain entry goes to the party's instance), out of one the character's own.
+- **The timer.** `InUse` is `PlayerCount > 0`, and then `ExpiresInMs` is 0. An empty instance's `ExpiresInMs` is its
+  lifetime less the time since `LastEmptyAt` on the world's clock: `Game:AbandonedInstanceLifetimeMinutes` once it has
+  been entered, the fixed `InstanceRegistry.UnenteredInstanceLifetime` (15 minutes) while nobody has, from its build;
+  floored at 0 and clamped to a `uint`. The same lifetimes the expiry pass frees it by, so the client counts it down
+  from the answer.
+- **The order.** The default first, then the party's instances, then the private ones; within each, the ones in use,
+  then the most time left first; the instance id breaks a tie.
+- The handler is built once per world and runs on the tick: the lists it fills (the choices, the DTOs) are its own,
+  kept from one request to the next and emptied once the answer is encoded, so a request allocates only its encoding.
+
 ### `EnterMapHandler` Flow
 
 The numbers are those of the handler's own step comments (`src/Server/Avalon.World/Handlers/EnterMapHandler.cs`), so
@@ -364,6 +412,7 @@ where characters stand (`not_near_portal`).
     Another move under way (connection.RespawnInFlight: a scroll return, an item teleport,
        a respawn, a party return, or an earlier portal entry that has not ended) → send
        MoveInProgress, return, before anything is looked up
+    Steps 2 to 6 are PortalChecks.Check, which the portal's menu (CMSG_INSTANCE_LIST) runs too
 2.  Resolve the current instance: InstanceRegistry.GetInstanceById(character.InstanceId)
 3.  Find the MapTemplate of packet.TargetMapId among world.MapTemplates, by id
        (MapTemplateRows.FindById: the map manager holds the templates with a lookup by id)
@@ -434,7 +483,8 @@ where characters stand (`not_near_portal`).
 
 A portal entry may name which instance it wants (`CEnterMapPacket.Choice`, #1104); an old client sends none, so
 `Default`, today's entry. The choices are for Normal maps only: a town has one shared set of instances, and any choice
-but `Default` to a town is answered `NotInstanced`.
+but `Default` to a town is answered `NotInstanced`. A client learns which instances it may pick from the portal's menu
+(`CMSG_INSTANCE_LIST`, under Packets above).
 
 - **`Existing`** enters the instance `InstanceId` names, only if it is live, unexpired, of the portal's map and the
   character's own private one or one of its **current** party's (`IInstanceChoices.FindChoosable`, which reads only those
