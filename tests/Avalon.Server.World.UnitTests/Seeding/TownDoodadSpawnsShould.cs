@@ -25,7 +25,11 @@ public class TownDoodadSpawnsShould
         ChunkLayout town = reference.TownLayout;
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        List<MapDoodadSpawn> rows = [.. context.MapDoodadSpawns.AsNoTracking().AsEnumerable().Where(s => s.MapTemplateId.Value == 1)];
+        List<MapDoodadSpawn> rows = [.. context.MapDoodadSpawns.AsNoTracking()];
+
+        // Glimmerdell (map 1) is the only map with fixed doodads, so the never-hidden checks below cover every seeded
+        // row. A row on another map fails here: extend this guard to that map's props before seeding it.
+        Assert.All(rows, r => Assert.Equal(1, r.MapTemplateId.Value));
         var templates = context.DoodadTemplates.AsNoTracking().AsEnumerable().ToDictionary(t => t.Id.Value);
         List<MapDoodadSpawn> matched = [];
 
