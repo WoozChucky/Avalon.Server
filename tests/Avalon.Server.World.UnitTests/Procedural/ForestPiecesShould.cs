@@ -167,9 +167,11 @@ public class ForestPiecesShould
         ChunkPiece piece = ForestPieces.Singles().Single(p => p.Name == name);
         MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(piece), 0, 0)]);
 
-        foreach ((float x, float z) in piece.Slots.Select(s => (s.X, s.Z)).Concat(piece.DoodadSlots.Select(s => (s.X, s.Z))))
+        // Each slot sampled from the height it is written at: a spawn slot 1 m up, a doodad slot on the floor.
+        foreach ((float x, float y, float z) in piece.Slots.Select(s => (s.X, 1f, s.Z))
+                     .Concat(piece.DoodadSlots.Select(s => (s.X, ChunkPiece.DoodadSlotY, s.Z))))
         {
-            Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(x, 1f, z), out Vector3 ground));
+            Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(x, y, z), out Vector3 ground));
             Assert.InRange(ground.y, -0.3f, 0.3f);   // the floor, never a blocker's top
         }
     }
@@ -183,7 +185,7 @@ public class ForestPiecesShould
         List<Vector3> targets =
         [
             .. piece.Exits.Select(e => ExitPoint(e, 0, 0)), .. piece.Slots.Select(s => new Vector3(s.X, 1f, s.Z)),
-            .. piece.DoodadSlots.Select(s => new Vector3(s.X, 1f, s.Z)),
+            .. piece.DoodadSlots.Select(s => new Vector3(s.X, ChunkPiece.DoodadSlotY, s.Z)),
         ];
 
         AssertAllConnected(navigator, targets, name);
@@ -201,11 +203,12 @@ public class ForestPiecesShould
         List<Vector3> targets =
         [
             .. group.OuterExits.Select(e => ExitPoint(e.Side, e.CellX, e.CellZ)), .. group.Slots.Select(s => new Vector3(s.X, 1f, s.Z)),
-            .. group.DoodadSlots.Select(s => new Vector3(s.X, 1f, s.Z)),
+            .. group.DoodadSlots.Select(s => new Vector3(s.X, ChunkPiece.DoodadSlotY, s.Z)),
         ];
-        foreach ((float x, float z) in group.Slots.Select(s => (s.X, s.Z)).Concat(group.DoodadSlots.Select(s => (s.X, s.Z))))
+        foreach ((float x, float y, float z) in group.Slots.Select(s => (s.X, 1f, s.Z))
+                     .Concat(group.DoodadSlots.Select(s => (s.X, ChunkPiece.DoodadSlotY, s.Z))))
         {
-            Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(x, 1f, z), out Vector3 ground));
+            Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(x, y, z), out Vector3 ground));
             Assert.InRange(ground.y, -0.3f, 0.3f);
         }
         AssertAllConnected(navigator, targets, name);

@@ -225,8 +225,8 @@ public static class NavmeshVectors
                 new("forest_path_03", 1, 1, 0),
             ]),
 
-        // One solid doodad's box on a forest path, as a doodad_large slot puts one: 2.4 by 1.2 m, 1.8 m tall, standing a
-        // metre up, at the slot's height (every doodad slot is written at local y = 1). The client appends the box
+        // One solid doodad's box on a forest path, as a doodad_large slot puts one: 2.4 by 1.2 m, 1.8 m tall, standing on
+        // the floor at the slot's height (every doodad slot is written at local y = 0). The client appends the box
         // after the chunks, with the vertices and faces DoodadObstacleGeometry writes, and its walk stops where the
         // server's does; the floor beside the box is untouched.
         new("forest-doodad", 30f,
@@ -240,7 +240,7 @@ public static class NavmeshVectors
                 new("forest_path_01", 0, 0, 0),
             ],
             [
-                new DoodadObstacle(13.8f, 16.2f, 14.4f, 15.6f, 1f, 2.8f),
+                new DoodadObstacle(13.8f, 16.2f, 14.4f, 15.6f, 0f, 1.8f),
             ]),
     ];
 

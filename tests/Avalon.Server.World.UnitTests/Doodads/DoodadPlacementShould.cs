@@ -138,7 +138,7 @@ public class DoodadPlacementShould
         StaticData data = (await QuestTestWorld.CreateAsync([Quest(GateQuest).WithStage(0, Kill(GateObjective, Boar, 1))])).Data;
         var onObjective = new DoodadGate(GateQuest, DoodadGateCondition.OnObjective, GateObjective);
         var unknownQuest = new DoodadGate(99, DoodadGateCondition.Completed, null);
-        Vector3[] spots = layout.Chunks.Where(c => c.Depth > 0).Take(3).Select(c => c.WorldPos + new Vector3(15f, 1f, 15f)).ToArray();
+        Vector3[] spots = layout.Chunks.Where(c => c.Depth > 0).Take(3).Select(c => c.WorldPos + new Vector3(15f, 0f, 15f)).ToArray();
         var plan = new DoodadPlan(
         [
             new PlannedDoodad(Template(catalog, Barrel), spots[0], 90f, VisibleGate: onObjective),

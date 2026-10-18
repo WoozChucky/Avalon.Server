@@ -34,7 +34,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         await using WorldDbContext read = database.CreateDbContext();   // the slots as stored, not as tracked
         ChunkTemplate thicket = await read.ChunkTemplates.SingleAsync(t => t.Name == "forest_thicket_01");
         Assert.Equal(["doodad", "doodad", "doodad_large"], thicket.DoodadSlots.Select(s => s.Tag).Order(StringComparer.Ordinal));
-        Assert.All(thicket.DoodadSlots, s => Assert.Equal(1f, s.LocalY));
+        Assert.All(thicket.DoodadSlots, s => Assert.Equal(0f, s.LocalY));   // on the floor
 
         ChunkPool forest = await db.ChunkPools.Include(p => p.Memberships).SingleAsync(p => p.Name == "forest_pool");
         Assert.Equal(17, forest.Memberships.Count);

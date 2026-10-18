@@ -8,7 +8,8 @@ public enum Side { N, E, S, W }
 public sealed record Slot(string Tag, float X, float Z);
 
 /// <summary>
-/// A doodad slot in chunk-local metres, its yaw a quarter turn in degrees. Written with localY 1, as spawn slots are.
+/// A doodad slot in chunk-local metres, its yaw a quarter turn in degrees. Written with localY 0 (ChunkPiece.DoodadSlotY),
+/// on the floor: a solid doodad keeps its slot's height, so its box and model stand on the ground.
 /// Tags: <c>doodad</c> (walk-through doodads) and <c>doodad_large</c> (may hold a solid one).
 /// </summary>
 public sealed record DoodadSlot(string Tag, float X, float Z, int Yaw);
@@ -67,6 +68,9 @@ public sealed record ChunkPiece(
     public const float BlockerHeight = 3f;
     public const float FloorThickness = 0.2f;
 
+    /// <summary>The height a doodad slot is written at: the floor's top (ObjWriter). A spawn slot is written 1 m up.</summary>
+    public const float DoodadSlotY = 0f;
+
     /// <summary>
     /// Refuses a blocker or a slot that does not lie within the piece's 0-30 m cell (its edges included): the bake and the
     /// spawner would place it in a neighbouring chunk's ground. A doodad slot also needs a tag and a quarter-turn yaw.
@@ -115,5 +119,5 @@ public sealed record ChunkPiece(
         Slots.Select(s => new SpawnSlotDto(s.Tag, s.X, 1f, s.Z)).ToList(),
         [],
         [.. Tags],
-        DoodadSlots.Select(s => new DoodadSlotDto(s.Tag, s.X, 1f, s.Z, s.Yaw)).ToList());
+        DoodadSlots.Select(s => new DoodadSlotDto(s.Tag, s.X, DoodadSlotY, s.Z, s.Yaw)).ToList());
 }

@@ -33,8 +33,8 @@ public class SolidDoodadNavmeshShould
     private const uint Fountain = 1;
     private const float HalfX = 1.2f, HalfZ = 0.6f, Height = 1.8f;
 
-    /// <summary>The path's middle, a metre up as ChunkGen writes every doodad slot; the entry spawn is in a corner.</summary>
-    private static readonly Vector3 s_slotAt = new(15f, 1f, 15f);
+    /// <summary>The path's middle, on the floor as ChunkGen writes every doodad slot; the entry spawn is in a corner.</summary>
+    private static readonly Vector3 s_slotAt = new(15f, 0f, 15f);
 
     [Theory]
     [InlineData(0)]

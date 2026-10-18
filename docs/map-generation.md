@@ -142,8 +142,11 @@ A chunk is two files in `Maps/Chunks/` with the same name: `<name>.obj` (geometr
   `yaw` is the degrees the doodad faces (`Orientation.y`, 0 along +Z, 90 along +X), a quarter turn: 0, 90, 180 or 270.
   Tags: `doodad` (a walk-through doodad) and `doodad_large` (may hold a solid one). Doodad slot tags are not spawn-table
   tags and need no entry there. The seeder refuses a doodad slot with a blank tag, a yaw that is not a quarter turn, or
-  a position outside the chunk's own cells on X/Z (their edges included). Like a spawn slot's, `localY` only centres
-  the ground search. Stored in `ChunkDoodadSlot` (owned by `ChunkTemplate`, migration `AddChunkDoodadSlots`).
+  a position outside the chunk's own cells on X/Z (their edges included). A doodad slot stands on the floor (`localY` 0 in
+  the generated forest, whose floor top is y = 0), where a spawn slot stands 1 m up: a walk-through doodad is snapped to
+  the navmesh as a spawn is, so for it `localY` only centres the ground search, but a solid doodad keeps its slot's
+  height, so its box and model stand where the slot does. Stored in `ChunkDoodadSlot` (owned by `ChunkTemplate`,
+  migration `AddChunkDoodadSlots`).
 - **tags**: free-form, e.g. `["town", "entry"]`, `["forest", "boss"]`.
 
 The `.obj` is in chunk-local space: a 1×1 chunk spans `(0..30, *, 0..30)`, origin at its SW corner, `+X` east, `+Z`
@@ -321,7 +324,8 @@ reached on the baked navmesh. The tool writes LF line ends, and `.gitattributes`
 Every generated forest piece also carries doodad slots (`DoodadSlots` on the piece, `Doodad(x, z, yaw)` and
 `LargeDoodad(x, z, yaw)` in `ForestPieces.cs`): each single piece two `doodad` slots and one `doodad_large`, each set-piece
 member one `doodad` slot, and each of the arena's members a `doodad_large` too; a set piece lists them in its 60 x 60 m
-frame and they are split into its members as spawn slots are. The hand-made chunks (`forest_entry_01`, `forest_boss_01`,
+frame and they are split into its members as spawn slots are. Doodad slots are written on the floor, at `localY` 0
+(`ChunkPiece.DoodadSlotY`, the floor's top), and spawn slots 1 m up, at `localY` 1. The hand-made chunks (`forest_entry_01`, `forest_boss_01`,
 the paths, junctions, `forest_clearing_01` and `forest_deadend_01`) have none, and the tool writes `"doodadSlots"` only
 for a piece that has some, so the town squares' files are unchanged by it. `ForestPiecesShould` keeps every doodad slot
 off the paths and clear of the rest, with a `doodad_large` slot further away because it may hold a solid doodad:
@@ -345,9 +349,9 @@ navmesh, and the client is sent its box to bake the same wall (see [doodads](doo
 
 - **The box.** The doodad plan (`DoodadPlacementService.Plan`, before the bake) gives each solid doodad it puts at a slot
   one `DoodadObstacle`: the template's `CollisionHalfX` on X and `CollisionHalfZ` on Z around the slot's world position,
-  swapped on an odd quarter turn (yaw 90 or 270), from `BaseY`, the slot's world height (every slot is written at
-  local y = 1, and a solid doodad keeps its slot's height), up to `TopY = BaseY + CollisionHeight`. The boxes are in plan
-  order. `ChunkLayoutInstanceFactory` sets them on the layout (`ChunkLayout.Obstacles`) before the bake, so the instance
+  swapped on an odd quarter turn (yaw 90 or 270), from `BaseY`, the slot's world height (every doodad slot is written on
+  the floor, at local y = 0, and a solid doodad keeps its slot's height), up to `TopY = BaseY + CollisionHeight`. The
+  boxes are in plan order. `ChunkLayoutInstanceFactory` sets them on the layout (`ChunkLayout.Obstacles`) before the bake, so the instance
   keeps them with its layout.
 - **Quarter turns only.** A slot's yaw is 0, 90, 180 or 270 (the seeder refuses any other), so a box is always
   axis-aligned and needs no rotation.
@@ -360,8 +364,7 @@ navmesh, and the client is sent its box to bake the same wall (see [doodads](doo
   (MinX, BaseY, MaxZ), then the same four at TopY, and 10 triangles with no bottom face, 1-based on those 8 and offset
   by the vertices already written: the top (5 6 7) (5 7 8), then the sides (1 2 6) (1 6 5), (2 3 7) (2 7 6),
   (3 4 8) (3 8 7), (4 1 5) (4 5 8), numbers written with the invariant culture. Every solid template stands at least
-  1.05 m tall, above the agent's 0.9 m climb, and the floor under its sides keeps less than the agent's 2 m of
-  headroom, so a walk stops at the box's sides, an agent radius short of them.
+  1.05 m tall, above the agent's 0.9 m climb, so a walk stops an agent radius short of the box's sides.
 - **The wire.** `SChunkLayoutPacket.Obstacles` (field 8, `DoodadObstacleDto` with fields 1-6: `MinX`, `MaxX`, `MinZ`,
   `MaxZ`, `BaseY`, `TopY`) carries the boxes in the same order; `MapLayoutEntries` builds the list once, with the
   instance. A client that does not know the field skips it, and bakes no box.

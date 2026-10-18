@@ -215,7 +215,7 @@ ground 15 3 30 -> 0.2 # on the seam between the two heights
 
 layout forest-doodad cell 30
 chunk forest_path_01 0 0 0
-obstacle 13.8 16.2 14.4 15.6 1 2.8
+obstacle 13.8 16.2 14.4 15.6 0 1.8
 mesh tiles 15 polys 19 verts 63
 ray 5 0.1 15 25 0.1 15 -> clamped 13.200001 0.1 15 0.41000003 # east along the path's middle into the box's west face
 ground 15 3 13 -> 0.2 # beside the box, 1.4 m south of its south face: the floor
