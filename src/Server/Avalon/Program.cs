@@ -99,14 +99,6 @@ IResourceBuilder<ProjectResource> apiProject = builder
     .WaitFor(postgresql)
     .WaitFor(balanceService);
 
-// The auth server waits for the api so the two never migrate the auth database at once.
-builder
-    .AddProject<Avalon_Server_Auth>("auth")
-    .WithEndpoint(21000, 21000, "tcp", "tcp", isProxied: false, isExternal: true)
-    .WaitFor(redis)
-    .WaitFor(postgresql)
-    .WaitFor(apiProject);
-
 // The world reads the auth database (its world row, maintenance), which it never migrates, so it waits for the api
 // too. It creates its own World and Characters databases; the api found them missing at its start on a fresh
 // Postgres and picks them up by itself once they exist (WorldDatabaseRecheck), with no restart.

@@ -13,8 +13,8 @@ from datetime import datetime, timedelta, timezone
 
 OWNER = "WoozChucky"
 PACKAGES = (
-    "avalon-server/world", "avalon-server/auth", "avalon-server/api", "avalon-server/balance",
-    "charts/avalon-world", "charts/avalon-auth", "charts/avalon-api", "charts/avalon-balance",
+    "avalon-server/world", "avalon-server/api", "avalon-server/balance",
+    "charts/avalon-world", "charts/avalon-api", "charts/avalon-balance",
 )
 PRERELEASE = re.compile(r"^\d+\.\d+\.\d+-(dev|nightly)\.\d+$")
 
