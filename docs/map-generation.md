@@ -521,11 +521,12 @@ Each refusal names the square, the building and the model or part.
 The bounds table, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, holds each model's box in its own space, so pieces can
 be checked against the art without the kit, which stays out of the repository:
 
-    dotnet run --project tools/Avalon.ChunkGen -- kit-bounds --kit <glTF directory> [--props <glTF directory>]
+    dotnet run --project tools/Avalon.ChunkGen -- kit-bounds --kit <glTF directory> [--props <glTF directory>] [--props-kit <glTF directory>]
 
-measures every `*.gltf` directly in the kit directory (and the custom props' directory) from its accessors' bounds
-through the node transforms, and rewrites the table; a model in both directories, an empty directory or a file it
-cannot measure leaves the table as it was.
+measures every `*.gltf` directly in the kit directory (and the custom props' directory, and the props kit's: Fantasy
+Props MegaKit, CC0, whose `Chest_Wood`, `Barrel` and `Crate_Metal` the forest's doodads wear) from its accessors'
+bounds through the node transforms, and rewrites the table; a model in two of the directories, an empty directory or
+a file it cannot measure leaves the table as it was.
 
 ## Chunk groups (set pieces)
 
