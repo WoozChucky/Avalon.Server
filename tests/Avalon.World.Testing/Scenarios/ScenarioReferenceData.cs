@@ -33,7 +33,7 @@ public sealed class ScenarioReferenceData
 
     /// <summary>
     /// The scenarios' kill quest, in this reference data only (never in the World database's seed): see
-    /// <see cref="NewKillQuest" />. Its id is far from the seeded quests' (1 to 8).
+    /// <see cref="NewKillQuest" />. Its id is far from the seeded quests' (1 to 9).
     /// </summary>
     public const uint KillQuest = 9001;
 

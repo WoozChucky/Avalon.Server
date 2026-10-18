@@ -4344,6 +4344,54 @@ namespace Avalon.Database.World.Migrations
                             SpentLook = (byte)1,
                             UseLimit = (byte)1,
                             UsedModelKey = "avalon_forest_fountain_dry"
+                        },
+                        new
+                        {
+                            Id = 5L,
+                            AreaRadius = 0f,
+                            Collision = (byte)0,
+                            CollisionHalfX = 0f,
+                            CollisionHalfZ = 0f,
+                            CollisionHeight = 0f,
+                            Interaction = (byte)1,
+                            InteractionRange = 5f,
+                            InteractionTimeMs = 1500L,
+                            MaxGold = 0,
+                            MinGold = 0,
+                            ModelKey = "Crate_Metal",
+                            ModelKit = "props-kit",
+                            Name = "Caravan Strongbox",
+                            RestorePct = 0L,
+                            SpentLook = (byte)1,
+                            UseLimit = (byte)2,
+                            UsedModelKey = "avalon_strongbox_open",
+                            VisibleCondition = (byte)2,
+                            VisibleObjectiveId = 901L,
+                            VisibleQuestId = 9L
+                        },
+                        new
+                        {
+                            Id = 6L,
+                            AreaRadius = 0f,
+                            Collision = (byte)0,
+                            CollisionHalfX = 0f,
+                            CollisionHalfZ = 0f,
+                            CollisionHeight = 0f,
+                            Interaction = (byte)1,
+                            InteractionRange = 5f,
+                            InteractionTimeMs = 0L,
+                            MaxGold = 0,
+                            MinGold = 0,
+                            ModelKey = "avalon_notice_board",
+                            ModelKit = "town-kit",
+                            Name = "Notice Board",
+                            RestorePct = 0L,
+                            SpentLook = (byte)1,
+                            UsableCondition = (byte)2,
+                            UsableObjectiveId = 902L,
+                            UsableQuestId = 9L,
+                            UseLimit = (byte)2,
+                            UsedModelKey = "avalon_notice_board_pinned"
                         });
                 });
 
@@ -6193,6 +6241,46 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 66,
                             Text = "Break the Bramblemaw Alphas' hold and cut out the Bramble Heart."
+                        },
+                        new
+                        {
+                            Id = 67,
+                            Text = "The Lost Caravan"
+                        },
+                        new
+                        {
+                            Id = 68,
+                            Text = "Those pages were the last of the caravan's accounts, {name}. Somewhere in the wold its strongbox still lies where the wagons fell. Find it and open it, and tell me what it holds."
+                        },
+                        new
+                        {
+                            Id = 69,
+                            Text = "So that is how it ended. Thank you, {name}. Now the town knows, and I can stop waiting for wagons that will never come."
+                        },
+                        new
+                        {
+                            Id = 70,
+                            Text = "Caravan strongbox opened"
+                        },
+                        new
+                        {
+                            Id = 71,
+                            Text = "The caravan's fate posted"
+                        },
+                        new
+                        {
+                            Id = 72,
+                            Text = "Find the caravan's strongbox in the forest."
+                        },
+                        new
+                        {
+                            Id = 73,
+                            Text = "Pin the caravan's fate to the notice board in Glimmerdell."
+                        },
+                        new
+                        {
+                            Id = 74,
+                            Text = "Tell Marta what you found."
                         });
                 });
 
@@ -6608,6 +6696,54 @@ namespace Avalon.Database.World.Migrations
                             TextId = 66,
                             Locale = "ptPT",
                             Text = "Quebra o domínio dos Bramblemaw Alphas e arranca o Coração de Bramble."
+                        },
+                        new
+                        {
+                            TextId = 67,
+                            Locale = "ptPT",
+                            Text = "A Caravana Perdida"
+                        },
+                        new
+                        {
+                            TextId = 68,
+                            Locale = "ptPT",
+                            Text = "Aquelas páginas eram as últimas contas da caravana, {name}. Algures na mata, o cofre dela ainda jaz onde as carroças tombaram. Encontra-o, abre-o e conta-me o que guarda."
+                        },
+                        new
+                        {
+                            TextId = 69,
+                            Locale = "ptPT",
+                            Text = "Então foi assim que acabou. Obrigada, {name}. Agora a vila sabe, e eu posso deixar de esperar por carroças que nunca hão de chegar."
+                        },
+                        new
+                        {
+                            TextId = 70,
+                            Locale = "ptPT",
+                            Text = "Cofre da caravana aberto"
+                        },
+                        new
+                        {
+                            TextId = 71,
+                            Locale = "ptPT",
+                            Text = "Destino da caravana afixado"
+                        },
+                        new
+                        {
+                            TextId = 72,
+                            Locale = "ptPT",
+                            Text = "Encontra o cofre da caravana na floresta."
+                        },
+                        new
+                        {
+                            TextId = 73,
+                            Locale = "ptPT",
+                            Text = "Afixa o destino da caravana no quadro de avisos de Glimmerdell."
+                        },
+                        new
+                        {
+                            TextId = 74,
+                            Locale = "ptPT",
+                            Text = "Conta à Marta o que encontraste."
                         });
                 });
 
@@ -7864,6 +8000,12 @@ namespace Avalon.Database.World.Migrations
                             QuestId = 8L,
                             ItemTemplateId = 65m,
                             Count = 1L
+                        },
+                        new
+                        {
+                            QuestId = 9L,
+                            ItemTemplateId = 56m,
+                            Count = 2L
                         });
                 });
 
@@ -8053,6 +8195,36 @@ namespace Avalon.Database.World.Migrations
                             QuestId = 8L,
                             StageSequence = 1,
                             Type = 2
+                        },
+                        new
+                        {
+                            Id = 901L,
+                            Count = 1L,
+                            DescriptionTextId = 70,
+                            DoodadTemplateId = 5L,
+                            QuestId = 9L,
+                            StageSequence = 0,
+                            Type = 5
+                        },
+                        new
+                        {
+                            Id = 902L,
+                            Count = 1L,
+                            DescriptionTextId = 71,
+                            DoodadTemplateId = 6L,
+                            QuestId = 9L,
+                            StageSequence = 1,
+                            Type = 5
+                        },
+                        new
+                        {
+                            Id = 903L,
+                            Count = 1L,
+                            CreatureTemplateId = 11m,
+                            DescriptionTextId = 38,
+                            QuestId = 9L,
+                            StageSequence = 2,
+                            Type = 3
                         });
                 });
 
@@ -8134,6 +8306,24 @@ namespace Avalon.Database.World.Migrations
                             QuestId = 8L,
                             Sequence = 1,
                             DescriptionTextId = 66
+                        },
+                        new
+                        {
+                            QuestId = 9L,
+                            Sequence = 0,
+                            DescriptionTextId = 72
+                        },
+                        new
+                        {
+                            QuestId = 9L,
+                            Sequence = 1,
+                            DescriptionTextId = 73
+                        },
+                        new
+                        {
+                            QuestId = 9L,
+                            Sequence = 2,
+                            DescriptionTextId = 74
                         });
                 });
 
@@ -8334,6 +8524,23 @@ namespace Avalon.Database.World.Migrations
                             RewardExperience = 1500L,
                             RewardMoney = 1000m,
                             TitleTextId = 59,
+                            Type = 0
+                        },
+                        new
+                        {
+                            Id = 9L,
+                            CompletionTextId = 69,
+                            DescriptionTextId = 68,
+                            EnderCreatureId = 11m,
+                            Environment = 0,
+                            GiverCreatureId = 11m,
+                            IsRepeatable = false,
+                            LevelRequirement = 4,
+                            Rarity = 0,
+                            RequiredQuestId = 6L,
+                            RewardExperience = 600L,
+                            RewardMoney = 350m,
+                            TitleTextId = 67,
                             Type = 0
                         });
                 });

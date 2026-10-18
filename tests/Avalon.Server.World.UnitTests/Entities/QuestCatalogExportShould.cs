@@ -39,9 +39,9 @@ public class QuestCatalogExportShould
     {
         List<JsonElement> quests = SeededQuests();
 
-        Assert.Equal([1, 2, 3, 4, 5, 6, 7, 8], quests.Select(q => q.GetProperty("id").GetInt32()));
+        Assert.Equal([1, 2, 3, 4, 5, 6, 7, 8, 9], quests.Select(q => q.GetProperty("id").GetInt32()));
         Assert.Equal(["Thinning the Herd", "Tusks for Borin", "The Alpha's Howl", "Wings for the Still", "Pelts Before Frost",
-                "What the Husks Carry", "Heartwood", "Mother of Thorns"],
+                "What the Husks Carry", "Heartwood", "Mother of Thorns", "The Lost Caravan"],
             quests.Select(q => q.GetProperty("title").GetString()));
     }
 

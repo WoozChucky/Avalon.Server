@@ -10,7 +10,7 @@ This page is the authority on the subsystem. Other pages cover their own side of
 - [tick profiling](tick-profiling.md): how doodads count in `candidateChecks` and `visiblePairs`;
 - [tooling](tooling.md): the `doodad-catalog` export.
 
-Slice S1 was the framework and the wire. Slice S2 places procedural doodads from each map's rules (see "Placement") and seeds the forest's set (see "The forest set").
+Slice S1 was the framework and the wire. Slice S2 places procedural doodads from each map's rules (see "Placement") and seeds the forest's set (see "The forest set"). Slice S3 adds the use-doodad quest objective and seeds the caravan quest's doodads (see "The caravan quest's doodads").
 
 ## Templates and catalog
 
@@ -64,7 +64,7 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
   - `DoodadCatalogShould.Refuse_a_template_that_breaks_a_rule` holds a row for every rule above but the weights' total, each asserting its refusal reason (`DoodadRefusal.Reason`).
 - **Solid and scripted.** A template whose script declares its own `CanSee` (`DoodadScripts.OverridesCanSee`) has `ScriptCanSee` set. For a solid template the flag is forced off, with one Warning per template at load.
 - **Reload** (`/reload doodads`) works forward only. A doodad already placed keeps the template view it was placed from, and the next instance build places from the new catalog. A `/reload quests` moves every viewer's gates (see "Per-viewer views and gates").
-- **Export.** `tools/Avalon.Exporter -- doodad-catalog` writes `schema/doodads/doodad-catalog-v1.json` (the forest set, templates 1 to 4). It lists only what a client draws: the model kit and keys (`usedModelKey` resolves in the same `modelKit` folder, as the file's `$comment` says), the clips, the interaction kind, time and range, solidity and the spent look. It lists no gates, loot, gold, restore, radius or aura outcomes. `DoodadCatalogExportShould.List_only_what_a_client_draws` pins the field names, so nothing in the file can reveal a shrine's outcome. See [tooling](tooling.md).
+- **Export.** `tools/Avalon.Exporter -- doodad-catalog` writes `schema/doodads/doodad-catalog-v1.json` (the forest set, templates 1 to 4, and the caravan quest's strongbox and notice board, 5 and 6). It lists only what a client draws: the model kit and keys (`usedModelKey` resolves in the same `modelKit` folder, as the file's `$comment` says), the clips, the interaction kind, time and range, solidity and the spent look. It lists no gates, loot, gold, restore, radius or aura outcomes. `DoodadCatalogExportShould.List_only_what_a_client_draws` pins the field names, so nothing in the file can reveal a shrine's outcome. See [tooling](tooling.md).
 
 ## The object type and the wire fields
 
@@ -238,12 +238,26 @@ Migration `SeedForestDoodads` seeds the first doodads (`WorldDbContext`, `Config
 - **The loot tables** are listed under "The seeded loot" in [world simulation](world-simulation.md): table 12 "Forest chest" rolls potions and then the creatures' shared pools, richer than a kill; table 13 "Forest barrel" rolls only potions.
 - **The auras** are listed in [auras](auras.md): 8 Blessed, 9 Emboldened and 10 Hexed, stat auras of 2 minutes, 2 minutes and 1 minute.
 - **A solid box is measured from the model** in the kit's bounds table (`tools/Avalon.ChunkGen/Kit/kit-bounds.json`). Its half extents are half the model's footprint rounded up to 0.05 m, and its height is the model's, rounded up to 0.05 m and never below 1.05 m. The fountain's footprint is round, and a box over its full ±1.2 m would reach 0.5 m past the basin at the corners. So its box is drawn in by the decor tolerance (0.15 m) on each side, to ±1.05 m: its sides stay within the tolerance of the rim. `DoodadCollisionShould` pins the rule for every seeded solid template, checks the box against both the ready and the used model within the tolerance, and checks it fits a `doodad_large` slot, whose 2 m edge clearance (`ForestPiecesShould.EdgeClearance`) is the most a half extent may be.
-- **The forest's rules** (`Maps/ProceduralMaps/2.json`, `doodadRules`), none of them required:
+- **The forest's rules** (`Maps/ProceduralMaps/2.json`, `doodadRules`). The first four are optional; the fifth is required:
   1. the chest at a `doodad` slot, 1 to 3 per run, 25 m apart, from depth 2 on;
   2. the barrel at a `doodad` slot, 2 to 5 per run, 10 m apart;
   3. the shrine at a `doodad_large` slot, at most one, from depth 3 on;
-  4. the fountain at a `doodad_large` slot, at most one, from depth 1 on.
+  4. the fountain at a `doodad_large` slot, at most one, from depth 1 on;
+  5. the caravan's strongbox (see "The caravan quest's doodads") at a `doodad` slot, exactly one, from depth 4 on, **required**. Being required, it is planned before the four above, so it changes where they fall for a given seed. `CommittedForestDoodadsShould` proves it finds a slot for every seed from 0 to 999.
 - **The scenarios place them too.** The forest scenarios (`ScenarioWorld.NewForestInstance`) build through `ChunkLayoutInstanceFactory`, so they plan and place the forest's doodads. `ForestLayouts` plans each seed's doodads as the factory does and bakes the navmesh with their boxes, and the cached bake refuses a layout whose boxes differ.
+
+## The caravan quest's doodads
+
+Migration `SeedLostCaravan` seeds the two doodads of quest 9, "The Lost Caravan" ([quests](quests.md)), beside the quest. Its inserts run in foreign-key order: the doodads and the texts before the quest, and the quest and its stages before the objectives that name the doodads. Both doodads are clicked and used from 5 m, by every player for themselves (`Unlimited`, so never spent), with radius 0, `ShowUsed`, no respawn, no script and no collision. A use does nothing but credit the quest (see "Completion"). `SeedIntegrityShould.Seed_the_lost_caravan_as_designed` pins them with the quest.
+
+| Id | Name | Kit / model / used model | Cast | Gate | Placed |
+|---|---|---|---|---|---|
+| 5 | Caravan Strongbox | `props-kit` / `Crate_Metal` / `avalon_strongbox_open` | 1.5 s | visible only `OnObjective(9, 901)` | the forest's required rule 5 |
+| 6 | Notice Board | `town-kit` / `avalon_notice_board` / `avalon_notice_board_pinned` | instant | usable only `OnObjective(9, 902)`; seen by everyone | not yet: Glimmerdell's fixed doodad spawns place it |
+
+- **Each used model lives in its template's own kit folder** (`usedModelKey` resolves in `modelKit`). The strongbox is a props-kit `Crate_Metal`, so `avalon_strongbox_open` belongs in the client's props-kit folder, and the board's `avalon_notice_board_pinned` in town-kit. Neither model exists yet; the catalog checks only that the names are plain, so seeding them ahead of the art is safe.
+- **The strongbox is hidden from everyone but a player on its step.** Once its use credits objective 901, the user's quest moves to stage 1, which raises `QuestLog.GateVersion`, so the user's next view decision removes it. Another player still on the step goes on seeing it (`QuestDoodadCreditShould.Hide_the_seeded_strongbox_from_its_user_once_opened`).
+- **Neither is solid**, so their gates are allowed (a solid doodad is never hidden).
 
 ## Placement
 

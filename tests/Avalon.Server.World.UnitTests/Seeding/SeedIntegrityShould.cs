@@ -1,5 +1,6 @@
 using Avalon.Combat;
 using Avalon.Common;
+using Avalon.Common.Accounts;
 using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
@@ -1140,7 +1141,7 @@ public class SeedIntegrityShould
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        var quests = SeededQuests(context).Where(q => q.Id.Value >= 4).ToList();
+        var quests = SeededQuests(context).Where(q => q.Id.Value is >= 4 and <= 8).ToList();
 
         Assert.Equal([4u, 5u, 6u, 7u, 8u], quests.Select(q => q.Id.Value));
         Assert.Equal([(14ul, 14ul), (13ul, 13ul), (3ul, 11ul), (2ul, 2ul), (1ul, 1ul)],
@@ -1203,7 +1204,65 @@ public class SeedIntegrityShould
             NullLoggerFactory.Instance, context.DoodadTemplates.AsNoTracking().ToList());
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal(8, catalog.All.Count);
+        Assert.Equal(9, catalog.All.Count);
+    }
+
+    /// <summary>
+    /// "The Lost Caravan" (doodads S3): Marta's quest after quest 6, in three stages. Open the caravan's strongbox
+    /// (doodad 5, seen only on that step), pin its fate to the notice board (doodad 6, seen by all, used only on that
+    /// step), then tell Marta.
+    /// </summary>
+    [Fact]
+    public void Seed_the_lost_caravan_as_designed()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        QuestTemplate quest = SeededQuests(context).Single(q => q.Id.Value == 9);
+
+        Assert.Equal((67, 68, 69), (quest.TitleTextId.Value, quest.DescriptionTextId.Value, quest.CompletionTextId.Value));
+        Assert.Equal((11ul, 11ul, (uint?)6), (quest.GiverCreatureId.Value, quest.EnderCreatureId.Value, quest.RequiredQuestId?.Value));
+        Assert.Equal(((ushort)4, 600u, 350ul), (quest.LevelRequirement, quest.RewardExperience, quest.RewardMoney));
+        Assert.Null(quest.ScriptName);
+        Assert.Null(quest.ClassRequirement);
+        Assert.Equal([(0, (int?)72), (1, 73), (2, 74)],
+            quest.Stages.OrderBy(s => s.Sequence).Select(s => (s.Sequence, s.DescriptionTextId?.Value)));
+        Assert.Equal(
+            [(901u, 0, QuestObjectiveType.UseDoodad, 5ul, 1u, 70), (902u, 1, QuestObjectiveType.UseDoodad, 6ul, 1u, 71),
+             (903u, 2, QuestObjectiveType.Talk, 11ul, 1u, 38)],
+            quest.Objectives.OrderBy(o => o.Id).Select(o => (o.Id, o.StageSequence, o.Type,
+                o.DoodadTemplateId?.Value ?? o.CreatureTemplateId!.Value, o.Count, o.DescriptionTextId.Value)));
+        Assert.Equal((56ul, 2u), (Assert.Single(quest.ItemRewards).ItemTemplateId.Value, quest.ItemRewards[0].Count));
+
+        // Every text it names, 67-74 and the reused 38, in the base wording and in ptPT.
+        int[] named = [67, 68, 69, 70, 71, 72, 73, 74, 38];
+        var english = context.LocalizedTexts.AsNoTracking().ToList().Select(t => t.Id.Value).ToHashSet();
+        var portuguese = context.LocalizedTextLocales.AsNoTracking().ToList()
+            .Where(t => t.Locale == AccountLocale.ptPT).Select(t => t.TextId.Value).ToHashSet();
+        Assert.All(named, id => Assert.Contains(id, english));
+        Assert.All(named, id => Assert.Contains(id, portuguese));
+
+        var doodads = context.DoodadTemplates.AsNoTracking().ToList();
+        Assert.Equal(
+            [(5u, "Caravan Strongbox", "props-kit", "Crate_Metal", "avalon_strongbox_open", 1500u),
+             (6u, "Notice Board", "town-kit", "avalon_notice_board", "avalon_notice_board_pinned", 0u)],
+            doodads.Where(d => d.Id.Value >= 5).OrderBy(d => d.Id.Value)
+                .Select(d => (d.Id.Value, d.Name, d.ModelKit, d.ModelKey, d.UsedModelKey!, d.InteractionTimeMs)));
+        Assert.All(doodads.Where(d => d.Id.Value >= 5), d =>
+        {
+            Assert.Equal((DoodadInteraction.Click, 5f, 0f, DoodadUseLimit.Unlimited, DoodadSpentLook.ShowUsed, (uint?)null),
+                (d.Interaction, d.InteractionRange, d.AreaRadius, d.UseLimit, d.SpentLook, d.RespawnSeconds));
+            Assert.Equal(((string?)null, (int?)null, 0, 0, 0u, DoodadCollision.None),
+                (d.ScriptName, d.LootTableId?.Value, d.MinGold, d.MaxGold, d.RestorePct, d.Collision));
+        });
+        DoodadTemplate strongbox = doodads.Single(d => d.Id.Value == 5), board = doodads.Single(d => d.Id.Value == 6);
+        Assert.Equal(((uint?)9u, (DoodadGateCondition?)DoodadGateCondition.OnObjective, (uint?)901u, (uint?)null),
+            (strongbox.VisibleQuestId, strongbox.VisibleCondition, strongbox.VisibleObjectiveId, strongbox.UsableQuestId));
+        Assert.Equal(((uint?)null, (uint?)9u, (DoodadGateCondition?)DoodadGateCondition.OnObjective, (uint?)902u),
+            (board.VisibleQuestId, board.UsableQuestId, board.UsableCondition, board.UsableObjectiveId));
+
+        // A solid doodad is never hidden (R5): no seeded solid template carries a gate.
+        Assert.All(doodads.Where(d => d.Collision != DoodadCollision.None),
+            d => Assert.Equal(((uint?)null, (uint?)null), (d.VisibleQuestId, d.UsableQuestId)));
     }
 
     [Fact]
@@ -1407,7 +1466,8 @@ public class SeedIntegrityShould
             SeededQuests(context), scripts.GetDoodadScript, NullLoggerFactory.Instance);
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal([1u, 2u, 3u, 4u], catalog.Templates.Select(t => t.Id.Value));
-        Assert.All(catalog.Templates, t => Assert.NotNull(t.ScriptType));
+        Assert.Equal([1u, 2u, 3u, 4u, 5u, 6u], catalog.Templates.Select(t => t.Id.Value));
+        // The forest set runs its scripts; the caravan's strongbox and notice board need none, as a use only credits the quest.
+        Assert.All(catalog.Templates, t => Assert.Equal(t.Id.Value <= 4, t.ScriptType is not null));
     }
 }

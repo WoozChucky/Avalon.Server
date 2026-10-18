@@ -12,10 +12,14 @@ using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Quests;
+using Avalon.World;
+using Avalon.World.Inventory;
 using Avalon.World.Testing;
+using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;
@@ -24,7 +28,7 @@ namespace Avalon.Server.World.UnitTests.Quests;
 /// A doodad use credits the use-doodad objectives of its user alone (ruling R12), through a real instance and the use
 /// service: +1, capped, on each UseDoodad objective for the template in the current stage of an Active quest, settled as a
 /// kill is. A party member standing beside the user on the same step gets nothing, and a use that credits nothing
-/// allocates nothing. Quest 7801 and doodad guid 7801 are this class's.
+/// allocates nothing. Quest 7801 and doodad guids 7801 and 7802 are this class's.
 /// </summary>
 public class QuestDoodadCreditShould
 {
@@ -92,6 +96,54 @@ public class QuestDoodadCreditShould
         Assert.Equal(0, allocated);
         Assert.Empty(stranger.Quests.Get(Hunt)!.Progress);
         Assert.Equal(CharacterQuestState.Active, stranger.Quests.Get(Hunt)!.State);
+    }
+
+    /// <summary>
+    /// The seeded strongbox end to end (quest 9's objective 901, doodad 5, as the World database seeds them): shown to its
+    /// user on the step, opened through its cast bar, it credits the user, whose next view decision removes it. Being
+    /// never spent, it stays for a player beside them who is still on the step.
+    /// </summary>
+    [Fact]
+    public void Hide_the_seeded_strongbox_from_its_user_once_opened()
+    {
+        const uint LostCaravan = 9, Opened = 901;
+        StaticData data = ScenarioReferenceData.Shared.Data;
+        Assert.True(data.Doodads.TryGet(new DoodadTemplateId(5), out DoodadTemplateView? strongbox));
+        var clock = new ManualTimerClock();
+        IWorld world = MapInstanceClients.NewWorld(data);
+        var quests = new QuestService(world, Substitute.For<IServiceProvider>(),
+            new CharacterEconomy(world, new ItemIdAllocator()), new SteadyLootRandom(0), clock, NullLogger<QuestService>.Instance);
+        var scripts = new DoodadScripts(new ServiceCollection().BuildServiceProvider(), clock, NullLogger<DoodadScripts>.Instance);
+        var visibility = new DoodadVisibility(scripts);
+        var uses = new DoodadUseService(scripts, visibility, world, clock, NullLogger<DoodadUseService>.Instance, quests);
+        using MapInstance instance = TestMapInstances.Build(world, time: clock, quests: quests, doodadVisibility: visibility,
+            doodadUses: uses);
+        var doodad = new Doodad(new ObjectGuid(ObjectType.Doodad, 7802), strongbox!, new Vector3(2f, 0f, 0f), 0f);
+        instance.AddDoodad(doodad);
+        MapInstanceClient user = MapInstanceClients.Join(instance, 1);
+        MapInstanceClient beside = MapInstanceClients.Join(instance, 2);
+        user.Character.Position = Vector3.zero;
+        beside.Character.Position = new Vector3(1f, 0f, 0f);
+        user.Character.Quests.Start(LostCaravan, DateTime.UnixEpoch);
+        beside.Character.Quests.Start(LostCaravan, DateTime.UnixEpoch);
+        Tick(instance, 30);
+        Assert.Contains(user.Added(), s => s.Guid == doodad.Guid.RawValue);
+
+        uses.Interact(user.Connection, user.Character, instance, doodad.Guid);
+        clock.Advance(TimeSpan.FromMilliseconds(1500));
+        Tick(instance, 6);
+
+        ActiveQuest opened = user.Character.Quests.Get(LostCaravan)!;
+        Assert.Equal((1u, 1), (opened.ProgressOf(Opened), opened.Stage));
+        Assert.Contains(doodad.Guid.RawValue, user.Removed());
+        Assert.Equal(0, beside.Character.Quests.Get(LostCaravan)!.Stage);
+        Assert.DoesNotContain(doodad.Guid.RawValue, beside.Removed());
+    }
+
+    private static void Tick(MapInstance instance, int count)
+    {
+        for (int i = 0; i < count; i++)
+            instance.Update(TimeSpan.FromSeconds(1d / 60d));
     }
 
     /// <summary>A credit that throws costs the use its credit only: the once-per-instance doodad is still spent, so it cannot be used again.</summary>

@@ -257,6 +257,55 @@
           }
         ]
       }
+    },
+    {
+      "id": 9,
+      "title": "The Lost Caravan",
+      "stages": [
+        {
+          "sequence": 0,
+          "objectives": [
+            {
+              "id": 901,
+              "type": 5,
+              "targetId": 5,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "sequence": 1,
+          "objectives": [
+            {
+              "id": 902,
+              "type": 5,
+              "targetId": 6,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "sequence": 2,
+          "objectives": [
+            {
+              "id": 903,
+              "type": 3,
+              "targetId": 11,
+              "count": 1
+            }
+          ]
+        }
+      ],
+      "rewards": {
+        "experience": 600,
+        "money": 350,
+        "items": [
+          {
+            "itemTemplateId": 56,
+            "count": 2
+          }
+        ]
+      }
     }
   ]
 }
