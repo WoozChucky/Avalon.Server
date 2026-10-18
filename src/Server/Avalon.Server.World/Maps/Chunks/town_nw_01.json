@@ -13,7 +13,7 @@
   "spawnSlots": [
   ],
   "portalSlots": [
-    { "role": "Forward", "localX": 15, "localY": 0, "localZ": 15 }
+    { "role": "Forward", "localX": 15, "localY": 0, "localZ": 28.75 }
   ],
   "tags": ["town"]
 }

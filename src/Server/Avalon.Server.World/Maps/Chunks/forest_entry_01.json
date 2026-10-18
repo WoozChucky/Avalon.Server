@@ -14,7 +14,7 @@
     { "tag": "entry", "localX": 15, "localY": 1, "localZ": 15 }
   ],
   "portalSlots": [
-    { "role": "Back", "localX": 15, "localY": 1, "localZ": 5 }
+    { "role": "Back", "localX": 15, "localY": 0, "localZ": 5 }
   ],
   "tags": ["entry", "forest"]
 }

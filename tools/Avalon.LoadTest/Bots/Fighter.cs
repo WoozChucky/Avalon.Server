@@ -121,7 +121,7 @@ public sealed class Fighter
 
     /// <summary>The town's forest portal (its radius is 3 m), straight north of the town's spawn at (15, 15).</summary>
     private const float TownPortalX = 15f;
-    private const float TownPortalZ = 45f;
+    private const float TownPortalZ = 58.75f;
 
     /// <summary>Where the forest puts a character that enters it.</summary>
     private const float EntrySpawnX = 15f;
@@ -135,7 +135,7 @@ public sealed class Fighter
     private const float EntryToPortal = EntrySpawnZ - BackPortalZ;
 
     /// <summary>Within this of a portal or the entry spawn (on the ground plane), the fighter is there.</summary>
-    private const float ArrivalRadius = 2.5f;
+    private const float ArrivalRadius = 1.0f;
 
     /// <summary>How far a fighter looks for a creature.</summary>
     private const float SearchRange = 60f;

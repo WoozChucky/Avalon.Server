@@ -377,6 +377,28 @@ public class EnterMapHandlerShould
     }
 
     /// <summary>
+    /// A portal's reach is a distance on the ground: a character beside the portal is near it however far above or
+    /// below it stands (the harness's portal is at the origin, with a 5 m reach).
+    /// </summary>
+    [Theory]
+    [InlineData(4.5f, 3f, 0f, true)]    // 4.5 m away on the ground, 5.4 m in a straight line: near
+    [InlineData(0f, -2f, 4.9f, true)]
+    [InlineData(5.5f, 0f, 0f, false)]   // past the reach on the ground: refused
+    public void Measure_a_portal_s_reach_on_the_ground(float x, float y, float z, bool accepted)
+    {
+        var entry = new Entry();
+        entry.Character.Position = new Vector3(x, y, z);
+
+        using var counted = new RefusalProbe();
+        entry.Request();
+        entry.Flush();
+        entry.Flush();
+
+        Assert.Equal(accepted ? [] : ["not_near_portal"], counted.Reasons);
+        Assert.Equal(accepted, entry.Results().Contains(MapTransitionResult.Success));
+    }
+
+    /// <summary>
     /// The reasons counted in <c>world.portal_entry.refusals</c> on this test's own flow: the counter is static and
     /// shared, and other test classes refuse portal entries in parallel.
     /// </summary>

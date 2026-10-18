@@ -42,11 +42,11 @@ public class FighterShould
         };
         wizard.Fighter.TripEnded += _trips.Add;
 
-        // Town: north to the forest portal at (15, 45), asked for the forest only within 2.5 m of it.
+        // Town: north to the forest portal in the gate at (15, 58.75), asked for the forest only within 1 m of it.
         FighterStep step = wizard.RunUntil(s => s.Action != FighterAction.None);
         Assert.Equal(FighterAction.EnterForest, step.Action);
         Assert.Equal(FighterState.Entering, wizard.Fighter.State);
-        Assert.InRange(wizard.Distance(15f, 45f), 0f, 2.5f);
+        Assert.InRange(wizard.Distance(15f, 58.75f), 0f, 1f);
         Assert.Equal(15f, wizard.X, 0.01f);
 
         // The forest, 300 ms after the request: the fighter starts at its entry spawn and sees a creature 55 m north.
