@@ -10,6 +10,10 @@
       "bytesPerWindow": 0,
       "bytesPerPlayerPerTick": 0
     },
+    "town-doodads": {
+      "bytesPerWindow": 0,
+      "bytesPerPlayerPerTick": 0
+    },
     "town-idle": {
       "bytesPerWindow": 0,
       "bytesPerPlayerPerTick": 0

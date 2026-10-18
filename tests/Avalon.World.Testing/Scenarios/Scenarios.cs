@@ -11,6 +11,7 @@ public static class Scenarios
         new TownSocialScenario(),
         new ManyInstancesScenario(),
         new ForestCombatScenario(),
+        new TownDoodadsScenario(),
     ];
 
     /// <summary>The scenario of that name; throws, naming every scenario, when there is none.</summary>

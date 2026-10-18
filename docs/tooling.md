@@ -103,7 +103,7 @@ It exits 0 when every status is one its line expects, 1 when one is not (000: no
 ## The scenario runner
 
 `tools/Avalon.Scenarios` runs the world server's fixed scenarios (`town-idle`, `town-walk`, `town-social`,
-`many-instances`, `forest-combat`, from `tests/Avalon.World.Testing`) in process, with the server's GC settings, and prints one row per
+`many-instances`, `forest-combat`, `town-doodads`, from `tests/Avalon.World.Testing`) in process, with the server's GC settings, and prints one row per
 scenario: the
 tick-thread bytes of one 60-tick window (the least of five, after the scenario's own fixed number of warm-up ticks,
 as the allocation gate measures them; for `forest-combat`, a fight of fixed length, the mean over its measured
