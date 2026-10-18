@@ -29,10 +29,10 @@ using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 namespace Avalon.Server.World.UnitTests.Quests;
 
 /// <summary>
-/// A doodad use credits the use-doodad objectives of its user alone (ruling R12), through a real instance and the use
-/// service: +1, capped, on each UseDoodad objective for the template in the current stage of an Active quest, settled as a
-/// kill is. A party member standing beside the user on the same step gets nothing, and a use that credits nothing
-/// allocates nothing. Quest 7801 and doodad guids 7801 and 7802 are this class's.
+/// A doodad use credits the use-doodad objectives of its user alone (each player on the step uses the doodad for their own
+/// credit; a use credits only its user), through a real instance and the use service: +1, capped, on each UseDoodad
+/// objective for the template in the current stage of an Active quest, settled as a kill is. A party member standing
+/// beside the user on the same step gets nothing, and a use that credits nothing allocates nothing. Quest 7801 and doodad guids 7801 and 7802 are this class's.
 /// </summary>
 public class QuestDoodadCreditShould
 {

@@ -445,9 +445,10 @@ public sealed class QuestService(
     /// <summary>
     /// The character used a doodad of <paramref name="template" /> (doodads S3): +1, capped, on each UseDoodad objective
     /// for that template in the current stage of each of its Active quests, settled as a kill is. The user alone is
-    /// credited, never its party (ruling R12). DoodadUseService calls this once a use completes and its script's OnUse
-    /// did not throw. A use that moves no quest allocates nothing: the quests are walked through the copy the log keeps
-    /// for the walk, and each stage's objectives by index, as in CreatureKilled.
+    /// credited, never its party: each player on the step uses the doodad for their own credit, and a use credits only its
+    /// user. DoodadUseService calls this once a use completes and its script's OnUse did not throw. A use that moves no
+    /// quest allocates nothing: the quests are walked through the copy the log keeps for the walk, and each stage's
+    /// objectives by index, as in CreatureKilled.
     /// </summary>
     public void DoodadUsed(CharacterEntity character, DoodadTemplateId template)
     {
