@@ -128,6 +128,7 @@ public class InstanceListHandler(IWorld world, TimeProvider time, PartyService? 
     /// </summary>
     private static uint ExpiresInMs(MapInstance? instance, TimeSpan abandonedLifetime, DateTime now)
     {
+        // Never from the registry: it lists MapInstances only, and an empty one always has a LastEmptyAt.
         if (instance?.LastEmptyAt is not { } emptiedAt)
             return 0u;
 

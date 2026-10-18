@@ -26,7 +26,7 @@ public class InstanceListHandlerShould
     /// #1104: the portal's menu lists the character's own live instances of the forest and its party's, each with its
     /// kind, whether someone is inside, the time left before an empty one expires (Game:AbandonedInstanceLifetimeMinutes,
     /// here 20, once entered; the fixed 15 minutes while nobody has entered it) and the one a plain entry takes: the
-    /// default first, then the party's, then the private ones, most time left first.
+    /// default first, then the party's, then the private ones, each in use first and then by most time left.
     /// </summary>
     [Fact]
     public void List_the_character_s_and_its_party_s_instances_with_kind_timer_and_default()
@@ -42,30 +42,43 @@ public class InstanceListHandlerShould
         left.AddCharacter(visitor);
         left.RemoveCharacter(visitor); // entered, and empty from here
         menu.Clock.Advance(TimeSpan.FromMinutes(4));
-        MapInstance occupied = menu.Forest(ownerPartyId: party);
-        occupied.AddCharacter(menu.Parties.Online(10).Connection);
+        MapInstance partyDefault = menu.Forest(ownerPartyId: party); // the leader's newest, built, never entered
+        MapInstance partyOccupied = menu.Forest(ownerPartyId: party);
+        partyOccupied.AddCharacter(menu.Parties.Online(10).Connection);
+        MapInstance privateOccupied = menu.Forest(ownerCharacterId: kaela.Id);
+        privateOccupied.AddCharacter(menu.Parties.Online(11).Connection);
         MapInstance opened = menu.Forest(ownerCharacterId: kaela.Id); // built, never entered
 
+        // Scrambled, so the answer's order is the handler's: each key apart from the others, a default that is empty
+        // ahead of a party instance in use, and a party instance ahead of a private one in use.
         menu.Lists(kaela.Id, party, new InstanceChoice(opened, InstanceKind.Private, false),
-            new InstanceChoice(occupied, InstanceKind.Party, true), new InstanceChoice(left, InstanceKind.Private, false));
-        menu.Lists(borin.Id, party, new InstanceChoice(occupied, InstanceKind.Party, true));
+            new InstanceChoice(privateOccupied, InstanceKind.Private, false),
+            new InstanceChoice(partyOccupied, InstanceKind.Party, false),
+            new InstanceChoice(left, InstanceKind.Private, false),
+            new InstanceChoice(partyDefault, InstanceKind.Party, true));
+        menu.Lists(borin.Id, party, new InstanceChoice(partyOccupied, InstanceKind.Party, false),
+            new InstanceChoice(partyDefault, InstanceKind.Party, true));
 
         menu.Request(kaela);
         menu.Request(borin);
 
+        uint fifteen = (uint)TimeSpan.FromMinutes(15).TotalMilliseconds;
         SInstanceListPacket toKaela = Assert.Single(menu.Answers(kaela));
         Assert.Equal((ForestMap, MapTransitionResult.Success, true, true),
             (toKaela.TargetMapId, toKaela.Result, toKaela.InParty, toKaela.IsLeader));
         Assert.Equal(
         [
-            (occupied.InstanceId, InstanceKind.Party, true, 0u, true),
+            (partyDefault.InstanceId, InstanceKind.Party, false, fifteen, true),
+            (partyOccupied.InstanceId, InstanceKind.Party, true, 0u, false),
+            (privateOccupied.InstanceId, InstanceKind.Private, true, 0u, false),
             (left.InstanceId, InstanceKind.Private, false, (uint)TimeSpan.FromMinutes(16).TotalMilliseconds, false),
-            (opened.InstanceId, InstanceKind.Private, false, (uint)TimeSpan.FromMinutes(15).TotalMilliseconds, false),
+            (opened.InstanceId, InstanceKind.Private, false, fifteen, false),
         ], toKaela.Instances.ConvertAll(e => (e.InstanceId, e.Kind, e.InUse, e.ExpiresInMs, e.IsDefault)));
 
         SInstanceListPacket toBorin = Assert.Single(menu.Answers(borin));
         Assert.Equal((true, false), (toBorin.InParty, toBorin.IsLeader));
-        Assert.Equal([occupied.InstanceId], toBorin.Instances.ConvertAll(e => e.InstanceId));
+        Assert.Equal([partyDefault.InstanceId, partyOccupied.InstanceId],
+            toBorin.Instances.ConvertAll(e => e.InstanceId));
     }
 
     /// <summary>

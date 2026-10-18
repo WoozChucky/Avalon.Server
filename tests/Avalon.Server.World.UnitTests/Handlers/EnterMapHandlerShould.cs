@@ -515,7 +515,7 @@ public class EnterMapHandlerShould
     /// <summary>
     /// #1104: a new instance may be opened once every Game:InstanceCreateCooldownSeconds (10): a second create inside
     /// the window is refused, with the time left as a system line once per window, a plain entry meanwhile is not held
-    /// back, and the refused create did not move the window's end.
+    /// back, the refused create did not move the window's end, and the next accepted create's window tells it again.
     /// </summary>
     [Fact]
     public void Refuse_a_second_create_inside_the_cooldown_and_take_it_at_its_end()
@@ -548,6 +548,14 @@ public class EnterMapHandlerShould
 
         portal.Clock.Advance(TimeSpan.FromSeconds(0.1)); // 10 s after the first create
         Assert.NotSame(opened, portal.Enter(kaela, MapEntryChoice.NewPrivate));
+
+        // The accepted create opened a new window, whose first refusal tells the time left once more.
+        portal.StandOnThePortal(kaela);
+        kaela.Clear();
+        portal.Request(kaela, MapEntryChoice.NewPrivate);
+        portal.Settle();
+        Assert.Equal([MapTransitionResult.CreateOnCooldown], portal.Results(kaela));
+        Assert.Equal(["You can open a new instance in 10 seconds."], kaela.Lines());
     }
 
     /// <summary>

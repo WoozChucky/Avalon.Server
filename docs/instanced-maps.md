@@ -412,7 +412,7 @@ where characters stand (`not_near_portal`).
     Another move under way (connection.RespawnInFlight: a scroll return, an item teleport,
        a respawn, a party return, or an earlier portal entry that has not ended) → send
        MoveInProgress, return, before anything is looked up
-    Steps 2 to 6 are PortalChecks.Check, which the portal's menu (CMSG_INSTANCE_LIST) runs too
+Steps 2 to 6 are PortalChecks.Check, which the portal's menu (CMSG_INSTANCE_LIST) runs too:
 2.  Resolve the current instance: InstanceRegistry.GetInstanceById(character.InstanceId)
 3.  Find the MapTemplate of packet.TargetMapId among world.MapTemplates, by id
        (MapTemplateRows.FindById: the map manager holds the templates with a lookup by id)
