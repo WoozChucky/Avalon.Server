@@ -8436,6 +8436,43 @@ namespace Avalon.Database.World.Migrations
 
             modelBuilder.Entity("Avalon.Domain.World.ChunkTemplate", b =>
                 {
+                    b.OwnsMany("Avalon.Domain.World.ChunkDoodadSlot", "DoodadSlots", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<int>("ChunkTemplateId")
+                                .HasColumnType("integer");
+
+                            b1.Property<float>("LocalX")
+                                .HasColumnType("real");
+
+                            b1.Property<float>("LocalY")
+                                .HasColumnType("real");
+
+                            b1.Property<float>("LocalZ")
+                                .HasColumnType("real");
+
+                            b1.Property<string>("Tag")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<int>("Yaw")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("ChunkTemplateId");
+
+                            b1.ToTable("ChunkDoodadSlot");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ChunkTemplateId");
+                        });
+
                     b.OwnsMany("Avalon.Domain.World.ChunkPortalSlot", "PortalSlots", b1 =>
                         {
                             b1.Property<int>("Id")
@@ -8502,6 +8539,8 @@ namespace Avalon.Database.World.Migrations
                             b1.WithOwner()
                                 .HasForeignKey("ChunkTemplateId");
                         });
+
+                    b.Navigation("DoodadSlots");
 
                     b.Navigation("PortalSlots");
 

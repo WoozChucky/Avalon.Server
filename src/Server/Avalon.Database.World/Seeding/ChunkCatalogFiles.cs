@@ -40,7 +40,7 @@ public sealed record GroupDto(string Name, List<GroupMemberDto> Members);
 /// <summary>A set piece's member chunk and its cell in the piece's own frame (0,0 = south-west).</summary>
 public sealed record GroupMemberDto(string Chunk, int CellX, int CellZ);
 
-/// <summary>One chunk's metadata file, Maps/Chunks/&lt;name&gt;.json.</summary>
+/// <summary>One chunk's metadata file, Maps/Chunks/&lt;name&gt;.json; doodadSlots may be left out (a chunk with none).</summary>
 public sealed record ChunkMetaDto(
     string Name,
     string AssetKey,
@@ -50,11 +50,15 @@ public sealed record ChunkMetaDto(
     Dictionary<string, string[]> Exits,
     List<SpawnSlotDto> SpawnSlots,
     List<PortalSlotDto> PortalSlots,
-    string[] Tags);
+    string[] Tags,
+    List<DoodadSlotDto>? DoodadSlots = null);
 
 public sealed record SpawnSlotDto(string Tag, float LocalX, float LocalY, float LocalZ);
 
 public sealed record PortalSlotDto(string Role, float LocalX, float LocalY, float LocalZ);
+
+/// <summary>A doodad slot: a tag procedural doodad rules name, chunk-local metres, and a yaw of 0, 90, 180 or 270 degrees.</summary>
+public sealed record DoodadSlotDto(string Tag, float LocalX, float LocalY, float LocalZ, int Yaw);
 
 /// <summary>One town layout, Maps/TownLayouts/*.json.</summary>
 public sealed record TownLayoutDto(int MapTemplateId, string MapName, float CellSize, List<TownChunkPlacementDto> Chunks);

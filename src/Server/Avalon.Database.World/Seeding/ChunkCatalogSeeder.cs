@@ -91,9 +91,34 @@ public static class ChunkCatalogSeeder
                 throw new InvalidDataException($"{jsonPath}: name '{meta.Name}' does not match the file name");
             if (!File.Exists(Path.Combine(dir, meta.Name + ".obj")))
                 throw new InvalidDataException($"{jsonPath}: chunk '{meta.Name}' has no geometry file {meta.Name}.obj");
+            CheckDoodadSlots(jsonPath, meta);
             chunks.Add(meta);
         }
         return chunks;
+    }
+
+    /// <summary>
+    /// Refuses a doodad slot with a blank tag, a yaw that is not 0, 90, 180 or 270, or a position outside the chunk's own
+    /// cells on X/Z (their edges included; NaN is outside). Doodad slot tags are not spawn-table tags: the slot tag check
+    /// (LoadProceduralMapsAsync) never sees them.
+    /// </summary>
+    private static void CheckDoodadSlots(string path, ChunkMetaDto meta)
+    {
+        if (meta.DoodadSlots is null) return;
+
+        float sizeX = meta.CellFootprintX * meta.CellSize, sizeZ = meta.CellFootprintZ * meta.CellSize;
+        foreach (DoodadSlotDto slot in meta.DoodadSlots)
+        {
+            if (string.IsNullOrWhiteSpace(slot.Tag))
+                throw new InvalidDataException($"{path}: a doodad slot has no tag");
+            if (slot.Yaw is not (0 or 90 or 180 or 270))
+                throw new InvalidDataException($"{path}: doodad slot '{slot.Tag}' has yaw {slot.Yaw}, not 0, 90, 180 or 270");
+            if (!(slot.LocalX >= 0f && slot.LocalX <= sizeX && slot.LocalZ >= 0f && slot.LocalZ <= sizeZ))
+            {
+                throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture,
+                    $"{path}: doodad slot '{slot.Tag}' at ({slot.LocalX}, {slot.LocalZ}) lies outside the chunk"));
+            }
+        }
     }
 
     private static async Task<List<(string, TownLayoutDto)>> LoadLayoutsAsync(string mapsRoot,
@@ -176,6 +201,9 @@ public static class ChunkCatalogSeeder
                     LocalY = p.LocalY,
                     LocalZ = p.LocalZ,
                 })
+                .ToList();
+            target.DoodadSlots = (meta.DoodadSlots ?? [])
+                .Select(d => new ChunkDoodadSlot { Tag = d.Tag, LocalX = d.LocalX, LocalY = d.LocalY, LocalZ = d.LocalZ, Yaw = d.Yaw })
                 .ToList();
             target.Tags = meta.Tags;
         }

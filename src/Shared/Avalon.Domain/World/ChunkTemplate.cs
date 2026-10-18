@@ -17,5 +17,6 @@ public class ChunkTemplate : IDbEntity<ChunkTemplateId>
 
     public List<ChunkSpawnSlot> SpawnSlots { get; set; } = [];
     public List<ChunkPortalSlot> PortalSlots { get; set; } = [];
+    public List<ChunkDoodadSlot> DoodadSlots { get; set; } = [];
     public string[] Tags { get; set; } = [];
 }

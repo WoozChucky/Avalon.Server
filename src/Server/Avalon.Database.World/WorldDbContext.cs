@@ -1968,6 +1968,12 @@ public class WorldDbContext : DbContext
             s.Property<int>("Id");
             s.HasKey("Id");
         });
+        builder.OwnsMany(b => b.DoodadSlots, s =>
+        {
+            s.WithOwner().HasForeignKey("ChunkTemplateId");
+            s.Property<int>("Id");
+            s.HasKey("Id");
+        });
 
         ValueConverter<string[], string> tagsConverter = new(
             v => string.Join(',', v),

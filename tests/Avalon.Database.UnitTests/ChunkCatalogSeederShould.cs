@@ -30,6 +30,11 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         ChunkTemplate path = await db.ChunkTemplates.SingleAsync(t => t.Name == "forest_path_01");
         Assert.Equal("Chunks/forest_path_01.obj", path.GeometryFile);
         Assert.Equal(["path", "forest"], path.Tags);
+        Assert.Empty(path.DoodadSlots);
+        await using WorldDbContext read = database.CreateDbContext();   // the slots as stored, not as tracked
+        ChunkTemplate thicket = await read.ChunkTemplates.SingleAsync(t => t.Name == "forest_thicket_01");
+        Assert.Equal(["doodad", "doodad", "doodad_large"], thicket.DoodadSlots.Select(s => s.Tag).Order(StringComparer.Ordinal));
+        Assert.All(thicket.DoodadSlots, s => Assert.Equal(1f, s.LocalY));
 
         ChunkPool forest = await db.ChunkPools.Include(p => p.Memberships).SingleAsync(p => p.Name == "forest_pool");
         Assert.Equal(17, forest.Memberships.Count);
@@ -494,6 +499,51 @@ public sealed class ChunkCatalogSeederShould : IDisposable
 
         InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
         Assert.Contains("'rare' slots", error.Message);
+    }
+
+    [Theory]
+    [InlineData(45)]
+    [InlineData(360)]
+    [InlineData(-90)]
+    public async Task Refuse_a_doodad_slot_whose_yaw_is_not_a_quarter_turn(int yaw)
+    {
+        string root = CopyOfCommittedMaps();
+        string path = WriteDoodadSlot(root, "doodad", 5, 5, yaw);
+
+        InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
+        Assert.StartsWith(path + ":", error.Message, StringComparison.Ordinal);
+        Assert.Contains($"yaw {yaw}", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A doodad slot with a blank tag, or one outside the chunk's own cell (its edges included), is refused.</summary>
+    [Theory]
+    [InlineData(" ", 5f, 5f)]
+    [InlineData("doodad", -1f, 5f)]
+    [InlineData("doodad", 5f, 30.5f)]
+    public async Task Refuse_a_doodad_slot_with_a_blank_tag_or_outside_the_cell(string tag, float x, float z)
+    {
+        string root = CopyOfCommittedMaps();
+        string path = WriteDoodadSlot(root, tag, x, z, 90);
+
+        InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
+        Assert.StartsWith(path + ":", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Gives the copy's forest_path_01 (a hand-made chunk with no doodad slots) one doodad slot; returns its file.</summary>
+    private static string WriteDoodadSlot(string root, string tag, float x, float z, int yaw)
+    {
+        string path = Path.Combine(root, "Chunks", "forest_path_01.json");
+        JsonObject chunk = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        chunk["doodadSlots"] = new JsonArray(new JsonObject
+        {
+            ["tag"] = tag,
+            ["localX"] = x,
+            ["localY"] = 1f,
+            ["localZ"] = z,
+            ["yaw"] = yaw,
+        });
+        File.WriteAllText(path, chunk.ToJsonString());
+        return path;
     }
 
     /// <summary>Owner rule: a leader_pack entry is rolled at a leader slot, so it is refused when the pool has none.</summary>

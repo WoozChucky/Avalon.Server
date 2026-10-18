@@ -137,6 +137,13 @@ A chunk is two files in `Maps/Chunks/` with the same name: `<name>.obj` (geometr
   entry chunks), `Forward` advances to the next (typically in boss chunks). The destination is not in the chunk: towns
   take it from the layout placement, procedural maps from `ProceduralMapConfig.BackPortalTargetMapId` /
   `ForwardPortalTargetMapId`.
+- **doodadSlots** (optional, after `portalSlots`; left out when a chunk has none, as in `forest_entry_01` above):
+  `tag` + chunk-local `localX/Y/Z` + `yaw`, a spot a procedural map may place a doodad at (see `docs/doodads.md`).
+  `yaw` is the degrees the doodad faces (`Orientation.y`, 0 along +Z, 90 along +X), a quarter turn: 0, 90, 180 or 270.
+  Tags: `doodad` (a walk-through doodad) and `doodad_large` (may hold a solid one). Doodad slot tags are not spawn-table
+  tags and need no entry there. The seeder refuses a doodad slot with a blank tag, a yaw that is not a quarter turn, or
+  a position outside the chunk's own cells on X/Z (their edges included). Like a spawn slot's, `localY` only centres
+  the ground search. Stored in `ChunkDoodadSlot` (owned by `ChunkTemplate`, migration `AddChunkDoodadSlots`).
 - **tags**: free-form, e.g. `["town", "entry"]`, `["forest", "boss"]`.
 
 The `.obj` is in chunk-local space: a 1×1 chunk spans `(0..30, *, 0..30)`, origin at its SW corner, `+X` east, `+Z`
@@ -310,6 +317,24 @@ of a blocker or 2 m of the chunk's edge, when a blocker stands in an exit's thro
 reached on the baked navmesh. The tool writes LF line ends, and `.gitattributes` pins every `.obj` and `.json` under
 `Maps/` to LF, so a regeneration on any machine is an empty diff. The tool does not touch `chunk-pools.json` or
 `chunk-groups.json`: add new single pieces to the pool, and new set pieces to the groups file, by hand.
+
+Every generated forest piece also carries doodad slots (`DoodadSlots` on the piece, `Doodad(x, z, yaw)` and
+`LargeDoodad(x, z, yaw)` in `ForestPieces.cs`): each single piece two `doodad` slots and one `doodad_large`, each set-piece
+member one `doodad` slot, and each of the arena's members a `doodad_large` too; a set piece lists them in its 60 x 60 m
+frame and they are split into its members as spawn slots are. The hand-made chunks (`forest_entry_01`, `forest_boss_01`,
+the paths, junctions, `forest_clearing_01` and `forest_deadend_01`) have none, and the tool writes `"doodadSlots"` only
+for a piece that has some, so the town squares' files are unchanged by it. `ForestPiecesShould` keeps every doodad slot
+off the paths and clear of the rest, with a `doodad_large` slot further away because it may hold a solid doodad:
+
+| From | `doodad` | `doodad_large` |
+|---|---|---|
+| any blocker | 2.5 m | 4 m |
+| a path: the segment from an exit's throat centre to the piece centre (15, 15) | 4 m | 5 m |
+| any spawn slot | 3 m | 4 m |
+| the chunk's edge | 2 m | 2 m |
+
+and never inside an exit's throat (10 m wide, 6 m deep, centred on its side); every doodad slot stands on the baked
+navmesh floor. Each yaw is the quarter turn that best faces the piece's centre (a set piece's, for its members).
 
 ## Generated town squares
 

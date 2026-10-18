@@ -9,6 +9,9 @@ public sealed record ChunkGroupPiece(
     string Name, IReadOnlyList<(int CellX, int CellZ, Side Side)> OuterExits, IReadOnlyList<Blocker> Blockers,
     IReadOnlyList<Slot> Slots, IReadOnlyList<string> Tags)
 {
+    /// <summary>The set piece's doodad slots in its 60 x 60 m frame, none unless listed; split into members as spawn slots are.</summary>
+    public IReadOnlyList<DoodadSlot> DoodadSlots { get; init; } = [];
+
     private static readonly (int X, int Z, string Suffix)[] s_cells = [(0, 0, "sw"), (1, 0, "se"), (0, 1, "nw"), (1, 1, "ne")];
 
     public static string MemberName(string group, int cellX, int cellZ) =>
@@ -35,10 +38,9 @@ public sealed record ChunkGroupPiece(
 
         // A slot on a cell edge, or outside the frame, belongs to no member: refuse it rather than drop it.
         foreach (Slot slot in Slots)
-        {
-            if (!(slot.X > 0f && slot.X < 2 * Cell && slot.Z > 0f && slot.Z < 2 * Cell) || slot.X == Cell || slot.Z == Cell)
-                throw new InvalidOperationException($"{Name}: slot {slot} lies on a cell edge or outside the 60 x 60 m frame");
-        }
+            RefuseOffMember(slot.X, slot.Z, slot);
+        foreach (DoodadSlot slot in DoodadSlots)
+            RefuseOffMember(slot.X, slot.Z, slot);
 
         foreach ((int x, int z, string suffix) in s_cells)
         {
@@ -51,8 +53,18 @@ public sealed record ChunkGroupPiece(
                 Blockers.Where(b => Inside((b.Bounds.MinX + b.Bounds.MaxX) / 2f, (b.Bounds.MinZ + b.Bounds.MaxZ) / 2f))
                     .Select(b => b.Moved(-ox, -oz)).ToList(),
                 Slots.Where(s => Inside(s.X, s.Z)).Select(s => s with { X = s.X - ox, Z = s.Z - oz }).ToList(),
-                [.. Tags, "group"]), x, z);
+                [.. Tags, "group"])
+            {
+                DoodadSlots = DoodadSlots.Where(s => Inside(s.X, s.Z)).Select(s => s with { X = s.X - ox, Z = s.Z - oz }).ToList(),
+            }, x, z);
         }
+    }
+
+    private void RefuseOffMember(float x, float z, object slot)
+    {
+        const float Cell = ChunkPiece.CellSize;
+        if (!(x > 0f && x < 2 * Cell && z > 0f && z < 2 * Cell) || x == Cell || z == Cell)
+            throw new InvalidOperationException($"{Name}: slot {slot} lies on a cell edge or outside the 60 x 60 m frame");
     }
 
     private static int CellOf(float v, float cell) => (int)MathF.Floor(v / cell);

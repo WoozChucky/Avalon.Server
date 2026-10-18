@@ -7,7 +7,7 @@ namespace Avalon.ChunkGen;
 /// <summary>
 /// Writes a chunk's catalog entry, the seeder's own <see cref="ChunkMetaDto" />, in the exact layout of the committed
 /// catalog files. Portal slots are written as the town squares need them (town_nw_01 carries the forest portal); no
-/// forest piece has one.
+/// forest piece has one. Doodad slots follow the portal slots, and only when there are any.
 /// </summary>
 public static class ChunkJsonWriter
 {
@@ -48,6 +48,20 @@ public static class ChunkJsonWriter
               .Append(i < meta.PortalSlots.Count - 1 ? ",\n" : "\n");
         }
         sb.Append("  ],\n");
+        // Only a chunk with doodad slots writes the key, so a chunk with none (the town squares) keeps its committed text.
+        if (meta.DoodadSlots is { Count: > 0 } doodads)
+        {
+            sb.Append("  \"doodadSlots\": [\n");
+            for (int i = 0; i < doodads.Count; i++)
+            {
+                DoodadSlotDto slot = doodads[i];
+                sb.Append("    { \"tag\": \"").Append(slot.Tag).Append("\", \"localX\": ").Append(F(slot.LocalX))
+                  .Append(", \"localY\": ").Append(F(slot.LocalY)).Append(", \"localZ\": ").Append(F(slot.LocalZ))
+                  .Append(", \"yaw\": ").Append(slot.Yaw.ToString(CultureInfo.InvariantCulture)).Append(" }")
+                  .Append(i < doodads.Count - 1 ? ",\n" : "\n");
+            }
+            sb.Append("  ],\n");
+        }
         sb.Append("  \"tags\": [").Append(string.Join(", ", meta.Tags.Select(t => $"\"{t}\""))).Append("]\n");
         sb.Append("}\n");
         return sb.ToString();
