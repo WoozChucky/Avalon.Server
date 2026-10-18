@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
@@ -326,6 +327,8 @@ public class CharacterCharacterGameState
     /// doodad did (<see cref="Doodad.ViewVersion" />); every other decision reuses the answer held, so a steady view asks
     /// nothing and allocates nothing. Returns how many doodads the index visited.
     /// </summary>
+    // Kept out of MapInstance.DecideView, whose inlined grid walk slows when the method grows.
+    [MethodImpl(MethodImplOptions.NoInlining)]
     private int AddVisibleDoodads(ObjectGuid watcher, Vector3 watcherPosition, InterestRange range,
         in DoodadViewInputs doodads)
     {
