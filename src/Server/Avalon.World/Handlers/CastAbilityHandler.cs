@@ -6,6 +6,7 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.Abilities;
+using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Items;
 using Avalon.World.Public;
@@ -164,9 +165,11 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             return;
         }
 
-        // An accepted ability cast ends the caster's item cast bar, which is answered Interrupted.
+        // An accepted ability cast ends the caster's item cast bar, which is answered Interrupted, and its doodad cast bar.
         if (context is IItemUseHost items)
             items.ItemUses.Interrupt(caster.Guid);
+        if (context is IDoodadHost doodads)
+            doodads.DoodadCasts.Interrupt(caster.Guid);
 
         // A cast-time cast's start went out with it, from the cast system (#648).
         caster.MarkCombat();

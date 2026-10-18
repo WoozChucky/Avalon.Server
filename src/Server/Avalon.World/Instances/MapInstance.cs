@@ -54,7 +54,7 @@ using Microsoft.Extensions.Options;
 namespace Avalon.World.Instances;
 
 public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, ICombatOutcomes,
-    IItemUseHost, IItemCastAudience, IAuraHost, IPlayerCastHost, IDisposable
+    IItemUseHost, IItemCastAudience, IDoodadHost, IDoodadCastAudience, IAuraHost, IPlayerCastHost, IDisposable
 {
     private InstanceTickProfile _tickProfile;
 
@@ -76,6 +76,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     // Who may see and use a doodad, asked by each view decision of a doodad with rules (CharacterCharacterGameState).
     private readonly DoodadVisibility _doodadVisibility;
+
+    // Doodad use: the container's use service (none in a test that builds an instance without it, which then uses no
+    // doodad), the cast bars it starts here, and the spent doodads waiting to respawn.
+    private readonly DoodadUseService? _doodadUses;
+    private readonly DoodadCasts _doodadCasts;
+    private readonly DoodadRespawns _doodadRespawns = new();
 
     // Off only for a test that compares the views over the index against the full scan (DecideViewsByFullScan).
     private bool _viewsOverIndex = true;
@@ -358,6 +364,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Item cast bars, numbered with the cast system's own ids.
         _itemUses = new ItemUseCasts(this, _abilityCastSystem.TakeCastId, loggerFactory.CreateLogger<ItemUseCasts>());
 
+        // Doodad cast bars, numbered the same way, on the container's clock, answering to the use service that starts
+        // them. Without one nothing starts a doodad cast, so the stand-in owner is never asked.
+        _doodadUses = serviceProvider.GetService<DoodadUseService>();
+        _doodadCasts = new DoodadCasts(this, this, (IDoodadCastOwner?)_doodadUses ?? NoDoodadCastOwner.Instance,
+            _abilityCastSystem.TakeCastId, _time, loggerFactory.CreateLogger<DoodadCasts>());
+
         // Optional so an instance built without one (tests) simply has no periodic save.
         _saveScheduler = serviceProvider.GetService<ICharacterSaveScheduler>();
 
@@ -453,6 +465,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>The item cast bars here. World-side, not on IMapInstance.</summary>
     public ItemUseCasts ItemUses => _itemUses;
+
+    /// <summary>The doodad cast bars here. World-side, not on IMapInstance.</summary>
+    public DoodadCasts DoodadCasts => _doodadCasts;
+
+    DoodadRespawns IDoodadHost.Respawns => _doodadRespawns;
+
+    TimeProvider IDoodadHost.Clock => _time;
+
+    void IDoodadHost.DoodadChanged(Doodad doodad) => DoodadChanged(doodad);
 
     uint IItemUseHost.RestoreHealth(IUnit healer, IUnit target, uint amount) =>
         _combatService.RestoreHealth(healer, target, amount);
@@ -671,8 +692,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Ends everything the character has casting here as it leaves: its ability casts, its running ability scripts and
-    /// its item cast bar. Each step is contained, so a failure cannot keep the character a member.
+    /// Ends everything the character has casting here as it leaves: its ability casts, its running ability scripts, its
+    /// item cast bar and its doodad cast bar. Each step is contained, so a failure cannot keep the character a member.
     /// </summary>
     private void EndCastsOf(ICharacter character)
     {
@@ -714,6 +735,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         catch (Exception e)
         {
             _logger.LogError(e, "Interrupting the item use of {CharacterGuid} as it left instance {InstanceId} failed",
+                guid, InstanceId);
+        }
+
+        // And its doodad's cast bar, out loud, while it is still a member, so everyone here sees it end.
+        try
+        {
+            _doodadCasts.Interrupt(guid);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Interrupting the doodad use of {CharacterGuid} as it left instance {InstanceId} failed",
                 guid, InstanceId);
         }
     }
@@ -1418,8 +1450,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Step 1: remove the corpses whose BodyRemoveTimer has run out. Creatures do not respawn.
         _corpseRemover.Update(deltaTime);
 
-        // Step 1b: summons whose lifetime has passed leave (item use).
+        // Step 1b: summons whose lifetime has passed leave (item use), and spent doodads whose time has come are ready
+        // again: the soonest is peeked at once, and nothing is read while none waits.
         DespawnExpiredSummons();
+        if (_doodadRespawns.Count > 0 && _doodadUses is { } doodadUses)
+            _doodadRespawns.Update(this, _time.GetUtcNow().UtcDateTime, doodadUses);
 
         // Step 2: Process character packets
         long profileStart = _tickProfile.Timestamp();
@@ -1603,8 +1638,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Step 3 of <see cref="Update" />: the cast system, the auras, the item cast bars, then the combat service, then the
-    /// threat mirror.
+    /// Step 3 of <see cref="Update" />: the cast system, the auras, the item and doodad cast bars, then the combat service,
+    /// then the threat mirror.
     /// </summary>
     private void UpdateCombat(TimeSpan deltaTime, List<IWorldObject> objectAbilities)
     {
@@ -1622,8 +1657,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _auraPassFailures.Failed(e);
         }
 
-        // Step 3b: item cast bars, after this tick's movement was applied by the packets above.
+        // Step 3b: item cast bars, then doodad cast bars (the active ones only), after this tick's movement was applied by
+        // the packets above.
         _itemUses.Update(deltaTime);
+        _doodadCasts.Update();
 
         // Step 3c: Tick combat service — decays threat, ends stale encounters.
         _combatService.Update(deltaTime);
@@ -2459,6 +2496,86 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
 
         interrupted.Release();
+    }
+
+    void IDoodadCastAudience.BroadcastDoodadCastStart(IUnit caster, DoodadTemplateId doodad, float castTimeSeconds,
+        uint castId)
+    {
+        if (!_characters.ContainsKey(caster.Guid)) return;
+
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket start = default;
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
+            if (start.Payload is null)
+            {
+                // The tick the bar started on, as an ability's and an item's start carry it (#1082).
+                start = SUnitStartCastPacket.CreateForDoodad(caster.Guid, castTimeSeconds, doodad.Value, castId,
+                    _worldTicks?.Completed ?? 0, PacketEncoder.Shared);
+            }
+
+            connection.Send(start.Share());
+        }
+
+        start.Release();
+    }
+
+    void IDoodadCastAudience.BroadcastDoodadCastFinish(IUnit caster, DoodadTemplateId doodad, uint castId)
+    {
+        if (!_characters.ContainsKey(caster.Guid)) return;
+
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket finish = default;
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
+            if (finish.Payload is null)
+            {
+                finish = SUnitFinishCastPacket.CreateForDoodad(caster.Guid, doodad.Value, castId, PacketEncoder.Shared);
+            }
+
+            connection.Send(finish.Share());
+        }
+
+        finish.Release();
+    }
+
+    void IDoodadCastAudience.BroadcastDoodadCastInterrupted(IUnit caster, DoodadTemplateId doodad, uint castId)
+    {
+        if (!_characters.ContainsKey(caster.Guid)) return;
+
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket interrupted = default;
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
+            if (interrupted.Payload is null)
+            {
+                interrupted = SCharacterInterruptedCastPacket.CreateForDoodad(caster.Guid, doodad.Value, castId,
+                    PacketEncoder.Shared);
+            }
+
+            connection.Send(interrupted.Share());
+        }
+
+        interrupted.Release();
+    }
+
+    /// <summary>The doodad cast owner of an instance built without the use service, which never starts a doodad cast.</summary>
+    private sealed class NoDoodadCastOwner : IDoodadCastOwner
+    {
+        public static readonly NoDoodadCastOwner Instance = new();
+
+        public bool CanComplete(IDoodadHost host, in PendingDoodadUse use) => false;
+
+        public void Completed(IDoodadHost host, in PendingDoodadUse use)
+        {
+        }
+
+        public void Interrupted(IDoodadHost host, in PendingDoodadUse use)
+        {
+        }
     }
 
     /// <summary>

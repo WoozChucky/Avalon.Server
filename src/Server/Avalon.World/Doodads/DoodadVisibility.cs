@@ -70,9 +70,20 @@ public sealed class DoodadVisibility(DoodadScripts? scripts = null)
         return new DoodadAnswer(visible, Interactable(visible, doodad, viewer, quests), doodad.ViewVersion);
     }
 
-    // The one statement of "can use": what the client is offered and what an interact is let through by never differ.
+    /// <summary>
+    /// Past being seen, why <paramref name="viewer" /> may not use <paramref name="doodad" />: its usability gate refuses
+    /// (<see cref="DoodadUseRefusal.NotUsable" />), or its own state does (not <see cref="Usable" />:
+    /// <see cref="DoodadUseRefusal.Spent" />); null when it may. The one statement of "can use" past visibility, asked by
+    /// <see cref="CanInteract" />, by a view decision and by an interact's checks (DoodadUseService), so what a client is
+    /// offered and what an interact is let through by never differ.
+    /// </summary>
+    internal static DoodadUseRefusal? UseRefusal(Doodad doodad, CharacterEntity viewer, QuestCatalog quests) =>
+        !DoodadGates.Allows(doodad.UsableGate, viewer.Quests, quests) ? DoodadUseRefusal.NotUsable
+        : Usable(doodad) ? null
+        : DoodadUseRefusal.Spent;
+
     private static bool Interactable(bool visible, Doodad doodad, CharacterEntity viewer, QuestCatalog quests) =>
-        visible && Usable(doodad) && DoodadGates.Allows(doodad.UsableGate, viewer.Quests, quests);
+        visible && UseRefusal(doodad, viewer, quests) is null;
 
     private bool AskScript(DoodadScript script, Doodad doodad, CharacterEntity viewer, QuestCatalog quests, bool data)
     {

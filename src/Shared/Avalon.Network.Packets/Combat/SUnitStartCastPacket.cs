@@ -50,6 +50,13 @@ public class SUnitStartCastPacket : Packet
     /// </summary>
     [ProtoMember(7)] public long WorldTick { get; set; }
 
+    /// <summary>
+    /// The doodad template whose cast bar this is (doodads), with <see cref="AbilityId" /> and
+    /// <see cref="ItemTemplateId" /> 0; 0 on an ability's or an item's cast. The finish and the interrupt with this
+    /// <see cref="CastId" /> carry it too.
+    /// </summary>
+    [ProtoMember(8)] public ulong DoodadTemplateId { get; set; }
+
     /// <summary>An item's cast bar: no ability, no footprint.</summary>
     public static OutboundPacket CreateForItem(ObjectGuid caster, float castTime, ulong itemTemplateId, uint castId,
         long worldTick, PacketEncoder encoder)
@@ -59,6 +66,19 @@ public class SUnitStartCastPacket : Packet
         message.CastTime = castTime;
         message.CastId = castId;
         message.ItemTemplateId = itemTemplateId;
+        message.WorldTick = worldTick;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
+
+    /// <summary>A doodad's cast bar: no ability, no item, no footprint.</summary>
+    public static OutboundPacket CreateForDoodad(ObjectGuid caster, float castTime, ulong doodadTemplateId, uint castId,
+        long worldTick, PacketEncoder encoder)
+    {
+        SUnitStartCastPacket message = PacketEncoder.Scratch<SUnitStartCastPacket>();
+        message.Caster = caster.RawValue;
+        message.CastTime = castTime;
+        message.CastId = castId;
+        message.DoodadTemplateId = doodadTemplateId;
         message.WorldTick = worldTick;
         return encoder.Encode(message, PacketType, Flags, Protocol);
     }

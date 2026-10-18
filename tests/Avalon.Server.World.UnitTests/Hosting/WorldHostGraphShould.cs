@@ -397,6 +397,14 @@ public class WorldHostGraphShould
             Assert.Same(host.Services.GetRequiredService<QuestService>(), CapturedOfType<QuestService>(handler));
             if (handlerType == typeof(DialogueChooseHandler))
                 Assert.Same(host.Services.GetRequiredService<IQuestProgress>(), CapturedOfType<IQuestProgress>(handler));
+            // Doodads. The handler takes the use service optionally and drops every doodad interact without it, and
+            // MapInstance reads it with GetService for its doodad casts and respawns, so only this proves production
+            // hands over the one both use.
+            if (handlerType == typeof(InteractHandler))
+            {
+                Assert.Same(host.Services.GetRequiredService<Avalon.World.Doodads.DoodadUseService>(),
+                    CapturedOfType<Avalon.World.Doodads.DoodadUseService>(handler));
+            }
             if (handlerType == typeof(CharacterSelectHandler))
             {
                 Assert.Same(host.Services.GetRequiredService<ICharacterQuestRepository>(),

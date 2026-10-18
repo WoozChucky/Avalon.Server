@@ -205,6 +205,10 @@ public static class ServiceExtensions
         services.AddSingleton<DoodadScripts>();
         services.AddSingleton(sp => new DoodadVisibility(sp.GetRequiredService<DoodadScripts>()));
 
+        // Doodad use: the interact handler hands it a doodad's CMSG_INTERACT, and every instance's doodad casts and
+        // respawns answer to it (MapInstance reads it with GetService).
+        services.AddSingleton<DoodadUseService>();
+
         // Combat (Phase D): V1 uses default CombatConfig values. EncounterRegistry +
         // CombatService are constructed per MapInstance, not registered as singletons.
         services.AddSingleton<CombatConfig>();

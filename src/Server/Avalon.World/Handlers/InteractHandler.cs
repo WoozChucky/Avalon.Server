@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.Dialogue;
+using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
@@ -19,11 +20,16 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.World.Handlers;
 
 /// <summary>
-/// Opens a conversation with an NPC. Every rejection is a silent drop: a client that asks to talk
-/// to a monster, a corpse, or something across the map gets no reply rather than an error packet.
+/// Opens a conversation with an NPC, or uses a doodad (by the target guid's type, through DoodadUseService). Every
+/// rejection is a silent drop: a client that asks to talk to a monster, a corpse, or something across the map gets no
+/// reply rather than an error packet.
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_INTERACT)]
-public class InteractHandler(ILogger<InteractHandler> logger, IWorld world, QuestService? quests = null)
+public class InteractHandler(
+    ILogger<InteractHandler> logger,
+    IWorld world,
+    QuestService? quests = null,
+    DoodadUseService? doodads = null)
     : WorldPacketHandler<CInteractPacket>
 {
     // The catalogs live on StaticData, not in DI — they are built during World.LoadAsync once the
@@ -55,6 +61,15 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world, Ques
         }
 
         var targetGuid = new ObjectGuid(packet.TargetGuid);
+
+        // A doodad is used, never talked to, by the use service's rules; without one, every doodad interact is dropped.
+        if (targetGuid.Type == ObjectType.Doodad)
+        {
+            if (character is CharacterEntity user)
+                doodads?.Interact(connection, user, context as IDoodadHost, targetGuid);
+            return;
+        }
+
         if (!context.Creatures.TryGetValue(targetGuid, out ICreature? npc))
         {
             logger.LogDebug("Interact reject TargetNotFound target={TargetGuid}", packet.TargetGuid);

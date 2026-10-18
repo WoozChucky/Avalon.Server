@@ -916,6 +916,7 @@ message SCharacterInterruptedCastPacket {
    uint32 AbilityId = 2;
    uint32 CastId = 3;
    uint64 ItemTemplateId = 4;
+   uint64 DoodadTemplateId = 5;
 }
 message SCharacterLeaveResultPacket {
    CharacterLeaveResult Result = 1;
@@ -1174,6 +1175,7 @@ message SUnitFinishCastPacket {
    uint32 AbilityId = 2;
    uint32 CastId = 3;
    uint64 ItemTemplateId = 4;
+   uint64 DoodadTemplateId = 5;
 }
 message SUnitHealedPacket {
    uint64 Healer = 1;
@@ -1197,6 +1199,7 @@ message SUnitStartCastPacket {
    AbilityFootprintDto Footprint = 5;
    uint64 ItemTemplateId = 6;
    int64 WorldTick = 7;
+   uint64 DoodadTemplateId = 8;
 }
 message SVendorListPacket {
    uint64 VendorGuid = 1;
