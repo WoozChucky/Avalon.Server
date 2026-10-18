@@ -7748,6 +7748,78 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.MapDoodadSpawn", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<long>("DoodadTemplateId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("MapTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<float>("OffsetX")
+                        .HasColumnType("real");
+
+                    b.Property<float>("OffsetY")
+                        .HasColumnType("real");
+
+                    b.Property<float>("OffsetZ")
+                        .HasColumnType("real");
+
+                    b.Property<byte?>("UsableCondition")
+                        .HasColumnType("smallint");
+
+                    b.Property<long?>("UsableObjectiveId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("UsableQuestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte?>("VisibleCondition")
+                        .HasColumnType("smallint");
+
+                    b.Property<long?>("VisibleObjectiveId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("VisibleQuestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<float>("Yaw")
+                        .HasColumnType("real");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DoodadTemplateId");
+
+                    b.HasIndex("MapTemplateId");
+
+                    b.ToTable("MapDoodadSpawns", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MapDoodadSpawns_UsableGate", "(\"UsableQuestId\" IS NULL) = (\"UsableCondition\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_MapDoodadSpawns_VisibleGate", "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_MapDoodadSpawns_Yaw", "\"Yaw\" >= 0 AND \"Yaw\" < 360");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            DoodadTemplateId = 6L,
+                            MapTemplateId = 1,
+                            OffsetX = -6f,
+                            OffsetY = 0f,
+                            OffsetZ = 9f,
+                            Yaw = 90f
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.MapTemplate", b =>
                 {
                     b.Property<int>("Id")
@@ -9105,6 +9177,15 @@ namespace Avalon.Database.World.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Path");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.MapDoodadSpawn", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.DoodadTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("DoodadTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.ProceduralMapConfig", b =>

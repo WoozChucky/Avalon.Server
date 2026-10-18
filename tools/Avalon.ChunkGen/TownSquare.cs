@@ -195,6 +195,15 @@ public sealed record TownSquare(
     /// <summary>What the client draws on this square from the art kit (Maps/Decor/&lt;name&gt;.json), chunk-local.</summary>
     public IReadOnlyList<DecorItem> Decor { get; init; } = [];
 
+    /// <summary>
+    /// What the client draws on this square as doodads (a town's MapDoodadSpawns rows place them), chunk-local: never
+    /// written to the decor file, but checked, and counted as drawing their proxies, as decor is (<see cref="DecorRules" />).
+    /// </summary>
+    public IReadOnlyList<DecorItem> DoodadDrawn { get; init; } = [];
+
+    /// <summary>Everything drawn on the square: the decor, then the doodad-drawn props.</summary>
+    public IEnumerable<DecorItem> Drawn => Decor.Concat(DoodadDrawn);
+
     /// <summary>Decor draws the square's walls, so their boxes are written as <see cref="Material.Collision" />.</summary>
     public bool WallsAsDecor { get; init; }
 
@@ -250,10 +259,10 @@ public sealed record TownSquare(
                 throw new InvalidOperationException($"{Name}: {piece.Building}/{piece.Part} would be named like a wall ({piece.ObjectName})");
         }
 
-        if (Decor.Count > 0)
+        if (Decor.Count > 0 || DoodadDrawn.Count > 0)
         {
             IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
-            foreach (DecorItem item in Decor)
+            foreach (DecorItem item in Drawn)
             {
                 item.Check(DecorRules.Where(Name, item.Building), kit);
                 if (!WithinCell(item.X) || !WithinCell(item.Z))

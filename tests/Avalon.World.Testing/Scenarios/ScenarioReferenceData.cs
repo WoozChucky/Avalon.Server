@@ -103,6 +103,9 @@ public sealed class ScenarioReferenceData
     /// <summary>The authored creature spawns the creature placement places after the rolled ones.</summary>
     internal IMapCreatureSpawnRepository AuthoredSpawns => _repositories.GetRequiredService<IMapCreatureSpawnRepository>();
 
+    /// <summary>The fixed doodad spawns the doodad placement places before a procedural map's plan (none in the forest).</summary>
+    internal IMapDoodadSpawnRepository DoodadSpawns => _repositories.GetRequiredService<IMapDoodadSpawnRepository>();
+
     private (MapTemplate, ChunkLayout) LoadTown()
     {
         MapTemplate template = _repositories.GetRequiredService<IMapTemplateRepository>().FindByIdAsync(TownMap)

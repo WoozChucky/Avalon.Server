@@ -375,7 +375,7 @@ public class TownNpcPlacementShould
     /// </summary>
     private static readonly DecorBox[][] s_decorBoxes =
     [
-        .. s_squares.Select(square => square.Decor.Where(DecorRules.IsSolid).Select(item =>
+        .. s_squares.Select(square => square.Drawn.Where(DecorRules.IsSolid).Select(item =>
         {
             (float minX, float maxX, float minY, float maxY, float minZ, float maxZ) = DecorRules.WorldBounds(item);
             return new DecorBox($"{square.Name} decor {item.Model}", minX, maxX, minY, maxY, minZ, maxZ);

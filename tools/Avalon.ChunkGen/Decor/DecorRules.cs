@@ -67,8 +67,10 @@ public static class DecorRules
     /// </summary>
     public static void Check(TownSquare square)
     {
+        // A doodad-drawn prop (TownSquare.DoodadDrawn) is solid decor here both ways: it must stand inside its proxy, and
+        // it draws that proxy, though the decor file does not carry it.
         List<Drawn> solid = [];
-        foreach (DecorItem item in square.Decor)
+        foreach (DecorItem item in square.Drawn)
         {
             if (!IsSolid(item)) continue;
             (float minX, float maxX, float minY, float maxY, float minZ, float maxZ) = WorldBounds(item);

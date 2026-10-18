@@ -530,6 +530,17 @@ generator, which writes the gate's pillars with it too). A square drawn as decor
 every wall box is covered by its `Walls` sections, and with `Paved` its `Paving` tiles cover the floor to its edges.
 Each refusal names the square, the building and the model or part.
 
+A prop the client draws as a doodad rather than from the decor file is placed with `SquareBuilder.DoodadProp` instead
+of `Prop`: the same collision box in the `.obj` (so the bake, the navmesh and `TownPiecesShould`'s piece count are
+unchanged), its item in `TownSquare.DoodadDrawn` instead of `TownSquare.Decor`. `DecorJsonWriter` never writes
+`DoodadDrawn`, but `Validate` checks its items as it checks decor, and `DecorRules` counts them as solid decor both
+ways: each must stand inside its building's proxy, and it draws that proxy, so the proxy is no invisible wall
+(`DecorRulesShould.Count_a_doodad_drawn_prop_as_drawing_its_proxy`). Each one is drawn by a fixed doodad spawn of the
+town (`MapDoodadSpawns`, [doodads](doodads.md#placement)) at the same spot and yaw, with a template whose `ModelKey` is
+the item's model; `TownDoodadSpawnsShould` pins one seed row per item and none without one. Glimmerdell's notice board
+(`avalon_notice_board` at local (9, 24), yaw 90, in `town_sw_01`) is the one today: it left
+`Maps/Decor/town_sw_01.json` and is doodad 6, the board of quest 9's objective 902.
+
 The bounds table, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, holds each model's box in its own space, so pieces can
 be checked against the art without the kit, which stays out of the repository:
 

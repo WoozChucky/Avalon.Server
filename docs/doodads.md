@@ -10,7 +10,7 @@ This page is the authority on the subsystem. Other pages cover their own side of
 - [tick profiling](tick-profiling.md): how doodads count in `candidateChecks` and `visiblePairs`;
 - [tooling](tooling.md): the `doodad-catalog` export.
 
-Slice S1 was the framework and the wire. Slice S2 places procedural doodads from each map's rules (see "Placement") and seeds the forest's set (see "The forest set"). Slice S3 adds the use-doodad quest objective and seeds the caravan quest's doodads (see "The caravan quest's doodads").
+Slice S1 was the framework and the wire. Slice S2 places procedural doodads from each map's rules (see "Placement") and seeds the forest's set (see "The forest set"). Slice S3 adds the use-doodad quest objective and seeds the caravan quest's doodads (see "The caravan quest's doodads"), and places a town's fixed doodads, Glimmerdell's notice board the first (see "Placement").
 
 ## Templates and catalog
 
@@ -253,7 +253,7 @@ Migration `SeedLostCaravan` seeds the two doodads of quest 9, "The Lost Caravan"
 | Id | Name | Kit / model / used model | Cast | Gate | Placed |
 |---|---|---|---|---|---|
 | 5 | Caravan Strongbox | `props-kit` / `Crate_Metal` / `avalon_strongbox_open` | 1.5 s | visible only `OnObjective(9, 901)` | the forest's required rule 5 |
-| 6 | Notice Board | `town-kit` / `avalon_notice_board` / `avalon_notice_board_pinned` | instant | usable only `OnObjective(9, 902)`; seen by everyone | not yet: Glimmerdell's fixed doodad spawns place it |
+| 6 | Notice Board | `town-kit` / `avalon_notice_board` / `avalon_notice_board_pinned` | instant | usable only `OnObjective(9, 902)`; seen by everyone | Glimmerdell's fixed doodad spawn 1, at (9, 24) |
 
 - **Each used model lives in its template's own kit folder** (`usedModelKey` resolves in `modelKit`). The strongbox is a props-kit `Crate_Metal`, so `avalon_strongbox_open` belongs in the client's props-kit folder, and the board's `avalon_notice_board_pinned` in town-kit. Neither model exists yet; the catalog checks only that the names are plain, so seeding them ahead of the art is safe.
 - **The used looks never show in v1.** Both templates are `Unlimited` and have no script, so nothing ever spends them: each stays `Ready`, and `avalon_strongbox_open` and `avalon_notice_board_pinned` are never displayed. They are catalogued so that a future script, or a change to the template, can show them.
@@ -262,7 +262,7 @@ Migration `SeedLostCaravan` seeds the two doodads of quest 9, "The Lost Caravan"
 
 ## Placement
 
-A procedural map's doodads come from its doodad rules (`ProceduralDoodadRule`, written by `ChunkCatalogSeeder` from `Maps/ProceduralMaps/<mapId>.json`; see [map generation](map-generation.md#spawn-tables-and-procedural-map-configs)) and the doodad slots of its pieces (`ChunkTemplate.DoodadSlots`). `ChunkLayoutInstanceFactory` runs `IDoodadPlacementService` (`DoodadPlacementService`) in two steps of the off-tick build. S3 adds the town's fixed spawns and the quest doodads.
+A procedural map's doodads come from its doodad rules (`ProceduralDoodadRule`, written by `ChunkCatalogSeeder` from `Maps/ProceduralMaps/<mapId>.json`; see [map generation](map-generation.md#spawn-tables-and-procedural-map-configs)) and the doodad slots of its pieces (`ChunkTemplate.DoodadSlots`). `ChunkLayoutInstanceFactory` runs `IDoodadPlacementService` (`DoodadPlacementService`) in two steps of the off-tick build. A map's fixed spawns (`MapDoodadSpawns`, a town's) are placed by the second step, before the plan's doodads.
 
 - **Plan**, before the navmesh bake, from the layout, the rules and the catalog alone. It is deterministic for a seed, in every process: one `Random(layout.Seed ^ DoodadSeedSalt)` (`0x0D00DAD5`), over slots sorted rather than taken in load order, since a chunk's slots are owned rows that Postgres loads in no guaranteed order.
   1. The candidates are every doodad slot of the layout in world space (`ChunkRotation.LocalToWorld`), in chunk order and each chunk's slots sorted by tag (ordinal), `LocalX`, `LocalZ`, `Yaw` and `LocalY`, with yaw `(slot.Yaw + 90 * chunk.Rotation) % 360` and the chunk's depth. A slot within 15 m (X/Z) of the entry spawn or 8 m of a portal is dropped.
@@ -270,6 +270,10 @@ A procedural map's doodads come from its doodad rules (`ProceduralDoodadRule`, w
   3. Each rule draws its count (`MinCount` to `MaxCount`), takes the candidates not yet taken with its tag (ignoring case) and a depth within `MinDepth` to `MaxDepth`, shuffles them (Fisher-Yates), and takes them in order until it has its count, skipping one nearer than `MinSpacing` to a doodad of the same template, or nearer than 2 m to any doodad planned.
   4. A required rule left short adds what it lacks to `RequiredShort`, for the fallback.
   5. `DoodadPlan.Obstacles`: each solid doodad planned yields its world box, in plan order (see [map generation](map-generation.md#solid-doodads-in-the-bake)). The build sets them on the layout (`ChunkLayout.Obstacles`) before the bake, so the bake cuts them out and the layout packet carries them.
+- **Fixed spawns** (migration `AddMapDoodadSpawns`): a `MapDoodadSpawns` row places one doodad at a fixed spot of one map, as a `MapCreatureSpawns` row places a creature, for every layout kind. Its position is the layout's `EntrySpawnWorldPos` plus the row's offset, its yaw the row's (0 to 360, a check constraint), and its template a foreign key (`Restrict`). `IMapDoodadSpawnRepository.FindByMapAsync` reads the map's rows once per build, off the tick, at the start of **Place**, and they are placed before the plan's doodads.
+  - A walk-through doodad's height is the navmesh's under it (`SampleGroundHeight`, which keeps the authored height off the mesh, as a town creature's is). A solid one keeps its authored height, and a row that faces a solid one off a quarter turn is refused with a Warning. A town's collision lives in its chunk: a fixed doodad's box is never baked from its template, so a solid town doodad's box is authored in ChunkGen beside it, as the notice board's is ([map generation](map-generation.md#decor-and-building-recipes)).
+  - A row's gates replace the template's under the rules of step 4 below (dropped on a solid template, or when they name a quest or objective the world lacks). A row whose template the catalog lacks is skipped with an Error.
+  - The seed is Glimmerdell's notice board: row 1, doodad 6, offset (-6, 0, 9) from the entry spawn (15, 0, 15), so world (9, 0, 24), yaw 90, with no gate of its own. `DoodadPlacementShould.Place_a_town_doodad_at_its_offset_on_the_ground` pins the placement rules, and `QuestDoodadCreditShould.Credit_the_seeded_notice_board_only_to_a_player_on_its_step` the board end to end in a Glimmerdell instance.
 - **Place**, after the bake and the creatures, on the instance being built, before it is published. Each doodad is contained on its own: one that throws is logged and skipped, and the others are placed.
   1. A walk-through doodad is snapped to the navmesh under its slot (`FindGround`; its nearest point when just beside the mesh, as a creature's slot is). With no mesh within reach, a required one moves to the fallback and an optional one is skipped with a Warning.
   2. A solid doodad keeps its slot's height, unsnapped. A doodad slot stands on the floor (written at local y 0, where a spawn slot is written 1 m up), so a solid doodad's model and its box in the bake stand on the ground.

@@ -844,6 +844,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     internal QuestCatalog Quests => _world.Data?.Quests ?? QuestCatalog.Empty;
 
+    /// <summary>The doodad templates its world holds now (a fixed doodad spawn's template is found here as the instance is built).</summary>
+    internal DoodadCatalog DoodadTemplates => _world.Data?.Doodads ?? DoodadCatalog.Empty;
+
     /// <summary>
     /// Tick thread only: <paramref name="doodad" />'s state changed, so every client that sees it is owed an update of its
     /// state and of whether it can use it, on the next broadcast. Queued once however often it changes before then;

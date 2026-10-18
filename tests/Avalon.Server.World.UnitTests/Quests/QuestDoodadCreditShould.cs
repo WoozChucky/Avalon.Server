@@ -2,15 +2,19 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
+using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Parties;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Maps.Navigation;
 using Avalon.World.Quests;
 using Avalon.World;
 using Avalon.World.Inventory;
@@ -150,6 +154,53 @@ public class QuestDoodadCreditShould
         ActiveQuest theirs = beside.Character.Quests.Get(LostCaravan)!;
         Assert.Equal((1u, 1), (theirs.ProgressOf(Opened), theirs.Stage));
         Assert.Contains(doodad.Guid.RawValue, beside.Removed());
+    }
+
+    /// <summary>
+    /// The seeded notice board end to end (quest 9's objective 902, doodad 6, MapDoodadSpawns row 1): a Glimmerdell
+    /// instance places it, both players see it, the one still on step 0 cannot use it, and the reader on step 1 can, for
+    /// the credit that moves their quest on.
+    /// </summary>
+    [Fact]
+    public async Task Credit_the_seeded_notice_board_only_to_a_player_on_its_step()
+    {
+        const uint LostCaravan = 9, Read = 902;
+        ChunkLayout town = ScenarioReferenceData.Shared.TownLayout;
+        var clock = new ManualTimerClock();
+        IWorld world = MapInstanceClients.NewWorld(ScenarioReferenceData.Shared.Data);
+        var quests = new QuestService(world, Substitute.For<IServiceProvider>(),
+            new CharacterEconomy(world, new ItemIdAllocator()), new SteadyLootRandom(0), clock, NullLogger<QuestService>.Instance);
+        var scripts = new DoodadScripts(new ServiceCollection().BuildServiceProvider(), clock, NullLogger<DoodadScripts>.Instance);
+        var visibility = new DoodadVisibility(scripts);
+        var uses = new DoodadUseService(scripts, visibility, world, clock, NullLogger<DoodadUseService>.Instance, quests);
+        var navigator = new MapNavigator(NullLoggerFactory.Instance);
+        navigator.LoadFromNavMesh(TownNavmesh.Shared);
+        using MapInstance instance = TestMapInstances.Build(world, navigator: navigator, layout: town,
+            templateId: ScenarioReferenceData.TownMap, time: clock, quests: quests, doodadVisibility: visibility, doodadUses: uses);
+        using var database = SqliteDatabase.World();
+        await new DoodadPlacementService(scripts, clock, NullLoggerFactory.Instance, new MapDoodadSpawnRepository(database))
+            .PlaceAsync(instance, town, DoodadPlan.Empty, ScenarioReferenceData.TownMap, CancellationToken.None);
+        Doodad board = Assert.Single(instance.Doodads.All);
+
+        MapInstanceClient passer = MapInstanceClients.Join(instance, 1);
+        MapInstanceClient reader = MapInstanceClients.Join(instance, 2);
+        passer.Character.Position = board.Position + new Vector3(1.5f, 0f, 0f);
+        reader.Character.Position = board.Position + new Vector3(1.5f, 0f, 1f);
+        passer.Character.Quests.Start(LostCaravan, DateTime.UnixEpoch);
+        ActiveQuest reading = reader.Character.Quests.Start(LostCaravan, DateTime.UnixEpoch);
+        reader.Character.Quests.SetStage(reading, 1);
+        Tick(instance, 30);
+        // Both see it; only the reader is told it can use it.
+        Assert.Null(Assert.Single(passer.Added(), s => s.Guid == board.Guid.RawValue).CanInteract);
+        Assert.True(Assert.Single(reader.Added(), s => s.Guid == board.Guid.RawValue).CanInteract);
+
+        uses.Interact(passer.Connection, passer.Character, instance, board.Guid);
+        uses.Interact(reader.Connection, reader.Character, instance, board.Guid);
+        Tick(instance, 6);
+
+        ActiveQuest passing = passer.Character.Quests.Get(LostCaravan)!;
+        Assert.Equal((0u, 0), (passing.ProgressOf(Read), passing.Stage));
+        Assert.Equal(2, reader.Character.Quests.Get(LostCaravan)!.Stage);
     }
 
     private static void Tick(MapInstance instance, int count)

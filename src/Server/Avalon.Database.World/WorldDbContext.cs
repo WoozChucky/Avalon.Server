@@ -89,6 +89,7 @@ public class WorldDbContext : DbContext
     public DbSet<ProceduralMapConfig> ProceduralMapConfigs { get; set; } = null!;
     public DbSet<MapChunkPlacement> MapChunkPlacements { get; set; } = null!;
     public DbSet<MapCreatureSpawn> MapCreatureSpawns { get; set; } = null!;
+    public DbSet<MapDoodadSpawn> MapDoodadSpawns { get; set; } = null!;
     public DbSet<CreaturePath> CreaturePaths { get; set; } = null!;
     public DbSet<CreaturePathPoint> CreaturePathPoints { get; set; } = null!;
     public DbSet<LocalizedText> LocalizedTexts { get; set; } = null!;
@@ -147,6 +148,7 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<ProceduralMapConfig>());
         Configure(modelBuilder.Entity<MapChunkPlacement>());
         Configure(modelBuilder.Entity<MapCreatureSpawn>());
+        Configure(modelBuilder.Entity<MapDoodadSpawn>());
         Configure(modelBuilder.Entity<CreaturePath>());
         Configure(modelBuilder.Entity<CreaturePathPoint>());
         Configure(modelBuilder.Entity<LocalizedText>());
@@ -2250,6 +2252,55 @@ public class WorldDbContext : DbContext
                 OffsetZ = 6f,
                 Facing = 127f
             });
+    }
+
+    /// <summary>
+    /// A map's fixed doodads (doodads S3), offsets from the entry spawn like MapCreatureSpawns. The template is a foreign
+    /// key (deleting a placed template is refused); the gate quest and objective ids are plain columns, which the world
+    /// checks against its quests at placement. Each gate's quest and condition are both set or both null, and the yaw is
+    /// 0 to 360 (an upper bound refuses NaN too, which Postgres sorts above every number).
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<MapDoodadSpawn> builder)
+    {
+        builder.ToTable("MapDoodadSpawns", t =>
+        {
+            t.HasCheckConstraint("CK_MapDoodadSpawns_Yaw", "\"Yaw\" >= 0 AND \"Yaw\" < 360");
+            t.HasCheckConstraint("CK_MapDoodadSpawns_VisibleGate",
+                "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");
+            t.HasCheckConstraint("CK_MapDoodadSpawns_UsableGate",
+                "(\"UsableQuestId\" IS NULL) = (\"UsableCondition\" IS NULL)");
+        });
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new MapDoodadSpawnId(v))
+            .IsRequired()
+            .ValueGeneratedOnAdd();
+
+        builder.Property(b => b.MapTemplateId)
+            .HasConversion(v => v.Value, v => new MapTemplateId(v))
+            .IsRequired();
+        builder.Property(b => b.DoodadTemplateId)
+            .HasConversion(v => v.Value, v => new DoodadTemplateId(v))
+            .IsRequired();
+        builder.HasOne<DoodadTemplate>().WithMany().HasForeignKey(b => b.DoodadTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        // Placement reads every row for one map at instance-build time.
+        builder.HasIndex(b => b.MapTemplateId);
+
+        // Glimmerdell's notice board (quest 9's objective 902), doodad 6, at world (9, 0, 24) facing yaw 90: the entry
+        // spawn is (15, 0, 15) and the arrival square town_sw_01 stands at grid (0, 0) unturned, so the board's spot in
+        // TownPieces (local 9, 24) is this offset from the entry (TownDoodadSpawnsShould). No gate: the template's usable
+        // gate stands, and everyone sees it.
+        builder.HasData(new MapDoodadSpawn
+        {
+            Id = 1,
+            MapTemplateId = 1,
+            DoodadTemplateId = 6,
+            OffsetX = -6f,
+            OffsetY = 0f,
+            OffsetZ = 9f,
+            Yaw = 90f,
+        });
     }
 
     private static void Configure(EntityTypeBuilder<CreaturePath> builder)

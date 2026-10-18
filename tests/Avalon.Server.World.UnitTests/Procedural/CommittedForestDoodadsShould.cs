@@ -1,9 +1,11 @@
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Doodads;
 using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -32,7 +34,7 @@ public class CommittedForestDoodadsShould
         var service = new DoodadPlacementService(
             new DoodadScripts(new ServiceCollection().BuildServiceProvider(),
                 TimeProvider.System, NullLogger<DoodadScripts>.Instance),
-            TimeProvider.System, NullLoggerFactory.Instance);
+            TimeProvider.System, NullLoggerFactory.Instance, Substitute.For<IMapDoodadSpawnRepository>());
 
         for (int seed = 0; seed < 1000; seed++)
         {

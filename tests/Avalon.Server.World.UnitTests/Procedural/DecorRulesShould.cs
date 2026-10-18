@@ -56,4 +56,36 @@ public class DecorRulesShould
             Assert.True(refused.Message.Contains(refusal, StringComparison.Ordinal), $"{label}: {refused.Message}");
         }
     }
+
+    /// <summary>
+    /// A prop the client draws as a doodad (the notice board) rather than from the decor file keeps its collision proxy,
+    /// and the proxy counts the prop as the solid decor on it: drawn, the square passes; with nothing drawing the proxy,
+    /// it is refused as an invisible wall.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Count_a_doodad_drawn_prop_as_drawing_its_proxy(bool drawn)
+    {
+        var board = new DecorItem("Notice board", "avalon_notice_board", 9f, 0f, 24f, 90);
+        (float minX, float maxX, _, float maxY, float minZ, float maxZ) = DecorRules.WorldBounds(board);
+        var square = new TownSquare("town_test", 0, 0, [], [new WallSegment("Wall_S", 0f, 30f, -0.25f, 0.25f)],
+            [new BoxPiece("Notice board", "board", Material.Collision, minX, maxX, minZ, maxZ, 0f, Math.Max(maxY, 1.05f))],
+            false, false, [])
+        {
+            DoodadDrawn = drawn ? [board] : [],
+        };
+
+        Exception? thrown = Record.Exception(square.Validate);
+
+        if (drawn)
+        {
+            Assert.True(thrown is null, thrown?.Message);
+        }
+        else
+        {
+            InvalidOperationException refused = Assert.IsType<InvalidOperationException>(thrown);
+            Assert.Contains("invisible wall", refused.Message, StringComparison.Ordinal);
+        }
+    }
 }
