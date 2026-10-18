@@ -232,7 +232,7 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
     /// <summary>
     /// One fixed spawn, at the entry spawn plus its offset: a walk-through doodad on the navmesh's height there (the
     /// authored height kept off the mesh, as a town creature's is), a solid one at its authored height and only on a
-    /// quarter turn (its box is its chunk's, which ChunkGen authors axis-aligned), with the spawn's gates when set.
+    /// quarter turn (nothing is baked from a fixed spawn, so v1 seeds none), with the spawn's gates when set.
     /// </summary>
     private void PlaceFixed(Placement placement, MapDoodadSpawn spawn)
     {

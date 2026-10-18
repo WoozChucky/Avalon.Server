@@ -12,7 +12,9 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// <summary>
 /// The town's doodad-drawn props (TownPieces' DoodadProp: the notice board) keep their collision box in the chunk .obj
 /// and leave the decor file, so the client draws them only as the doodads Glimmerdell's MapDoodadSpawns seed places. A
-/// prop with no seed row is a box nothing draws; a row away from its prop is a doodad standing beside its own box.
+/// prop with no seed row is a box nothing draws; a row away from its prop is a doodad standing beside its own box. The
+/// box stays however the doodad is shown, so the doodad must never be hidden: a visibility gate, or a template that
+/// despawns, would leave an invisible wall.
 /// </summary>
 public class TownDoodadSpawnsShould
 {
@@ -24,8 +26,7 @@ public class TownDoodadSpawnsShould
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         List<MapDoodadSpawn> rows = [.. context.MapDoodadSpawns.AsNoTracking().AsEnumerable().Where(s => s.MapTemplateId.Value == 1)];
-        var models = context.DoodadTemplates.AsNoTracking().AsEnumerable()
-            .ToDictionary(t => t.Id.Value, t => t.ModelKey);
+        var templates = context.DoodadTemplates.AsNoTracking().AsEnumerable().ToDictionary(t => t.Id.Value);
         List<MapDoodadSpawn> matched = [];
 
         foreach (TownSquare square in TownPieces.Squares())
@@ -35,9 +36,18 @@ public class TownDoodadSpawnsShould
             {
                 Vector3 world = ChunkRotation.LocalToWorld(item.X, item.Y, item.Z, chunk.Rotation, town.CellSize, chunk.WorldPos);
                 MapDoodadSpawn row = Assert.Single(rows, r =>
-                    models[r.DoodadTemplateId.Value] == item.Model
+                    templates[r.DoodadTemplateId.Value].ModelKey == item.Model
                     && Vector3.Distance(town.EntrySpawnWorldPos + new Vector3(r.OffsetX, r.OffsetY, r.OffsetZ), world) < 0.01f);
-                Assert.Equal(item.Yaw, row.Yaw);
+                Assert.Equal((item.Yaw + 90 * chunk.Rotation) % 360, row.Yaw);
+
+                // Never hidden: no visibility gate on the row or its template, no use that spends it into a despawn,
+                // and no script, which could despawn it on a use or a respawn.
+                DoodadTemplate template = templates[row.DoodadTemplateId.Value];
+                Assert.Null(row.VisibleQuestId);
+                Assert.Null(template.VisibleQuestId);
+                Assert.False(template is { SpentLook: DoodadSpentLook.Despawn, UseLimit: DoodadUseLimit.OncePerInstance },
+                    $"doodad {template.Id.Value} despawns once spent");
+                Assert.Null(template.ScriptName);
                 matched.Add(row);
             }
         }

@@ -43,6 +43,9 @@ public class DoodadPlacementShould
 
     private static readonly Lazy<(ChunkLayout Layout, DtNavMesh NavMesh)> s_baked = new(Bake, isThreadSafe: true);
 
+    /// <summary>A gate of the seeded quests other than the board template's: the caravan quest's first step.</summary>
+    private static readonly DoodadGate s_rowGate = new(9, DoodadGateCondition.OnObjective, 901);
+
     private static ScenarioReferenceData Reference => ScenarioReferenceData.Shared;
 
     [Fact]
@@ -186,7 +189,7 @@ public class DoodadPlacementShould
         spawns.FindByMapAsync(ScenarioReferenceData.TownMap, Arg.Any<CancellationToken>()).Returns(Task.FromResult<IReadOnlyList<MapDoodadSpawn>>(
         [
             .. seeded,
-            TownSpawn(101, NoticeBoard, 0f, 1f, 0f, 0f),        // at the entry, a metre up
+            TownSpawn(101, NoticeBoard, 0f, 1f, 0f, 0f, usable: s_rowGate),       // at the entry, a metre up
             TownSpawn(102, SeededShrine, -10f, 0.3f, -10f, 180f),
             TownSpawn(103, SeededShrine, 10f, 0f, -10f, 45f),
         ]));
@@ -206,21 +209,31 @@ public class DoodadPlacementShould
 
         Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(15f, 1f, 15f), out Vector3 ground));
         Assert.Equal(new Vector3(15f, ground.y, 15f), lifted.Position);
+        // The row's usable gate replaces the template's (9, 902), in its own column: the template has no visible gate.
+        Assert.Equal(s_rowGate, lifted.UsableGate);
+        Assert.Null(lifted.VisibleGate);
         Assert.True(ground.y < 0.5f, $"the ground at the entry is {ground.y} m up");
         Assert.Equal(new Vector3(5f, 0.3f, 5f), shrine.Position);
         Assert.Equal(1, log.Entries.Count(e => e.Level >= LogLevel.Warning));
     }
 
-    private static MapDoodadSpawn TownSpawn(int id, uint template, float x, float y, float z, float yaw) => new()
+    private static MapDoodadSpawn TownSpawn(int id, uint template, float x, float y, float z, float yaw,
+        DoodadGate? usable = null)
     {
-        Id = id,
-        MapTemplateId = ScenarioReferenceData.TownMap,
-        DoodadTemplateId = template,
-        OffsetX = x,
-        OffsetY = y,
-        OffsetZ = z,
-        Yaw = yaw,
-    };
+        return new MapDoodadSpawn
+        {
+            Id = id,
+            MapTemplateId = ScenarioReferenceData.TownMap,
+            DoodadTemplateId = template,
+            OffsetX = x,
+            OffsetY = y,
+            OffsetZ = z,
+            Yaw = yaw,
+            UsableQuestId = usable?.QuestId,
+            UsableCondition = usable?.Condition,
+            UsableObjectiveId = usable?.ObjectiveId,
+        };
+    }
 
     /// <summary>The library's chunks with each one's doodad slots in reverse order, as another database load might give them.</summary>
     private static IChunkLibrary SlotsReversed(IChunkLibrary chunks)
@@ -239,15 +252,7 @@ public class DoodadPlacementShould
         log = new TestLog();
         var time = new FakeTimeProvider();
         var scripts = new DoodadScripts(new ServiceCollection().BuildServiceProvider(), time, new Logger<DoodadScripts>(log));
-        return new DoodadPlacementService(scripts, time, log, townSpawns ?? NoTownSpawns());
-    }
-
-    private static IMapDoodadSpawnRepository NoTownSpawns()
-    {
-        IMapDoodadSpawnRepository spawns = Substitute.For<IMapDoodadSpawnRepository>();
-        spawns.FindByMapAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<MapDoodadSpawn>>([]));
-        return spawns;
+        return new DoodadPlacementService(scripts, time, log, townSpawns ?? FixedDoodadSpawns.None());
     }
 
     private static ProceduralMapConfig Config(params ProceduralDoodadRule[] rules) => new()

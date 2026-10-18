@@ -1,6 +1,5 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
-using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.World;
@@ -114,20 +113,12 @@ public class SolidDoodadNavmeshShould
             ChunkLayoutNavmeshBuilder.ForTesting(NullLoggerFactory.Instance, chunks, Path.GetDirectoryName(TownNavmesh.ContentRoot)!),
             Substitute.For<ICreaturePlacementService>(), Substitute.For<IPortalPlacementService>(),
             new DoodadPlacementService(new DoodadScripts(new ServiceCollection().BuildServiceProvider(), TimeProvider.System,
-                NullLogger<DoodadScripts>.Instance), TimeProvider.System, NullLoggerFactory.Instance, NoFixedSpawns()),
+                NullLogger<DoodadScripts>.Instance), TimeProvider.System, NullLoggerFactory.Instance, FixedDoodadSpawns.None()),
             services);
 
         MapInstance instance = await factory.BuildAsync(template, ownerCharacterId: 1, CancellationToken.None);
         Assert.Equal(s_slotAt, Assert.Single(instance.Doodads.All).Position);
         return instance;
-    }
-
-    private static IMapDoodadSpawnRepository NoFixedSpawns()
-    {
-        IMapDoodadSpawnRepository spawns = Substitute.For<IMapDoodadSpawnRepository>();
-        spawns.FindByMapAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<MapDoodadSpawn>>([]));
-        return spawns;
     }
 
     private static DoodadCatalog Catalog() => new(

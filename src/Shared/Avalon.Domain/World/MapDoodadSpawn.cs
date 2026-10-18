@@ -9,10 +9,11 @@ namespace Avalon.Domain.World;
 /// <remarks>
 /// Positions are offsets in metres from the map's entry spawn point, as a <see cref="MapCreatureSpawn" />'s are, so a
 /// town's doodads move with its chunks. A walk-through doodad's height is the navmesh's under it (the offset's Y only
-/// centres the search); a solid one keeps the authored height and faces a quarter turn, and its box is the chunk's to
-/// carry (a town's collision is authored in its chunk, as ChunkGen's doodad-drawn props are), never baked from the
-/// template. A gate set here replaces the template's for this doodad; each gate's quest and condition are both set or
-/// both null.
+/// centres the search); a solid one keeps the authored height and faces a quarter turn. Nothing is baked from a fixed
+/// spawn, so v1 places no solid town doodad: one would need its box authored in ChunkGen. The notice board is
+/// walk-through as a doodad; its collision box is a chunk proxy that ChunkGen keeps in the chunk's .obj, so it must
+/// never be hidden. A gate set here replaces the template's for this doodad; each gate's quest and condition are both
+/// set or both null.
 /// </remarks>
 public class MapDoodadSpawn : IDbEntity<MapDoodadSpawnId>
 {
