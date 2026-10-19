@@ -55,6 +55,9 @@ public static class ForestDresser
 
     public const float WallDeadTreeMaxScale = 1.3f;
 
+    /// <summary>A tree wall this near a frame edge stands against it, and runs along it.</summary>
+    public const float WallEdgeReach = 0.5f;
+
     /// <summary>Undergrowth among a tree wall's trunks, per 100 m² of the wall.</summary>
     public const float WallFillPer100 = 30f;
 
@@ -124,6 +127,9 @@ public static class ForestDresser
 
     /// <summary>How far big cover (ferns, bushes, tall plants) keeps from a strip's centre line.</summary>
     public const float BigCoverStripClearance = ForestPaths.Width / 2f + 1.2f;
+
+    /// <summary>How much farther than the rules' least ground cover keeps from a strip and the hub, for the written file's rounding.</summary>
+    public const float RoundingMargin = 0.01f;
 
     /// <summary>How far ground cover keeps from a doodad slot, and from a doodad_large slot (which may hold a solid doodad).</summary>
     public const float DoodadCoverClearance = 1.5f, LargeDoodadCoverClearance = 3f;
@@ -647,11 +653,14 @@ public static class ForestDresser
         /// </summary>
         private void DressTreeWall(BoxBlocker wall)
         {
-            bool alongX = wall.MaxX - wall.MinX >= wall.MaxZ - wall.MinZ;
+            // The wall runs along the frame's edge it stands against (the longer one, for a box in a corner touching
+            // two); its open face is the side away from that edge, and the row there is the front.
+            bool onX = wall.MinZ <= WallEdgeReach || wall.MaxZ >= frame.Size - WallEdgeReach;
+            bool onZ = wall.MinX <= WallEdgeReach || wall.MaxX >= frame.Size - WallEdgeReach;
+            bool alongX = onX == onZ ? wall.MaxX - wall.MinX >= wall.MaxZ - wall.MinZ : onX;
             (float from, float to, float near, float far) = alongX ? (wall.MinX, wall.MaxX, wall.MinZ, wall.MaxZ) : (wall.MinZ, wall.MaxZ, wall.MinX, wall.MaxX);
             float length = to - from, depth = far - near;
             int rows = depth >= WallThreeRowDepth ? 3 : 2;
-            // The open face: the long side farther from the frame's edge; its row is the front.
             bool openFar = alongX ? wall.MinZ < frame.Size - wall.MaxZ : wall.MinX < frame.Size - wall.MaxX;
             int planted = 0;
             for (int row = 0; row < rows; row++)
@@ -665,7 +674,8 @@ public static class ForestDresser
                 }
             }
             // A short wall the rows leave short of its share gets trees anywhere in it.
-            int needed = (int)MathF.Ceiling(length / ForestDecorRules.TreeWallSpacing - 0.001f);
+            // The rules count a wall's trees against its longer side, whichever way it runs.
+            int needed = (int)MathF.Ceiling(MathF.Max(length, depth) / ForestDecorRules.TreeWallSpacing - 0.001f);
             for (int attempt = 0; planted < needed && attempt < 400; attempt++)
             {
                 if (TryWallTree(alongX, from, to, near, far, Uniform(from, to), Uniform(near, far), false)) planted++;
@@ -832,9 +842,11 @@ public static class ForestDresser
         private bool Open(float x, float z, float radius, bool big, bool onBlockers = false)
         {
             if (x < 0.2f || z < 0.2f || x > frame.Size - 0.2f || z > frame.Size - 0.2f) return false;
-            float strip = big ? BigCoverStripClearance : CoverStripClearance;
+            // A centimetre more than the rules ask: they check the written file, whose positions are rounded.
+            float strip = (big ? BigCoverStripClearance : CoverStripClearance) + RoundingMargin;
             if (_strip.Any(s => ForestPaths.DistanceToSegment(x, z, s.A, s.B) < strip)) return false;
-            if (frame.Exits.Count > 0 && ForestPaths.Distance(x, z, frame.MeetX, frame.MeetZ) < ForestPaths.HubRadius + (big ? 1.5f : 0.5f)) return false;
+            if (frame.Exits.Count > 0 && ForestPaths.Distance(x, z, frame.MeetX, frame.MeetZ) < ForestPaths.HubRadius + (big ? 1.5f : 0.5f) + RoundingMargin)
+                return false;
             if (!onBlockers && frame.Blockers.Any(b => b.DistanceTo(x, z) < 0.2f)) return false;
             foreach (DoodadSlot slot in frame.DoodadSlots)
             {

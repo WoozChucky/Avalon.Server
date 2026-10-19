@@ -17,7 +17,7 @@
   "portalSlots": [
   ],
   "doodadSlots": [
-    { "tag": "doodad_large", "localX": 7.7, "localY": 0, "localZ": 5.8, "yaw": 90 },
+    { "tag": "doodad_large", "localX": 7.7, "localY": 0, "localZ": 5.8, "yaw": 0 },
     { "tag": "doodad", "localX": 6.2, "localY": 0, "localZ": 18.1, "yaw": 90 }
   ],
   "tags": ["forest", "setpiece", "boss", "arena", "group"]

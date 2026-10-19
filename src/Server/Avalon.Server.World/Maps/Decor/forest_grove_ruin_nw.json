@@ -116,7 +116,6 @@
     { "model": "Fern_1", "x": 29.03, "y": 0, "z": 29.59, "yaw": 238, "scale": 0.89 },
     { "model": "Fern_1", "x": 29.11, "y": 0, "z": 6.58, "yaw": 286, "scale": 0.99 },
     { "model": "Flower_3_Single", "x": 13.13, "y": 0, "z": 22.73, "yaw": 99, "scale": 0.58 },
-    { "model": "Flower_4_Single", "x": 22.06, "y": 0, "z": 19.56, "yaw": 75, "scale": 0.5 },
     { "model": "Grass_Common_Short", "x": 5, "y": 0, "z": 6.36, "yaw": 164, "scale": 0.7 },
     { "model": "Grass_Common_Short", "x": 5.04, "y": 0, "z": 15.97, "yaw": 167, "scale": 0.91 },
     { "model": "Grass_Common_Short", "x": 5.1, "y": 0, "z": 18.69, "yaw": 251, "scale": 0.77 },

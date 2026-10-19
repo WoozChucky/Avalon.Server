@@ -346,6 +346,7 @@ public class ForestPiecesShould
         {
             var paths = piece.Exits.Select(e => (From: ThroatCentre(e, 0, 0), To: (X: Centre, Z: Centre))).ToList();
             AssertDoodadSlotsClear(piece.Name, piece.DoodadSlots, piece.Blockers, piece.Slots, paths);
+            AssertFacing(piece.Name, piece.DoodadSlots, Centre);
         }
 
         // A set piece's paths cross its inner edges: from each outer exit's throat centre to the frame centre, and
@@ -360,6 +361,19 @@ public class ForestPiecesShould
                     paths.Add((exits[i], exits[j]));
             }
             AssertDoodadSlotsClear(group.Name, group.DoodadSlots, group.Blockers, group.Slots, paths);
+            AssertFacing(group.Name, group.DoodadSlots, ChunkPiece.CellSize);
+        }
+    }
+
+    /// <summary>Each doodad slot's yaw is a quarter turn that best faces the centre (centre, centre): none of the four turns faces it closer.</summary>
+    private static void AssertFacing(string name, IEnumerable<DoodadSlot> slots, float centre)
+    {
+        foreach (DoodadSlot slot in slots)
+        {
+            double toCentre = Math.Atan2(centre - slot.X, centre - slot.Z);   // a yaw's facing is (sin, cos)
+            double Off(int yaw) => Math.Abs(Math.IEEERemainder(yaw * Math.PI / 180.0 - toCentre, 2 * Math.PI));
+            Assert.True(Off(slot.Yaw) <= new[] { 0, 90, 180, 270 }.Min(Off) + 1e-6,
+                $"{name}: {slot} does not face the centre ({centre}, {centre}) as nearly as a quarter turn can");
         }
     }
 

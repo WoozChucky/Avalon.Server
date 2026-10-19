@@ -112,10 +112,19 @@ public static class ForestDecorRules
                 throw new InvalidOperationException($"{frame.Name}: blocker {ForestText.Of(frame.Blockers[b])} has nothing solid drawn on it: an invisible wall");
         }
 
-        foreach (BoxBlocker wall in frame.Blockers.OfType<BoxBlocker>().Where(b => b.Dressing == Dressing.TreeWall))
+        // Each trunk counts for one wall only (the first it stands within), so two walls that meet share no tree.
+        List<BoxBlocker> walls = [.. frame.Blockers.OfType<BoxBlocker>().Where(b => b.Dressing == Dressing.TreeWall)];
+        int[] wallTrees = new int[walls.Count];
+        foreach (Shape trunk in trunks)
         {
+            int w = walls.FindIndex(wall => Within(trunk, wall, Tolerance));
+            if (w >= 0) wallTrees[w]++;
+        }
+        for (int w = 0; w < walls.Count; w++)
+        {
+            BoxBlocker wall = walls[w];
             float length = Math.Max(wall.MaxX - wall.MinX, wall.MaxZ - wall.MinZ);
-            int trees = trunks.Count(t => Within(t, wall, Tolerance));
+            int trees = wallTrees[w];
             if (trees * TreeWallSpacing < length)
             {
                 throw new InvalidOperationException(
