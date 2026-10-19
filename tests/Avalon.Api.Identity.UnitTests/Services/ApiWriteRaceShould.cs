@@ -26,10 +26,9 @@ namespace Avalon.Api.Identity.UnitTests.Services;
 
 /// <summary>
 /// #478: the API wrote back the whole account row it had read (login, MFA verify, password change,
-/// email change, role change), so a ban or a lock that the Auth server or an admin wrote in
-/// between was put back to the old values. Each write below has a ban and a lock land right after
-/// its read, over the real repository and a real relational schema, and both must survive it, as
-/// they do on the Auth server since #484.
+/// email change, role change), so a concurrent ban or lock was put back to the old values.
+/// Each write below has a ban and a lock land right after its read, over the real repository
+/// and a real relational schema, and both must survive it.
 /// </summary>
 public sealed class ApiWriteRaceShould : IDisposable
 {

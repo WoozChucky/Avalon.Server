@@ -280,9 +280,8 @@ public class CharacterSelectHandler(
     /// <para>
     /// Only connections of the same account are looked at. The world server's list includes
     /// connections that have already closed and whose despawn has not started, which is the same gap
-    /// reached without a kick: a session that dropped a moment before this select. The auth server's
-    /// online flag plays no part, since a dropped auth connection clears it while the world session
-    /// is still up.
+    /// reached without a kick: a session that dropped a moment before this select. The legacy account
+    /// online flag plays no part; only this world's connections identify characters still held in memory.
     /// </para>
     /// </remarks>
     /// <returns>What the new select must wait for, besides its own character's saves, before it reads.</returns>

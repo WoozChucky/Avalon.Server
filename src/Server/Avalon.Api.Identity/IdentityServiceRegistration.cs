@@ -136,7 +136,7 @@ public static class IdentityServiceRegistration
         services.AddSingleton<Avalon.Infrastructure.GameTickets.IGameTicketStore,
             Avalon.Infrastructure.GameTickets.RedisGameTicketStore>();
         services.AddMfaService();
-        // The login policy the Auth server shares (#478), with the limits under
+        // The identity login policy, with the limits under
         // Application:Authentication, checked here since that section is bound without validation.
         LoginLimitsValidation.Validate(config.Authentication ?? new AuthenticationConfig(), "Application:Authentication");
         ValidateAccountCreationCap(config.Authentication ?? new AuthenticationConfig());

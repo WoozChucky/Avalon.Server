@@ -101,10 +101,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="Maps\**" CopyToOutputDirectory="Always"/>
-    <!-- Dev-only certificate: its private key is committed, so it must never reach a Release
-         output or image. Deployments mount their own (Hosting:Security:CertificatePath). -->
-    <None Include="..\..\..\certs\cert-tcp.pfx" Link="cert-tcp.pfx" CopyToOutputDirectory="PreserveNewest"
-          Condition="'$(Configuration)' == 'Debug'"/>
   </ItemGroup>
 
 </Project>

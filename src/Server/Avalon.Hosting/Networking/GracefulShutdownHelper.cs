@@ -6,7 +6,7 @@ namespace Avalon.Hosting.Networking;
 
 /// <summary>
 /// Shared utility for sending a disconnect notification to a connection and then closing it.
-/// Used by AuthServer, WorldServer (graceful stop) and WorldServer (forced kick).
+/// Used by WorldServer for graceful stops and forced kicks.
 /// </summary>
 public static class GracefulShutdownHelper
 {

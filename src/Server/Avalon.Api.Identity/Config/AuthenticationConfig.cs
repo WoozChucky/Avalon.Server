@@ -18,9 +18,7 @@ public class AuthenticationConfig : TokenValidationConfig, ILoginLimits
     // requests). Defense-in-depth via HttpOnly + SameSite=Strict + Secure remains.
     public string RefreshCookiePath { get; set; } = "/";
 
-    // The login limits (#478). The budgets they govern are the Redis keys the Auth server uses
-    // too, so these must match the Auth server's Application settings of the same names; the
-    // defaults do.
+    // Login budgets use shared Redis keys, so every identity replica must use the same limits.
 
     /// <inheritdoc/>
     public int MaxFailedLoginAttempts { get; set; } = 5;

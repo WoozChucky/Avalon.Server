@@ -133,7 +133,7 @@ public sealed class RoleChangeShould : IDisposable
         Account stored = await StoredAsync(account.Id);
         Assert.Equal((AccountAccessLevel)roles, stored.AccessLevel);
         Assert.Equal(account.CredentialsVersion + 1, stored.CredentialsVersion);
-        // The bare account id: what the World server and the Auth server both parse.
+        // The bare account id: what the World server parses.
         await _cache.Received(1).PublishAsync(CacheKeys.WorldAccountsDisconnectChannel,
             account.Id.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }

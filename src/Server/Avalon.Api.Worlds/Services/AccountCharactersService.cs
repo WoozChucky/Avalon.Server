@@ -36,7 +36,7 @@ public sealed class AccountCharactersService(
 
         foreach (WorldEntity world in (await worlds.FindAllAsync(track: false, cancellationToken)).OrderBy(w => w.Id.Value))
         {
-            // The auth server's world rule, a mask test. A world the caller may not enter is not revealed.
+            // World access is a mask test. A world the caller may not enter is not revealed.
             if (!AccessLevels.ForWorld(world.AccessLevelRequired).Allows(caller)) continue;
             if (!databases.TryGet(world.Id, out _)) continue;
             if (!databases.IsAvailable(world.Id))

@@ -53,12 +53,12 @@ public class Account : IDbEntity<AccountId>
 
     public DateTime LastLogin { get; set; }
 
+    /// <summary>Legacy TCP-login state retained in the schema; not a source of current game presence.</summary>
     public bool Online { get; set; } = false;
 
     /// <summary>
-    /// The auth-server connection whose login set <see cref="Online"/> (#487), or <c>null</c> while
-    /// offline. A connection clears the flag on close only while this is still its own id, so a
-    /// stale disconnect cannot mark offline an account a newer session is using.
+    /// Legacy TCP-login owner retained with <see cref="Online"/> for schema compatibility.
+    /// Current game sessions use identity's session leases; consolidation clears this legacy value.
     /// </summary>
     public Guid? OnlineSessionId { get; set; }
 

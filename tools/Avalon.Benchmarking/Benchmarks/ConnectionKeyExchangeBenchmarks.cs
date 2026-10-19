@@ -8,7 +8,7 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// What a connection's key exchange costs (#878): <c>Construct</c> is what every world connection paid as it was
 /// created, a P-256 key pair and a session around it (<see cref="ConnectionKeyExchange" />), and <c>ConstructAndKey</c>
 /// adds what admission paid, keying the session from a client's public key (the agreement, the derivation and the two
-/// ciphers). Since #878 a world that does not seal pays neither; one that seals, and the auth server, pay both.
+/// ciphers). Since #878 a world that does not seal pays neither; one that seals pays both.
 /// </summary>
 [MemoryDiagnoser]
 public class ConnectionKeyExchangeBenchmarks

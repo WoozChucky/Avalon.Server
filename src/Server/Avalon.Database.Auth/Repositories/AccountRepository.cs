@@ -21,51 +21,15 @@ public interface IAccountRepository : IRepository<Account, AccountId>
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Marks a login on the account (online, owned by <paramref name="sessionId"/>, the auth-server
-    /// connection logging in; <paramref name="lastIp"/>, last login time, failed count cleared, an
-    /// expired lock lifted), but only while the account is not locked at <paramref name="now"/>.
-    /// Returns <c>false</c>, writing nothing, when it is: a lock set since the account was read is
-    /// never erased.
-    /// </summary>
-    Task<bool> TryRecordLoginAsync(AccountId id, string lastIp, DateTime now, Guid sessionId,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// The REST API's <see cref="TryRecordLoginAsync"/> (#478): the same write, on the same
-    /// condition, minus <c>Online</c>, which is the game client's session flag and not the API's.
+    /// Records an API login: last IP and login time, failed count cleared and an expired lock lifted.
+    /// Returns false without writing when the account is locked at the time of the update, so a
+    /// lock set after the caller read the account survives. Does not change game-session state.
     /// </summary>
     Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Sets <c>Online = false</c> (and clears <c>OnlineSessionId</c>), but only while the account's
-    /// online session is <paramref name="sessionId"/> (#487): a session that is not the one online
-    /// leaves the flag to the one that is. Adds <paramref name="sessionSeconds"/> to
-    /// <c>TotalTime</c> either way, and writes nothing else (#484): a lock, a ban or a failed-login
-    /// count written since the account was read is kept.
-    /// </summary>
-    Task MarkOfflineAsync(AccountId id, Guid? sessionId, long sessionSeconds = 0,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Sets <c>Online = false</c> and clears <c>OnlineSessionId</c> on every account, in one
-    /// statement, and writes nothing else. Run at auth-server start-up: it assumes this server is
-    /// the only one, so every session it did not start is gone (#487).
-    /// </summary>
-    Task MarkAllOfflineAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// The id and online session of every account marked online, and nothing else of the row (#555):
-    /// what the auth server's liveness sweep compares with its live connections.
-    /// </summary>
-    Task<IReadOnlyList<OnlineSession>> ListOnlineSessionsAsync(CancellationToken cancellationToken = default);
-
 }
 
 /// <summary>The account's failed-login count and lock state after a failure was recorded.</summary>
 public readonly record struct FailedLoginResult(int FailedLogins, bool Locked);
-
-/// <summary>An account marked online, and the auth-server connection that set it (null if none was recorded).</summary>
-public readonly record struct OnlineSession(AccountId AccountId, Guid? SessionId);
 
 public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     : EntityFrameworkRepository<Account, AccountId, AuthDbContext>(contextFactory), IAccountRepository
@@ -123,25 +87,6 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
             .Select(a => new FailedLoginResult(a.FailedLogins, a.Locked))
             .FirstOrDefaultAsync(cancellationToken);
         return state;
-    }
-
-    public async Task<bool> TryRecordLoginAsync(AccountId id, string lastIp, DateTime now, Guid sessionId,
-        CancellationToken cancellationToken = default)
-    {
-        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
-
-        int updated = await context.Accounts
-            .Where(a => a.Id == id && (!a.Locked || (a.LockedUntil != null && a.LockedUntil <= now)))
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(a => a.Online, true)
-                .SetProperty(a => a.OnlineSessionId, (Guid?)sessionId)
-                .SetProperty(a => a.LastIp, lastIp)
-                .SetProperty(a => a.LastLogin, now)
-                .SetProperty(a => a.FailedLogins, 0)
-                .SetProperty(a => a.Locked, false)
-                .SetProperty(a => a.LockedUntil, (DateTime?)null), cancellationToken);
-
-        return updated == 1;
     }
 
     public async Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now,
@@ -274,45 +219,6 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
             .Where(a => a.Id == id && a.CredentialsVersion == version)
             .ExecuteUpdateAsync(s => s.SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion),
                 cancellationToken) == 1;
-    }
-
-    public async Task MarkOfflineAsync(AccountId id, Guid? sessionId, long sessionSeconds = 0,
-        CancellationToken cancellationToken = default)
-    {
-        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
-
-        // One statement, whose conditions read the row as it was before it: the flag is cleared
-        // only while this session is the one that set it, so a newer login's session survives a
-        // stale close (#487), and the session's time is counted either way.
-        await context.Accounts
-            .Where(a => a.Id == id)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(a => a.Online, a => a.OnlineSessionId == sessionId ? false : a.Online)
-                .SetProperty(a => a.OnlineSessionId,
-                    a => a.OnlineSessionId == sessionId ? (Guid?)null : a.OnlineSessionId)
-                .SetProperty(a => a.TotalTime, a => a.TotalTime + sessionSeconds), cancellationToken);
-    }
-
-    public async Task MarkAllOfflineAsync(CancellationToken cancellationToken = default)
-    {
-        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
-
-        await context.Accounts
-            .Where(a => a.Online || a.OnlineSessionId != null)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(a => a.Online, false)
-                .SetProperty(a => a.OnlineSessionId, (Guid?)null), cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<OnlineSession>> ListOnlineSessionsAsync(CancellationToken cancellationToken = default)
-    {
-        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
-
-        return await context.Accounts
-            .AsNoTracking()
-            .Where(a => a.Online)
-            .Select(a => new OnlineSession(a.Id, a.OnlineSessionId))
-            .ToListAsync(cancellationToken);
     }
 
     /// <summary>

@@ -35,8 +35,8 @@ public static class ServiceExtensions
     }
 
     /// <summary>
-    /// The login policy both servers share (#478). The host registers its <see cref="ILoginLimits"/>
-    /// (the Auth server's <c>Application</c> settings, the API's <c>Application:Authentication</c>).
+    /// The identity login policy. The host registers its <see cref="ILoginLimits"/>
+    /// from <c>Application:Authentication</c>.
     /// </summary>
     public static IServiceCollection AddLoginPolicy(this IServiceCollection services)
     {

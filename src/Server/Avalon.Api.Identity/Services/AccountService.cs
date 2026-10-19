@@ -713,7 +713,7 @@ public class AccountService : IAccountService
 
         if (AccountStatusNotice.Format(accountId, (Avalon.Domain.Auth.AccountStatus)state) is { } notice)
         {
-            // Instead of the bare disconnect (#882): the world and the auth server close the account's connections with
+            // Instead of the bare disconnect (#882): world servers close the account's connections with
             // the reason this names. Then every world holding a session of the account is asked for a heartbeat now,
             // which the moved epoch refuses; a server that missed the notice ends the session there. Both are best
             // effort: the change is committed, and the epoch already voided the sessions.
@@ -771,7 +771,7 @@ public class AccountService : IAccountService
         _logger.LogInformation("Account {ActorId} set the roles of account {AccountId} to {Roles}; its sessions were ended",
             actorId.Value, accountId.Value, roles);
 
-        // Kicks the account's world and auth-server connections, after clearing a pending MFA login
+        // Kicks the account's world connections, after clearing a pending MFA login
         // made at the old version. Both best-effort: the change is committed.
         await ClearPendingMfaAsync(accountId, "its roles were changed");
         await PublishDisconnectAsync(accountId, "its roles were changed");

@@ -20,7 +20,6 @@ public interface IServerBase
     Task RemoveConnection(IConnection connection);
     Task CallListener(IConnection connection, NetworkPacketHeader header, Packet? payload);
     long ServerTime { get; }
-    int SendBufferCapacity { get; }
     void CallConnectionListener(IConnection connection);
 
     /// <summary><c>Hosting:MaxInboundFrameSize</c>: the most bytes a frame a peer sends may declare.</summary>
@@ -44,7 +43,6 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     /// </summary>
     public IPEndPoint? BoundEndPoint => Volatile.Read(ref _boundEndPoint);
 
-    public int SendBufferCapacity { get; }
     public int MaxInboundFrameSize { get; }
     public TimeSpan InboundFrameTimeout { get; }
     public ProxyProtocolPolicy ProxyProtocol { get; }
@@ -64,8 +62,8 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     private readonly ILogger _logger;
 
     // Swapped whole, never mutated (#866): a registration may land while connections finishing their
-    // handshakes enumerate the listeners. Both servers now register theirs before their port opens
-    // (#665, #867), but nothing here requires that of a server.
+    // handshakes enumerate the listeners. The world registers its listeners before its port opens
+    // (#665), but nothing here requires that of a server.
     private ImmutableArray<Func<IConnection, bool>> _connectionListeners = ImmutableArray<Func<IConnection, bool>>.Empty;
     private readonly Stopwatch _serverTimer = new();
     private readonly CancellationTokenSource _stoppingToken = new();
@@ -88,9 +86,8 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         PacketDispatchTelemetry? packetTelemetry = null)
     {
         // A connection's session seals and opens packets with the platform AesGcm (AvalonCryptoSession,
-        // #850): every auth connection has one, and a world's has one only while Network:PacketEncryption
-        // is on (#875, #878). Refuse to start where it is unavailable rather than fail at the first
-        // handshake: the session layer has no fallback, and a server that cannot open a packet should not
+        // #850): a world connection has one only while Network:PacketEncryption is on (#875, #878).
+        // Refuse to start where it is unavailable rather than fail at the first handshake: the session layer has no fallback, and a server that cannot open a packet should not
         // listen.
         if (!AesGcm.IsSupported)
         {
@@ -105,7 +102,6 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         PacketManager = packetManager;
         PacketTelemetry = packetTelemetry ?? PacketDispatchTelemetry.Disabled;
         Port = hostingOptions.Value.Port;
-        SendBufferCapacity = hostingOptions.Value.SendBufferCapacity;
         MaxInboundFrameSize = hostingOptions.Value.MaxInboundFrameSize;
         InboundFrameTimeout = TimeSpan.FromSeconds(hostingOptions.Value.InboundFrameTimeoutSeconds);
         ProxyProtocol = ProxyProtocolPolicy.From(hostingOptions.Value.ProxyProtocol);
@@ -151,8 +147,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     /// <summary>
     /// Whether <see cref="StartAsync" /> opens the port. A server with work to finish before a client
     /// may connect answers false and calls <see cref="StartListening" /> itself once it is ready (#665):
-    /// the world server loads its scripts and world first, and the auth server its certificate, the
-    /// start-up reset, its subscription and its listener (#867), so a start that fails never leaves an
+    /// the world server loads its scripts and world first, so a start that fails never leaves an
     /// endpoint accepting.
     /// </summary>
     protected virtual bool ListenOnStart => true;
@@ -286,7 +281,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
             // cannot inject tcp client here
             T connection = ActivatorUtilities.CreateInstance<T>(scope.ServiceProvider, client, this);
-            // Registered before it starts: the auth server's liveness sweep (#555) reads Connections.
+            // Registered before it starts, so a close can always remove it from Connections.
             AddConnection(connection);
             registered = connection;
 

@@ -48,9 +48,8 @@ namespace Avalon.Server.World.UnitTests.Characters;
 /// One character, one live copy. Two copies of a character each hold their own inventory and money
 /// in memory, and whichever saves last writes its copy over the other: an item sold by one comes
 /// back through the other, and once items can change hands the same thing duplicates them. The
-/// auth server's online flag cannot prevent it, because an auth connection that drops clears the
-/// flag while the world session stays up, so the world server, the one place that knows which
-/// connection holds which character, has to.
+/// world server knows which connection still holds each character in memory and must wait for
+/// that connection's save before allowing a new select.
 /// </summary>
 /// <remarks>
 /// Everything here is real except the database: the world server and its connection list, two

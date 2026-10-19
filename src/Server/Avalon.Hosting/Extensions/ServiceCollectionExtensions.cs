@@ -63,7 +63,7 @@ public static class ServiceCollectionExtensions
                 .OrderBy(x => x.FullName, StringComparer.Ordinal)
                 .ToArray();
             // Layers that dispatch their own packets (the World's game layer), so their packets are not reported as
-            // lacking a handler; none on the auth server.
+            // lacking a handler.
             IPacketHandlerLayer[] otherLayers = provider.GetServices<IPacketHandlerLayer>().ToArray();
             return new PacketManager(provider.GetRequiredService<ILoggerFactory>(), packetTypes, handlerTypes, otherLayers);
         });

@@ -1,10 +1,9 @@
 namespace Avalon.Infrastructure.Login;
 
 /// <summary>
-/// The limits of the login policy both servers enforce: the game client's TCP login (Auth server,
-/// under <c>Application</c>) and the REST API's (under <c>Application:Authentication</c>). The
-/// budgets they govern are the same Redis keys on both, so both hosts must be given the same
-/// values, or one key is judged against two different limits.
+/// The REST identity login limits, under <c>Application:Authentication</c>. All identity replicas
+/// share the same Redis budgets and must use the same values, so one key is never judged against
+/// different limits.
 /// </summary>
 public interface ILoginLimits
 {
@@ -41,8 +40,7 @@ public static class LoginLimitsValidation
     }
 
     /// <summary>
-    /// Logs the five limits at Information (#478 review). The Auth server and the API count on the
-    /// same Redis keys but are configured apart, so their startup lines are how a drift is seen.
+    /// Logs the five limits at Information so configuration drift between identity replicas is visible.
     /// </summary>
     public static void LogAtStartup(Microsoft.Extensions.Logging.ILogger logger, ILoginLimits limits, string section)
     {
@@ -50,7 +48,7 @@ public static class LoginLimitsValidation
             "Login limits ({Section}): MaxFailedLoginAttempts={MaxFailedLoginAttempts}, " +
             "LockoutDurationMinutes={LockoutDurationMinutes}, MaxFailedLoginsPerSource={MaxFailedLoginsPerSource}, " +
             "FailedLoginSourceWindowMinutes={FailedLoginSourceWindowMinutes}, MaxFailedMfaAttempts={MaxFailedMfaAttempts}. " +
-            "The Auth server and the API must agree on these",
+            "All identity replicas must agree on these",
             section, limits.MaxFailedLoginAttempts, limits.LockoutDurationMinutes, limits.MaxFailedLoginsPerSource,
             limits.FailedLoginSourceWindowMinutes, limits.MaxFailedMfaAttempts);
     }
