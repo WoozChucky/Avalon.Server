@@ -40,7 +40,8 @@ public static class ForestLayouts
         ScenarioReferenceData reference = ScenarioReferenceData.Shared;
         ProceduralMapConfig config = reference.ForestConfig;
 
-        // ProceduralChunkLayoutSource.BuildAsync's generation, with the seed given rather than drawn.
+        // ProceduralChunkLayoutSource.BuildAsync's generation step, with the seed given rather than drawn, and
+        // without the scenery ring it then builds on the layout (a later task adds it here).
         ChunkLayout layout = new ProceduralLayoutGenerator(NullLoggerFactory.Instance).Generate(config,
             reference.Chunks.GetByPool(config.ChunkPoolId), seed, reference.Chunks.GetGroupsByPool(config.ChunkPoolId));
 

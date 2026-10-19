@@ -4,14 +4,16 @@ using Avalon.World.ChunkLayouts;
 namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 
 /// <summary>
-/// The World server reads every map's ring file at start-up, and a file it cannot read stops the start, naming the file:
-/// a map whose ring silently went missing would be drawn without its edge.
+/// The World server reads every map's ring file at start-up, and a file it cannot read stops the start, naming the
+/// file: a map whose ring silently went missing would be drawn without its edge.
 /// </summary>
 public sealed class SceneryCatalogShould : IDisposable
 {
-    private const string CapAll = """{ "name": "t_cap_all", "kind": "cap", "weight": 1, "capped": ["N", "E", "S", "W"] },""";
+    private const string CapAll =
+        """{ "name": "t_cap_all", "kind": "cap", "weight": 1, "capped": ["N", "E", "S", "W"] },""";
 
-    private readonly string _maps = Path.Combine(Path.GetTempPath(), $"avalon-scenery-catalog-{Guid.NewGuid():N}", "Maps");
+    private readonly string _maps =
+        Path.Combine(Path.GetTempPath(), $"avalon-scenery-catalog-{Guid.NewGuid():N}", "Maps");
 
     public void Dispose()
     {
@@ -23,11 +25,21 @@ public sealed class SceneryCatalogShould : IDisposable
     public static TheoryData<string, string, string> UnreadableFiles() => new()
     {
         { "2.json", "{ not json", "2.json" },
-        { "2.json", SceneryTestPool.Json.Replace("\"mapTemplateId\": 2", "\"mapTemplateId\": 3", StringComparison.Ordinal), "mapTemplateId" },
-        { "2.json", SceneryTestPool.Json.Replace(CapAll, "", StringComparison.Ordinal), "no cap for four capped sides" },
+        {
+            "2.json",
+            SceneryTestPool.Json.Replace("\"mapTemplateId\": 2", "\"mapTemplateId\": 3", StringComparison.Ordinal),
+            "mapTemplateId"
+        },
+        {
+            "2.json",
+            SceneryTestPool.Json.Replace(CapAll, "", StringComparison.Ordinal),
+            "no cap for four capped sides"
+        },
     };
 
-    /// <summary>Review Focus 4.</summary>
+    /// <summary>
+    /// A file that is not JSON, names another map than its own, or holds an incomplete pool is refused.
+    /// </summary>
     [Theory]
     [MemberData(nameof(UnreadableFiles))]
     public void Refuse_a_ring_file_it_cannot_read_naming_it(string fileName, string json, string words)

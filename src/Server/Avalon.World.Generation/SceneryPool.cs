@@ -61,16 +61,23 @@ public sealed class SceneryPool
                 throw PieceRefusal(index, $"'{piece.Name}' is not a plain piece name ([a-z0-9_]+)");
             if (!names.Add(piece.Name))
                 throw PieceRefusal(index, $"'{piece.Name}' is listed twice");
-            if (piece.Kind is SceneryKind.Border or SceneryKind.Cap && !(float.IsFinite(piece.Weight) && piece.Weight > 0))
+            if (piece.Kind is SceneryKind.Border or SceneryKind.Cap
+                && !(float.IsFinite(piece.Weight) && piece.Weight > 0))
             {
-                throw PieceRefusal(index,
-                    $"'{piece.Name}' has weight {piece.Weight.ToString(CultureInfo.InvariantCulture)}, not a finite number above 0");
+                string weight = piece.Weight.ToString(CultureInfo.InvariantCulture);
+                throw PieceRefusal(index, $"'{piece.Name}' has weight {weight}, not a finite number above 0");
             }
 
             if (piece.Kind == SceneryKind.Border && !Enum.IsDefined(piece.Front))
-                throw PieceRefusal(index, $"border '{piece.Name}' has front {(int)piece.Front}, none of N, E, S, W");
+            {
+                string front = ((int)piece.Front).ToString(CultureInfo.InvariantCulture);
+                throw PieceRefusal(index, $"border '{piece.Name}' has front {front}, none of N, E, S, W");
+            }
             if (piece.Kind == SceneryKind.Cap && piece.CappedSides is 0 or > 0b1111)
-                throw PieceRefusal(index, $"cap '{piece.Name}' caps no side: its capped-side mask {piece.CappedSides} is not 1-15");
+            {
+                throw PieceRefusal(index,
+                    $"cap '{piece.Name}' caps no side: its capped-side mask {piece.CappedSides} is not 1-15");
+            }
         }
 
         foreach ((string shape, Func<byte, bool> matches) in s_capShapes)
@@ -102,13 +109,13 @@ public sealed class SceneryPool
             if (spot.X is < -1 or > 1 || spot.Z is < -1 or > 1 || spot == (0, 0))
             {
                 throw PieceRefusal(index,
-                    $"'{piece.Name}' sits at ({spot.X}, {spot.Z}), none of the town-ward spots (-1..1, -1..1) minus (0, 0)");
+                    $"'{piece.Name}' sits at {Spot(spot)}, none of the town-ward spots (-1..1, -1..1) minus (0, 0)");
             }
 
             if (!held.Add(spot))
             {
                 throw PieceRefusal(index,
-                    $"'{piece.Name}' holds ({spot.X}, {spot.Z}) a second time: the town-ward spots take one piece each");
+                    $"'{piece.Name}' holds {Spot(spot)} a second time: the town-ward spots take one piece each");
             }
         }
 
@@ -127,6 +134,10 @@ public sealed class SceneryPool
 
     private static InvalidDataException PieceRefusal(int index, string message) =>
         new(message) { Data = { [PieceIndexKey] = index } };
+
+    /// <summary>A spot as <c>(x, z)</c>, culture-invariant, so a negative coordinate reads "-1" everywhere.</summary>
+    private static string Spot((int X, int Z) spot) =>
+        string.Create(CultureInfo.InvariantCulture, $"({spot.X}, {spot.Z})");
 
     /// <summary>A piece name is <c>[a-z0-9_]+</c>: it names files, so it holds nothing else.</summary>
     internal static bool IsPlainName(string name) =>

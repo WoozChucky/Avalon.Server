@@ -7,9 +7,9 @@ namespace Avalon.World.Instances;
 
 /// <summary>
 /// One instance's layout as <c>SMSG_CHUNK_LAYOUT</c> carries it (#883): an entry per chunk, with the chunk's name, an
-/// entry per portal, one per solid doodad's box and one per scenery piece in the ring around it. Built once, with the instance (so off the tick, where the instance
-/// is built), and written into the packet of every character that arrives, where each arrival built them again, on the
-/// tick, in four copies of one block.
+/// entry per portal, one per solid doodad's box and one per scenery piece in the ring around it. Built once, with the
+/// instance (so off the tick, where the instance is built), and written into the packet of every character that
+/// arrives, where each arrival built them again, on the tick, in four copies of one block.
 /// </summary>
 /// <remarks>
 /// <para>

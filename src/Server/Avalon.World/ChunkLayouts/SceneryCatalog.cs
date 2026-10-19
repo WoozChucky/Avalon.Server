@@ -4,8 +4,9 @@ using System.Globalization;
 namespace Avalon.World.ChunkLayouts;
 
 /// <summary>
-/// Every map's scenery ring file, read once at start-up: a town's fixed placements, or the pool a forest's ring is built
-/// from for each layout (#1110). The ring is drawn by the client and never walked, so nothing here reaches the navmesh.
+/// Every map's scenery ring file, read once at start-up: a town's fixed placements, or the pool a forest's ring is
+/// built from for each layout (#1110). The ring is drawn by the client and never walked, so nothing here reaches the
+/// navmesh.
 /// </summary>
 public interface ISceneryCatalog
 {
@@ -29,10 +30,10 @@ public sealed class SceneryCatalog : ISceneryCatalog
     public static SceneryCatalog Empty { get; } = new(new Dictionary<ushort, SceneryRingFile>());
 
     /// <summary>
-    /// Reads every <c>&lt;mapsDirectory&gt;/Scenery/&lt;n&gt;.json</c> whose <c>n</c> is a map template id (0-65535); the
-    /// piece files beside them are not ring files and are skipped. A file that does not read, or whose
-    /// <c>mapTemplateId</c> is not its name, is refused with an <see cref="InvalidDataException" /> naming its path. No
-    /// <c>Scenery</c> directory is <see cref="Empty" />.
+    /// Reads every <c>&lt;mapsDirectory&gt;/Scenery/&lt;n&gt;.json</c> whose <c>n</c> is a map template id
+    /// (0-65535); the piece files beside them are not ring files and are skipped. A file that does not read, or whose
+    /// <c>mapTemplateId</c> is not its name, is refused with an <see cref="InvalidDataException" /> naming its path.
+    /// No <c>Scenery</c> directory is <see cref="Empty" />.
     /// </summary>
     [SuppressMessage("Performance", "MA0045",
         Justification = "Read once at start-up, before any instance is built; the ring files are a few KB each.")]
@@ -45,18 +46,24 @@ public sealed class SceneryCatalog : ISceneryCatalog
         var rings = new Dictionary<ushort, SceneryRingFile>();
         foreach (string path in Directory.EnumerateFiles(directory, "*.json").Order(StringComparer.Ordinal))
         {
-            if (!ushort.TryParse(Path.GetFileNameWithoutExtension(path), NumberStyles.None, CultureInfo.InvariantCulture, out ushort mapId))
+            string name = Path.GetFileNameWithoutExtension(path);
+            if (!ushort.TryParse(name, NumberStyles.None, CultureInfo.InvariantCulture, out ushort mapId))
                 continue;
 
             SceneryRingFile ring = SceneryFile.Read(File.ReadAllText(path), path);
             if (ring.MapTemplateId != mapId)
             {
+                string written = ring.MapTemplateId.ToString(CultureInfo.InvariantCulture);
+                string named = mapId.ToString(CultureInfo.InvariantCulture);
                 throw new InvalidDataException(
-                    $"{path}: 'mapTemplateId' is {ring.MapTemplateId.ToString(CultureInfo.InvariantCulture)}, not the map {mapId.ToString(CultureInfo.InvariantCulture)} its name gives");
+                    $"{path}: 'mapTemplateId' is {written}, not the map {named} its name gives");
             }
 
             if (!rings.TryAdd(mapId, ring))
-                throw new InvalidDataException($"{path}: a second ring file for map {mapId.ToString(CultureInfo.InvariantCulture)}");
+            {
+                throw new InvalidDataException(
+                    $"{path}: a second ring file for map {mapId.ToString(CultureInfo.InvariantCulture)}");
+            }
         }
 
         return new SceneryCatalog(rings);
