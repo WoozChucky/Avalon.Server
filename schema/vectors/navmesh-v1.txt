@@ -69,9 +69,9 @@
 # since the kit rebuild, no walkable riser at all: the stone curbs along the town's roads are
 # drawn by the client and never baked. The 'forest-floors' layout joins four forest floors,
 # all at that one height, two of them turned (by one and two quarter turns) so that its seam
-# crossings run exit to exit past the tree walls along the pieces' closed sides. So these vectors pin SampleGroundHeight at a single height on each
-# open floor, the town's (the curb row included) and the forest's, and at one flat top: the
-# gate arch's.
+# crossings run exit to exit past the tree walls along the pieces' closed sides. So these
+# vectors pin SampleGroundHeight at a single height on each open floor, the town's (the curb
+# row included) and the forest's, and at one flat top: the gate arch's.
 # Building interiors and roof tops bake as navmesh islands that nothing reaches (the
 # forest's blocker tops do too); a ground query over one answers the island's height.
 #
@@ -207,7 +207,7 @@ chunk forest_entry_01 0 0 0
 chunk forest_path_01 1 0 0
 chunk forest_clearing_01 0 1 1
 chunk forest_path_03 1 1 2
-mesh tiles 49 polys 264 verts 748
+mesh tiles 49 polys 259 verts 740
 ray 15 0.1 45 45 0.1 45 -> reached 45 0.1 45 3.4028235E+38 # east across the seam between two chunks, exit to exit
 ray 45 0.1 15 45 0.1 45 -> reached 45 0.1 45 3.4028235E+38 # north across the seam between two chunks, exit to exit
 ray 15 0.1 16 45 0.1 46 -> reached 45 0.1 46 3.4028235E+38 # diagonally across both seams, a metre off x = z and the tile corners

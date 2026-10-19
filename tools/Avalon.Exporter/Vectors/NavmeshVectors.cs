@@ -548,9 +548,9 @@ public static class NavmeshVectors
         # since the kit rebuild, no walkable riser at all: the stone curbs along the town's roads are
         # drawn by the client and never baked. The 'forest-floors' layout joins four forest floors,
         # all at that one height, two of them turned (by one and two quarter turns) so that its seam
-        # crossings run exit to exit past the tree walls along the pieces' closed sides. So these vectors pin SampleGroundHeight at a single height on each
-        # open floor, the town's (the curb row included) and the forest's, and at one flat top: the
-        # gate arch's.
+        # crossings run exit to exit past the tree walls along the pieces' closed sides. So these
+        # vectors pin SampleGroundHeight at a single height on each open floor, the town's (the curb
+        # row included) and the forest's, and at one flat top: the gate arch's.
         # Building interiors and roof tops bake as navmesh islands that nothing reaches (the
         # forest's blocker tops do too); a ground query over one answers the island's height.
         #
