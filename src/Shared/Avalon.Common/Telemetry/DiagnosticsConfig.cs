@@ -111,5 +111,9 @@ public static class DiagnosticsConfig
     {
         public const string ServiceName = "avalon-api";
         public static Meter Meter = new(ServiceName);
+
+        /// <summary>Identity login decisions, tagged only by result and method. docs/instrumentation.md.</summary>
+        public static readonly Counter<long> Logins = Meter.CreateCounter<long>(
+            "avalon.api.logins", "{attempts}", "Identity password and MFA login decisions, by result and method");
     }
 }

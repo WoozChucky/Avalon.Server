@@ -23,6 +23,7 @@ namespace Avalon.Api.Identity.Controllers;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class MFAController : BaseController
 {
+    private readonly ILogger<MFAController> _logger;
     private readonly IMFAService _mfaService;
     private readonly IAuthContext _authContext;
     private readonly AuthenticationConfig _authConfig;
@@ -36,8 +37,10 @@ public class MFAController : BaseController
     /// <param name="exemptSources">The load machines that skip the per-source login budget; null, none.</param>
     public MFAController(IMFAService mfaService, IAuthContext authContext, AuthenticationConfig authConfig,
         IJwtUtils jwtUtils, IAccountRepository accountRepository, IRefreshTokenService refreshService,
-        MfaLoginPolicy mfaPolicy, IReauthentication reauthentication, IExemptSources? exemptSources = null)
+        MfaLoginPolicy mfaPolicy, IReauthentication reauthentication, ILogger<MFAController> logger,
+        IExemptSources? exemptSources = null)
     {
+        _logger = logger;
         _exemptSources = exemptSources;
         _mfaService = mfaService;
         _authContext = authContext;
@@ -117,9 +120,14 @@ public class MFAController : BaseController
 
         switch (attempt.Result)
         {
-            case MfaCodeCheck.SourceRefused or MfaCodeCheck.UsernameRefused or MfaCodeCheck.Locked:
+            case MfaCodeCheck.SourceRefused or MfaCodeCheck.UsernameRefused:
+                LoginTelemetry.Record(_logger, "mfa", "rate_limited", attempt.Source);
+                throw new AccountLockedException();
+            case MfaCodeCheck.Locked:
+                LoginTelemetry.Record(_logger, "mfa", "locked", attempt.Source);
                 throw new AccountLockedException();
             case MfaCodeCheck.HashGone or MfaCodeCheck.HashSpent or MfaCodeCheck.AccountMissing or MfaCodeCheck.Replayed:
+                LoginTelemetry.Record(_logger, "mfa", "mfa_failed", attempt.Source);
                 return InvalidCode();
             case MfaCodeCheck.WrongCode:
                 // Counted on the row; in the budget's last slot it locks the account.
@@ -133,7 +141,11 @@ public class MFAController : BaseController
         // told its status, as at login, and gets no session (#480). The hash outlives the password
         // step by two minutes, so a ban inside that window is caught here. Its slots stay taken.
         if (!AccountAccessCheck.MayHoldSession(account))
+        {
+            LoginTelemetry.Record(_logger, "mfa",
+                account.Status == Avalon.Domain.Auth.AccountStatus.Banned ? "banned" : "deactivated", attempt.Source);
             throw new AccountInactiveException(account.Status);
+        }
 
         // By column, and only while the account is not locked (#484): a lock or a ban written
         // since the row was read survives, and a lock that landed meanwhile gets a wrong code's
@@ -150,19 +162,25 @@ public class MFAController : BaseController
         RefreshIssueResult issue = await _refreshService.IssueAsync(account.Id, account.CredentialsVersion, CancellationToken);
         RefreshCookie.Set(Response, issue.RawToken, issue.ExpiresAt, _authConfig);
 
-        return new AuthenticateResponse
+        var response = new AuthenticateResponse
         {
             Token = _jwtUtils.GenerateJwtToken(account),
             ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_authConfig.AccessTokenLifetimeMinutes).ToUnixTimeSeconds(),
             Status = AuthenticationResponseStatus.Success
         };
+        LoginTelemetry.Record(_logger, "mfa", "success", attempt.Source);
+        return response;
     }
 
     private ActionResult InvalidCode() => Problem("Invalid MFA code or expired hash", statusCode: 401);
 
     /// <summary>A wrong code in this attempt's budget slot: 401, or 429 LOCKED in the last one.</summary>
-    private ActionResult FailureFor(MfaCodeAttempt attempt) =>
-        _mfaPolicy.FailureLocks(attempt) ? throw new AccountLockedException() : InvalidCode();
+    private ActionResult FailureFor(MfaCodeAttempt attempt)
+    {
+        bool locked = _mfaPolicy.FailureLocks(attempt);
+        LoginTelemetry.Record(_logger, "mfa", locked ? "locked" : "mfa_failed", attempt.Source);
+        return locked ? throw new AccountLockedException() : InvalidCode();
+    }
 
     [HttpGet("status", Name = "Get MFA status for the logged account")]
     [ProducesResponseType(typeof(MfaStatusResponse), StatusCodes.Status200OK)]

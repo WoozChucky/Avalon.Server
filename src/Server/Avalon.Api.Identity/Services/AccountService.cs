@@ -121,8 +121,12 @@ public class AccountService : IAccountService
     public async Task<(AuthenticateResponse Response, AccountId? AccountId, int CredentialsVersion)> Authenticate(AuthenticateRequest model, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
+        LoginSource source = _exemptSources.LoginSourceOf(ipAddress);
         if (string.IsNullOrWhiteSpace(model.Username) || string.IsNullOrWhiteSpace(model.Password))
+        {
+            LoginTelemetry.Record(_logger, "password", "invalid_credentials", source);
             throw new AuthenticationException(InvalidCredentials);
+        }
 
         // The game client's login policy (#478): the source's and the username's budgets, taken
         // before the lookup; a dummy BCrypt verify for an unknown username; the row's lock before
@@ -130,10 +134,14 @@ public class AccountService : IAccountService
         // alike. Every slot taken is kept unless the attempt ends below with an MFA hash or a
         // completed login.
         PasswordAttempt attempt = await _loginPolicy.CheckAsync(model.Username, model.Password,
-            _exemptSources.LoginSourceOf(ipAddress), cancellationToken);
+            source, cancellationToken);
 
         if (attempt.Refused)
+        {
+            LoginTelemetry.Record(_logger, "password",
+                attempt.Result == PasswordCheck.Locked ? "locked" : "rate_limited", source);
             throw new AccountLockedException();
+        }
 
         if (attempt.Failed)
         {
@@ -151,20 +159,26 @@ public class AccountService : IAccountService
         // password check it is told its status, as the game client is; a wrong password above
         // never learns it. Its slots stay taken, as a wrong password's do.
         if (!AccountAccessCheck.MayHoldSession(account))
+        {
+            LoginTelemetry.Record(_logger, "password",
+                account.Status == Avalon.Domain.Auth.AccountStatus.Banned ? "banned" : "deactivated", source);
             throw new AccountInactiveException(account.Status);
+        }
 
         MFASetup? mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
         if (mfaSetup is { Status: MfaSetupStatus.Confirmed })
         {
             // Only its own slots back, and no reset: the login completes at MFA verify.
             await _loginPolicy.GiveBackAsync(attempt);
-            return (new AuthenticateResponse
+            var mfaResponse = new AuthenticateResponse
             {
                 Token = null,
                 ExpiresAt = null,
                 MfaHash = await _mfaHashService.GenerateHashAsync(account),
                 Status = AuthenticationResponseStatus.RequiresMFA
-            }, null, account.CredentialsVersion);
+            };
+            LoginTelemetry.Record(_logger, "password", "mfa_required", source);
+            return (mfaResponse, null, account.CredentialsVersion);
         }
 
         // By column, and only while the account is not locked (#484): a lock or a ban written
@@ -179,12 +193,14 @@ public class AccountService : IAccountService
 
         await _loginPolicy.CompleteAsync(attempt);
 
-        return (new AuthenticateResponse
+        var response = new AuthenticateResponse
         {
             Token = _jwtUtils.GenerateJwtToken(account),
             ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_authConfig.AccessTokenLifetimeMinutes).ToUnixTimeSeconds(),
             Status = AuthenticationResponseStatus.Success
-        }, account.Id, account.CredentialsVersion);
+        };
+        LoginTelemetry.Record(_logger, "password", "success", source);
+        return (response, account.Id, account.CredentialsVersion);
     }
 
     private const string InvalidCredentials = "Invalid username or password";
@@ -193,8 +209,12 @@ public class AccountService : IAccountService
     private const string InvalidEmailToken = "Invalid or expired token";
 
     /// <summary>The answer to a failed password in this attempt's budget slot: locked in the last one.</summary>
-    private Exception FailureFor(PasswordAttempt attempt) =>
-        _loginPolicy.FailureLocks(attempt) ? new AccountLockedException() : new AuthenticationException(InvalidCredentials);
+    private Exception FailureFor(PasswordAttempt attempt)
+    {
+        bool locked = _loginPolicy.FailureLocks(attempt);
+        LoginTelemetry.Record(_logger, "password", locked ? "locked" : "invalid_credentials", attempt.Source);
+        return locked ? new AccountLockedException() : new AuthenticationException(InvalidCredentials);
+    }
 
     public async Task<(RegisterResponse Response, AccountId AccountId)> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken)

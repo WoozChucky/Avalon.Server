@@ -165,7 +165,7 @@ public sealed class ApiWriteRaceShould : IDisposable
             .Returns(new RefreshIssueResult("raw", DateTime.UtcNow.AddDays(1), Guid.NewGuid()));
         var controller = new MFAController(mfa, Substitute.For<IAuthContext>(), new AuthenticationConfig(),
             Substitute.For<IJwtUtils>(), stale, refresh, TestLogin.Mfa(stale, _cache, mfa, hashes),
-            Substitute.For<IReauthentication>())
+            Substitute.For<IReauthentication>(), NullLogger<MFAController>.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { Connection = { RemoteIpAddress = IPAddress.Loopback } } },
         };
