@@ -391,8 +391,8 @@
   "avalon_wall_straight_2m": { "minX": -1, "maxX": 1, "minY": 0, "maxY": 2, "minZ": -0.28, "maxZ": 0.28, "kit": "medieval-village-megakit-standard" },
   "avalon_washing_line": { "minX": -2.156, "maxX": 2.156, "minY": -0.05, "maxY": 1.95, "minZ": -0.591, "maxZ": 0.591, "kit": "medieval-village-megakit-standard" },
   "avalon_well": { "minX": -1.05, "maxX": 1.05, "minY": 0, "maxY": 2.8, "minZ": -1.6, "maxZ": 1.6, "kit": "medieval-village-megakit-standard" },
-  "avalon_wheat_1": { "minX": -0.62, "maxX": 0.62, "minY": -0.02, "maxY": 0.956, "minZ": -0.62, "maxZ": 0.62, "kit": "medieval-village-megakit-standard" },
-  "avalon_wheat_2": { "minX": -0.62, "maxX": 0.62, "minY": -0.02, "maxY": 1.061, "minZ": -0.62, "maxZ": 0.62, "kit": "medieval-village-megakit-standard" },
-  "avalon_wheat_3": { "minX": -0.62, "maxX": 0.62, "minY": -0.02, "maxY": 1.164, "minZ": -0.62, "maxZ": 0.62, "kit": "medieval-village-megakit-standard" },
+  "avalon_wheat_1": { "minX": -0.551, "maxX": 0.551, "minY": -0.021, "maxY": 0.979, "minZ": -0.527, "maxZ": 0.527, "kit": "medieval-village-megakit-standard" },
+  "avalon_wheat_2": { "minX": -0.547, "maxX": 0.547, "minY": -0.021, "maxY": 1.08, "minZ": -0.532, "maxZ": 0.532, "kit": "medieval-village-megakit-standard" },
+  "avalon_wheat_3": { "minX": -0.549, "maxX": 0.549, "minY": -0.021, "maxY": 1.181, "minZ": -0.589, "maxZ": 0.589, "kit": "medieval-village-megakit-standard" },
   "avalon_wood_pile": { "minX": -1, "maxX": 1, "minY": 0.01, "maxY": 0.85, "minZ": -0.54, "maxZ": 0.54, "kit": "medieval-village-megakit-standard" }
 }
