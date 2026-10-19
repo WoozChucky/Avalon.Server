@@ -10,62 +10,10 @@ on:
         description: Commit, branch or tag to build for dev
         default: main
 
-# A dev build (#1018): build and publish run side by side, the tests in build, the four servers and their images in
-# publish. The charts are what Flux deploys, and charts waits for both: a run whose tests fail pushes no chart, only
-# dev-tagged images nothing names, which the registry cleanup removes.
+# A dev build (#1018): the four servers and their images in publish, then the charts, which are what Flux deploys.
+# The tests run once, on the pull request (dotnet-pr.yml): main only takes pull requests, and branch protection requires
+# a branch to be up to date with main before it merges, so its tests ran on what lands here.
 jobs:
-  build:
-
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 45
-    permissions:
-      contents: read
-    outputs:
-      commit: ${{ steps.commit.outputs.commit }}
-
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: recursive
-          ref: ${{ inputs.ref || github.sha }}
-      - name: Commit
-        id: commit
-        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 10.0.x
-      - name: Cache NuGet packages
-        # Not on the k3s runners: their NuGet folder persists (/cache/nuget, homelab docs/ci-runners.md), and this cache is 1.9 GB to download.
-        if: vars.CI_RUNNER == ''
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', 'global.json') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
-      - name: Restore dependencies
-        run: dotnet restore
-      - name: Build
-        run: dotnet build -c Release --no-restore
-      - name: Test
-        # A hung test fails after 5 minutes and names itself (blame Sequence file in TestResults), not hours later.
-        timeout-minutes: 20
-        run: dotnet test -c Release --no-build --logger trx --results-directory TestResults --blame-hang-timeout 5m --blame-hang-dump-type none
-      - name: Test channel versions
-        run: bash tools/release/test.sh
-      - name: Test registry cleanup selection
-        run: python -m unittest discover -s tools/release -p 'test_*.py'
-      # Keeps each test's name, message and stack when the run fails, so a rare flaky failure is not lost (#572).
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-results
-          path: TestResults/**/*.trx
-          retention-days: 14
-
   # Builds only the four servers, each project once (not the solution build's tests and tools), and pushes their
   # images under this run's dev version. No chart names them yet, so nothing deploys them.
   publish:
@@ -80,9 +28,9 @@ jobs:
         with: { submodules: recursive, fetch-depth: 0, ref: "${{ inputs.ref || github.sha }}" }
       - uses: actions/setup-dotnet@v6
         with: { dotnet-version: 10.0.x }
-      # build's cache, read only: build saves it, so two jobs never race to save the same key.
-      - if: vars.CI_RUNNER == ''   # see build's NuGet cache step
-        uses: actions/cache/restore@v6
+      # Not on the k3s runners: their NuGet folder persists (/cache/nuget, homelab docs/ci-runners.md), and this cache is 1.9 GB to download.
+      - if: vars.CI_RUNNER == ''
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', 'global.json') }}
@@ -105,24 +53,16 @@ jobs:
       - uses: ./.github/actions/publish-server
         with: { version: "${{ steps.version.outputs.version }}", token: "${{ secrets.GITHUB_TOKEN }}" }
 
-  # The deploy: only once the tests passed and every image is in the registry. One run at a time (server-dev), with
-  # avalon-world last, as before #1018.
+  # The deploy: only once every image is in the registry. One run at a time (server-dev), with avalon-world last, as
+  # before #1018.
   charts:
-    needs: [build, publish]
+    needs: publish
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     concurrency: { group: server-dev, cancel-in-progress: false }
     permissions: { contents: read, packages: write }
     steps:
-      # Each job checked its ref out on its own; a manual run's branch can move in between. Deploy only the commit
-      # the tests ran on.
-      - name: Tested what was published
-        env: { TESTED: "${{ needs.build.outputs.commit }}", PUBLISHED: "${{ needs.publish.outputs.commit }}" }
-        run: |
-          if [[ -z "$TESTED" || "$TESTED" != "$PUBLISHED" ]]; then
-            echo "::error::the tests ran on '$TESTED' but the images were built from '$PUBLISHED'; run the build again"
-            exit 1
-          fi
+      # The commit the images were built from: a manual run's branch can move in the meantime.
       - uses: actions/checkout@v7
         with: { ref: "${{ needs.publish.outputs.commit }}" }
       - uses: ./.github/actions/push-charts
