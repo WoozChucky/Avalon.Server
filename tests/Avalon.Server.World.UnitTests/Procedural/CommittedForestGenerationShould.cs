@@ -6,6 +6,7 @@ using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.ChunkLayouts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -237,6 +238,28 @@ public class CommittedForestGenerationShould
     }
 
     private static readonly ExitSide[] s_sides = [ExitSide.N, ExitSide.E, ExitSide.S, ExitSide.W];
+
+    /// <summary>
+    /// #1110: the scenery ring is drawn, never walked, so the navmesh bake must not see it: a layout bakes from the same
+    /// combined obj whether or not it carries its ring.
+    /// </summary>
+    [Fact]
+    public void Compose_one_bake_input_whether_or_not_the_layout_carries_its_ring()
+    {
+        (ProceduralMapConfig config, List<ChunkPoolMember> chunkPool, List<ChunkGroupDefinition> groups) = s_forest.Value;
+        var templates = chunkPool.Select(m => m.Template)
+            .Concat(groups.SelectMany(g => g.Cells.Select(c => c.Template)))
+            .DistinctBy(t => t.Id)
+            .ToDictionary(t => t.Id);
+        IChunkLibrary library = Substitute.For<IChunkLibrary>();
+        library.GetById(Arg.Any<ChunkTemplateId>()).Returns(call => templates[call.Arg<ChunkTemplateId>()]);
+        ChunkLayout layout = new ProceduralLayoutGenerator(NullLoggerFactory.Instance).Generate(config, chunkPool, 71, groups);
+        IReadOnlyList<SceneryPlacement> ring = SceneryRing.Build(layout, id => templates[id].Exits, SceneryTestPool.Pool);
+        var builder = ChunkLayoutNavmeshBuilder.ForTesting(NullLoggerFactory.Instance, library, AppContext.BaseDirectory);
+
+        Assert.NotEmpty(ring);
+        Assert.Equal(builder.ComposeCombinedObj(layout), builder.ComposeCombinedObj(layout with { Scenery = ring }));
+    }
 
     [Fact]
     public void Reach_the_boss_arena_deeper_than_the_first_band()

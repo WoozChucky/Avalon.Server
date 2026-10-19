@@ -10,6 +10,7 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IChunkLibrary _library;
+    private readonly ISceneryCatalog _scenery;
 
     /// <summary>
     /// DI ctor: <see cref="IMapChunkPlacementRepository"/> is Scoped (it depends on the
@@ -17,17 +18,18 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
     /// <see cref="IServiceScopeFactory"/> rather than capturing a stale Scoped reference.
     /// Mirrors <see cref="ProceduralChunkLayoutSource"/>.
     /// </summary>
-    public PredefinedChunkLayoutSource(IServiceScopeFactory scopeFactory, IChunkLibrary library)
+    public PredefinedChunkLayoutSource(IServiceScopeFactory scopeFactory, IChunkLibrary library, ISceneryCatalog scenery)
     {
         _scopeFactory = scopeFactory;
         _library = library;
+        _scenery = scenery;
     }
 
     /// <summary>
     /// Test factory: builds a source against a substituted repository without forcing the
     /// caller to wire a real <see cref="IServiceScopeFactory"/>. Wraps the repo in a stand-in
     /// scope factory that returns the same instance on every call. Production code MUST NOT
-    /// call this — use the DI ctor.
+    /// call this — use the DI ctor. No <paramref name="scenery" /> is a catalog with no ring.
     /// </summary>
     /// <remarks>
     /// Lives as a static factory rather than a second public ctor because Microsoft.Extensions
@@ -36,8 +38,9 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
     /// only by <c>ActivatorUtilities.CreateInstance</c>, not by the container's own resolver,
     /// so two public 2-arg ctors here would crash host startup.
     /// </remarks>
-    public static PredefinedChunkLayoutSource ForTesting(IMapChunkPlacementRepository repo, IChunkLibrary library)
-        => new(new SingleRepoScopeFactory(repo), library);
+    public static PredefinedChunkLayoutSource ForTesting(IMapChunkPlacementRepository repo, IChunkLibrary library,
+        ISceneryCatalog? scenery = null)
+        => new(new SingleRepoScopeFactory(repo), library, scenery ?? SceneryCatalog.Empty);
 
     public async Task<ChunkLayout> BuildAsync(MapTemplate template, CancellationToken ct)
     {
@@ -98,7 +101,11 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
             Portals: portals,
             EntrySpawnWorldPos: entrySpawnWorld,
             CellSize: cellSize,
-            Config: null);
+            Config: null)
+        {
+            // The town's ring is fixed: its placements are read from its ring file at start-up (#1110).
+            Scenery = _scenery.FixedFor(template.Id.Value),
+        };
     }
 
     // For predefined towns, each PortalSlot declared on a chunk template is emitted only when
