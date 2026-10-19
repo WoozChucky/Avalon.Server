@@ -3454,7 +3454,7 @@ The scenarios live in `tests/Avalon.World.Testing/Scenarios`, the runner in `too
 | `town-walk` | 1 town | 30 | Players walking an 8 m circle centred at (45, 10), the south-east chunk's open square. Each player's input goes through the real `PlayerInputHandler` (one input packet per player, reused every tick), and each player is sent the real `SPlayerStateAckPacket` through the real cipher every tick. Ten engaged "Bench Wolf" creatures (seed 425) share the instance. |
 | `town-social` | 1 town | 30 | A town at its cap (`MaxPlayers`, 30) walking `town-walk`'s circle with no creatures, in ten parties of three that keep changing, and chatting, through the real party and chat handlers: in every second a party's leader leaves, is invited back and accepts, one player says a line to the town, one whispers, one speaks to its party and one runs `/ignorelist`. See [The town-social scenario](#the-town-social-scenario) (#972). |
 | `many-instances` | 250 normal maps | 500 | Two walking players in each of 250 normal-map instances, every instance created through the real `InstanceRegistry.GetOrCreateNormalInstanceAsync`. It measures many small instances rather than one crowd. |
-| `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 1 to 4, each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 200, 269, 173 and 200 creatures, each run on the ticks its script is active or due, as in production since #979), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a healer. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach and in sight casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a healer heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
+| `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 45, 46, 15 and 36 (1 to 4 until #1109), each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 216, 231, 252 and 231 creatures, each run on the ticks its script is active or due, as in production since #979), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a healer. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach and in sight casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a healer heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
 | `town-doodads` | 1 town | 30 | `town-walk`'s circle with no creatures, among 40 doodads on a ring 20 m from its centre: 20 without rules and 20 behind a NotStarted quest gate, which every other player has taken, so half the views refuse them. Every view decision lists the ungated ones by distance alone and the gated ones by the answer the view holds (`CharacterCharacterGameState.Sees`); the scenario checks that each view holds exactly the doodads its rules allow. |
 
 No scenario was reduced in size: `many-instances` takes 1 to 8 s for its 600 warm-up ticks and windows (5 to 7 s with
@@ -3712,9 +3712,10 @@ with the committed figure, in every build (Debug and Release, see below) and for
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (14,491 B per window since #1109's fifteen new forest pieces, which give the
-  four seeds other layouts and so another fight, [the forest-combat scenario](#the-forest-combat-scenario); 14,643 B
-  from #1109's dressing of the forest pieces the
+  `forest-combat` is the largest figure (20,690 B per window since #1109 moved it to the seeds 45, 46, 15 and 36,
+  chosen for a fight at least as large as before the forest work, [the forest-combat scenario](#the-forest-combat-scenario);
+  14,491 B from #1109's fifteen new forest pieces, which gave seeds 1 to 4 other layouts and a fight half the size;
+  14,643 B from #1109's dressing of the forest pieces the
   fighters cross first, the entry among them, with trees, rocks and logs, and a fighter casting only at a creature in
   sight, walking on round a trunk in the way; 14,528 B from
   #1082, whose fighters name a view tick on every
@@ -3727,7 +3728,7 @@ with the committed figure, in every build (Debug and Release, see below) and for
   #980, which shared the aura updates and reused their entries,
   [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
   which gave the fight a healer, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
-  10,357 B before), and at that size the 256 B floor decides for it too (1% is 145 B): it fails above 14,747 B, a little
+  10,357 B before), and at that size the 256 B floor decides for it too (1% is 207 B): it fails above 20,946 B, a little
   over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. Its Debug run reads the committed
   figure again since #981 (#973): from #972 it read 68 B above Release, because each item destroy in the measured
   minute paid 48 B in unoptimised code for the two boxes `Enum.HasFlag` made in `InventoryMove.DecideDestroy`.
@@ -4122,7 +4123,7 @@ as long as its ticks take, where the 5 s took 5 s anywhere: CI's runner ticked `
 ### The forest-combat scenario
 
 `forest-combat` (B2 of the load-test combat work) puts the tick through a fight: four forest instances on the fixed
-seeds 1 to 4, built through the World server's own `ChunkLayoutInstanceFactory` over its reference data
+seeds 45, 46, 15 and 36 (1 to 4 until #1109, see below), built through the World server's own `ChunkLayoutInstanceFactory` over its reference data
 (`ScenarioReferenceData`: the `HasData` seed in an in-memory SQLite `WorldDbContext`, read by the production
 repositories; the script manager loaded, so creatures fight with their real AI and casts run their real ability
 scripts), each as its party's forest (`GetOrCreatePartyInstanceAsync`). In each, a party of three level 1 characters
@@ -4191,12 +4192,28 @@ quarter of its health, the revive broadcast). So each forest keeps three fighter
 **What one run does.** Every run, on every machine, fights the same fight (the layouts, placement, combat and loot
 rolls and the fighters' turns are seeded, item instance ids are handed out in order, and every timer reads the world's
 clock). Since #1109 dressed the nine forest pieces that were bare floors (the entry, the paths, the junctions, the
-small clearing and the dead end), gave the fighters a line of sight and added fifteen pieces to the pool, which gives
-the four seeds other layouts (seed 4 holds the rock arch two steps in, seed 3 four), the
-run's 4,200 ticks give 63 creatures killed, 5 deaths, 19 heals cast (18 landed), 21 quest accepts, 39 kill credits
-and 9 completions, 115 drops picked up, 64 bag slots destroyed and no drop given up. The forests are larger (187 to
-288 creatures, 975 in all; 11 to 21 killed in each), and every fighter casts 30 to 72 times over the run, none stuck:
-the packs nearest the entries are others. With the seventeen pieces before them the run gave 113
+small clearing and the dead end), gave the fighters a line of sight and added fifteen pieces to the pool, the run's
+4,200 ticks on its seeds 45, 46, 15 and 36 give 141 creatures killed (126 in the measured minute), 3 deaths, 17 heals
+cast and landed (16), 45 quest accepts, 114 kill credits (102) and 33 completions (all 33 in the minute), 251 drops
+picked up (228), 136 bag slots destroyed (113) and no drop given up, 30 to 39 kills in each forest. The fifteen pieces
+gave seeds 1 to 4 other layouts and a fight half the size: 63 killed, 5 deaths, 19 heals cast (18 landed), 21
+accepts, 39 credits, 9 completions, 115 pickups, 64 slots destroyed, at 14,491 B per window, with every fighter
+casting 30 to 72 times, none stuck: their forests (214, 288, 187 and 286 creatures) put other packs nearest the entry.
+So #1109 ran seeds 1 to 64, each forest in its party slot (the slot decides the party's classes; the first party has
+no healer), and took the four that give the largest fight together with deaths in it:
+
+| Slot | Seeds tried (kills / completions / pickups / heals landed over the run), best first |
+|---|---|
+| 0 (warrior, wizard, hunter) | 45: 32/9/56/0, 13: 29/8/54/0, 5: 23/6/37/0, 57: 22/0/44/0, 1: 18/3/39/0, ... 37: 7/3/14/0 |
+| 1 (healer, warrior, wizard) | 14: 38/12/70/7, 46: 35/9/65/7, 22: 34/3/63/8, 18: 34/3/61/7, 58: 33/9/63/7, 54: 30/9/60/6, ... 30: 3/0/7/8 |
+| 2 (hunter, healer, warrior) | 19: 37/6/69/6, 15: 34/9/61/6, 63: 34/0/65/7, 23: 31/9/55/6, 59: 30/6/56/5, 27: 27/18/51/8, ... 7: 14/3/27/7 |
+| 3 (wizard, hunter, healer) | 36: 38/6/66/5, 64: 32/9/55/4, 44: 32/6/63/4, 48: 31/12/67/3, 16: 30/6/46/7, 8: 29/9/56/5, ... 60: 1/0/2/6 |
+
+The forests share the world's combat and loot rolls, so a set fights a little differently from its seeds alone; the
+sets tried together, over the run: 45, 14, 27, 48: 128 kills, 42 completions, 225 pickups, 20 heals, 1 death; 13, 46,
+15, 36: 128/29/232/17, 1 death; 45, 58, 19, 64: 103/27/177/21, 2 deaths; 13, 14, 27, 8: 116/38/213/22, 1 death; 45,
+14, 19, 36: 137/27/256/19, 3 deaths; 13, 58, 27, 36: 125/42/217/22, 1 death; 5, 46, 23, 48: 115/27/216/13, 4 deaths;
+and the one taken, 45, 46, 15, 36: 141/33/251/17, 3 deaths. With the seventeen pieces before them the run gave 113
 killed, 3 deaths, 17 heals cast (all landed), 39 quest accepts, 98 kill credits and 27 completions, 208 drops picked
 up, 108 bag slots destroyed and no drop given up. The dressing alone, with fighters that cast at the nearest creature
 whatever stood between them, gave 65 killed, 4 deaths, 10 heals (8 landed), 30 accepts, 66 credits, 18 completions,
@@ -4213,14 +4230,19 @@ first 21 in the first steps, from the filled bags), and no drop given up. Before
 minute) with 9 deaths: the healers keep their parties alive, and fighters walking to their drops meet more creatures.
 Experience is shared; one party's three members reach level 2 together near the end of the measured minute (tick 3,422
 of 3,600, counted at #973), and no other character does. The scenario's check (`Verify`) requires, over the measured
-ticks, besides every fighter casting and every forest losing creatures, heals landed, kill credit, a completion,
-pickups and items destroyed. `ForestCombatScenarioShould` runs the scenario twice in one process and requires the same
+ticks, besides every fighter casting and every forest losing creatures, about half of what the fight on its seeds does
+in them (since #1109): at least 60 kills, 15 completions, 110 pickups and 8 heals landed, and some kill credit and
+items destroyed, so a pool or harness change that halves the fight fails the scenario instead of leaving the gate
+holding fewer events (seeds 1 to 4 over the fifteen pieces' pool would have failed it: 51 kills, 9 completions and 96
+pickups in the minute). `ForestCombatScenarioShould` runs the scenario twice in one process and requires the same
 outcome (every count above) and the same bytes per window, and kills and deaths in it; the second run's creatures
 carry higher ids (the process-wide object id counter), which changes neither.
 
-**Gate.** Committed at **14,491 B per window** (20.1 B per player per tick, 242 B per tick) since #1109's fifteen new
-pieces, the fight over the seeds' new layouts (above); Debug reads the same. The fight is smaller (63 kills over the
-run, from 113) and allocates 152 B per window less: a different fight, with no allocating code changed. Before them,
+**Gate.** Committed at **20,690 B per window** (28.7 B per player per tick, 345 B per tick) since #1109 chose the
+seeds 45, 46, 15 and 36 (above); Debug reads the same. The fight is larger than any the gate held before (141 kills
+over the run, from 113 before the fifteen pieces), and every byte of the rise is that fight's: no allocating code
+changed. Before it, committed at 14,491 B (20.1 B per player per tick, 242 B per tick) since #1109's fifteen new pieces,
+the smaller fight on seeds 1 to 4 (63 kills), 152 B per window less than the 14,643 B before them. Before them,
 committed at 14,643 B (20.3 B per player per tick, 244 B per tick) since #1109's dressing, the fight over the dressed
 forest pieces with fighters that cast only in sight; the sight check itself allocates nothing: what it changes is the
 fight, 11 more kills over the run than before #1109. Before it, committed at 14,528 B (20.2 B per
@@ -4294,8 +4316,10 @@ summary.
 | Debug, then | 10,880 |
 | Fighters cast only in sight (#1109, PGO on) | 14,643 |
 | Debug, then | 14,643 |
-| Fifteen more forest pieces, the seeds' layouts changed (#1109, PGO on), now | 14,491 |
-| Debug, now | 14,491 |
+| Fifteen more forest pieces, the seeds' layouts changed (#1109, PGO on), a step on the way | 14,491 |
+| Debug, then | 14,491 |
+| Seeds 45, 46, 15 and 36 for a full fight again (#1109, PGO on), now | 20,690 |
+| Debug, now | 20,690 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).

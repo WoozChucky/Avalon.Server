@@ -10,13 +10,13 @@ using Avalon.World.Public.Characters;
 namespace Avalon.World.Testing.Scenarios;
 
 /// <summary>
-/// Parties fighting through forests: four forest instances on the fixed seeds 1 to 4, each built as its party's forest
+/// Parties fighting through forests: four forest instances on four fixed seeds, each built as its party's forest
 /// is in production (<see cref="ScenarioWorld.NewForestInstance" />: the World server's generator, placement, spawn
 /// table and real AI over the World server's reference data), with a party of three level 1 characters in each, joined
 /// at the entry; their classes cycle over the four (warrior, wizard, hunter, healer) across the whole roster, so three
 /// parties in four carry a healer. Every player is a <see cref="LoopFighter" />: it walks to the nearest live creature
 /// through the real input handler and casts its class's basic ability at it through the real cast handler, and a healer
-/// heals its party first when one of them is hurt. What is measured is a fight: the forests' creature AI (about 200
+/// heals its party first when one of them is hurt. What is measured is a fight: the forests' creature AI (216 to 252
 /// creatures each, their AI run when active or due as in production, #979), casts, projectiles, hits, heals, threat
 /// and encounters, deaths and revives, kills with their real loot and experience shared by the party, and the state
 /// broadcast of all of it.
@@ -54,7 +54,14 @@ public sealed class ForestCombatScenario : IScenario
     /// <summary>Seeds the world's combat and loot rolls.</summary>
     private const int WorldSeed = 1;
 
-    private static readonly int[] s_forestSeeds = [1, 2, 3, 4];
+    // Chosen (#1109) from seeds 1 to 64 for a fight of the size the gate has always held, after the forest pool's fifteen
+    // new pieces gave seeds 1 to 4 a fight half as large: each seed decides its forest's layout, and its place in the list its party's classes.
+    private static readonly int[] s_forestSeeds = [45, 46, 15, 36];
+
+    // The least the measured ticks must do, about half of what the fight on these seeds does in them (126 kills, 33
+    // completions, 228 pickups, 16 heals landed): a pool or harness change that shrinks the fight by half or more fails
+    // here, rather than leaving the allocation gate holding fewer of each event.
+    private const int MinKills = 60, MinQuestsCompleted = 15, MinPickups = 110, MinHealsLanded = 8;
     // Cycled over the whole roster, not per party slot: parties of three over four classes, so three parties in four
     // carry a healer (the second, third and fourth here).
     private static readonly CharacterClass[] s_classes =
@@ -119,9 +126,10 @@ public sealed class ForestCombatScenario : IScenario
 
     /// <summary>
     /// Every player still present and sent to, every fighter casting and every forest losing creatures over the
-    /// measured ticks, and the fight as a whole landing heals, giving and completing kill quests, picking up drops and
-    /// destroying items: a fighter that stopped fighting (stuck on a wall, or its casts refused), or a fight that
-    /// stopped any of the rest, would measure cheaper, and the scenario would pass the allocation gate as an improvement.
+    /// measured ticks, and the fight as a whole killing, landing heals, completing kill quests and picking up drops at
+    /// least about half as often as it does on its seeds (<see cref="MinKills" /> and the others), giving kill credit
+    /// and destroying items: a fighter that stopped fighting (stuck on a wall, or its casts refused), or a fight that
+    /// stopped or shrank, would measure cheaper, and the scenario would pass the allocation gate as an improvement.
     /// </summary>
     public void Verify(ScenarioWorld world)
     {
@@ -157,20 +165,22 @@ public sealed class ForestCombatScenario : IScenario
 
         // What the fight does besides fighting, over the measured ticks: each path the gate holds since #972.
         FightOutcome measured = fight.Outcome().Since(fight.MarkedOutcome!);
-        RequireSome(measured.HealsLanded, "landed no heal");
-        RequireSome(measured.QuestCredits, "gave the kill quest no kill credit");
-        RequireSome(measured.QuestsCompleted, "completed no kill quest (each completion is abandoned and accepted again)");
-        RequireSome(measured.Pickups, "picked up no drop");
-        RequireSome(measured.ItemsDestroyed, "destroyed no item to keep room in the bags");
+        RequireAtLeast(measured.Kills, MinKills, "killed");
+        RequireAtLeast(measured.HealsLanded, MinHealsLanded, "landed heals");
+        RequireAtLeast(measured.QuestCredits, 1, "gave kill credit");
+        RequireAtLeast(measured.QuestsCompleted, MinQuestsCompleted, "completed kill quests (each completion is abandoned and accepted again)");
+        RequireAtLeast(measured.Pickups, MinPickups, "picked up drops");
+        RequireAtLeast(measured.ItemsDestroyed, 1, "destroyed items to keep room in the bags");
     }
 
-    private void RequireSome(int count, string what)
+    private void RequireAtLeast(int count, int least, string what)
     {
-        if (count <= 0)
+        if (count < least)
         {
             throw new InvalidOperationException(
-                $"{Name}: the fight {what} during the measured ticks. A fight that stopped doing it measures cheaper " +
-                "than it is and would pass the allocation gate as an improvement.");
+                $"{Name}: the fight {what} {count} times during the measured ticks, fewer than {least}. A fight that " +
+                "stopped doing it, or does it far less, measures cheaper than it is and would pass the allocation gate " +
+                "as an improvement.");
         }
     }
 
