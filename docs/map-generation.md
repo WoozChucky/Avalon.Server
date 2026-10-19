@@ -65,13 +65,13 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `src/Shared/Avalon.Domain/World/MapChunkPlacement.cs` | DB entity joining MapTemplate → predefined chunk placements |
 | `src/Shared/Avalon.Domain/World/ProceduralMapConfig.cs` | DB entity for procedural map RNG config |
 | `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` + `.json` | Chunk geometry (navmesh bake) and metadata (see "The chunk format"). The forest pieces and Glimmerdell's four squares are written by `tools/Avalon.ChunkGen`; the rest (`forest_boss_01`, `town_corner_01`, `town_house_01`, `town_path_01`, `town_square_01`) are committed as they are and no tool writes them |
-| `src/Server/Avalon.Server.World/Maps/Decor/<chunkName>.json` | What the client draws on a generated town square from the art kit (see "Decor and building recipes"). Written by `tools/Avalon.ChunkGen` beside the chunks, outside `Maps/Chunks/` because the seeder reads every `*.json` there as chunk metadata; the server never reads it |
+| `src/Server/Avalon.Server.World/Maps/Decor/<chunkName>.json` | What the client draws on a generated town square and on every generated forest piece from the art kits (see "Decor and building recipes" and "Dressing the forest"). Written by `tools/Avalon.ChunkGen` beside the chunks, outside `Maps/Chunks/` because the seeder reads every `*.json` there as chunk metadata; the server never reads it |
 | `src/Server/Avalon.Server.World/Maps/TownLayouts/<MapTemplateId>.json` | Town layouts: which chunk sits on which grid cell, edited directly (see "Creating a town"). ChunkGen writes the squares' geometry, not this file |
-| `src/Server/Avalon.Server.World/Maps/chunk-pools.json` | Procedural pool membership (`{ "<pool>": ["<chunk>", …] }`), edited by hand |
+| `src/Server/Avalon.Server.World/Maps/chunk-pools.json` | Procedural pool membership (`{ "<pool>": ["<chunk>", …] }`, a member also `{ "chunk", "weight", "max" }`: see "Define a ChunkPool"), edited by hand |
 | `src/Server/Avalon.Server.World/Maps/chunk-groups.json` | Set pieces per pool (see "Chunk groups (set pieces)"), edited by hand |
 | `src/Server/Avalon.Server.World/Maps/spawn-tables.json` + `ProceduralMaps/<mapId>.json` | Spawn tables and procedural map configs with their depth bands (see "Spawn tables and procedural map configs"), edited by hand |
-| `tools/Avalon.ChunkGen/` | Generates the forest pieces' and the town squares' `.obj` + `.json`, and the squares' decor files (see "Generated forest chunks" and "Generated town squares") |
-| `tools/Avalon.ChunkGen/Recipes/<id>.json`, `tools/Avalon.ChunkGen/Kit/kit-bounds.json` | Building recipes (kit pieces plus collision proxies) and the art kit's bounds table (see "Decor and building recipes") |
+| `tools/Avalon.ChunkGen/` | Generates the forest pieces' and the town squares' `.obj` + `.json`, and the decor files of the squares and of every forest piece (see "Generated forest chunks" and "Generated town squares") |
+| `tools/Avalon.ChunkGen/Recipes/<id>.json`, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, `tools/Avalon.ChunkGen/Kit/forest-footprints.json` | Building recipes (kit pieces plus collision proxies), the art kits' bounds table, and the custom forest models' solid footprints (see "Decor and building recipes" and "Dressing the forest") |
 | `tools/Avalon.Exporter/` | Exports the known-answer vectors the client vendors, among them `schema/vectors/navmesh-v1.txt` (`-- navmesh`) and `schema/vectors/rotation-v1.txt` (`-- rotation`) |
 | `src/Server/Avalon.Database.World/Seeding/ChunkCatalogSeeder.cs` | Seeds chunk templates, town layouts, pools, chunk groups, spawn tables and procedural map configs from `Maps/`; run by the World server on start |
 
@@ -112,7 +112,12 @@ A chunk is two files in `Maps/Chunks/` with the same name: `<name>.obj` (geometr
     { "tag": "entry", "localX": 15, "localY": 1, "localZ": 15 }
   ],
   "portalSlots": [
-    { "role": "Back", "localX": 15, "localY": 1, "localZ": 5 }
+    { "role": "Back", "localX": 15, "localY": 0, "localZ": 5 }
+  ],
+  "doodadSlots": [
+    { "tag": "doodad_large", "localX": 27, "localY": 0, "localZ": 27, "yaw": 180 },
+    { "tag": "doodad", "localX": 3, "localY": 0, "localZ": 3, "yaw": 0 },
+    { "tag": "doodad", "localX": 27, "localY": 0, "localZ": 3, "yaw": 0 }
   ],
   "tags": ["entry", "forest"]
 }
@@ -137,7 +142,7 @@ A chunk is two files in `Maps/Chunks/` with the same name: `<name>.obj` (geometr
   entry chunks), `Forward` advances to the next (typically in boss chunks). The destination is not in the chunk: towns
   take it from the layout placement, procedural maps from `ProceduralMapConfig.BackPortalTargetMapId` /
   `ForwardPortalTargetMapId`.
-- **doodadSlots** (optional, after `portalSlots`; left out when a chunk has none, as in `forest_entry_01` above):
+- **doodadSlots** (optional, after `portalSlots`; left out when a chunk has none, as in `forest_boss_01`):
   `tag` + chunk-local `localX/Y/Z` + `yaw`, a spot a procedural map may place a doodad at (see `docs/doodads.md`).
   `yaw` is the degrees the doodad faces (`Orientation.y`, 0 along +Z, 90 along +X), a quarter turn: 0, 90, 180 or 270.
   Tags: `doodad` (a walk-through doodad) and `doodad_large` (may hold a solid one). Doodad slot tags are not spawn-table
@@ -272,9 +277,26 @@ Bring them into the catalog as under "How a chunk enters the catalog".
 
 ### 2. Define a ChunkPool
 
-A `ChunkPool` is a named bag of `ChunkPoolMember`s with weights. The procedural generator picks chunks from a pool weighted-random.
+A `ChunkPool` is a named bag of `ChunkPoolMember`s, each with a weight and an optional per-layout cap. The procedural
+generator picks chunks from a pool weighted-random.
 
 Pools are `Maps/chunk-pools.json`, seeded by `ChunkCatalogSeeder` on every World start (see "How a chunk enters the catalog"). Convention: one pool per biome.
+
+A pool entry is a chunk's name (weight 1, no cap) or an object `{ "chunk": "<name>", "weight": 2.5, "max": 1 }`, with
+`weight` (left out: 1) a finite number above 0 and `max` (left out: no limit) the most times one layout may place the
+chunk, 1 or more. The seeder writes both onto the pool's `ChunkPoolMembership` rows (`Weight`, `MaxPerLayout`) and
+refuses, naming the file, the pool and the chunk, a weight of 0 or below or infinite, a weight of NaN (which the file
+can write only as the string `"NaN"`, and which is refused like any other bad weight), a `max` below 1, any other key
+(a misspelt `"max"` would leave the chunk uncapped), or a chunk named twice in one pool.
+
+`ProceduralLayoutGenerator` weighs every pick: the entry among the entry-capable members, and each later step among its
+candidates, one per member and turn that fits (a set piece weighs 1), so a member's chance is its weight times the turns
+that fit. A member at its `max` is left out of the candidates for the rest of that layout. Candidates that all weigh the
+same are picked with the one draw a uniform pick always made, so a pool of equal weights and no caps generates the
+layouts it always did. The generator walks a pool in chunk id order whatever order it is handed (and
+`ChunkPoolRepository` reads the rows in that order), so the database's row order cannot change a layout; that is also
+the order `LayoutConfigVersion` hashes the members in. A cap is part of `LayoutConfigVersion` only when set, so a pool
+without caps keeps its fingerprint; a changed weight or cap changes what an old seed generates.
 
 ### 3. Define a ProceduralMapConfig
 
@@ -302,34 +324,45 @@ Each player gets their own seed (server's `ProceduralChunkLayoutSource.NextSeed(
 
 ## Generated forest chunks
 
-The forest pieces are written by `tools/Avalon.ChunkGen`. Each is a flat 30 x 30 m floor (the forest slab, y -0.2 to 0)
-with blockers on it, boxes for rocks and ruined walls and twelve-sided cylinders for tree clusters and pillars, 3 m
-tall. Blockers cut the navmesh (the agent climbs 0.9 m), so creatures path around them and walkable rays (movement,
-ground-target casts, projectiles) stop at them. The geometry is a placeholder until real art exists.
+The forest pieces are written by `tools/Avalon.ChunkGen`: thirty-two single pieces and three set pieces, every forest
+chunk but `forest_boss_01` (hand-made, out of the pool). Nine of the singles (`forest_entry_01`, `forest_path_01` to
+`_04`, `forest_junction_t`, `forest_junction_x`, `forest_clearing_01` and `forest_deadend_01`) were bare floors
+written by hand until forest dressing (#1109) ported them, their exits, spawn slots, tags and the entry's portal as
+they were; six of those floors had their top at y 0.05, and every forest floor now has it at 0. Forest dressing also
+added fifteen, three of each exit shape (see "Overhangs and the fifteen pieces of #1109" below). Each is a flat 30 x
+30 m floor (the forest slab, y -0.2 to 0) with blockers on it, boxes for rocks, ruined walls and tree walls and
+twelve-sided cylinders for tree clusters, trunks and pillars, 3 m tall. Blockers cut the navmesh (the agent climbs 0.9
+m), so creatures path around them and walkable rays (movement, ground-target casts, projectiles) stop at them. What
+the client draws is the piece's decor file (see "Dressing the forest" below); the blockers are its collision.
 
     dotnet run --project tools/Avalon.ChunkGen -- forest
     dotnet run --project tools/Avalon.ChunkGen -- forest --maps <Maps directory>
 
-writes every piece's `.obj` and `.json` into `Maps/Chunks/` and nothing else (`Maps/` is
+writes every piece's `.obj` and `.json` into `Maps/Chunks/` and its decor file into `Maps/Decor/` (`Maps/` is
 `src/Server/Avalon.Server.World/Maps/` unless `--maps` names another). Before writing, it reads every piece back
 through the World server's own catalog reader (`ChunkCatalogSeeder.ReadCatalogAsync`) and bakes each piece, and each
 set piece's four members together, with `ChunkLayoutNavmeshBuilder` in a temporary copy of `Maps/`; if anything fails
-it exits 1 and nothing is written. After writing, it lists every `forest_*` file in `Maps/Chunks/` it did not generate
-(`forest_boss_01`, or one left over from a renamed piece) and deletes none of them. Edit `tools/Avalon.ChunkGen/ForestPieces.cs`
-and rerun it; `ForestPiecesShould` fails when the committed files differ from a fresh run, when a slot is within 2.5 m
+it exits 1 and nothing is written. After writing, it lists every `forest_*` file in `Maps/Chunks/` and `Maps/Decor/` it
+did not generate (`forest_boss_01`, or one left over from a renamed piece) and deletes none of
+them. Edit `tools/Avalon.ChunkGen/ForestPieces.cs` and rerun it; `ForestPiecesShould` fails when the committed files
+(decor included) differ from a fresh run, when a slot is within 2.5 m
 of a blocker or 2 m of the chunk's edge, when a blocker stands in an exit's throat, or when a slot or exit cannot be
 reached on the baked navmesh. The tool writes LF line ends, and `.gitattributes` pins every `.obj` and `.json` under
 `Maps/` to LF, so a regeneration on any machine is an empty diff. The tool does not touch `chunk-pools.json` or
 `chunk-groups.json`: add new single pieces to the pool, and new set pieces to the groups file, by hand.
 
-Every generated forest piece also carries doodad slots (`DoodadSlots` on the piece, `Doodad(x, z, yaw)` and
-`LargeDoodad(x, z, yaw)` in `ForestPieces.cs`): each single piece two `doodad` slots and one `doodad_large`, each set-piece
-member one `doodad` slot, and each of the arena's members a `doodad_large` too; a set piece lists them in its 60 x 60 m
-frame and they are split into its members as spawn slots are. Doodad slots are written on the floor, at `localY` 0
-(`ChunkPiece.DoodadSlotY`, the floor's top), and spawn slots 1 m up, at `localY` 1. The hand-made chunks (`forest_entry_01`, `forest_boss_01`,
-the paths, junctions, `forest_clearing_01` and `forest_deadend_01`) have none, and the tool writes `"doodadSlots"` only
-for a piece that has some, so the town squares' files are unchanged by it. `ForestPiecesShould` keeps every doodad slot
-off the paths and clear of the rest, with a `doodad_large` slot further away because it may hold a solid doodad:
+Every generated forest piece also carries doodad slots (`DoodadSlots` on the piece, `Doodad(x, z)` and
+`LargeDoodad(x, z)` in `ForestPieces.cs`, `SetDoodad` and `SetLargeDoodad` in a set piece's frame): each single piece two `doodad` slots and one `doodad_large`, each
+set-piece member one `doodad` slot, and each of the arena's members a `doodad_large` too; a set piece lists them in
+its 60 x 60 m frame and they are split into its members as spawn slots are. Doodad slots are written on the floor, at
+`localY` 0 (`ChunkPiece.DoodadSlotY`, the floor's top), and spawn slots 1 m up, at `localY` 1. The hand-made
+`forest_boss_01` has none, and the tool writes `"doodadSlots"` only for a piece that has some, so the town squares'
+files are unchanged by it. The entry's slots stand in its corners (its tree walls stop short of them): the placement
+drops a slot within 15 m of the entry spawn or 8 m of a portal (see `docs/doodads.md`), and the corners are the only
+spots of the entry clear of both. A piece's portal slots (`PortalSlots`, `forest_entry_01`'s `Back` at (15, 5)) are
+written at `localY` 0 (`ChunkPiece.PortalSlotY`), and `ForestPiecesShould` holds them to the spawn slots' rules: 2.5 m
+from any blocker, on the navmesh floor, and reached. `ForestPiecesShould` keeps every doodad slot off the paths and
+clear of the rest, with a `doodad_large` slot further away because it may hold a solid doodad:
 
 | From | `doodad` | `doodad_large` |
 |---|---|---|
@@ -341,7 +374,143 @@ off the paths and clear of the rest, with a `doodad_large` slot further away bec
 and never inside an exit's throat (10 m wide, 6 m deep, centred on its side); every doodad slot stands on the baked
 navmesh floor, and is a reachability target too: a walk over the piece's (or the set piece's) navmesh reaches it from
 the first exit, as it reaches every exit and spawn slot. Each yaw is the quarter turn that best faces the piece's centre
-(a set piece's, for its members).
+(a set piece's, for its members), worked out from the slot's position (`ForestPieces.Facing`; a tie goes to 0 or 180),
+and `ForestPiecesShould` checks it.
+
+### Dressing the forest
+
+Every generated forest piece gets a decor file, `Maps/Decor/<chunk>.json`, in the town's format (see "Decor and building
+recipes") with the kit `stylized-nature-megakit-standard`: the Stylized Nature MegaKit's trees, rocks, plants and
+stepping stones, and the custom `avalon_*` forest models (rocks, logs, ruins, the dirt path), at any whole-degree yaw
+and a scale. `ForestDresser` writes it, a set piece's in its 60 x 60 m frame, split into its members by the cell each
+item stands in, as its slots are. It is deterministic: one `Random` seeded from the FNV-1a hash of the piece's name,
+whole-degree yaws turned through a table of sines rounded to 9 decimals, positions written with at most 3 decimals, so a run on
+any machine writes the same bytes. Its densities are named constants in `ForestDresser`.
+
+**Blockers carry what draws them.** Every forest blocker has a `Dressing` role, set in `ForestPieces.cs`:
+
+| Role | Shape | What the dresser draws on it |
+|---|---|---|
+| `TreeDrum` | cylinder | two to four trees (by the piece's tree mix) inside the drum near its rim, their trunks within its flat sides; a ring of bushes, ferns and tall plants just inside the rim; a kit rock or a bush at its heart |
+| `Rock` | box or cylinder | the custom large or leaning rock that fills it best, if one fits (centred, at scale 1), then up to five kit rocks (`Rock_Medium_*`, scaled, any yaw), each on what is still barest, until 80 % is covered; on a box of 25 m² or more, half the time a tree among the rocks; bushes on the corners rocks leave bare |
+| `RuinWall` | box | `avalon_ruin_wall_*` sections end to end along its long axis, a pillar where they leave room at an end, stumps along the far side of a box thick enough, rubble over it |
+| `Pillar` | cylinder | `avalon_ruin_pillar_1` and a `_2` stump side by side, rubble at its foot |
+| `Trunk` | cylinder | the free-standing tree of its `Tree` (species and scale; the dresser picks the variant and the yaw) |
+| `TreeWall` | box | two rows of trees (three in a wall 3 m deep or more) along the frame edge the box stands against, each row's trees 1.5 to 2.1 m apart and staggered against the next row's, scale 1 to 1.6, every trunk inside the box; the piece's tree mix, a dead tree less often and at most 1.3, never a twisted one; ferns, tall plants, grass and bushes among the trunks, and a skirt of undergrowth (kept small) along its open face |
+| `Log`, `LeaningRock`, `ArchLeg`, `Overhang` (and `Rock`, `RuinWall`, `Pillar` when it has one) | the model's footprint | the custom model of its `Prop`, once for all its parts |
+
+A free-standing tree stands on its own trunk cylinder, `ForestDresser.Trunk(species, scale, x, z)`: its radius is the
+species' trunk radius (`ForestDresser.TrunkRadius`, measured from the kit's bark below 1 m, the widest of the five
+variants: `CommonTree` 0.65 m, `Pine` 0.45, `DeadTree` 0.75, `TwistedTree` 1.4) times its scale, over cos 15° so the
+twelve-gon's flat sides reach the trunk, rounded up to 5 cm. A custom model's blockers are exactly its footprint parts
+(`ForestDresser.Prop(model, x, z, yaw)`, read from `tools/Avalon.ChunkGen/Kit/forest-footprints.json`): a box part as a
+box, so the model turns only by quarter turns, a circle part as a cylinder of its `blockerRadius`, so a model whose
+parts are all circles turns only by multiples of 30 degrees, and every custom solid model stands at scale 1. Today's
+pieces add a fallen log (three a set piece) and a leaning rock in `forest_rocks_01` and `forest_glade_01`; the drums,
+rock boxes, walls and pillars are unchanged. The nine ported pieces have one or two tree drums or custom rocks each
+(`avalon_rock_large_*` placed by `ForestDresser.Prop`, so their blockers are the rocks' footprints) and a log;
+`forest_clearing_01` has four small drums in its corners instead.
+
+**Tree walls.** A free-standing tree needs a blocker of its own, so a wood of them would cost a blocker a tree. The
+density comes from tree walls instead (owner decision, #1109): one `TreeWall` box, about 3.5 m deep (from 0.1 m inside
+the edge to 3.6 m), along every closed side of a single piece, and in a piece with at most one closed side (the T
+junctions and the crosses) in the corners between its exits too, outside the throats; a set piece has one along each
+closed outer edge of each of its cells, never touching a cell edge. A wall is made shallower (down to 2 m deep) or
+shorter where it would come within 0.3 m of a drum, a rock or ruin box, a log, a custom rock or a trunk (none of them
+moved), or too near a slot, and stops 0.1 m short of a throat; where a side's depth would change over runs shorter
+than 6 m, those runs make one box at the shallowest of them (fewer boxes, a simpler navmesh), and a wall shorter than
+2.5 m is left out. The free-standing edge trees the walls replace are gone; the few left stand on the exit sides or
+inside, and `forest_ruin_01`, a crossroads whose corners hold its ruins, has trees inside its two ruined corners and
+in a third. The dresser packs each wall with trees (the roles table above), its rows along the frame edge the box
+stands against, which more than trebles the forest's trees (1,775 in the 44 decor files, from 492): 26 to 73 a single
+piece, 97 to 134 a set piece, but 18 in each of the ruined crossroads `forest_ruin_01` and `forest_ruin_05`; a piece's
+blocker count stays about where it was (7 to 18 a single piece, from 8 to 15; a set piece 20 to 27, from 34 to 37).
+`ForestDecorRules` holds a wall to at least one tree for every 3 m of its length, each trunk counted for one wall
+only, and `ForestPiecesShould` to a tree wall along every closed side. Doodad slots near a closed side moved inward,
+each to the nearest spot within 7 m that keeps every slot rule above (and, in a set piece, stays in its cell), its yaw
+worked out again; a slot with no such spot stays where it was and the walls stop short of it, leaving it a nook, as
+the entry's three corners do. The trees keep clear the lines the navmesh vectors' `forest-floors` rays run along (the
+Exporter's `navmesh` artifact): that layout turns `forest_clearing_01` and `forest_path_03` so its seam crossings run
+exit to exit past the walls.
+
+**Overhangs and the fifteen pieces of #1109.** Fifteen single pieces were added with the dressing, three of each exit
+shape, eight to twelve blockers each before the tree walls (tree drums, rock boxes and cylinders, ruin walls and
+pillars, logs and an edge tree line, which the walls replaced), every slot rule above kept:
+
+| Shape | Pieces |
+|---|---|
+| dead end | `forest_hollow_02` (its meeting point at (15, 17), deeper in), `forest_ruin_03`, `forest_mire_01` |
+| straight | `forest_rocks_03` (the arch), `forest_grove_01`, `forest_thicket_03` |
+| corner | `forest_rocks_04` (the overhang), `forest_glade_02`, `forest_mire_02` |
+| T junction | `forest_ruin_04`, `forest_grove_02`, `forest_thicket_04` |
+| cross | `forest_glade_03`, `forest_ruin_05`, `forest_grove_03` |
+
+Overhangs live in two single pieces only, both tagged `overhang` in the catalog, never in a set piece:
+`forest_rocks_03` stands `avalon_rock_arch` over its meeting point, its legs either side of both paths (4.3 m apart,
+the strip 2.8 m wide) and its span over them (its underside 2.95 m up, the agent 2 m tall); `forest_rocks_04` stands
+`avalon_rock_overhang` in the corner away from its exits, its ledge (its underside at least 2.7 m up) reaching west
+over open floor, side-on to the three-quarter camera. Only the standing parts are blockers (the arch's legs, the
+overhang's base, as `ForestDresser.Prop` reads their footprints); the span and the ledge are drawn and walked under.
+Owner: one, at most two, chunks of a run carry an overhang. In `chunk-pools.json` each of the two is `{ "weight": 1,
+"max": 1 }` and every other forest single `{ "weight": 0.5 }`: the cap makes two the most a layout can hold, the
+weight twice the others' makes one usual, and the singles' half weight keeps the set pieces (which weigh 1) about as
+frequent as they were with seventeen singles. Over the committed 1000 seeds 160 layouts hold none, 457 one and 383 two
+(`CommittedForestGenerationShould` requires at most two in every layout and at least one in 80 %).
+
+The fifteen make forests bigger: six of them are T junctions or crosses, so a run branches more. Over seeds 1 to 64 a
+forest instance places 237 creatures on average (134 to 335), where the seventeen singles placed 208 (137 to 271);
+seeds 1 to 4 went from 200, 269, 173 and 200 to 214, 288, 187 and 286.
+
+**Collision tagging.** A dressed blocker is written `usemtl collision` in the chunk `.obj`, which the client does not
+draw, and the floor `usemtl forest_floor`, which the client gives its ground look; the server ignores both.
+
+**Paths.** `ForestPaths` lays a worn dirt strip from the midpoint of every exit's side to the piece's meeting point
+(its centre, or its set piece's frame's centre, unless `DressingHints` sets one): `avalon_path_dirt_2m` segments, 2 m
+long and 2.8 m wide (`ForestPaths.Width`, the same for every piece), end to end, the first running straight in from
+the side, so a path always meets its neighbour's at the shared edge whatever either chunk's rotation. After the first
+segment a path wanders up to 1 m off the straight line, bending at most 6 degrees a segment (`ForestPaths.MaxBend`),
+and ends within 1.6 m of the meeting point, under an `avalon_path_dirt_hub` patch there. Each segment after the first
+starts 0.2 m back over the one before (`ForestPaths.Overlap`, more than half the width times sin 6°, 0.146 m), which
+covers the wedge a bend opens at the strip's outer edge; every other segment is raised 2 mm, so that overlap never
+draws two strips at one height (the hub's top is above both). About every other segment carries a `RockPath_*`
+stepping stone.
+
+**Undergrowth and ground cover.** Along every edge, outside the exits' throats and the tree walls, a 3.5 m band of
+ferns, bushes, tall plants and tall grass; on the open floor, off the strip and the blockers and clear of the doodad
+slots (1.5 m, 3 m from a `doodad_large`) and 3 m from a portal slot, grass in clumps (most), ferns, clover, plants,
+pebbles, a few small bushes and very few flowers, and mushrooms at the feet of trees, drums and logs. Off a blocker,
+cover is scaled down to be drawn no taller than 1.2 m, so what a player walks through on open floor reads as small;
+bushes and tall plants at full size stand only on a drum or a rock box. The kit's red-leaved `Bush_Common` is used
+once a frame at most, and a `TwistedTree` only in an old wood (`TreeMix.Old`), once a frame at most. The piece's
+`DressingHints.Trees` picks the tree mix: `Mixed`, `Broadleaf`, `Pine` or `Old`.
+
+**The rules.** `ChunkFiles` runs `ForestDecorRules.Check` on every piece's (and set piece's) decor before anything is
+written, and `ForestPiecesShould` runs it again over the committed files. It refuses, naming the piece and the model,
+part or exit:
+
+- an item that is not a forest model in the bounds table, or that stands outside the frame;
+- a solid part that does not lie within 0.15 m of a blocker: a tree's trunk circle, a kit rock's scaled and turned box,
+  or each footprint part of a custom model (off scale 1 or its yaw rule, it is refused outright): nothing drawn solid
+  where a player walks;
+- a blocker with no solid part within it: no invisible wall; a tree wall with fewer trees than one for every 3 m of its
+  length (`ForestDecorRules.TreeWallSpacing`, its trunks within it), so a wall always reads as a wood;
+- an exit with no 2.8 m strip ending on its side's midpoint and running straight in, a strip that breaks off before
+  the hub (each segment must start 0.2 m back over the last one's end along its own direction, within 0.01 m, so a
+  start ahead of the end or beside it is refused), a segment at another scale,
+  outside the frame or on no exit's path, and anything but one hub;
+- a segment that bends more than 6 degrees from the one before it, or lies at its height; two segments that overlap at
+  one height outside the hub (two paths' strips drawn over each other would z-fight);
+- a blocker reaching onto a strip; ground cover within 2 m of a strip's centre line or 3 m of the hub (stepping stones
+  only stand on the strip, within 0.9 m of its centre line, or on the hub);
+- inside an exit's throat, ground cover other than grass or cover drawn no taller than 0.6 m: nothing hides the way out,
+  though grass beside the strip at the edge is fine;
+- walk-through cover drawn taller than 1.2 m (its model's top times its scale) that does not stand within a blocker.
+
+The bushes on the corners a rock box's rocks leave bare, and how much of the box the rocks cover, are the dresser's
+habit, not a checked rule: the rules ask only that each blocker has something solid on it.
+
+`ForestPiecesShould` also turns every chunk the tool writes through the four rotations (`ChunkRotation`) and checks
+that a strip ends on each exit's rotated side, centred on its midpoint and 2.8 m wide.
 
 ### Solid doodads in the bake
 
@@ -480,12 +649,21 @@ south-west corner, `+X` east, `+Z` north, `y` up) and a yaw of 0, 90, 180 or 270
 }
 ```
 
-ChunkGen writes one for every generated square (`"items": []` when it has none), staged and checked with the chunks
-and written only when they are, items sorted by model, then x, z, y and yaw, numbers with at most 3 decimals, LF line
-ends; `TownPiecesShould` compares them with a fresh run as it does the chunks, and a decor file with the command's
-prefix that the run did not write is listed, never deleted, as the chunks are. The seeder never reads `Maps/Decor/`.
-A proxy part that decor draws is written `usemtl collision`, which the client does not draw: every proxy of a placed
-building, the square's walls when `TownSquare.WallsAsDecor` is set, and the floor when `TownSquare.Paved` is.
+An item may also carry `"scale"`, a uniform scale about the model's origin, in [0.001, 4] (a scale its 3 decimals
+would write as 0 is refused), written only when it is not 1, so a file whose items are all at their kit size has none.
+The yaw rule follows the file's `kit`: a town square's (`medieval-village-megakit-standard`) keeps quarter turns, since
+its pieces meet on a grid; a forest piece's (`stylized-nature-megakit-standard`) may carry any whole degree, 0-359,
+so trees, rocks and ground cover do not all face four ways. `DecorItem.Check` takes the rule from its caller
+(`DecorYaw.QuarterTurns` or `DecorYaw.AnyDegree`) and refuses anything else.
+
+ChunkGen writes one for every generated square (`"items": []` when it has none) and every generated forest piece,
+staged and checked with the chunks and written only when they are, items sorted by model, then x, z, y, yaw and
+scale, numbers with at most 3 decimals, LF line ends; `TownPiecesShould` and `ForestPiecesShould` compare them with a
+fresh run as they do the chunks, and a decor file with the
+command's prefix that the run did not write is listed, never deleted, as the chunks are. The seeder never reads
+`Maps/Decor/`. A proxy part that decor draws is written `usemtl collision`, which the client does not draw: every
+proxy of a placed building, the square's walls when `TownSquare.WallsAsDecor` is set, and the floor when
+`TownSquare.Paved` is.
 
 A building is a recipe, `tools/Avalon.ChunkGen/Recipes/<id>.json` (copied next to the tool's assembly and read by
 `BuildingRecipe.Load`), its coordinates relative to the building's anchor:
@@ -516,7 +694,7 @@ set on a square the same way, and that each item stands inside the 0-30 m cell.
 What a player sees and what they collide with must agree, so `TownSquare.Validate` then runs `DecorRules`. A decor
 item is solid unless it is flat ground or thin hanging dressing (`DecorRules.DressingPrefixes`: `Prop_Vine`,
 `WindowShutters_`, `Window_`, `Floor_`, `Prop_ExteriorBorder_`, `HoleCover_`). A solid item's footprint, its model's
-box turned by its yaw and moved to its position (`DecorRules.WorldBounds`), must lie within 0.15 m
+box scaled by its scale, turned by its yaw and moved to its position (`DecorRules.WorldBounds`), must lie within 0.15 m
 (`DecorRules.Tolerance`) of the union of its building's non-walkable proxies, or, for an item placed under the
 building `Walls` (the square's own wall sections), of the square's wall boxes: no drawn wall to walk through. A solid
 item whose building has no non-walkable proxy is refused. The reverse holds proxy by proxy: every `collision` proxy,
@@ -546,12 +724,21 @@ spent, no script, which could despawn it or hide it through `CanSee` (the same t
 The bounds table, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, holds each model's box in its own space, so pieces can
 be checked against the art without the kit, which stays out of the repository:
 
-    dotnet run --project tools/Avalon.ChunkGen -- kit-bounds --kit <glTF directory> [--props <glTF directory>] [--props-kit <glTF directory>]
+    dotnet run --project tools/Avalon.ChunkGen -- kit-bounds --kit <glTF directory> [--props <glTF directory>] [--props-kit <glTF directory>] [--nature-kit <glTF directory>] [--forest-props <glTF directory>]
 
-measures every `*.gltf` directly in the kit directory (and the custom props' directory, and the props kit's: Fantasy
-Props MegaKit, CC0, whose `Chest_Wood`, `Barrel` and `Crate_Metal` the forest's doodads wear) from its accessors'
-bounds through the node transforms, and rewrites the table; a model in two of the directories, an empty directory or
-a file it cannot measure leaves the table as it was.
+measures every `*.gltf` directly in the kit directory (and the custom props' directory; the props kit's: Fantasy
+Props MegaKit, CC0, whose `Chest_Wood`, `Barrel` and `Crate_Metal` the forest's doodads wear; the nature kit's:
+Stylized Nature MegaKit, Standard, CC0, the forest's trees, plants, rocks and stepping stones; and the custom forest
+models', the `avalon_*` rocks, logs, ruins and dirt paths) from its vertices through the node transforms, and
+rewrites the table. The vertices are read from each POSITION accessor's buffer, not from the accessor's min and max,
+which some kit exports leave stale: the nature kit's `Fern_1` and `Plant_1_Big` state boxes up to three times their
+meshes. With `--forest-props` it also copies that directory's `footprints.json` (the solid parts each custom
+forest model is measured with in Blender) into `tools/Avalon.ChunkGen/Kit/forest-footprints.json`, which the forest
+dresser and its rules read. A model in two of the directories, an empty directory, a file it cannot measure, or a
+footprints file that does not list exactly the models beside it leaves both tables as they were. The committed table
+is measured from the village kit's `glTF`, `avalon-art\town-kit\gltf`, the props kit's `Exports\glTF`,
+`avalon-art\forest-kit\kit` (the nature kit's `glTF`, its colour textures darkened for the forest) and
+`avalon-art\forest-kit\gltf`.
 
 ## Chunk groups (set pieces)
 
@@ -567,8 +754,9 @@ last step, every other group at most once per layout and no earlier than the con
 group ignores it). The forest's is 8, the step its 5-8 band begins (owner decision), so a party leaving the entry never
 meets a set piece's level 5-8 packs and Alphas in the next cells; the generator draws no number for a group it does not
 offer, so a pool without groups is unaffected. The forest's main path is 12-16 steps (raised from 10, owner decision),
-so every run has at least three steps a set piece may take: 690 non-boss set pieces in 1000 seeds (545 with a minimum
-of 10). The forest has three: `forest_clearing_big`,
+so every run has at least three steps a set piece may take: 661 non-boss set pieces in 1000 seeds (690 with the
+seventeen singles before #1109, whose fifteen more halved the singles' weight to keep that share; 545 with a minimum
+of 10, then). The forest has three: `forest_clearing_big`,
 `forest_grove_ruin` and the boss arena `forest_arena`. `forest_boss_01` is no longer in the forest pool (its files stay
 in the catalog), so the arena ends every run.
 

@@ -1,0 +1,27 @@
+{
+  "name": "forest_glade_03",
+  "assetKey": "chunks/forest_glade_03",
+  "cellFootprintX": 1,
+  "cellFootprintZ": 1,
+  "cellSize": 30,
+  "exits": {
+    "N": ["center"],
+    "E": ["center"],
+    "S": ["center"],
+    "W": ["center"]
+  },
+  "spawnSlots": [
+    { "tag": "pack", "localX": 15, "localY": 1, "localZ": 15 },
+    { "tag": "pack", "localX": 11, "localY": 1, "localZ": 11 },
+    { "tag": "pack", "localX": 19, "localY": 1, "localZ": 19 },
+    { "tag": "rare", "localX": 9, "localY": 1, "localZ": 21 }
+  ],
+  "portalSlots": [
+  ],
+  "doodadSlots": [
+    { "tag": "doodad_large", "localX": 22.3, "localY": 0, "localZ": 7.7, "yaw": 0 },
+    { "tag": "doodad", "localX": 3, "localY": 0, "localZ": 3, "yaw": 0 },
+    { "tag": "doodad", "localX": 6.2, "localY": 0, "localZ": 23.8, "yaw": 90 }
+  ],
+  "tags": ["junction", "forest", "glade"]
+}

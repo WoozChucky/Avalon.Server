@@ -23,5 +23,10 @@
   ],
   "portalSlots": [
   ],
+  "doodadSlots": [
+    { "tag": "doodad_large", "localX": 3, "localY": 0, "localZ": 15, "yaw": 90 },
+    { "tag": "doodad", "localX": 23.8, "localY": 0, "localZ": 17.5, "yaw": 270 },
+    { "tag": "doodad", "localX": 8, "localY": 0, "localZ": 27, "yaw": 180 }
+  ],
   "tags": ["clearing", "forest"]
 }

@@ -8,14 +8,15 @@ namespace Avalon.World.ChunkLayouts;
 /// Deterministic fingerprint of the inputs that drive procedural generation.
 ///
 /// A seed only reproduces a layout while the config and chunk pool behind it are
-/// unchanged. Editing a pool weight or swapping a geometry file silently changes what
+/// unchanged. Editing a pool weight or cap or swapping a geometry file silently changes what
 /// an old seed generates. Both the world server (at instance creation) and Avalon.Api
 /// (when serving a preview) compute this from the same code, so a mismatch tells the
 /// admin SPA that the geometry it is about to draw may not match the player's client.
 ///
 /// FNV-1a over a canonical text encoding. Pool members are ordered by ChunkTemplateId
-/// before hashing so DB row order cannot change the result. Floats use round-trip
-/// ("R") invariant formatting so the encoding is stable across platforms.
+/// before hashing, the order ProceduralLayoutGenerator walks them in, so DB row order
+/// cannot change the result. Floats use round-trip ("R") invariant formatting so the
+/// encoding is stable across platforms.
 /// </summary>
 public static class LayoutConfigVersion
 {
@@ -51,7 +52,11 @@ public static class LayoutConfigVersion
               .Append(m.Template.CellFootprintX.ToString(CultureInfo.InvariantCulture)).Append('|')
               .Append(m.Template.CellFootprintZ.ToString(CultureInfo.InvariantCulture)).Append('|')
               .Append(F(m.Template.CellSize)).Append('|')
-              .Append(m.Template.Exits.ToString(CultureInfo.InvariantCulture)).Append(';');
+              .Append(m.Template.Exits.ToString(CultureInfo.InvariantCulture));
+            // A cap changes what a seed generates; appended only when set, so a pool without caps keeps its fingerprint.
+            if (m.MaxPerLayout is int max)
+                sb.Append("|max:").Append(max.ToString(CultureInfo.InvariantCulture));
+            sb.Append(';');
         }
 
         // Set pieces (forest content pass). Appended only when there are any, so a pool without them keeps its

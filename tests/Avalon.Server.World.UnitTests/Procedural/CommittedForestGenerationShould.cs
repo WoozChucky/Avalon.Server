@@ -34,7 +34,7 @@ public class CommittedForestGenerationShould
         ProceduralMapConfig config = db.ProceduralMapConfigs.AsNoTracking().Single(c => c.MapTemplateId == new MapTemplateId(2));
 
         return (config,
-            pool.Memberships.Select(m => new ChunkPoolMember(templates[m.ChunkTemplateId], m.Weight)).ToList(),
+            pool.Memberships.OrderBy(m => m.ChunkTemplateId.Value).Select(m => new ChunkPoolMember(templates[m.ChunkTemplateId], m.Weight, m.MaxPerLayout)).ToList(),
             pool.Groups.Select(g => ChunkGroupDefinition.From(g, templates)!).ToList());
     }
 
@@ -105,7 +105,31 @@ public class CommittedForestGenerationShould
             }
         }
 
-        Assert.True(placed > 550, $"only {placed} set pieces were placed in 1000 runs");   // measured 690
+        Assert.True(placed > 550, $"only {placed} set pieces were placed in 1000 runs");   // measured 661 (690 before #1109's fifteen singles)
+    }
+
+    /// <summary>
+    /// Review Focus 4, overhangs everywhere or never (owner: one, at most two, chunks of a run carry an overhang): the
+    /// pieces tagged <c>overhang</c> are capped in the pool, so no layout holds more than two, and weighted, so most hold one.
+    /// </summary>
+    [Fact]
+    public void Place_at_most_two_overhang_chunks_in_a_layout_and_one_in_most()
+    {
+        (ProceduralMapConfig config, List<ChunkPoolMember> pool, List<ChunkGroupDefinition> groups) = s_forest.Value;
+        var overhangs = pool.Where(m => m.Template.Tags.Contains("overhang")).Select(m => m.Template.Id).ToHashSet();
+        Assert.NotEmpty(overhangs);   // a pool with no overhang piece would pass the cap below
+        var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        int[] layouts = new int[3];
+
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            ChunkLayout layout = generator.Generate(config, pool, seed * 7919, groups);
+            int count = layout.Chunks.Count(c => overhangs.Contains(c.TemplateId));
+            Assert.True(count <= 2, $"seed {seed * 7919}: {count} overhang chunks");
+            layouts[count]++;
+        }
+
+        Assert.True(layouts[0] <= 200, $"{layouts[0]} of 1000 layouts hold no overhang (one: {layouts[1]}, two: {layouts[2]})");
     }
 
     [Fact]

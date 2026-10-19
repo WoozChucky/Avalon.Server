@@ -4,10 +4,11 @@ using Avalon.Database.World.Seeding;
 namespace Avalon.ChunkGen;
 
 /// <summary>
-/// The named materials a town shape is tagged with ("usemtl"); the client colours them, the server ignores them.
-/// <see cref="Collision" /> marks a proxy the client does not draw, because decor (Maps/Decor) draws it instead.
+/// The named materials a chunk's shape is tagged with ("usemtl"); the client colours them, the server ignores them.
+/// <see cref="Collision" /> marks a proxy the client does not draw, because decor (Maps/Decor) draws it instead;
+/// <see cref="ForestFloor" /> is a forest piece's floor, which the client gives its ground look.
 /// </summary>
-public enum Material { Stone, Wood, Roof, Cloth, Cloth2, Plaster, Metal, Water, Collision }
+public enum Material { Stone, Wood, Roof, Cloth, Cloth2, Plaster, Metal, Water, Collision, ForestFloor }
 
 public static class Materials
 {
@@ -22,6 +23,7 @@ public static class Materials
         Material.Metal => "metal",
         Material.Water => "water",
         Material.Collision => "collision",
+        Material.ForestFloor => "forest_floor",
         _ => throw new ArgumentOutOfRangeException(nameof(material), material, "unknown material"),
     };
 }
@@ -264,7 +266,7 @@ public sealed record TownSquare(
             IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
             foreach (DecorItem item in Drawn)
             {
-                item.Check(DecorRules.Where(Name, item.Building), kit);
+                item.Check(DecorRules.Where(Name, item.Building), kit, DecorYaw.QuarterTurns);
                 if (!WithinCell(item.X) || !WithinCell(item.Z))
                     throw new InvalidOperationException($"{DecorRules.Where(Name, item.Building)}: {item.Model} at ({item.X}, {item.Z}) lies outside the 0-30 m cell");
             }

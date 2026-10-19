@@ -1897,6 +1897,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("ChunkTemplateId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("MaxPerLayout")
+                        .HasColumnType("integer");
+
                     b.Property<float>("Weight")
                         .HasColumnType("real");
 
@@ -1904,7 +1907,10 @@ namespace Avalon.Database.World.Migrations
 
                     b.HasIndex("ChunkTemplateId");
 
-                    b.ToTable("ChunkPoolMembership");
+                    b.ToTable("ChunkPoolMembership", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ChunkPoolMembership_MaxPerLayoutPositive", "\"MaxPerLayout\" IS NULL OR \"MaxPerLayout\" >= 1");
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.ChunkTemplate", b =>

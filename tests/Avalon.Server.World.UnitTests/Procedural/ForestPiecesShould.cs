@@ -8,10 +8,11 @@ using Avalon.World.Testing.Scenarios;
 namespace Avalon.Server.World.UnitTests.Procedural;
 
 /// <summary>
-/// The forest's generated pieces (forest content pass): what is committed is what the tool writes, every slot and exit
-/// is clear of blockers, every doodad slot stands off the paths, and the baked navmesh lets a creature stand on every
-/// slot and walk from every exit to every slot (doodad slots included), across a set piece's open inner edges too, with
-/// the largest seeded solid doodad's box baked at every doodad_large slot.
+/// The forest's generated pieces (forest content pass): what is committed is what the tool writes, decor included,
+/// every slot and exit is clear of blockers, every doodad slot stands off the paths, and the baked navmesh lets a
+/// creature stand on every slot and walk from every exit to every slot (doodad slots included), across a set piece's
+/// open inner edges too, with the largest seeded solid doodad's box baked at every doodad_large slot. The committed
+/// decor keeps the forest decor rules, and every path meets its neighbour's at the exit whatever the rotation.
 /// </summary>
 public class ForestPiecesShould
 {
@@ -39,34 +40,290 @@ public class ForestPiecesShould
     [Fact]
     public void Match_the_committed_files()
     {
-        foreach ((string name, string obj, string json, _) in ChunkFiles.For(ForestPieces.Singles(), ForestPieces.Groups()))
+        foreach ((string name, string obj, string json, string? decor) in ChunkFiles.For(ForestPieces.Singles(), ForestPieces.Groups()))
         {
             Assert.Equal(obj, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".obj"))));
             Assert.Equal(json, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".json"))));
+            Assert.Equal(decor, Lf(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json"))));
         }
     }
 
+    /// <summary>
+    /// The decor files as committed (a set piece's four put back together in its frame): solid models stand on
+    /// blockers and every blocker has one, the paths reach every exit's midpoint and the hub, and cover keeps off them.
+    /// </summary>
     [Fact]
-    public void Generate_eight_pieces_and_three_set_pieces()
+    public void Keep_the_forest_decor_rules_in_every_committed_decor_file()
     {
-        Assert.Equal(8, ForestPieces.Singles().Count);
-        Assert.Equal(["forest_arena", "forest_clearing_big", "forest_grove_ruin"], ForestPieces.Groups().Select(g => g.Name).Order());
-        Assert.Equal(20, ChunkFiles.For(ForestPieces.Singles(), ForestPieces.Groups()).Count);
+        IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
+        foreach (ChunkPiece piece in ForestPieces.Singles())
+            ForestDecorRules.Check(piece, CommittedDecor(piece.Name), kit);
+        foreach (ChunkGroupPiece group in ForestPieces.Groups())
+        {
+            List<DecorItem> frame =
+            [
+                .. group.Members().SelectMany(m => CommittedDecor(m.Piece.Name)
+                    .Select(d => d with { X = d.X + m.CellX * ChunkPiece.CellSize, Z = d.Z + m.CellZ * ChunkPiece.CellSize })),
+            ];
+            ForestDecorRules.Check(group, frame, kit);
+        }
     }
 
+    /// <summary>
+    /// Review focus 1, paths that do not meet: in every chunk the tool writes and in each of the four rotations, a dirt
+    /// segment of the committed decor ends on each exit's side, its end's two corners on the rotated side, centred on its
+    /// midpoint and the fixed width apart, so it meets the neighbour's whichever way either chunk is turned.
+    /// </summary>
+    [Fact]
+    public void End_every_path_on_its_exit_midpoint_at_the_fixed_width_in_every_rotation()
+    {
+        const float Cell = ChunkPiece.CellSize;
+        foreach (ChunkPiece piece in Pieces())
+        {
+            List<DecorItem> segments = [.. CommittedDecor(piece.Name).Where(d => d.Model == ForestPaths.Segment)];
+            foreach (Side side in piece.Exits)
+            {
+                (float midX, float midZ) = side switch
+                {
+                    Side.N => (Cell / 2f, Cell),
+                    Side.S => (Cell / 2f, 0f),
+                    Side.E => (Cell, Cell / 2f),
+                    _ => (0f, Cell / 2f),
+                };
+                for (byte rotation = 0; rotation < 4; rotation++)
+                {
+                    Vector3 mid = ChunkRotation.LocalToWorld(midX, 0f, midZ, rotation, Cell, Vector3.zero);
+                    bool onX = MathF.Abs(mid.x) < 0.01f || MathF.Abs(mid.x - Cell) < 0.01f;
+                    bool met = segments.SelectMany(EndCorners).Any(end =>
+                    {
+                        Vector3 a = ChunkRotation.LocalToWorld(end.A.X, 0f, end.A.Z, rotation, Cell, Vector3.zero);
+                        Vector3 b = ChunkRotation.LocalToWorld(end.B.X, 0f, end.B.Z, rotation, Cell, Vector3.zero);
+                        bool onSide = onX ? MathF.Abs(a.x - mid.x) < 0.01f && MathF.Abs(b.x - mid.x) < 0.01f
+                                          : MathF.Abs(a.z - mid.z) < 0.01f && MathF.Abs(b.z - mid.z) < 0.01f;
+                        float width = MathF.Sqrt((a.x - b.x) * (a.x - b.x) + (a.z - b.z) * (a.z - b.z));
+                        float off = MathF.Sqrt(((a.x + b.x) / 2f - mid.x) * ((a.x + b.x) / 2f - mid.x) + ((a.z + b.z) / 2f - mid.z) * ((a.z + b.z) / 2f - mid.z));
+                        return onSide && off < 0.01f && MathF.Abs(width - ForestPaths.Width) < 0.01f;
+                    });
+                    Assert.True(met, $"{piece.Name}: no path ends on its {side} exit's midpoint at {ForestPaths.Width} m in rotation {rotation}");
+                }
+            }
+        }
+    }
+
+    /// <summary>The corners of each end of a dirt segment: the end of its centre line, half the strip's width (scaled) to either side.</summary>
+    private static IEnumerable<((float X, float Z) A, (float X, float Z) B)> EndCorners(DecorItem segment)
+    {
+        double yaw = segment.Yaw * Math.PI / 180.0;
+        float fx = (float)Math.Sin(yaw), fz = (float)Math.Cos(yaw);
+        float half = ForestPaths.SegmentLength / 2f * segment.Scale, across = ForestPaths.Width / 2f * segment.Scale;
+        foreach (float sign in new[] { -1f, 1f })
+        {
+            float ex = segment.X + sign * fx * half, ez = segment.Z + sign * fz * half;
+            yield return ((ex + fz * across, ez - fx * across), (ex - fz * across, ez + fx * across));
+        }
+    }
+
+    /// <summary>
+    /// Each forest decor rule refuses the decor that breaks it, so the rules over the committed files prove something:
+    /// a fresh dressing of the glade with one thing broken.
+    /// </summary>
+    [Theory]
+    [InlineData("a tree off its blocker", "stands on no blocker")]
+    [InlineData("a trunk with no tree", "an invisible wall")]
+    [InlineData("grass on the strip", "stands on the path strip")]
+    [InlineData("a path end off its exit", "no path strip ends at the N exit's midpoint")]
+    [InlineData("a wider strip", "would not be 2.8 m wide")]
+    [InlineData("a fern in a throat", "hide the way out")]
+    [InlineData("a sharp bend", "more than 6: the strip would open a gap")]
+    [InlineData("a gap before a segment", "does not start 0.2 m back over the end of the segment before it")]
+    [InlineData("two strips at one height", "overlap at one height outside the hub")]
+    [InlineData("tall cover on open floor", "walk-through cover there stays under 1.2 m")]
+    [InlineData("a tree wall with too few trees", "a tree wall needs a tree every 3 m of its length")]
+    [InlineData("trees shared by two walls", "carries 0 trees along 7.4 m: a tree wall needs a tree every 3 m")]
+    public void Refuse_decor_that_breaks_a_forest_decor_rule(string broken, string refusal)
+    {
+        ChunkPiece glade = ForestPieces.Singles().Single(p => p.Name == "forest_glade_01");
+        List<DecorItem> decor = [.. ForestDresser.Dress(glade)];
+        IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
+        ForestDecorRules.Check(glade, decor, kit);   // as dressed, it passes
+
+        CylinderBlocker trunk = glade.Blockers.OfType<CylinderBlocker>().First(b => b.Dressing == Dressing.Trunk);
+        int tree = decor.FindIndex(d => d.Model != ForestPaths.Segment && MathF.Abs(d.X - trunk.X) < 0.01f && MathF.Abs(d.Z - trunk.Z) < 0.01f);
+        int north = decor.FindIndex(d => d.Model == ForestPaths.Segment && d.Yaw == 180 && MathF.Abs(d.X - 15f) < 0.01f && MathF.Abs(d.Z - 29f) < 0.01f);
+        switch (broken)
+        {
+            case "a tree off its blocker":
+                decor[tree] = decor[tree] with { X = 15f, Z = 15f };
+                break;
+            case "a trunk with no tree":
+                decor.RemoveAt(tree);
+                break;
+            case "grass on the strip":
+                decor.Add(new DecorItem("", "Grass_Common_Short", 15f, 0f, 22f, 0));
+                break;
+            case "a path end off its exit":
+                decor[north] = decor[north] with { X = 15.5f };
+                break;
+            case "a wider strip":
+                decor[north] = decor[north] with { Scale = 1.2f };
+                break;
+            case "a fern in a throat":
+                decor.Add(new DecorItem("", "Fern_1", 26f, 0f, 19f, 0));
+                break;
+            case "a sharp bend":
+            {
+                // The north path's second segment turned 20 degrees, still starting the overlap back over the first's
+                // end at (15, 28) along its new direction, so it links and only its bend is wrong.
+                int second = decor.FindIndex(d => d.Model == ForestPaths.Segment && MathF.Abs(d.X - 15f) < 0.3f && MathF.Abs(d.Z - 27.2f) < 0.1f);
+                int yaw = (decor[second].Yaw + 20) % 360;
+                (float fx, float fz) = Forward(yaw);
+                (float startX, float startZ) = (15f - fx * ForestPaths.Overlap, 28f - fz * ForestPaths.Overlap);
+                decor[second] = decor[second] with { X = startX + fx, Z = startZ + fz, Yaw = yaw };
+                break;
+            }
+            case "a gap before a segment":
+            {
+                // The north path's second segment moved twice the overlap along its way: it starts that far ahead of the
+                // first's end instead of back over it, which a distance alone would not tell apart.
+                int second = decor.FindIndex(d => d.Model == ForestPaths.Segment && MathF.Abs(d.X - 15f) < 0.3f && MathF.Abs(d.Z - 27.2f) < 0.1f);
+                (float fx, float fz) = Forward(decor[second].Yaw);
+                decor[second] = decor[second] with { X = decor[second].X + fx * 2f * ForestPaths.Overlap, Z = decor[second].Z + fz * 2f * ForestPaths.Overlap };
+                break;
+            }
+            case "two strips at one height":
+                decor.Add(decor.Where(d => d.Model == ForestPaths.Segment).MinBy(d => MathF.Abs(d.X - 15f) + MathF.Abs(d.Z - 23f))!);
+                break;
+            case "tall cover on open floor":
+                decor.Add(new DecorItem("", "Plant_1_Big", 20f, 0f, 20f, 0));
+                break;
+            case "a tree wall with too few trees":
+            {
+                // The longest wall keeps one of its trees, so it still has something solid on it but too few for its length.
+                BoxBlocker wall = glade.Blockers.OfType<BoxBlocker>().Where(b => b.Dressing == Dressing.TreeWall)
+                    .MaxBy(b => Math.Max(b.MaxX - b.MinX, b.MaxZ - b.MinZ))!;
+                List<DecorItem> inside = [.. decor.Where(d => IsTree(d.Model) && wall.DistanceTo(d.X, d.Z) == 0f)];
+                Assert.True(inside.Count > 1, "the glade's longest tree wall holds fewer than two trees as dressed");
+                inside.Skip(1).ToList().ForEach(d => decor.Remove(d));
+                break;
+            }
+            case "trees shared by two walls":
+            {
+                // The glade's two west walls meet at z = 22.5. The north one's trees, shrunk to a 0.1 m trunk and moved onto
+                // that edge, stand within both walls, enough for the north one's length; each counts for the south one only.
+                BoxBlocker upper = glade.Blockers.OfType<BoxBlocker>().Single(b => b.Dressing == Dressing.TreeWall && b.MinX < 1f && b.MinZ == 22.5f);
+                List<int> inside = [.. Enumerable.Range(0, decor.Count).Where(i => IsTree(decor[i].Model) && upper.DistanceTo(decor[i].X, decor[i].Z) == 0f)];
+                Assert.True(inside.Count * ForestDecorRules.TreeWallSpacing >= upper.MaxZ - upper.MinZ, "the glade's north-west tree wall holds too few trees as dressed");
+                foreach (int i in inside)
+                {
+                    TreeSpecies species = Enum.GetValues<TreeSpecies>().Single(s => decor[i].Model.StartsWith(s + "_", StringComparison.Ordinal));
+                    decor[i] = decor[i] with { Z = 22.5f, Scale = 0.1f / ForestDresser.TrunkRadius(species) };
+                }
+                break;
+            }
+        }
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => ForestDecorRules.Check(glade, decor, kit));
+        Assert.Contains("forest_glade_01", error.Message, StringComparison.Ordinal);
+        Assert.Contains(refusal, error.Message, StringComparison.Ordinal);
+    }
+
+    private static bool IsTree(string model) =>
+        Enum.GetNames<TreeSpecies>().Any(s => model.StartsWith(s + "_", StringComparison.Ordinal));
+
+    /// <summary>
+    /// The forest's density comes from tree walls (forest dressing, #1109): every closed side of a single piece, and every
+    /// closed outer edge of a set piece in its 60 x 60 m frame, carries a TreeWall box against that edge and running along it.
+    /// </summary>
+    [Fact]
+    public void Carry_a_tree_wall_along_every_closed_side()
+    {
+        foreach (ChunkPiece piece in ForestPieces.Singles())
+        {
+            foreach (Side side in Enum.GetValues<Side>().Except(piece.Exits))
+                Assert.True(WallAlong(piece.Blockers, side, 0, 0), $"{piece.Name}: no tree wall along its closed {side} side");
+        }
+
+        foreach (ChunkGroupPiece group in ForestPieces.Groups())
+        {
+            foreach ((int cellX, int cellZ) in new[] { (0, 0), (1, 0), (0, 1), (1, 1) })
+            {
+                Side[] outer = [cellZ == 0 ? Side.S : Side.N, cellX == 0 ? Side.W : Side.E];
+                foreach (Side side in outer.Except(group.OuterExits.Where(e => e.CellX == cellX && e.CellZ == cellZ).Select(e => e.Side)))
+                {
+                    Assert.True(WallAlong(group.Blockers, side, cellX, cellZ),
+                        $"{group.Name}: no tree wall along the closed {side} edge of its cell ({cellX}, {cellZ})");
+                }
+            }
+        }
+    }
+
+    /// <summary>Whether a TreeWall box in cell (cellX, cellZ) lies against its <paramref name="side" /> edge (within 0.5 m) and runs along it.</summary>
+    private static bool WallAlong(IEnumerable<Blocker> blockers, Side side, int cellX, int cellZ)
+    {
+        const float Cell = ChunkPiece.CellSize, Against = 0.5f;
+        float ox = cellX * Cell, oz = cellZ * Cell;
+        return blockers.OfType<BoxBlocker>().Where(b => b.Dressing == Dressing.TreeWall).Any(b =>
+        {
+            float alongX = b.MaxX - b.MinX, alongZ = b.MaxZ - b.MinZ;
+            bool inCell = b.MinX >= ox && b.MaxX <= ox + Cell && b.MinZ >= oz && b.MaxZ <= oz + Cell;
+            return inCell && side switch
+            {
+                Side.S => b.MinZ - oz <= Against && alongX >= alongZ,
+                Side.N => oz + Cell - b.MaxZ <= Against && alongX >= alongZ,
+                Side.W => b.MinX - ox <= Against && alongZ >= alongX,
+                _ => ox + Cell - b.MaxX <= Against && alongZ >= alongX,
+            };
+        });
+    }
+
+    /// <summary>The direction a model's +Z points at a yaw, clockwise seen from above.</summary>
+    private static (float X, float Z) Forward(int yaw) => ((float)Math.Sin(yaw * Math.PI / 180.0), (float)Math.Cos(yaw * Math.PI / 180.0));
+
+    /// <summary>A committed decor file's items (Maps/Decor/&lt;name&gt;.json), as the client reads them.</summary>
+    private static List<DecorItem> CommittedDecor(string name)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json")));
+        return
+        [
+            .. document.RootElement.GetProperty("items").EnumerateArray().Select(i => new DecorItem("", i.GetProperty("model").GetString()!,
+                i.GetProperty("x").GetSingle(), i.GetProperty("y").GetSingle(), i.GetProperty("z").GetSingle(), i.GetProperty("yaw").GetInt32(),
+                i.TryGetProperty("scale", out JsonElement scale) ? scale.GetSingle() : 1f)),
+        ];
+    }
+
+    /// <summary>
+    /// Every forest chunk committed is one the tool writes, but forest_boss_01 (hand-made, out of the pool): the pieces
+    /// once written by hand are generated, so they are dressed and checked as the rest are.
+    /// </summary>
+    [Fact]
+    public void Generate_thirty_two_pieces_and_three_set_pieces_and_every_forest_chunk_but_the_old_boss()
+    {
+        Assert.Equal(32, ForestPieces.Singles().Count);
+        Assert.Equal(["forest_arena", "forest_clearing_big", "forest_grove_ruin"], ForestPieces.Groups().Select(g => g.Name).Order());
+        var written = ChunkFiles.For(ForestPieces.Singles(), ForestPieces.Groups()).Select(f => f.Name).ToList();
+        Assert.Equal(44, written.Count);
+        Assert.Equal(["forest_boss_01"], Directory.EnumerateFiles(Path.Combine(Maps, "Chunks"), "forest_*.json")
+            .Select(Path.GetFileNameWithoutExtension).OfType<string>().Except(written).Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>Spawn slots and portal slots (the entry's way back to town) alike.</summary>
     [Fact]
     public void Keep_every_slot_clear_of_blockers_and_edges()
     {
         foreach (ChunkPiece piece in Pieces())
         {
-            foreach (Slot slot in piece.Slots)
+            List<(float X, float Z, object Slot)> slots =
+            [
+                .. piece.Slots.Select(s => (s.X, s.Z, (object)s)), .. piece.PortalSlots.Select(s => (s.X, s.Z, (object)s)),
+            ];
+            foreach ((float x, float z, object slot) in slots)
             {
-                Assert.InRange(slot.X, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
-                Assert.InRange(slot.Z, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
+                Assert.InRange(x, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
+                Assert.InRange(z, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
                 foreach (Blocker blocker in piece.Blockers)
                 {
-                    Assert.True(blocker.DistanceTo(slot.X, slot.Z) >= SlotClearance,
-                        $"{piece.Name}: {slot} is {blocker.DistanceTo(slot.X, slot.Z):0.00} m from {blocker}");
+                    Assert.True(blocker.DistanceTo(x, z) >= SlotClearance,
+                        $"{piece.Name}: {slot} is {blocker.DistanceTo(x, z):0.00} m from {blocker}");
                 }
             }
         }
@@ -104,6 +361,7 @@ public class ForestPiecesShould
         {
             var paths = piece.Exits.Select(e => (From: ThroatCentre(e, 0, 0), To: (X: Centre, Z: Centre))).ToList();
             AssertDoodadSlotsClear(piece.Name, piece.DoodadSlots, piece.Blockers, piece.Slots, paths);
+            AssertFacing(piece.Name, piece.DoodadSlots, Centre);
         }
 
         // A set piece's paths cross its inner edges: from each outer exit's throat centre to the frame centre, and
@@ -118,6 +376,19 @@ public class ForestPiecesShould
                     paths.Add((exits[i], exits[j]));
             }
             AssertDoodadSlotsClear(group.Name, group.DoodadSlots, group.Blockers, group.Slots, paths);
+            AssertFacing(group.Name, group.DoodadSlots, ChunkPiece.CellSize);
+        }
+    }
+
+    /// <summary>Each doodad slot's yaw is a quarter turn that best faces the centre (centre, centre): none of the four turns faces it closer.</summary>
+    private static void AssertFacing(string name, IEnumerable<DoodadSlot> slots, float centre)
+    {
+        foreach (DoodadSlot slot in slots)
+        {
+            double toCentre = Math.Atan2(centre - slot.X, centre - slot.Z);   // a yaw's facing is (sin, cos)
+            double Off(int yaw) => Math.Abs(Math.IEEERemainder(yaw * Math.PI / 180.0 - toCentre, 2 * Math.PI));
+            Assert.True(Off(slot.Yaw) <= new[] { 0, 90, 180, 270 }.Min(Off) + 1e-6,
+                $"{name}: {slot} does not face the centre ({centre}, {centre}) as nearly as a quarter turn can");
         }
     }
 
@@ -171,9 +442,10 @@ public class ForestPiecesShould
         ChunkPiece piece = ForestPieces.Singles().Single(p => p.Name == name);
         MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(piece), 0, 0)]);
 
-        // Each slot sampled from the height it is written at: a spawn slot 1 m up, a doodad slot on the floor.
+        // Each slot sampled from the height it is written at: a spawn slot 1 m up, a doodad or portal slot on the floor.
         foreach ((float x, float y, float z) in piece.Slots.Select(s => (s.X, 1f, s.Z))
-                     .Concat(piece.DoodadSlots.Select(s => (s.X, ChunkPiece.DoodadSlotY, s.Z))))
+                     .Concat(piece.DoodadSlots.Select(s => (s.X, ChunkPiece.DoodadSlotY, s.Z)))
+                     .Concat(piece.PortalSlots.Select(s => (s.X, ChunkPiece.PortalSlotY, s.Z))))
         {
             Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(x, y, z), out Vector3 ground));
             Assert.InRange(ground.y, -0.3f, 0.3f);   // the floor, never a blocker's top
@@ -182,7 +454,8 @@ public class ForestPiecesShould
 
     /// <summary>
     /// With the largest seeded solid doodad's box baked at every doodad_large slot (as a plan may put one there), every
-    /// exit, spawn slot and doodad slot is reached from the first exit, and a large slot's doodad from beside its box.
+    /// exit, spawn slot, doodad slot and portal slot is reached from the first exit, and a large slot's doodad from
+    /// beside its box.
     /// </summary>
     [Theory]
     [MemberData(nameof(Singles))]
@@ -194,6 +467,7 @@ public class ForestPiecesShould
         [
             .. piece.Exits.Select(e => ExitPoint(e, 0, 0)), .. piece.Slots.Select(s => new Vector3(s.X, 1f, s.Z)),
             .. piece.DoodadSlots.Where(s => s.Tag != "doodad_large").Select(s => new Vector3(s.X, ChunkPiece.DoodadSlotY, s.Z)),
+            .. piece.PortalSlots.Select(s => new Vector3(s.X, ChunkPiece.PortalSlotY, s.Z)),
         ];
 
         AssertAllConnected(navigator, targets, name);
@@ -284,12 +558,13 @@ public class ForestPiecesShould
         Assert.All(ForestPieces.Groups(), g => Assert.True(g.Slots.Count(s => s.Tag == "leader") >= 2, $"{g.Name} has fewer than two leaders"));
     }
 
-    /// <summary>chunk-groups.json lists exactly the generated set pieces and their cells; chunk-pools.json lists every single piece and no member.</summary>
+    /// <summary>chunk-groups.json lists exactly the generated set pieces and their cells; chunk-pools.json lists every single piece (by name or as a weighted entry) and no member.</summary>
     [Fact]
     public void List_the_pieces_in_the_pool_and_group_files()
     {
         using var pools = JsonDocument.Parse(File.ReadAllText(Path.Combine(Maps, "chunk-pools.json")));
-        var forest = pools.RootElement.GetProperty("forest_pool").EnumerateArray().Select(e => e.GetString()!).ToList();
+        var forest = pools.RootElement.GetProperty("forest_pool").EnumerateArray()
+            .Select(e => e.ValueKind == JsonValueKind.Object ? e.GetProperty("chunk").GetString()! : e.GetString()!).ToList();
         Assert.All(ForestPieces.Singles(), p => Assert.Contains(p.Name, forest));
         Assert.DoesNotContain(forest, n => ForestPieces.Groups().Any(g => n.StartsWith(g.Name + "_", StringComparison.Ordinal)));
         Assert.DoesNotContain("forest_boss_01", forest);   // owner decision 5

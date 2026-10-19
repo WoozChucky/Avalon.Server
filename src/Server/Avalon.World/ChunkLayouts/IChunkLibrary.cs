@@ -46,7 +46,7 @@ public class ChunkLibrary : IChunkLibrary
             p => p.Id,
             p => p.Memberships
                 .Where(m => _templates.ContainsKey(m.ChunkTemplateId))
-                .Select(m => new ChunkPoolMember(_templates[m.ChunkTemplateId], m.Weight))
+                .Select(m => new ChunkPoolMember(_templates[m.ChunkTemplateId], m.Weight, m.MaxPerLayout))
                 .ToList());
 
         _groups = pools.ToDictionary(p => p.Id, LoadGroups);

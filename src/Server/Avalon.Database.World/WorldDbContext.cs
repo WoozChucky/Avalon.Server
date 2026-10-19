@@ -167,6 +167,8 @@ public class WorldDbContext : DbContext
 
         modelBuilder.Entity<ChunkPoolMembership>(e =>
         {
+            e.ToTable("ChunkPoolMembership", t => t.HasCheckConstraint("CK_ChunkPoolMembership_MaxPerLayoutPositive",
+                "\"MaxPerLayout\" IS NULL OR \"MaxPerLayout\" >= 1"));
             e.HasKey(m => new { m.ChunkPoolId, m.ChunkTemplateId });
             e.Property(m => m.ChunkPoolId)
                 .HasConversion(v => v.Value, v => new ChunkPoolId(v));

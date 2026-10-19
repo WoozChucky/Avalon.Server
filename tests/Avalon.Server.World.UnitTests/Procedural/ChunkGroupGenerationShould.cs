@@ -236,11 +236,15 @@ public class ChunkGroupGenerationShould
             after.Chunks.Select(c => (c.TemplateId.Value, c.GridX, c.GridZ, c.Rotation)));
     }
 
-    /// <summary>A pool shaped like the forest's: corridors, corners, a crossroads, a T, a dead end and a boss chunk.</summary>
+    /// <summary>
+    /// A pool shaped like the forest's: corridors, corners, a crossroads, a T, a dead end and a boss chunk. Every weight is
+    /// 1, as in the forest: the layouts below were made when weights steered only the entry pick, and since #1109 they
+    /// steer every step, so other weights would give other layouts.
+    /// </summary>
     private static List<ChunkPoolMember> ForestLikePool() =>
     [
-        new(Chunk(1, N, "entry", PortalRole.Back), 1f), new(Chunk(2, (ushort)(N | S), "pack"), 3f), new(Chunk(3, (ushort)(E | W), "pack"), 2f),
-        new(Chunk(4, (ushort)(N | E), "pack"), 2f), new(Chunk(5, (ushort)(S | E), "rare"), 1f), new(Chunk(6, (ushort)(N | E | S | W), "pack"), 1f),
+        new(Chunk(1, N, "entry", PortalRole.Back), 1f), new(Chunk(2, (ushort)(N | S), "pack"), 1f), new(Chunk(3, (ushort)(E | W), "pack"), 1f),
+        new(Chunk(4, (ushort)(N | E), "pack"), 1f), new(Chunk(5, (ushort)(S | E), "rare"), 1f), new(Chunk(6, (ushort)(N | E | S | W), "pack"), 1f),
         new(Chunk(7, (ushort)(N | E | S)), 1f), new(Chunk(8, S, "pack"), 1f), new(Chunk(9, S, "boss"), 1f),
     ];
 

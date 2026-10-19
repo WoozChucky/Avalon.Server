@@ -52,12 +52,12 @@ public sealed class ChunkGenCliShould : IDisposable
     }
 
     /// <summary>
-    /// The props kit is read with the art kit and the custom props, and a model name found in two of the three
-    /// directories is refused, leaving the committed table as it was. The table is the repository's own, so a run that
-    /// wrote it anyway is undone.
+    /// The props kit, the nature kit and the custom forest models are read with the art kit and the custom props, and a
+    /// model name found in two of the five directories is refused, leaving the committed table as it was. The table is
+    /// the repository's own, so a run that wrote it anyway is undone.
     /// </summary>
     [Fact]
-    public async Task Refuse_a_model_name_the_props_kit_shares_with_the_kit_and_keep_the_table()
+    public async Task Refuse_a_model_name_two_kit_directories_share_and_keep_the_table()
     {
         string root = Path.Combine(Path.GetTempPath(), $"avalon-kit-bounds-cli-{Guid.NewGuid():N}");
         string table = Path.Combine(TownNavmesh.RepositoryRoot, "tools", "Avalon.ChunkGen", "Kit", "kit-bounds.json");
@@ -66,19 +66,58 @@ public sealed class ChunkGenCliShould : IDisposable
         {
             string kit = WriteModels(root, "kit", "Wall", "Barrel");
             string props = WriteModels(root, "props", "avalon_shrine");
-            string propsKit = WriteModels(root, "props-kit", "Barrel");
+            string propsKit = WriteModels(root, "props-kit", "Chest_Wood");
+            string natureKit = WriteModels(root, "nature-kit", "Pine_1", "Rock_Medium_1");
+            string forestProps = WriteModels(root, "forest-props", "Rock_Medium_1");
 
             int code = await ChunkGenCli.RunAsync(
-                ["kit-bounds", "--kit", kit, "--props", props, "--props-kit", propsKit], () => [], () => [], () => [], _output, _error);
+                ["kit-bounds", "--kit", kit, "--props", props, "--props-kit", propsKit, "--nature-kit", natureKit, "--forest-props", forestProps],
+                () => [], () => [], () => [], _output, _error);
 
             Assert.Equal(1, code);
-            Assert.StartsWith("nothing written: InvalidOperationException: Barrel ", _error.ToString(), StringComparison.Ordinal);
+            Assert.StartsWith("nothing written: InvalidOperationException: Rock_Medium_1 ", _error.ToString(), StringComparison.Ordinal);
             Assert.Equal(before, File.ReadAllText(table));
         }
         finally
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
             if (File.ReadAllText(table) != before) File.WriteAllText(table, before);
+        }
+    }
+
+    /// <summary>
+    /// The custom forest models' footprints.json is copied with the bounds: missing, or listing other models than the
+    /// directory holds, it is refused and neither committed table changes (both are the repository's own, so a run
+    /// that wrote them anyway is undone).
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("""{ "avalon_other": { "walkThrough": true } }""")]
+    public async Task Refuse_a_missing_or_mismatched_footprints_file_and_keep_both_tables(string? footprints)
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"avalon-kit-bounds-cli-{Guid.NewGuid():N}");
+        string kitDirectory = Path.Combine(TownNavmesh.RepositoryRoot, "tools", "Avalon.ChunkGen", "Kit");
+        string[] tables = [Path.Combine(kitDirectory, "kit-bounds.json"), Path.Combine(kitDirectory, "forest-footprints.json")];
+        string[] before = [.. tables.Select(File.ReadAllText)];
+        try
+        {
+            string kit = WriteModels(root, "kit", "Wall");
+            string forestProps = WriteModels(root, "forest-props", "avalon_log");
+            if (footprints is not null) File.WriteAllText(Path.Combine(forestProps, ForestFootprints.ArtFile), footprints);
+
+            int code = await ChunkGenCli.RunAsync(["kit-bounds", "--kit", kit, "--forest-props", forestProps], () => [], () => [], () => [], _output, _error);
+
+            Assert.Equal(1, code);
+            Assert.StartsWith("nothing written: InvalidOperationException: ", _error.ToString(), StringComparison.Ordinal);
+            Assert.Equal(before, tables.Select(File.ReadAllText));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            for (int i = 0; i < tables.Length; i++)
+            {
+                if (File.ReadAllText(tables[i]) != before[i]) File.WriteAllText(tables[i], before[i]);
+            }
         }
     }
 

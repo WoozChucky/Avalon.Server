@@ -1027,9 +1027,9 @@ read no further than written). Nothing is kept between calls.
 
 How often the narrow box answers, from the setups' classification (the same on both maps): the start of every idle,
 walking and mixed input, the end of every step that moved, the start of every route, line of sight and projectile
-step measured; 113 of 256 blocked starts in the town and 147 of 256 in the forest (a point on a wall's edge that the
-polygon test leaves out goes to the full box); no beside input. `town-walk`'s walkers loop over open ground, which is
-the walking case.
+step measured; 113 of 256 blocked starts in the town and 147 of 256 in the forest before #1109 (a point on a wall's edge
+that the polygon test leaves out goes to the full box); no beside input. `town-walk`'s walkers loop over open ground,
+which is the walking case.
 
 Measured 2026-10-14 after rebasing on `ba0d327b`, before (`ba0d327b`'s navigator) and after (`eb50dfa5`), alternated
 on a mostly idle machine (another agent's work ran during some runs). The step is minimum–median–maximum over three
@@ -1072,12 +1072,12 @@ Same answers: `GroundedMovementShould.Answer_as_the_full_searches_do` compares t
 corners, edges and inside, at the polygon's height, exactly the climb above and below it, just past it and between
 floors, for idle, short, long and corner-ending steps, and (routes and sights, from one point in sixteen) to a 4 m
 target, a corner and the previous point, on the town (60 of its 313 polygons have a second floor over or under their
-centre), the forest (118 of 603) and a two-floor test mesh. It fails when the narrow box breaks a tie the other way,
-when the full box is not asked after a miss (either one also with only the route and sight checks left), when
-polygons at the point's edge are skipped, or when the search's height is used for a point not over its polygon.
-`Reach_every_polygon_within_the_climb_up_and_down` holds the narrow box's height: on a hand-built tile with 1 cm cells,
-two polygons 0.79 m apart both score zero and DotRecast answers the far one for one of the two points; a box of 0.1,
-0.5 or 0.75 m answers the near one. Baked meshes cannot show it: floors stand at least the agent's 2 m apart and
+centre), the forest (118 of 603 before #1109, not counted since) and a two-floor test mesh. It fails when the narrow box
+breaks a tie the other way, when the full box is not asked after a miss (either one also with only the route and sight
+checks left), when polygons at the point's edge are skipped, or when the search's height is used for a point not over
+its polygon. `Reach_every_polygon_within_the_climb_up_and_down` holds the narrow box's height: on a hand-built tile with
+1 cm cells, two polygons 0.79 m apart both score zero and DotRecast answers the far one for one of the two points; a box
+of 0.1, 0.5 or 0.75 m answers the near one. Baked meshes cannot show it: floors stand at least the agent's 2 m apart and
 DotRecast rounds their bounds out to the 0.3 m cell.
 
 BenchmarkDotNet 0.15.8, in-process toolchain, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, five warmups
@@ -1089,6 +1089,46 @@ and ten measured iterations. The scenario gate reads main's figures after #978 (
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*NavigationMovementBenchmarks*" --inProcess --warmupCount 5 --iterationCount 10
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*NavigationQueryBenchmarks*" --inProcess --warmupCount 5 --iterationCount 10
 ```
+
+**The forest since #1109 (2026-10-19).** The forest dressing's blockers (free-standing trunks, logs, custom rocks and
+the tree walls along the closed sides) cut the forest's navmesh into about twice as many polygons: over seeds 0 to 49
+the median mesh holds 1,578 polygons and 358 KiB, from 662 and 178 KiB on `main`, and bakes in about the same time
+(351 to 375 ms against 359 ms). Seed 7's forest changed with it (1,646 polygons and 378 KiB, from 603 and 157 KiB), so
+the forest rows and counts above are the mesh before #1109; its two-floor count was not redone. The same two benchmarks
+on `main` (`e86650046`), on the branch (`3fead41d3`), and on `main` with the branch's re-dressed `.obj` files for the
+pieces `main` has (replay: the denser collision without the new layouts), three rounds each, minimum–median–maximum,
+measured 2026-10-19 on the developer machine (i9-12900K, Windows 11, .NET 10.0.13, BenchmarkDotNet 0.15.8, in-process,
+five warmups and ten measured iterations). Allocations exact:
+
+| Forest | `main` | Branch | Replay | Branch / `main` (medians) | Allocated |
+|---|---:|---:|---:|---:|---:|
+| Step, idle | 170–170–172 ns | 179–179–182 ns | 180–181–188 ns | 1.05 | 0 B |
+| Step, walking | 289–291–292 ns | 309–317–320 ns | 315–316–324 ns | 1.09 | 0 B |
+| Step, mixed | 239–240–241 ns | 259–262–269 ns | 260–264–271 ns | 1.09 | 0 B |
+| Step, blocked | 339–346–361 ns | 513–532–543 ns | 523–540–549 ns | 1.54 | 0 B |
+| Step, beside | 526–554–569 ns | 893–898–923 ns | 871–894–920 ns | 1.62 | 0 B |
+| Route | 12,751–13,465–13,878 ns | 20,317–20,695–21,053 ns | 20,454–20,820–21,190 ns | 1.54 | 0 B |
+| Line of sight | 348–357–359 ns | 380–394–396 ns | 408–408–434 ns | 1.10 | 0 B |
+| Projectile step | 157–160–167 ns | 163–166–169 ns | 159–160–167 ns | 1.04 | 0 B |
+
+The cost is per query and follows the polygon count: a route about half as much again, an input that slides along a wall
+or starts beside the mesh 1.5 to 1.6 times, an idle, walking or mixed step and a line of sight 5 to 10% more, a
+projectile's step level. The replay reads as the branch does, so the new layouts change nothing here: the denser
+collision does. The DotRecast reference moves the same way on the forest (1.46 to 1.77 times, its projectile step 1.12),
+and every town row is level (0.94 to 1.03 times, branch and replay).
+
+The `forest-combat` scenario's tick, ten alternated Release runs of each on the same machine, minimum–median–max:
+
+| Tick | `main` | Branch | Replay | Branch / `main` | Replay / `main` |
+|---|---:|---:|---:|---:|---:|
+| Mean | 0.036–0.038–0.039 ms | 0.044–0.045–0.055 ms | 0.036–0.038–0.041 ms | 1.20 | 1.00 |
+| p95 | 0.058–0.066–0.072 ms | 0.075–0.077–0.098 ms | 0.061–0.066–0.081 ms | 1.18 | 1.01 |
+| p99 | 0.089–0.107–0.119 ms | 0.120–0.134–0.178 ms | 0.092–0.109–0.142 ms | 1.25 | 1.02 |
+
+The branch's fight is not `main`'s (its seeds, layouts and creatures changed: 22,633 B per window against 14,536 B), so
+its 1.20 is the bigger fight as much as the mesh; the replay keeps `main`'s fight over the denser collision and its
+tick is level. Calls per tick and the live navmesh's memory were not measured. The owner accepted the larger navmesh
+(2026-10-19).
 
 ### Grounded player movement — `NavigationMovementBenchmarks.cs` (#880, #896)
 
@@ -3454,7 +3494,7 @@ The scenarios live in `tests/Avalon.World.Testing/Scenarios`, the runner in `too
 | `town-walk` | 1 town | 30 | Players walking an 8 m circle centred at (45, 10), the south-east chunk's open square. Each player's input goes through the real `PlayerInputHandler` (one input packet per player, reused every tick), and each player is sent the real `SPlayerStateAckPacket` through the real cipher every tick. Ten engaged "Bench Wolf" creatures (seed 425) share the instance. |
 | `town-social` | 1 town | 30 | A town at its cap (`MaxPlayers`, 30) walking `town-walk`'s circle with no creatures, in ten parties of three that keep changing, and chatting, through the real party and chat handlers: in every second a party's leader leaves, is invited back and accepts, one player says a line to the town, one whispers, one speaks to its party and one runs `/ignorelist`. See [The town-social scenario](#the-town-social-scenario) (#972). |
 | `many-instances` | 250 normal maps | 500 | Two walking players in each of 250 normal-map instances, every instance created through the real `InstanceRegistry.GetOrCreateNormalInstanceAsync`. It measures many small instances rather than one crowd. |
-| `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 1 to 4, each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 200, 269, 173 and 200 creatures, each run on the ticks its script is active or due, as in production since #979), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a healer. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a healer heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
+| `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 33, 46, 15 and 36 (1 to 4 until #1109, then 45, 46, 15 and 36 until its tree walls), each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 325, 231, 252 and 231 creatures, each run on the ticks its script is active or due, as in production since #979), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a healer. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach and in sight casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a healer heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
 | `town-doodads` | 1 town | 30 | `town-walk`'s circle with no creatures, among 40 doodads on a ring 20 m from its centre: 20 without rules and 20 behind a NotStarted quest gate, which every other player has taken, so half the views refuse them. Every view decision lists the ungated ones by distance alone and the gated ones by the answer the view holds (`CharacterCharacterGameState.Sees`); the scenario checks that each view holds exactly the doodads its rules allow. |
 
 No scenario was reduced in size: `many-instances` takes 1 to 8 s for its 600 warm-up ticks and windows (5 to 7 s with
@@ -3712,7 +3752,16 @@ with the committed figure, in every build (Debug and Release, see below) and for
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (14,528 B per window since #1082, whose fighters name a view tick on every
+  `forest-combat` is the largest figure (22,633 B per window since #1109's tree walls along the forest pieces' closed
+  sides and seed 33 for the first party, chosen for a fight with deaths in it,
+  [the forest-combat scenario](#the-forest-combat-scenario); 20,690 B
+  since #1109 moved it to the seeds 45, 46, 15 and 36,
+  chosen for a fight at least as large as before the forest work;
+  14,491 B from #1109's fifteen new forest pieces, which gave seeds 1 to 4 other layouts and a fight half the size;
+  14,643 B from #1109's dressing of the forest pieces the
+  fighters cross first, the entry among them, with trees, rocks and logs, and a fighter casting only at a creature in
+  sight, walking on round a trunk in the way; 14,528 B from
+  #1082, whose fighters name a view tick on every
   cast and report a 60 ms round trip, so the rewound hits and the dodge wait run in the gate and the seeded fight goes
   differently, [the forest-combat scenario](#the-forest-combat-scenario); 13,905 B from #973's closing cleanup: quest
   markers are worked out again only when what a marker reads changes, not for every kill credit, 64 B, a pickup's
@@ -3722,7 +3771,7 @@ with the committed figure, in every build (Debug and Release, see below) and for
   #980, which shared the aura updates and reused their entries,
   [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
   which gave the fight a healer, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
-  10,357 B before), and at that size the 256 B floor decides for it too (1% is 145 B): it fails above 14,784 B, a little
+  10,357 B before), and at that size the 256 B floor decides for it too (1% is 226 B): it fails above 22,889 B, a little
   over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. Its Debug run reads the committed
   figure again since #981 (#973): from #972 it read 68 B above Release, because each item destroy in the measured
   minute paid 48 B in unoptimised code for the two boxes `Enum.HasFlag` made in `InventoryMove.DecideDestroy`.
@@ -4117,7 +4166,7 @@ as long as its ticks take, where the 5 s took 5 s anywhere: CI's runner ticked `
 ### The forest-combat scenario
 
 `forest-combat` (B2 of the load-test combat work) puts the tick through a fight: four forest instances on the fixed
-seeds 1 to 4, built through the World server's own `ChunkLayoutInstanceFactory` over its reference data
+seeds 33, 46, 15 and 36 (1 to 4, then 45 for 33, until #1109, see below), built through the World server's own `ChunkLayoutInstanceFactory` over its reference data
 (`ScenarioReferenceData`: the `HasData` seed in an in-memory SQLite `WorldDbContext`, read by the production
 repositories; the script manager loaded, so creatures fight with their real AI and casts run their real ability
 scripts), each as its party's forest (`GetOrCreatePartyInstanceAsync`). In each, a party of three level 1 characters
@@ -4138,7 +4187,11 @@ away, from a seeded random, for a second), and within reach stands, faces it and
 through `CastAbilityHandler` when the ability and the global cooldown are ready (Cleave 200 along the facing; Arcane
 Bolt 210, Quick Shot 220 and Smite 230 at the creature's position). It stops `min(1 m, 0.2 × reach)` inside the
 ability's reach, the load-test fighter's rule: a warrior stops at 2 m, outside the 1.5 m a creature keeps from what it
-fights. Since #972 it also does, every step, in this order:
+fights. Since #1109 it casts only at a creature in sight: a walkable ray from it to the creature over the forest's
+navmesh (`MapNavigator.RaycastWalkable`, which allocates nothing) ends within 1 m of the creature, as a projectile
+stops where such a ray does. In reach of a creature behind a trunk or a rock it walks on, and bump and turn takes it
+round, as a player steps out from behind a tree; without it a fighter stood casting into the trunk until the creature
+moved. Since #972 it also does, every step, in this order:
 
 - **Quest.** It holds the scenarios' kill quest (9001: one stage, kill two Thornback Boars and a Grey Fen Wolf, the
   forests' commonest kills; written by `ScenarioReferenceData` to its in-memory database only, never to the World
@@ -4181,7 +4234,46 @@ quarter of its health, the revive broadcast). So each forest keeps three fighter
 
 **What one run does.** Every run, on every machine, fights the same fight (the layouts, placement, combat and loot
 rolls and the fighters' turns are seeded, item instance ids are handed out in order, and every timer reads the world's
-clock). #1082's rewinds and waits move some hits by a tick or more, and the seeded fight follows them; since then the
+clock). Since #1109 dressed the nine forest pieces that were bare floors (the entry, the paths, the junctions, the
+small clearing and the dead end), gave the fighters a line of sight, added fifteen pieces to the pool and closed every
+piece's closed sides with tree walls, the run's 4,200 ticks on its seeds 33, 46, 15 and 36 give 134 creatures killed
+(121 in the measured minute), 4 deaths (all 4 in the minute), 17 heals cast and landed (15), 39 quest accepts, 93 kill
+credits (87) and 27 completions (all 27 in the minute), 250 drops picked up (226), 130 bag slots destroyed (106) and no
+drop given up; 22, 34, 38 and 40 kills in the four forests. The walls alone, on the seeds 45, 46, 15 and 36, gave 135
+killed (122 in the minute) but a single death (1), 19 heals (17), 42 accepts, 105 credits (96), 30 completions (30),
+243 pickups (217), 123 slots destroyed (98) and 1 drop given up: the fight kept its size, but the margin over the
+scenario's need for deaths was spent, all of them in the first party, which has no healer. So #1109 ran seeds 1 to 64
+in the first slot beside 46, 15 and 36: 24 gave at least 3 deaths with every floor held, from 3 to 8 deaths and 106 to
+134 kills; seed 33 gave the largest fight among those with 4 deaths or more (134 kills, 27 completions, 250 pickups),
+ahead of 51 (126 kills, 5 deaths), 3 (123, 5), 8 (126, 4) and 27 (118, 4); 50 gave 8 deaths but 106 kills. Before the walls, on the same seeds, the run gave 141 creatures killed (126 in the measured minute), 3 deaths, 17 heals
+cast and landed (16), 45 quest accepts, 114 kill credits (102) and 33 completions (all 33 in the minute), 251 drops
+picked up (228), 136 bag slots destroyed (113) and no drop given up, 30 to 39 kills in each forest. The fifteen pieces
+gave seeds 1 to 4 other layouts and a fight half the size: 63 killed, 5 deaths, 19 heals cast (18 landed), 21
+accepts, 39 credits, 9 completions, 115 pickups, 64 slots destroyed, at 14,491 B per window, with every fighter
+casting 30 to 72 times, none stuck: their forests (214, 288, 187 and 286 creatures) put other packs nearest the entry.
+So #1109 ran seeds 1 to 64, each forest in its party slot (the slot decides the party's classes; the first party has
+no healer), and took the four that give the largest fight together with deaths in it:
+
+| Slot | Seeds tried (kills / completions / pickups / heals landed over the run), most kills first |
+|---|---|
+| 0 (warrior, wizard, hunter) | 45: 32/9/56/0, 13: 29/8/54/0, 5: 23/6/37/0, 57: 22/0/44/0, 1: 18/3/39/0, ... 37: 7/3/14/0 |
+| 0 again, after the tree walls, beside 46, 15 and 36 (the four forests' kills / deaths over the run; the 24 seeds with 3 deaths or more and every floor held) | 33: 134/4, 63: 133/3, 48: 132/3, 57: 131/3, 53: 128/3, 56: 127/3, 8: 126/4, 24: 126/3, 51: 126/5, ... 50: 106/8 |
+| 1 (healer, warrior, wizard) | 14: 38/12/70/7, 46: 35/9/65/7, 22: 34/3/63/8, 18: 34/3/61/7, 58: 33/9/63/7, 54: 30/9/60/6, ... 30: 3/0/7/8 |
+| 2 (hunter, healer, warrior) | 19: 37/6/69/6, 15: 34/9/61/6, 63: 34/0/65/7, 23: 31/9/55/6, 59: 30/6/56/5, 27: 27/18/51/8, ... 7: 14/3/27/7 |
+| 3 (wizard, hunter, healer) | 36: 38/6/66/5, 64: 32/9/55/4, 44: 32/6/63/4, 48: 31/12/67/3, 16: 30/6/46/7, 8: 29/9/56/5, ... 60: 1/0/2/6 |
+
+The forests share the world's combat and loot rolls, so a set fights a little differently from its seeds alone; the
+sets tried together, over the run: 45, 14, 27, 48: 128 kills, 42 completions, 225 pickups, 20 heals, 1 death; 13, 46,
+15, 36: 128/29/232/17, 1 death; 45, 58, 19, 64: 103/27/177/21, 2 deaths; 13, 14, 27, 8: 116/38/213/22, 1 death; 45,
+14, 19, 36: 137/27/256/19, 3 deaths; 13, 58, 27, 36: 125/42/217/22, 1 death; 5, 46, 23, 48: 115/27/216/13, 4 deaths;
+and the one taken, 45, 46, 15, 36: 141/33/251/17, 3 deaths. With the seventeen pieces before them the run gave 113
+killed, 3 deaths, 17 heals cast (all landed), 39 quest accepts, 98 kill credits and 27 completions, 208 drops picked
+up, 108 bag slots destroyed and no drop given up. The dressing alone, with fighters that cast at the nearest creature
+whatever stood between them, gave 65 killed, 4 deaths, 10 heals (8 landed), 30 accepts, 66 credits, 18 completions,
+111 pickups, 61 slots destroyed and 3 drops given up, at 10,880 B per window: a trunk took a fighter's every shot
+until the creature moved, and in one forest a fighter stood so for most of the run. Before #1109: #1082's rewinds
+and waits move some hits by a tick or more, and the seeded fight
+follows them; since then the
 run's 4,200 ticks give 102 creatures killed, 2 deaths, 21 heals cast (20 landed), 42 quest accepts, 105 kill credits
 and 30 completions, 189 drops picked up and 101 bag slots destroyed (the measured minute's shares not recounted). The
 measured-minute figures and the level-up tick below are from #973, before #1082: over the run then, 105 creatures
@@ -4191,13 +4283,28 @@ first 21 in the first steps, from the filled bags), and no drop given up. Before
 minute) with 9 deaths: the healers keep their parties alive, and fighters walking to their drops meet more creatures.
 Experience is shared; one party's three members reach level 2 together near the end of the measured minute (tick 3,422
 of 3,600, counted at #973), and no other character does. The scenario's check (`Verify`) requires, over the measured
-ticks, besides every fighter casting and every forest losing creatures, heals landed, kill credit, a completion,
-pickups and items destroyed. `ForestCombatScenarioShould` runs the scenario twice in one process and requires the same
+ticks, besides every fighter casting and every forest losing creatures, about half of what the fight on its seeds does
+in them (since #1109): at least 60 kills, 15 completions, 110 pickups and 8 heals landed, and some kill credit and
+items destroyed, so a pool or harness change that halves the fight fails the scenario instead of leaving the gate
+holding fewer events (seeds 1 to 4 over the fifteen pieces' pool would have failed it: 51 kills, 9 completions and 96
+pickups in the minute). `ForestCombatScenarioShould` runs the scenario twice in one process and requires the same
 outcome (every count above) and the same bytes per window, and kills and deaths in it; the second run's creatures
 carry higher ids (the process-wide object id counter), which changes neither.
 
-**Gate.** Committed at **14,528 B per window** (20.2 B per player per tick, 242 B per tick) since #1082, the fight
-above with its fighters lag-compensated, 623 B over the 13,905 B committed from #973's closing cleanup
+**Gate.** Committed at **22,633 B per window** (31.4 B per player per tick, 377 B per tick) since #1109's tree walls
+and seed 33 (above), 1,943 B over the 20,690 B before them: the first forest is larger (325 creatures, from 216) and its
+party dies and is revived, and no allocating code changed. Debug reads the same. On the way, the walls alone on the old
+seeds read 20,578 B (28.6 B per player per tick), a single death in the fight. Before them, committed at 20,690 B (28.7 B
+per player per tick, 345 B per tick) since #1109 chose the
+seeds 45, 46, 15 and 36 (above). That fight was larger than any the gate held before (141 kills
+over the run, from 113 before the fifteen pieces), and every byte of the rise was that fight's: no allocating code
+changed. Before it, committed at 14,491 B (20.1 B per player per tick, 242 B per tick) since #1109's fifteen new pieces,
+the smaller fight on seeds 1 to 4 (63 kills), 152 B per window less than the 14,643 B before them. Before them,
+committed at 14,643 B (20.3 B per player per tick, 244 B per tick) since #1109's dressing, the fight over the dressed
+forest pieces with fighters that cast only in sight; the sight check itself allocates nothing: what it changes is the
+fight, 11 more kills over the run than before #1109. Before it, committed at 14,528 B (20.2 B per
+player per tick, 242 B per tick) since #1082, the fight above with its fighters lag-compensated, 623 B over the
+13,905 B committed from #973's closing cleanup
 ([the allocation gate](#the-allocation-gate)). The new paths allocate nothing per use: the rewound queries' pooled
 hit lists grow once, as plain queries' do, and a held hit, its resolution and the position histories allocate
 nothing. About 85 B of the rise is two per-cast objects that each gained a field (a projectile's running script
@@ -4260,15 +4367,30 @@ summary.
 | Debug, then | 13,905 |
 | Lag-compensated fighters: a view tick and a 60 ms round trip (#1082, PGO on) | 14,528 |
 | Debug, then | 14,528 |
-| Only moved units recorded, rewound drift bounded by recorded steps (#1082, PGO on), now; not regenerated | 14,536 |
-| Debug, now | 14,536 |
+| Only moved units recorded, rewound drift bounded by recorded steps (#1082, PGO on); not regenerated | 14,536 |
+| Debug, then | 14,536 |
+| The nine bare forest pieces dressed, fighters with no line of sight (#1109, PGO on), a step on the way | 10,880 |
+| Debug, then | 10,880 |
+| Fighters cast only in sight (#1109, PGO on) | 14,643 |
+| Debug, then | 14,643 |
+| Fifteen more forest pieces, the seeds' layouts changed (#1109, PGO on), a step on the way | 14,491 |
+| Debug, then | 14,491 |
+| Seeds 45, 46, 15 and 36 for a full fight again (#1109, PGO on) | 20,690 |
+| Debug, then | 20,690 |
+| Tree walls along the forest pieces' closed sides (#1109, PGO on), a step on the way | 20,578 |
+| Debug, then | 20,578 |
+| Seed 33 for the first party, deaths in the fight again (#1109, PGO on), now | 22,633 |
+| Debug, now | 22,633 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
 
-Four forests of about 840 creatures and twelve fighters cost about as much per tick as `town-walk`'s 30 walkers: most
-creatures are far from any player, and an idle creature's AI looks for players once a second rather than every tick.
-The minute allocated 0.62 MB on the tick thread before #972, and 0.86 MB since.
+Four forests of about 1,040 creatures (325 + 231 + 252 + 231 since #1109's seeds) and twelve fighters cost about as much
+per tick as `town-walk`'s 30 walkers (measured before #1109, when the four held about 840; since #1109 the scenario's
+mean tick is 0.045 ms, see "The forest since #1109"): most creatures are far from any player, and an idle creature's AI
+looks for players once a second rather than every tick. The minute allocated 0.62 MB on the tick thread before #972,
+about 0.86 MB from #972, and about 1.36 MB since #1109's tree walls and seed 33 (22,633 B per window over the minute's
+60 windows).
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
 holds its free segments in a stack under a lock per size class. It held them in a `ConcurrentQueue` per size: after a

@@ -63,15 +63,15 @@
 #
 # HEIGHT COVERAGE IS BOUNDED BY THE CHUNK LIBRARY, and that is a real gap rather than an
 # oversight. Every chunk floor the server ships is a flat slab: a town floor's top face is at
-# local y = 0.05, a forest floor's at 0 or 0.05, and the walls are vertical. The town squares
-# carry buildings and props besides (solids the bake cuts around; every solid's top is at
-# least 1.05 m, above the 0.9 m climb, so each stops a walk) and, since the kit rebuild, no
-# walkable riser at all: the stone curbs along its roads are drawn by the client and never
-# baked. The 'forest-floors' layout puts the two floor heights beside each other -- the
-# largest vertical variation two floors can produce -- and its ground rows all come back at
-# one height, because 5 cm is a quarter of the bake's 0.2 cell height and both floors quantise
-# to the same voxel. So these vectors pin SampleGroundHeight at a single height on open
-# ground (the curb row included), and at one flat top: the gate arch's.
+# local y = 0.05, a forest floor's at 0, and the walls are vertical. The town squares carry
+# buildings and props besides, and the forest pieces blockers (solids the bake cuts around;
+# every solid's top is at least 1.05 m, above the 0.9 m climb, so each stops a walk) and,
+# since the kit rebuild, no walkable riser at all: the stone curbs along the town's roads are
+# drawn by the client and never baked. The 'forest-floors' layout joins four forest floors,
+# all at that one height, two of them turned (by one and two quarter turns) so that its seam
+# crossings run exit to exit past the tree walls along the pieces' closed sides. So these
+# vectors pin SampleGroundHeight at a single height on each open floor, the town's (the curb
+# row included) and the forest's, and at one flat top: the gate arch's.
 # Building interiors and roof tops bake as navmesh islands that nothing reaches (the
 # forest's blocker tops do too); a ground query over one answers the island's height.
 #
@@ -115,10 +115,10 @@
 # Recast implementations can legitimately fall either side of one.
 #
 # So none of the sweep's rays is vendored: no row in this file runs through that corner. The
-# two rows that do lie on x = z keep off every corner -- the town's starts at 45 within the
-# agent radius of the well and never moves, and the other starts at 15 on a layout whose own
-# grid starts elsewhere -- and the straight seam crossings and the shallow diagonal are all
-# off-corner for the same reason.
+# one row that does lie on x = z keeps off every corner -- the town's starts at 45 within the
+# agent radius of the well and never moves -- the forest's diagonal runs a metre off x = z on
+# purpose, and the straight seam crossings and the shallow diagonal are all off-corner for
+# the same reason.
 #
 # Clamps at 28.55 in that sweep are NOT this: that is the second corner, where the town's
 # two walls also meet, the seam clamp the old "45 degrees" row showed.
@@ -205,23 +205,23 @@ ground 45 3 45 -> 0.15 # r3 cell centre
 layout forest-floors cell 30
 chunk forest_entry_01 0 0 0
 chunk forest_path_01 1 0 0
-chunk forest_clearing_01 0 1 0
-chunk forest_path_03 1 1 0
-mesh tiles 49 polys 49 verts 196
-ray 15 0.1 15 45 0.1 15 -> reached 45 0.1 15 3.4028235E+38 # across the seam between two chunks of equal floor height
-ray 15 0.1 15 15 0.1 45 -> reached 15 0.1 45 3.4028235E+38 # across the seam between the two floor heights
-ray 15 0.1 15 45 0.1 45 -> reached 45 0.1 45 3.4028235E+38 # diagonally across both seams
-ray 15 0.1 15 15 0.1 -5 -> clamped 15 0.1 0.8999977 0.7050001 # off the layout's south edge
+chunk forest_clearing_01 0 1 1
+chunk forest_path_03 1 1 2
+mesh tiles 49 polys 259 verts 740
+ray 15 0.1 45 45 0.1 45 -> reached 45 0.1 45 3.4028235E+38 # east across the seam between two chunks, exit to exit
+ray 45 0.1 15 45 0.1 45 -> reached 45 0.1 45 3.4028235E+38 # north across the seam between two chunks, exit to exit
+ray 15 0.1 16 45 0.1 46 -> reached 45 0.1 46 3.4028235E+38 # diagonally across both seams, a metre off x = z and the tile corners
+ray 45 0.1 15 45 0.1 -5 -> clamped 45 0.1 0.8999996 0.70500004 # off the layout's south edge, out of path_01's south exit
 ground 15 3 15 -> 0.2 # forest_entry_01, floor top at local y = 0
 ground 45 3 15 -> 0.2 # forest_path_01, floor top at local y = 0
-ground 15 3 45 -> 0.2 # forest_clearing_01, floor top at local y = 0.05
-ground 45 3 45 -> 0.2 # forest_path_03, floor top at local y = 0.05
-ground 15 3 30 -> 0.2 # on the seam between the two heights
+ground 15 3 45 -> 0.2 # forest_clearing_01, floor top at local y = 0
+ground 45 3 45 -> 0.2 # forest_path_03, floor top at local y = 0
+ground 45 3 30 -> 0.2 # on the seam between two chunks, between two exits
 
 layout forest-doodad cell 30
 chunk forest_path_01 0 0 0
 obstacle 13 17 13 17 0 1.8
-mesh tiles 15 polys 18 verts 62
+mesh tiles 15 polys 60 verts 167
 ray 5 0.1 15 25 0.1 15 -> clamped 12.3 0.1 15 0.365 # east along the path's middle into the box's west face
 ground 15 3 11 -> 0.2 # beside the box, 2 m south of its south face: the floor
 ground 15 3 15 -> 3 # above the box's centre: no ground, since its top bakes unwalkable

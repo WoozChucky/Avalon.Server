@@ -26,18 +26,19 @@ public sealed class ChunkCatalogSeederShould : IDisposable
 
         await ChunkCatalogSeeder.SeedAsync(db, CommittedMapsRoot());
 
-        Assert.Equal(38, await db.ChunkTemplates.CountAsync());
+        Assert.Equal(53, await db.ChunkTemplates.CountAsync());
         ChunkTemplate path = await db.ChunkTemplates.SingleAsync(t => t.Name == "forest_path_01");
         Assert.Equal("Chunks/forest_path_01.obj", path.GeometryFile);
         Assert.Equal(["path", "forest"], path.Tags);
-        Assert.Empty(path.DoodadSlots);
+        // A chunk file with no doodadSlots key seeds none.
+        Assert.Empty((await db.ChunkTemplates.SingleAsync(t => t.Name == "forest_boss_01")).DoodadSlots);
         await using WorldDbContext read = database.CreateDbContext();   // the slots as stored, not as tracked
         ChunkTemplate thicket = await read.ChunkTemplates.SingleAsync(t => t.Name == "forest_thicket_01");
         Assert.Equal(["doodad", "doodad", "doodad_large"], thicket.DoodadSlots.Select(s => s.Tag).Order(StringComparer.Ordinal));
         Assert.All(thicket.DoodadSlots, s => Assert.Equal(0f, s.LocalY));   // on the floor
 
         ChunkPool forest = await db.ChunkPools.Include(p => p.Memberships).SingleAsync(p => p.Name == "forest_pool");
-        Assert.Equal(17, forest.Memberships.Count);
+        Assert.Equal(32, forest.Memberships.Count);
         Assert.Equal(3, await db.ChunkGroups.CountAsync());
 
         Assert.Equal(4, await db.MapChunkPlacements.CountAsync(p => p.MapTemplateId == new MapTemplateId(1)));
@@ -60,7 +61,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
 
         await using WorldDbContext after = database.CreateDbContext();
         Assert.Equal(idsBefore, await after.ChunkTemplates.ToDictionaryAsync(t => t.Name, t => t.Id.Value));
-        Assert.Equal(17, await after.Set<ChunkPoolMembership>().CountAsync());
+        Assert.Equal(32, await after.Set<ChunkPoolMembership>().CountAsync());
         Assert.Equal(12, await after.Set<ChunkGroupMember>().CountAsync());
         Assert.Equal(4, await after.MapChunkPlacements.CountAsync());
     }
@@ -162,13 +163,71 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         File.WriteAllText(groupsPath, groups.ToJsonString());
     }
 
+    /// <summary>
+    /// A pool entry is a chunk's name (weight 1, no cap) or an object giving its weight and cap; the next start writes a
+    /// changed entry onto the membership already there.
+    /// </summary>
+    [Fact]
+    public async Task Store_each_pool_members_weight_and_cap_in_either_form()
+    {
+        string root = CopyOfCommittedMaps();
+        using var database = SqliteDatabase.World();
+        await using (WorldDbContext first = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(first, root);
+
+        EditForestPool(root, """{ "chunk": "forest_rocks_01", "weight": 0.5 }""", """{ "chunk": "forest_rocks_01", "weight": 2.5, "max": 1 }""");
+        EditForestPool(root, """{ "chunk": "forest_ruin_01", "weight": 0.5 }""", "\"forest_ruin_01\"");
+        await using (WorldDbContext second = database.CreateDbContext())
+            await ChunkCatalogSeeder.SeedAsync(second, root);
+
+        await using WorldDbContext read = database.CreateDbContext();
+        Dictionary<string, (float, int?)> members = await read.Set<ChunkPoolMembership>()
+            .Where(m => m.Pool.Name == "forest_pool")
+            .Select(m => new { m.Template.Name, m.Weight, m.MaxPerLayout })
+            .ToDictionaryAsync(m => m.Name, m => (m.Weight, m.MaxPerLayout), StringComparer.Ordinal);
+        Assert.Equal((2.5f, 1), members["forest_rocks_01"]);
+        Assert.Equal((1f, null), members["forest_ruin_01"]);
+        Assert.Equal((0.5f, null), members["forest_path_01"]);
+    }
+
+    /// <summary>A weight of 0, below 0, NaN or infinite, a cap below 1, a key it does not know, and a chunk named twice in one pool.</summary>
+    [Theory]
+    [InlineData("""{ "chunk": "forest_rocks_01", "weight": 0 }""", "forest_rocks_01")]
+    [InlineData("""{ "chunk": "forest_rocks_01", "weight": -1 }""", "forest_rocks_01")]
+    [InlineData("""{ "chunk": "forest_rocks_01", "weight": "NaN" }""", "forest_rocks_01")]
+    [InlineData("""{ "chunk": "forest_rocks_01", "weight": "Infinity" }""", "forest_rocks_01")]
+    [InlineData("""{ "chunk": "forest_rocks_01", "max": 0 }""", "forest_rocks_01")]
+    [InlineData("""{ "chunk": "forest_rocks_01", "weight": 2, "max": -1 }""", "forest_rocks_01")]
+    [InlineData("""{ "chunk": "forest_rocks_01", "maxx": 1 }""", "forest_rocks_01")]   // a misspelt cap would leave it uncapped
+    [InlineData("\"forest_path_02\"", "forest_path_02")]
+    public async Task Refuse_a_bad_pool_member_naming_the_file_and_the_chunk(string entry, string chunk)
+    {
+        string root = CopyOfCommittedMaps();
+        EditForestPool(root, """{ "chunk": "forest_rocks_01", "weight": 0.5 }""", entry);
+        using var database = SqliteDatabase.World();
+        await using WorldDbContext db = database.CreateDbContext();
+
+        InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
+        Assert.Contains("chunk-pools.json", error.Message);
+        Assert.Contains($"'{chunk}'", error.Message);
+        Assert.Equal(0, await db.ChunkTemplates.CountAsync());
+    }
+
+    private static void EditForestPool(string root, string from, string to)
+    {
+        string path = Path.Combine(root, "chunk-pools.json");
+        string text = File.ReadAllText(path);
+        Assert.Contains(from, text, StringComparison.Ordinal);
+        File.WriteAllText(path, text.Replace(from, to, StringComparison.Ordinal));
+    }
+
     /// <summary>tools/Avalon.ChunkGen validates its output with this reader, so it must work with no database.</summary>
     [Fact]
     public async Task Read_the_committed_catalog_without_a_database()
     {
         ChunkCatalogFiles files = await ChunkCatalogSeeder.ReadCatalogAsync(CommittedMapsRoot());
 
-        Assert.Equal(38, files.Chunks.Count);
+        Assert.Equal(53, files.Chunks.Count);
         Assert.Equal(3, files.Groups!["forest_pool"].Length);
         Assert.Contains("forest_pool", files.Pools.Keys);
         Assert.Single(files.Layouts);
@@ -480,7 +539,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     [InlineData("unknown condition", "condition 'sometimes'")]
     [InlineData("solid template at a small slot", "which is solid, at 'doodad' slots")]
     [InlineData("required solid template", "names doodad template 902, which is solid")]
-    [InlineData("required beyond the slots", "has only")]
+    [InlineData("required beyond the slots", "has only 2 'doodad' slots")]
     [InlineData("gate on solid template", "which is solid and never hidden")]
     public async Task Refuse_a_doodad_rule_the_catalog_cannot_honour(string row, string fault)
     {
@@ -498,7 +557,8 @@ public sealed class ChunkCatalogSeederShould : IDisposable
             "unknown condition" => Rule(901, extra: "\"usableGate\": { \"questId\": 7, \"condition\": \"sometimes\" }"),
             "solid template at a small slot" => Rule(902),
             "required solid template" => Rule(902, tag: "doodad_large", required: true),
-            "required beyond the slots" => Rule(901, max: 50, required: true),
+            // The entry is the only piece depth 0 reaches, and it has two doodad slots (the whole pool has more than 50).
+            "required beyond the slots" => Rule(901, max: 3, required: true, extra: "\"maxDepth\": 0"),
             _ => Rule(902, tag: "doodad_large", extra: "\"visibleGate\": { \"questId\": 7, \"condition\": \"completed\" }"),
         };
         string root = CopyOfCommittedMaps();
@@ -624,7 +684,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         Assert.Contains(fault, error.Message, StringComparison.Ordinal);
     }
 
-    /// <summary>Gives the copy's forest_path_01 (a hand-made chunk with no doodad slots) one doodad slot; returns its file.</summary>
+    /// <summary>Gives the copy's forest_path_01 one doodad slot in place of its own; returns its file.</summary>
     private static string WriteDoodadSlot(string root, string tag, float x, string y, float z, int yaw)
     {
         string path = Path.Combine(root, "Chunks", "forest_path_01.json");
