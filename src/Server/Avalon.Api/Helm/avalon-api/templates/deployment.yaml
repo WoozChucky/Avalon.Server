@@ -274,6 +274,8 @@ spec:
               value: {{ $.Values.distribution.publicUrl | quote }}
             - name: Application__Distribution__Bucket
               value: {{ $.Values.distribution.bucket | quote }}
+            - name: Application__Distribution__CrashBucket
+              value: {{ $.Values.distribution.crashBucket | quote }}
             - name: Application__Distribution__Region
               value: {{ $.Values.distribution.region | quote }}
             - name: Application__Distribution__AccessKeyId

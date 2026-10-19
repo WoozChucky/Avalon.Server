@@ -328,12 +328,14 @@ balance:
   sharedSecret: ""
 
 # Game distribution (Garage/S3, see homelab docs/avalon.md). Empty endpoint: the /client endpoints
-# answer 503. publicUrl is the host presigned links point at; the key should be read-only. The
+# answer 503. publicUrl is the host presigned links point at; the key reads builds and writes only
+# to the separate private crashBucket (configure a 90-day expiration lifecycle there). The
 # secret key goes in existingSecret as "distribution-secret-key", or in secretAccessKey below.
 distribution:
   endpoint: ""
   publicUrl: ""
   bucket: avalon-dist
+  crashBucket: crashes
   region: garage
   accessKeyId: ""
   secretAccessKey: ""

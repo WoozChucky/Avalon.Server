@@ -14,9 +14,12 @@ public sealed class DistributionConfiguration
 
     public string Bucket { get; set; } = "avalon-dist";
 
+    /// <summary>Private report bucket. The key may write here, never to the distribution bucket.</summary>
+    public string CrashBucket { get; set; } = "crashes";
+
     public string Region { get; set; } = "garage";
 
-    /// <summary>A read-only key: the API never writes to the bucket.</summary>
+    /// <summary>Read access to builds and write access only to the private crash bucket.</summary>
     public string AccessKeyId { get; set; } = "";
 
     public string SecretAccessKey { get; set; } = "";
