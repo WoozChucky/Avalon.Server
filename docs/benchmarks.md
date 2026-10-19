@@ -1093,11 +1093,12 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Navigati
 **The forest since #1109 (2026-10-19).** The forest dressing's blockers (free-standing trunks, logs, custom rocks and
 the tree walls along the closed sides) cut the forest's navmesh into about twice as many polygons: over seeds 0 to 49
 the median mesh holds 1,578 polygons and 358 KiB, from 662 and 178 KiB on `main`, and bakes in about the same time
-(351 to 375 ms against 359 ms). Seed 7's forest changed with it, so the forest rows and counts above are the mesh
-before #1109; its polygon count since was not recorded. The same two benchmarks on `main` (`e86650046`), on the branch
-(`3fead41d3`), and on the branch's code over `main`'s forest chunk files (replay: the denser collision without the new
-layouts), three rounds each, minimum–median–maximum, measured 2026-10-19 on the developer machine (i9-12900K, Windows
-11, .NET 10.0.13, BenchmarkDotNet 0.15.8, in-process, five warmups and ten measured iterations). Allocations exact:
+(351 to 375 ms against 359 ms). Seed 7's forest changed with it (1,646 polygons and 378 KiB, from 603 and 157 KiB), so
+the forest rows and counts above are the mesh before #1109; its two-floor count was not redone. The same two benchmarks
+on `main` (`e86650046`), on the branch (`3fead41d3`), and on `main` with the branch's re-dressed `.obj` files for the
+pieces `main` has (replay: the denser collision without the new layouts), three rounds each, minimum–median–maximum,
+measured 2026-10-19 on the developer machine (i9-12900K, Windows 11, .NET 10.0.13, BenchmarkDotNet 0.15.8, in-process,
+five warmups and ten measured iterations). Allocations exact:
 
 | Forest | `main` | Branch | Replay | Branch / `main` (medians) | Allocated |
 |---|---:|---:|---:|---:|---:|
@@ -1114,8 +1115,20 @@ The cost is per query and follows the polygon count: a route about half as much 
 or starts beside the mesh 1.5 to 1.6 times, an idle, walking or mixed step and a line of sight 5 to 10% more, a
 projectile's step level. The replay reads as the branch does, so the new layouts change nothing here: the denser
 collision does. The DotRecast reference moves the same way on the forest (1.46 to 1.77 times, its projectile step 1.12),
-and every town row is level (0.94 to 1.03 times, branch and replay). Forest-combat tick time, calls per tick and the
-live navmesh's memory were not measured. The owner accepted the larger navmesh (2026-10-19).
+and every town row is level (0.94 to 1.03 times, branch and replay).
+
+The `forest-combat` scenario's tick, ten alternated Release runs of each on the same machine, minimum–median–max:
+
+| Tick | `main` | Branch | Replay | Branch / `main` | Replay / `main` |
+|---|---:|---:|---:|---:|---:|
+| Mean | 0.036–0.038–0.039 ms | 0.044–0.045–0.055 ms | 0.036–0.038–0.041 ms | 1.20 | 1.00 |
+| p95 | 0.058–0.066–0.072 ms | 0.075–0.077–0.098 ms | 0.061–0.066–0.081 ms | 1.18 | 1.01 |
+| p99 | 0.089–0.107–0.119 ms | 0.120–0.134–0.178 ms | 0.092–0.109–0.142 ms | 1.25 | 1.02 |
+
+The branch's fight is not `main`'s (its seeds, layouts and creatures changed: 22,633 B per window against 14,536 B), so
+its 1.20 is the bigger fight as much as the mesh; the replay keeps `main`'s fight over the denser collision and its
+tick is level. Calls per tick and the live navmesh's memory were not measured. The owner accepted the larger navmesh
+(2026-10-19).
 
 ### Grounded player movement — `NavigationMovementBenchmarks.cs` (#880, #896)
 
@@ -4372,11 +4385,12 @@ summary.
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
 
-Four forests of about 1,040 creatures (325 + 231 + 252 + 231 since #1109's seeds) and twelve fighters cost about as
-much per tick as `town-walk`'s 30 walkers (measured before #1109, when the four held about 840; not measured since):
-most creatures are far from any player, and an idle creature's AI looks for players once a second rather than every
-tick. The minute allocated 0.62 MB on the tick thread before #972, about 0.86 MB from #972, and about 1.36 MB since
-#1109's tree walls and seed 33 (22,633 B per window over the minute's 60 windows).
+Four forests of about 1,040 creatures (325 + 231 + 252 + 231 since #1109's seeds) and twelve fighters cost about as much
+per tick as `town-walk`'s 30 walkers (measured before #1109, when the four held about 840; since #1109 the scenario's
+mean tick is 0.045 ms, see "The forest since #1109"): most creatures are far from any player, and an idle creature's AI
+looks for players once a second rather than every tick. The minute allocated 0.62 MB on the tick thread before #972,
+about 0.86 MB from #972, and about 1.36 MB since #1109's tree walls and seed 33 (22,633 B per window over the minute's
+60 windows).
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
 holds its free segments in a stack under a lock per size class. It held them in a `ConcurrentQueue` per size: after a
