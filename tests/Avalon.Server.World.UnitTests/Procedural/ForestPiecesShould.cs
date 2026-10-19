@@ -139,6 +139,7 @@ public class ForestPiecesShould
     [InlineData("two strips at one height", "overlap at one height outside the hub")]
     [InlineData("tall cover on open floor", "walk-through cover there stays under 1.2 m")]
     [InlineData("a tree wall with too few trees", "a tree wall needs a tree every 3 m of its length")]
+    [InlineData("trees shared by two walls", "carries 0 trees along 7.4 m: a tree wall needs a tree every 3 m")]
     public void Refuse_decor_that_breaks_a_forest_decor_rule(string broken, string refusal)
     {
         ChunkPiece glade = ForestPieces.Singles().Single(p => p.Name == "forest_glade_01");
@@ -203,6 +204,20 @@ public class ForestPiecesShould
                 List<DecorItem> inside = [.. decor.Where(d => IsTree(d.Model) && wall.DistanceTo(d.X, d.Z) == 0f)];
                 Assert.True(inside.Count > 1, "the glade's longest tree wall holds fewer than two trees as dressed");
                 inside.Skip(1).ToList().ForEach(d => decor.Remove(d));
+                break;
+            }
+            case "trees shared by two walls":
+            {
+                // The glade's two west walls meet at z = 22.5. The north one's trees, shrunk to a 0.1 m trunk and moved onto
+                // that edge, stand within both walls, enough for the north one's length; each counts for the south one only.
+                BoxBlocker upper = glade.Blockers.OfType<BoxBlocker>().Single(b => b.Dressing == Dressing.TreeWall && b.MinX < 1f && b.MinZ == 22.5f);
+                List<int> inside = [.. Enumerable.Range(0, decor.Count).Where(i => IsTree(decor[i].Model) && upper.DistanceTo(decor[i].X, decor[i].Z) == 0f)];
+                Assert.True(inside.Count * ForestDecorRules.TreeWallSpacing >= upper.MaxZ - upper.MinZ, "the glade's north-west tree wall holds too few trees as dressed");
+                foreach (int i in inside)
+                {
+                    TreeSpecies species = Enum.GetValues<TreeSpecies>().Single(s => decor[i].Model.StartsWith(s + "_", StringComparison.Ordinal));
+                    decor[i] = decor[i] with { Z = 22.5f, Scale = 0.1f / ForestDresser.TrunkRadius(species) };
+                }
                 break;
             }
         }
