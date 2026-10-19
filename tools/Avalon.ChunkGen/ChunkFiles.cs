@@ -6,6 +6,12 @@ namespace Avalon.ChunkGen;
 /// </summary>
 public static class ChunkFiles
 {
+    /// <summary>The town's map template id: its ring file is Maps/Scenery/1.json.</summary>
+    public const ushort TownMapId = 1;
+
+    /// <summary>The forest's map template id: its ring file is Maps/Scenery/2.json.</summary>
+    public const ushort ForestMapId = 2;
+
     /// <summary>
     /// Each piece's .obj and .json text, undressed (no decor file); throws (InvalidOperationException) on a piece that
     /// fails its own checks.
@@ -71,4 +77,35 @@ public static class ChunkFiles
     /// </summary>
     public static IReadOnlyList<(string Name, string Obj, string Decor)> Scenery(IEnumerable<SceneryPiece> pieces) =>
         [.. pieces.Select(p => (p.Name, SceneryObjWriter.Write(p), DecorJsonWriter.Write(p.Name, p.Decor, p.Kit)))];
+
+    /// <summary>
+    /// The forest's scenery: every piece's files and the pool ring file (Maps/Scenery/2.json). Throws
+    /// (InvalidOperationException) on a piece that breaks a scenery rule (SceneryRules.CheckForestPiece) or a pool that
+    /// is incomplete (SceneryRules.CheckForestPool).
+    /// </summary>
+    public static SceneryFiles ForestScenery(IReadOnlyList<SceneryPiece> pieces)
+    {
+        IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
+        foreach (SceneryPiece piece in pieces)
+            SceneryRules.CheckForestPiece(piece, kit);
+        SceneryRules.CheckForestPool(pieces);
+        return new SceneryFiles(ForestMapId, Scenery(pieces), SceneryJsonWriter.WritePool(ForestMapId, pieces));
+    }
+
+    /// <summary>
+    /// The town's scenery: every ring piece's files and the placements ring file (Maps/Scenery/1.json). Throws
+    /// (InvalidOperationException) on a piece that breaks a scenery rule (SceneryRules.CheckTownPiece) or a ring that
+    /// leaves a cell out or does not meet the town or itself (SceneryRules.CheckTownRing, around the town's squares).
+    /// </summary>
+    public static SceneryFiles TownScenery(IReadOnlyList<SceneryPiece> pieces)
+    {
+        IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
+        foreach (SceneryPiece piece in pieces)
+            SceneryRules.CheckTownPiece(piece, kit);
+        SceneryRules.CheckTownRing(pieces, [.. TownPieces.Squares().Select(s => (s.GridX, s.GridZ))]);
+        return new SceneryFiles(TownMapId, Scenery(pieces), SceneryJsonWriter.WritePlacements(TownMapId, pieces));
+    }
 }
+
+/// <summary>A map's scenery: each piece's terrain and decor text, and the map's ring file (Maps/Scenery/&lt;MapId&gt;.json).</summary>
+public sealed record SceneryFiles(ushort MapId, IReadOnlyList<(string Name, string Obj, string Decor)> Pieces, string Ring);

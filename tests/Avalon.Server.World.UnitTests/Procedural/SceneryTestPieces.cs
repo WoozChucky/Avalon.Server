@@ -49,9 +49,15 @@ internal static class SceneryTestPieces
         return pieces;
     }
 
-    /// <summary>The town's 21 ring cells, x and z -1 to 3 minus the 2 x 2 town, flat meadow and bare.</summary>
-    public static IReadOnlyList<SceneryPiece> Town() =>
-        SceneryComposer.Cut("town_ring", SceneryRing.Cells([(0, 0), (1, 0), (0, 1), (1, 1)]), Flat("meadow"), [], DecorJsonWriter.TownKit,
+    /// <summary>The town's four cells, as TownPieces lays its squares out.</summary>
+    public static IReadOnlyList<(int X, int Z)> TownCells { get; } = [(0, 0), (1, 0), (0, 1), (1, 1)];
+
+    /// <summary>
+    /// The town's 21 ring cells, x and z -1 to 3 minus the 2 x 2 town, bare, cut from <paramref name="world" /> (world
+    /// metres; flat meadow when null).
+    /// </summary>
+    public static IReadOnlyList<SceneryPiece> Town(SceneryTerrain? world = null) =>
+        SceneryComposer.Cut("town_ring", SceneryRing.Cells(TownCells), world ?? Flat("meadow"), [], DecorJsonWriter.TownKit,
             (_, piece) => piece with { Family = "town" });
 
     public static SceneryTerrain Flat(string material) => new((_, _) => 0f, (_, _) => material);

@@ -1,5 +1,6 @@
 using Avalon.ChunkGen;
 using Avalon.Common.Mathematics;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Maps.Navigation;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
@@ -270,6 +271,67 @@ public class TownPiecesShould
         List<Vector3> path = s_town.Value.FindPath(new Vector3(TownPieces.ArrivalX, 1f, TownPieces.ArrivalZ), new Vector3(water.X + 1f, water.Top + 0.3f, water.Z));
         if (path.Count > 0)
             Assert.True(water.DistanceTo(path[^1].x, path[^1].z) > 0.05f || path[^1].y < water.Y0 + 0.1f, $"a path reached the water at {path[^1]}");
+    }
+
+    /// <summary>
+    /// Each scenery rule refuses the town ring that breaks it (scenery ring, #1110): the 21 flat cut cells pass as built
+    /// (SceneryTestPieces), then one thing is broken.
+    /// </summary>
+    [Theory]
+    [InlineData("an item across a cell edge", "crosses the edge of town_ring_3_1")]
+    [InlineData("a cart by the south wall", "taller than 2 m within 4 m of the wall")]
+    [InlineData("a house near the west wall", "taller than 6 m within 10 m of the wall")]
+    [InlineData("a ring cell left out", "no piece for ring cell (3, 3)")]
+    [InlineData("a step against the town", "meets the town at y 0.4")]
+    [InlineData("a seam between ring cells", "do not meet")]
+    public void Refuse_town_scenery_that_breaks_a_scenery_rule(string broken, string refusal)
+    {
+        List<SceneryPiece> pieces = [.. SceneryTestPieces.Town()];
+        ChunkFiles.TownScenery(pieces);   // as built, it passes
+
+        int south = pieces.FindIndex(p => p.Name == "town_ring_0_m1");
+        int west = pieces.FindIndex(p => p.Name == "town_ring_m1_0");
+        Action check = () => ChunkFiles.TownScenery(pieces);
+        switch (broken)
+        {
+            case "an item across a cell edge":
+                check = () => SceneryComposer.Cut("town_ring", SceneryRing.Cells(SceneryTestPieces.TownCells), SceneryTestPieces.Flat("meadow"),
+                    [new DecorItem("", "Barrel", 90f, 0f, 45f, 0)], DecorJsonWriter.TownKit);
+                break;
+            case "a cart by the south wall":
+            {
+                // A wagon scaled to 3.1 m tall, 2 m south of the wall (the town's z = 0, this cell's local z = 30).
+                ModelBounds wagon = KitBounds.Load()["Prop_Wagon"];
+                pieces[south] = pieces[south] with { Decor = [new DecorItem("", "Prop_Wagon", 15f, 0f, 28f, 0, 3.1f / wagon.MaxY)] };
+                break;
+            }
+            case "a house near the west wall":
+            {
+                // The house's box 7 m west of the wall (the town's x = 0, this cell's local x = 30): past the 4 m rule, inside the 10 m one.
+                var house = BuildingRecipe.Load("house_a");
+                float reach = TownBuilding.Place(house, "house_a", 0f, 0f, 0).Decor.Max(d => DecorRules.WorldBounds(d).MaxX);
+                IReadOnlyList<DecorItem> decor = TownBuilding.Place(house, "house_a", 30f - 7f - reach, 15f, 0).Decor;
+                Assert.True(decor.Max(d => DecorRules.WorldBounds(d).MaxY) > SceneryRules.TownWallFarTop, "house_a is drawn no taller than 6 m");
+                pieces[west] = pieces[west] with { Decor = decor };
+                break;
+            }
+            case "a ring cell left out":
+                pieces.RemoveAll(p => (p.GridX, p.GridZ) == (3, 3));
+                break;
+            case "a step against the town":
+                pieces = [.. SceneryTestPieces.Town(new SceneryTerrain((x, _) => x == 0f ? 0.4f : 0f, (_, _) => "meadow"))];
+                break;
+            case "a seam between ring cells":
+            {
+                // The corner cell (3, 3) has no edge on the town: only its seams with the ring cells beside it break.
+                int corner = pieces.FindIndex(p => (p.GridX, p.GridZ) == (3, 3));
+                pieces[corner] = pieces[corner] with { Terrain = new SceneryTerrain((_, _) => 0.2f, (_, _) => "meadow") };
+                break;
+            }
+        }
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(check);
+        Assert.Contains(refusal, error.Message, StringComparison.Ordinal);
     }
 
     private static string Lf(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal);

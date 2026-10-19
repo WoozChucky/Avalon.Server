@@ -73,7 +73,7 @@ public static class ForestDecorRules
         foreach (DecorItem item in decor)
         {
             string what = What(frame, item);
-            item.Check(frame.Name, kit, DecorYaw.AnyDegree);
+            item.Check(frame.Name, kit, DecorYaw.AnyDegree, DecorJsonWriter.ForestKit);
             if (!(item.X >= 0f && item.X <= frame.Size && item.Z >= 0f && item.Z <= frame.Size))
                 throw new InvalidOperationException($"{what} stands outside the {ForestText.N(frame.Size)} x {ForestText.N(frame.Size)} m frame");
 
