@@ -57,11 +57,13 @@ public sealed class ForestCombatScenario : IScenario
     // Chosen (#1109) from seeds 1 to 64 for a fight of the size the gate has always held, after the forest pool's fifteen
     // new pieces gave seeds 1 to 4 a fight half as large: each seed decides its forest's layout, and its place in the list
     // its party's classes. The first party, the one with no healer, fights on seed 33 since the tree walls (45 before),
-    // whose forest kills some of its fighters, so the revive path runs in the fight (4 deaths over the run).
-    private static readonly int[] s_forestSeeds = [33, 46, 15, 36];
+    // whose forest kills some of its fighters, so the revive path runs in the fight (4 deaths over the run). The third
+    // party fights on seed 56 since #1113 (15 before), which gave the seeds that retry their layout, 15 and 46 among them,
+    // forests of their own: 15's new one halved the fight's quest completions, to the floor below.
+    private static readonly int[] s_forestSeeds = [33, 46, 56, 36];
 
-    // The least the measured ticks must do, about half of what the fight on these seeds does in them (121 kills, 27
-    // completions, 226 pickups, 15 heals landed): a pool or harness change that shrinks the fight by half or more fails
+    // The least the measured ticks must do, about half of what the fight on these seeds does in them (112 kills, 24
+    // completions, 202 pickups, 18 heals landed): a pool or harness change that shrinks the fight by half or more fails
     // here, rather than leaving the allocation gate holding fewer of each event.
     private const int MinKills = 60, MinQuestsCompleted = 15, MinPickups = 110, MinHealsLanded = 8;
     // Cycled over the whole roster, not per party slot: parties of three over four classes, so three parties in four

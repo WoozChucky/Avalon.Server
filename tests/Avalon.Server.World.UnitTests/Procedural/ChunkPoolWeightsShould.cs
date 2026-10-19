@@ -69,16 +69,18 @@ public class ChunkPoolWeightsShould
 
     /// <summary>
     /// Each layout of this pool (single chunks, branches, a set piece and a boss set piece) as the generator made it before
-    /// pool weights and caps reached the walk: the first 16 hex digits of the SHA-256 of every placed chunk in order.
+    /// pool weights and caps reached the walk: the first 16 hex digits of the SHA-256 of every placed chunk in order. The
+    /// five whose first attempt fails (seeds 1, 14, 19, 21 and 22 times 7919) changed once, when a retry's seed stopped
+    /// being the next seed (#1113).
     /// </summary>
     private static readonly string[] s_layoutsBeforeCaps =
     [
-        "90CB37C68BB08165", "C7C41BE403468746", "14265488FD834F6D", "161D47E96587AC16",
+        "90CB37C68BB08165", "AD63662D50B10D3A", "14265488FD834F6D", "161D47E96587AC16",
         "0CCB96114D82DE57", "4E809DAC9D60998C", "8846611B019F20FB", "9026B3AFDDB05A0D",
         "7634624622D81BA2", "560ADB13C05F5163", "C44FFACB72F0343D", "183495D8446B6BF6",
-        "647607CF076F92BD", "DEB29F7753A911BB", "3E99E483EC1F8862", "9C8E3FD0E894A799",
-        "8107FBB3B285A8EA", "7D47111425D9F271", "5F07BBD08E34F5B0", "6B70E9CFEDA9B155",
-        "BBD9CCCFA7899513", "8479F53383DB821E", "1EFF5E3C5A43E150", "3F44EE5FBE5F007E",
+        "647607CF076F92BD", "DEB29F7753A911BB", "5B1935E435B9828A", "9C8E3FD0E894A799",
+        "8107FBB3B285A8EA", "7D47111425D9F271", "5F07BBD08E34F5B0", "E624855A777CD3EC",
+        "BBD9CCCFA7899513", "8F5855F1227AD03F", "C3A874C513C9AA94", "3F44EE5FBE5F007E",
     ];
 
     [Fact]

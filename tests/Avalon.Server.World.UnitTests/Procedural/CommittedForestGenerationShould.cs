@@ -81,6 +81,31 @@ public class CommittedForestGenerationShould
     }
 
     /// <summary>
+    /// #1113: a seed whose first attempt fails is retried with another seed, and that retry must not be the next seed's
+    /// own first attempt, or the two seeds share one forest (layout, creatures and doodads, all keyed to the layout's
+    /// seed).
+    /// </summary>
+    [Fact]
+    public void Give_consecutive_seeds_different_layouts()
+    {
+        (ProceduralMapConfig config, List<ChunkPoolMember> pool, List<ChunkGroupDefinition> groups) = s_forest.Value;
+        var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        var duplicates = new List<int>();
+        string? previous = null;
+
+        for (int seed = 0; seed < 200; seed++)
+        {
+            ChunkLayout layout = generator.Generate(config, pool, seed, groups);
+            string fingerprint = string.Join(';', layout.Chunks.OrderBy(c => c.GridX).ThenBy(c => c.GridZ)
+                .Select(c => $"{c.TemplateId.Value}@{c.GridX},{c.GridZ}r{c.Rotation}"));
+            if (fingerprint == previous) duplicates.Add(seed);
+            previous = fingerprint;
+        }
+
+        Assert.True(duplicates.Count == 0, $"seeds with the previous seed's layout: {string.Join(", ", duplicates)}");
+    }
+
+    /// <summary>
     /// Owner decision: a set piece other than the boss arena stands no earlier than main-path step 8, where the 5-8 band
     /// begins, so a party leaving the entry does not meet level 5-8 packs in the next cells. Every step before the first
     /// set piece is one chunk, so the step a set piece was placed at is its nearest member's depth, and any later set
@@ -105,7 +130,7 @@ public class CommittedForestGenerationShould
             }
         }
 
-        Assert.True(placed > 550, $"only {placed} set pieces were placed in 1000 runs");   // measured 661 (690 before #1109's fifteen singles)
+        Assert.True(placed > 550, $"only {placed} set pieces were placed in 1000 runs");   // measured 668 (661 before #1113, 690 before #1109's fifteen singles)
     }
 
     /// <summary>

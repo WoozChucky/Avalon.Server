@@ -454,12 +454,14 @@ overhang's base, as `ForestDresser.Prop` reads their footprints); the span and t
 Owner: one, at most two, chunks of a run carry an overhang. In `chunk-pools.json` each of the two is `{ "weight": 1,
 "max": 1 }` and every other forest single `{ "weight": 0.5 }`: the cap makes two the most a layout can hold, the
 weight twice the others' makes one usual, and the singles' half weight keeps the set pieces (which weigh 1) about as
-frequent as they were with seventeen singles. Over the committed 1000 seeds 160 layouts hold none, 457 one and 383 two
-(`CommittedForestGenerationShould` requires at most two in every layout and at least one in 80 %).
+frequent as they were with seventeen singles. Over the committed 1000 seeds 156 layouts hold none, 449 one and 395 two
+(160, 457 and 383 before #1113; `CommittedForestGenerationShould` requires at most two in every layout and at least
+one in 80 %).
 
 The fifteen make forests bigger: six of them are T junctions or crosses, so a run branches more. Over seeds 1 to 64 a
 forest instance places 237 creatures on average (134 to 335), where the seventeen singles placed 208 (137 to 271);
-seeds 1 to 4 went from 200, 269, 173 and 200 to 214, 288, 187 and 286.
+seeds 1 to 4 went from 200, 269, 173 and 200 to 214, 288, 187 and 286 (measured at #1109; #1113 gave 12 of those 64
+seeds other layouts, none of seeds 1 to 4).
 
 **Collision tagging.** A dressed blocker is written `usemtl collision` in the chunk `.obj`, which the client does not
 draw, and the floor `usemtl forest_floor`, which the client gives its ground look; the server ignores both.
@@ -754,15 +756,22 @@ last step, every other group at most once per layout and no earlier than the con
 group ignores it). The forest's is 8, the step its 5-8 band begins (owner decision), so a party leaving the entry never
 meets a set piece's level 5-8 packs and Alphas in the next cells; the generator draws no number for a group it does not
 offer, so a pool without groups is unaffected. The forest's main path is 12-16 steps (raised from 10, owner decision),
-so every run has at least three steps a set piece may take: 661 non-boss set pieces in 1000 seeds (690 with the
-seventeen singles before #1109, whose fifteen more halved the singles' weight to keep that share; 545 with a minimum
-of 10, then). The forest has three: `forest_clearing_big`,
+so every run has at least three steps a set piece may take: 668 non-boss set pieces in 1000 seeds (661 before #1113
+gave the seeds that retry other layouts; 690 with the seventeen singles before #1109, whose fifteen more halved the
+singles' weight to keep that share; 545 with a minimum of 10, then). The forest has three: `forest_clearing_big`,
 `forest_grove_ruin` and the boss arena `forest_arena`. `forest_boss_01` is no longer in the forest pool (its files stay
 in the catalog), so the arena ends every run.
 
-A layout attempt that fails (no free cell for the next step, say) is retried with the next seed, up to 10 attempts
+A layout attempt that fails (no free cell for the next step, say) is retried, up to 10 attempts
 (`ProceduralLayoutGenerator.MaxRetries`); `CommittedForestGenerationShould` generates the committed forest for 1000
-seeds and fails if any of them runs out of attempts.
+seeds and fails if any of them runs out of attempts. The first attempt generates from the seed itself. A retry
+generates from a seed mixed from the seed and the attempt number (`ProceduralLayoutGenerator.AttemptSeed`, a fixed
+integer mix, the same in every process), never from the next seed: until #1113 the retry of seed N was seed N + 1's
+first attempt, so the two seeds gave the same forest, creatures and doodads included (they are placed from the
+layout's seed), and about a quarter of the forest's consecutive seeds were such pairs (48 in seeds 0 to 199). The
+layout records the seed of the attempt that built it (`ChunkLayout.Seed`), which the creature and doodad placement
+read. About 28% of the forest's seeds retry (283 of seeds 0 to 999); the others kept their layouts through #1113.
+`CommittedForestGenerationShould` checks that no seed of 0 to 199 gives the layout of the seed before it.
 
 **`chunk-groups.json` is required for the forest.** Its `boss` and `leader` slots exist only in set pieces, so without
 the file the spawn table's `boss`, `leader` and `leader_pack` entries match no slot in the pool and the seeder refuses
