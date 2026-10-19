@@ -65,13 +65,13 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `src/Shared/Avalon.Domain/World/MapChunkPlacement.cs` | DB entity joining MapTemplate → predefined chunk placements |
 | `src/Shared/Avalon.Domain/World/ProceduralMapConfig.cs` | DB entity for procedural map RNG config |
 | `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` + `.json` | Chunk geometry (navmesh bake) and metadata (see "The chunk format"). The forest pieces and Glimmerdell's four squares are written by `tools/Avalon.ChunkGen`; the rest (`forest_boss_01`, `town_corner_01`, `town_house_01`, `town_path_01`, `town_square_01`) are committed as they are and no tool writes them |
-| `src/Server/Avalon.Server.World/Maps/Decor/<chunkName>.json` | What the client draws on a generated town square from the art kit (see "Decor and building recipes"). Written by `tools/Avalon.ChunkGen` beside the chunks, outside `Maps/Chunks/` because the seeder reads every `*.json` there as chunk metadata; the server never reads it |
+| `src/Server/Avalon.Server.World/Maps/Decor/<chunkName>.json` | What the client draws on a generated town square and on every generated forest piece from the art kits (see "Decor and building recipes" and "Dressing the forest"). Written by `tools/Avalon.ChunkGen` beside the chunks, outside `Maps/Chunks/` because the seeder reads every `*.json` there as chunk metadata; the server never reads it |
 | `src/Server/Avalon.Server.World/Maps/TownLayouts/<MapTemplateId>.json` | Town layouts: which chunk sits on which grid cell, edited directly (see "Creating a town"). ChunkGen writes the squares' geometry, not this file |
 | `src/Server/Avalon.Server.World/Maps/chunk-pools.json` | Procedural pool membership (`{ "<pool>": ["<chunk>", …] }`, a member also `{ "chunk", "weight", "max" }`: see "Define a ChunkPool"), edited by hand |
 | `src/Server/Avalon.Server.World/Maps/chunk-groups.json` | Set pieces per pool (see "Chunk groups (set pieces)"), edited by hand |
 | `src/Server/Avalon.Server.World/Maps/spawn-tables.json` + `ProceduralMaps/<mapId>.json` | Spawn tables and procedural map configs with their depth bands (see "Spawn tables and procedural map configs"), edited by hand |
-| `tools/Avalon.ChunkGen/` | Generates the forest pieces' and the town squares' `.obj` + `.json`, and the squares' decor files (see "Generated forest chunks" and "Generated town squares") |
-| `tools/Avalon.ChunkGen/Recipes/<id>.json`, `tools/Avalon.ChunkGen/Kit/kit-bounds.json` | Building recipes (kit pieces plus collision proxies) and the art kit's bounds table (see "Decor and building recipes") |
+| `tools/Avalon.ChunkGen/` | Generates the forest pieces' and the town squares' `.obj` + `.json`, and the decor files of the squares and of every forest piece (see "Generated forest chunks" and "Generated town squares") |
+| `tools/Avalon.ChunkGen/Recipes/<id>.json`, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, `tools/Avalon.ChunkGen/Kit/forest-footprints.json` | Building recipes (kit pieces plus collision proxies), the art kits' bounds table, and the custom forest models' solid footprints (see "Decor and building recipes" and "Dressing the forest") |
 | `tools/Avalon.Exporter/` | Exports the known-answer vectors the client vendors, among them `schema/vectors/navmesh-v1.txt` (`-- navmesh`) and `schema/vectors/rotation-v1.txt` (`-- rotation`) |
 | `src/Server/Avalon.Database.World/Seeding/ChunkCatalogSeeder.cs` | Seeds chunk templates, town layouts, pools, chunk groups, spawn tables and procedural map configs from `Maps/`; run by the World server on start |
 
@@ -295,8 +295,8 @@ that fit. A member at its `max` is left out of the candidates for the rest of th
 same are picked with the one draw a uniform pick always made, so a pool of equal weights and no caps generates the
 layouts it always did. The generator walks a pool in chunk id order whatever order it is handed (and
 `ChunkPoolRepository` reads the rows in that order), so the database's row order cannot change a layout; that is also
-the order `LayoutConfigVersion` hashes the members in. A cap is part of `LayoutConfigVersion` only when set, so a pool without caps
-keeps its fingerprint; a changed weight or cap changes what an old seed generates.
+the order `LayoutConfigVersion` hashes the members in. A cap is part of `LayoutConfigVersion` only when set, so a pool
+without caps keeps its fingerprint; a changed weight or cap changes what an old seed generates.
 
 ### 3. Define a ProceduralMapConfig
 
@@ -422,7 +422,7 @@ than 6 m, those runs make one box at the shallowest of them (fewer boxes, a simp
 2.5 m is left out. The free-standing edge trees the walls replace are gone; the few left stand on the exit sides or
 inside, and `forest_ruin_01`, a crossroads whose corners hold its ruins, has trees inside its two ruined corners and
 in a third. The dresser packs each wall with trees (the roles table above), its rows along the frame edge the box
-stands against, which more than trebles the forest's trees (1,778 in the 44 decor files, from 492): 26 to 74 a single
+stands against, which more than trebles the forest's trees (1,775 in the 44 decor files, from 492): 26 to 73 a single
 piece, 97 to 134 a set piece, but 18 in each of the ruined crossroads `forest_ruin_01` and `forest_ruin_05`; a piece's
 blocker count stays about where it was (7 to 18 a single piece, from 8 to 15; a set piece 20 to 27, from 34 to 37).
 `ForestDecorRules` holds a wall to at least one tree for every 3 m of its length, each trunk counted for one wall

@@ -12,9 +12,9 @@ namespace Avalon.ChunkGen;
 /// has a tree's trunk within it for every <see cref="TreeWallSpacing" /> metres of its length, so it reads as a wood;</item>
 /// <item>a path strip of <see cref="ForestPaths.Width" /> (every segment at scale 1) ends at the midpoint of each exit's
 /// side, running straight in from it, and its segments, each starting <see cref="ForestPaths.Overlap" /> back over the
-/// one before (within <see cref="PathTolerance" />), reach the one hub, bending at most <see cref="ForestPaths.MaxBend" />
-/// degrees a segment and each at another height than the one before; no segment lies outside the frame or off every
-/// exit's path, and no two segments overlap at one height outside the hub;</item>
+/// end of the one before along its own direction (within <see cref="PathTolerance" />), reach the one hub, bending at
+/// most <see cref="ForestPaths.MaxBend" /> degrees a segment and each at another height than the one before; no segment
+/// lies outside the frame or off every exit's path, and no two segments overlap at one height outside the hub;</item>
 /// <item>no blocker reaches onto a strip, and nothing walk-through but a stepping stone stands on one: ground cover keeps
 /// <see cref="StripClearance" /> from every segment's centre line and <see cref="HubClearance" /> from the hub, and a
 /// stepping stone stands within <see cref="StoneReach" /> of a centre line or on the hub;</item>
@@ -180,9 +180,9 @@ public static class ForestDecorRules
     /// <summary>
     /// The paths: one hub; every segment at scale 1 (so <see cref="ForestPaths.Width" /> wide) and inside the frame; from
     /// each exit's midpoint a segment running straight in, and a chain from it, each segment starting
-    /// <see cref="ForestPaths.Overlap" /> back from the last one's end, turned at most <see cref="ForestPaths.MaxBend" />
-    /// and at another height, to within <see cref="ForestPaths.HubReach" /> of the hub; no two segments overlapping at
-    /// one height outside the hub; no segment on no exit's path.
+    /// <see cref="ForestPaths.Overlap" /> back over the last one's end along its own direction, turned at most
+    /// <see cref="ForestPaths.MaxBend" /> and at another height, to within <see cref="ForestPaths.HubReach" /> of the hub;
+    /// no two segments overlapping at one height outside the hub; no segment on no exit's path.
     /// </summary>
     private static void CheckPaths(ForestFrame frame, List<DecorItem> segments, List<DecorItem> hubs)
     {

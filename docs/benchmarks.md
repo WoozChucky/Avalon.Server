@@ -1027,9 +1027,9 @@ read no further than written). Nothing is kept between calls.
 
 How often the narrow box answers, from the setups' classification (the same on both maps): the start of every idle,
 walking and mixed input, the end of every step that moved, the start of every route, line of sight and projectile
-step measured; 113 of 256 blocked starts in the town and 147 of 256 in the forest (a point on a wall's edge that the
-polygon test leaves out goes to the full box); no beside input. `town-walk`'s walkers loop over open ground, which is
-the walking case.
+step measured; 113 of 256 blocked starts in the town and 147 of 256 in the forest before #1109 (a point on a wall's edge
+that the polygon test leaves out goes to the full box); no beside input. `town-walk`'s walkers loop over open ground,
+which is the walking case.
 
 Measured 2026-10-14 after rebasing on `ba0d327b`, before (`ba0d327b`'s navigator) and after (`eb50dfa5`), alternated
 on a mostly idle machine (another agent's work ran during some runs). The step is minimum–median–maximum over three
@@ -1072,12 +1072,12 @@ Same answers: `GroundedMovementShould.Answer_as_the_full_searches_do` compares t
 corners, edges and inside, at the polygon's height, exactly the climb above and below it, just past it and between
 floors, for idle, short, long and corner-ending steps, and (routes and sights, from one point in sixteen) to a 4 m
 target, a corner and the previous point, on the town (60 of its 313 polygons have a second floor over or under their
-centre), the forest (118 of 603) and a two-floor test mesh. It fails when the narrow box breaks a tie the other way,
-when the full box is not asked after a miss (either one also with only the route and sight checks left), when
-polygons at the point's edge are skipped, or when the search's height is used for a point not over its polygon.
-`Reach_every_polygon_within_the_climb_up_and_down` holds the narrow box's height: on a hand-built tile with 1 cm cells,
-two polygons 0.79 m apart both score zero and DotRecast answers the far one for one of the two points; a box of 0.1,
-0.5 or 0.75 m answers the near one. Baked meshes cannot show it: floors stand at least the agent's 2 m apart and
+centre), the forest (118 of 603 before #1109, not counted since) and a two-floor test mesh. It fails when the narrow box
+breaks a tie the other way, when the full box is not asked after a miss (either one also with only the route and sight
+checks left), when polygons at the point's edge are skipped, or when the search's height is used for a point not over
+its polygon. `Reach_every_polygon_within_the_climb_up_and_down` holds the narrow box's height: on a hand-built tile with
+1 cm cells, two polygons 0.79 m apart both score zero and DotRecast answers the far one for one of the two points; a box
+of 0.1, 0.5 or 0.75 m answers the near one. Baked meshes cannot show it: floors stand at least the agent's 2 m apart and
 DotRecast rounds their bounds out to the 0.3 m cell.
 
 BenchmarkDotNet 0.15.8, in-process toolchain, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, five warmups
@@ -1089,6 +1089,33 @@ and ten measured iterations. The scenario gate reads main's figures after #978 (
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*NavigationMovementBenchmarks*" --inProcess --warmupCount 5 --iterationCount 10
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*NavigationQueryBenchmarks*" --inProcess --warmupCount 5 --iterationCount 10
 ```
+
+**The forest since #1109 (2026-10-19).** The forest dressing's blockers (free-standing trunks, logs, custom rocks and
+the tree walls along the closed sides) cut the forest's navmesh into about twice as many polygons: over seeds 0 to 49
+the median mesh holds 1,578 polygons and 358 KiB, from 662 and 178 KiB on `main`, and bakes in about the same time
+(351 to 375 ms against 359 ms). Seed 7's forest changed with it, so the forest rows and counts above are the mesh
+before #1109; its polygon count since was not recorded. The same two benchmarks on `main` (`e86650046`), on the branch
+(`3fead41d3`), and on the branch's code over `main`'s forest chunk files (replay: the denser collision without the new
+layouts), three rounds each, minimum–median–maximum, measured 2026-10-19 on the developer machine (i9-12900K, Windows
+11, .NET 10.0.13, BenchmarkDotNet 0.15.8, in-process, five warmups and ten measured iterations). Allocations exact:
+
+| Forest | `main` | Branch | Replay | Branch / `main` (medians) | Allocated |
+|---|---:|---:|---:|---:|---:|
+| Step, idle | 170–170–172 ns | 179–179–182 ns | 180–181–188 ns | 1.05 | 0 B |
+| Step, walking | 289–291–292 ns | 309–317–320 ns | 315–316–324 ns | 1.09 | 0 B |
+| Step, mixed | 239–240–241 ns | 259–262–269 ns | 260–264–271 ns | 1.09 | 0 B |
+| Step, blocked | 339–346–361 ns | 513–532–543 ns | 523–540–549 ns | 1.54 | 0 B |
+| Step, beside | 526–554–569 ns | 893–898–923 ns | 871–894–920 ns | 1.62 | 0 B |
+| Route | 12,751–13,465–13,878 ns | 20,317–20,695–21,053 ns | 20,454–20,820–21,190 ns | 1.54 | 0 B |
+| Line of sight | 348–357–359 ns | 380–394–396 ns | 408–408–434 ns | 1.10 | 0 B |
+| Projectile step | 157–160–167 ns | 163–166–169 ns | 159–160–167 ns | 1.04 | 0 B |
+
+The cost is per query and follows the polygon count: a route about half as much again, an input that slides along a wall
+or starts beside the mesh 1.5 to 1.6 times, an idle, walking or mixed step and a line of sight 5 to 10% more, a
+projectile's step level. The replay reads as the branch does, so the new layouts change nothing here: the denser
+collision does. The DotRecast reference moves the same way on the forest (1.46 to 1.77 times, its projectile step 1.12),
+and every town row is level (0.94 to 1.03 times, branch and replay). Forest-combat tick time, calls per tick and the
+live navmesh's memory were not measured. The owner accepted the larger navmesh (2026-10-19).
 
 ### Grounded player movement — `NavigationMovementBenchmarks.cs` (#880, #896)
 
@@ -4214,9 +4241,10 @@ casting 30 to 72 times, none stuck: their forests (214, 288, 187 and 286 creatur
 So #1109 ran seeds 1 to 64, each forest in its party slot (the slot decides the party's classes; the first party has
 no healer), and took the four that give the largest fight together with deaths in it:
 
-| Slot | Seeds tried (kills / completions / pickups / heals landed over the run), best first |
+| Slot | Seeds tried (kills / completions / pickups / heals landed over the run), most kills first |
 |---|---|
 | 0 (warrior, wizard, hunter) | 45: 32/9/56/0, 13: 29/8/54/0, 5: 23/6/37/0, 57: 22/0/44/0, 1: 18/3/39/0, ... 37: 7/3/14/0 |
+| 0 again, after the tree walls, beside 46, 15 and 36 (the four forests' kills / deaths over the run; the 24 seeds with 3 deaths or more and every floor held) | 33: 134/4, 63: 133/3, 48: 132/3, 57: 131/3, 53: 128/3, 56: 127/3, 8: 126/4, 24: 126/3, 51: 126/5, ... 50: 106/8 |
 | 1 (healer, warrior, wizard) | 14: 38/12/70/7, 46: 35/9/65/7, 22: 34/3/63/8, 18: 34/3/61/7, 58: 33/9/63/7, 54: 30/9/60/6, ... 30: 3/0/7/8 |
 | 2 (hunter, healer, warrior) | 19: 37/6/69/6, 15: 34/9/61/6, 63: 34/0/65/7, 23: 31/9/55/6, 59: 30/6/56/5, 27: 27/18/51/8, ... 7: 14/3/27/7 |
 | 3 (wizard, hunter, healer) | 36: 38/6/66/5, 64: 32/9/55/4, 44: 32/6/63/4, 48: 31/12/67/3, 16: 30/6/46/7, 8: 29/9/56/5, ... 60: 1/0/2/6 |
@@ -4344,9 +4372,11 @@ summary.
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
 
-Four forests of about 840 creatures and twelve fighters cost about as much per tick as `town-walk`'s 30 walkers: most
-creatures are far from any player, and an idle creature's AI looks for players once a second rather than every tick.
-The minute allocated 0.62 MB on the tick thread before #972, and 0.86 MB since.
+Four forests of about 1,040 creatures (325 + 231 + 252 + 231 since #1109's seeds) and twelve fighters cost about as
+much per tick as `town-walk`'s 30 walkers (measured before #1109, when the four held about 840; not measured since):
+most creatures are far from any player, and an idle creature's AI looks for players once a second rather than every
+tick. The minute allocated 0.62 MB on the tick thread before #972, about 0.86 MB from #972, and about 1.36 MB since
+#1109's tree walls and seed 33 (22,633 B per window over the minute's 60 windows).
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
 holds its free segments in a stack under a lock per size class. It held them in a `ConcurrentQueue` per size: after a

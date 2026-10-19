@@ -128,7 +128,11 @@ public static class ForestDresser
     /// <summary>How far big cover (ferns, bushes, tall plants) keeps from a strip's centre line.</summary>
     public const float BigCoverStripClearance = ForestPaths.Width / 2f + 1.2f;
 
-    /// <summary>How much farther than the rules' least ground cover keeps from a strip and the hub, for the written file's rounding.</summary>
+    /// <summary>
+    /// How much farther than the rules' least ground cover keeps from a strip and the hub, for the rounding a position
+    /// takes on its way into a committed file and back: a set piece's member split (30 m taken off, the result rounded,
+    /// 30 m added back when the members are read together) and the file's 3 decimals.
+    /// </summary>
     public const float RoundingMargin = 0.01f;
 
     /// <summary>How far ground cover keeps from a doodad slot, and from a doodad_large slot (which may hold a solid doodad).</summary>
