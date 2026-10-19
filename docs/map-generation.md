@@ -324,11 +324,12 @@ Each player gets their own seed (server's `ProceduralChunkLayoutSource.NextSeed(
 
 ## Generated forest chunks
 
-The forest pieces are written by `tools/Avalon.ChunkGen`: seventeen single pieces and three set pieces, every forest
+The forest pieces are written by `tools/Avalon.ChunkGen`: thirty-two single pieces and three set pieces, every forest
 chunk but `forest_boss_01` (hand-made, out of the pool). Nine of the singles (`forest_entry_01`, `forest_path_01` to
 `_04`, `forest_junction_t`, `forest_junction_x`, `forest_clearing_01` and `forest_deadend_01`) were bare floors
 written by hand until forest dressing (#1109) ported them, their exits, spawn slots, tags and the entry's portal as
-they were; six of those floors had their top at y 0.05, and every forest floor now has it at 0. Each is a flat
+they were; six of those floors had their top at y 0.05, and every forest floor now has it at 0. Forest dressing also
+added fifteen, three of each exit shape (see "Overhangs and the fifteen pieces of #1109" below). Each is a flat
 30 x 30 m floor (the forest slab, y -0.2 to 0) with blockers on it, boxes for rocks and ruined walls and twelve-sided
 cylinders for tree clusters, trunks and pillars, 3 m tall. Blockers cut the navmesh (the agent climbs 0.9 m), so creatures path around them and walkable rays (movement,
 ground-target casts, projectiles) stop at them. What the client draws is the piece's decor file (see "Dressing the
@@ -408,6 +409,30 @@ rock boxes, walls and pillars are unchanged. The nine ported pieces have one or 
 (`avalon_rock_large_*` placed by `ForestDresser.Prop`, so their blockers are the rocks' footprints), a log and an
 edge tree line, ten blockers a piece; `forest_clearing_01` has four small drums in its corners instead. Their trees
 keep clear the lines the navmesh vectors' `forest-floors` rays run along (the Exporter's `navmesh` artifact).
+
+**Overhangs and the fifteen pieces of #1109.** Fifteen single pieces were added with the dressing, three of each exit
+shape, eight to twelve blockers each (tree drums, rock boxes and cylinders, ruin walls and pillars, logs and an edge
+tree line), every slot rule above kept:
+
+| Shape | Pieces |
+|---|---|
+| dead end | `forest_hollow_02` (its meeting point at (15, 17), deeper in), `forest_ruin_03`, `forest_mire_01` |
+| straight | `forest_rocks_03` (the arch), `forest_grove_01`, `forest_thicket_03` |
+| corner | `forest_rocks_04` (the overhang), `forest_glade_02`, `forest_mire_02` |
+| T junction | `forest_ruin_04`, `forest_grove_02`, `forest_thicket_04` |
+| cross | `forest_glade_03`, `forest_ruin_05`, `forest_grove_03` |
+
+Overhangs live in two single pieces only, both tagged `overhang` in the catalog, never in a set piece:
+`forest_rocks_03` stands `avalon_rock_arch` over its meeting point, its legs either side of both paths (4.3 m apart,
+the strip 2.8 m wide) and its span over them (its underside 2.95 m up, the agent 2 m tall); `forest_rocks_04` stands
+`avalon_rock_overhang` in the corner away from its exits, its ledge (underside 2.86 m) reaching over open floor
+toward the meeting point. Only the standing parts are blockers (the arch's legs, the overhang's base, as
+`ForestDresser.Prop` reads their footprints); the span and the ledge are drawn and walked under. Owner: one, at most
+two, chunks of a run carry an overhang. In `chunk-pools.json` each of the two is `{ "weight": 1, "max": 1 }` and every
+other forest single `{ "weight": 0.5 }`: the cap makes two the most a layout can hold, the weight twice the others'
+makes one usual, and the singles' half weight keeps the set pieces (which weigh 1) about as frequent as they were with
+seventeen singles. Over the committed 1000 seeds 160 layouts hold none, 457 one and 383 two
+(`CommittedForestGenerationShould` requires at most two in every layout and at least one in 80 %).
 
 **Collision tagging.** A dressed blocker is written `usemtl collision` in the chunk `.obj`, which the client does not
 draw, and the floor `usemtl forest_floor`, which the client gives its ground look; the server ignores both.
@@ -701,8 +726,9 @@ last step, every other group at most once per layout and no earlier than the con
 group ignores it). The forest's is 8, the step its 5-8 band begins (owner decision), so a party leaving the entry never
 meets a set piece's level 5-8 packs and Alphas in the next cells; the generator draws no number for a group it does not
 offer, so a pool without groups is unaffected. The forest's main path is 12-16 steps (raised from 10, owner decision),
-so every run has at least three steps a set piece may take: 690 non-boss set pieces in 1000 seeds (545 with a minimum
-of 10). The forest has three: `forest_clearing_big`,
+so every run has at least three steps a set piece may take: 661 non-boss set pieces in 1000 seeds (690 with the
+seventeen singles before #1109, whose fifteen more halved the singles' weight to keep that share; 545 with a minimum
+of 10, then). The forest has three: `forest_clearing_big`,
 `forest_grove_ruin` and the boss arena `forest_arena`. `forest_boss_01` is no longer in the forest pool (its files stay
 in the catalog), so the arena ends every run.
 
