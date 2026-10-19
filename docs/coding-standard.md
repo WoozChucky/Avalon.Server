@@ -171,7 +171,7 @@ private static readonly RcVec3f PolyPickExt = new(2, 4, 2);
 
 The exceptions are warnings about a project rather than a line, suppressed in that project's file with the reason:
 CS8002 in `Avalon.Common` (the vendored DotRecast.Core it references has no strong name), ASPIRE010 in the AppHost
-(it runs without the Aspire CLI bundle) and NU1510 on the framework packages `Avalon.Server.Auth` references.
+(it runs without the Aspire CLI bundle).
 
 ## Exclusions
 

@@ -7,8 +7,7 @@ namespace Avalon.Api.Identity.UnitTests.Authentication;
 
 /// <summary>
 /// The api's login limits (#478) are bound directly, not through validated options, so startup
-/// checks them itself: a limit below one would refuse every login, or never count one, and the
-/// Auth server refuses the same values under its own section.
+/// checks them itself: a limit below one would refuse every login, or never count one.
 /// </summary>
 public class LoginLimitsShould
 {

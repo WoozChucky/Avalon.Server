@@ -6,8 +6,8 @@ namespace Avalon.Database;
 /// <summary>
 /// Refuses a <see cref="DatabaseConfiguration"/> in which a database the host opens has no
 /// connection string (#543). Which ones are needed depends on the host, so this is registered by
-/// each host rather than written as annotations on the shared class: the auth server opens Auth
-/// only, the world server all three. Each failure names the setting, e.g.
+/// each host rather than written as annotations on the shared class. The world server opens all
+/// three databases. Each failure names the setting, e.g.
 /// <c>Database:Auth:ConnectionString is required.</c>
 /// </summary>
 public sealed class DatabaseConnectionsValidation(string configurationSection, DatabaseConnections required)

@@ -25,8 +25,7 @@ namespace Avalon.Api.Identity.UnitTests.Services;
 
 /// <summary>
 /// #478: the REST password login ignored the account lock, counted no failure and had no budget,
-/// so it was a way around the lockout that protects the game client's login. It now runs the
-/// login policy the Auth server runs, over the same Redis keys and the same SQL writes. These run
+/// so it bypassed lockout. Identity now applies the login policy's Redis budgets and guarded SQL writes. These run
 /// the real service over a real relational schema and a cache whose counters behave like the
 /// Redis scripts.
 /// </summary>
@@ -119,7 +118,7 @@ public sealed class RestLoginPolicyShould : IDisposable
         return await context.Accounts.AsNoTracking().SingleAsync(a => a.Id == id);
     }
 
-    /// <summary>The key format both servers use, computed here without the code under test.</summary>
+    /// <summary>The identity username-budget key format, computed here without the code under test.</summary>
     private static string UsernameKey(string username) =>
         $"auth:username:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(username.Trim().ToUpperInvariant())))}:failedLogins";
 

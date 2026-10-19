@@ -45,30 +45,9 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
         DateTime? lockUntil, CancellationToken cancellationToken = default) =>
         inner.RecordFailedLoginAsync(id, attemptIp, now, lockUntil, cancellationToken);
 
-    public Task<bool> TryRecordLoginAsync(AccountId id, string lastIp, DateTime now, Guid sessionId,
-        CancellationToken cancellationToken = default) =>
-        inner.TryRecordLoginAsync(id, lastIp, now, sessionId, cancellationToken);
-
     public Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now,
         CancellationToken cancellationToken = default) =>
         inner.TryRecordApiLoginAsync(id, lastIp, now, cancellationToken);
-
-    public Task MarkOfflineAsync(AccountId id, Guid? sessionId, long sessionSeconds = 0,
-        CancellationToken cancellationToken = default) =>
-        inner.MarkOfflineAsync(id, sessionId, sessionSeconds, cancellationToken);
-
-    /// <summary>Runs right after the online sessions are read: a login landing before the sweep writes.</summary>
-    public Func<Task>? AfterOnlineRead { get; init; }
-
-    public async Task<IReadOnlyList<OnlineSession>> ListOnlineSessionsAsync(CancellationToken cancellationToken = default)
-    {
-        IReadOnlyList<OnlineSession> sessions = await inner.ListOnlineSessionsAsync(cancellationToken);
-        if (AfterOnlineRead != null) await AfterOnlineRead();
-        return sessions;
-    }
-
-    public Task MarkAllOfflineAsync(CancellationToken cancellationToken = default) =>
-        inner.MarkAllOfflineAsync(cancellationToken);
 
     public Task<PagedResult<Account>> PaginateAsync(EntityPaginateFilter<Account> filter, bool track = false,
         CancellationToken cancellationToken = default) => inner.PaginateAsync(filter, track, cancellationToken);

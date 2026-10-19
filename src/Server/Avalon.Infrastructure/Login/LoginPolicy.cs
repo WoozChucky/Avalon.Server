@@ -8,12 +8,11 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.Infrastructure.Login;
 
 /// <summary>
-/// The login rules both servers enforce (#478), so the game client's TCP login and the REST API's
-/// cannot drift apart again: the per-source and per-username budgets taken before any work, the
+/// The identity login rules: per-source and per-username budgets taken before any work, the
 /// account lock checked before the proof, failures counted in SQL and, in the budget's last slot,
-/// locking the account. The Redis keys are the same on both servers (<see cref="SourceBudget"/>,
-/// <see cref="UsernameBudget"/>), so a guess over either spends the same budget. The caller answers
-/// each outcome in its own protocol, then tells the policy how the attempt ended: a failure
+/// locking the account. All identity replicas share the Redis keys (<see cref="SourceBudget"/>,
+/// <see cref="UsernameBudget"/>). The caller answers each outcome, then tells the policy how the
+/// attempt ended: a failure
 /// (<see cref="RecordFailureAsync"/>), a pause on the way to a login (<see cref="GiveBackAsync"/>),
 /// or a completed login (<see cref="CompleteAsync"/>). Every other ending keeps both slots.
 /// </summary>

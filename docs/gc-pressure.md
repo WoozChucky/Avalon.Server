@@ -4,8 +4,8 @@
 > and are kept as a record. Since then: the line numbers no longer match; the client-side types it names
 > (`AvalonSession`, `AvalonTcpClient`) belong to the retired Unity client, and the packet registry types
 > (`IPacketHandler`, `IPacketRegistry`, `PacketRegistry`) are deleted; the accept path is one awaited
-> `AcceptTcpClientAsync` loop (#578, #584), not `OnClientAccepted`; the auth server's outbound queue is a bounded
-> `Channel` (`ChannelOutbox`) and a world connection's a `ConnectionSender` written by a send thread (#875); entity state is the `ObjectState` message (GC-002); and GC-014's LINQ is gone:
+> `AcceptTcpClientAsync` loop (#578, #584), not `OnClientAccepted`; a world connection's outbound queue is a
+> `ConnectionSender` written by a send thread (#875); entity state is the `ObjectState` message (GC-002); and GC-014's LINQ is gone:
 > `SInstanceStateRemovePacket.Create` fills a list sized to the removes (#640), so one `List<ulong>` per remove packet
 > is what remains.
 
@@ -76,7 +76,7 @@ corrupt client, and a slice valid only until the buffer was returned.
 
 ## GC-003 — `WorldServer.Connections` rebuilds `ImmutableArray` every tick
 
-**Status:** Resolved — `private ImmutableArray<T> _typedConnections` field in `ServerBase<T>` (exposed as `protected ImmutableArray<T> TypedConnections`), maintained via `ImmutableInterlocked.Update` on connect/disconnect. `WorldServer.Connections` and `AuthServer.Connections` read via zero-allocation `CastArray<TInterface>()`. Rebuild cost moved from O(n) per tick to O(n) per connection lifecycle event.  
+**Status:** Resolved — `private ImmutableArray<T> _typedConnections` field in `ServerBase<T>` (exposed as `protected ImmutableArray<T> TypedConnections`), maintained via `ImmutableInterlocked.Update` on connect/disconnect. `WorldServer.Connections` reads via zero-allocation `CastArray<TInterface>()`. Rebuild cost moved from O(n) per tick to O(n) per connection lifecycle event.
 **Severity:** Critical  
 **File:** `src/Server/Avalon.Hosting/Networking/ServerBase.cs`
 
@@ -279,7 +279,7 @@ types — verify `LockedQueue<T>` is generic enough to store structs without box
 
 ## GC-010 — `WorldServer.GetContextPacket` uses `Activator.CreateInstance` + reflection `SetValue` per packet
 
-**Status:** Resolved — `_propertyCache (PropertyInfo, PropertyInfo)` replaced with `_contextFactoryCache: ConcurrentDictionary<Type, Func<IConnection, Packet?, object>>` in both `WorldServer` and `AuthServer`. Factory built once per type via `BuildContextFactory<TPacket>()` + `MakeGenericMethod`. `GetContextPacket` is now one dict lookup + one delegate call. Primary win is CPU speed (eliminates `Activator.CreateInstance` + `SetValue × 2` per dispatch); allocation count unchanged (one boxed struct per call in both paths).  
+**Status:** Resolved — `_propertyCache (PropertyInfo, PropertyInfo)` replaced with `_contextFactoryCache: ConcurrentDictionary<Type, Func<IConnection, Packet?, object>>` in `WorldServer`. Factory built once per type via `BuildContextFactory<TPacket>()` + `MakeGenericMethod`. `GetContextPacket` is now one dict lookup + one delegate call. Primary win is CPU speed (eliminates `Activator.CreateInstance` + `SetValue × 2` per dispatch); allocation count unchanged (one boxed struct per call).
 **Severity:** Medium  
 **File:** `src/Server/Avalon.World/WorldServer.cs:238–242`
 
@@ -309,7 +309,7 @@ Func<IConnection, Packet, object> factory = (conn, pkt) => new WorldPacketContex
 
 ## GC-011 — `ServerBase.CallListener` boxes invoke arguments per packet
 
-**Status:** Resolved — `Task ExecuteAsync(object context, CancellationToken token)` added to `IPacketHandlerNew`; DIM implementations on `IAuthPacketHandler<T>` and `IWorldPacketHandler<T>` bridge to strongly-typed `ExecuteAsync` via context unbox. `CallListener` is now one cast + one virtual dispatch. `ExecuteMethod: MethodInfo` removed from `PacketHandlerCache`; `using System.Reflection` removed from `ServerBase`. Eliminates `new object[2]` args array + boxed `CancellationToken` per dispatch (64 B/call measured). Legacy `IPacketHandler`/`IPacketRegistry`/`PacketRegistry`/`AvalonTcpClient` deleted.  
+**Status:** Resolved — `Task ExecuteAsync(object context, CancellationToken token)` added to `IPacketHandlerNew`; DIM implementation on `IWorldPacketHandler<T>` bridges to strongly-typed `ExecuteAsync` via context unbox. `CallListener` is now one cast + one virtual dispatch. `ExecuteMethod: MethodInfo` removed from `PacketHandlerCache`; `using System.Reflection` removed from `ServerBase`. Eliminates `new object[2]` args array + boxed `CancellationToken` per dispatch (64 B/call measured). Legacy `IPacketHandler`/`IPacketRegistry`/`PacketRegistry`/`AvalonTcpClient` deleted.
 **Severity:** Medium  
 **File:** `src/Server/Avalon.Hosting/Networking/ServerBase.cs:183`
 

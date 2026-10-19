@@ -198,7 +198,7 @@ public class PacketReaderShould
 
     /// <summary>
     /// A sealed payload is opened into a buffer rented from the shared array pool, which hands the array to whoever
-    /// rents next: on the auth server what was opened is a login or a registration. So what was written is cleared
+    /// rents next. What was written is cleared
     /// before the buffer goes back, whether the payload then decoded or not.
     /// </summary>
     [Theory]

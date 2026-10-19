@@ -89,7 +89,7 @@ public interface IAvalonCryptoSession
 /// <para>
 /// Seals (Encrypt, Encryptor, SealInto) must be totally ordered, each happening after the last (one thread, a lock, a
 /// queue hand-off or an await); the same applies to opens (Decrypt) (#875). On the world server the connection's send
-/// thread seals and its read loop opens; on the auth server its drain task seals and its read loop opens; a client
+/// thread seals and its read loop opens; a client
 /// orders its own seals, and its own opens. Each direction has its own <see cref="AesGcm"/>, so the two need no lock
 /// between them, and the session takes none.
 /// </para>

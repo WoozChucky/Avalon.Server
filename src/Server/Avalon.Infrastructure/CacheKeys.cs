@@ -34,27 +34,21 @@ public static class CacheKeys
     // ── Pub/Sub Channels (fixed) ──────────────────────────────────────────────
 
     /// <summary>
-    /// Published, with the account id, whenever an account's sessions must end: a duplicate login,
-    /// a password change, an MFA reset or removal, an email change, a refresh-token reuse. A ban or a
+    /// Published, with the account id, whenever an account's sessions must end: a password or role
+    /// change, an MFA reset or removal, an email change, a refresh-token reuse. A ban or a
     /// deactivation publishes on <see cref="WorldAccountsStatusChannel"/> instead (#882).
-    /// Subscribed by World servers to close the matching in-world connection, and by the Auth server
-    /// to close the account's logged-in auth connections (#495).
+    /// Subscribed by World servers to close every matching connection.
     /// </summary>
     public const string WorldAccountsDisconnectChannel = "world:accounts:disconnect";
 
     /// <summary>
     /// Published by the API's identity service when an account is banned or deactivated (#882), instead of
     /// <see cref="WorldAccountsDisconnectChannel"/>: <c>{accountId}|BANNED</c> or <c>{accountId}|DEACTIVATED</c>
-    /// (<see cref="AccountStatusNotice"/>). World servers and the Auth server close the account's connections with the
+    /// (<see cref="AccountStatusNotice"/>). World servers close the account's connections with the
     /// matching <c>DisconnectReason</c>. A server that does not listen still ends the session: the ban moved the
     /// account's session epoch, so its next heartbeat is refused.
     /// </summary>
     public const string WorldAccountsStatusChannel = "world:accounts:status";
-
-    /// <summary>
-    /// Published by the Auth server when an account successfully authenticates.
-    /// </summary>
-    public const string AuthAccountsOnlineChannel = "auth:accounts:online";
 
     // ── Pub/Sub Channels (dynamic) ────────────────────────────────────────────
 
@@ -73,8 +67,8 @@ public static class CacheKeys
     // ── String Keys ───────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Login and MFA-code attempts from one source, across every account it tried (#471), over the game
-    /// client's TCP login and the REST API alike (#478).
+    /// REST password and MFA-code attempts from one source, across every account it tried.
+    /// Shared by all identity replicas.
     /// The source is an IPv4 address, or an IPv6 /64 prefix written <c>prefix::/64</c>.
     /// Value: counter written with INCR before each attempt; a correct password or code gives its own
     /// slot back with a floored DECR. Expires at the end of a fixed window from the first attempt
@@ -128,14 +122,13 @@ public static class CacheKeys
     public static string EmailChangeSends(string emailHash) => $"auth:email:{emailHash}:emailChangeSends";
 
     /// <summary>
-    /// Login and MFA-code attempts at one username, from every source and over both the TCP login and the
-    /// REST API (#484, #478). It decides
-    /// the account lock: an attempt past <c>Application:MaxFailedLoginAttempts</c> is refused as
+    /// REST password and MFA-code attempts at one username, from every source and identity replica. It decides
+    /// the account lock: an attempt past <c>Application:Authentication:MaxFailedLoginAttempts</c> is refused as
     /// LOCKED before the username is looked up, whether or not an account has it. The segment is the
     /// lowercase hex SHA-256 of the username trimmed and upper-cased (the form it is looked up by),
     /// so the key's length does not depend on what a client sends.
     /// Value: counter written with INCR before each attempt. Expires
-    /// <c>Application:LockoutDurationMinutes</c> (default 15) after the first attempt. The failure
+    /// <c>Application:Authentication:LockoutDurationMinutes</c> (default 15) after the first attempt. The failure
     /// that reaches the limit holds it in one script (raised to at least the limit + 1 and SET with
     /// a fresh expiry, recreated if it had expired), so the refusal outlasts the account row's lock.
     /// A correct password that issues an MFA hash gives its own slot back in one script that

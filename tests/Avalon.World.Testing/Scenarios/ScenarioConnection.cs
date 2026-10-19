@@ -195,7 +195,6 @@ public sealed class ScenarioConnection : IWorldConnection, IDisposable
         public Task RemoveConnection(IConnection connection) => throw new NotSupportedException();
         public Task CallListener(IConnection connection, NetworkPacketHeader header, Packet? payload) => throw new NotSupportedException();
         public long ServerTime => throw new NotSupportedException();
-        public int SendBufferCapacity => throw new NotSupportedException();
         public void CallConnectionListener(IConnection connection) => throw new NotSupportedException();
     }
 

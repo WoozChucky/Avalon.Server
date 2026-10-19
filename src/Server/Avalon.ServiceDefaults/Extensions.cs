@@ -58,7 +58,6 @@ public static class Extensions
                 metrics.SetExemplarFilter(ExemplarFilterType.TraceBased);
 
                 metrics.AddMeter("world-server");
-                metrics.AddMeter("auth-server");
                 // The REST API's own instruments, such as its rate-limit rejections (#561).
                 metrics.AddMeter("avalon-api");
 
@@ -76,7 +75,6 @@ public static class Extensions
                 }
 
                 tracing.AddSource("world-server");
-                tracing.AddSource("auth-server");
 
                 tracing.AddAspNetCoreInstrumentation()
                     // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)

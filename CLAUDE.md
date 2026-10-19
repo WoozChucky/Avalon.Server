@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for agents working in this repository. Avalon is an MMORPG server: a TCP auth server, TCP world servers, a REST API and the tooling around them. This file holds the commands, the project map, the working rules and the invariants that cut across subsystems. Every subsystem has its own page under `docs/` (listed below): **read that page before changing the subsystem** — the rules there encode races, orderings and owner decisions that are not obvious from the code.
+Guidance for agents working in this repository. Avalon is an MMORPG server: TCP world servers, a REST API and the tooling around them. This file holds the commands, the project map, the working rules and the invariants that cut across subsystems. Every subsystem has its own page under `docs/` (listed below): **read that page before changing the subsystem** — the rules there encode races, orderings and owner decisions that are not obvious from the code.
 
 ## Commands
 
@@ -11,8 +11,8 @@ dotnet build --no-restore
 dotnet test --no-build
 
 # One test project, or one class or method
-dotnet test tests/Avalon.Server.World.UnitTests
-dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAuthHandlerShould"
+dotnet test tests/Avalon.Api.Identity.UnitTests
+dotnet test tests/Avalon.Server.World.UnitTests --filter "FullyQualifiedName~WorldHandshakeHandlerShould"
 
 # A local run, clone to client in world (docs/development-setup.md#from-clone-to-client-in-world).
 dotnet dev-certs https --trust                      # once per machine: the API serves https with it
@@ -21,7 +21,6 @@ dotnet run --project src/Server/Avalon             # Aspire AppHost: containers,
 docker compose up -d redis postgres
 dotnet run --project tools/Avalon.LocalDev -- setup # signing keys, the world's TLS certificates, user-secrets
 dotnet run --project src/Server/Avalon.Api          # all four API services; https://localhost:7166, http://localhost:5210
-dotnet run --project src/Server/Avalon.Server.Auth
 dotnet run --project src/Server/Avalon.Server.World
 dotnet run --project tools/Avalon.LocalDev -- check # ADMIN/123 through the client's REST chain to a join ticket
 dotnet run --project tools/Avalon.LocalDev -- login # a game ticket for the client (--launch <runtime.exe>)
@@ -58,7 +57,6 @@ Target framework: .NET 10 (`global.json`). The long notes — the local run (the
 | REST API host | `src/Server/Avalon.Api` | Runs the API services `Application:Services` names, all four in one process when unset (production runs one release per service, #802); the `avalon-api` chart and its route manifest (`files/routes.json`); OpenAPI with Scalar at `/scalar` (served in Development, or with `Application:ApiDocs:Enabled`, #803); the EF design-time startup project ([docs/api-services.md](docs/api-services.md)) |
 | API services | `src/Server/Avalon.Api.Identity`, `.Worlds`, `.Commerce`, `.Distribution` | identity (accounts, MFA, tokens, client auth, game admission; migrates the auth schema), worlds (world content, characters, public tooltips), commerce (checkout, payments), distribution (launcher, releases, channels); none references another (`ApiServiceBoundariesShould`) |
 | API shared | `src/Server/Avalon.Api.Hosting`, `src/Server/Avalon.Api.Contract` | The host builder, pipeline, startup, token validation, rate limiting and world database plumbing every service runs on; the REST contract (DTOs) |
-| Auth server | `src/Server/Avalon.Server.Auth` | TCP login (password, then MFA), MFA management, the world list; world entry is the REST game admission (join and reconnect tickets), not the auth server |
 | World server | `src/Server/Avalon.Server.World` | Tick loop host, connections, packet dispatch, world lifecycle |
 | Core world | `src/Server/Avalon.World` | Instances, entities, abilities, creatures and AI, parties, quests, auras, items, chat commands |
 | Modding API | `src/Server/Avalon.World.Public` | The future public surface for scripts and addons (see Working rules) |
@@ -66,7 +64,7 @@ Target framework: .NET 10 (`global.json`). The long notes — the local run (the
 | Map generation | `src/Server/Avalon.World.Generation` | Chunk layouts, pools, groups, procedural layout generation |
 | Combat maths | `src/Server/Avalon.Combat` | Pure combat rules shared by the world server, the API and the balance simulator; references `Avalon.Domain` only (`CombatAssemblyShould`) |
 | Hosting | `src/Server/Avalon.Hosting` | Host builder, the TCP server (`Networking/ServerBase`), telemetry |
-| Infrastructure | `src/Server/Avalon.Infrastructure` | `IReplicatedCache` (Redis), `CacheKeys` (every Redis key), MFA hash service, `ISecureRandom`, and `Login/` (the login policy shared by the auth server and the API) |
+| Infrastructure | `src/Server/Avalon.Infrastructure` | `IReplicatedCache` (Redis), `CacheKeys` (every Redis key), MFA hash service, `ISecureRandom`, and `Login/` (the identity API’s login policy) |
 | Databases | `src/Server/Avalon.Database`, `.Database.Auth`, `.Database.World`, `.Database.Character` | EF Core (Npgsql) contexts, repositories, migrations, design-time factories |
 | Balance | `src/Server/Avalon.Balance.Core`, `.Balance.Data`, `.Balance.Contract`, `.Balance.Service` | Simulator library (Core references Combat and Domain only, `BalanceCoreAssemblyShould`), seed reader, DTOs, in-cluster service |
 | Aspire | `src/Server/Avalon`, `src/Server/Avalon.ServiceDefaults` | Local AppHost and shared service defaults |
@@ -95,7 +93,7 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 - **Reflection-bound registration: a reference grep proves nothing.** Packet handlers are found by attribute scan; AI, ability, quest, item, aura and doodad scripts by type name (`ScriptManager`, names stored in the database) and built with `ActivatorUtilities` at fixed call sites with fixed runtime arguments (AI: `CreateInstance` with `(creature, instance)`; ability: `(ability, caster, aim, arena)` through `AbilityScriptActivator`, one factory per script type that binds by the declared types `IAbility`, `IUnit`, `AbilityAim` and `IAbilityArena`, so a constructor parameter narrower than one of them never binds; an ability script has exactly one public constructor accepting the four, or marks one `[ActivatorUtilitiesConstructor]`, and takes the aim as `AbilityAim`, never as `object` (#925); quest, item, aura and doodad scripts: `CreateInstance` with none, over `QuestScriptServices`, which hands out only loggers and `TimeProvider`). The `*ConstructibilityShould` tests build every shipped and seeded script that way. Never rename or delete such a type on grep evidence alone.
 - **Commands run on the tick and never await**: `ICommand.Execute` is `void`; slow work goes through `ctx.Then` (`CommandsNeverBlockTheTickShould`).
 - **Access levels are `[Flags]`**: test with `AccessLevels.ForWorld(...).Allows(...)` or `RequiredAccess.Allows(...)`, never `<=`/`>=` (PTR 32 and Tournament 16 are numerically above Admin 4).
-- **Rows are written by column, never whole**: account writes (`AccountRepository` / `IAccountRepository` methods such as `TryRecordLoginAsync`, `MarkOfflineAsync`, `SetPasswordAsync`) never write back a row that was read, so a ban or lock written in between survives. Character names change only by insert or `TryRenameAsync`.
+- **Rows are written by column, never whole**: account writes (`AccountRepository` / `IAccountRepository` methods such as `TryRecordApiLoginAsync`, `SetPasswordAsync`) never write back a row that was read, so a ban or lock written in between survives. Character names change only by insert or `TryRenameAsync`.
 - **Memory is authoritative for a character in the world**: change items only through `IInventoryService` and money only through `IWallet`; writing a container directly, or `ICharacterInventory.Load` after select, is neither saved nor sent ([docs/inventory-and-saves.md](docs/inventory-and-saves.md)).
 - **An open NPC conversation is checked on every use**: any handler acting on it (bank, shop, quest, dialogue choice) re-checks the dialogue leash (`NpcInteraction.IsWithinLeash`).
 - **Value objects** (`ValueObject<T>`: `AccountId`, `WorldId`, `CharacterId`, ...) stay inside the server: EF uses `HasConversion`, packets declare primitives, REST DTOs declare primitives (`ApiContractShould`). Nothing serializes them automatically ([docs/valueobject-openapi.md](docs/valueobject-openapi.md)).
@@ -104,12 +102,11 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 ## Subsystems
 
 ### Networking
-- [Packet protocol](docs/networking-packet-protocol.md): custom TCP with protobuf-net; every packet is a `NetworkPacket` (header: `NetworkPacketType` opcode, flags, protocol, version) around a payload; a frame a peer sends may declare at most `Hosting:MaxInboundFrameSize` bytes (16,384), and must complete within `Hosting:InboundFrameTimeoutSeconds` (10 s) of its first byte (#938), on both servers. Also [schema design](docs/networking-proto-schema-design.md), [session crypto](docs/crypto-v1-derivation.md), [graceful shutdown](docs/networking-graceful-shutdown.md).
-- [Packet handlers, session filters, reflection-bound registration](docs/packet-handlers.md): auth handlers implement `IAuthPacketHandler<T>` (DI); world handlers `IWorldPacketHandler<T>` or `WorldPacketHandler<T>` with `[PacketHandler(NetworkPacketType.X)]`, built by `ActivatorUtilities`. Also the receive queue's depth cap (`Network:MaxReceiveQueueDepth`, #927): a connection with that many packets (2,048) waiting for the tick that sends another is closed. And what the read loop logs for a frame a peer got wrong (#897): one Warning per connection and a count (`network.in.protocol_kicks`), never the exception; an unknown opcode is dropped, a Warning for the first on a connection.
+- [Packet protocol](docs/networking-packet-protocol.md): custom TCP with protobuf-net; every packet is a `NetworkPacket` (header: `NetworkPacketType` opcode, flags, protocol, version) around a payload; a frame a peer sends may declare at most `Hosting:MaxInboundFrameSize` bytes (16,384), and must complete within `Hosting:InboundFrameTimeoutSeconds` (10 s) of its first byte (#938), on the world server. Also [schema design](docs/networking-proto-schema-design.md), [session crypto](docs/crypto-v1-derivation.md), [graceful shutdown](docs/networking-graceful-shutdown.md).
+- [Packet handlers, session filters, reflection-bound registration](docs/packet-handlers.md): world handlers implement `IWorldPacketHandler<T>` or `WorldPacketHandler<T>` with `[PacketHandler(NetworkPacketType.X)]`, built by `ActivatorUtilities`. Also the receive queue's depth cap (`Network:MaxReceiveQueueDepth`, #927): a connection with that many packets (2,048) waiting for the tick that sends another is closed. And what the read loop logs for a frame a peer got wrong (#897): one Warning per connection and a count (`network.in.protocol_kicks`), never the exception; an unknown opcode is dropped, a Warning for the first on a connection.
 
 ### Auth and accounts
-- [Auth server login flow](docs/auth-server.md): handshake, password and MFA login, the world list (world entry is the REST game admission, see [API services](docs/api-services.md)), per-source and per-username login budgets (`SourceBudget`, `UsernameBudget`), `Online` owned by one connection, the online sweep, unique usernames and emails, single-use TOTP, `PostLoginGuard`, and the Redis keys. Exactly one auth server is supported.
-- [REST API authentication](docs/api-authentication.md): access JWTs and PATs revalidated per request (`AccountAccessCheck`), refresh rotation with a 5 s grace, the shared login policy, reauthentication for sensitive actions, rate limiting, registration budgets, credentials version (`cver`), email change.
+- [REST API authentication](docs/api-authentication.md): access JWTs and PATs revalidated per request (`AccountAccessCheck`), refresh rotation with a 5 s grace, the login policy, reauthentication for sensitive actions, rate limiting, registration budgets, credentials version (`cver`), email change.
 - [Redis keys](docs/redis-cache-keys.md) (most literals live in `CacheKeys`), [session management](docs/security-session-management.md), [email verification](docs/email-verification.md), Steam: [authentication](docs/steam-authentication.md), [workloads](docs/steam-authentication-workloads.md), [account links](docs/steam-account-links.md).
 
 ### REST API
@@ -150,7 +147,6 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
   A refactor that moves code moves its tests and adds none for the move itself. Before adding a test, check that no existing one already fails when this behaviour breaks. When in doubt, one scenario test through the public surface beats several tests of its parts.
 - xUnit with NSubstitute; files are `<Subject>Should.cs`, methods `Should_<verb>_<condition>` or a descriptive sentence.
 - No real Redis or Postgres in unit tests: external dependencies are substituted (database tests use SQLite in memory).
-- Auth handler tests build handlers directly (`new CAuthHandler(...)` with `NullLoggerFactory` and substitutes).
 - Guard tests protect invariants that are easy to break silently: `ModelDriftShould`, `SeedIntegrityShould`, `WireSchemaShould`, the `*ConstructibilityShould` script tests, `WorldHostGraphShould`, `CommandsNeverBlockTheTickShould`, `ApiContractShould`, `CombatAssemblyShould`, `BalanceCoreAssemblyShould`, `SimulatorParityShould`, `ScenarioAllocationsShould` (fails over 1% and 256 B above the committed baseline, in every build and for every scenario), `SessionDelegatesShould`, and the API split's (`RouteOwnershipShould`, `EveryRouteReachableShould`, `ApiHostGraphShould`, `ApiServiceBoundariesShould`, `CrossServiceAuthenticationShould`). Never delete one to make a change pass.
 
 ## Open work

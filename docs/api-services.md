@@ -135,7 +135,7 @@ traces and metrics of one deployment say which services it ran.
 ### The auth schema
 
 Identity owns the auth database's schema: a process that runs identity migrates it at startup, as `Avalon.Api`
-always did (the TCP auth server migrates it too, and EF's migration lock serialises the two). A process without
+always did. The TCP auth host was removed in #1097. A process without
 identity never migrates: it waits until the auth database has no migration its build knows of pending, checking every
 5 seconds, and fails, naming `Application:Startup:AuthSchemaWaitSeconds` (default 300, whole seconds, at least 1),
 once the wait is spent (`AuthSchemaGate`). So a worlds, commerce or distribution process started before identity's
@@ -421,7 +421,7 @@ dotnet run --project src/Server/Avalon.Api -- --Application:Services:0=worlds --
 ```
 
 It then maps only that service's routes (any other path answers 404). Without identity it waits for the auth schema,
-which identity, or the auth server, migrates.
+which identity migrates.
 
 ## The smoke check
 

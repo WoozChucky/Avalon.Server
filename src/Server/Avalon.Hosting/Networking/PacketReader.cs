@@ -183,8 +183,8 @@ public class PacketReader : IPacketReader
         {
             if (rented != null)
             {
-                // The opened payload is cleared before its buffer goes back to the pool: on the auth server it is a
-                // login or a registration, and the pool hands the array to whoever rents next. Nothing that rents
+                // The opened payload is cleared before its buffer goes back to the pool, which hands the array to
+                // whoever rents next. Nothing that rents
                 // reads before it writes, so this is a second line and not a fix. Only what was written is cleared,
                 // not the whole array: a frame is at most Hosting:MaxInboundFrameSize, and most are tens of bytes.
                 rented.AsSpan(0, opened).Clear();

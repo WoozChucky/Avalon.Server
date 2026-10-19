@@ -738,19 +738,9 @@ public class ArrivalBenchmarks
         public Task<FailedLoginResult> RecordFailedLoginAsync(AccountId id, string attemptIp, DateTime now, DateTime? lockUntil,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
-        public Task<bool> TryRecordLoginAsync(AccountId id, string lastIp, DateTime now, Guid sessionId,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
         public Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
-        public Task MarkOfflineAsync(AccountId id, Guid? sessionId, long sessionSeconds = 0,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task MarkAllOfflineAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<IReadOnlyList<OnlineSession>> ListOnlineSessionsAsync(CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
     }
 }
 

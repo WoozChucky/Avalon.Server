@@ -1,16 +1,16 @@
 ---
 name: add-packet-handler
-description: Scaffold a new packet handler for the Auth or World server following Avalon conventions
+description: Scaffold a new packet handler for the World server following Avalon conventions
 ---
 
 The user wants to add a new packet handler. Gather the following before writing any code:
 
 1. **Packet name** — e.g. `CInventoryRequest` (client→server always starts with `C`, server→client with `S`)
-2. **Target server** — `Auth` or `World`
+2. **Handler layer** — world connection admission/version handshake, or tick-thread gameplay
 3. **Opcode** — the `NetworkPacketType` enum value name (e.g. `CMSG_INVENTORY_REQUEST`) and its hex value (pick the next available in the appropriate range: client packets `0x2xxx`, server packets `0x3xxx`)
 4. **Payload fields** — the Protobuf-net fields the packet carries (name, type, ProtoMember index)
 5. **Response packet** — is there a server→client response? If so, what fields does it carry?
-6. **For World game packets only** — what connection state is required? Pre-character (character selection screen) or in-map (character loaded and in a map)?
+6. **For game packets** — what connection state is required? Pre-character (character selection screen) or in-map (character loaded and in a map)?
 
 If any of the above are unclear, ask before writing code.
 
@@ -22,11 +22,9 @@ If any of the above are unclear, ask before writing code.
 
 ```
 OnReceive(packet)
-  ├─ WorldSessionFilter.CanProcess() == true  ─┐
-  │  OR MapSessionFilter.CanProcess() == true  ─┤→ _receiveQueue → tick thread → WorldPacketHandler<T>
-  │                                             │   (Avalon.World/Handlers/)
-  └─ neither filter matches ────────────────────┘→ Server.CallListener() → IWorldPacketHandler<T>
-                                                    (Avalon.Server.World/Handlers/, runs on receive thread)
+  ├─ CMSG_GAME_ADMISSION / CMSG_WORLD_HANDSHAKE → Server.CallListener() (receive path)
+  ├─ authorized gameplay accepted by a session filter → _receiveQueue → tick thread
+  └─ every other packet → dropped at arrival
 ```
 
 **Tick-thread path** (`Avalon.World` handlers, `WorldPacketHandler<T>`):
@@ -37,17 +35,14 @@ OnReceive(packet)
 
 **Receive-thread path** (`Avalon.Server.World` handlers, `IWorldPacketHandler<T>`):
 - Executes immediately on the network receive thread (async)
-- Suitable for connection setup/teardown (world key exchange, handshake)
+- Used only for `CMSG_GAME_ADMISSION` and `CMSG_WORLD_HANDSHAKE`
 - **Do not touch `MapInstance` or character state here** — no tick-thread safety
 
-**Filter logic** (both checked in `OnReceive`):
+**Filter logic:** `WorldSessionFilter` accepts the session packets for the current connection state;
+`MapSessionFilter` accepts in-map gameplay packets. Read their current opcode lists before editing them.
+Authorization and the packet's state are checked again when the tick dispatches it.
 
-| Filter | Condition | Allowed opcodes |
-|---|---|---|
-| `WorldSessionFilter` | `connection.Character == null` | `CMSG_CHARACTER_LIST`, `CMSG_CHARACTER_CREATE`, `CMSG_CHARACTER_DELETE`, `CMSG_CHARACTER_SELECTED`, `CMSG_PONG` (always) |
-| `MapSessionFilter` | `connection.Character != null && character.Map >= 1` | `CMSG_MOVEMENT`, `CMSG_ATTACK`, `CMSG_CHARACTER_RUN_WALK`, `CMSG_ENTER_MAP`, `CMSG_CHAT_MESSAGE` |
-
-**A new game packet must be added to the correct filter** — without this, `OnReceive` will route it to `Server.CallListener` instead of the tick-thread queue.
+**A new game packet must be added to the correct filter** — without this, `OnReceive` drops it at arrival. No other packet falls back to `Server.CallListener`.
 
 ---
 
@@ -63,7 +58,7 @@ Add to the correct section (Client Packets or Server Packets) — keep hex value
 
 File: `src/Shared/Avalon.Network.Packets/<Group>/<PacketName>.cs`
 
-Choose an existing group folder (Auth, Character, Combat, Social, Map, etc.) or create a new one if none fits.
+Choose an existing group folder (Character, Combat, Social, Map, etc.) or create a new one if none fits.
 
 Template for a **client packet** (received by server):
 ```csharp
@@ -74,7 +69,7 @@ using ProtoBuf;
 namespace Avalon.Network.Packets.<Group>;
 
 [ProtoContract]
-[Packet(HandleOn = ComponentType.<Auth|World>, Type = NetworkPacketType.<CMSG_...>)]
+[Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.<CMSG_...>)]
 public class <PacketName> : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.<CMSG_...>;
@@ -96,7 +91,6 @@ using ProtoBuf;
 namespace Avalon.Network.Packets.<Group>;
 
 [ProtoContract]
-[Packet(HandleOn = ComponentType.<Auth|World>, Type = NetworkPacketType.<SMSG_...>)]
 public class <PacketName> : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.<SMSG_...>;
@@ -118,42 +112,11 @@ public class <PacketName> : Packet
 
 ### Step 3 — Implement the handler
 
-#### For Auth (`Avalon.Server.Auth`)
-
-File: `src/Server/Avalon.Server.Auth/Handlers/<HandlerName>.cs`
-
-- Implement `IAuthPacketHandler<TPacket>` (extends `IPacketHandlerNew`)
-- Inject dependencies via constructor — use `ILoggerFactory` and call `loggerFactory.CreateLogger<T>()`
-- **No manual DI registration needed** — handlers are discovered automatically by `PacketManager` via reflection scan of all `IPacketHandlerNew` implementations across loaded assemblies
-
-```csharp
-using Avalon.Network.Packets.<Group>;
-
-namespace Avalon.Server.Auth.Handlers;
-
-public class <HandlerName> : IAuthPacketHandler<<PacketName>>
-{
-    private readonly ILogger<<HandlerName>> _logger;
-    // inject other dependencies
-
-    public <HandlerName>(ILoggerFactory loggerFactory /*, other deps */)
-    {
-        _logger = loggerFactory.CreateLogger<<HandlerName>>();
-    }
-
-    public async Task ExecuteAsync(AuthPacketContext<<PacketName>> ctx, CancellationToken token = default)
-    {
-        // implementation
-        // Send response: ctx.Connection.Send(S<ResponsePacket>.Create(..., PacketEncoder.Shared));
-    }
-}
-```
-
 #### For World — connection setup packets (receive-thread path)
 
 File: `src/Server/Avalon.Server.World/Handlers/<HandlerName>.cs`
 
-Use this for packets that bypass both session filters (e.g. handshake, world key exchange). Executes on the network receive thread — do not touch game state.
+Only admission and the version handshake use this path. They execute on the network receive thread; hand game-state changes back through a tick continuation. A new gameplay packet belongs on the tick-thread path.
 
 - Implement `IWorldPacketHandler<TPacket>`
 - **No manual DI registration or attribute needed** — discovered automatically by `PacketManager`
@@ -253,7 +216,7 @@ connection.EnqueueContinuation(someTask, () => { /* runs on tick thread */ });
 
 ### Step 4 — Write the test
 
-File: `tests/Avalon.Server.<Auth|World>.UnitTests/Handlers/<HandlerName>Should.cs`
+File: `tests/Avalon.Server.World.UnitTests/Handlers/<HandlerName>Should.cs`
 
 - Use **xUnit** + **NSubstitute**
 - Construct handler directly with `new <HandlerName>(NullLoggerFactory.Instance, ...)` — no DI container in tests
@@ -261,19 +224,19 @@ File: `tests/Avalon.Server.<Auth|World>.UnitTests/Handlers/<HandlerName>Should.c
 - Follow the naming convention: `Should_<verb>_<condition>`
 
 ```csharp
-using Avalon.Server.<Auth|World>.Handlers;
+using Avalon.Server.World.Handlers;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
-namespace Avalon.Server.<Auth|World>.UnitTests.Handlers;
+namespace Avalon.Server.World.UnitTests.Handlers;
 
 public class <HandlerName>Should
 {
     private readonly I<Dep> _dep = Substitute.For<I<Dep>>();
-    private readonly I<Auth|World>Connection _connection = Substitute.For<I<Auth|World>Connection>();
+    private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
     // A hand-written fake, not a substitute: NSubstitute cannot stub the session's span-based methods. A handler
     // never seals (the outbox does, as it frames the packet, #875), so a test reads the sent packet's plain payload.
-    // World handlers: Avalon.World.Testing.Fakes; auth handlers: the Auth tests' own FakeAvalonCryptoSession.
+    // World handlers: Avalon.World.Testing.Fakes.
     private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
     private readonly <HandlerName> _handler;
 
@@ -298,5 +261,5 @@ public class <HandlerName>Should
 After generating all files, remind the user to run:
 ```bash
 dotnet build --no-restore
-dotnet test tests/Avalon.Server.<Auth|World>.UnitTests
+dotnet test tests/Avalon.Server.World.UnitTests
 ```

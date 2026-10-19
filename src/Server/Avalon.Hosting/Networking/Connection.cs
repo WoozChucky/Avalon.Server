@@ -91,8 +91,7 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
             string remoteEndPoint, int packetsReceived, double timeoutSeconds);
 
         // A packet the server does not serve leaves the connection open, so a peer can send them at any rate: the
-        // first on a connection is a Warning, the rest Trace. Not Debug: the auth server ships with Debug as its
-        // minimum level, and would write one for every frame.
+        // first on a connection is a Warning, the rest Trace, so enabling Debug does not log every such frame.
         [LoggerMessage(Level = LogLevel.Warning,
             Message = "Unknown packet type {PacketType} on connection {ConnectionId}: dropped; further packets this server does not serve are logged at Trace on this connection")]
         public static partial void UnknownPacketType(ILogger logger, NetworkPacketType packetType, Guid connectionId);
@@ -314,8 +313,8 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
 
     /// <summary>
     /// What a packet puts on the wire, as the byte counters count it (#875): its header and payload, and the seal's nonce
-    /// and tag when the packet is flagged Encrypted and the outbox seals (<see cref="IOutbox.Seals" />: always on the auth
-    /// server, on a world connection only with Network:PacketEncryption). Read it before the packet is handed on.
+    /// and tag when the packet is flagged Encrypted and the outbox seals (<see cref="IOutbox.Seals" />:
+    /// on a world connection only with Network:PacketEncryption). Read it before the packet is handed on.
     /// </summary>
     protected int SentSize(in OutboundPacket packet) =>
         packet.Size + (_outbox is { Seals: true } && (packet.Header.Flags & NetworkPacketFlags.Encrypted) != 0
@@ -331,11 +330,7 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
         _clientIPAddress = (remote as IPEndPoint)?.Address;
     }
 
-    protected virtual IOutbox OnCreateOutbox() =>
-        new ChannelOutbox(Id, _logger, Server.SendBufferCapacity, KeyExchange?.Session,
-#pragma warning disable MA0045 // the fault callback is synchronous, and it fires from inside the outbox this close then disposes
-            onFault: () => Close(false));
-#pragma warning restore MA0045
+    protected abstract IOutbox OnCreateOutbox();
 
     protected abstract void OnHandshakeFinished();
 

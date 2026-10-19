@@ -23,22 +23,17 @@ Bootstrap sequence for each server component.
    grants the seeded `ADMIN` a license, in Development only), and the Redis connection when a service needs it
 4. Run; commerce's reconciliation worker and `WorldDatabaseRecheck` are hosted services
 
-## Auth Server & World Server
+## World Server
 
-1. `AvalonHostBuilder.CreateHostAsync` — sets working directory, core services, JSON options
-2. `ConfigureOpenTelemetry`
-3. Register the hosted services (`AddHostedService`: `AuthServer`; `WorldServer`, `WorldMaintenanceReconciler`,
-   `WorldReadyHeartbeatService` and `PresenceSnapshotService`) + specialized services
-4. `AuthStartup.PrepareAsync` / `WorldStartup.PrepareAsync`: validate the options (the world's among them: its TLS
-   certificate, `Hosting:Security`, and its admission settings, `World:Admission`), migrate the server's databases (the
-   auth database; the world's World and Characters databases, then seed the map catalog). The world server reads the
-   auth database (its world row, maintenance) but never migrates it: the API's identity service or the auth server
-   must have migrated it first, which is why the Aspire AppHost starts the world only once the API is healthy
-5. Connect Redis
-6. Run hosted loop. Neither server opens its TCP port at host start (`ListenOnStart` is false). The Auth server opens it
-   in `AuthServer.ExecuteAsync` (#867), once its certificate is loaded, the start-up `MarkAllOfflineAsync` has run, the
-   account disconnect channel is subscribed and the connection listener is registered, before the liveness sweep starts;
-   a step that fails ends the start with the port never opened. The World server opens it only at the end of
-   `WorldServer.ExecuteAsync` (#665), once scripts and the world are loaded, the Redis disconnect channel is subscribed,
-   the connection listener is registered and the tick thread is running (`StartListening` is called there). A world load
-   that fails ends the world server's start with the port never opened; a stop during the world load leaves it shut.
+1. `AvalonHostBuilder.CreateHostAsync` — sets working directory, core services and JSON options.
+2. `ConfigureOpenTelemetry` registers world telemetry.
+3. Register `WorldServer`, `WorldMaintenanceReconciler`, `WorldReadyHeartbeatService` and
+   `PresenceSnapshotService`, plus the world's specialized services.
+4. `WorldStartup.PrepareAsync` validates options, including `Hosting:Security` and `World:Admission`, builds the
+   packet decoders and server serializers, and builds the world's admission backstop. It migrates the World and
+   Characters databases, then seeds the map catalog. The world reads the auth database (its world row and maintenance)
+   but never migrates it: identity must migrate it first, so Aspire waits for the API to be healthy.
+5. Connect Redis.
+6. `WorldServer.ExecuteAsync` loads scripts and the world, subscribes to the Redis disconnect channel, registers the
+   connection listener and starts the tick thread. It opens the TCP listener with `StartListening` only after that
+   work succeeds. A failed world load or a stop during loading leaves the port shut.

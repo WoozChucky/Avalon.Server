@@ -30,7 +30,7 @@ public static class SourceBudget
     public static string KeyFor(string remoteEndPoint) =>
         CacheKeys.AuthSourceFailedLogins(RemoteAddress.SourceOf(remoteEndPoint));
 
-    /// <summary>The same key for an address the REST API has: one budget per source across both servers.</summary>
+    /// <summary>The budget key for a REST login address, shared by every identity replica.</summary>
     public static string KeyFor(System.Net.IPAddress address) =>
         CacheKeys.AuthSourceFailedLogins(RemoteAddress.SourceOf(address));
 }

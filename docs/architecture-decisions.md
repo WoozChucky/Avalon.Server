@@ -6,7 +6,9 @@ This document records significant architectural decisions, their rationale, and 
 
 ## ADR-001 — World Server / Auth Database Decoupling
 
-**Status:** Planned
+**Status:** Original proposal superseded; remaining world/auth-database read decoupling is still open (#168).
+
+The auth-writer and Redis-session migration below records the earlier proposal, not the current runtime. TLS join-ticket admission replaced world-entry keys, and #1097 removed `Avalon.Server.Auth`. Identity now owns sign-in, game admission and auth-schema migrations. The retained `Accounts.Online` / `OnlineSessionId` columns are not maintained by a live TCP auth connection. A future decoupling design must account for identity session leases and save fences.
 
 ### Context
 
@@ -228,36 +230,27 @@ The details, the route table and the deployment are in [API services](api-servic
 
 ## Component Boundary Map
 
-```
-┌───────────────────────────────────────────────────────────────────────┐
-│                         Game Client                                    │
-└──────────────────────────────┬────────────────────────────────────────┘
-                               │ TCP + TLS (custom packet protocol)
-          ┌────────────────────┼───────────────────────┐
-          ▼                    │                        ▼
-┌─────────────────┐            │             ┌──────────────────────┐
-│  Auth Server    │◄───────────┘             │    World Server      │
-│ (login, worlds) │  ──── Redis pub/sub ────►│ (simulation engine)  │
-│                 │  ◄─── Redis pub/sub ────  │                      │
-└────────┬────────┘                          └──────────┬───────────┘
-         │ EF Core                                      │ EF Core
-         ▼                                              ▼
-┌─────────────────┐                          ┌──────────────────────┐
-│   Auth DB       │                          │  Character + World DB│
-│ (accounts, MFA) │          Redis           │ (characters, items,  │
-└─────────────────┘    (sessions, cache,     │  world templates)    │
-                        pub/sub)             └──────────────────────┘
+```text
+Game client / launcher
+  | HTTPS: sign-in, game context, world list, join ticket
+  v
+REST API (one binary; independently deployed services)
+  identity | worlds | commerce | distribution
+  | EF Core + Redis
+  v
+Auth DB, per-world Character / World DBs, Redis
 
-         ┌─────────────────────────────────────────────┐
-         │              REST API (one binary)           │
-         │  identity · worlds · commerce · distribution │
-         └──────────────┬──────────────────────────────┘
-                        │ EF Core + Redis
-                        ▼
-                Both databases + Redis
+Game client
+  | pinned TLS: join-ticket admission, then gameplay packets
+  v
+World server (simulation)
+  | mutual TLS: redeem ticket, activate / renew / end session
+  +----------------------------------------------------> Identity API
+  | EF Core: world and character data; remaining auth reads
+  v
+World DB, Character DB, Auth DB
+
+Identity and world servers also exchange revocation and status hints over Redis pub/sub.
 ```
 
-> The game client also calls the REST API's identity service for its game context and join tickets, and the World
-> server redeems those tickets and renews its game sessions there over mutual TLS
-> ([game server admission](steam-authentication-workloads.md)). The World server still has a direct coupling to
-> `AuthDbContext` (via `AddAuthDatabase()`). ADR-001 describes the plan to replace this with Redis-only communication.
+The World server still has a direct coupling to `AuthDbContext` (via `AddAuthDatabase()`). ADR-001 records the earlier decoupling proposal; its auth-host migration path is superseded. Current world admission, lease renewal and save fencing are described in [game server admission](steam-authentication-workloads.md).

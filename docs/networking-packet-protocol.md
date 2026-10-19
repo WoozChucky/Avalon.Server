@@ -6,7 +6,7 @@ Custom TCP layer with Protobuf-net serialization. Every client↔server message 
 
 | Field | Type | Purpose |
 |---|---|---|
-| `Type` (1) | `NetworkPacketType` | The opcode: which message the payload holds (e.g., `CAuthPacket` → `CMSG_AUTH`). The one field a packet is decoded and dispatched by |
+| `Type` (1) | `NetworkPacketType` | The opcode: which message the payload holds (e.g., `CGameAdmissionPacket` → `CMSG_GAME_ADMISSION`). The one field a packet is decoded and dispatched by |
 | `Flags` (2) | `NetworkPacketFlags` | Bitmask: `None` 0, `ClearText` 1, `Handshake` 2, `Encrypted` 4. Only `Encrypted` is read: the payload is sealed with the session keys (below) |
 | `Protocol` (3) | `NetworkProtocol` | `Invalid` 0, `Tcp` 1, `Udp` 2, `Both` 3. Every packet is sent as `Tcp`, and nothing reads the field |
 | `Version` (4) | `int` | 0 in every header that is built, and nothing reads it. The protocol is versioned in the handshakes ([Extensibility](#extensibility)) |
@@ -30,9 +30,9 @@ client-info and game-admission packets (`CRequestServerInfoPacket`, `SServerInfo
 no compression flag, and nothing compresses a payload. `schema/opcodes.json` lists the flags each packet class
 declares.
 
-Transport: TCP inside TLS, one connection per phase (Auth, then World). The auth server wraps every accepted socket in
-TLS 1.2 with its certificate, the world server in TLS 1.2 or 1.3 with its own (both `Hosting:Security:CertificatePath`),
-and a client pins the world's leaf named in its join reply. Ordering guaranteed by TCP.  
+Transport: the client signs in over the identity REST API (HTTPS), then connects directly to a world over TCP inside
+TLS 1.2 or 1.3. The world uses `Hosting:Security:CertificatePath`, and the client pins the world's leaf named in its
+join reply. Ordering is guaranteed by TCP.
 Encryption: inside TLS, session crypto negotiated via ephemeral public key exchange during handshake stages; on the
 world server the per-packet session layer is a per-world setting, `Network:PacketEncryption`, off by default (#875),
 and a world with it off runs no key exchange (#878).  
@@ -49,8 +49,7 @@ sends is limited in length
 ## The inbound frame length limit
 
 Every frame on the wire is `[varint length][NetworkPacket{1: header, 2: payload}]`. **A frame a client sends may not
-declare more than `Hosting:MaxInboundFrameSize` bytes (16,384 by default), on the auth server and on a world server
-alike.** The length counted is the one the prefix declares: the `NetworkPacket`'s bytes, header and payload, the
+declare more than `Hosting:MaxInboundFrameSize` bytes (16,384 by default), on the world server.** The length counted is the one the prefix declares: the `NetworkPacket`'s bytes, header and payload, the
 payload in the form it is sent (sealed, it carries a 12-byte nonce and a 16-byte tag); the prefix itself is not
 counted.
 
@@ -58,7 +57,7 @@ The read loop compares the prefix before it sizes anything by it (`PacketStream.
 declares more than the maximum, or whose prefix is not a length (a varint that runs past five bytes; a five-byte one
 carries up to 35 bits and is compared as that, never narrowed first), is not buffered and not read: nothing is rented
 for it, the stream ends there, and the connection is closed without a notice, as it is when a peer goes away. This
-holds before admission or login as after: the prefix is the first thing any peer that completes TLS sends, and the
+holds before admission as after: the prefix is the first thing any peer that completes TLS sends, and the
 servers used to rent a buffer of whatever size it declared. The close writes one line at Debug (the connection, its
 address and the declared length), never an exception or a stack trace, and counts one in `network.in.frame_kicks` on
 the server's meter ([instrumentation](instrumentation.md#refused-frames)).
@@ -77,16 +76,14 @@ frame as declared):
 | `CMSG_PARTY_INVITE` | about 60 bytes sealed | A character's name, 3 to 12 letters, which the world checks before any lookup (#936) |
 | `CMSG_WORLD_HANDSHAKE` | about 50 bytes sealed | The client's version string |
 | Every other world packet | a few tens of bytes | Numbers only: no string, byte or repeated field |
-| Auth server: login, key exchange, MFA | under 200 bytes | A username of 3 to 16 characters, a password field of 64 bytes, a 91-byte key, 32 bytes of handshake data, codes of 16 characters; the client no longer dials the auth server |
 
 So the default leaves a factor of about 28 over the largest frame a client sends, and the setting's minimum (1,024)
-still admits it. No client-to-server message has a repeated field. The auth server puts no length rule of its own on the
-password it is sent: for that field the frame limit is the bound.
+still admits it. No client-to-server world message has a repeated field.
 
 ## The inbound frame deadline
 
 **A frame a peer has started must be complete within `Hosting:InboundFrameTimeoutSeconds` (10 s by default) of its first
-byte, on the auth server and on a world server alike (#938).** One that is not has its read cancelled, which ends the
+byte, on the world server (#938).** One that is not has its read cancelled, which ends the
 stream, and the connection is closed without a notice, as it is when a peer goes away. That covers a peer that starts a
 frame and stops, and one that sends it a byte at a time: the clock runs from the frame's first byte and is not reset by
 the bytes after it. Until #938 the read loop waited for the rest of a frame with only the server's stopping token, so
@@ -124,9 +121,8 @@ first frame that arrives in pieces.
 
 A server packet's `Create` (`S*Packet.Create`) returns an `OutboundPacket`: its header, and its message encoded, plain,
 into a pooled `PayloadSegment` by `PacketEncoder` (#875). `IConnection.Send` takes the packet's payload reference. The
-connection's outbox (a world connection's send thread, the auth server's outbox as its drain task writes) seals the
-payload of a packet flagged Encrypted only when the outbox seals (`IOutbox.Seals`): always on the auth server, and on
-a world connection only with `Network:PacketEncryption`. Otherwise the payload goes plain inside TLS and the header
+connection's outbox (written by its send thread) seals the payload of a packet flagged Encrypted only when
+`Network:PacketEncryption` is enabled (`IOutbox.Seals`). Otherwise the payload goes plain inside TLS and the header
 loses the Encrypted flag, so the client opens nothing. The outbox frames the packet with `PacketEnvelope`:
 `[varint length][NetworkPacket{1: header, 2: payload}]`, written by hand, byte for byte what protobuf-net writes for a
 `NetworkPacket`, then releases the segment to its pool: no `byte[]` per packet.
@@ -163,50 +159,42 @@ new message, and runs every factory and checks that a new thread's scratch still
 The client-to-server packets' `C*Packet.Create`, which only clients send (the load-test tool, the benchmarks and the
 tests), still build a `NetworkPacket`, sealed as it is created.
 
-## Auth Phase Lifecycle
+## Identity sign-in
 
-1. `CRequestServerInfoPacket` — client sends its version; `SServerInfoPacket` answers with the server's version and
-   public key, or refuses a client below `Application:MinClientVersion` and closes.
-2. `CClientInfoPacket` — client sends its ephemeral public key.
-3. `SHandshakePacket` — server returns handshake data (server challenge).
-4. `CHandshakePacket` — client proves possession / echoes handshake data.
-5. `SHandshakeResultPacket` — indicates success and signals encryption activation.
-6. `CAuthPacket` — credentials (username + password; server BCrypt verifies).
-7. `SAuthResultPacket` — status (`SUCCESS`, `LOCKED`, `MFA_REQUIRED`, etc.) and `AccountId` on success; with
-   `MFA_REQUIRED`, an MFA hash that `CMFAVerifyPacket` sends back with the code.
-8. `CWorldListPacket` — client requests accessible world list.
-9. `SWorldListPacket` — worlds filtered by account access level, each with its derived status.
+The launcher signs in through identity's HTTPS endpoints, exchanges its PKCE-bound code for a client session,
+and obtains a one-use game ticket. The game client redeems that ticket for a game context, then discovers worlds
+and requests a join ticket through REST. See [world entry](api-authentication.md#world-entry) for the endpoints.
 
-The auth phase ends there: the TCP world select and world-key handoff were retired with the TLS join-ticket admission,
-and their opcodes are unassigned. [Auth server login flow](auth-server.md) has the rules of each step.
+The TCP auth process was retired in #1097. Its packet classes and opcodes remain in the shared wire contracts
+pending a separate retirement decision; they are not a supported sign-in path or a live listener.
 
 ## World Admission
 
-10. The client gets a join ticket from the REST API (`POST /game/join-tickets`, against its game context), bound to one
+1. The client gets a join ticket from the REST API (`POST /game/join-tickets`, against its game context), bound to one
     world, character and world server, for at most 30 seconds.
-11. Client opens a TCP connection to that world server and completes TLS.
-12. `CGameAdmissionPacket(JoinTicket, PublicKey)` — clear text inside TLS: the ticket and a new ephemeral public key,
+2. Client opens a TCP connection to that world server and completes TLS.
+3. `CGameAdmissionPacket(JoinTicket, PublicKey)` — clear text inside TLS: the ticket and a new ephemeral public key,
     which the client sends before it knows the world's mode.
-13. The world server redeems the ticket and activates the session through the API's internal admission routes, off the
+4. The world server redeems the ticket and activates the session through the API's internal admission routes, off the
     tick. A world that seals then keys the session from the client's key, also off the tick, before the result reaches
     the tick; a key of the right length that is not a P-256 point is refused there with `InvalidRequest`, the lease is
     revoked and the connection closed (`bad_public_key`). A world that does not seal runs no key exchange (#878): its
     connection has no key pair and no session, and the client's key is not read.
-14. `SGameAdmissionPacket(PublicKey, Result, PacketEncryption)` — `Accepted` with the world's mode (field 3,
+5. `SGameAdmissionPacket(PublicKey, Result, PacketEncryption)` — `Accepted` with the world's mode (field 3,
     `Network:PacketEncryption`, #875): true, the reply carries the connection's public key and the client seals every
     gameplay packet it sends; false, TLS alone, the public key is empty and the client sends plain, keying nothing
     (a client from 0.3.0 on reads the mode before it asks for a key). The client seals exactly as told. Otherwise `InvalidRequest`,
     `AuthorizationRequired`, `ServiceUnavailable`, `UnsupportedClient` (a client too old for this world or the
-    API's floor, which the join ticket already refuses 426 or 400, #1053; step 15 is the backstop) or `WorldFull` (5,
+    API's floor, which the join ticket already refuses 426 or 400, #1053; step 6 is the backstop) or `WorldFull` (5,
     #967: sent only by the world's player-limit backstop, over `Game:PlayerLimit` plus margin), `PacketEncryption` false, and the connection is closed
     ([when each](character-login-flow.md#sgameadmissionpacket-refusals); a world whose admission queue is full answers
     `ServiceUnavailable`, #1050).
-15. `CWorldHandshakePacket(Version)` / `SWorldHandshakePacket` — sealed only when the world seals; the client's version
+6. `CWorldHandshakePacket(Version)` / `SWorldHandshakePacket` — sealed only when the world seals; the client's version
     must be at least the world's `MinVersion` (the REST sign-in has already required the API's floor,
     `Application:GameWorkloads:MinClientVersion`, #949). A client below it, or whose version does not parse, is
     answered `Verified` false with `Refusal` `ClientVersionTooOld` and the `MinVersion` it needs, then closed; any
     other refusal closes without a reply ([character login flow](character-login-flow.md#sworldhandshakepacket)).
-16. Subsequent packets (character list, selection, movement, chat) proceed under the admitted session. A connection
+7. Subsequent packets (character list, selection, movement, chat) proceed under the admitted session. A connection
     keeps the mode it was created and admitted under for its life; a change of the setting needs a restart.
 
 Strictness of the mode (#875). With `Network:PacketEncryption` on, a plain packet the world runs (the version
@@ -448,28 +436,27 @@ endpoint, which is whatever terminates its TLS (a proxy or a relay as well as a 
 
 - `auth:account:{accountId}:mfa` and `auth:mfa:hash:{sha256}` — the MFA step's state.
 - `game-auth:{environment}:join-ticket:{digest}` — a join ticket, stored by its digest, redeemed once.
-- `auth:accounts:online` / `world:accounts:disconnect` — pub/sub channels for cross-component presence coordination.
+- `world:accounts:disconnect` — account session revocation notifications to world servers.
 
 See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
 
 ## Failure Modes & Safeguards
 
-- Invalid handshake data → connection closed (avoid resource waste).
 - Wrong key size → rejected prior to crypto init.
 - A malformed, expired, spent or foreign join ticket → `SGameAdmissionPacket` refusal and the connection closed; a
   world connection that is not admitted within 15 seconds is closed.
-- Multiple logins for same account → previously connected session force-disconnected via pub/sub event.
+- Account session revocation → world connections closed via `world:accounts:disconnect`; identity owns game-session admission and fencing.
 - A peer that does not speak TLS, or that does not finish the handshake within a world's five seconds → the connection
   is dropped with one Debug line and one count in `network.in.handshake_failures` (#897,
-  [instrumentation](instrumentation.md#failed-handshakes)). The auth server's handshake has no timeout (#938).
-- A frame that declares more than `Hosting:MaxInboundFrameSize` bytes, or a malformed length prefix, on either server →
+  [instrumentation](instrumentation.md#failed-handshakes)).
+- A frame that declares more than `Hosting:MaxInboundFrameSize` bytes, or a malformed length prefix, on the world server →
   nothing is buffered for it and the connection is closed without a notice ([above](#the-inbound-frame-length-limit)).
-- A frame started and not complete within `Hosting:InboundFrameTimeoutSeconds` of its first byte, on either server →
+- A frame started and not complete within `Hosting:InboundFrameTimeoutSeconds` of its first byte, on the world server →
   the connection is closed without a notice, with one Warning and one count in `network.in.protocol_kicks`, `reason`
   `frame_timeout` (#938, [above](#the-inbound-frame-deadline)).
 - A frame that is not a `NetworkPacket`, a payload flagged `Encrypted` that arrives before the session has its keys or
   does not open under them, or a payload that is not an encoding of its opcode's packet (one that nests more than 32
-  messages or groups deep included), on either server → the
+  messages or groups deep included), on the world server → the
   connection is closed without a notice, as a protocol violation: one Warning without the exception, and one count in
   `network.in.protocol_kicks` (#897, [packet handlers](packet-handlers.md)).
 - An opcode the server has no packet type for → the frame is dropped and the connection stays open: an older client
@@ -523,10 +510,10 @@ in it, so a fix will turn that test red rather than pass unnoticed.
 
 - Single-use join tickets mitigate replay: a ticket lives at most 30 seconds, is bound to one world server, and is
   redeemed once, by that server, over its mutually authenticated workload connection.
-- Separation of the auth and world sessions limits the blast radius of a compromised session token.
-- Public key re-exchange on world join, on a world that seals, prevents key reuse across phases; a world that does not
+- Identity credentials and game admission have distinct tokens; a join ticket is bound to its intended world server.
+- A fresh public key exchange on world join, on a world that seals, prevents key reuse across connections; a world that does not
   seal exchanges no key.
-- Auth failures are budgeted per source and per username ([auth server](auth-server.md)).
+- Identity login failures are budgeted per source and per username ([login budgets](api-authentication.md#login-budgets-and-account-rules)).
 
 ## Extensibility
 
@@ -535,7 +522,7 @@ in it, so a fix will turn that test red rather than pass unnoticed.
   a packet is the `public static NetworkPacketType PacketType` field on its class, found by reflection at startup
   (`PacketReader`, `PacketManager`, and `tools/Avalon.Exporter` for `schema/opcodes.json`), so a new packet class
   declares a new `NetworkPacketType` value there. A packet a server receives also derives from `Packet` and carries
-  `[Packet(HandleOn = ComponentType.Auth)]` or `ComponentType.World`: `HandleOn` is what gives that server a decoder
+  `[Packet(HandleOn = ComponentType.World)]`: `HandleOn` is what gives that server a decoder
   for the opcode (`AddCoreServices`), and without it the read loop drops the frame and logs "Unknown packet type" (at
   Warning for the first on a connection, at Trace after that). A server decodes once with every packet it is the
   `HandleOn` of as it starts, and encodes every server packet once (#883), so a contract protobuf-net cannot build
@@ -547,11 +534,9 @@ in it, so a fix will turn that test red rather than pass unnoticed.
   schema (`tools/Avalon.Exporter -- proto`, `opcodes`, `corpus`).
 - **Version evolution:** there is no version per packet. `Header.Version` is always 0, and no handler is chosen by it.
   A client states its version once per connection, and a server refuses one that is too old:
-  `CRequestServerInfoPacket.ClientVersion` against `Application:MinClientVersion` on the auth server (step 1 above),
-  `CWorldHandshakePacket.Version` against the world's `MinVersion` on a world (step 15). Each tells the
-  refused client so before it closes: `SServerInfoPacket` with `ClientVersionTooOld`, `SWorldHandshakePacket` with
-  `Refusal` `ClientVersionTooOld` and the version required. Neither server
-  looks at a version anywhere else. Before either, the REST game sign-in and world allocation require the client's
+  `CWorldHandshakePacket.Version` is checked against the world's `MinVersion` (step 6). A refused client receives
+  `SWorldHandshakePacket` with `Refusal` `ClientVersionTooOld` and the version required before the connection closes.
+  Before that, REST game sign-in and world allocation require the client's
   protocol version to be at least `Application:GameWorkloads:MinClientVersion` (#949; equal to one compiled-in version
   before it, #948), which is what refuses a client from the other side of a wire change: a release that changes the
   wire raises it ([configuration reference](configuration-reference.md#rest-api-game-client-version)). What the
@@ -566,38 +551,26 @@ in it, so a fix will turn that test red rather than pass unnoticed.
 
 ```mermaid
 sequenceDiagram
+    participant Launcher
     participant Client
-    participant Auth as Auth Server
     participant Api as REST API (identity)
     participant World as World Server
 
-    Client->>Auth: TLS connect
-    Client->>Auth: CRequestServerInfo(version)
-    Auth-->>Client: SServerInfo(version, publicKey)
-    Client->>Auth: CClientInfo(publicKey)
-    Auth-->>Client: SHandshake(handshakeData)
-    Client->>Auth: CHandshake(handshakeData)
-    Auth-->>Client: SHandshakeResult(success)
-    Client->>Auth: CAuth(username,password)
-    Auth-->>Client: SAuthResult(SUCCESS, accountId)
-    Client->>Auth: CWorldList()
-    Auth-->>Client: SWorldList(worlds[])
-    Client->>Api: POST /game/join-tickets (game context, world, character)
-    Api-->>Client: join ticket, world host, TLS pin
+    Launcher->>Api: HTTPS sign-in and client session (PKCE)
+    Api-->>Launcher: client session
+    Launcher->>Api: POST /client/auth/game-ticket
+    Api-->>Launcher: one-use game ticket
+    Launcher->>Client: game ticket on standard input
+    Client->>Api: redeem game ticket for game context
+    Api-->>Client: game context
+    Client->>Api: world discovery and POST /game/join-tickets
+    Api-->>Client: join ticket, world host, TLS name and pin
     Client->>World: TLS connect
     Client->>World: CGameAdmission(joinTicket, publicKey)
     World->>Api: POST /internal/game/join-tickets/redeem, sessions/activate (mTLS)
     Api-->>World: account, session, fencing token, lease
-    World-->>Client: SGameAdmission(serverPublicKey)
+    World-->>Client: SGameAdmission(result, publicKey, packetEncryption)
     Client->>World: CWorldHandshake(version)
     World-->>Client: SWorldHandshake
-    Client->>World: (Character/Gameplay packets...)
+    Client->>World: Character and gameplay packets
 ```
-
-Flow summary:
-1. Secure ephemeral key negotiation (Auth)
-2. Credentials verification & session marking
-3. World discovery with access filtering
-4. One-time join ticket issuance (REST game admission)
-5. World server redemption + second crypto establishment
-6. Transition to gameplay channel

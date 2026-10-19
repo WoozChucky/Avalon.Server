@@ -3,8 +3,8 @@ using Avalon.Network.Packets.Abstractions;
 namespace Avalon.Hosting.Networking;
 
 /// <summary>
-/// A connection's outbound side: the auth server's <c>ChannelOutbox</c>, drained by its own task, or the world server's
-/// <c>ConnectionSender</c>, written by its send thread (#875). Nothing outside it writes to the stream.
+/// A connection's outbound side: the world server's <c>ConnectionSender</c> is written by its send thread (#875).
+/// Nothing outside the outbox writes to the stream.
 /// </summary>
 /// <remarks>
 /// Lifecycle: <see cref="Connect"/> is called once after the stream is ready; <see cref="IAsyncDisposable.DisposeAsync"/>

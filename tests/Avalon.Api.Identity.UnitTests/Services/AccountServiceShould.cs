@@ -105,7 +105,7 @@ public class AccountServiceShould
 
     /// <summary>
     /// #882 review: a status notice the cache refuses (a Redis user not yet allowed on the channel) fell back to nothing,
-    /// so the auth server's connections of a banned account stayed open. The bare disconnect is published instead.
+    /// so a banned account's connections could stay open. The bare disconnect is published instead.
     /// </summary>
     [Fact]
     public async Task Fall_back_to_the_bare_disconnect_when_the_status_notice_cannot_be_published()
