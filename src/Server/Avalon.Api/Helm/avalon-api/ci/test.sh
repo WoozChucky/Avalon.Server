@@ -418,6 +418,7 @@ diff <(echo "$table") - <<'EOF' || { echo "routes must follow the manifest (desi
 10020 api-commerce:8080 avalon-strip-api ^/api/(?i)payments/notifications(/|$)
 10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/changelog(/|$)
 10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/channels(/|$)
+10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/crash(/|$)
 10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/launcher(/|$)
 10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/releases(/|$)
 10020 api-identity:8080 avalon-strip-api ^/api/(?i)admin/load-test(/|$)

@@ -11,19 +11,23 @@ namespace Avalon.Api.Distribution;
 /// the other only presigns, for the public host, because an S3 signature covers the host the
 /// request carries. Presigning is local and makes no network call.
 /// </summary>
-public sealed class S3DistributionStore : IDistributionStore, IDisposable
+public sealed class S3DistributionStore : IDistributionStore, ICrashReportSlots, IDisposable
 {
     private static readonly JsonSerializerOptions s_json = new(JsonSerializerDefaults.Web);
     private readonly AmazonS3Client _reader;
     private readonly AmazonS3Client _presigner;
     private readonly string _bucket;
+    private readonly string _crashBucket;
+    private readonly TimeProvider _time;
 
-    public S3DistributionStore(DistributionConfiguration config)
+    public S3DistributionStore(DistributionConfiguration config, TimeProvider? time = null)
     {
         var credentials = new BasicAWSCredentials(config.AccessKeyId, config.SecretAccessKey);
         _reader = new AmazonS3Client(credentials, Settings(config.Endpoint, config.Region));
         _presigner = new AmazonS3Client(credentials, Settings(config.PublicUrl, config.Region));
         _bucket = config.Bucket;
+        _crashBucket = config.CrashBucket;
+        _time = time ?? TimeProvider.System;
     }
 
     private static AmazonS3Config Settings(string serviceUrl, string region) => new()
@@ -121,8 +125,28 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
             Key = objectKey,
             Verb = HttpVerb.GET,
             Protocol = Protocol.HTTPS,
-            Expires = DateTime.UtcNow.Add(ttl),
+            Expires = _time.GetUtcNow().UtcDateTime.Add(ttl),
         }));
+
+    public Uri PresignCrash(string key, long size, TimeSpan ttl)
+    {
+        if (string.IsNullOrWhiteSpace(_crashBucket) || _crashBucket == _bucket)
+            throw new DistributionUnavailableException("Crash uploads require a separate private bucket.");
+        if (size is <= 0 or > CrashReportService.MaxSize)
+            throw new ArgumentOutOfRangeException(nameof(size));
+
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = _crashBucket,
+            Key = key,
+            Verb = HttpVerb.PUT,
+            Protocol = Protocol.HTTPS,
+            ContentType = "application/zip",
+            Expires = _time.GetUtcNow().UtcDateTime.Add(ttl),
+        };
+        request.Headers.ContentLength = size;
+        return new Uri(_presigner.GetPreSignedURL(request));
+    }
 
     /// <exception cref="DistributionUnavailableException">The schema is not one this API understands.</exception>
     public static ManifestDocument ParseManifest(string json)

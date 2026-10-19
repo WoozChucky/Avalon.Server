@@ -1,5 +1,25 @@
 # Development setup
 
+## Crash report storage
+
+For local crash-report integration, create a private Garage bucket named `crashes` and grant the API's
+distribution key write permission only on that bucket (`garage bucket create crashes`, then
+`garage bucket allow --write --key <distribution-key-name> crashes`). Keep its build-bucket permissions
+read-only. Set `Application:Distribution:CrashBucket=crashes` and use a trusted HTTPS public S3 endpoint;
+the client does not bypass certificate verification. The Helm value is `distribution.crashBucket`.
+
+Using an administrator's local S3 credentials, apply this lifecycle to the bucket with
+`aws --endpoint-url <garage-s3-url> s3api put-bucket-lifecycle-configuration --bucket crashes --lifecycle-configuration file://crash-lifecycle.json`:
+
+```json
+{"Rules":[{"ID":"expire-crash-reports","Status":"Enabled","Filter":{"Prefix":""},"Expiration":{"Days":90}}]}
+```
+
+Verify with `get-bucket-lifecycle-configuration` before accepting reports. This setting is required
+to honor the player's 90-day retention notice. Do not enable public bucket access. The server creates
+an upload grant for a known published client version; use a locally published manifest for local
+verification. A GET smoke request to `/client/crash` answers 405 without granting an upload.
+
 Every command for building, testing, running and publishing the servers, the EF Core design-time rules, the chunk generator, the REST API signing key, and line endings. `CLAUDE.md`, at the repository root, keeps the short list.
 
 ## Commands

@@ -37,6 +37,7 @@ commerce	GET	/account/purchases/checkout	405	none
 commerce	GET	/payments/notifications/stripe	405	none
 distribution	GET	/client/launcher/update	200,204	none
 distribution	GET	/client/releases	200	none
+distribution	GET	/client/crash	405	none
 distribution	GET	/client/changelog	200	none
 distribution	GET	/client/channels	200	pat
 distribution	GET	/client/channels/dev/manifest	200,404	pat

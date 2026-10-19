@@ -35,11 +35,20 @@ public sealed class DistributionApi : IApiService
         // The build store (homelab Garage). Without it the /client endpoints answer 503.
         DistributionConfiguration distribution = builder.Configuration.GetSection(Section).Get<DistributionConfiguration>() ?? new();
         if (distribution.IsConfigured)
-            services.AddSingleton<IDistributionStore>(new S3DistributionStore(distribution));
+        {
+            services.AddSingleton(sp => new S3DistributionStore(distribution, sp.GetRequiredService<TimeProvider>()));
+            services.AddSingleton<IDistributionStore>(sp => sp.GetRequiredService<S3DistributionStore>());
+            services.AddSingleton<ICrashReportSlots>(sp => sp.GetRequiredService<S3DistributionStore>());
+        }
         else
+        {
             services.AddSingleton<IDistributionStore, UnconfiguredDistributionStore>();
+            services.AddSingleton<ICrashReportSlots, UnconfiguredCrashReportSlots>();
+        }
         services.AddMemoryCache();
         services.AddSingleton<ClientDistributionService>();
+        services.AddSingleton<CrashReportService>();
+        services.AddCrashReportRateLimiting();
 
         services.AddSingleton<IExceptionProblemMapper, DistributionProblemMapper>();
     }

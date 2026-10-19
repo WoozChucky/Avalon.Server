@@ -181,6 +181,7 @@ public sealed class RouteOwnershipShould
         ["GET /client/launcher"] = Distribution,
         ["GET /client/launcher/update"] = Distribution,
         ["GET /client/releases"] = Distribution,
+        ["POST /client/crash"] = Distribution,
         ["GET /client/changelog"] = Distribution,
         ["GET /client/channels"] = Distribution,
         ["GET /client/channels/{channel}/manifest"] = Distribution,

@@ -446,6 +446,25 @@ BASE=http://127.0.0.1:18080 tools/api-smoke/smoke.sh   # after kubectl port-forw
 
 ## Adding a route
 
+### Crash reports
+
+Distribution owns anonymous `POST /client/crash`. Its JSON body is `{version, gitHash, size}` (at most
+1024 bytes); `size` must be 1..4194304 and `version` must occur in a signed published manifest from any
+channel, including historical releases. `gitHash` is a 7..40 digit hexadecimal identifier. A successful
+response contains `{uploadUrl, key}`. PUT the ZIP with `Content-Type: application/zip` and the exact
+declared `Content-Length`; both headers are signed. The URL expires after ten minutes and is not logged
+or cached. The dedicated limiter grants at most five requests per source IP per hour per API process,
+in addition to the shared API limiter. Invalid input answers 400, limiting 429, unavailable storage 503.
+
+`Application:Distribution:CrashBucket` (`distribution.crashBucket` in Helm, default `crashes`) must be
+private and different from the build bucket. The existing distribution key retains read-only access
+to builds and receives write-only access to this bucket. No account identifier is put in the object
+key or requested by the endpoint. The API never receives the ZIP bytes. Configure 90-day object
+expiration on the bucket before enabling client uploads; setting the bucket name alone does not
+configure retention. See the local setup instructions below in `development-setup.md`.
+
+### Route registration
+
 1. Put the action in the library of the service that owns its path by the manifest. A new controller in a service's
    assembly is mapped only in the processes that run that service.
 2. Add the endpoint to `RouteOwnershipShould`'s table, which fails until someone decides the owner. A route parameter
