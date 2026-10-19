@@ -1,0 +1,28 @@
+{
+  "name": "forest_rocks_04",
+  "assetKey": "chunks/forest_rocks_04",
+  "cellFootprintX": 1,
+  "cellFootprintZ": 1,
+  "cellSize": 30,
+  "exits": {
+    "N": [],
+    "E": [],
+    "S": ["center"],
+    "W": ["center"]
+  },
+  "spawnSlots": [
+    { "tag": "pack", "localX": 15, "localY": 1, "localZ": 15 },
+    { "tag": "pack", "localX": 19, "localY": 1, "localZ": 18 },
+    { "tag": "pack", "localX": 10, "localY": 1, "localZ": 21 },
+    { "tag": "pack", "localX": 20, "localY": 1, "localZ": 11 },
+    { "tag": "rare", "localX": 13, "localY": 1, "localZ": 8 }
+  ],
+  "portalSlots": [
+  ],
+  "doodadSlots": [
+    { "tag": "doodad_large", "localX": 4, "localY": 0, "localZ": 26, "yaw": 180 },
+    { "tag": "doodad", "localX": 27, "localY": 0, "localZ": 3, "yaw": 0 },
+    { "tag": "doodad", "localX": 27.5, "localY": 0, "localZ": 27.5, "yaw": 180 }
+  ],
+  "tags": ["path", "forest", "rocks", "overhang"]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "forest_grove_01",
+  "assetKey": "chunks/forest_grove_01",
+  "cellFootprintX": 1,
+  "cellFootprintZ": 1,
+  "cellSize": 30,
+  "exits": {
+    "N": [],
+    "E": ["center"],
+    "S": [],
+    "W": ["center"]
+  },
+  "spawnSlots": [
+    { "tag": "pack", "localX": 10, "localY": 1, "localZ": 15 },
+    { "tag": "pack", "localX": 20, "localY": 1, "localZ": 15 },
+    { "tag": "pack", "localX": 12, "localY": 1, "localZ": 19 },
+    { "tag": "rare", "localX": 15, "localY": 1, "localZ": 9 }
+  ],
+  "portalSlots": [
+  ],
+  "doodadSlots": [
+    { "tag": "doodad_large", "localX": 4, "localY": 0, "localZ": 26, "yaw": 180 },
+    { "tag": "doodad", "localX": 21, "localY": 0, "localZ": 27, "yaw": 180 },
+    { "tag": "doodad", "localX": 15, "localY": 0, "localZ": 4, "yaw": 0 }
+  ],
+  "tags": ["path", "forest", "grove"]
+}

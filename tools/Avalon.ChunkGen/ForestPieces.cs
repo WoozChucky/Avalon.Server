@@ -1,9 +1,10 @@
 namespace Avalon.ChunkGen;
 
 /// <summary>
-/// The forest's generated pieces: seventeen 1x1 pieces and three 2x2 set pieces. The first nine (the entry, the
+/// The forest's generated pieces: thirty-two 1x1 pieces and three 2x2 set pieces. The first nine (the entry, the
 /// paths, the junctions, the small clearing and the dead end) were floors written by hand until forest dressing
-/// (#1109) ported them, with their exits, spawn slots, tags and the entry's portal as they were. Boxes stand for rocks
+/// (#1109) ported them, with their exits, spawn slots, tags and the entry's portal as they were; the last fifteen
+/// came with it, two of them (tagged overhang) carrying the rock arch and the rock overhang. Boxes stand for rocks
 /// and ruined walls, cylinders for tree clusters and pillars, each with the <see cref="Dressing" /> the forest dresser
 /// draws on it; free-standing trees along the edges stand on their own trunk cylinders, and fallen logs and custom
 /// rocks on their models' footprints. Every slot is at least 2.5 m from any blocker and every exit's throat is clear
@@ -158,6 +159,102 @@ public static class ForestPieces
              .. Prop(Log1, 15f, 7f, 0), .. Prop("avalon_rock_leaning_1", 21.6f, 28.2f, 0)],
             [Pack(15, 15), Pack(11, 18), Pack(18, 11), Pack(20, 20)], ["path", "forest", "glade"])
             { DoodadSlots = [LargeDoodad(3, 15.5f, 90), Doodad(15.5f, 3, 0), Doodad(10.5f, 12.5f, 90)], Hints = new(TreeMix.Broadleaf) },
+        // Forest dressing (#1109): fifteen more, three of each exit shape: dead ends, straights, corners, T junctions
+        // and crosses.
+        new("forest_hollow_02", [Side.S],
+            [Drum(7, 9, 2), Drum(5, 21, 2.5f), Drum(15, 26, 2), Rocks(21, 27, 20, 27),
+             Drum(25, 12, 2), Tree(Pine, 1.4f, 28.8f, 1.2f), Tree(Pine, 1.5f, 7.5f, 28.8f), Tree(Pine, 1.2f, 28.8f, 17),
+             Tree(Pine, 1.3f, 1.2f, 14), Tree(Pine, 1.2f, 1.2f, 1.5f), .. Prop(Log2, 11, 26, 90)],
+            [Pack(10, 15), Pack(20, 14), Pack(15, 21), Rare(15, 11)], ["deadend", "forest", "hollow"])
+            { DoodadSlots = [LargeDoodad(24, 4, 0), Doodad(4.5f, 4.5f, 0), Doodad(3, 27, 180)], Hints = new(TreeMix.Pine, MeetX: 15, MeetZ: 17) },
+        new("forest_ruin_03", [Side.W],
+            [Wall(18, 26, 24, 26), Wall(25, 27, 16, 22), Wall(18, 24, 4, 6), Pillar(27, 11, 1.5f),
+             Pillar(9, 24, 1.5f), Pillar(9, 6, 1.5f), Tree(Pine, 1.3f, 15, 28.8f), Tree(Common, 1.2f, 28.8f, 28.8f),
+             Tree(Dead, 1.2f, 28.8f, 6.5f), Tree(Pine, 1.2f, 14, 1.2f), Tree(Common, 1.1f, 1.2f, 22), Tree(Pine, 1.4f, 1.2f, 7.5f)],
+            [Pack(15, 15), Pack(21, 15), Pack(15, 20), Pack(15, 10), Rare(21, 19)], ["deadend", "forest", "ruins"])
+            { DoodadSlots = [LargeDoodad(4, 27, 180), Doodad(3, 3, 0), Doodad(27, 3, 0)], Hints = new(TreeMix.Old) },
+        new("forest_mire_01", [Side.E],
+            [.. Prop(Log1, 7, 21, 90), .. Prop(Log2, 20, 6, 0), Stones(6, 8, 1.5f), Stones(21, 26, 1.5f),
+             Drum(4, 14, 2), Tree(Dead, 1.2f, 12, 25), Tree(Dead, 1.1f, 13, 4.5f), Tree(Pine, 1.3f, 28.8f, 4),
+             Tree(Dead, 1.3f, 17, 28.8f), Tree(Dead, 1.1f, 28.8f, 22), Tree(Pine, 1.3f, 1.2f, 7), Tree(Common, 1.2f, 7, 28.8f)],
+            [Pack(15, 15), Pack(10, 11), Pack(11, 20), Rare(20, 21)], ["deadend", "forest", "mire"])
+            { DoodadSlots = [LargeDoodad(27, 27, 180), Doodad(3, 3, 0), Doodad(3, 27, 180)], Hints = new(TreeMix.Old) },
+        // The rock arch over the way through: its legs stand either side of the meeting point, 4.3 m apart, where both
+        // paths run under its span (its underside 2.95 m up, the agent 2 m tall); only the legs are blockers. Tagged
+        // overhang: capped at one a layout in chunk-pools.json.
+        new("forest_rocks_03", [Side.N, Side.S],
+            [.. Prop("avalon_rock_arch", 15, 15, 0), Rocks(3, 9, 19, 26), Rocks(20, 27, 6, 11), Stones(24, 22, 1.5f),
+             Stones(7, 8, 1.5f), Tree(Common, 1.2f, 28.8f, 21), Tree(Pine, 1.3f, 1.2f, 13), Tree(Common, 1.1f, 28.8f, 16),
+             Tree(Pine, 1.2f, 6, 28.8f), Tree(Pine, 1.2f, 24, 1.2f)],
+            [Pack(15, 8), Pack(15, 22), Pack(7, 13), Pack(23, 17)], ["path", "forest", "rocks", "overhang"])
+            { DoodadSlots = [LargeDoodad(3, 3, 0), Doodad(27, 27, 180), Doodad(27, 3, 0)] },
+        new("forest_grove_01", [Side.E, Side.W],
+            [Drum(6, 5, 2.5f), Drum(24, 5, 2), Drum(25.5f, 23, 2.5f), Drum(15, 25, 2),
+             Tree(Common, 1.3f, 11, 28.8f), Tree(Pine, 1.2f, 28.8f, 1.2f), Tree(Common, 1.1f, 1.2f, 1.2f), Tree(Pine, 1.2f, 28.8f, 28.5f),
+             Tree(Common, 1.2f, 1.2f, 21), Tree(Common, 1.2f, 28.8f, 8)],
+            [Pack(10, 15), Pack(20, 15), Pack(12, 19), Rare(15, 9)], ["path", "forest", "grove"])
+            { DoodadSlots = [LargeDoodad(4, 26, 180), Doodad(21, 27, 180), Doodad(15, 4, 0)], Hints = new(TreeMix.Broadleaf) },
+        new("forest_thicket_03", [Side.N, Side.S],
+            [Drum(7, 7, 2.5f), Drum(24, 10, 2.5f), Drum(5, 19, 2), Drum(22.5f, 24, 2),
+             Tree(Pine, 1.4f, 28.8f, 2), Tree(Pine, 1.3f, 1.2f, 12), Tree(Pine, 1.5f, 28.8f, 18), Tree(Pine, 1.2f, 8.5f, 28.8f),
+             Tree(Pine, 1.3f, 21.5f, 1.2f), .. Prop(Log2, 24, 17, 90)],
+            [Pack(10, 15), Pack(20, 15), Pack(15, 9), Pack(15, 21)], ["path", "forest", "thicket"])
+            { DoodadSlots = [LargeDoodad(4, 27, 180), Doodad(27, 27, 180), Doodad(3, 3, 0)], Hints = new(TreeMix.Pine) },
+        // A rock overhang in the corner away from both exits, its ledge (underside 2.86 m) reaching toward the meeting point over
+        // open floor; only its base is a blocker. Tagged overhang: capped at one a layout in chunk-pools.json.
+        new("forest_rocks_04", [Side.S, Side.W],
+            [.. Prop("avalon_rock_overhang", 22.5f, 22.5f, 210), Rocks(3, 9, 3, 9), Stones(25, 9, 1.5f), Drum(11, 26.5f, 2),
+             Tree(Pine, 1.3f, 28.8f, 14), Tree(Pine, 1.2f, 15, 28.8f), Tree(Pine, 1.4f, 22, 1.2f), Tree(Pine, 1.2f, 1.2f, 22),
+             Tree(Common, 1.2f, 28.8f, 20)],
+            [Pack(15, 15), Pack(19, 18), Pack(10, 21), Pack(20, 11), Rare(13, 8)], ["path", "forest", "rocks", "overhang"])
+            { DoodadSlots = [LargeDoodad(4, 26, 180), Doodad(27, 3, 0), Doodad(27.5f, 27.5f, 180)] },
+        new("forest_glade_02", [Side.N, Side.W],
+            [Rocks(19, 26, 3, 9), Drum(24, 24, 2.5f), Drum(7, 8, 2), Stones(22, 15, 1.5f),
+             Tree(Common, 1.3f, 28.8f, 10), Tree(Pine, 1.2f, 15, 1.2f), Tree(Common, 1.1f, 9, 28.8f), Tree(Common, 1.2f, 1.2f, 8),
+             Tree(Pine, 1.3f, 1.2f, 22), .. Prop(Log1, 11, 4, 90)],
+            [Pack(15, 15), Pack(10, 20), Pack(20, 20), Pack(16, 10)], ["path", "forest", "glade"])
+            { DoodadSlots = [LargeDoodad(4, 26, 180), Doodad(27, 15, 270), Doodad(3, 3, 0)], Hints = new(TreeMix.Broadleaf) },
+        new("forest_mire_02", [Side.E, Side.S],
+            [Stones(7, 22, 1.5f), .. Prop(Log1, 6, 8, 0), .. Prop(Log2, 22, 25, 0), Drum(24, 6, 2),
+             Tree(Dead, 1.3f, 11, 24), Tree(Pine, 1.2f, 1.2f, 14), Tree(Dead, 1.2f, 28.8f, 21), Tree(Common, 1.1f, 15, 28.8f),
+             Tree(Pine, 1.3f, 28.8f, 1.2f)],
+            [Pack(15, 15), Pack(10, 12), Pack(11, 19), Rare(20, 20)], ["path", "forest", "mire"])
+            { DoodadSlots = [LargeDoodad(4, 27, 180), Doodad(27, 27, 180), Doodad(3, 3, 0)], Hints = new(TreeMix.Old) },
+        new("forest_ruin_04", [Side.E, Side.S, Side.W],
+            [Wall(6, 13, 21, 23), Wall(17, 24, 21, 23), Pillar(6, 6, 1.5f), Pillar(24, 6, 1.5f),
+             Tree(Pine, 1.2f, 1.2f, 22), Tree(Common, 1.1f, 15, 28.8f), Tree(Pine, 1.3f, 1.2f, 4), Tree(Pine, 1.3f, 28.8f, 6.5f),
+             Tree(Common, 1.1f, 22, 1.2f)],
+            [Pack(15, 15), Pack(10, 18), Pack(20, 18), Rare(15, 25), Pack(9, 10), Pack(21, 10)], ["junction", "forest", "ruins"])
+            { DoodadSlots = [LargeDoodad(27, 27, 180), Doodad(3, 27, 180), Doodad(27, 2.5f, 0)], Hints = new(TreeMix.Old) },
+        new("forest_grove_02", [Side.N, Side.S, Side.W],
+            [Drum(24, 15, 2.5f), Drum(6, 6, 2.5f), Drum(6, 24, 2.5f), Tree(Common, 1.2f, 28.8f, 9),
+             Tree(Pine, 1.2f, 21.5f, 28.8f), Tree(Common, 1.1f, 1.2f, 28.8f), Tree(Pine, 1.2f, 21.5f, 1.2f), Tree(Common, 1.2f, 9, 1.2f)],
+            [Pack(15, 15), Pack(10, 10), Pack(10, 20), Pack(19, 10), Rare(19, 21)], ["junction", "forest", "grove"])
+            { DoodadSlots = [LargeDoodad(26, 4, 0), Doodad(26, 26, 180), Doodad(27, 20.5f, 270)], Hints = new(TreeMix.Broadleaf) },
+        new("forest_thicket_04", [Side.N, Side.E, Side.W],
+            [Drum(7, 23, 2), Drum(23, 23, 2), Drum(5, 5, 2), Drum(25, 5, 2),
+             Tree(Pine, 1.3f, 1.2f, 1.2f), Tree(Pine, 1.4f, 28.8f, 1.2f), Tree(Pine, 1.2f, 8, 28.8f), Tree(Pine, 1.5f, 22, 28.8f),
+             Tree(Pine, 1.2f, 1.2f, 8)],
+            [Pack(15, 15), Pack(9, 10), Pack(21, 10), Pack(10, 19), Pack(20, 19)], ["junction", "forest", "thicket"])
+            { DoodadSlots = [LargeDoodad(15, 4, 0), Doodad(27, 27, 180), Doodad(3, 27, 180)], Hints = new(TreeMix.Pine) },
+        new("forest_glade_03", [Side.N, Side.E, Side.S, Side.W],
+            [Drum(7, 7, 2), Rocks(21, 26, 21, 26), Tree(Common, 1.2f, 1.2f, 25), Tree(Common, 1.1f, 22, 1.2f),
+             Tree(Pine, 1.2f, 8, 28.8f), Tree(Common, 1.2f, 28.8f, 4), Tree(Pine, 1.3f, 1.2f, 6), Tree(Common, 1.1f, 24, 28.8f),
+             .. Prop(Log2, 28, 23.5f, 90)],
+            [Pack(15, 15), Pack(11, 11), Pack(19, 19), Rare(9, 21)], ["junction", "forest", "glade"])
+            { DoodadSlots = [LargeDoodad(24, 6, 0), Doodad(3, 3, 0), Doodad(6, 24, 180)], Hints = new(TreeMix.Broadleaf) },
+        new("forest_ruin_05", [Side.N, Side.E, Side.S, Side.W],
+            [Pillar(9, 9, 1.5f), Pillar(21, 9, 1.5f), Pillar(9, 21, 1.5f), Pillar(21, 21, 1.5f),
+             Wall(2, 8, 25, 27), Wall(25, 27, 2, 8), Tree(Pine, 1.2f, 1.2f, 8.5f), Tree(Pine, 1.2f, 8.5f, 1.2f),
+             Tree(Common, 1.2f, 28.8f, 28.8f)],
+            [Pack(15, 15), Pack(15, 9), Pack(9, 15), Pack(21, 15), Rare(15, 21)], ["junction", "forest", "ruins"])
+            { DoodadSlots = [LargeDoodad(4, 4, 0), Doodad(26, 26, 180), Doodad(4, 21, 90)], Hints = new(TreeMix.Old) },
+        new("forest_grove_03", [Side.N, Side.E, Side.S, Side.W],
+            [Drum(7.5f, 6, 2), Drum(22.5f, 6, 2), Drum(7, 23, 2.5f), Tree(Common, 1.2f, 28.8f, 21),
+             Tree(Common, 1.1f, 21.5f, 28.8f), Tree(Pine, 1.2f, 1.2f, 1.2f), Tree(Common, 1.2f, 28.8f, 1.2f), Tree(Pine, 1.3f, 1.2f, 26),
+             Tree(Common, 1.2f, 9, 28.8f)],
+            [Pack(15, 15), Pack(11, 11), Pack(19, 11), Pack(11, 19), Rare(19, 19)], ["junction", "forest", "grove"])
+            { DoodadSlots = [LargeDoodad(25, 25, 180), Doodad(3, 9, 90), Doodad(27, 9, 270)] },
     ];
 
     public static IReadOnlyList<ChunkGroupPiece> Groups() =>

@@ -221,12 +221,12 @@ public class ForestPiecesShould
     /// once written by hand are generated, so they are dressed and checked as the rest are.
     /// </summary>
     [Fact]
-    public void Generate_seventeen_pieces_and_three_set_pieces_and_every_forest_chunk_but_the_old_boss()
+    public void Generate_thirty_two_pieces_and_three_set_pieces_and_every_forest_chunk_but_the_old_boss()
     {
-        Assert.Equal(17, ForestPieces.Singles().Count);
+        Assert.Equal(32, ForestPieces.Singles().Count);
         Assert.Equal(["forest_arena", "forest_clearing_big", "forest_grove_ruin"], ForestPieces.Groups().Select(g => g.Name).Order());
         var written = ChunkFiles.For(ForestPieces.Singles(), ForestPieces.Groups()).Select(f => f.Name).ToList();
-        Assert.Equal(29, written.Count);
+        Assert.Equal(44, written.Count);
         Assert.Equal(["forest_boss_01"], Directory.EnumerateFiles(Path.Combine(Maps, "Chunks"), "forest_*.json")
             .Select(Path.GetFileNameWithoutExtension).OfType<string>().Except(written).Order(StringComparer.Ordinal));
     }
@@ -469,12 +469,13 @@ public class ForestPiecesShould
         Assert.All(ForestPieces.Groups(), g => Assert.True(g.Slots.Count(s => s.Tag == "leader") >= 2, $"{g.Name} has fewer than two leaders"));
     }
 
-    /// <summary>chunk-groups.json lists exactly the generated set pieces and their cells; chunk-pools.json lists every single piece and no member.</summary>
+    /// <summary>chunk-groups.json lists exactly the generated set pieces and their cells; chunk-pools.json lists every single piece (by name or as a weighted entry) and no member.</summary>
     [Fact]
     public void List_the_pieces_in_the_pool_and_group_files()
     {
         using var pools = JsonDocument.Parse(File.ReadAllText(Path.Combine(Maps, "chunk-pools.json")));
-        var forest = pools.RootElement.GetProperty("forest_pool").EnumerateArray().Select(e => e.GetString()!).ToList();
+        var forest = pools.RootElement.GetProperty("forest_pool").EnumerateArray()
+            .Select(e => e.ValueKind == JsonValueKind.Object ? e.GetProperty("chunk").GetString()! : e.GetString()!).ToList();
         Assert.All(ForestPieces.Singles(), p => Assert.Contains(p.Name, forest));
         Assert.DoesNotContain(forest, n => ForestPieces.Groups().Any(g => n.StartsWith(g.Name + "_", StringComparison.Ordinal)));
         Assert.DoesNotContain("forest_boss_01", forest);   // owner decision 5
