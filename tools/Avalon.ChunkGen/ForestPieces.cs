@@ -200,8 +200,9 @@ public static class ForestPieces
              Tree(Pine, 1.3f, 21.5f, 1.2f), .. Prop(Log2, 24, 17, 90)],
             [Pack(10, 15), Pack(20, 15), Pack(15, 9), Pack(15, 21)], ["path", "forest", "thicket"])
             { DoodadSlots = [LargeDoodad(4, 27, 180), Doodad(27, 27, 180), Doodad(3, 3, 0)], Hints = new(TreeMix.Pine) },
-        // A rock overhang in the corner away from both exits, its ledge (underside 2.86 m) reaching toward the meeting point over
-        // open floor; only its base is a blocker. Tagged overhang: capped at one a layout in chunk-pools.json.
+        // A rock overhang in the corner away from both exits, its ledge (its underside at least 2.86 m up) reaching
+        // toward the meeting point over open floor; only its base is a blocker. Tagged overhang: capped at one a layout
+        // in chunk-pools.json.
         new("forest_rocks_04", [Side.S, Side.W],
             [.. Prop("avalon_rock_overhang", 22.5f, 22.5f, 210), Rocks(3, 9, 3, 9), Stones(25, 9, 1.5f), Drum(11, 26.5f, 2),
              Tree(Pine, 1.3f, 28.8f, 14), Tree(Pine, 1.2f, 15, 28.8f), Tree(Pine, 1.4f, 22, 1.2f), Tree(Pine, 1.2f, 1.2f, 22),

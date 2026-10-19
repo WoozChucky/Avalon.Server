@@ -425,14 +425,18 @@ tree line), every slot rule above kept:
 Overhangs live in two single pieces only, both tagged `overhang` in the catalog, never in a set piece:
 `forest_rocks_03` stands `avalon_rock_arch` over its meeting point, its legs either side of both paths (4.3 m apart,
 the strip 2.8 m wide) and its span over them (its underside 2.95 m up, the agent 2 m tall); `forest_rocks_04` stands
-`avalon_rock_overhang` in the corner away from its exits, its ledge (underside 2.86 m) reaching over open floor
-toward the meeting point. Only the standing parts are blockers (the arch's legs, the overhang's base, as
+`avalon_rock_overhang` in the corner away from its exits, its ledge (its underside at least 2.86 m up) reaching over
+open floor toward the meeting point. Only the standing parts are blockers (the arch's legs, the overhang's base, as
 `ForestDresser.Prop` reads their footprints); the span and the ledge are drawn and walked under. Owner: one, at most
 two, chunks of a run carry an overhang. In `chunk-pools.json` each of the two is `{ "weight": 1, "max": 1 }` and every
 other forest single `{ "weight": 0.5 }`: the cap makes two the most a layout can hold, the weight twice the others'
 makes one usual, and the singles' half weight keeps the set pieces (which weigh 1) about as frequent as they were with
 seventeen singles. Over the committed 1000 seeds 160 layouts hold none, 457 one and 383 two
 (`CommittedForestGenerationShould` requires at most two in every layout and at least one in 80 %).
+
+The fifteen make forests bigger: six of them are T junctions or crosses, so a run branches more. Over seeds 1 to 64 a
+forest instance places 237 creatures on average (134 to 335), where the seventeen singles placed 208 (137 to 271);
+seeds 1 to 4 went from 200, 269, 173 and 200 to 214, 288, 187 and 286.
 
 **Collision tagging.** A dressed blocker is written `usemtl collision` in the chunk `.obj`, which the client does not
 draw, and the floor `usemtl forest_floor`, which the client gives its ground look; the server ignores both.

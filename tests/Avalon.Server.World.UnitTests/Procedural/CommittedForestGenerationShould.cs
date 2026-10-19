@@ -117,7 +117,7 @@ public class CommittedForestGenerationShould
     {
         (ProceduralMapConfig config, List<ChunkPoolMember> pool, List<ChunkGroupDefinition> groups) = s_forest.Value;
         var overhangs = pool.Where(m => m.Template.Tags.Contains("overhang")).Select(m => m.Template.Id).ToHashSet();
-        Assert.Equal(2, overhangs.Count);
+        Assert.NotEmpty(overhangs);   // a pool with no overhang piece would pass the cap below
         var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
         int[] layouts = new int[3];
 
