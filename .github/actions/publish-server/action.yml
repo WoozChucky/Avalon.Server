@@ -1,7 +1,7 @@
 name: Publish the server
 description: >-
   Publish the four servers and push their images. Nothing deploys an image until push-charts pushes the charts
-  that name it, so a run may call this before its tests finish (dotnet-ci.yml) as long as the charts wait for them.
+  that name it.
 inputs:
   version: { description: "Primary image tag", required: true }
   extra-tags: { description: "More image tags, one per line", required: false, default: "" }
@@ -9,7 +9,7 @@ inputs:
 runs:
   using: composite
   steps:
-    # Needs the four servers restored, nothing built (dotnet-ci.yml builds nothing else): each publish compiles its
+    # Needs the four servers restored, nothing built (neither dotnet-ci.yml nor dotnet-release.yml builds): each publish compiles its
     # server and whatever of its references the ones before it did not, so every project compiles once.
     - name: Publish the servers
       shell: bash
