@@ -40,13 +40,13 @@ public class GroundedMovementShould
     /// <summary>
     /// The navigator's searches (#978) answer what DotRecast's full nearest-polygon searches answer, to the bit, on the
     /// town, a forest and two overlapping floors (the town and the forest have overlapping floors too: 60 of the town's
-    /// 313 polygons and 118 of the forest's 603 have a second floor over or under their centre): the ground, a player's
-    /// step, the walkable raycast (a projectile's step), a route and a line of sight, from every polygon's corners,
-    /// edges and inside, at the polygon's height, at exactly the climb height above and below it, just past it, and
-    /// between floors; idle, a step, a long move into walls, a step that ends on a corner, and (route and sight, from
-    /// one point in sixteen on the larger maps) to the previous point. Corners and edges are where two polygons score
-    /// the same and the first in DotRecast's order wins; just past the climb, and beside the mesh, the full search
-    /// decides.
+    /// 313 polygons, and 118 of the forest's 603 before #1109, have a second floor over or under their centre): the
+    /// ground, a player's step, the walkable raycast (a projectile's step), a route and a line of sight, from every
+    /// polygon's corners, edges and inside, at the polygon's height, at exactly the climb height above and below it,
+    /// just past it, and between floors; idle, a step, a long move into walls, a step that ends on a corner, and (route
+    /// and sight, from one point in sixteen on the larger maps) to the previous point. Corners and edges are where two
+    /// polygons score the same and the first in DotRecast's order wins; just past the climb, and beside the mesh, the
+    /// full search decides.
     /// </summary>
     [Theory]
     [InlineData("town")]
