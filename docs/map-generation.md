@@ -425,8 +425,8 @@ tree line), every slot rule above kept:
 Overhangs live in two single pieces only, both tagged `overhang` in the catalog, never in a set piece:
 `forest_rocks_03` stands `avalon_rock_arch` over its meeting point, its legs either side of both paths (4.3 m apart,
 the strip 2.8 m wide) and its span over them (its underside 2.95 m up, the agent 2 m tall); `forest_rocks_04` stands
-`avalon_rock_overhang` in the corner away from its exits, its ledge (its underside at least 2.86 m up) reaching over
-open floor toward the meeting point. Only the standing parts are blockers (the arch's legs, the overhang's base, as
+`avalon_rock_overhang` in the corner away from its exits, its ledge (its underside at least 2.7 m up) reaching west
+over open floor, side-on to the three-quarter camera. Only the standing parts are blockers (the arch's legs, the overhang's base, as
 `ForestDresser.Prop` reads their footprints); the span and the ledge are drawn and walked under. Owner: one, at most
 two, chunks of a run carry an overhang. In `chunk-pools.json` each of the two is `{ "weight": 1, "max": 1 }` and every
 other forest single `{ "weight": 0.5 }`: the cap makes two the most a layout can hold, the weight twice the others'
