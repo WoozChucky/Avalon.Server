@@ -4570,9 +4570,9 @@ entity being read, unless it is in the 60 to 70 m margin, where whether the clie
 are all checked, as before. The views are the full scan's (`SpatialVisibilityShould`).
 
 **How many candidates** (`candidate-ratio`, a harness, not BenchmarkDotNet): 300 generated forests (seeds 1 to 300, 199
-distinct layouts; some seeds generate the same forest), each built as production builds it, with one client standing every
-5 m along the main path from the entry chunk's centre to the boss chunk's, 28,986 views in all, each decided afresh (the
-60 m radius decides):
+distinct layouts: until #1113 a seed whose first attempt failed generated the next seed's forest), each built as
+production builds it, with one client standing every 5 m along the main path from the entry chunk's centre to the boss
+chunk's, 28,986 views in all, each decided afresh (the 60 m radius decides):
 
 | Per view | Creatures |
 |---|---:|

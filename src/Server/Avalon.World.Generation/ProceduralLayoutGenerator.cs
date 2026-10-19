@@ -47,7 +47,7 @@ public class ProceduralLayoutGenerator
         string? error = null;
         for (int attempt = 0; attempt < MaxRetries; attempt++)
         {
-            int attemptSeed = seed + attempt;
+            int attemptSeed = AttemptSeed(seed, attempt);
             if (TryGenerate(config, pool, sets, attemptSeed, out ChunkLayout? layout, out error))
                 return layout!;
             // A retried attempt is routine (many forest builds need one); only the last failure is worth a warning.
@@ -59,6 +59,26 @@ public class ProceduralLayoutGenerator
             config.MapTemplateId.Value, MaxRetries, seed, error);
         throw new ProceduralGenerationFailedException(
             $"Failed to generate layout for map {config.MapTemplateId.Value} after {MaxRetries} attempts");
+    }
+
+    /// <summary>
+    /// The seed an attempt generates from. The first attempt uses <paramref name="seed" /> itself, so a seed whose first
+    /// attempt succeeds keeps its layout. A retry's seed is mixed from the seed and the attempt number (the SplitMix64
+    /// finalizer over both, the same in every process and on every platform), never <c>seed + attempt</c>: that made seed
+    /// N's first retry seed N+1's first attempt, and so the two seeds one forest (#1113).
+    /// </summary>
+    private static int AttemptSeed(int seed, int attempt)
+    {
+        if (attempt == 0) return seed;
+
+        unchecked
+        {
+            ulong z = ((ulong)(uint)seed << 32) | (uint)attempt;
+            z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
+            z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
+            z ^= z >> 31;
+            return (int)(uint)z;
+        }
     }
 
     private bool TryGenerate(ProceduralMapConfig cfg, IReadOnlyList<ChunkPoolMember> pool,
