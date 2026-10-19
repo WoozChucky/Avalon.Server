@@ -91,6 +91,36 @@ public class DecorRulesShould
     }
 
     /// <summary>
+    /// An item may name its own kit, which must be a decor kit, and its model must be one of that kit's (the file's when
+    /// it names none). The bright nature kit holds the nature kit's models, never the custom forest props. An item kit
+    /// other than the file's is written last on its line.
+    /// </summary>
+    [Theory]
+    [InlineData("nowhere-kit", "Fern_1", "is not a decor kit")]
+    [InlineData(DecorJsonWriter.NatureBrightKit, "avalon_log_fallen_1", "is not a model of")]
+    [InlineData(DecorJsonWriter.TownKit, "Fern_1", "is not a model of")]
+    [InlineData(null, "Wall_Plaster_Straight", "is not a model of")]
+    [InlineData(DecorJsonWriter.NatureBrightKit, "Fern_1", null)]
+    public void Check_an_items_model_against_its_own_kit(string? itemKit, string model, string? refusal)
+    {
+        var item = new DecorItem(string.Empty, model, 12f, 0f, 7.5f, 0, Kit: itemKit);
+
+        Exception? thrown = Record.Exception(() => item.Check("forest_test", KitBounds.Load(), DecorYaw.AnyDegree, fileKit: DecorJsonWriter.ForestKit));
+
+        if (refusal is null)
+        {
+            Assert.True(thrown is null, thrown?.Message);
+            string written = DecorJsonWriter.Write("forest_test", [item], DecorJsonWriter.ForestKit);
+            Assert.Contains("\"yaw\": 0, \"kit\": \"stylized-nature-megakit-bright\" }", written, StringComparison.Ordinal);
+        }
+        else
+        {
+            InvalidOperationException refused = Assert.IsType<InvalidOperationException>(thrown);
+            Assert.Contains(refusal, refused.Message, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
     /// A prop the client draws as a doodad (the notice board) rather than from the decor file keeps its collision proxy,
     /// and the proxy counts the prop as the solid decor on it: drawn, the square passes; with nothing drawing the proxy,
     /// it is refused as an invisible wall.

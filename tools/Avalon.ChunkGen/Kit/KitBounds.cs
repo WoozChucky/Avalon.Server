@@ -6,20 +6,24 @@ using System.Text.Json;
 
 namespace Avalon.ChunkGen;
 
-/// <summary>A model's axis-aligned box in its own space, in metres, as the client draws it before placing it.</summary>
-public sealed record ModelBounds(float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ);
+/// <summary>
+/// A model's axis-aligned box in its own space, in metres, as the client draws it before placing it, and the art kit
+/// it was measured from (a DecorJsonWriter kit name).
+/// </summary>
+public sealed record ModelBounds(float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ, string Kit);
 
 /// <summary>
 /// The art kit's bounds table (Kit/kit-bounds.json): each model's box, keyed by its glTF file name without the
-/// extension, so pieces can be checked against the art without the kit itself, which never enters the repository.
+/// extension, with the kit the model comes from, so pieces can be checked against the art without the kit itself,
+/// which never enters the repository.
 /// The "kit-bounds" command measures the kit's glTF files and rewrites the table (ChunkGenCli).
 /// </summary>
 public static class KitBounds
 {
-    /// <summary>Every bound is required: a model missing one is refused rather than read as 0.</summary>
+    /// <summary>Every bound and the kit are required: a model missing one is refused rather than read as 0 or no kit.</summary>
     private static readonly JsonSerializerOptions s_options = new(JsonSerializerDefaults.Web) { RespectRequiredConstructorParameters = true };
 
-    /// <summary>The committed table, copied next to the assembly at build time. A model missing a bound is refused (JsonException).</summary>
+    /// <summary>The committed table, copied next to the assembly at build time. A model missing a bound or its kit is refused (JsonException).</summary>
     public static IReadOnlyDictionary<string, ModelBounds> Load()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "Kit", "kit-bounds.json");
@@ -34,13 +38,14 @@ public static class KitBounds
     /// points into: a file beside the glTF or a base64 data URI), not from the accessor's min and max, which some kit
     /// exports leave stale (the nature kit's Fern_1 and Plant_1_Big state boxes several times their meshes); an accessor
     /// with no bufferView holds no data, so its min and max are its box. A file that is not such a glTF, or whose
-    /// positions are not float VEC3 or are sparse, is refused (InvalidDataException naming it).
+    /// positions are not float VEC3 or are sparse, is refused (InvalidDataException naming it). The file cannot tell
+    /// its kit, so the caller names it: <paramref name="kit" /> is recorded as given.
     /// </summary>
-    public static ModelBounds Measure(string gltfPath)
+    public static ModelBounds Measure(string gltfPath, string kit)
     {
         try
         {
-            return MeasureDocument(gltfPath);
+            return MeasureDocument(gltfPath, kit);
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException or FormatException
                                        or IOException or UnauthorizedAccessException)
@@ -49,7 +54,7 @@ public static class KitBounds
         }
     }
 
-    private static ModelBounds MeasureDocument(string gltfPath)
+    private static ModelBounds MeasureDocument(string gltfPath, string kit)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(gltfPath));
         JsonElement root = document.RootElement;
@@ -65,12 +70,12 @@ public static class KitBounds
             Visit(root, gltfPath, buffers, nodes[node.GetInt32()], Matrix4x4.Identity, ref min, ref max);
 
         if (min.X > max.X) throw new InvalidDataException($"{gltfPath} draws no mesh");
-        return new ModelBounds(min.X, max.X, min.Y, max.Y, min.Z, max.Z);
+        return new ModelBounds(min.X, max.X, min.Y, max.Y, min.Z, max.Z, kit);
     }
 
     /// <summary>
-    /// The table as committed: one model per line, keys JSON-escaped in ordinal order, values rounded to 3 decimals, LF
-    /// line ends. A bound that is not a finite number is refused (ArgumentException naming the model).
+    /// The table as committed: one model per line, keys JSON-escaped in ordinal order, bounds rounded to 3 decimals, then
+    /// the model's kit, LF line ends. A bound that is not a finite number is refused (ArgumentException naming the model).
     /// </summary>
     public static string Write(IReadOnlyDictionary<string, ModelBounds> table)
     {
@@ -85,7 +90,8 @@ public static class KitBounds
             sb.Append("  \"").Append(JsonEncodedText.Encode(names[i])).Append("\": { ")
               .Append("\"minX\": ").Append(F(b.MinX)).Append(", \"maxX\": ").Append(F(b.MaxX))
               .Append(", \"minY\": ").Append(F(b.MinY)).Append(", \"maxY\": ").Append(F(b.MaxY))
-              .Append(", \"minZ\": ").Append(F(b.MinZ)).Append(", \"maxZ\": ").Append(F(b.MaxZ)).Append(" }")
+              .Append(", \"minZ\": ").Append(F(b.MinZ)).Append(", \"maxZ\": ").Append(F(b.MaxZ))
+              .Append(", \"kit\": \"").Append(JsonEncodedText.Encode(b.Kit)).Append("\" }")
               .Append(i < names.Length - 1 ? ",\n" : "\n");
         }
         sb.Append("}\n");

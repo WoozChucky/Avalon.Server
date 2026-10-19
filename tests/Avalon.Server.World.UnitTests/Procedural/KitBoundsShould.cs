@@ -35,7 +35,7 @@ public sealed class KitBoundsShould : IDisposable
         string path = Path.Combine(_directory, "Turned.gltf");
         File.WriteAllText(path, Gltf);
 
-        ModelBounds bounds = KitBounds.Measure(path);
+        ModelBounds bounds = KitBounds.Measure(path, DecorJsonWriter.TownKit);
 
         Assert.Equal(0.5f, bounds.MinX, 1e-4f);
         Assert.Equal(2.5f, bounds.MaxX, 1e-4f);
@@ -68,6 +68,6 @@ public sealed class KitBoundsShould : IDisposable
         string path = Path.Combine(_directory, "Stale.gltf");
         File.WriteAllText(path, Gltf);
 
-        Assert.Equal(new ModelBounds(-1f, 1f, 0f, 2f, -0.5f, 1.5f), KitBounds.Measure(path));
+        Assert.Equal(new ModelBounds(-1f, 1f, 0f, 2f, -0.5f, 1.5f, DecorJsonWriter.ForestKit), KitBounds.Measure(path, DecorJsonWriter.ForestKit));
     }
 }

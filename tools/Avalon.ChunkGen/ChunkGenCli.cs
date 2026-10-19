@@ -18,8 +18,16 @@ public static class ChunkGenCli
     public const string Usage =
         "usage: Avalon.ChunkGen forest|town [--maps <Maps directory>] | kit-bounds --kit <glTF directory> [--props <glTF directory>] [--props-kit <glTF directory>] [--nature-kit <glTF directory>] [--forest-props <glTF directory>]";
 
-    /// <summary>The kit-bounds directories, in the order they are read: the art kit (required), then the optional ones.</summary>
-    private static readonly string[] s_kitDirectories = ["--kit", "--props", "--props-kit", "--nature-kit", "--forest-props"];
+    /// <summary>
+    /// The kit-bounds directories, in the order they are read, each with the kit its models are recorded in: the art kit
+    /// (required) and the custom town props in the village kit, the props kit, then the nature kit and the custom forest
+    /// models in the nature kit.
+    /// </summary>
+    private static readonly (string Option, string Kit)[] s_kitDirectories =
+    [
+        ("--kit", DecorJsonWriter.TownKit), ("--props", DecorJsonWriter.TownKit), ("--props-kit", DecorJsonWriter.PropsKit),
+        ("--nature-kit", DecorJsonWriter.ForestKit), ("--forest-props", DecorJsonWriter.ForestKit),
+    ];
 
     public static async Task<int> RunAsync(
         string[] args, Func<IReadOnlyList<ChunkPiece>> singles, Func<IReadOnlyList<ChunkGroupPiece>> groups,
@@ -157,7 +165,8 @@ public static class ChunkGenCli
 
     /// <summary>
     /// Measures every *.gltf directly in the kit directory and in each optional one (the custom props, the props kit, the
-    /// nature kit, the custom forest models), and rewrites Kit/kit-bounds.json; with the custom forest models, also
+    /// nature kit, the custom forest models), and rewrites Kit/kit-bounds.json, each model under its directory's kit
+    /// (<see cref="s_kitDirectories" />); with the custom forest models, also
     /// copies their footprints.json into Kit/forest-footprints.json. A name found in two of them, an empty directory, a
     /// file that cannot be measured or a footprints file that does not match its models exits 1 and leaves both tables as
     /// they were.
@@ -174,14 +183,15 @@ public static class ChunkGenCli
                 RepositoryRoot.Find("kit-bounds rewrites the repository's tools/Avalon.ChunkGen/Kit/kit-bounds.json: run it from a build inside the repository."),
                 "tools", "Avalon.ChunkGen", "Kit", "kit-bounds.json");
             var table = new Dictionary<string, ModelBounds>(StringComparer.Ordinal);
-            foreach (string directory in s_kitDirectories.Select(options.GetValueOrDefault).OfType<string>())
+            foreach ((string option, string kit) in s_kitDirectories)
             {
+                if (!options.TryGetValue(option, out string? directory)) continue;
                 string[] models = [.. Directory.EnumerateFiles(Path.GetFullPath(directory), "*.gltf").Order(StringComparer.Ordinal)];
                 if (models.Length == 0) throw new InvalidOperationException($"no .gltf files in {directory}");
                 foreach (string model in models)
                 {
                     string name = Path.GetFileNameWithoutExtension(model);
-                    if (!table.TryAdd(name, KitBounds.Measure(model))) throw new InvalidOperationException($"{name} is in two directories");
+                    if (!table.TryAdd(name, KitBounds.Measure(model, kit))) throw new InvalidOperationException($"{name} is in two directories");
                 }
             }
             json = KitBounds.Write(table);
@@ -240,7 +250,7 @@ public static class ChunkGenCli
         string[] allowed = args switch
         {
             [("forest" or "town"), ..] => ["--maps"],
-            ["kit-bounds", ..] => s_kitDirectories,
+            ["kit-bounds", ..] => [.. s_kitDirectories.Select(d => d.Option)],
             _ => [],
         };
         if (allowed.Length == 0 || args.Length % 2 == 0) return false;
