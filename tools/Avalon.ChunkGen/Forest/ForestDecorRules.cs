@@ -391,7 +391,8 @@ public static class ForestDecorRules
         throw new InvalidOperationException($"{model} is not a forest model");
     }
 
-    private static TreeSpecies? SpeciesOf(string model)
+    /// <summary>A kit tree's species from its model name (<c>CommonTree_1</c>), or null for any other model; scenery's rules (SceneryRules) read trees by it too.</summary>
+    internal static TreeSpecies? SpeciesOf(string model)
     {
         int underscore = model.IndexOf('_', StringComparison.Ordinal);
         return underscore > 0 && Enum.TryParse(model[..underscore], out TreeSpecies species) && Enum.IsDefined(species) ? species : null;

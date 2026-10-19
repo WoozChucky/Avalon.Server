@@ -47,14 +47,17 @@ public static class SceneryRules
     /// <summary>How far an edge vertex may stand off the height it must meet, in metres.</summary>
     private const float GroundTolerance = 0.0005f;
 
-    /// <summary>The town square's side, in metres: its 2 x 2 cells from (0, 0), as TownPieces lays them out.</summary>
-    private const float TownSize = 2f * ChunkPiece.CellSize;
+    private static readonly Lazy<IReadOnlyList<(int X, int Z)>> s_townCells =
+        new(() => [.. TownPieces.Squares().Select(s => (s.GridX, s.GridZ))], isThreadSafe: true);
 
     private const string ForestFloor = "forest_floor";
 
     private const string AncientTree = "avalon_tree_ancient_";
 
     private static readonly Side[] s_sides = [Side.N, Side.E, Side.S, Side.W];
+
+    /// <summary>The town's cells, as TownPieces lays its squares out: what the town ring surrounds and its pieces' rules measure from.</summary>
+    internal static IReadOnlyList<(int X, int Z)> TownCells => s_townCells.Value;
 
     /// <summary>What reads as impassable along an edge, besides the kit trees: undergrowth, rocks, rims, walls and fences.</summary>
     private static readonly string[] s_barrierPrefixes =
@@ -92,22 +95,20 @@ public static class SceneryRules
     /// <summary>
     /// A town ring piece: every item a model of its kit whose turned box lies within its cell; tall items within
     /// <see cref="EdgeBand" /> of an edge it shares with the town at chunk-tree size; and in a cell south or west of
-    /// the town, nothing within <see cref="TownWallNear" /> of the town square drawn taller than
+    /// the town, nothing within <see cref="TownWallNear" /> of the town (<see cref="TownCells" />) drawn taller than
     /// <see cref="TownWallNearTop" />, nor within <see cref="TownWallFar" /> drawn taller than <see cref="TownWallFarTop" />.
     /// </summary>
     public static void CheckTownPiece(SceneryPiece piece, IReadOnlyDictionary<string, ModelBounds> kit)
     {
-        Side[] shared = [.. s_sides.Where(s => InTownSquare(Neighbour((piece.GridX, piece.GridZ), s)))];
-        bool cameraSide = piece.GridX == -1 || piece.GridZ == -1;
+        IReadOnlyList<(int X, int Z)> town = TownCells;
+        Side[] shared = [.. s_sides.Where(s => town.Contains(Neighbour((piece.GridX, piece.GridZ), s)))];
+        bool cameraSide = piece.GridX < town.Min(c => c.X) || piece.GridZ < town.Min(c => c.Z);   // south or west of the town
         foreach (DecorItem item in piece.Decor)
         {
             Footprint footprint = CheckItem(piece, item, kit);
             if (cameraSide)
             {
-                float ox = piece.GridX * ChunkPiece.CellSize, oz = piece.GridZ * ChunkPiece.CellSize;
-                float dx = Math.Max(0f, Math.Max(-(footprint.MaxX + ox), footprint.MinX + ox - TownSize));
-                float dz = Math.Max(0f, Math.Max(-(footprint.MaxZ + oz), footprint.MinZ + oz - TownSize));
-                float distance = MathF.Sqrt(dx * dx + dz * dz);
+                float distance = town.Min(cell => DistanceToCell(piece, footprint, cell));
                 if (distance < TownWallNear && footprint.Top > TownWallNearTop)
                     throw new InvalidOperationException(TooTall(piece, footprint, TownWallNearTop, TownWallNear, distance));
                 if (distance < TownWallFar && footprint.Top > TownWallFarTop)
@@ -184,9 +185,9 @@ public static class SceneryRules
     /// <c>cliffs</c>, <c>ravine</c>, <c>giant</c> and <c>stream</c>; a cap with exactly one capped side of each of
     /// <c>rockfall</c>, <c>trunk</c>, <c>thicket</c> and <c>brink</c>; and its ring file (SceneryJsonWriter.WritePool)
     /// read back by the server's reader (SceneryFile.Read), which refuses a missing cap shape or town-ward spot: its
-    /// refusal is passed on with the same message.
+    /// refusal is passed on with the same message. Returns that ring file's text, the one ChunkFiles.ForestScenery writes.
     /// </summary>
-    public static void CheckForestPool(IReadOnlyList<SceneryPiece> pieces)
+    public static string CheckForestPool(IReadOnlyList<SceneryPiece> pieces)
     {
         List<SceneryPiece> woods = [.. pieces.Where(p => p.Family == "woods")];
         if (woods.Count < 3)
@@ -205,14 +206,16 @@ public static class SceneryRules
                 throw new InvalidOperationException($"the forest pool has no {family} piece: it needs a cap of each family with exactly one capped side");
         }
 
+        string ring = SceneryJsonWriter.WritePool(ChunkFiles.ForestMapId, pieces);
         try
         {
-            SceneryFile.Read(SceneryJsonWriter.WritePool(ChunkFiles.ForestMapId, pieces), "the forest's ring file");
+            SceneryFile.Read(ring, "the forest's ring file");
         }
         catch (InvalidDataException e)
         {
             throw new InvalidOperationException(e.Message, e);
         }
+        return ring;
     }
 
     /// <summary>Refuses a scenery name that is also a chunk's, or that two scenery pieces share: the two share Maps/Decor.</summary>
@@ -234,15 +237,7 @@ public static class SceneryRules
     {
         item.Check(piece.Name, kit, DecorYaw.AnyDegree, piece.Kit);
         ModelBounds box = kit[item.Model];
-        float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
-        foreach ((float x, float z) in new[] { (box.MinX, box.MinZ), (box.MaxX, box.MinZ), (box.MaxX, box.MaxZ), (box.MinX, box.MaxZ) })
-        {
-            (float tx, float tz) = Yaw.Turn(x * item.Scale, z * item.Scale, item.Yaw);
-            minX = Math.Min(minX, item.X + tx);
-            maxX = Math.Max(maxX, item.X + tx);
-            minZ = Math.Min(minZ, item.Z + tz);
-            maxZ = Math.Max(maxZ, item.Z + tz);
-        }
+        (float minX, float maxX, float minZ, float maxZ) = SceneryComposer.TurnedBox(item, box);
 
         var footprint = new Footprint(item, minX, maxX, minZ, maxZ, item.Y + box.MaxY * item.Scale);
         if (minX < -CellTolerance || minZ < -CellTolerance || maxX > ChunkPiece.CellSize + CellTolerance || maxZ > ChunkPiece.CellSize + CellTolerance)
@@ -264,7 +259,7 @@ public static class SceneryRules
         if (footprint.Top <= TallItem || !edges.Any(side => DistanceToEdge(side, item.X, item.Z) < EdgeBand)) return;
 
         string within = $"within {N(EdgeBand)} m of an edge";
-        TreeSpecies? species = SpeciesOf(item.Model);
+        TreeSpecies? species = ForestDecorRules.SpeciesOf(item.Model);
         if (species == TreeSpecies.TwistedTree || item.Model.StartsWith(AncientTree, StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
@@ -362,7 +357,7 @@ public static class SceneryRules
                 _ => (0f, Half),
             };
             DecorItem? tree = piece.Decor.FirstOrDefault(d =>
-                (SpeciesOf(d.Model) is not null || d.Model.StartsWith(AncientTree, StringComparison.Ordinal))
+                (ForestDecorRules.SpeciesOf(d.Model) is not null || d.Model.StartsWith(AncientTree, StringComparison.Ordinal))
                 && MathF.Sqrt((d.X - mx) * (d.X - mx) + (d.Z - mz) * (d.Z - mz)) < CapClearing);
             if (tree is not null)
             {
@@ -373,14 +368,7 @@ public static class SceneryRules
     }
 
     private static bool IsBarrier(string model) =>
-        SpeciesOf(model) is not null || s_barrierPrefixes.Any(p => model.StartsWith(p, StringComparison.Ordinal));
-
-    /// <summary>The kit tree's species from its model name (<c>CommonTree_1</c>), or null for any other model.</summary>
-    private static TreeSpecies? SpeciesOf(string model)
-    {
-        int underscore = model.IndexOf('_', StringComparison.Ordinal);
-        return underscore > 0 && Enum.TryParse(model[..underscore], out TreeSpecies species) && Enum.IsDefined(species) ? species : null;
-    }
+        ForestDecorRules.SpeciesOf(model) is not null || s_barrierPrefixes.Any(p => model.StartsWith(p, StringComparison.Ordinal));
 
     /// <summary>Metres from a piece-local position to the side's edge.</summary>
     private static float DistanceToEdge(Side side, float x, float z) => side switch
@@ -416,12 +404,17 @@ public static class SceneryRules
         _ => (cell.X - 1, cell.Z),
     };
 
-    /// <summary>Whether a cell is one of the town square's 2 x 2.</summary>
-    private static bool InTownSquare((int X, int Z) cell) =>
-        cell.X >= 0 && cell.Z >= 0 && cell.X * ChunkPiece.CellSize < TownSize && cell.Z * ChunkPiece.CellSize < TownSize;
+    /// <summary>Metres from an item's turned box in the piece to another cell (both on the world grid), 0 where they touch.</summary>
+    private static float DistanceToCell(SceneryPiece piece, Footprint footprint, (int X, int Z) cell)
+    {
+        float ox = (piece.GridX - cell.X) * ChunkPiece.CellSize, oz = (piece.GridZ - cell.Z) * ChunkPiece.CellSize;
+        float dx = Math.Max(0f, Math.Max(-(footprint.MaxX + ox), footprint.MinX + ox - ChunkPiece.CellSize));
+        float dz = Math.Max(0f, Math.Max(-(footprint.MaxZ + oz), footprint.MinZ + oz - ChunkPiece.CellSize));
+        return MathF.Sqrt(dx * dx + dz * dz);
+    }
 
     private static string TooTall(SceneryPiece piece, Footprint footprint, float top, float within, float distance) =>
-        $"{What(piece, footprint.Item)} is drawn {N(footprint.Top)} m tall {N(distance)} m from the town square: taller than {N(top)} m "
+        $"{What(piece, footprint.Item)} is drawn {N(footprint.Top)} m tall {N(distance)} m from the town: taller than {N(top)} m "
         + $"within {N(within)} m of the wall, it would stand between the camera and the player";
 
     private static string What(SceneryPiece piece, DecorItem item) => $"{piece.Name}: {item.Model} at ({N(item.X)}, {N(item.Z)})";

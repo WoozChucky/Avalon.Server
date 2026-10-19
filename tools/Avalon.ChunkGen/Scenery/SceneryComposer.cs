@@ -101,12 +101,26 @@ public static class SceneryComposer
             throw new InvalidOperationException($"the kit's bounds table has no model '{item.Model}'");
         (int X, int Z) cell = CellOf(item.X, item.Z);
         float ox = cell.X * ChunkPiece.CellSize, oz = cell.Z * ChunkPiece.CellSize;
+        (float minX, float maxX, float minZ, float maxZ) = TurnedBox(item, box);
+        return Inside(minX - ox, -0.001f) && Inside(maxX - ox, -0.001f) && Inside(minZ - oz, -0.001f) && Inside(maxZ - oz, -0.001f);
+    }
+
+    /// <summary>
+    /// The item's kit box scaled by its scale, turned by its yaw (Yaw.Turn on the box's four corners) and moved to its
+    /// position: the turned corners' bounds on x and z, in the item's own metres (world or piece-local).
+    /// </summary>
+    internal static (float MinX, float MaxX, float MinZ, float MaxZ) TurnedBox(DecorItem item, ModelBounds box)
+    {
+        float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
         foreach ((float x, float z) in new[] { (box.MinX, box.MinZ), (box.MaxX, box.MinZ), (box.MaxX, box.MaxZ), (box.MinX, box.MaxZ) })
         {
             (float tx, float tz) = Yaw.Turn(x * item.Scale, z * item.Scale, item.Yaw);
-            if (!Inside(item.X + tx - ox, -0.001f) || !Inside(item.Z + tz - oz, -0.001f)) return false;
+            minX = Math.Min(minX, item.X + tx);
+            maxX = Math.Max(maxX, item.X + tx);
+            minZ = Math.Min(minZ, item.Z + tz);
+            maxZ = Math.Max(maxZ, item.Z + tz);
         }
-        return true;
+        return (minX, maxX, minZ, maxZ);
     }
 
     /// <summary><c>&lt;prefix&gt;_&lt;x&gt;_&lt;z&gt;</c>, a negative coordinate written <c>m&lt;abs&gt;</c> (<c>town_ring_m1_3</c>).</summary>

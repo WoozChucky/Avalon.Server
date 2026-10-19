@@ -281,6 +281,7 @@ public class TownPiecesShould
     [InlineData("an item across a cell edge", "crosses the edge of town_ring_3_1")]
     [InlineData("a cart by the south wall", "taller than 2 m within 4 m of the wall")]
     [InlineData("a house near the west wall", "taller than 6 m within 10 m of the wall")]
+    [InlineData("a big tree by the north wall", "within 6 m of an edge")]
     [InlineData("a ring cell left out", "no piece for ring cell (3, 3)")]
     [InlineData("a step against the town", "meets the town at y 0.4")]
     [InlineData("a seam between ring cells", "do not meet")]
@@ -313,6 +314,15 @@ public class TownPiecesShould
                 IReadOnlyList<DecorItem> decor = TownBuilding.Place(house, "house_a", 30f - 7f - reach, 15f, 0).Decor;
                 Assert.True(decor.Max(d => DecorRules.WorldBounds(d).MaxY) > SceneryRules.TownWallFarTop, "house_a is drawn no taller than 6 m");
                 pieces[west] = pieces[west] with { Decor = decor };
+                break;
+            }
+            case "a big tree by the north wall":
+            {
+                // A nature-kit tree at twice the tree walls' scale 5 m north of the wall, its box inside the cell (at 3 m a
+                // scale-2 crown would reach past it): on an edge shared with the town only the edge band applies, since
+                // the camera-side rules cover the south and west cells alone.
+                int north = pieces.FindIndex(p => p.Name == "town_ring_0_2");
+                pieces[north] = pieces[north] with { Decor = [new DecorItem("", "CommonTree_1", 15f, 0f, 5f, 0, 2f, DecorJsonWriter.ForestKit)] };
                 break;
             }
             case "a ring cell left out":

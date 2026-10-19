@@ -88,8 +88,8 @@ public static class ChunkFiles
         IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
         foreach (SceneryPiece piece in pieces)
             SceneryRules.CheckForestPiece(piece, kit);
-        SceneryRules.CheckForestPool(pieces);
-        return new SceneryFiles(ForestMapId, Scenery(pieces), SceneryJsonWriter.WritePool(ForestMapId, pieces));
+        string ring = SceneryRules.CheckForestPool(pieces);
+        return new SceneryFiles(ForestMapId, Scenery(pieces), ring);
     }
 
     /// <summary>
@@ -102,7 +102,7 @@ public static class ChunkFiles
         IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
         foreach (SceneryPiece piece in pieces)
             SceneryRules.CheckTownPiece(piece, kit);
-        SceneryRules.CheckTownRing(pieces, [.. TownPieces.Squares().Select(s => (s.GridX, s.GridZ))]);
+        SceneryRules.CheckTownRing(pieces, SceneryRules.TownCells);
         return new SceneryFiles(TownMapId, Scenery(pieces), SceneryJsonWriter.WritePlacements(TownMapId, pieces));
     }
 }
