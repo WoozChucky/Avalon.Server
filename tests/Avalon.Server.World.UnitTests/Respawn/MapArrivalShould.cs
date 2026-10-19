@@ -70,13 +70,22 @@ public class MapArrivalShould
         _forestTemplate = Described(_reference.ForestTemplate, "Beyond the town's portal");
 
         // The town as the World server builds it, and two forests off its own generator: real layouts, with their
-        // rotations, set pieces and portals.
-        _town = Instance(_reference.TownLayout with { EntrySpawnWorldPos = new Vector3(14f, 0.5f, 17f) }, _townTemplate.Id,
-            MapType.Town);
-        _forest = Instance(Forest(seed: 1) with { EntrySpawnWorldPos = new Vector3(11f, 0.25f, 19f) }, _forestTemplate.Id,
-            MapType.Normal);
-        _partyForest = Instance(Forest(seed: 2) with { EntrySpawnWorldPos = new Vector3(9f, 0.75f, 21f) }, _forestTemplate.Id,
-            MapType.Normal, new PartyId(9));
+        // rotations, set pieces and portals, and a scenery ring of their own (negative cells and turned pieces).
+        _town = Instance(_reference.TownLayout with
+        {
+            EntrySpawnWorldPos = new Vector3(14f, 0.5f, 17f),
+            Scenery = [new("town_ring_m1_3", -1, 3, 0), new("town_ring_2_m1", 2, -1, 3)],
+        }, _townTemplate.Id, MapType.Town);
+        _forest = Instance(Forest(seed: 1) with
+        {
+            EntrySpawnWorldPos = new Vector3(11f, 0.25f, 19f),
+            Scenery = [new("t_woods_1", -1, 0, 1), new("t_cap_s", 0, 5, 2)],
+        }, _forestTemplate.Id, MapType.Normal);
+        _partyForest = Instance(Forest(seed: 2) with
+        {
+            EntrySpawnWorldPos = new Vector3(9f, 0.75f, 21f),
+            Scenery = [new("t_woods_1", -1, 0, 1), new("t_cap_s", 0, 5, 2)],
+        }, _forestTemplate.Id, MapType.Normal, new PartyId(9));
 
         IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         foreach (MapInstance instance in new[] { _town, _forest, _partyForest })
@@ -157,12 +166,14 @@ public class MapArrivalShould
 
     /// <summary>
     /// The layout's packet, written here from the layout itself: the seed, the instance, the map, the cell size, an
-    /// entry per chunk with the name the chunk library gives it, the entry spawn and an entry per portal.
+    /// entry per chunk with the name the chunk library gives it, the entry spawn, an entry per portal and one per
+    /// scenery piece.
     /// </summary>
     private byte[] Encoded(MapInstance instance)
     {
         ChunkLayout layout = instance.Layout;
-        Assert.True(layout.Chunks.Count > 1 && layout.Portals.Count > 0, "a layout with several chunks and a portal");
+        Assert.True(layout.Chunks.Count > 1 && layout.Portals.Count > 0 && layout.Scenery.Count > 1,
+            "a layout with several chunks, a portal and a scenery ring");
 
         var message = new SChunkLayoutPacket
         {
@@ -185,6 +196,13 @@ public class MapArrivalShould
                 WorldPos = Vector3Dto.From(p.WorldPos),
                 Radius = p.Radius,
                 TargetMapId = p.TargetMapId,
+            }).ToList(),
+            Scenery = layout.Scenery.Select(s => new SceneryPlacementDto
+            {
+                Name = s.Name,
+                GridX = (short)s.GridX,
+                GridZ = (short)s.GridZ,
+                Rotation = (byte)s.Rotation,
             }).ToList(),
         };
 

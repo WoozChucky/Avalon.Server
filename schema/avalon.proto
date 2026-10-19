@@ -1003,6 +1003,7 @@ message SChunkLayoutPacket {
    repeated PortalPlacementDto Portals = 6;
    uint32 MapId = 7;
    repeated DoodadObstacleDto Obstacles = 8;
+   repeated SceneryPlacementDto Scenery = 9;
 }
 message SDialogueEndPacket {
    uint64 SpeakerGuid = 1;
@@ -1264,6 +1265,12 @@ message SWorldHandshakePacket {
 }
 message SWorldListPacket {
    repeated WorldInfo Worlds = 1;
+}
+message SceneryPlacementDto {
+   optional string Name = 1;
+   int32 GridX = 2;
+   int32 GridZ = 3;
+   uint32 Rotation = 4;
 }
 enum ServerInfoResult {
    ServerInfoResult_Success = 0;

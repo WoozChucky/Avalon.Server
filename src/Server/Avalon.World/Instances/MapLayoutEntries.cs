@@ -7,7 +7,7 @@ namespace Avalon.World.Instances;
 
 /// <summary>
 /// One instance's layout as <c>SMSG_CHUNK_LAYOUT</c> carries it (#883): an entry per chunk, with the chunk's name, an
-/// entry per portal and one per solid doodad's box. Built once, with the instance (so off the tick, where the instance
+/// entry per portal, one per solid doodad's box and one per scenery piece in the ring around it. Built once, with the instance (so off the tick, where the instance
 /// is built), and written into the packet of every character that arrives, where each arrival built them again, on the
 /// tick, in four copies of one block.
 /// </summary>
@@ -19,7 +19,7 @@ namespace Avalon.World.Instances;
 /// area <c>/reload</c> or live template editing replaces.
 /// </para>
 /// <para>
-/// Nothing changes it once it is built, and nothing outside it holds the three lists: <see cref="Encode" /> hands them
+/// Nothing changes it once it is built, and nothing outside it holds the four lists: <see cref="Encode" /> hands them
 /// to the packet's thread-local message, which holds them while it is written and lets go of them when it is, or
 /// fails to be (<c>PacketEncoder</c> clears the message's own members, never an entry's). It is complete before its
 /// instance's constructor returns, so before the instance is published to the tick, where every arrival reads it.
@@ -34,6 +34,7 @@ internal sealed class MapLayoutEntries
     private readonly List<PlacedChunkDto> _chunks;
     private readonly List<PortalPlacementDto> _portals;
     private readonly List<DoodadObstacleDto> _obstacles;
+    private readonly List<SceneryPlacementDto> _scenery;
 
     /// <summary>
     /// The entries of <paramref name="layout" />, in its order, for the instance <paramref name="instanceId" />;
@@ -86,15 +87,30 @@ internal sealed class MapLayoutEntries
             });
         }
 
+        IReadOnlyList<SceneryPlacement> pieces = layout.Scenery;
+        var scenery = new List<SceneryPlacementDto>(pieces.Count);
+        for (int i = 0; i < pieces.Count; i++)
+        {
+            SceneryPlacement piece = pieces[i];
+            scenery.Add(new SceneryPlacementDto
+            {
+                Name = piece.Name,
+                GridX = checked((short)piece.GridX),
+                GridZ = checked((short)piece.GridZ),
+                Rotation = checked((byte)piece.Rotation),
+            });
+        }
+
         _instanceId = instanceId;
         _layout = layout;
         _chunks = chunks;
         _portals = portals;
         _obstacles = obstacles;
+        _scenery = scenery;
     }
 
     /// <summary>The layout's packet, as the layout of map <paramref name="mapId" />.</summary>
     public OutboundPacket Encode(ushort mapId, PacketEncoder encoder) =>
         SChunkLayoutPacket.Create(_layout.Seed, _instanceId, mapId, _layout.CellSize, _chunks, _layout.EntrySpawnWorldPos,
-            _portals, _obstacles, encoder);
+            _portals, _obstacles, _scenery, encoder);
 }
