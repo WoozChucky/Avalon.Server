@@ -84,6 +84,12 @@ internal static class Exports
                 Path.Combine(root, DoodadCatalogExport.DirectoryName, DoodadCatalogExport.FileName)),
             DoodadCatalogExport.Readiness),
 
+        new("map-catalog", MapCatalogExport.DirectoryName + "/" + MapCatalogExport.FileName,
+            "every creature display id each map can show, for client preloading (needs a World database)",
+            root => MapCatalogExport.Write(
+                Path.Combine(root, MapCatalogExport.DirectoryName, MapCatalogExport.FileName)),
+            MapCatalogExport.Readiness),
+
         new("quest-catalog", QuestCatalogExport.DirectoryName + "/" + QuestCatalogExport.FileName,
             "every quest's title, stages, objectives and rewards, for tooling (needs a World database)",
             root => QuestCatalogExport.Write(
