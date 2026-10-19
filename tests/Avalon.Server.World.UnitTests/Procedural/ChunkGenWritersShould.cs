@@ -1,6 +1,7 @@
 using System.Globalization;
 using Avalon.ChunkGen;
 using Avalon.Common.Mathematics;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Maps.Navigation;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
@@ -339,6 +340,122 @@ public class ChunkGenWritersShould
         Vector3 stop = navigator.RaycastWalkable(new Vector3(20f, 0.15f, 7f), new Vector3(2f, 0.15f, 7f));
         Assert.True(stop.x >= 10f && stop.x < 11f, $"the walk west along z = 7 stopped at x = {stop.x}, expected on the deck against the body at x = 10");
     }
+
+    /// <summary>
+    /// A scenery piece cut from a two-cell scene (a hill, a closed ravine wall, a water strip and a mist area, the strip
+    /// and the mist crossing into the next cell) writes only what the client's vendor script reads, every face it draws
+    /// from above wound up, nothing outside its cell and no material without faces (the script throws on an empty one);
+    /// and the forest pool's ring file reads back as the pool it was written from.
+    /// </summary>
+    [Fact]
+    public void Write_scenery_the_client_can_read_and_its_ring_file_back()
+    {
+        var world = new SceneryTerrain(
+            (x, z) => MathF.Max(0f, 3f - ((x - 38f) * (x - 38f) + (z - 8f) * (z - 8f)) / 8f)
+                      - (MathF.Sqrt((x - 50f) * (x - 50f) + (z - 20f) * (z - 20f)) < 4f ? 15f : 0f),
+            (x, z) => x > 34f && x < 42f && z < 12f ? "meadow" : "forest_floor")
+        {
+            // A loop running clockwise seen from above, so the face looks into the pit.
+            Walls =
+            [
+                new SceneryWall(
+                    [.. Enumerable.Range(0, 12).Select(i => (50f + 3.5f * MathF.Cos(-i * MathF.PI / 6f), 20f + 3.5f * MathF.Sin(-i * MathF.PI / 6f)))],
+                    true, -15f, 0f, "cliff_rock"),
+            ],
+            Surfaces =
+            [
+                ScenerySurface.Strip([(20f, -0.5f, 25f), (30f, -0.6f, 26f), (40f, -0.7f, 25f)], 1.2f, "water"),
+                ScenerySurface.Area((x, z) => (x - 30f) * (x - 30f) + (z - 15f) * (z - 15f) < 36f, -2f, "mist"),
+            ],
+        };
+        SceneryPiece piece = SceneryComposer.Cut("test", [(0, 0), (1, 0)], world, [], DecorJsonWriter.ForestKit)[1];
+
+        string obj = SceneryObjWriter.Write(piece);
+
+        Assert.All(Lines(obj), l => Assert.Matches(@"^(#|o |v |f |usemtl )", l));          // the client's vendor script accepts nothing else
+        Assert.All(UsedMaterials(obj), m => Assert.Contains(m, SceneryTerrain.Palette));
+        Assert.All(FaceCounts(obj), g => Assert.True(g.Faces > 0, $"usemtl {g.Material} has no faces"));
+        Assert.Equal(["Ground", "Wall_1", "Surface_1", "Surface_2"], Vertices(obj).Keys);
+        Assert.All(Vertices(obj).Values.SelectMany(v => v),
+            v => Assert.True(v.x is >= 0f and <= 30f && v.z is >= 0f and <= 30f, $"{v} is outside the cell"));
+        Assert.All(GroundAndSurfaceFaces(obj), f => Assert.True(Normal(f).y > 0f));          // wound up, as the client culls
+        SceneryPool read = SceneryFile.Read(SceneryJsonWriter.WritePool(2, SceneryTestPieces.Forest()), "test").Pool!;
+        Assert.Equal(Expected(SceneryTestPieces.Forest()), read.Pieces);                     // names, kinds, weights, fronts, masks, spots
+    }
+
+    private static IEnumerable<string> Lines(string obj) => obj.Split('\n').Where(l => l.Length > 0);
+
+    private static IEnumerable<string> UsedMaterials(string obj) =>
+        Lines(obj).Where(l => l.StartsWith("usemtl ", StringComparison.Ordinal)).Select(l => l["usemtl ".Length..]);
+
+    /// <summary>Each usemtl line's material and the faces that follow it, up to the next usemtl or o.</summary>
+    private static List<(string Material, int Faces)> FaceCounts(string obj)
+    {
+        var groups = new List<(string Material, int Faces)>();
+        bool open = false;
+        foreach (string line in Lines(obj))
+        {
+            if (line.StartsWith("usemtl ", StringComparison.Ordinal))
+            {
+                groups.Add((line["usemtl ".Length..], 0));
+                open = true;
+            }
+            else if (line.StartsWith("o ", StringComparison.Ordinal))
+            {
+                open = false;
+            }
+            else if (open && line.StartsWith("f ", StringComparison.Ordinal))
+            {
+                groups[^1] = (groups[^1].Material, groups[^1].Faces + 1);
+            }
+        }
+        return groups;
+    }
+
+    /// <summary>The faces of the Ground and Surface_* objects, as vertex triples.</summary>
+    private static List<(Vector3 A, Vector3 B, Vector3 C)> GroundAndSurfaceFaces(string obj)
+    {
+        var vertices = new List<Vector3>();
+        var faces = new List<(Vector3, Vector3, Vector3)>();
+        string current = "";
+        foreach (string line in Lines(obj))
+        {
+            string[] p = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (p[0] == "o")
+            {
+                current = p[1];
+            }
+            else if (p[0] == "v")
+            {
+                vertices.Add(new Vector3(float.Parse(p[1], CultureInfo.InvariantCulture), float.Parse(p[2], CultureInfo.InvariantCulture),
+                    float.Parse(p[3], CultureInfo.InvariantCulture)));
+            }
+            else if (p[0] == "f" && (current == "Ground" || current.StartsWith("Surface_", StringComparison.Ordinal)))
+            {
+                faces.Add((vertices[int.Parse(p[1], CultureInfo.InvariantCulture) - 1], vertices[int.Parse(p[2], CultureInfo.InvariantCulture) - 1],
+                    vertices[int.Parse(p[3], CultureInfo.InvariantCulture) - 1]));
+            }
+        }
+        Assert.NotEmpty(faces);
+        return faces;
+    }
+
+    private static Vector3 Normal((Vector3 A, Vector3 B, Vector3 C) f)
+    {
+        Vector3 u = f.B - f.A, w = f.C - f.A;
+        return new Vector3(u.y * w.z - u.z * w.y, u.z * w.x - u.x * w.z, u.x * w.y - u.y * w.x);
+    }
+
+    /// <summary>The pool a ring file of <paramref name="pieces" /> holds: each piece's pool entry, by name.</summary>
+    private static List<SceneryPoolPiece> Expected(IReadOnlyList<SceneryPiece> pieces) =>
+    [
+        .. pieces.OrderBy(p => p.Name, StringComparer.Ordinal).Select(p => p.Kind switch
+        {
+            SceneryKind.Border => new SceneryPoolPiece(p.Name, SceneryKind.Border, p.Weight, (ExitSide)p.Front, 0, p.Filler, 0, 0),
+            SceneryKind.Cap => new SceneryPoolPiece(p.Name, SceneryKind.Cap, p.Weight, default, (byte)p.Capped.Sum(s => 1 << (int)s), false, 0, 0),
+            _ => new SceneryPoolPiece(p.Name, SceneryKind.TownWard, 0f, default, 0, false, p.Spot!.Value.X, p.Spot.Value.Z),
+        }),
+    ];
 
     /// <summary>Vertices by "o" object, in file order; "usemtl" and other lines are ignored, as the bake ignores them.</summary>
     private static Dictionary<string, List<Vector3>> Vertices(string obj)

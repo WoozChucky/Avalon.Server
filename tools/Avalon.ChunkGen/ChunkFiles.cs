@@ -64,4 +64,11 @@ public static class ChunkFiles
         }
         return files;
     }
+
+    /// <summary>
+    /// Each scenery piece's terrain (Maps/Scenery/&lt;name&gt;.obj, SceneryObjWriter) and decor (Maps/Decor/&lt;name&gt;.json,
+    /// in the piece's kit), unchecked: the scenery rules are not applied here.
+    /// </summary>
+    public static IReadOnlyList<(string Name, string Obj, string Decor)> Scenery(IEnumerable<SceneryPiece> pieces) =>
+        [.. pieces.Select(p => (p.Name, SceneryObjWriter.Write(p), DecorJsonWriter.Write(p.Name, p.Decor, p.Kit)))];
 }
