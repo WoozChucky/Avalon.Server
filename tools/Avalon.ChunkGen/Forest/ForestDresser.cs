@@ -25,7 +25,7 @@ public static class ForestDresser
     // ---- trees ----
 
     /// <summary>The scale range of a tree standing in a tree drum.</summary>
-    public const float DrumTreeMinScale = 0.9f, DrumTreeMaxScale = 1.3f;
+    public const float DrumTreeMinScale = 1f, DrumTreeMaxScale = 1.5f;
 
     /// <summary>How far inside a drum's flat sides a tree's trunk keeps, in metres.</summary>
     public const float DrumTrunkInset = 0.05f;
@@ -35,10 +35,10 @@ public static class ForestDresser
 
     // ---- ground cover, per 100 m² of the frame ----
 
-    public const float GrassClumpsPer100 = 4.5f;
-    public const float FernsPer100 = 4.5f;
+    public const float GrassClumpsPer100 = 6f;
+    public const float FernsPer100 = 2.5f;
     public const float CloverPer100 = 1.2f;
-    public const float PlantsPer100 = 1f;
+    public const float PlantsPer100 = 0.6f;
     public const float PebblesPer100 = 1.2f;
     public const float SmallBushesPer100 = 0.5f;
     public const float FlowersPer100 = 0.2f;
@@ -117,8 +117,8 @@ public static class ForestDresser
     private static readonly string[] s_rubble = ["Pebble_Square_1", "Pebble_Square_2", "Pebble_Square_3", "Pebble_Square_4", "Pebble_Square_5", "Pebble_Square_6"];
     private static readonly string[] s_pebbles = ["Pebble_Round_1", "Pebble_Round_2", "Pebble_Round_3", "Pebble_Round_4", "Pebble_Round_5", "Pebble_Square_2", "Pebble_Square_4"];
     private static readonly (string Model, int Weight)[] s_grass = [("Grass_Common_Short", 40), ("Grass_Wispy_Short", 30), ("Grass_Common_Tall", 20), ("Grass_Wispy_Tall", 10)];
-    private static readonly (string Model, int Weight)[] s_undergrowth = [("Fern_1", 35), ("Bush_Common_Flowers", 20), ("Plant_1_Big", 20), ("Grass_Wispy_Tall", 25)];
-    private static readonly (string Model, int Weight)[] s_drumFill = [("Bush_Common_Flowers", 45), ("Plant_1_Big", 30), ("Fern_1", 25)];
+    private static readonly (string Model, int Weight)[] s_undergrowth = [("Fern_1", 30), ("Bush_Common_Flowers", 8), ("Plant_1_Big", 12), ("Grass_Wispy_Tall", 35), ("Grass_Common_Tall", 15)];
+    private static readonly (string Model, int Weight)[] s_drumFill = [("Bush_Common_Flowers", 35), ("Plant_1_Big", 30), ("Fern_1", 35)];
     private static readonly string[] s_plants = ["Plant_1", "Plant_7", "Plant_7_Big"];
     private static readonly string[] s_clover = ["Clover_1", "Clover_2"];
     private static readonly string[] s_flowers = ["Flower_3_Group", "Flower_4_Group", "Flower_3_Single", "Flower_4_Single"];
@@ -329,7 +329,7 @@ public static class ForestDresser
         /// <summary>Two to four trees inside the drum near its rim, trunks within its flat sides; bushes, a fern or a tall plant and, in a wide one, a rock filling it.</summary>
         private void DressDrum(CylinderBlocker drum)
         {
-            int count = drum.Radius >= 2.5f ? rng.Next(3, 5) : drum.Radius >= 2f ? rng.Next(2, 4) : 2;
+            int count = drum.Radius >= 2.5f ? 4 : drum.Radius >= 2f ? rng.Next(3, 5) : rng.Next(2, 4);
             int start = rng.Next(360);
             for (int i = 0; i < count; i++)
             {
