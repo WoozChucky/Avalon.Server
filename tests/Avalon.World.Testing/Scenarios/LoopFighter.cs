@@ -27,8 +27,9 @@ namespace Avalon.World.Testing.Scenarios;
 /// <summary>
 /// One player fighting through a forest, as a client playing it would: every tick it steers at the nearest live
 /// creature with one <see cref="CPlayerInputPacket" /> through the real <see cref="PlayerInputHandler" />, turning away
-/// from a wall it walked into (bump and turn), and once the creature is within its basic ability's reach it stands,
-/// faces it and casts the ability through the real <see cref="CastAbilityHandler" /> each time the ability is ready.
+/// from a wall it walked into (bump and turn), and once the creature is within its basic ability's reach and in sight
+/// (<see cref="InSight" />) it stands, faces it and casts the ability through the real <see cref="CastAbilityHandler" />
+/// each time the ability is ready; in reach but behind a trunk or a rock, it walks on.
 /// It runs from <see cref="ScenarioConnection.UpdateMap" />, inside the instance pass, where production processes a
 /// connection's queued packets. One packet of each kind per fighter, mutated each time, so the driver itself allocates
 /// nothing, but for the quest accept's closure (<see cref="AcceptQuest" />), which stands for the accept handler's own.
@@ -102,6 +103,13 @@ public sealed class LoopFighter
 
     /// <summary>... or this share of a short reach.</summary>
     private const float ReachMarginShare = 0.2f;
+
+    /// <summary>
+    /// A creature is in sight when a walkable ray from the fighter to it ends within this of it, on the ground plane: a
+    /// projectile stops where such a ray does (ProjectileAbilityScript), and a creature at the edge of the eroded mesh
+    /// still counts.
+    /// </summary>
+    private const float SightMargin = 1f;
 
     /// <summary>
     /// How far behind the world's tick a fighter says it was drawing when it casts (<c>CCastAbilityPacket.ViewTick</c>,
@@ -314,7 +322,9 @@ public sealed class LoopFighter
         float dz = at.z - position.z;
         float goalYaw = Yaw(dx, dz);
 
-        if (dx * dx + dz * dz > _stopDistance * _stopDistance)
+        // Out of reach, or in reach behind a trunk or a rock, which would take the shot: walk on (bump and turn takes it
+        // round what is in the way), as a player steps out from behind a tree.
+        if (dx * dx + dz * dz > _stopDistance * _stopDistance || !InSight(forest, position, at))
         {
             Walk(connection, goalYaw);
             TryHeal(connection, character);
@@ -577,6 +587,17 @@ public sealed class LoopFighter
         if (hurt.CurrentHealth > health)
             HealsLanded++;
         return true;
+    }
+
+    /// <summary>
+    /// Whether a walkable ray from <paramref name="from" /> to <paramref name="to" /> over the forest's navmesh ends within
+    /// <see cref="SightMargin" /> of it: nothing solid stands between. The raycast allocates nothing.
+    /// </summary>
+    private static bool InSight(FightForest forest, Vector3 from, Vector3 to)
+    {
+        Vector3 end = forest.Instance.GetNavigatorForPosition(from).RaycastWalkable(from, to);
+        float dx = to.x - end.x, dz = to.z - end.z;
+        return dx * dx + dz * dz <= SightMargin * SightMargin;
     }
 
     /// <summary>Steers at <paramref name="goalYaw" />, or along a heading turned away from the wall the last step met.</summary>
