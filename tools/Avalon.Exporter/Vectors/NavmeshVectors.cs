@@ -200,23 +200,24 @@ public static class NavmeshVectors
             ]),
 
         // Four unwalled forest chunks, so the floors join and a ray crosses a chunk seam on open
-        // ground. Two have their floor's top face at local y = 0 and two at 0.05, which is the
-        // LARGEST vertical variation a layout composed from real chunks can produce -- and the
-        // ground rows below are the bake quantising both to one height. See the header.
+        // ground, clear of their blockers. Every forest piece is generated (#1109), its floor's top
+        // face at local y = 0, so the seams join at one height and the ground rows below answer it.
+        // See the header.
         new("forest-floors", 30f,
             [
-                Ray(15f, 15f, 45f, 15f, "across the seam between two chunks of equal floor height",
-                    y: 0.1f),
-                Ray(15f, 15f, 15f, 45f, "across the seam between the two floor heights", y: 0.1f),
-                Ray(15f, 15f, 45f, 45f, "diagonally across both seams", y: 0.1f),
+                Ray(15f, 15f, 45f, 15f, "east across the seam between two chunks", y: 0.1f),
+                Ray(15f, 15f, 15f, 45f, "north across the seam between two chunks", y: 0.1f),
+                // Not along x = z: that line runs through the tile corners (every 9.6 m), and the edges the
+                // blockers cut meet there, so a ray along it clamps on a corner (see the header).
+                Ray(15f, 15f, 45f, 44f, "diagonally across both seams, off the tile corners", y: 0.1f),
                 Ray(15f, 15f, 15f, -5f, "off the layout's south edge", y: 0.1f),
             ],
             [
                 Ground(15f, 15f, "forest_entry_01, floor top at local y = 0"),
                 Ground(45f, 15f, "forest_path_01, floor top at local y = 0"),
-                Ground(15f, 45f, "forest_clearing_01, floor top at local y = 0.05"),
-                Ground(45f, 45f, "forest_path_03, floor top at local y = 0.05"),
-                Ground(15f, 30f, "on the seam between the two heights"),
+                Ground(15f, 45f, "forest_clearing_01, floor top at local y = 0"),
+                Ground(45f, 45f, "forest_path_03, floor top at local y = 0"),
+                Ground(15f, 30f, "on the seam between two chunks"),
             ],
             [
                 new("forest_entry_01", 0, 0, 0),
@@ -535,15 +536,14 @@ public static class NavmeshVectors
         #
         # HEIGHT COVERAGE IS BOUNDED BY THE CHUNK LIBRARY, and that is a real gap rather than an
         # oversight. Every chunk floor the server ships is a flat slab: a town floor's top face is at
-        # local y = 0.05, a forest floor's at 0 or 0.05, and the walls are vertical. The town squares
-        # carry buildings and props besides (solids the bake cuts around; every solid's top is at
-        # least 1.05 m, above the 0.9 m climb, so each stops a walk) and, since the kit rebuild, no
-        # walkable riser at all: the stone curbs along its roads are drawn by the client and never
-        # baked. The 'forest-floors' layout puts the two floor heights beside each other -- the
-        # largest vertical variation two floors can produce -- and its ground rows all come back at
-        # one height, because 5 cm is a quarter of the bake's 0.2 cell height and both floors quantise
-        # to the same voxel. So these vectors pin SampleGroundHeight at a single height on open
-        # ground (the curb row included), and at one flat top: the gate arch's.
+        # local y = 0.05, a forest floor's at 0, and the walls are vertical. The town squares carry
+        # buildings and props besides, and the forest pieces blockers (solids the bake cuts around;
+        # every solid's top is at least 1.05 m, above the 0.9 m climb, so each stops a walk) and,
+        # since the kit rebuild, no walkable riser at all: the stone curbs along the town's roads are
+        # drawn by the client and never baked. The 'forest-floors' layout joins four forest floors,
+        # all at that one height. So these vectors pin SampleGroundHeight at a single height on each
+        # open floor, the town's (the curb row included) and the forest's, and at one flat top: the
+        # gate arch's.
         # Building interiors and roof tops bake as navmesh islands that nothing reaches (the
         # forest's blocker tops do too); a ground query over one answers the island's height.
         #
