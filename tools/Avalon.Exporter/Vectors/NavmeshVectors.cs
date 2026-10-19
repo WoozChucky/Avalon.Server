@@ -202,30 +202,34 @@ public static class NavmeshVectors
         // Four unwalled forest chunks, so the floors join and a ray crosses a chunk seam on open
         // ground, clear of their blockers. Every forest piece is generated (#1109), its floor's top
         // face at local y = 0, so the seams join at one height and the ground rows below answer it.
-        // See the header.
+        // A forest piece's closed sides carry tree walls (#1109), so the clearing and the corner are
+        // turned for their exits to face path_01's north exit and each other: the east and north rays
+        // run exit to exit, through the throats. See the header.
         new("forest-floors", 30f,
             [
-                Ray(15f, 15f, 45f, 15f, "east across the seam between two chunks", y: 0.1f),
-                Ray(15f, 15f, 15f, 45f, "north across the seam between two chunks", y: 0.1f),
+                Ray(15f, 45f, 45f, 45f, "east across the seam between two chunks, exit to exit", y: 0.1f),
+                Ray(45f, 15f, 45f, 45f, "north across the seam between two chunks, exit to exit", y: 0.1f),
                 // Not along x = z: that line runs through the tile corners (every 9.6 m), and the edges the
                 // blockers cut meet there, so a ray along it clamps on a corner (see the header). A metre
-                // north of it, the ray passes every corner 0.71 m off and every blocker 2 m off.
+                // north of it, the ray passes every corner 0.71 m off and every blocker 2.7 m off: through the
+                // entry's north-east corner (its tree wall stops short of its doodad slot there), the turned
+                // clearing's south-east corner and the turned corner's open south-west one.
                 Ray(15f, 16f, 45f, 46f, "diagonally across both seams, a metre off x = z and the tile corners",
                     y: 0.1f),
-                Ray(15f, 15f, 15f, -5f, "off the layout's south edge", y: 0.1f),
+                Ray(45f, 15f, 45f, -5f, "off the layout's south edge, out of path_01's south exit", y: 0.1f),
             ],
             [
                 Ground(15f, 15f, "forest_entry_01, floor top at local y = 0"),
                 Ground(45f, 15f, "forest_path_01, floor top at local y = 0"),
                 Ground(15f, 45f, "forest_clearing_01, floor top at local y = 0"),
                 Ground(45f, 45f, "forest_path_03, floor top at local y = 0"),
-                Ground(15f, 30f, "on the seam between two chunks"),
+                Ground(45f, 30f, "on the seam between two chunks, between two exits"),
             ],
             [
                 new("forest_entry_01", 0, 0, 0),
                 new("forest_path_01", 1, 0, 0),
-                new("forest_clearing_01", 0, 1, 0),
-                new("forest_path_03", 1, 1, 0),
+                new("forest_clearing_01", 0, 1, 1),
+                new("forest_path_03", 1, 1, 2),
             ]),
 
         // One solid doodad's box on a forest path, standing on the floor at a slot's height (every doodad slot is
@@ -543,7 +547,8 @@ public static class NavmeshVectors
         # every solid's top is at least 1.05 m, above the 0.9 m climb, so each stops a walk) and,
         # since the kit rebuild, no walkable riser at all: the stone curbs along the town's roads are
         # drawn by the client and never baked. The 'forest-floors' layout joins four forest floors,
-        # all at that one height. So these vectors pin SampleGroundHeight at a single height on each
+        # all at that one height, two of them turned (by one and two quarter turns) so that its seam
+        # crossings run exit to exit past the tree walls along the pieces' closed sides. So these vectors pin SampleGroundHeight at a single height on each
         # open floor, the town's (the curb row included) and the forest's, and at one flat top: the
         # gate arch's.
         # Building interiors and roof tops bake as navmesh islands that nothing reaches (the
