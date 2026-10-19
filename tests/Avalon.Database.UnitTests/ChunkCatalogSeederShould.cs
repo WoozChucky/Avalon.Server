@@ -30,7 +30,8 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         ChunkTemplate path = await db.ChunkTemplates.SingleAsync(t => t.Name == "forest_path_01");
         Assert.Equal("Chunks/forest_path_01.obj", path.GeometryFile);
         Assert.Equal(["path", "forest"], path.Tags);
-        Assert.Empty(path.DoodadSlots);
+        // A chunk file with no doodadSlots key seeds none.
+        Assert.Empty((await db.ChunkTemplates.SingleAsync(t => t.Name == "forest_boss_01")).DoodadSlots);
         await using WorldDbContext read = database.CreateDbContext();   // the slots as stored, not as tracked
         ChunkTemplate thicket = await read.ChunkTemplates.SingleAsync(t => t.Name == "forest_thicket_01");
         Assert.Equal(["doodad", "doodad", "doodad_large"], thicket.DoodadSlots.Select(s => s.Tag).Order(StringComparer.Ordinal));
@@ -682,7 +683,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         Assert.Contains(fault, error.Message, StringComparison.Ordinal);
     }
 
-    /// <summary>Gives the copy's forest_path_01 (a hand-made chunk with no doodad slots) one doodad slot; returns its file.</summary>
+    /// <summary>Gives the copy's forest_path_01 one doodad slot in place of its own; returns its file.</summary>
     private static string WriteDoodadSlot(string root, string tag, float x, string y, float z, int yaw)
     {
         string path = Path.Combine(root, "Chunks", "forest_path_01.json");

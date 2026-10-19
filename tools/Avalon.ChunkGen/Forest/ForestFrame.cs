@@ -34,7 +34,7 @@ internal sealed record ForestExit(Side Side, float X, float Z, float InX, float 
 /// </summary>
 internal sealed record ForestFrame(
     string Name, float Size, IReadOnlyList<Blocker> Blockers, IReadOnlyList<ForestExit> Exits, IReadOnlyList<DoodadSlot> DoodadSlots,
-    DressingHints Hints)
+    IReadOnlyList<PortalSlot> PortalSlots, DressingHints Hints)
 {
     /// <summary>Where the frame's paths meet: the hint's point, or the frame's centre.</summary>
     public float MeetX => Hints.MeetX ?? Size / 2f;
@@ -42,11 +42,12 @@ internal sealed record ForestFrame(
     public float MeetZ => Hints.MeetZ ?? Size / 2f;
 
     public static ForestFrame Of(ChunkPiece piece) =>
-        new(piece.Name, ChunkPiece.CellSize, piece.Blockers, [.. piece.Exits.Select(e => ForestExit.Of(e, 0, 0))], piece.DoodadSlots, piece.Hints);
+        new(piece.Name, ChunkPiece.CellSize, piece.Blockers, [.. piece.Exits.Select(e => ForestExit.Of(e, 0, 0))], piece.DoodadSlots,
+            piece.PortalSlots, piece.Hints);
 
     public static ForestFrame Of(ChunkGroupPiece group) =>
         new(group.Name, 2 * ChunkPiece.CellSize, group.Blockers, [.. group.OuterExits.Select(e => ForestExit.Of(e.Side, e.CellX, e.CellZ))],
-            group.DoodadSlots, group.Hints);
+            group.DoodadSlots, [], group.Hints);
 }
 
 /// <summary>

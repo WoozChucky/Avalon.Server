@@ -112,7 +112,12 @@ A chunk is two files in `Maps/Chunks/` with the same name: `<name>.obj` (geometr
     { "tag": "entry", "localX": 15, "localY": 1, "localZ": 15 }
   ],
   "portalSlots": [
-    { "role": "Back", "localX": 15, "localY": 1, "localZ": 5 }
+    { "role": "Back", "localX": 15, "localY": 0, "localZ": 5 }
+  ],
+  "doodadSlots": [
+    { "tag": "doodad_large", "localX": 27, "localY": 0, "localZ": 27, "yaw": 180 },
+    { "tag": "doodad", "localX": 3, "localY": 0, "localZ": 3, "yaw": 0 },
+    { "tag": "doodad", "localX": 27, "localY": 0, "localZ": 3, "yaw": 0 }
   ],
   "tags": ["entry", "forest"]
 }
@@ -137,7 +142,7 @@ A chunk is two files in `Maps/Chunks/` with the same name: `<name>.obj` (geometr
   entry chunks), `Forward` advances to the next (typically in boss chunks). The destination is not in the chunk: towns
   take it from the layout placement, procedural maps from `ProceduralMapConfig.BackPortalTargetMapId` /
   `ForwardPortalTargetMapId`.
-- **doodadSlots** (optional, after `portalSlots`; left out when a chunk has none, as in `forest_entry_01` above):
+- **doodadSlots** (optional, after `portalSlots`; left out when a chunk has none, as in `forest_boss_01`):
   `tag` + chunk-local `localX/Y/Z` + `yaw`, a spot a procedural map may place a doodad at (see `docs/doodads.md`).
   `yaw` is the degrees the doodad faces (`Orientation.y`, 0 along +Z, 90 along +X), a quarter turn: 0, 90, 180 or 270.
   Tags: `doodad` (a walk-through doodad) and `doodad_large` (may hold a solid one). Doodad slot tags are not spawn-table
@@ -319,9 +324,13 @@ Each player gets their own seed (server's `ProceduralChunkLayoutSource.NextSeed(
 
 ## Generated forest chunks
 
-The forest pieces are written by `tools/Avalon.ChunkGen`. Each is a flat 30 x 30 m floor (the forest slab, y -0.2 to 0)
-with blockers on it, boxes for rocks and ruined walls and twelve-sided cylinders for tree clusters, trunks and pillars,
-3 m tall. Blockers cut the navmesh (the agent climbs 0.9 m), so creatures path around them and walkable rays (movement,
+The forest pieces are written by `tools/Avalon.ChunkGen`: seventeen single pieces and three set pieces, every forest
+chunk but `forest_boss_01` (hand-made, out of the pool). Nine of the singles (`forest_entry_01`, `forest_path_01` to
+`_04`, `forest_junction_t`, `forest_junction_x`, `forest_clearing_01` and `forest_deadend_01`) were bare floors
+written by hand until forest dressing (#1109) ported them, their exits, spawn slots, tags and the entry's portal as
+they were; six of those floors had their top at y 0.05, and every forest floor now has it at 0. Each is a flat
+30 x 30 m floor (the forest slab, y -0.2 to 0) with blockers on it, boxes for rocks and ruined walls and twelve-sided
+cylinders for tree clusters, trunks and pillars, 3 m tall. Blockers cut the navmesh (the agent climbs 0.9 m), so creatures path around them and walkable rays (movement,
 ground-target casts, projectiles) stop at them. What the client draws is the piece's decor file (see "Dressing the
 forest" below); the blockers are its collision.
 
@@ -333,7 +342,7 @@ writes every piece's `.obj` and `.json` into `Maps/Chunks/` and its decor file i
 through the World server's own catalog reader (`ChunkCatalogSeeder.ReadCatalogAsync`) and bakes each piece, and each
 set piece's four members together, with `ChunkLayoutNavmeshBuilder` in a temporary copy of `Maps/`; if anything fails
 it exits 1 and nothing is written. After writing, it lists every `forest_*` file in `Maps/Chunks/` and `Maps/Decor/` it
-did not generate (`forest_boss_01`, the hand-made pieces, or one left over from a renamed piece) and deletes none of
+did not generate (`forest_boss_01`, or one left over from a renamed piece) and deletes none of
 them. Edit `tools/Avalon.ChunkGen/ForestPieces.cs` and rerun it; `ForestPiecesShould` fails when the committed files
 (decor included) differ from a fresh run, when a slot is within 2.5 m
 of a blocker or 2 m of the chunk's edge, when a blocker stands in an exit's throat, or when a slot or exit cannot be
@@ -345,10 +354,13 @@ Every generated forest piece also carries doodad slots (`DoodadSlots` on the pie
 `LargeDoodad(x, z, yaw)` in `ForestPieces.cs`): each single piece two `doodad` slots and one `doodad_large`, each set-piece
 member one `doodad` slot, and each of the arena's members a `doodad_large` too; a set piece lists them in its 60 x 60 m
 frame and they are split into its members as spawn slots are. Doodad slots are written on the floor, at `localY` 0
-(`ChunkPiece.DoodadSlotY`, the floor's top), and spawn slots 1 m up, at `localY` 1. The hand-made chunks (`forest_entry_01`, `forest_boss_01`,
-the paths, junctions, `forest_clearing_01` and `forest_deadend_01`) have none, and the tool writes `"doodadSlots"` only
-for a piece that has some, so the town squares' files are unchanged by it. `ForestPiecesShould` keeps every doodad slot
-off the paths and clear of the rest, with a `doodad_large` slot further away because it may hold a solid doodad:
+(`ChunkPiece.DoodadSlotY`, the floor's top), and spawn slots 1 m up, at `localY` 1. The hand-made `forest_boss_01`
+has none, and the tool writes `"doodadSlots"` only for a piece that has some, so the town squares' files are unchanged
+by it. The entry's slots stand in its corners: the placement drops a slot within 15 m of the entry spawn or 8 m of a
+portal (see `docs/doodads.md`), and the corners are the only spots of the entry clear of both. A piece's portal slots
+(`PortalSlots`, `forest_entry_01`'s `Back` at (15, 5)) are written at `localY` 0 (`ChunkPiece.PortalSlotY`), and
+`ForestPiecesShould` holds them to the spawn slots' rules: 2.5 m from any blocker, on the navmesh floor, and reached.
+`ForestPiecesShould` keeps every doodad slot off the paths and clear of the rest, with a `doodad_large` slot further away because it may hold a solid doodad:
 
 | From | `doodad` | `doodad_large` |
 |---|---|---|
@@ -392,7 +404,10 @@ box, so the model turns only by quarter turns, a circle part as a cylinder of it
 parts are all circles turns only by multiples of 30 degrees, and every custom solid model stands at scale 1. Today's
 pieces add a free-standing tree line along their edges (three to eight trunks a single piece, about thirty a set
 piece), a fallen log (three a set piece), and a leaning rock in `forest_rocks_01` and `forest_glade_01`; the drums,
-rock boxes, walls and pillars are unchanged.
+rock boxes, walls and pillars are unchanged. The nine ported pieces have one or two tree drums or custom rocks each
+(`avalon_rock_large_*` placed by `ForestDresser.Prop`, so their blockers are the rocks' footprints), a log and an
+edge tree line, ten blockers a piece; `forest_clearing_01` has four small drums in its corners instead. Their trees
+keep clear the lines the navmesh vectors' `forest-floors` rays run along (the Exporter's `navmesh` artifact).
 
 **Collision tagging.** A dressed blocker is written `usemtl collision` in the chunk `.obj`, which the client does not
 draw, and the floor `usemtl forest_floor`, which the client gives its ground look; the server ignores both.
@@ -410,8 +425,8 @@ stepping stone.
 
 **Undergrowth and ground cover.** Along every edge, outside the exits' throats, a 3.5 m band of ferns, bushes, tall
 plants and tall grass; on the open floor, off the strip and the blockers and clear of the doodad slots (1.5 m, 3 m from
-a `doodad_large`), grass in clumps (most), ferns, clover, plants, pebbles, a few small bushes and very few flowers, and
-mushrooms at the feet of trees, drums and logs. Off a blocker, cover is scaled down to be drawn no taller than 1.2 m,
+a `doodad_large`) and 3 m from a portal slot, grass in clumps (most), ferns, clover, plants, pebbles, a few small
+bushes and very few flowers, and mushrooms at the feet of trees, drums and logs. Off a blocker, cover is scaled down to be drawn no taller than 1.2 m,
 so what a player walks through on open floor reads as small; bushes and tall plants at full size stand only on a drum
 or a rock box. The kit's red-leaved `Bush_Common` is used once a frame at most, and a
 `TwistedTree` only in an old wood (`TreeMix.Old`), once a frame at most. The piece's `DressingHints.Trees` picks the

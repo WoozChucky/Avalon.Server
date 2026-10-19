@@ -216,27 +216,39 @@ public class ForestPiecesShould
         ];
     }
 
+    /// <summary>
+    /// Every forest chunk committed is one the tool writes, but forest_boss_01 (hand-made, out of the pool): the pieces
+    /// once written by hand are generated, so they are dressed and checked as the rest are.
+    /// </summary>
     [Fact]
-    public void Generate_eight_pieces_and_three_set_pieces()
+    public void Generate_seventeen_pieces_and_three_set_pieces_and_every_forest_chunk_but_the_old_boss()
     {
-        Assert.Equal(8, ForestPieces.Singles().Count);
+        Assert.Equal(17, ForestPieces.Singles().Count);
         Assert.Equal(["forest_arena", "forest_clearing_big", "forest_grove_ruin"], ForestPieces.Groups().Select(g => g.Name).Order());
-        Assert.Equal(20, ChunkFiles.For(ForestPieces.Singles(), ForestPieces.Groups()).Count);
+        var written = ChunkFiles.For(ForestPieces.Singles(), ForestPieces.Groups()).Select(f => f.Name).ToList();
+        Assert.Equal(29, written.Count);
+        Assert.Equal(["forest_boss_01"], Directory.EnumerateFiles(Path.Combine(Maps, "Chunks"), "forest_*.json")
+            .Select(Path.GetFileNameWithoutExtension).OfType<string>().Except(written).Order(StringComparer.Ordinal));
     }
 
+    /// <summary>Spawn slots and portal slots (the entry's way back to town) alike.</summary>
     [Fact]
     public void Keep_every_slot_clear_of_blockers_and_edges()
     {
         foreach (ChunkPiece piece in Pieces())
         {
-            foreach (Slot slot in piece.Slots)
+            List<(float X, float Z, object Slot)> slots =
+            [
+                .. piece.Slots.Select(s => (s.X, s.Z, (object)s)), .. piece.PortalSlots.Select(s => (s.X, s.Z, (object)s)),
+            ];
+            foreach ((float x, float z, object slot) in slots)
             {
-                Assert.InRange(slot.X, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
-                Assert.InRange(slot.Z, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
+                Assert.InRange(x, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
+                Assert.InRange(z, EdgeClearance, ChunkPiece.CellSize - EdgeClearance);
                 foreach (Blocker blocker in piece.Blockers)
                 {
-                    Assert.True(blocker.DistanceTo(slot.X, slot.Z) >= SlotClearance,
-                        $"{piece.Name}: {slot} is {blocker.DistanceTo(slot.X, slot.Z):0.00} m from {blocker}");
+                    Assert.True(blocker.DistanceTo(x, z) >= SlotClearance,
+                        $"{piece.Name}: {slot} is {blocker.DistanceTo(x, z):0.00} m from {blocker}");
                 }
             }
         }
@@ -341,9 +353,10 @@ public class ForestPiecesShould
         ChunkPiece piece = ForestPieces.Singles().Single(p => p.Name == name);
         MapNavigator navigator = GeneratedChunkBake.Bake([(ObjWriter.Write(piece), 0, 0)]);
 
-        // Each slot sampled from the height it is written at: a spawn slot 1 m up, a doodad slot on the floor.
+        // Each slot sampled from the height it is written at: a spawn slot 1 m up, a doodad or portal slot on the floor.
         foreach ((float x, float y, float z) in piece.Slots.Select(s => (s.X, 1f, s.Z))
-                     .Concat(piece.DoodadSlots.Select(s => (s.X, ChunkPiece.DoodadSlotY, s.Z))))
+                     .Concat(piece.DoodadSlots.Select(s => (s.X, ChunkPiece.DoodadSlotY, s.Z)))
+                     .Concat(piece.PortalSlots.Select(s => (s.X, ChunkPiece.PortalSlotY, s.Z))))
         {
             Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(x, y, z), out Vector3 ground));
             Assert.InRange(ground.y, -0.3f, 0.3f);   // the floor, never a blocker's top
@@ -352,7 +365,8 @@ public class ForestPiecesShould
 
     /// <summary>
     /// With the largest seeded solid doodad's box baked at every doodad_large slot (as a plan may put one there), every
-    /// exit, spawn slot and doodad slot is reached from the first exit, and a large slot's doodad from beside its box.
+    /// exit, spawn slot, doodad slot and portal slot is reached from the first exit, and a large slot's doodad from
+    /// beside its box.
     /// </summary>
     [Theory]
     [MemberData(nameof(Singles))]
@@ -364,6 +378,7 @@ public class ForestPiecesShould
         [
             .. piece.Exits.Select(e => ExitPoint(e, 0, 0)), .. piece.Slots.Select(s => new Vector3(s.X, 1f, s.Z)),
             .. piece.DoodadSlots.Where(s => s.Tag != "doodad_large").Select(s => new Vector3(s.X, ChunkPiece.DoodadSlotY, s.Z)),
+            .. piece.PortalSlots.Select(s => new Vector3(s.X, ChunkPiece.PortalSlotY, s.Z)),
         ];
 
         AssertAllConnected(navigator, targets, name);

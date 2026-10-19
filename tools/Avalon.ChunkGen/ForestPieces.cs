@@ -1,11 +1,13 @@
 namespace Avalon.ChunkGen;
 
 /// <summary>
-/// The forest's generated pieces (forest content pass): eight 1x1 pieces and three 2x2 set pieces. Boxes stand for
-/// rocks and ruined walls, cylinders for tree clusters and pillars, each with the <see cref="Dressing" /> the forest
-/// dresser draws on it; free-standing trees along the edges stand on their own trunk cylinders, and fallen logs and
-/// leaning rocks on their models' footprints (forest dressing, #1109). Every slot is at least 2.5 m from any blocker
-/// and every exit's throat is clear (ForestPiecesShould).
+/// The forest's generated pieces: seventeen 1x1 pieces and three 2x2 set pieces. The first nine (the entry, the
+/// paths, the junctions, the small clearing and the dead end) were floors written by hand until forest dressing
+/// (#1109) ported them, with their exits, spawn slots, tags and the entry's portal as they were. Boxes stand for rocks
+/// and ruined walls, cylinders for tree clusters and pillars, each with the <see cref="Dressing" /> the forest dresser
+/// draws on it; free-standing trees along the edges stand on their own trunk cylinders, and fallen logs and custom
+/// rocks on their models' footprints. Every slot is at least 2.5 m from any blocker and every exit's throat is clear
+/// (ForestPiecesShould).
 /// Each single piece has two doodad slots and one large one, each set-piece member one doodad slot (the arena's members
 /// a large one too), off the paths and clear of blockers and spawn slots (a set piece's in its 60 x 60 m frame, where
 /// its paths cross the inner edges), each yaw the quarter turn that best faces the piece's (or the set piece's) centre.
@@ -26,11 +28,81 @@ public static class ForestPieces
     private static Slot Rare(float x, float z) => new("rare", x, z);
     private static Slot Leader(float x, float z) => new("leader", x, z);
     private static Slot Boss(float x, float z) => new("boss", x, z);
+    private static Slot Entry(float x, float z) => new("entry", x, z);
     private static DoodadSlot Doodad(float x, float z, int yaw) => new("doodad", x, z, yaw);
     private static DoodadSlot LargeDoodad(float x, float z, int yaw) => new("doodad_large", x, z, yaw);
 
     public static IReadOnlyList<ChunkPiece> Singles() =>
     [
+        // The entry: the way in from the north and the way back to town at (15, 5). Its doodad slots stand in the
+        // corners, the only spots of it 15 m from the entry spawn and 8 m from the portal (DoodadPlacementService).
+        new("forest_entry_01", [Side.N],
+            [Drum(5, 23, 2.5f), .. Prop("avalon_rock_large_2", 6f, 9f, 0),
+             Tree(Common, 1.1f, 28.8f, 6.5f), Tree(Common, 1.1f, 28.8f, 17.5f), Tree(Pine, 1.5f, 21.5f, 28.8f), Tree(Common, 1.2f, 8f, 1.2f),
+             Tree(Common, 1.1f, 1.2f, 15f), Tree(Pine, 1.2f, 28.8f, 12f), Tree(Pine, 1.4f, 1.8f, 29f),
+             .. Prop(Log2, 2f, 8.5f, 90)],
+            [Entry(15, 15)], ["entry", "forest"])
+        {
+            DoodadSlots = [LargeDoodad(27, 27, 180), Doodad(3, 3, 0), Doodad(27, 3, 0)], PortalSlots = [new("Back", 15, 5)],
+            Hints = new(TreeMix.Broadleaf),
+        },
+        new("forest_path_01", [Side.N, Side.S],
+            [Drum(5, 5, 2.5f), Drum(24, 24, 2),
+             Tree(Pine, 1.4f, 28.8f, 1f), Tree(Pine, 1.3f, 28.8f, 8f), Tree(Pine, 1.4f, 1.2f, 18f), Tree(Pine, 1.1f, 21f, 1.2f),
+             Tree(Pine, 1.1f, 29f, 28.8f), Tree(Pine, 1.1f, 28.8f, 19.5f), Tree(Pine, 1.5f, 1.2f, 23f),
+             .. Prop(Log1, 4f, 28f, 0)],
+            [Pack(10, 15), Pack(20, 15), Pack(15, 8), Pack(15, 22)], ["path", "forest"])
+            { DoodadSlots = [LargeDoodad(27, 15, 270), Doodad(3, 14.5f, 90), Doodad(9.5f, 27, 180)], Hints = new(TreeMix.Pine) },
+        new("forest_path_02", [Side.E, Side.S],
+            [Drum(7, 23, 2.5f), .. Prop("avalon_rock_large_2", 22f, 24f, 0),
+             Tree(Pine, 1.5f, 28.8f, 29f), Tree(Common, 1.3f, 28.8f, 8f), Tree(Pine, 1.2f, 1.2f, 10f), Tree(Common, 1.1f, 22f, 1.2f),
+             Tree(Pine, 1.1f, 1.8f, 29f), Tree(Pine, 1.6f, 12f, 28.8f), Tree(Pine, 1.3f, 1.2f, 18f),
+             .. Prop(Log1, 3f, 2f, 0)],
+            [Pack(15, 10), Rare(15, 20), Pack(22, 10)], ["path", "forest"])
+            { DoodadSlots = [LargeDoodad(27, 3, 0), Doodad(3, 15, 90), Doodad(15.5f, 27, 180)] },
+        new("forest_path_03", [Side.N, Side.E],
+            [Drum(4, 14, 2), .. Prop("avalon_rock_large_2", 25f, 5f, 0),
+             Tree(Pine, 1.1f, 1f, 28.2f), Tree(Pine, 1.4f, 8f, 28.8f), Tree(Common, 1.2f, 28.8f, 21f), Tree(Pine, 1.2f, 21.5f, 28.8f),
+             Tree(Pine, 1.2f, 1.2f, 6f), Tree(Pine, 1.4f, 20f, 1.2f), Tree(Common, 1.2f, 28.8f, 9f),
+             .. Prop(Log1, 8f, 2f, 0)],
+            [Pack(12, 18), Pack(20, 12), Pack(8, 8), Pack(22, 22)], ["path", "forest"])
+            { DoodadSlots = [LargeDoodad(15, 3, 0), Doodad(3, 22, 90), Doodad(27, 27, 180)] },
+        new("forest_path_04", [Side.E, Side.W],
+            [Drum(24, 25, 2.5f), .. Prop("avalon_rock_large_3", 6f, 5f, 0),
+             Tree(Common, 1.2f, 28.8f, 7f), Tree(Pine, 1.6f, 8.5f, 28.8f), Tree(Pine, 1.5f, 1.2f, 22f), Tree(Common, 1.2f, 13.5f, 1.2f),
+             Tree(Pine, 1.1f, 18f, 28.8f), Tree(Pine, 1.2f, 29f, 28.8f),
+             .. Prop(Log1, 21.5f, 2f, 0)],
+            [Pack(10, 15), Pack(20, 15), Pack(15, 8), Pack(15, 22)], ["path", "forest"])
+            { DoodadSlots = [LargeDoodad(3, 27, 180), Doodad(27, 3, 0), Doodad(15, 27, 180)] },
+        new("forest_junction_t", [Side.N, Side.E, Side.S],
+            [Drum(4, 26, 2), .. Prop("avalon_rock_large_2", 4f, 4f, 0),
+             Tree(Pine, 1.2f, 28.8f, 8.5f), Tree(Common, 1.1f, 28.8f, 21f), Tree(Pine, 1.4f, 1.2f, 18f), Tree(Pine, 1.1f, 21.5f, 1.2f),
+             Tree(Pine, 1.4f, 1.2f, 11f), Tree(Common, 1.2f, 9f, 28.8f), Tree(Common, 1.2f, 7.5f, 1.2f),
+             .. Prop(Log1, 25f, 28f, 0)],
+            [Pack(15, 12), Pack(15, 18), Rare(22, 22), Pack(8, 8), Pack(8, 22)], ["junction", "forest"])
+            { DoodadSlots = [LargeDoodad(27, 3, 0), Doodad(3, 15, 90), Doodad(10, 12.5f, 90)] },
+        new("forest_junction_x", [Side.N, Side.E, Side.S, Side.W],
+            [.. Prop("avalon_rock_large_1", 5.5f, 5.5f, 0),
+             Tree(Common, 1.2f, 28.8f, 6.5f), Tree(Pine, 1.2f, 28.8f, 21.5f), Tree(Common, 1.1f, 22f, 28.8f), Tree(Common, 1.1f, 21.5f, 1.2f),
+             Tree(Pine, 1.3f, 1.2f, 1f), Tree(Pine, 1.2f, 1.2f, 24f), Tree(Common, 1.2f, 9f, 1.2f),
+             .. Prop(Log1, 3.5f, 28f, 0)],
+            [Pack(15, 15), Rare(8, 22), Rare(22, 8), Pack(22, 22)], ["junction", "forest"])
+            { DoodadSlots = [LargeDoodad(27, 27, 180), Doodad(3, 20.5f, 90), Doodad(27, 3, 0)] },
+        new("forest_clearing_01", [Side.N, Side.S],
+            [Drum(3.5f, 3.5f, 1.5f), Drum(26.5f, 3.5f, 1.5f), Drum(26.5f, 26.5f, 1.5f), Drum(3.5f, 26.5f, 1.5f),
+             Tree(Common, 1.1f, 28.8f, 20f), Tree(Pine, 1.2f, 1.2f, 10f), Tree(Pine, 1.3f, 1.2f, 20f), Tree(Pine, 1.2f, 9f, 1.2f),
+             Tree(Pine, 1.2f, 21f, 1.2f),
+             .. Prop(Log2, 27.5f, 11f, 0)],
+            [Pack(8, 22), Pack(22, 22), Pack(8, 8), Pack(22, 8), Rare(15, 15), Pack(15, 8), Pack(15, 22), Pack(8, 15), Pack(22, 15)],
+            ["clearing", "forest"])
+            { DoodadSlots = [LargeDoodad(3, 15, 90), Doodad(27, 15.5f, 270), Doodad(8, 27, 180)], Hints = new(TreeMix.Broadleaf) },
+        new("forest_deadend_01", [Side.S],
+            [Drum(24, 20, 2.5f), Drum(8, 24, 2),
+             Tree(Pine, 1.4f, 29f, 1.2f), Tree(Pine, 1.3f, 29f, 28.8f), Tree(Pine, 1.2f, 1f, 1.8f), Tree(Pine, 1.3f, 28.8f, 8f),
+             Tree(Pine, 1.5f, 1.2f, 8.5f), Tree(Pine, 1.5f, 1.2f, 15.5f), Tree(Pine, 1.2f, 1.2f, 21.5f),
+             .. Prop(Log1, 16f, 28f, 0)],
+            [Pack(15, 10), Rare(15, 22), Pack(8, 15)], ["deadend", "forest"])
+            { DoodadSlots = [LargeDoodad(8, 3, 0), Doodad(22, 3, 0), Doodad(3, 27, 180)], Hints = new(TreeMix.Pine) },
         new("forest_thicket_01", [Side.N, Side.S],
             [Drum(6, 6, 2.5f), Drum(24, 8, 2), Drum(6, 23, 2), Drum(25, 24, 2.5f),
              Tree(Pine, 1.3f, 28.2f, 1f), Tree(Pine, 1.3f, 1f, 28.2f), Tree(Pine, 1.5f, 28.8f, 12.5f), Tree(Pine, 1.5f, 9f, 28.8f),

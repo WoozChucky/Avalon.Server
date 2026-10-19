@@ -100,6 +100,9 @@ public static class ForestDresser
     /// <summary>How far ground cover keeps from a doodad slot, and from a doodad_large slot (which may hold a solid doodad).</summary>
     public const float DoodadCoverClearance = 1.5f, LargeDoodadCoverClearance = 3f;
 
+    /// <summary>How far ground cover keeps from a portal slot, so the portal the client draws there stands on bare floor.</summary>
+    public const float PortalCoverClearance = 3f;
+
     private static readonly IReadOnlyDictionary<TreeMix, (TreeSpecies Species, int Weight)[]> s_mixes = new Dictionary<TreeMix, (TreeSpecies, int)[]>
     {
         [TreeMix.Mixed] = [(TreeSpecies.CommonTree, 55), (TreeSpecies.Pine, 35), (TreeSpecies.DeadTree, 10)],
@@ -691,9 +694,9 @@ public static class ForestDresser
 
         /// <summary>
         /// Places a walk-through item when its spot is open: inside the frame, off the strip and the hub, outside every
-        /// blocker (unless <paramref name="onBlockers" />), clear of the doodad slots and of other cover, and inside an
-        /// exit's throat only when it is grass or low; off a blocker, its scale is cut so it is drawn no taller than
-        /// ForestDecorRules.WalkThroughCap.
+        /// blocker (unless <paramref name="onBlockers" />), clear of the doodad and portal slots and of other cover, and
+        /// inside an exit's throat only when it is grass or low; off a blocker, its scale is cut so it is drawn no taller
+        /// than ForestDecorRules.WalkThroughCap.
         /// </summary>
         private bool TryCover(string model, float x, float z, float scale, float radius, bool big = false, bool onBlockers = false)
         {
@@ -721,6 +724,7 @@ public static class ForestDresser
                 float keep = slot.Tag == "doodad_large" ? LargeDoodadCoverClearance : DoodadCoverClearance;
                 if (ForestPaths.Distance(x, z, slot.X, slot.Z) < keep) return false;
             }
+            if (frame.PortalSlots.Any(p => ForestPaths.Distance(x, z, p.X, p.Z) < PortalCoverClearance)) return false;
             return _cover.All(c => ForestPaths.Distance(x, z, c.X, c.Z) >= (c.Radius + radius) * 0.6f);
         }
 

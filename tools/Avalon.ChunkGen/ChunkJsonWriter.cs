@@ -6,8 +6,8 @@ namespace Avalon.ChunkGen;
 
 /// <summary>
 /// Writes a chunk's catalog entry, the seeder's own <see cref="ChunkMetaDto" />, in the exact layout of the committed
-/// catalog files. Portal slots are written as the town squares need them (town_nw_01 carries the forest portal); no
-/// forest piece has one. Doodad slots follow the portal slots, and only when there are any.
+/// catalog files. Portal slots are written as the town squares and the forest need them (town_nw_01 carries the forest
+/// portal, forest_entry_01 the way back). Doodad slots follow the portal slots, and only when there are any.
 /// </summary>
 public static class ChunkJsonWriter
 {

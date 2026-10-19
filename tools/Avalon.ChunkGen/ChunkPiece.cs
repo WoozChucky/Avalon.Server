@@ -15,6 +15,12 @@ public sealed record Slot(string Tag, float X, float Z);
 public sealed record DoodadSlot(string Tag, float X, float Z, int Yaw);
 
 /// <summary>
+/// A portal slot in chunk-local metres: its role (<c>Back</c> returns to the previous map, <c>Forward</c> advances), written
+/// with localY 0 (ChunkPiece.PortalSlotY), on the floor, as the town's portal is.
+/// </summary>
+public sealed record PortalSlot(string Role, float X, float Z);
+
+/// <summary>
 /// What the forest's decor draws on a blocker (ForestDresser), so the client does not draw the blocker itself
 /// (ObjWriter writes a dressed one <c>usemtl collision</c>). <see cref="None" /> is an undressed placeholder.
 /// </summary>
@@ -139,13 +145,16 @@ public sealed record DressingHints(TreeMix Trees = TreeMix.Mixed, float? MeetX =
 
 /// <summary>
 /// One generated 1x1 chunk: a flat 30 x 30 m floor (the forest's slab, y -0.2 to 0), blockers on it, exits at the centre
-/// of the named sides (logical only: forest floors have no walls), spawn slots, doodad slots and catalog tags.
+/// of the named sides (logical only: forest floors have no walls), spawn slots, portal slots, doodad slots and catalog tags.
 /// </summary>
 public sealed record ChunkPiece(
     string Name, IReadOnlyList<Side> Exits, IReadOnlyList<Blocker> Blockers, IReadOnlyList<Slot> Slots, IReadOnlyList<string> Tags)
 {
     /// <summary>The piece's doodad slots, none unless listed.</summary>
     public IReadOnlyList<DoodadSlot> DoodadSlots { get; init; } = [];
+
+    /// <summary>The piece's portal slots (the forest's entry piece has its way back to town), none unless listed.</summary>
+    public IReadOnlyList<PortalSlot> PortalSlots { get; init; } = [];
 
     /// <summary>How the forest dresser dresses it; a set piece's member is dressed with its set piece, in its frame.</summary>
     public DressingHints Hints { get; init; } = new();
@@ -157,9 +166,13 @@ public sealed record ChunkPiece(
     /// <summary>The height a doodad slot is written at: the floor's top (ObjWriter). A spawn slot is written 1 m up.</summary>
     public const float DoodadSlotY = 0f;
 
+    /// <summary>The height a portal slot is written at: the floor's top.</summary>
+    public const float PortalSlotY = 0f;
+
     /// <summary>
-    /// Refuses a blocker or a slot that does not lie within the piece's 0-30 m cell (its edges included): the bake and the
-    /// spawner would place it in a neighbouring chunk's ground. A doodad slot also needs a tag and a quarter-turn yaw.
+    /// Refuses a blocker or a slot (spawn, portal or doodad) that does not lie within the piece's 0-30 m cell (its edges
+    /// included): the bake and the spawner would place it in a neighbouring chunk's ground. A doodad slot also needs a
+    /// tag and a quarter-turn yaw, and a portal slot a role.
     /// </summary>
     public void Validate()
     {
@@ -174,6 +187,14 @@ public sealed record ChunkPiece(
         {
             if (!WithinCell(slot.X) || !WithinCell(slot.Z))
                 throw new InvalidOperationException($"{Name}: slot {slot} lies outside the 0-30 m cell");
+        }
+
+        foreach (PortalSlot slot in PortalSlots)
+        {
+            if (!WithinCell(slot.X) || !WithinCell(slot.Z))
+                throw new InvalidOperationException($"{Name}: portal slot {slot} lies outside the 0-30 m cell");
+            if (string.IsNullOrWhiteSpace(slot.Role))
+                throw new InvalidOperationException($"{Name}: portal slot {slot} needs a role");
         }
 
         foreach (DoodadSlot slot in DoodadSlots)
@@ -203,7 +224,7 @@ public sealed record ChunkPiece(
             ["W"] = Exits.Contains(Side.W) ? ["center"] : [],
         },
         Slots.Select(s => new SpawnSlotDto(s.Tag, s.X, 1f, s.Z)).ToList(),
-        [],
+        PortalSlots.Select(s => new PortalSlotDto(s.Role, s.X, PortalSlotY, s.Z)).ToList(),
         [.. Tags],
         DoodadSlots.Select(s => new DoodadSlotDto(s.Tag, s.X, DoodadSlotY, s.Z, s.Yaw)).ToList());
 }
