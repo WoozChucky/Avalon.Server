@@ -157,6 +157,72 @@ public class CommittedForestGenerationShould
         Assert.True(layouts[0] <= 200, $"{layouts[0]} of 1000 layouts hold no overhang (one: {layouts[1]}, two: {layouts[2]})");
     }
 
+    /// <summary>
+    /// Review Focus 2 and 5 (#1110): every committed layout gets one scenery piece on each ring cell and none on its own
+    /// cells, a cap of the right shape at every cell an open exit faces and no cap elsewhere, the town-ward scene on the
+    /// spots around the entry, no non-filler border beside itself, and the same ring every time from the same layout.
+    /// </summary>
+    [Fact]
+    public void Ring_every_committed_layout_and_cap_every_open_exit()
+    {
+        (ProceduralMapConfig config, List<ChunkPoolMember> chunkPool, List<ChunkGroupDefinition> groups) = s_forest.Value;
+        var exits = chunkPool.Select(m => m.Template)
+            .Concat(groups.SelectMany(g => g.Cells.Select(c => c.Template)))
+            .DistinctBy(t => t.Id)
+            .ToDictionary(t => t.Id, t => t.Exits);
+        ushort ExitsOf(ChunkTemplateId id) => exits[id];
+        SceneryPool pool = SceneryTestPool.Pool;
+        var pieces = pool.Pieces.ToDictionary(p => p.Name, StringComparer.Ordinal);
+        var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        int caps = 0;
+
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            ChunkLayout layout = generator.Generate(config, chunkPool, seed * 7919, groups);
+            var cells = layout.Chunks.Select(c => ((int)c.GridX, (int)c.GridZ)).ToHashSet();
+            IReadOnlyList<SceneryPlacement> ring = SceneryRing.Build(layout, ExitsOf, pool);
+            var at = ring.ToDictionary(p => (p.GridX, p.GridZ));
+
+            Assert.Equal(SceneryRing.Cells(cells), ring.Select(p => (p.GridX, p.GridZ)));
+
+            IReadOnlyDictionary<(int X, int Z), byte> capped = SceneryRing.CappedSides(layout, ExitsOf);
+            foreach (((int X, int Z) cell, byte mask) in capped)
+            {
+                SceneryPoolPiece cap = pieces[at[cell].Name];
+                Assert.Equal(SceneryKind.Cap, cap.Kind);
+                Assert.Equal(mask, ScenerySides.Rotate(cap.CappedSides, at[cell].Rotation));
+            }
+
+            caps += capped.Count;
+            foreach (SceneryPlacement placement in ring)
+            {
+                (int X, int Z) cell = (placement.GridX, placement.GridZ);
+                SceneryPoolPiece piece = pieces[placement.Name];
+                if (!capped.ContainsKey(cell))
+                    Assert.NotEqual(SceneryKind.Cap, piece.Kind);
+
+                if (piece.Kind == SceneryKind.Border && !piece.Filler)
+                {
+                    Assert.False(at.TryGetValue((cell.X + 1, cell.Z), out SceneryPlacement? east) && east.Name == piece.Name,
+                        $"seed {seed * 7919}: {piece.Name} at {cell} and east of it");
+                    Assert.False(at.TryGetValue((cell.X, cell.Z + 1), out SceneryPlacement? north) && north.Name == piece.Name,
+                        $"seed {seed * 7919}: {piece.Name} at {cell} and north of it");
+                }
+            }
+
+            foreach (SceneryPoolPiece spot in pool.Pieces.Where(p => p.Kind == SceneryKind.TownWard))
+            {
+                (int X, int Z) cell = (layout.EntryChunk.GridX + spot.SpotX, layout.EntryChunk.GridZ + spot.SpotZ);
+                if (!cells.Contains(cell) && !capped.ContainsKey(cell))
+                    Assert.Equal(new SceneryPlacement(spot.Name, cell.X, cell.Z, 0), at[cell]);
+            }
+
+            Assert.Equal(ring, SceneryRing.Build(layout, ExitsOf, pool));
+        }
+
+        Assert.True(caps > 5000, $"only {caps} capped cells in 1000 layouts");   // measured 8977
+    }
+
     [Fact]
     public void Reach_the_boss_arena_deeper_than_the_first_band()
     {
