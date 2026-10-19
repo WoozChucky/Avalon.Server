@@ -306,6 +306,53 @@ What the duration costs per packet with the SDK listening, measured for #977: ab
 
 The span starts once the batch stops waiting behind an earlier save of the same character, so the queue is not in it, and covers the despawn row preparation and the repository write ([inventory and saves](inventory-and-saves.md)).
 
+## Identity logins
+
+Identity records `avalon.api.logins` on the `avalon-api` meter (#1099), exported as
+`avalon_api_logins_total`. Each password attempt (`POST /account/authenticate`) and MFA verification
+(`POST /mfa/verify`) that reaches a login decision adds one. The only metric tags are `method`
+(`password` or `mfa`) and `result`:
+
+| `result` | Meaning |
+|---|---|
+| `success` | Password login without MFA, or an accepted MFA verification |
+| `invalid_credentials` | Empty or wrong password, unknown username, or a password login refused by the guarded account write |
+| `locked` | An already locked account, or a failure in the username budget's last allowed slot (including a guarded write refusal in that slot) |
+| `rate_limited` | Source or username budget exhausted before credential checking; the HTTP response is still 429 `LOCKED` |
+| `mfa_required` | Password accepted and an MFA hash issued; login still needs MFA verification |
+| `mfa_failed` | Wrong code, missing/expired/spent hash, missing account, replayed verification, or a guarded MFA account write refused; a wrong code in the last username slot is `locked` |
+| `banned` | Correct credentials for a banned account |
+| `deactivated` | Correct credentials for a deactivated account |
+
+A successful MFA sign-in therefore records two attempts: `password`/`mfa_required`, then `mfa`/`success`.
+The count follows the authentication decisions in `AccountService.Authenticate` and `MFAController.VerifyMFA`,
+not every HTTP response: model-validation and general HTTP rate-limiter rejections, client-auth/Steam flows,
+refreshes, reauthentication for account changes, and infrastructure exceptions before a decision are outside it.
+Password success is recorded before the controller issues its refresh token; a later refresh failure does not
+undo that password decision. MFA success is recorded after its refresh token and access token are issued.
+The old TCP auth meter was removed with #1100.
+
+Each decision also emits one structured outcome log in `AccountService` or `MFAController`, with `LoginResult`,
+`LoginMethod`, and `ClientAddress`. `ClientAddress` is the login budget's source (`LoginSourceOf`): an IPv4
+address or an IPv6 /64, never the submitted username. Outcome logs are Information, except `rate_limited` at
+Debug; the login policies' budget-refusal diagnostics are also Debug. At the normal Information threshold the
+counter still includes those refusals, but the source table in Loki does not. No username, account id, password,
+MFA hash, code or token is added to the metric tags or outcome fields. Existing diagnostic logs remain separate.
+
+Logins per minute by result and method:
+
+```promql
+sum by (result, method) (rate(avalon_api_logins_total[5m])) * 60
+```
+
+Failed attempts per minute (an MFA challenge is not a failed login):
+
+```promql
+sum(rate(avalon_api_logins_total{result!~"success|mfa_required"}[5m])) * 60
+```
+
+Restoring the homelab's Avalon Auth dashboard and `AvalonLoginFailureSpike` alert is a separate homelab change.
+
 ## World places and the queue (identity)
 
 Identity's metrics of each world's places and line (#967, [world player limit](world-player-limit.md#metrics)), on the

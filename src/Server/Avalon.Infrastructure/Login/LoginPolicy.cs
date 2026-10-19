@@ -85,7 +85,7 @@ public abstract class LoginPolicy
         if (await SourceBudget.TryTakeAsync(Cache, Limits, source))
             return true;
 
-        Logger.LogWarning("{What} refused for source {SourceKey}: too many failed attempts", what, source.Key);
+        Logger.LogDebug("{What} refused for source {SourceKey}: too many failed attempts", what, source.Key);
         return false;
     }
 }
@@ -121,7 +121,7 @@ public sealed class PasswordLoginPolicy : LoginPolicy
         long taken = await UsernameBudget.TakeAsync(Cache, Limits, usernameKey);
         if (UsernameBudget.Refuses(Limits, taken))
         {
-            Logger.LogWarning("Login refused for a username past its failed-login limit");
+            Logger.LogDebug("Login refused for a username past its failed-login limit");
             return new PasswordAttempt(PasswordCheck.UsernameRefused, source, usernameKey, taken, null);
         }
 
@@ -154,7 +154,7 @@ public sealed class PasswordLoginPolicy : LoginPolicy
         long taken = await UsernameBudget.TakeAsync(Cache, Limits, usernameKey);
         if (UsernameBudget.Refuses(Limits, taken))
         {
-            Logger.LogWarning("Re-authentication for account {AccountId} refused: too many failed logins", account.Id);
+            Logger.LogDebug("Re-authentication for account {AccountId} refused: too many failed logins", account.Id);
             return new PasswordAttempt(PasswordCheck.UsernameRefused, source, usernameKey, taken, account);
         }
 
@@ -252,7 +252,7 @@ public sealed class MfaLoginPolicy : LoginPolicy
         long taken = await UsernameBudget.TakeAsync(Cache, Limits, usernameKey);
         if (UsernameBudget.Refuses(Limits, taken))
         {
-            Logger.LogWarning("MFA verify for account {AccountId} refused: too many failed logins", account.Id);
+            Logger.LogDebug("MFA verify for account {AccountId} refused: too many failed logins", account.Id);
             return new MfaCodeAttempt(MfaCodeCheck.UsernameRefused, source, usernameKey, taken, account);
         }
 
