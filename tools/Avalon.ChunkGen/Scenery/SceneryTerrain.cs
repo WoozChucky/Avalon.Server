@@ -184,7 +184,8 @@ public sealed record ScenerySurface
     /// A stream's water: a band <paramref name="halfWidth" /> either side of <paramref name="centre" /> (x, y, z points
     /// in flow order), level across, at each point's y along. Refuses (InvalidOperationException) fewer than two
     /// points, a half-width that is not a number above 0, two points on one spot, a coordinate that is not a number,
-    /// and a step that drops less than <see cref="MinFlowSlope" /> of its length: flowing water runs downhill.
+    /// a step that drops less than <see cref="MinFlowSlope" /> of its length (flowing water runs downhill), and a bend
+    /// too tight for the half-width, where an edge folds back over itself.
     /// </summary>
     public static ScenerySurface Strip(IReadOnlyList<(float X, float Y, float Z)> centre, float halfWidth, string material)
     {
@@ -220,6 +221,9 @@ public sealed record ScenerySurface
             right[i] = (x - px, y, z - pz);
         }
 
+        Unfolded(left, "left", centre, material);
+        Unfolded(right, "right", centre, material);
+
         List<Polygon> polygons = [];
         for (int i = 1; i < centre.Count; i++)
         {
@@ -227,6 +231,29 @@ public sealed record ScenerySurface
             polygons.Add([left[i - 1], right[i], left[i]]);
         }
         return new ScenerySurface(material, [.. polygons], null, 0f);
+    }
+
+    /// <summary>
+    /// Refuses (InvalidOperationException naming the strip by its material and first centre point) an edge that folds
+    /// back over itself: a step of it that does not run the way its centre step runs, as a bend too tight for the
+    /// half-width makes the inner edge do, or two consecutive steps of it that do not run the same way (each dot
+    /// product 0 or less).
+    /// </summary>
+    private static void Unfolded(
+        (float X, float Y, float Z)[] edge, string side, IReadOnlyList<(float X, float Y, float Z)> centre, string material)
+    {
+        for (int i = 1; i < edge.Length; i++)
+        {
+            float ex = edge[i].X - edge[i - 1].X, ez = edge[i].Z - edge[i - 1].Z;
+            bool against = ex * (centre[i].X - centre[i - 1].X) + ez * (centre[i].Z - centre[i - 1].Z) <= 0f;
+            bool back = i >= 2 && ex * (edge[i - 1].X - edge[i - 2].X) + ez * (edge[i - 1].Z - edge[i - 2].Z) <= 0f;
+            if (against || back)
+            {
+                throw new InvalidOperationException(
+                    $"the {material} strip from ({ForestText.N(centre[0].X)}, {ForestText.N(centre[0].Z)}) bends too tightly for its "
+                    + $"half-width: its {side} edge folds back at ({ForestText.N(edge[i - 1].X)}, {ForestText.N(edge[i - 1].Z)})");
+            }
+        }
     }
 
     /// <summary>

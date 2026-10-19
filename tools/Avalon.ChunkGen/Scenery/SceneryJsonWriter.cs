@@ -15,7 +15,7 @@ public static class SceneryJsonWriter
     /// <summary>
     /// A pool, sorted by name: a border's weight, front and filler flag, a cap's weight and capped sides (letters in N,
     /// E, S, W order), a town-ward piece's spot. Refuses (InvalidOperationException naming the piece) a town-ward
-    /// piece with no spot and a side that is none of N, E, S, W.
+    /// piece with no spot, a cap that lists a side twice and a side that is none of N, E, S, W.
     /// </summary>
     public static string WritePool(ushort mapId, IReadOnlyList<SceneryPiece> pieces)
     {
@@ -32,6 +32,8 @@ public static class SceneryJsonWriter
                          .Append(", \"filler\": ").Append(piece.Filler ? "true" : "false");
                     break;
                 case SceneryKind.Cap:
+                    if (piece.Capped.GroupBy(s => s).FirstOrDefault(g => g.Count() > 1) is { } twice)
+                        throw new InvalidOperationException($"{piece.Name}: caps side {Letter(piece, twice.Key)} twice");
                     entry.Append(", \"kind\": \"cap\", \"weight\": ").Append(F(piece.Weight)).Append(", \"capped\": [")
                          .Append(string.Join(", ", piece.Capped.Order().Select(s => $"\"{Letter(piece, s)}\""))).Append(']');
                     break;
@@ -47,10 +49,22 @@ public static class SceneryJsonWriter
         return Document(mapId, "pool", entries);
     }
 
-    /// <summary>The town's placements: every piece on its cell (GridX, GridZ), rotation 0, sorted by GridX then GridZ.</summary>
-    public static string WritePlacements(ushort mapId, IReadOnlyList<SceneryPiece> pieces) =>
-        Document(mapId, "placements", [.. pieces.OrderBy(p => p.GridX).ThenBy(p => p.GridZ).Select(p =>
+    /// <summary>
+    /// The town's placements: every piece on its cell (GridX, GridZ), rotation 0, sorted by GridX then GridZ. Refuses
+    /// (InvalidOperationException naming the piece) a second piece on one cell.
+    /// </summary>
+    public static string WritePlacements(ushort mapId, IReadOnlyList<SceneryPiece> pieces)
+    {
+        HashSet<(int X, int Z)> cells = [];
+        foreach (SceneryPiece piece in pieces)
+        {
+            if (!cells.Add((piece.GridX, piece.GridZ)))
+                throw new InvalidOperationException($"{piece.Name}: a second placement on cell ({I(piece.GridX)}, {I(piece.GridZ)})");
+        }
+
+        return Document(mapId, "placements", [.. pieces.OrderBy(p => p.GridX).ThenBy(p => p.GridZ).Select(p =>
             $"{{ \"name\": {JsonSerializer.Serialize(p.Name)}, \"gridX\": {I(p.GridX)}, \"gridZ\": {I(p.GridZ)}, \"rotation\": 0 }}")]);
+    }
 
     private static string Document(ushort mapId, string list, IReadOnlyList<string> entries)
     {

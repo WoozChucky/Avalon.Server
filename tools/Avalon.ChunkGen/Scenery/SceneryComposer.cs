@@ -53,11 +53,18 @@ public static class SceneryComposer
             string at = $"{prefix}: {item.Model} at ({ForestText.N(item.X)}, {ForestText.N(item.Z)})";
             if (!decor.TryGetValue(cell, out List<DecorItem>? held))
                 throw new InvalidOperationException($"{at} stands in cell ({I(cell.X)}, {I(cell.Z)}), which is not cut");
-            bounds ??= KitBounds.Load();
-            if (!bounds.ContainsKey(item.Model))
-                throw new InvalidOperationException($"{prefix}: the kit's bounds table has no model '{item.Model}'");
-            if (!FitsInCell(item, bounds))
-                throw new InvalidOperationException($"{at} crosses the edge of {CellName(prefix, cell.X, cell.Z)}");
+            string name = CellName(prefix, cell.X, cell.Z);
+            bool fits;
+            try
+            {
+                fits = FitsInCell(item, bounds ??= KitBounds.Load());
+            }
+            catch (InvalidOperationException e)
+            {
+                throw new InvalidOperationException($"{name}: {e.Message}", e);
+            }
+            if (!fits)
+                throw new InvalidOperationException($"{at} crosses the edge of {name}");
             held.Add(item with { X = item.X - cell.X * ChunkPiece.CellSize, Z = item.Z - cell.Z * ChunkPiece.CellSize });
         }
 
