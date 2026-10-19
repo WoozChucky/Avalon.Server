@@ -8,8 +8,7 @@ telemetry, and extensibility frameworks.
 
 Avalon is split into bounded components that can scale and evolve independently:
 
-- Public REST API (account + meta operations)
-- Real‑time Auth server (login, MFA, world list; world entry is the REST game admission)
+- Public REST API (identity sign-in, MFA, game admission, account and meta operations)
 - Real‑time World server (simulation, state replication, gameplay logic)
 - Shared foundational libraries (domain model, networking, value objects, metrics, configuration)
 - Infrastructure services (Redis, Postgres)
@@ -18,8 +17,8 @@ Avalon is split into bounded components that can scale and evolve independently:
 Communication paths:
 
 - Clients → API (HTTPS + JWT) for out‑of‑band operations (account, web UX, management)
-- Game Client → Auth Server (custom TCP packet protocol) for authentication & world ticket exchange
-- Auth Server ↔ Redis (session, ephemeral keys, pub/sub)
+- Launcher / Game Client → identity API (HTTPS) for sign-in, game context, world discovery and join tickets
+- Game Client → World Server (TCP inside TLS) for join-ticket admission and gameplay
 - World Server ↔ Redis (cross‑node coordination, session/materialized view, pub/sub)
 - World Server ↔ Databases (persistent character/world state)
 - API ↔ Databases (account + world metadata) & Redis (caching, notifications)
@@ -34,7 +33,6 @@ Server layer:
 | `src/Server/Avalon.Api` | ASP.NET Core REST API host: runs the API services `Application:Services` names (all four when unset); OpenAPI generation |
 | `src/Server/Avalon.Api.Identity`, `.Worlds`, `.Commerce`, `.Distribution` | The four API services ([API services](docs/api-services.md)): accounts, tokens and game admission; world content and characters; checkout and payments; launcher and client distribution |
 | `src/Server/Avalon.Api.Hosting`, `.Contract` | What every API service runs on (pipeline, startup, token validation, rate limiting, world databases); the REST contract (DTOs) |
-| `src/Server/Avalon.Server.Auth` | Hosted service wrapping AuthServer (packet dispatcher, login flow, MFA) |
 | `src/Server/Avalon.Server.World` | Hosted service running the simulation loop (maps, entities, spells, spawning) |
 | `src/Server/Avalon.World` | Core world implementation (maps, grid, entities, spells, sessions, connections) |
 | `src/Server/Avalon.World.Public` | Public abstractions (interfaces) consumed by other layers |
@@ -61,7 +59,6 @@ Tooling & Tests:
 | `tools/Avalon.Benchmarking` | Micro-benchmarks for performance-sensitive components |
 | `tools/Avalon.LocalDev` | Local runs: the world's local TLS certificates and user-secrets (`setup`), a game ticket for the client (`login`), the client's REST chain to a join ticket (`check`) |
 | `tests/Avalon.Shared.UnitTests` | Unit tests for shared libraries |
-| `tests/Avalon.Server.Auth.UnitTests` | Unit tests for authentication server components |
 | `tests/Avalon.Server.World.UnitTests` | Unit tests for world server and simulation logic |
 | `tests/Avalon.Api.UnitTests` | REST API host-level tests: the contract, route ownership, each service's host |
 | `tests/Avalon.Api.Hosting.UnitTests`, `tests/Avalon.Api.<Service>.UnitTests` | The shared API hosting's tests, and each API service's |
@@ -82,7 +79,7 @@ JWT issuance and validation, MFA (Otp.NET) with Redis-backed ephemeral secrets, 
 
 ### Networking
 
-Custom TCP layer inside TLS (`Avalon.Hosting/Networking`: `ServerBase`, `Connection`) with Protobuf-net serialization and reflection-based packet handler registration. Auth and World servers share packet abstractions via `Avalon.Network.Packets`. See → [Networking — Packet Protocol](docs/networking-packet-protocol.md)
+Custom TCP layer inside TLS (`Avalon.Hosting/Networking`: `ServerBase`, `Connection`) with Protobuf-net serialization and reflection-based packet handler registration. The world server uses packet abstractions from `Avalon.Network.Packets`. See → [Networking — Packet Protocol](docs/networking-packet-protocol.md)
 
 ### Caching & Pub/Sub
 
@@ -127,7 +124,6 @@ short:
    docker compose up -d redis postgres
    dotnet run --project tools/Avalon.LocalDev -- setup
    dotnet run --project src/Server/Avalon.Api            # first: it migrates the auth database
-   dotnet run --project src/Server/Avalon.Server.Auth
    dotnet run --project src/Server/Avalon.Server.World
    ```
    Optionally add Redis Insight for a GUI over Redis: `docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d`.
@@ -185,7 +181,7 @@ Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_on
 dotnet test
 ```
 
-Run a specific project: `dotnet test tests/Avalon.Server.Auth.UnitTests`
+Run a specific project: `dotnet test tests/Avalon.Api.Identity.UnitTests`
 
 ## Benchmarking
 
@@ -199,10 +195,10 @@ Use to regress-check simulation hot paths.
 
 | Document | Description |
 |---|---|
-| [Networking — Packet Protocol](docs/networking-packet-protocol.md) | Header fields, auth lifecycle, world admission, Redis patterns, failure modes |
+| [Networking — Packet Protocol](docs/networking-packet-protocol.md) | Header fields, REST sign-in, world admission, Redis patterns, failure modes |
 | [Networking — Graceful Shutdown](docs/networking-graceful-shutdown.md) | Connection lifecycle, `SDisconnectPacket` schema, shutdown sequences |
 | [Security — Session Management](docs/security-session-management.md) | Auth flow, world entry through join tickets, MFA, REST API authentication |
-| [Architecture — Startup Flow](docs/architecture-startup-flow.md) | Bootstrap sequence for API, Auth Server, and World Server |
+| [Architecture — Startup Flow](docs/architecture-startup-flow.md) | Bootstrap sequence for API and World Server |
 | [Map Generation](docs/map-generation.md) | Chunk authoring, town + procedural pipelines, end-to-end Unity → bake → playable, troubleshooting |
 | [Instanced Map System](docs/instanced-maps.md) | Instance lifecycle: town routing, normal map re-entry, expiry, transitions, logout |
 | [ValueObject — OpenAPI Integration](docs/valueobject-openapi.md) | Schema transformer pattern, registration, and shape transformation |

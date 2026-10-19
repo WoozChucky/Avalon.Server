@@ -8,7 +8,7 @@ Since #875 the per-packet session layer is a per-world setting on the world serv
 default: a world that leaves it off relies on its pinned TLS alone, and its admission reply tells the client so. Since
 #878 such a world runs no key exchange at all: its connections build no key pair and no session, its admission reply
 carries an empty public key, and a packet flagged `Encrypted` closes the connection (`sealed_before_key`, below). The
-exchange below runs on every auth server connection and on every connection of a world that seals, and the derivation
+exchange below runs on every connection of a world that seals, and the derivation
 and the vectors are unchanged.
 
 Both ends of a connection derive the same two keys independently and never compare them. A
@@ -47,13 +47,13 @@ rather than of the observer, and each end only has to know which one it is.
 
 Including the keys at all is what binds the derivation to this exchange. The same two peers
 reconnecting derive different keys, and a relay that substitutes a public key derives keys its
-own exchange cannot match — which is not by itself authentication (findings 1 and 2 remain), but
+own exchange cannot match — which is not by itself authentication, but
 it does mean a key cannot be carried across exchanges.
 
 **Both key pairs are per-connection**, and on the server that is a requirement of the counter
 nonce rather than a nicety — see below. A client must not treat the server's key as an identity:
-it is different on every connection, nothing signs it, and nothing pins it. Authenticating the
-server is findings 1 and 2, and is not addressed here.
+it is different on every connection, nothing signs it, and nothing pins it. The current world transport
+authenticates the server separately through pinned TLS; this derivation alone provides no server identity.
 
 ### Why the secret is fixed-width
 
@@ -136,7 +136,7 @@ under a nonce the key has already used.
 AES-256-GCM is the platform's `System.Security.Cryptography.AesGcm` (#850): one instance per
 direction, keyed once in `AvalonCryptoSession.Initialize` from the two derived keys and reused for
 every packet. The server seals as it
-frames a packet (a world connection's send thread, the auth server's drain task) with `SealInto`, which
+frames a packet (a world connection's send thread) with `SealInto`, which
 writes the nonce, ciphertext and tag straight into the frame and allocates nothing (#875). The nonce
 is taken at seal time, so nonce order is the order the frames are written; no receiver checks that
 order. `Encrypt`, which the client-to-server packets' `Create` use, allocates only the sealed packet
@@ -153,8 +153,7 @@ platform cipher to a second implementation.
 The session holds one `AesGcm` per direction and no lock (#875). Seals (`Encrypt`, `Encryptor`,
 `SealInto`) must be totally ordered, each happening after the last (one thread, a lock, a queue
 hand-off or an await); the same applies to opens (`Decrypt`). On the world server the connection's
-send thread seals (with `Network:PacketEncryption` on) while its read loop opens; on the auth server the drain task seals while the read
-loop opens. A seal and an open may run at once, since each direction has its own cipher and its own
+send thread seals (with `Network:PacketEncryption` on) while its read loop opens. A seal and an open may run at once, since each direction has its own cipher and its own
 state (the send counter is the sealer's alone). A client must likewise order its seals, and its
 opens: the load-test tool takes locks of its own for both, since a bot opens both on its read loop
 and where it awaited a reply.
@@ -190,7 +189,7 @@ it may seal, not which exchange it was. The ready check is one volatile read bef
 adds no lock and no allocation. Exhaustion is written by the one thread sealing, so no seal passes the
 check once the counter is spent.
 
-`AesGcm` has no fallback. `ServerBase` refuses to construct, so the auth and world servers refuse to
+`AesGcm` has no fallback. `ServerBase` refuses to construct, so the world server refuses to
 start, when `AesGcm.IsSupported` is false (on Linux it needs OpenSSL, which the `aspnet:10.0`
 images carry), rather than failing at the first handshake. The check is in the host because
 `Avalon.Common` targets netstandard2.1, which has no `IsSupported`.
@@ -199,8 +198,7 @@ images carry), rather than failing at the first handshake. The check is in the h
 
 `AvalonCryptoSession` takes a `CryptoRole` at construction — there is no default and no
 inference. The server's is built in `src/Server/Avalon.Hosting/Networking/ConnectionKeyExchange.cs`,
-which each server's connection creates for itself: the auth server's for every connection, a world's
-only while `Network:PacketEncryption` is on (#878); the base `Connection` takes it, or none. A
+which a world connection creates only while `Network:PacketEncryption` is on (#878); the base `Connection` takes it, or none. A
 session that guessed its role would complete its handshake and fail to open the first packet it
 was sent, so the guess is not available.
 

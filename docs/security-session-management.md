@@ -4,58 +4,15 @@ This document covers the authentication pipeline, how world entry is secured, an
 
 ---
 
-## Authentication Flow
+## Sign-in
 
-```
-Game Client                Auth Server                          Redis
-    |                          |                                  |
-    | CRequestServerInfoPacket |                                  |
-    |------------------------->| version check                    |
-    | SServerInfoPacket        |                                  |
-    | (version + public key)   |                                  |
-    |<-------------------------|                                  |
-    | CClientInfoPacket        |                                  |
-    | (client public key)      |                                  |
-    |------------------------->| session crypto                   |
-    | SHandshakePacket         |                                  |
-    |<-------------------------|                                  |
-    | CHandshakePacket         |                                  |
-    |------------------------->| handshake data checked           |
-    | SHandshakeResultPacket   |                                  |
-    |<-------------------------|                                  |
-    | CAuthPacket              |                                  |
-    | (user + password)        |                                  |
-    |------------------------->| source and username budgets      |
-    |                          |--------------------------------->|
-    |                          | BCrypt verify, status            |
-    |                          | [MFA confirmed?]                 |
-    |                          | --- yes: ephemeral hash          |
-    |                          |--------------------------------->|
-    | SAuthResultPacket        |                                  |
-    | (MFA_REQUIRED + hash)    |                                  |
-    |<-------------------------|                                  |
-    | CMFAVerifyPacket         |                                  |
-    | (hash + code)            |                                  |
-    |------------------------->| attempt count, TOTP, spend hash  |
-    |                          |--------------------------------->|
-    | SAuthResultPacket        |                                  |
-    | (SUCCESS + account id)   |                                  |
-    |<-------------------------|                                  |
-    | CWorldListPacket         |                                  |
-    |------------------------->| PostLoginGuard, readiness        |
-    | SWorldListPacket         |                                  |
-    |<-------------------------|                                  |
-```
-
-An account without confirmed MFA gets `SUCCESS` straight from `CAuthPacket`. The auth server's part ends there: world
-entry is the REST game admission, below.
+Identity (`Avalon.Api.Identity`) handles sign-in over HTTPS: password login and MFA, launcher credentials, and store proofs. The TCP auth server was removed in #1097. A game obtains a context through `/client/auth`, requests a join ticket, and presents it to the world over pinned TLS. See [World entry](api-authentication.md#world-entry) for the client sequence.
 
 ---
 
 ## World Entry
 
-The auth server no longer issues world keys. The TCP world select, the world-key exchange and the `SETNX` duplicate
-session mutex were replaced by the TLS join-ticket admission of the REST API's identity service, which also replaced
+The retired TCP world select, world-key exchange and `SETNX` duplicate-session mutex were replaced by the TLS join-ticket admission of the REST API's identity service, which also replaced
 their guarantees:
 
 - **One-time, short-lived entry.** A join ticket (`POST /game/join-tickets`) is a random token kept in Redis only as
@@ -77,61 +34,28 @@ their guarantees:
   context and session of the account for good, and the servers close its connections with `DisconnectReason.Banned`
   or `Deactivated` (`world:accounts:status`).
 
-[Auth server: World entry](auth-server.md#world-entry) has the client's steps, and
+[World entry](api-authentication.md#world-entry) has the client's steps, and
 [game server admission](steam-authentication-workloads.md) the session lease, heartbeat and save fencing.
 
 ---
 
 ## MFA Flow
 
-MFA is implemented using TOTP (Time-based One-Time Passwords) via `Otp.NET`. When an account has confirmed MFA set up, `CAuthHandler` issues an ephemeral hash instead of completing authentication directly.
+MFA uses TOTP via `Otp.NET`. After a valid password for an account with confirmed MFA, identity issues a two-minute login hash; `POST /mfa/verify` submits that hash and a code to finish sign-in.
 
-### Packet Flow
-
-```
-Client               Auth Server           Redis
-  |  CAuthPacket(user,pass)  |                |
-  |------------------------->|                |
-  |  SAuthResultPacket       | SetAsync(hash) |
-  |    (MFA_REQUIRED, hash)  |--------------->|
-  |<-------------------------|                |
-  |  CMFAVerifyPacket(totp)  |                |
-  |------------------------->|                |
-  |                          | GetAsync(hash) |
-  |                          |<---------------|
-  |                          | ValidateOTP    |
-  |  SAuthResultPacket(OK)   |                |
-  |<-------------------------|                |
-```
-
-### MFA Lifecycle Handlers
-
-| Packet            | Handler               | Purpose                                      |
-|-------------------|-----------------------|----------------------------------------------|
-| `CMFAVerifyPacket`| `CMFAVerifyHandler`   | Submit TOTP code to complete login           |
-| `CMFASetupPacket` | `CMFASetupHandler`    | Initiate MFA setup — returns OTP URI         |
-| `CMFAConfirmPacket`| `CMFAConfirmHandler` | Confirm setup with first TOTP code           |
-| `CMFAResetPacket` | `CMFAResetHandler`    | Reset MFA using recovery codes               |
+| REST endpoint | Purpose |
+|---|---|
+| `POST /mfa/verify` | Complete login with a TOTP code and login hash |
+| `POST /mfa/setup` | Check the current password and return an OTP URI |
+| `POST /mfa/confirm` | Confirm setup with the first TOTP code and return recovery codes |
+| `POST /mfa/reset` | Remove MFA using recovery codes; return 204 |
 
 ### Security Notes
 
-- Ephemeral hash TTL: 2 minutes.
-- The hash is single-use, and the delete decides who used it (#478): once a right code's step is
-  accepted, it spends the hash with `IMFAHashService.TryConsumeAsync`, and only the caller whose `DEL`
-  removed the reverse key goes on. Two verifies sent together with one hash can no longer both win.
-- The step is accepted before the hash is spent, so a replayed code (right, but already used) is refused
-  without spending the hash, and the owner's own code can still finish the login. A replay, and a right
-  code that lost the hash to another verify, are not failed logins: their budget slots come back and the
-  row is not counted. A replay also gives back the attempt it counted on the hash, which is safe because
-  only a right code can be a replay. A code that lost the hash gives no attempt back: the hash is gone,
-  and the account's `:mfa` key may already hold the next login's.
-- Each hash allows `MaxFailedMfaAttempts` codes (counted before the code is checked); the last wrong code
-  deletes it. Each code also spends its source's and its account's username budgets, and the account's
-  lock is checked before the code. TOTP codes are accepted within ±1 step, each step once
-  (`LastAcceptedTotpStep`, #471).
+- The two-minute login hash has one winner, and each TOTP step is accepted only once. The attempt budgets, replay refunds and race ordering are specified in [Login budgets and account rules](api-authentication.md#login-budgets-and-account-rules).
 - Resetting MFA with the recovery codes deletes the row and revokes every refresh token and personal
   access token the account holds, in one transaction (`MfaSetupRepository.ResetConfirmedAsync`, #483),
-  then publishes the account on `world:accounts:disconnect` (best-effort). Both servers share this, in
+  then publishes the account on `world:accounts:disconnect` (best-effort), through
   `MFAService.ResetMFAAsync`. The REST reset (`POST /mfa/reset`) returns 204 and enrols nothing: the
   recovery codes are not the password, so enrolling again is `POST /mfa/setup`, which asks for it.
 - Recovery codes (`MFARecoveryCodes`): three per account, each 80 bits from `ISecureRandom`, shown as
@@ -141,7 +65,7 @@ Client               Auth Server           Redis
   and a successful reset deletes the row, which consumes the codes. A stored value that is not a
   32-byte hash, such as a plaintext code written before #464, never verifies.
 - Failed logins and codes are counted and locked by the shared login policy described under
-  [Login policy](#login-policy-shared-by-both-servers).
+  [Login budgets and account rules](api-authentication.md#login-budgets-and-account-rules).
 
 ---
 
@@ -163,56 +87,9 @@ Neither credential is trusted on its own (#451, #480). On every request both go 
 then carries only the credential's roles masked by the account's current `AccessLevel`, so a demotion or
 ban takes effect on the next request.
 
-### Login policy (shared by both servers)
+### Login policy
 
-The game client's TCP login and the REST API's login run one policy (#478), in
-`Avalon.Infrastructure.Login`: `PasswordLoginPolicy` for the password step, `MfaLoginPolicy` for the code
-step, over `SourceBudget`, `UsernameBudget` and `AttemptBudget`. `CAuthHandler`/`CMFAVerifyHandler` and
-`AccountService.Authenticate`/`MFAController.VerifyMFA` answer its outcomes in their own protocol.
-
-| Step | Password (`POST /account/authenticate`, `CAuthPacket`) | Code (`POST /mfa/verify`, `CMFAVerifyPacket`) |
-|---|---|---|
-| 1 | Source budget slot (`auth:source:{source}:failedLogins`) | Source budget slot |
-| 2 | Username budget slot (`auth:username:{sha256}:failedLogins`), before the lookup | Hash attempt count; past `MaxFailedMfaAttempts` the hash is deleted |
-| 3 | Lookup; an unknown username pays one dummy BCrypt verify | Account lookup, then its username budget slot |
-| 4 | Account row lock (`Locked`/`LockedUntil`), before the password; a locked row still pays the dummy verify | Account row lock, before the code |
-| 5 | BCrypt verify | TOTP ±1 step, each step once, one winner per hash |
-| 6 | Status: Banned/Deactivated refused, only now | Status re-checked |
-| 7 | Login written by column, refused if the row locked meanwhile | The same |
-| 8 | Completed: source slot back, username count cleared | The same |
-
-Both servers use the **same keys**. The per-username key is the account lock, so a guess over REST and one
-over TCP spend one budget, and N failures across both lock the account at the one threshold. The
-per-source key is shared too: the budget is "attempts from one address, across every account", and a
-guesser who splits its guesses between the two servers must not get the budget twice. The TCP server keys
-on the connection's address, the API on `HttpContext.Connection.RemoteIpAddress` after
-`UseForwardedHeaders`; both reduce it with `RemoteAddress.SourceOf` (IPv4 address, IPv6 /64).
-
-**Behind a proxy, the API's source is the proxy** unless the proxy is trusted. `UseAvalonForwardedHeaders`
-believes `X-Forwarded-For` from loopback and from `Application:ForwardedHeaders:KnownProxies` and
-`KnownNetworks` only (see [Configuration Reference](configuration-reference.md#rest-api-forwarded-headers)).
-With the ingress missing from those, every REST caller behind it is one source, and ten failures in fifteen
-minutes refuse REST logins for everyone until the window ends. So outside Development the API warns at
-startup when neither is set, and it logs, at most once a minute, a header sent by an untrusted peer, since
-that is either a proxy missing from the list or a caller trying to choose its own source. A trusted network that
-is wider than /8 (IPv4) or /32 (IPv6), `0.0.0.0/0` and `::/0` included, is refused at startup. A request with no
-peer address has its `X-Forwarded-*` headers removed before they are read, so it cannot name an address
-and escape the 400 below.
-
-A caller with no peer address at all (a non-IP transport) is refused with 400 on every endpoint that spends
-a source budget. Before, it was given `IPAddress.None`, so all such callers shared one budget.
-
-On REST, a refusal by a budget or a locked row is **429** ProblemDetails with `Detail` `LOCKED`, the same for
-every username; the failure in the budget's last slot is answered the same way. A wrong password or code
-is the generic 401. The 403 `BANNED`/`DEACTIVATED` answer is given only once the password (or code) is
-proved (#480). HTTP cannot answer before writing, as the TCP login does, so an unknown username runs the
-same failure statements against an id no account has (`LoginPolicy.NoAccount`): known and unknown usernames
-take the same path. A REST login never sets `Online`, which is the game client's session flag.
-
-The limits are configured on both hosts and **must match**: the Auth server's `Application:*` and the
-API's `Application:Authentication:*` (`MaxFailedLoginAttempts`, `LockoutDurationMinutes`,
-`MaxFailedLoginsPerSource`, `FailedLoginSourceWindowMinutes`, `MaxFailedMfaAttempts`). Each host logs its five at
-Information when it starts, so a drift shows by comparing the two lines.
+Identity uses `PasswordLoginPolicy` and `MfaLoginPolicy` in `Avalon.Infrastructure.Login`. Their Redis source and username budgets, lock races, MFA consumption, forwarded-address handling and startup limits are documented in [Login budgets and account rules](api-authentication.md#login-budgets-and-account-rules). Identity replicas share those budgets. `Accounts.Online` and `OnlineSessionId` remain in the schema, but the retired TCP connection lifecycle no longer maintains them; game admission uses session leases and save fences.
 
 ### Re-authentication for sensitive actions
 
@@ -237,11 +114,11 @@ A missing or wrong password is 401 `Invalid current password`; a spent budget or
   voiding every game context and session, and publishes on `world:accounts:status` instead (#882).
 - The publish is best-effort: the change is committed, so a Redis failure is logged and the call succeeds. When the status notice on `world:accounts:status` cannot be published, the bare id goes on `world:accounts:disconnect` instead, so connections still close (#882).
 
-The access JWT in use is not revoked by any of these; it lives out its `AccessTokenLifetimeMinutes`.
+Access JWTs are revalidated against the account on every request. A credentials-version change or inactive status therefore refuses an already issued JWT at its next use; see [REST API authentication](api-authentication.md).
 
 ### Account writes
 
-The API never writes back an account row it read (#478, as the Auth server since #484). A login and an MFA
+The API never writes back an account row it read (#478, #484). A login and an MFA
 verify write `TryRecordApiLoginAsync`, a password change `AccountRepository.SetPasswordAsync`, an email
 change `SetConfirmedEmailAsync`, a role change `SetAccessLevelAsync`: each an `ExecuteUpdate` of its own columns, so a
 ban or a lock written between the read and the write survives.
@@ -279,13 +156,13 @@ Setup and rotation: [Development setup](development-setup.md#rest-api-signing-ke
 
 | Scenario                                             | Expected Result              |
 |------------------------------------------------------|------------------------------|
-| Account with confirmed MFA                           | `MFA_REQUIRED` response      |
-| Account without MFA                                  | `SUCCESS`                    |
+| Account with confirmed MFA                           | `AuthenticationResponseStatus.RequiresMFA` response      |
+| Account without MFA                                  | Access and refresh credentials issued                    |
 | Correct TOTP submitted                               | Auth success                 |
 | Incorrect TOTP submitted                             | Auth fail                    |
 | Expired MFA hash                                     | Auth fail                    |
 | REST login on a locked account                       | 429 `LOCKED`, password not checked (`RestLoginPolicyShould`) |
-| N failed logins over REST and TCP together           | Account locked at the one threshold (`RestLoginPolicyShould`) |
+| N failed logins across identity replicas           | Account locked at the one threshold (`RestLoginPolicyShould`) |
 | Parallel REST guesses at one username                | At most `MaxFailedLoginAttempts` BCrypt verifies (`RestLoginPolicyShould`) |
 | Unknown vs known username over REST                  | Same verify, same failure write, same answer (`RestLoginPolicyShould`) |
 | REST MFA codes past the hash's or username's limit   | Hash deleted / 429 `LOCKED` (`RestMfaVerifyShould`) |
@@ -297,6 +174,6 @@ Setup and rotation: [Development setup](development-setup.md#rest-api-signing-ke
 | Ban lifted while a game context is live              | The context stays void: the ban moved the epoch (`AccountStatusChangeShould`) |
 | Password lock while a player is in the world         | Reservation, activation and heartbeat still renew the session (`GameSessionFenceServiceShould`, `GameSessionRenewalShould`) |
 | X-Forwarded-For from a trusted / untrusted peer      | Source is the client / the peer, warned once a minute (`ForwardedHeadersShould`) |
-| Replayed right MFA code                              | Refused, hash kept, not counted (`TotpReplayShould`, `CMFAVerifyHandlerShould`, `RestMfaVerifyShould`) |
-| Locked account at login                              | One dummy BCrypt verify, as an unknown username (`CAuthHandlerShould`, `RestLoginPolicyShould`) |
+| Replayed right MFA code                              | Refused, hash kept, not counted (`TotpReplayShould`, `RestMfaVerifyShould`) |
+| Locked account at login                              | One dummy BCrypt verify, as an unknown username (`RestLoginPolicyShould`) |
 | Caller with no peer address                          | 400 on budget-spending endpoints (`AddressLessCallerShould`) |

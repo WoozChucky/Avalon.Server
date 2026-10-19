@@ -31,7 +31,7 @@ dotnet build --no-restore
 dotnet test --no-build
 
 # Run a single test project
-dotnet test tests/Avalon.Server.Auth.UnitTests
+dotnet test tests/Avalon.Api.Identity.UnitTests
 dotnet test tests/Avalon.Server.World.UnitTests
 dotnet test tests/Avalon.Shared.UnitTests
 # The REST API: the host level (contract, route ownership, each service's host), the shared hosting, and each
@@ -44,7 +44,7 @@ dotnet test tests/Avalon.Api.Commerce.UnitTests
 dotnet test tests/Avalon.Api.Distribution.UnitTests
 
 # Run a specific test class or method
-dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAuthHandlerShould"
+dotnet test tests/Avalon.Server.World.UnitTests --filter "FullyQualifiedName~WorldHandshakeHandlerShould"
 
 # A local run, from clone to client in world: see "From clone to client in world" below. Once per machine:
 dotnet dev-certs https --trust
@@ -61,7 +61,6 @@ dotnet run --project tools/Avalon.LocalDev -- setup
 # the private signing key, so blank the user-secret; see "REST API signing key" below):
 #   dotnet run --project src/Server/Avalon.Api -- --Application:Services:0=worlds --Application:Authentication:SigningKey=
 dotnet run --project src/Server/Avalon.Api
-dotnet run --project src/Server/Avalon.Server.Auth
 dotnet run --project src/Server/Avalon.Server.World
 
 # A game ticket for the client (ADMIN/123 by default), or the client's REST chain up to a join ticket
@@ -74,7 +73,6 @@ BASE=https://avalon.example/api tools/api-smoke/smoke.sh
 
 # Publish (Release)
 dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release
-dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release
 dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release
 dotnet publish src/Server/Avalon.Balance.Service/Avalon.Balance.Service.csproj -c Release -p:SourceRevisionId=$(git rev-parse HEAD)
 
@@ -97,7 +95,7 @@ dotnet run --project tools/Avalon.ChunkGen -- town [--maps <dir>]
 # Add a migration (EF design-time)
 # Avalon.Api is the startup project by design (early-development convenience).
 # Auth migrations are applied automatically when an API process running identity starts (by default every
-# process runs it; a process without it waits for them), and by the auth server; each world server applies
+# process runs it; a process without it waits for them); each world server applies
 # its own World and Characters migrations.
 dotnet ef migrations add <Name> \
   --project src/Server/Avalon.Database.Auth \
@@ -223,8 +221,8 @@ git rm --cached -r -q . && git reset --hard
 
 ## CI and dev builds
 
-- **A pull request** (`dotnet-pr.yml`) builds the solution, checks formatting, runs the tests (and `tools/release`'s own) and publishes the four servers as a check (World without ReadyToRun); `charts` runs every chart's `ci/test.sh`. Nothing is pushed. This is the only place the tests run: `main` takes only pull requests, and a branch must be up to date with `main` before it merges, so its tests ran on what lands there.
-- **A push to `main`** (`dotnet-ci.yml`) is a dev build, `X.Y.(Z+1)-dev.<run>` (`tools/release/channel-version.sh`). `publish` restores and publishes only the four servers, each project compiled once (World with ReadyToRun; all four with the same `SourceRevisionId`, which the balance service needs and which keeps the libraries they share from compiling twice), and pushes their images (`.github/actions/publish-server`, the four at once, each push retried). `charts` then runs each chart's `ci/test.sh` and pushes the four charts, `avalon-world` last (`.github/actions/push-charts`), one run at a time (concurrency group `server-dev`). The charts are what Flux deploys, so a run that fails before them deploys nothing; its dev-tagged images are named by no chart, and the weekly registry cleanup (`registry-cleanup.yml`) deletes them once they are 14 days old and outside the newest ten. A manual run (`-f ref=<branch>`) deploys that branch to dev untested. `changelog` writes the dev entry after the charts.
+- **A pull request** (`dotnet-pr.yml`) builds the solution, checks formatting, runs the tests (and `tools/release`'s own) and publishes the three server images as a check (World without ReadyToRun); `charts` runs every chart's `ci/test.sh`. Nothing is pushed. This is the only place the tests run: `main` takes only pull requests, and a branch must be up to date with `main` before it merges, so its tests ran on what lands there.
+- **A push to `main`** (`dotnet-ci.yml`) is a dev build, `X.Y.(Z+1)-dev.<run>` (`tools/release/channel-version.sh`). `publish` restores and publishes only the three server images, each project compiled once (World with ReadyToRun; all three with the same `SourceRevisionId`, which the balance service needs and which keeps the libraries they share from compiling twice), and pushes their images (`.github/actions/publish-server`, the three at once, each push retried). `charts` then runs each chart's `ci/test.sh` and pushes the three charts, `avalon-world` last (`.github/actions/push-charts`), one run at a time (concurrency group `server-dev`). The charts are what Flux deploys, so a run that fails before them deploys nothing; its dev-tagged images are named by no chart, and the weekly registry cleanup (`registry-cleanup.yml`) deletes them once they are 14 days old and outside the newest ten. A manual run (`-f ref=<branch>`) deploys that branch to dev untested. `changelog` writes the dev entry after the charts.
 - **Nightly** (`dotnet-nightly.yml`) promotes the newest dev chart and its images to PTR (`-nightly.<run>`) without rebuilding. **A release** (`dotnet-release.yml`) checks that its commit is a PTR build's, then in one job publishes and pushes the images, and only then the charts (the same two actions), without building or testing again, and finally starts a dev build of `main`.
 
 ## From clone to client in world
@@ -253,7 +251,7 @@ dotnet dev-certs https --trust
 dotnet run --project src/Server/Avalon
 ```
 
-It starts Redis (`--requirepass 123`) and Postgres (password `123`) as persistent containers on 6379 and 5432 (stop the docker compose ones first: they bind the same ports), makes the signing keys and the three leaves afresh on every run (into `avalon-apphost` in the temp folder), and passes every setting above to the API and the world server as environment variables. The API comes first; the auth server (21000) and the world server (21001) wait until it is healthy, which it is only once it has migrated the auth database: the world reads that database and never migrates it. On a fresh Postgres the API starts before the world's databases exist, so world 1 is unavailable at first; the world server creates them, and the API finds them on its own within about a minute (`WorldDatabaseRecheck`, [Multi-world API](api-worlds.md#startup-and-availability)). The console prints the dashboard's URL. Certificates made per run cost nothing: the client receives the world's pin in each join reply.
+It starts Redis (`--requirepass 123`) and Postgres (password `123`) as persistent containers on 6379 and 5432 (stop the docker compose ones first: they bind the same ports), makes the signing keys and the three leaves afresh on every run (into `avalon-apphost` in the temp folder), and passes every setting above to the API and the world server as environment variables. The API comes first; the world server (21001) waits until it is healthy, which it is only once it has migrated the auth database: the world reads that database and never migrates it. On a fresh Postgres the API starts before the world's databases exist, so world 1 is unavailable at first; the world server creates them, and the API finds them on its own within about a minute (`WorldDatabaseRecheck`, [Multi-world API](api-worlds.md#startup-and-availability)). The console prints the dashboard's URL. Certificates made per run cost nothing: the client receives the world's pin in each join reply.
 
 ### By hand: `dotnet run`
 
@@ -261,7 +259,6 @@ It starts Redis (`--requirepass 123`) and Postgres (password `123`) as persisten
 docker compose up -d redis postgres
 dotnet run --project tools/Avalon.LocalDev -- setup   # once; run again to renew the certificates
 dotnet run --project src/Server/Avalon.Api            # first: it migrates the auth database
-dotnet run --project src/Server/Avalon.Server.Auth
 dotnet run --project src/Server/Avalon.Server.World
 ```
 
@@ -292,13 +289,11 @@ The account is `ADMIN` unless `--user` names another; the password comes from `-
 **The client's configuration.** The client reads its servers from `netconfig.local.json` in its project folder (`devproject/`) when that file exists, ahead of the committed `netconfig.json`; the local file is ignored by the client's git. For a local run:
 
 ```json
-{ "host": "127.0.0.1", "port": 21000,
-  "pinSha256": "cf549bcd524330caa3888af69641322f3c1f3c523d4d2768521c891bf2e85d23",
-  "apiUrl": "https://localhost:7166",
+{ "apiUrl": "https://localhost:7166",
   "websiteUrl": "https://localhost:5173" }
 ```
 
-`host`, `port` and `pinSha256` name the auth server: the pin is the SHA-256 of the SubjectPublicKeyInfo of the committed development certificate `certs/cert-tcp.pfx`. `apiUrl` is the API's https origin (an origin, or one with the path `/api`); `websiteUrl` the website the client opens for account pages, https as well (Avalon.Dashboard's local server). The world needs no entry: its address, TLS name and pin come in each join reply.
+`apiUrl` is the API's https origin (an origin, or one with the path `/api`); `websiteUrl` the website the client opens for account pages, https as well (Avalon.Dashboard's local server). The world needs no entry: its address, TLS name and pin come in each join reply.
 
 **When it does not work:**
 

@@ -9,7 +9,7 @@ start there. A few are still written where they are used: the game-context revoc
 and the World server's delete of the retired `account:{accountId}:inWorld` key (see [Retired keys](#retired-keys)).
 
 The login budgets, the MFA keys and the email-change keys are described rule by rule in the
-[auth server](auth-server.md#redis-keys) page.
+[REST API authentication](api-authentication.md#login-budgets-and-account-rules) page.
 
 ---
 
@@ -20,7 +20,7 @@ Avalon uses Redis for three distinct purposes:
 | Purpose | Mechanism | Examples |
 |---|---|---|
 | Short-lived one-time tokens and budgets | `SET` / `GET` / `DEL` with TTL, `INCR` with an expiry | MFA reverse keys, launcher codes, game tickets, join tickets, login budgets |
-| Cross-component signalling | Pub/Sub channels | disconnect request, account online event, maintenance and reload notices |
+| Cross-component signalling | Pub/Sub channels | disconnect request, maintenance and reload notices |
 | Short-lived structured state | Redis Hash with per-field access | MFA flow (hash + expiry + accountId + attempts) |
 
 ---
@@ -28,8 +28,7 @@ Avalon uses Redis for three distinct purposes:
 ## Keys by API service
 
 The REST API runs as four services ([API services](api-services.md)), each using only its own keys; a process
-connects to Redis only when one of its services needs it. While production runs all four in one process (#802), that
-process uses all of them.
+connects to Redis only when one of its services needs it. A process configured to run all four uses all of them; production uses separate service releases (#802).
 
 | Service | Keys it reads and writes | Channels |
 |---|---|---|
@@ -38,15 +37,13 @@ process uses all of them.
 | commerce | the checkout budget (`commerce:{environment}:checkout:*`) | none |
 | distribution | none: it runs without `Application:Cache` and holds no Redis password | none |
 
-The login budgets and the MFA keys are shared with the TCP auth server, which runs the same login policy, so a guess
-over REST and one over TCP spend one budget ([REST API authentication](api-authentication.md)).
+Identity replicas share the login budgets and MFA keys, so requests to different replicas spend one budget ([REST API authentication](api-authentication.md)).
 
 ### Redis users per API service
 
 Each API service can sign in as its own Redis ACL user (#803), limited to the keys, channels and commands above
 (`Application:Cache:Username`, chart value `cache.username`; see
-[Cache Configuration](configuration-reference.md#cache-configuration-cacheconfiguration)). The auth server and the world
-servers sign in as the default user, with full access; the balance service uses no Redis. The users the homelab declares:
+[Cache Configuration](configuration-reference.md#cache-configuration-cacheconfiguration)). The world servers sign in as the default user, with full access; the balance service uses no Redis. The users the homelab declares:
 
 | User | Keys | Channels | Commands |
 |---|---|---|---|
@@ -136,15 +133,15 @@ fields atomic and inspectable.
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.AccountMfa(long accountId)` |
 | **Type** | Hash |
-| **Owner (writer + reader)** | Auth server and the API's identity service — `MFAHashService` |
-| **Consumer (deleter)** | Auth server and the API's identity service — `MFAHashService.TryConsumeAsync` and `CleanupHash` |
+| **Owner (writer + reader)** | API identity — `MFAHashService` |
+| **Consumer (deleter)** | API identity — `MFAHashService.TryConsumeAsync` and `CleanupHash` |
 | **TTL** | 2 minutes (set on the whole key in the same transaction as the fields) |
 
 **Hash fields:**
 
 | Field name | Description |
 |---|---|
-| `hash` | The MFA challenge token: the Base32 encoding of 20 random bytes, returned with `MFA_REQUIRED` and sent back with the code |
+| `hash` | The MFA challenge token: the Base32 encoding of 20 random bytes, returned in the REST `MfaHash` field with `RequiresMFA` status and sent back with the code |
 | `expiry` | ISO-8601 UTC timestamp recording when this entry expires |
 | `accountId` | String representation of the account ID |
 | `attempts` | Codes tried against this hash, counted with `HINCRBY` only while the hash exists |
@@ -266,18 +263,15 @@ subscribers active at the time of publish.
 | Field | Value |
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.WorldAccountsDisconnectChannel` |
-| **Publisher** | Auth server — `GameLoginCompletion` (duplicate login path); the API's identity service on a credentials change or refresh-token reuse (`AccountService`, `AccountRefreshController`, `ClientAuthController`); `MFAService` on an MFA reset, on either server. A ban or a deactivation publishes on [`world:accounts:status`](#worldaccountsstatus) instead (#882), and falls back to the bare id here when that publish fails |
-| **Subscriber** | World server — `WorldServer.CacheSubscribeAsync`; Auth server — `AuthServer` |
+| **Publisher** | The API's identity service on a credentials change or refresh-token reuse (`AccountService`, `AccountRefreshController`, `ClientAuthController`); `MFAService` on an MFA reset. A ban or a deactivation publishes on [`world:accounts:status`](#worldaccountsstatus) instead (#882), and falls back to the bare id here when that publish fails |
+| **Subscriber** | World server — `WorldServer.CacheSubscribeAsync` |
 | **Message format** | Account ID as a decimal string |
 
-**Purpose:** Asks every server to drop the account's sessions. The original use is the cross-server half of the
-duplicate-login guard: an account that logs in again from a different connection. The World server closes every
-connection with a matching `AccountId`; the Auth server closes that account's logged-in TCP connections. The message
-is the bare account id, so it cannot say why.
+**Purpose:** Asks each world server to drop every connection with the account's `AccountId` after a credentials change or refresh-token reuse. The bare account id cannot say why, so the player receives the neutral session-ended message. Duplicate gameplay admission is governed by the game-session lease and confirmed takeover, with a separate world-side character-select backstop.
 
 **Flow:**
 ```
-Auth server (GameLoginCompletion) — a login of an account whose row is still Online
+API identity — credentials changed or refresh token reused
   → PUBLISH world:accounts:disconnect  {accountId}
 
 World server (WorldServer.DelayedDisconnect → CloseAccountSessions)
@@ -294,7 +288,7 @@ World server (WorldServer.DelayedDisconnect → CloseAccountSessions)
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.WorldAccountsStatusChannel` |
 | **Publisher** | API, identity — `AccountService.UpdateStatusAsync`, after the ban or deactivation commits (best effort; when this publish fails, the bare id goes on `world:accounts:disconnect` instead) |
-| **Subscriber** | World server — `WorldServer.CacheSubscribeAsync` (`CloseBannedOrDeactivated`); Auth server — `AuthServer.SubscribeToAccountDisconnectsAsync` (`CloseBannedOrDeactivated`) |
+| **Subscriber** | World server — `WorldServer.CacheSubscribeAsync` (`CloseBannedOrDeactivated`) |
 | **Message format** | `{accountId}|BANNED` or `{accountId}|DEACTIVATED` (`AccountStatusNotice`; an id that is not canonical, another status or a longer message is ignored) |
 
 **Purpose:** The bare disconnect for a status change, with the reason (#882). A ban or a deactivation publishes here
@@ -319,27 +313,12 @@ World server (WorldServer.AccountStatusChanged → CloseBannedOrDeactivated)
 
 ---
 
-### `auth:accounts:online`
-
-| Field | Value |
-|---|---|
-| **`CacheKeys` member** | `CacheKeys.AuthAccountsOnlineChannel` |
-| **Publisher** | Auth server — `GameLoginCompletion` (successful login path) |
-| **Subscriber** | *(currently none — reserved for future components)* |
-| **Message format** | Account ID as a decimal string |
-
-**Purpose:** Broadcasts that an account has completed authentication and is now marked online. Currently published but
-not subscribed to by any component; reserved for future use cases such as an admin dashboard, presence service, or
-API-layer invalidation of cached account state.
-
----
-
 ## Key Inventory Summary
 
 | Key pattern | Type | TTL | Writer | Consumer |
 |---|---|---|---|---|
-| `auth:account:{id}:mfa` | Hash | 2 min | Auth, API identity / `MFAHashService` | Auth, API identity / `MFAHashService` |
-| `auth:mfa:hash:{sha256}` | String | 2 min | Auth, API identity / `MFAHashService` | Auth, API identity / `MFAHashService` |
+| `auth:account:{id}:mfa` | Hash | 2 min | API identity / `MFAHashService` | API identity / `MFAHashService` |
+| `auth:mfa:hash:{sha256}` | String | 2 min | API identity / `MFAHashService` | API identity / `MFAHashService` |
 | `auth:launcherCode:{hash}` | String | 60 s | API identity / `LauncherAuthCodes` | API identity / `LauncherAuthCodes` |
 | `auth:gameTicket:{hash}` | String | 60 s | API identity / `RedisGameTicketStore` | API identity / `GameAuthorizationService` |
 | `game-auth:{env}:*` | String | per record | API identity / `RedisGameContextStore` | API identity |
@@ -349,13 +328,14 @@ API-layer invalidation of cached account state.
 | `world:{id}:queue:checkins` | Sorted set | per member (score) | API identity / `RedisWorldPlaceStore` | API identity; API worlds / `RedisWorldOccupancy` |
 | `world:{id}:queue:arrivals` | String | — | API identity / `RedisWorldPlaceStore` | API identity |
 | `world-queue:account:{id}` | String | 24 h | API identity / `RedisWorldPlaceStore` | API identity |
-| `world:accounts:disconnect` | Pub/Sub channel | — | Auth / `GameLoginCompletion`; API identity; `MFAService` | World / `WorldServer`; Auth / `AuthServer` |
-| `world:accounts:status` | Pub/Sub channel | — | API identity / `AccountService` | World / `WorldServer`; Auth / `AuthServer` |
-| `auth:accounts:online` | Pub/Sub channel | — | Auth / `GameLoginCompletion` | *(reserved)* |
+| `world:accounts:disconnect` | Pub/Sub channel | — | API identity / `AccountService`, `AccountRefreshController`, `ClientAuthController`, `MFAService` | World / `WorldServer` |
+| `world:accounts:status` | Pub/Sub channel | — | API identity / `AccountService` | World / `WorldServer` |
 
 ---
 
 ## Retired keys
+
+- `auth:accounts:online`: the TCP auth login event had no subscribers. Its publisher was removed with the auth server in #1097 and the unused `CacheKeys` member was removed in #1100.
 
 The TCP world select and world-key exchange were replaced by the TLS join-ticket admission, and their keys went with
 them; `CacheKeys` no longer names any of them.

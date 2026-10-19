@@ -1,5 +1,7 @@
 # Game server admission configuration
 
+Identity is the sign-in and admission service. The TCP auth host was removed in #1097; clients obtain their context through REST and connect directly to the world with a TLS join ticket ([client sequence](api-authentication.md#world-entry)).
+
 The game admission API accepts an opaque game context for world listing and issues a server-specific join ticket only while its source-bound game license remains current. Store contexts also require current verified identity evidence. Tickets last at most 30 seconds, are bound to the selected world and context, and may be redeemed by one authenticated server/connection. Exact retries recover the original receipt; a pending receipt cannot admit gameplay until the durable save barriers are advanced.
 
 ## Shared licensing and rollout

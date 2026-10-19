@@ -6,27 +6,25 @@ This document covers all configuration keys for the Avalon server.
 
 ## Overview
 
-Avalon uses strongly-typed configuration classes bound from `appsettings.json` (or environment variables / secrets manager in production). The TCP servers read them through `IOptions<T>`. The REST API runs as up to four services from one binary ([API services](api-services.md)), and a process binds only the sections of the services it runs (see [REST API Services](#rest-api-services)): identity binds `Application` once as `ApplicationConfig` and the worlds service as `WorldsConfig`, each registering the parts as plain singletons, the shared hosting reads the token validation and forwarded-headers settings directly, and only the rows below marked `IOptions<T>` go through the options system there. The classes live next to the code that reads them: `src/Shared/Avalon.Configuration` holds the database and hosting ones, and the rest sit in their host or library project.
+Avalon uses strongly-typed configuration classes bound from `appsettings.json` (or environment variables / secrets manager in production). The world server reads them through `IOptions<T>`. The REST API runs as up to four services from one binary ([API services](api-services.md)), and a process binds only the sections of the services it runs (see [REST API Services](#rest-api-services)): identity binds `Application` once as `ApplicationConfig` and the worlds service as `WorldsConfig`, each registering the parts as plain singletons, the shared hosting reads the token validation and forwarded-headers settings directly, and only the rows below marked `IOptions<T>` go through the options system there. The classes live next to the code that reads them: `src/Shared/Avalon.Configuration` holds the database and hosting ones, and the rest sit in their host or library project.
 
 ---
 
 ## Configuration Classes
 
-Hosts: **API** is `Avalon.Api`, with the API services that read the class in parentheses; **Auth** the auth server, **World** the world server.
+Hosts: **API** is `Avalon.Api`, with the API services that read the class in parentheses; **World** is the world server.
 
 | Class                       | Namespace                          | Bound from | Hosts | Validated |
 |-----------------------------|------------------------------------|------------|-------|-----------|
-| `DatabaseConfiguration`     | `Avalon.Configuration`             | `Database` (`Database:Auth`, `Database:Characters`, `Database:World`, each with a `ConnectionString`) | API, Auth, World | At startup by `DatabaseConnectionsValidation`: Auth needs `Database:Auth`, World all three, the API `Database:Auth` only. See [Startup Validation](#startup-validation) |
+| `DatabaseConfiguration`     | `Avalon.Configuration`             | `Database` (`Database:Auth`, `Database:Characters`, `Database:World`, each with a `ConnectionString`) | API, World | At startup by `DatabaseConnectionsValidation`: World needs all three, the API `Database:Auth` only. See [Startup Validation](#startup-validation) |
 | _(no class)_                | `Avalon.Api.Hosting`               | `Application:Services`, read by `ApiServiceSelection` | API (every process) | When the host is built: an empty list or an unknown name stops it. See [REST API Services](#rest-api-services) |
 | _(no class)_                | `Avalon.Api.Hosting`               | `Application:Startup:AuthSchemaWaitSeconds`, read by `AuthSchemaGate` | API (every process; only one without identity waits) | At startup: anything but a whole number of at least 1 stops it |
 | _(no class)_                | `Avalon.Api.Hosting.Worlds`        | `Database:Worlds:<id>:World` and `Database:Worlds:<id>:Characters`, read by `WorldDatabaseSettings` for the parts a process reads | API (worlds both, identity Characters) | By hand in `ApiStartup`, right after the options. See [REST API Worlds](#rest-api-worlds) |
-| `CacheConfiguration`        | `Avalon.Infrastructure.Configuration` | `Cache` (Auth, World); `Application:Cache` (API) | API (identity, worlds, commerce), Auth, World | `ValidateOnStart` (`Host` required) in all three hosts; in the API only in a process whose services need Redis |
-| `HostingConfiguration`      | `Avalon.Configuration`             | `Hosting` (with `Hosting:ProxyProtocol` and `Hosting:Telemetry`). `Hosting:Telemetry:NoSpanPacketTypes` lists the packet types, by `NetworkPacketType` name, whose handlers open no span and no log scope (their duration and errors are still recorded); default `CMSG_PLAYER_INPUT`, `CMSG_PONG`, and a configured list replaces it. The default types' handlers write `{ConnectionId}` and `{PacketType}` into their own lines (`HighRatePacketLog`); a type added to the list loses its handlers' log scope with nothing in its place. See [instrumentation](instrumentation.md#packet-handlers) | Auth, World | `ValidateOnStart` on its own properties. The nested `ProxyProtocol` is not annotation-checked: a trusted network that is not valid CIDR throws when the TCP server is built; a `NoSpanPacketTypes` entry that is not an exact `NetworkPacketType` name throws when the server is built |
-| `HostingSecurity`           | `Avalon.Server.Auth.Configuration` | `Hosting:Security` | Auth | `ValidateOnStart` (`CertificatePath` required) |
+| `CacheConfiguration`        | `Avalon.Infrastructure.Configuration` | `Cache` (World); `Application:Cache` (API) | API (identity, worlds, commerce), World | `ValidateOnStart` (`Host` required) in the API and world hosts; in the API only in a process whose services need Redis |
+| `HostingConfiguration`      | `Avalon.Configuration`             | `Hosting` (with `Hosting:ProxyProtocol` and `Hosting:Telemetry`). `Hosting:Telemetry:NoSpanPacketTypes` lists the packet types, by `NetworkPacketType` name, whose handlers open no span and no log scope (their duration and errors are still recorded); default `CMSG_PLAYER_INPUT`, `CMSG_PONG`, and a configured list replaces it. The default types' handlers write `{ConnectionId}` and `{PacketType}` into their own lines (`HighRatePacketLog`); a type added to the list loses its handlers' log scope with nothing in its place. See [instrumentation](instrumentation.md#packet-handlers) | World | `ValidateOnStart` on its own properties. The nested `ProxyProtocol` is not annotation-checked: a trusted network that is not valid CIDR throws when the TCP server is built; a `NoSpanPacketTypes` entry that is not an exact `NetworkPacketType` name throws when the server is built |
 | `WorldHostingSecurity`      | `Avalon.World.GameAuth`            | `Hosting:Security` | World | `ValidateOnStart` (`CertificatePath` required: the world's TLS certificate, a current leaf with its private key, loaded before it listens) |
 | `GameAdmissionOptions`      | `Avalon.World.GameAuth`            | `World:Admission` (`ApiUrl`, `ServerId`, `ClientCertificatePath`, `ClientCertificatePassword`, `ApiCertificateSha256`; `WorldId` from `Game:WorldId`) | World | `ValidateOnStart`: a fixed HTTPS origin, a server id, the workload client certificate and the API leaf's SHA-256 pin. See [game server admission](steam-authentication-workloads.md#world-transport-and-coordinated-protocol-cutover) |
 | `AdmissionSourceOptions`    | `Avalon.World.GameAuth`            | `World:Admission` (`MaxInFlightPerSource`, `MaxInFlightPerIPv6Block`, `MaxPerSourcePerMinute`, `MaxPerIPv6BlockPerMinute`, `ExemptSources`), the per-source budget on admissions (#1052) | World | `ValidateOnStart`: the caps 1 to 128, the rates 1 to 60,000 and 240,000, each IPv6 block limit at least the source's; each exempt entry by `AdmissionSourceValidation`. See [World Admission Budget](#world-admission-budget) |
-| `AuthConfiguration`         | `Avalon.Server.Auth.Configuration` | `Application` | Auth | `ValidateOnStart` |
 | `GameConfiguration`         | `Avalon.World.Configuration`       | `Game` | World | `ValidateOnStart` (`WorldId` also required by a post-configure step) |
 | `RegenConfiguration`        | `Avalon.World.Configuration`       | `Regen` | World | `ValidateOnStart` |
 | `WorldShutdownConfiguration` | `Avalon.World.Configuration`     | `World:Shutdown` | World | `ValidateOnStart` (both required; `DrainTime` 0 to 1 h, `SaveMargin` 21 s to 1 h). See [World Shutdown Drain](#world-shutdown-drain) |
@@ -55,60 +53,17 @@ while its database settings are under the top-level `Database`, as on the server
 
 ---
 
-## Auth Server Configuration (`AuthConfiguration`)
-
-Section in `appsettings.json`: `"Application"`
-
-| Key                         | Type   | Default   | Description                                    |
-|-----------------------------|--------|-----------|------------------------------------------------|
-| `MinClientVersion`          | string | `"0.0.1"` | Minimum client version accepted during handshake |
-| `ServerVersion`             | string | `"1.0.0"` | Server version sent in `SServerInfoPacket` to clients |
-| `MaxFailedLoginAttempts`    | int    | `5`       | Failed password or MFA-code attempts at one username, from every source, before it is locked (counted in Redis, #484) |
-| `LockoutDurationMinutes`    | int    | `15`      | The window those attempts are counted over, and how long the lock lasts from the failure that set it |
-| `MaxFailedLoginsPerSource`  | int    | `10`      | Password and MFA-code attempts one source address may make, across every account, per window (#471) |
-| `FailedLoginSourceWindowMinutes` | int | `15`   | The window, fixed from a source's first attempt, those are counted over |
-| `MaxFailedMfaAttempts`      | int    | `5`       | Codes one MFA hash allows; the last wrong one deletes the hash |
-| `OnlineSweepIntervalSeconds` | int  | `30`      | How often the auth server clears `Online` on accounts whose session is none of its live connections (#555) |
-| `Issuer`                    | string | `"Avalon"` | Issuer name embedded in MFA OTP URIs           |
-
-The five login limits are shared with the REST API (#478): both servers spend the same Redis budgets, so
-the API's `Application:Authentication` values of the same names must match these. See
-[REST API Login Limits](#rest-api-login-limits).
-
-```json
-"Application": {
-  "MinClientVersion": "0.0.1",
-  "ServerVersion": "1.0.0",
-  "MaxFailedLoginAttempts": 5,
-  "LockoutDurationMinutes": 15,
-  "MaxFailedLoginsPerSource": 10,
-  "FailedLoginSourceWindowMinutes": 15,
-  "MaxFailedMfaAttempts": 5,
-  "OnlineSweepIntervalSeconds": 30,
-  "Issuer": "Avalon"
-}
-```
-
-**Validation rules:**
-- `MinClientVersion`, `ServerVersion`: required, must match `^\d+\.\d+\.\d+$` (SemVer).
-- The five login limits: minimum `1`.
-- `OnlineSweepIntervalSeconds`: minimum `1`.
-- `Issuer`: required, non-empty.
-
----
-
 ## Hosting Configuration (`HostingConfiguration`)
 
-Section in `appsettings.json`: `"Hosting"` (auth and world servers)
+Section in `appsettings.json`: `"Hosting"` (world server)
 
 | Key                     | Type   | Default  | Description                                             |
 |-------------------------|--------|----------|---------------------------------------------------------|
 | `Host`                  | string | `"0.0.0.0"` | Bind address                                         |
-| `Port`                  | int    | `21000`  | TCP listen port (the auth server's `appsettings.json` sets 21000, the world server's 21001; unset is 0). 0 binds a free port, which `ServerBase.BoundEndPoint` and the "Listening for connections on" log report (#841); tests use it |
+| `Port`                  | int    | `21001`  | TCP listen port (the world server's `appsettings.json` sets 21001; unset is 0). 0 binds a free port, which `ServerBase.BoundEndPoint` and the "Listening for connections on" log report (#841); tests use it |
 | `PacketReaderBufferSize`| int    | `4096`   | Internal read-buffer size in bytes for `PacketReader`   |
-| `MaxInboundFrameSize` | int | `16384` | The most bytes a frame a peer sends may declare after its length prefix (header and payload). One that declares more, or has a malformed length, is never buffered: the connection is closed without a notice, counted in `network.in.frame_kicks`. Applies before admission or login as after; frames the servers send are not limited by it. The largest frame a client sends is about 570 bytes ([packet protocol](networking-packet-protocol.md#the-inbound-frame-length-limit)) |
-| `InboundFrameTimeoutSeconds` | int | `10` | Seconds a peer has to complete a frame once its first byte has arrived (#938). One still incomplete then (a peer that stopped mid-frame, or trickles it a byte at a time) closes the connection without a notice: one Warning and one count in `network.in.protocol_kicks`, `reason` `frame_timeout`. The wait between frames is not timed. Applies before admission or login as after ([packet protocol](networking-packet-protocol.md#the-inbound-frame-deadline)) |
-| `SendBufferCapacity`    | int    | `100`    | The auth server's outbox (`ChannelOutbox`): packets one connection holds while waiting to be sent; when full, the oldest is dropped. The world server does not read it (#875) |
+| `MaxInboundFrameSize` | int | `16384` | The most bytes a frame a peer sends may declare after its length prefix (header and payload). One that declares more, or has a malformed length, is never buffered: the connection is closed without a notice, counted in `network.in.frame_kicks`. Applies before admission as after; frames the servers send are not limited by it. The largest frame a client sends is about 570 bytes ([packet protocol](networking-packet-protocol.md#the-inbound-frame-length-limit)) |
+| `InboundFrameTimeoutSeconds` | int | `10` | Seconds a peer has to complete a frame once its first byte has arrived (#938). One still incomplete then (a peer that stopped mid-frame, or trickles it a byte at a time) closes the connection without a notice: one Warning and one count in `network.in.protocol_kicks`, `reason` `frame_timeout`. The wait between frames is not timed. Applies before admission as after ([packet protocol](networking-packet-protocol.md#the-inbound-frame-deadline)) |
 | `TcpKeepAliveTimeSeconds` | int | `60` | TCP keepalive on every accepted socket (#571): idle seconds before the first probe |
 | `TcpKeepAliveIntervalSeconds` | int | `10` | Seconds between unanswered keepalive probes |
 | `TcpKeepAliveRetryCount` | int | `3` | Unanswered probes before the OS closes the connection. With the defaults a half-open connection (the peer gone without a FIN or RST) closes within about 90 s |
@@ -116,11 +71,11 @@ Section in `appsettings.json`: `"Hosting"` (auth and world servers)
 ```json
 "Hosting": {
   "Host": "0.0.0.0",
-  "Port": 21000,
+  "Port": 21001,
   "PacketReaderBufferSize": 4096,
   "Security": {
-    "CertificatePath": "cert-tcp.pfx",
-    "CertificatePassword": "avalon"
+    "CertificatePath": "<path-to-generated-world-tls.pfx>",
+    "CertificatePassword": "<certificate-password>"
   }
 }
 ```
@@ -129,10 +84,9 @@ Section in `appsettings.json`: `"Hosting"` (auth and world servers)
 - `PacketReaderBufferSize`: minimum `512`, maximum `65535`.
 - `MaxInboundFrameSize`: minimum `1024`, maximum `16777216`. It may be below `PacketReaderBufferSize`, which is only the read buffer's first size.
 - `InboundFrameTimeoutSeconds`: minimum `1`, maximum `300`, checked at startup. There is no value that turns it off: the largest frame a client sends is under a kilobyte.
-- `SendBufferCapacity`: minimum `10`, maximum `10000`.
 - `TcpKeepAliveTimeSeconds`, `TcpKeepAliveIntervalSeconds`: minimum `1`, maximum `32767`; `TcpKeepAliveRetryCount`: minimum `1`, maximum `127`. Checked at startup, which names the setting. An option the platform cannot set is skipped with one Warning, and the connection is still served.
 - Keepalive covers the TCP connection the server accepted. Behind a proxy that terminates TCP it covers only the proxy-to-server leg; the client-to-proxy leg needs the proxy's own keepalive or idle timeout.
-- `Security:CertificatePath`: required on both servers (the auth server's TLS certificate, and the world server's, which
+- `Security:CertificatePath`: required on the world server (its TLS certificate, which
   must be current and carry its private key). `Security:CertificatePassword` is optional.
 
 ---
@@ -194,7 +148,7 @@ must stay closed:
   network, past `loadBalancerSourceRanges`, so any host that reaches a node could send its own header. The chart
   renders `allocateLoadBalancerNodePorts: false` on a LoadBalancer Service (ServiceLB forwards to the Service's
   cluster IP and port, and needs none). A node port already allocated is not freed by that: remove
-  `spec.ports[].nodePort` from each existing Service once. The auth server's chart allocates one the same way;
+  `spec.ports[].nodePort` from each existing Service once;
 - the world pod, to every other pod: the world chart's `networkPolicy` (off by default), with `serviceLB` admitting
   only this Service's ServiceLB pods (in `kube-system`, labelled `svccontroller.k3s.cattle.io/svcname`). Those pods
   run on the pod network and masquerade what they forward, so the world sees their pod address as the peer: the
@@ -227,7 +181,7 @@ List each load machine on its own (`/32`): on the homelab, the load-test world e
 
 ## Cache Configuration (`CacheConfiguration`)
 
-Section in `appsettings.json`: `"Cache"` (auth and world servers), `"Application:Cache"` (REST API)
+Section in `appsettings.json`: `"Cache"` (world server), `"Application:Cache"` (REST API)
 
 | Key        | Type   | Description                           |
 |------------|--------|---------------------------------------|
@@ -246,7 +200,7 @@ Section in `appsettings.json`: `"Cache"` (auth and world servers), `"Application
 - `Host`: required, checked at startup. `Username` and `Password` are optional.
 
 With a `Username` the connection leaves out the client's own probes of the server (`CLUSTER`, `CONFIG`, `INFO` and the
-tie-breaker key), which a restricted user may not run, and refuses admin commands; the auth and world servers name no
+tie-breaker key), which a restricted user may not run, and refuses admin commands; the world server names no
 user and sign in as the default user. The users each REST API service signs in as are in
 [Redis users per API service](redis-cache-keys.md#redis-users-per-api-service).
 
@@ -258,7 +212,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
 
 | Key                              | Type   | Default    | Description |
 |----------------------------------|--------|------------|-------------|
-| `WorldId`                        | ushort | —          | Identifies this world to the Auth server |
+| `WorldId`                        | ushort | —          | Identifies this world in the auth database and identity admission |
 | `PlayerRadius`                   | float  | `2000`     | Currently unused by the simulation |
 | `MaxCharactersPerAccount`        | ushort | `5`        | Rejects character creation beyond this count |
 | `CharacterLoadTimeoutSeconds`    | int    | `15`       | How long a pending character select may wait before it is cancelled |
@@ -496,7 +450,7 @@ The public `WorldStatus` is derived: an active cutoff gives `Maintenance`; befor
 
 At enable, the world broadcasts a System chat warning. It warns again at three minutes, one minute, thirty seconds, and every second from ten through zero that falls within the grace. At zero it sends the warning before a maintenance disconnect, stops processing authenticated non-Admin packets, then runs the normal despawn and save path. Admin sessions remain connected. The REST game admission (the world list it offers, a join ticket's issue and its redemption), character select, and final spawn enforce the deadline; if the authoritative maintenance row cannot be read, a new entry is refused.
 
-A non-Admin gets no join ticket for a world past its deadline (`WorldUnavailable`), and the auth server's world list shows that world as `Maintenance`, so the client should show a maintenance message for such a world. It must also understand `DisconnectReason.Maintenance` from the shared wire schema and show a maintenance message for it.
+A non-Admin gets no join ticket for a world past its deadline (`WorldUnavailable`), so the client should show a maintenance message for such a world. It must also understand `DisconnectReason.Maintenance` from the shared wire schema and show a maintenance message for it.
 
 ## World Shutdown Drain
 
@@ -597,24 +551,22 @@ Section: `Application:Authentication`, read by identity (#478)
 
 | Key                              | Type | Default | Description |
 |----------------------------------|------|---------|-------------|
-| `MaxFailedLoginAttempts`         | int  | `5`     | Password and MFA-code attempts at one username, from every source and both servers, before it is locked |
+| `MaxFailedLoginAttempts`         | int  | `5`     | Password and MFA-code attempts at one username, from every source, before it is locked |
 | `LockoutDurationMinutes`         | int  | `15`    | That budget's window, and how long the lock lasts |
 | `MaxFailedLoginsPerSource`       | int  | `10`    | Attempts one source address may make, across every account, per window |
 | `FailedLoginSourceWindowMinutes` | int  | `15`    | The source budget's window |
 | `MaxFailedMfaAttempts`           | int  | `5`     | Codes one MFA hash allows |
 
 The REST login, MFA verify and the current-password checks (password change, `POST /mfa/setup`,
-`POST /pat`, `POST /pat/admin`) run the Auth server's login policy over **the same Redis keys**, so these
-must equal the Auth server's `Application:*` values of the same names: a key counted against two
-different limits locks at whichever is lower. The defaults match. The section is bound without validated
+`POST /pat`, `POST /pat/admin`) use the login policy in `Avalon.Infrastructure/Login` over the same Redis
+budgets. Keep these limits consistent across identity replicas. The section is bound without validated
 options, so identity's registration (`AddIdentity`) refuses a value below `1` at startup, naming the setting.
 
 ```bash
 Application__Authentication__MaxFailedLoginAttempts=5
 ```
 
-Each host logs its five limits at Information when it starts (the Auth server as `Application`, an API
-process running identity as `Application:Authentication`), so the two lines can be compared.
+Each API process running identity logs its five limits as `Application:Authentication` at Information when it starts.
 
 The per-source budget keys on the caller's address after the forwarded headers are applied, so behind a
 proxy it needs [REST API Forwarded Headers](#rest-api-forwarded-headers) set up.
@@ -748,7 +700,7 @@ one caller. A request whose source is listed (the address the limits count, afte
 `client-auth` policy, the per-source failed-login budget (`MaxFailedLoginsPerSource`, which registration, MFA verify,
 the current-password checks and starting an email change spend too) and the per-source account-creation cap.
 Per-account and per-username limits still apply: a signed-in request from a listed source is counted against its
-account, and each username keeps its failed-login budget and its lock. The auth server's TCP login is not affected.
+account, and each username keeps its failed-login budget and its lock.
 [REST API authentication](api-authentication.md#rest-api-auth) has the details, the personal access token lookup an
 exempt source makes among them.
 
@@ -976,29 +928,25 @@ worlds.
 ## Applying Configuration at Startup
 
 These configuration classes (`GameConfiguration`, `RegenConfiguration`,
-`AuthConfiguration`, and the `HostingConfiguration` both share) use:
+and `HostingConfiguration`) use:
 
 1. A property with a data annotation (`[Required]`, `[Range(...)]`, `[RegularExpression(...)]`).
 2. `services.AddOptions<TConfig>().BindConfiguration(section).ValidateDataAnnotations().ValidateOnStart()` in the appropriate DI extension method.
 3. `IOptions<TConfig>` injection in the consuming class.
 
-Example for `AuthConfiguration`:
+Example for `HostingConfiguration`:
 
 ```csharp
 // In IServiceCollection extension:
-services.AddOptions<AuthConfiguration>()
-    .BindConfiguration("Application")
+services.AddOptions<HostingConfiguration>()
+    .BindConfiguration("Hosting")
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
 // In handler:
-public class CAuthHandler(IOptions<AuthConfiguration> authConfig, ...)
+public class PacketSettings(IOptions<HostingConfiguration> hostingConfig)
 {
-    private readonly AuthConfiguration _authConfig = authConfig.Value;
-
-    // Usage:
-    if (UsernameBudget.Locks(_authConfig, taken))
-    { ... }
+    public int MaxInboundFrameSize { get; } = hostingConfig.Value.MaxInboundFrameSize;
 }
 ```
 
@@ -1010,8 +958,8 @@ Use `appsettings.{Environment}.json` (e.g. `appsettings.Production.json`) to ove
 
 ```bash
 # Environment variable override syntax (.NET):
-Application__MinClientVersion=1.5.0
-Application__MaxFailedLoginAttempts=10
+Application__GameWorkloads__MinClientVersion=1.5.0
+Application__Authentication__MaxFailedLoginAttempts=10
 Application__Authentication__SigningKey=<from-vault>
 ```
 
@@ -1045,8 +993,7 @@ The environment brings the Debug
 lines back (`Serilog__MinimumLevel__Default=Debug`); the API chart has no value for it, unlike the world chart's
 `logging.minimumLevel`.
 
-The auth server keeps the Debug minimum. Both the API (in Development) and the auth server leave out the lines that
-only repeat:
+The hosts leave out lines that only repeat:
 
 - The API's `appsettings.json` raises to Warning `Microsoft.Extensions.Http` and `System.Net.Http.HttpClient` (the
   `HttpClient` factory's handler cleanup, a pair every ten seconds once a named client's handler has expired, and the
@@ -1057,8 +1004,8 @@ only repeat:
   `Microsoft.AspNetCore.Authentication` (a request without a token; a token that fails validation stays an
   Information line). `RequestLoggingMiddleware` leaves out a health probe (`/health`, `/alive`) that answered 200; one
   that failed is logged like any request.
-- The auth and world servers log a TCP connection that closed without sending a byte, which is what a load
-  balancer's or the kubelet's TCP probe does every few seconds, at Trace, below their Debug minimum (#528): its
+- The world server logs a TCP connection that closed without sending a byte, which is what a load
+  balancer's or the kubelet's TCP probe does every few seconds, at Trace, below its Information minimum (#528): its
   disconnect, and on a proxy-protocol listener the dropped connection from the trusted proxy.
 - The balance service has no Serilog; its `appsettings.json` sets `Logging:LogLevel` to Information with
   `Microsoft.AspNetCore` at Warning, so its probes write nothing.
@@ -1087,7 +1034,7 @@ lines, `Avalon.World.Entities.CharacterEntity`, `Avalon.World.Abilities.Instance
 
 ## Database Logging
 
-Two rules hold in the API, the auth server and the world server (#558):
+Two rules hold in the API and the world server (#558):
 
 - **Sensitive data logging is on only in Development.** It puts every command's parameter values
   (password verifiers, token hashes, MFA secrets on the auth database) in the logs. It is not a
@@ -1118,8 +1065,8 @@ Two rules hold in the API, the auth server and the world server (#558):
 ## Startup Validation
 
 These configuration classes (`GameConfiguration`, `RegenConfiguration`,
-`AuthConfiguration`, `HostingConfiguration`, the auth server's `HostingSecurity`, and
-`CacheConfiguration` in all three hosts) opt into startup validation to fail fast on misconfiguration:
+`HostingConfiguration`, `WorldHostingSecurity`, and
+`CacheConfiguration` in the API and world hosts) opt into startup validation to fail fast on misconfiguration:
 
 ```csharp
 .ValidateDataAnnotations()
@@ -1128,7 +1075,7 @@ These configuration classes (`GameConfiguration`, `RegenConfiguration`,
 
 `DatabaseConfiguration` is validated at startup too, but by `DatabaseConnectionsValidation`
 (`ValidateDatabasesOnStart` in `Avalon.Database`) rather than by annotations, because the databases a
-host needs differ: the auth server needs `Database:Auth:ConnectionString`, the world server that and
+host needs differ: the world server needs `Database:Auth:ConnectionString`,
 `Database:Characters:ConnectionString` and `Database:World:ConnectionString`, and the REST API
 `Database:Auth:ConnectionString`. An API process that reads a world database then checks `Database:Worlds` right
 after these checks, in `ApiStartup` (`WorldDatabaseSettings`, see [REST API Worlds](#rest-api-worlds)), rather than as an
@@ -1138,7 +1085,7 @@ names the missing or malformed setting.
 This causes the application to throw an `OptionsValidationException` at startup rather than at runtime when the missing/invalid value is first accessed.
 
 Each host runs these checks itself, right after building the host and before its migrations and
-its cache connection (`AuthStartup`, `WorldStartup`, `ApiStartup`), because `ValidateOnStart` alone
+its cache connection (`WorldStartup`, `ApiStartup`), because `ValidateOnStart` alone
 would run them only when the host starts, after that work had already failed on the missing value.
 The API skips them, with the migrations, when `AVALON_OPENAPI_GENERATION_ONLY` is set.
 

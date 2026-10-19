@@ -1,23 +1,21 @@
 # Networking — Graceful Shutdown
 
-This document describes the connection lifecycle and graceful-shutdown protocol for the Avalon TCP servers (Auth and World).
+This document describes the connection lifecycle and graceful-shutdown protocol for the Avalon world TCP server.
 
 ## Server code path
 
-Both TCP servers run on one code path:
+The world server runs on this code path:
 
 - **`ServerBase<T>`** (`src/Server/Avalon.Hosting/Networking/ServerBase.cs`) — extends `BackgroundService`; one awaited
   `AcceptTcpClientAsync` loop, started by each server's `ExecuteAsync` through `StartListening` once the server is
-  ready: the world server once the world is loaded (#665), the auth server once its certificate, start-up reset,
-  disconnect subscription and connection listener are (#867). Only a stop ends it. `BoundEndPoint` is the endpoint the
+  ready: once the world is loaded, the disconnect subscription and connection listener are registered, and the tick
+  thread is running (#665). Only a stop ends it. `BoundEndPoint` is the endpoint the
   listener bound, null until it has: with `Hosting:Port` 0 the OS picks a free port, and tests read it back from there
   rather than reserving one and releasing it before the server binds it, which another process could take in between
   (#841).
-- **`AuthServer : ServerBase<AuthConnection>`** — the auth server.
 - **`WorldServer : ServerBase<WorldConnection>`** (`src/Server/Avalon.World/WorldServer.cs`) — the world server.
 - Connections implement **`IConnection`** (in `Avalon.Hosting.Networking`), which exposes:
-  - `void Send(OutboundPacket)` — takes the packet's payload reference and queues it: on the auth server onto its
-    `ChannelOutbox` (at most `Hosting:SendBufferCapacity`, oldest dropped); on the world server onto the connection's
+  - `void Send(OutboundPacket)` — takes the packet's payload reference and queues it: onto the world connection's
     `ConnectionSender`, written by its send thread, never dropped (past `Network:MaxPendingBytes` the connection is
     closed with `SlowConnection`, #875). A packet the outbox refuses is released at once.
   - `void Close(bool expected = true)` and `Task CloseAsync(bool expected = true)` — terminate the connection.
@@ -30,13 +28,13 @@ gone.
 ## Connection Lifecycle
 
 ```
-Client                    AuthServer / WorldServer (ServerBase<T>)
+Client                    WorldServer (ServerBase<T>)
   |                                 |
   |  TCP SYN                        |
   |-------------------------------->|  AcceptTcpClientAsync loop accepts it
-  |  [Handshake / CRequestServerInfo] |
+  |  [TLS handshake] |
   |<-------------------------------> |
-  |  [Auth / World handshake flow]  |
+  |  [Join admission / version handshake]  |
   |<-------------------------------> |
   |                                 |
   |  (Server shutdown OR kick)      |
@@ -51,18 +49,13 @@ Client                    AuthServer / WorldServer (ServerBase<T>)
 
 `Close` flushes the outbox before it closes the socket, so the socket outlives the call: by the outbox's own bound, at
 most about 0.6 s on a world (`ConnectionSender.CloseBudget` and `CancelGrace`). A client that has not yet read its
-notice is still sending for that long, input at 60 a second among it. The read loop (`Connection.ExecuteAsync`, shared
-by both servers) treats what arrives then as follows (#927):
+notice is still sending for that long, input at 60 a second among it. The read loop (`Connection.ExecuteAsync`) treats what arrives then as follows (#927):
 
 - **It is still read off the socket.** A socket closed with unread bytes behind it resets the connection instead of
   ending it, and a reset can cost the peer what was sent to it last: the notice. So the loop does not stop reading.
 - **It is discarded undecoded.** The frame is not parsed, not opened or deserialized, and `OnReceive` is not called.
-  On a world that saves the decode and the packet object of every such frame, which `WorldConnection.OnReceive` dropped
-  anyway. On the auth server it changes what happens: `AuthConnection.OnReceive` has no closing check, so a handler
-  used to run for a packet that arrived on a connection already being closed, which could no longer be answered. No
-  auth flow relied on it: every close the auth server makes on purpose (a failed handshake, a client too old,
-  `PostLoginGuard`, a credentials change, a kick, shutdown) is the end of that connection's conversation, and a
-  refused login does not close.
+  This saves the decode and the packet object of every such frame, which `WorldConnection.OnReceive` would drop
+  anyway.
 - **The frame limit still applies**: a frame over `Hosting:MaxInboundFrameSize` ends the stream as it does at any time,
   and so does a frame not complete within `Hosting:InboundFrameTimeoutSeconds` (#938).
 - **It counts as bytes, not as a packet.** A discarded frame adds the length it declared to `network.in.bytes` and
@@ -89,7 +82,7 @@ Packet type: `NetworkPacketType.SMSG_DISCONNECT = 0x3008`
 | 0     | `Unknown`        | Default/unspecified                                            |
 | 1     | `ServerShutdown` | Server stopping gracefully                                     |
 | 2     | `DuplicateLogin` | Second authentication for the same account                     |
-| 3     | `Kicked`         | The account's sessions were ended (`world:accounts:disconnect`: a credentials or role change, a duplicate login on the auth server, a refresh-token reuse) |
+| 3     | `Kicked`         | The account's sessions were ended (`world:accounts:disconnect`: a credentials or role change, a refresh-token reuse) |
 | 4     | `SelectTimeout`  | A character select that never completed                        |
 | 5     | `CharacterSaveFailed` | A Change Character whose logout save failed (#663)        |
 | 6     | `Maintenance`    | A maintenance cutoff, or an entry refused by it                |
@@ -99,8 +92,7 @@ Packet type: `NetworkPacketType.SMSG_DISCONNECT = 0x3008`
 
 Not every close the world starts carries one. A connection closed for what it sent is closed without a notice, as a
 dropped connection is: a plain packet while the world seals (`Network:PacketEncryption`, #875), and a packet arriving
-with `Network:MaxReceiveQueueDepth` already waiting for the tick (#927, [packet handlers](packet-handlers.md)). On
-either server, so is one whose frame declares more than `Hosting:MaxInboundFrameSize`
+with `Network:MaxReceiveQueueDepth` already waiting for the tick (#927, [packet handlers](packet-handlers.md)). So is one whose frame declares more than `Hosting:MaxInboundFrameSize`
 ([packet protocol](networking-packet-protocol.md#the-inbound-frame-length-limit)), and one whose started frame is not
 complete within `Hosting:InboundFrameTimeoutSeconds` ([packet protocol](networking-packet-protocol.md#the-inbound-frame-deadline)).
 
@@ -110,14 +102,6 @@ complete within `Hosting:InboundFrameTimeoutSeconds` ([packet protocol](networki
 OutboundPacket packet = SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown,
     PacketEncoder.Shared);
 ```
-
----
-
-## Auth Server Shutdown
-
-`AuthServer.OnStoppingAsync` unsubscribes from the account disconnect channel, then closes every connection at once
-with `GracefulShutdownHelper.NotifyAndCloseAsync` (`ServerShutdown`) and awaits them all, since the notice is delivered
-by the close.
 
 ---
 
@@ -149,8 +133,7 @@ by the close.
 
 ### Forced kick notification
 
-`DelayedDisconnect` runs when an account is published on `world:accounts:disconnect` (a duplicate login on the auth
-server, a password, email or role change, an MFA reset or removal, a refresh-token reuse). It calls
+`DelayedDisconnect` runs when an account is published on `world:accounts:disconnect` (a password, email or role change, an MFA reset or removal, a refresh-token reuse). It calls
 `WorldServer.CloseAccountSessions`, which closes **every** connection of that account, each with
 `SDisconnectPacket(Kicked)` and the neutral "Your session has ended. Please log in again.", since the message is the
 bare account id and cannot say why; one connection that throws while closing is logged and the rest are still closed.
@@ -173,7 +156,7 @@ public static void NotifyAndClose(IConnection connection, string reason, Disconn
 - Sends `SDisconnectPacket` — exceptions are caught, logged via `logger` (optional), and do **not** abort the close.
 - Always calls `connection.Close()` regardless of send success.
 
-Tests: `tests/Avalon.Server.Auth.UnitTests/Networking/GracefulShutdownHelperShould.cs`.
+Tests: `tests/Avalon.Server.World.UnitTests/WorldConnection/WorldServerShutdownShould.cs` covers the world shutdown path.
 
 ---
 

@@ -73,7 +73,6 @@ nav:
     - Crypto Security Review: security-review-network-crypto.md
     - Graceful Shutdown: networking-graceful-shutdown.md
   - Auth and Accounts:
-    - Auth Server: auth-server.md
     - Security & Sessions: security-session-management.md
     - Redis Cache Keys: redis-cache-keys.md
     - Email Verification: email-verification.md

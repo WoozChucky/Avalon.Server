@@ -288,7 +288,7 @@ A newcomer never jumps the line: while anyone waits, it queues too, even when a 
   `Online` (`WorldReadiness.WithCapacity`, on top of `Resolve`, which keeps its three values). `GET /world`,
   `GET /world/{id}` and identity's `POST /game/worlds` derive it from the ledger's count; `GET /world?sortBy=status`
   orders `Full` after `Maintenance`, by the enum's number. A world listed only with `requiresUpdate` gets its status
-  the same way. The TCP auth server's world list is unchanged.
+  the same way. World listing for game admission is `POST /game/worlds` on identity.
 
 ## The queue
 

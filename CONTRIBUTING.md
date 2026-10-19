@@ -33,8 +33,6 @@ for anyone, is made on your machine by one command (the Aspire AppHost, or `tool
   `123`, etc.). These are development-only defaults, safe to use locally, and deliberately
   committed so contributors can run the project immediately. The API's `appsettings.Development.json` adds world 1's
   local databases and placeholder store settings (Steam's test app id 480 and a dummy publisher key).
-- **`certs/cert-tcp.pfx`** is a pre-generated self-signed TLS certificate (password `avalon`) used by the Auth
-  TCP server. It is committed for the same reason — so no manual cert generation is needed.
 - **`docker-compose.yml`** uses matching credentials so the infra spins up in sync with the app config.
 - **Not committed, made locally:** the REST API's signing keys (a committed key lets anyone forge a token for any
   account, so `Avalon.Api` refuses to start without one, #482), and the world's three private TLS certificates (the
@@ -84,7 +82,6 @@ is [Development setup: from clone to client in world](docs/development-setup.md#
    docker compose up -d redis postgres
    dotnet run --project tools/Avalon.LocalDev -- setup
    dotnet run --project src/Server/Avalon.Api
-   dotnet run --project src/Server/Avalon.Server.Auth
    dotnet run --project src/Server/Avalon.Server.World
    ```
    Optionally include Redis Insight: `docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d`.
@@ -108,7 +105,6 @@ is [Development setup: from clone to client in world](docs/development-setup.md#
 | Area | Path | Notes |
 |---|---|---|
 | REST API | `src/Server/Avalon.Api` | ASP.NET Core, JWT, OpenAPI |
-| Auth Server | `src/Server/Avalon.Server.Auth` | TCP login, MFA, world list |
 | World Server | `src/Server/Avalon.Server.World` | 60 Hz simulation loop |
 | Core world logic | `src/Server/Avalon.World` | Maps, entities, spells, AI scripts |
 | Shared libraries | `src/Shared/` | Domain, networking, config, metrics |
@@ -132,9 +128,8 @@ For a full architectural walkthrough see `README.md` and the documents under `do
 ### Adding a packet handler
 
 1. Define the packet contract in `src/Shared/Avalon.Network.Packets` and add a `NetworkPacketType` enum value.
-2. For **Auth**: implement `IAuthPacketHandler<TPacket>` in `src/Server/Avalon.Server.Auth/Handlers/`.
-3. For **World**, the connection layer (admission and the version handshake): implement the generic `IWorldPacketHandler<TPacket>` in `src/Server/Avalon.Server.World/Handlers/`.
-4. For **World**, the game layer: implement `WorldPacketHandler<TPacket>` in `src/Server/Avalon.World/Handlers/`, decorate it with `[PacketHandler(NetworkPacketType.X)]`, and give the opcode a session filter entry (`MapSessionFilter` or `WorldSessionFilter`).
+2. For **World**, the connection layer (admission and the version handshake): implement the generic `IWorldPacketHandler<TPacket>` in `src/Server/Avalon.Server.World/Handlers/`.
+3. For **World**, the game layer: implement `WorldPacketHandler<TPacket>` in `src/Server/Avalon.World/Handlers/`, decorate it with `[PacketHandler(NetworkPacketType.X)]`, and give the opcode a session filter entry (`MapSessionFilter` or `WorldSessionFilter`).
 
 See [packet handlers](https://github.com/WoozChucky/Avalon.Server/blob/main/docs/packet-handlers.md) for the full rules.
 
@@ -165,7 +160,7 @@ Replace `Auth` / `AuthDbContext` with `Character` / `CharacterDbContext` or `Wor
 Convenience `add-migration.ps1` scripts in each `Avalon.Database.*` project wrap this command.
 
 Migrations are applied automatically, with no separate apply step in development: the auth database's when `Avalon.Api`
-(or the auth server) starts, each world's World and Characters databases' when its world server starts.
+starts, each world's World and Characters databases' when its world server starts.
 
 ---
 
@@ -188,10 +183,10 @@ Migrations are applied automatically, with no separate apply step in development
 dotnet test --no-build
 
 # Run a single project
-dotnet test tests/Avalon.Server.Auth.UnitTests
+dotnet test tests/Avalon.Api.Identity.UnitTests
 
 # Run a specific class
-dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAuthHandlerShould"
+dotnet test tests/Avalon.Server.World.UnitTests --filter "FullyQualifiedName~WorldHandshakeHandlerShould"
 ```
 
 - Framework: **xUnit** + **NSubstitute**.
@@ -240,7 +235,7 @@ dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAut
 ## Reporting Issues
 
 - Use [GitHub Issues](https://github.com/WoozChucky/Avalon.Server/issues) to report bugs or request features.
-- For bugs, include the component (API / Auth Server / World Server), steps to reproduce, expected vs. actual behaviour, and relevant log output.
+- For bugs, include the component (API / World Server), steps to reproduce, expected vs. actual behaviour, and relevant log output.
 - Search the existing issues before opening a feature request — it may already be tracked.
 
 ---

@@ -9,7 +9,6 @@ assignees: ''
 
 <!-- Which server/component is affected? -->
 - [ ] REST API (`Avalon.Api`)
-- [ ] Auth Server (`Avalon.Server.Auth`)
 - [ ] World Server (`Avalon.Server.World`)
 - [ ] Shared library (`Avalon.Network`, `Avalon.Domain`, etc.)
 - [ ] Other: 
