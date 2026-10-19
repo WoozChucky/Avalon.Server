@@ -16,7 +16,7 @@ namespace Avalon.World.Testing.Scenarios;
 /// at the entry; their classes cycle over the four (warrior, wizard, hunter, healer) across the whole roster, so three
 /// parties in four carry a healer. Every player is a <see cref="LoopFighter" />: it walks to the nearest live creature
 /// through the real input handler and casts its class's basic ability at it through the real cast handler, and a healer
-/// heals its party first when one of them is hurt. What is measured is a fight: the forests' creature AI (216 to 252
+/// heals its party first when one of them is hurt. What is measured is a fight: the forests' creature AI (231 to 325
 /// creatures each, their AI run when active or due as in production, #979), casts, projectiles, hits, heals, threat
 /// and encounters, deaths and revives, kills with their real loot and experience shared by the party, and the state
 /// broadcast of all of it.
@@ -55,11 +55,13 @@ public sealed class ForestCombatScenario : IScenario
     private const int WorldSeed = 1;
 
     // Chosen (#1109) from seeds 1 to 64 for a fight of the size the gate has always held, after the forest pool's fifteen
-    // new pieces gave seeds 1 to 4 a fight half as large: each seed decides its forest's layout, and its place in the list its party's classes.
-    private static readonly int[] s_forestSeeds = [45, 46, 15, 36];
+    // new pieces gave seeds 1 to 4 a fight half as large: each seed decides its forest's layout, and its place in the list
+    // its party's classes. The first party, the one with no healer, fights on seed 33 since the tree walls (45 before),
+    // whose forest kills some of its fighters, so the revive path runs in the fight (4 deaths over the run).
+    private static readonly int[] s_forestSeeds = [33, 46, 15, 36];
 
-    // The least the measured ticks must do, about half of what the fight on these seeds does in them (126 kills, 33
-    // completions, 228 pickups, 16 heals landed): a pool or harness change that shrinks the fight by half or more fails
+    // The least the measured ticks must do, about half of what the fight on these seeds does in them (121 kills, 27
+    // completions, 226 pickups, 15 heals landed): a pool or harness change that shrinks the fight by half or more fails
     // here, rather than leaving the allocation gate holding fewer of each event.
     private const int MinKills = 60, MinQuestsCompleted = 15, MinPickups = 110, MinHealsLanded = 8;
     // Cycled over the whole roster, not per party slot: parties of three over four classes, so three parties in four
