@@ -1,4 +1,6 @@
 {
+  "avalon_giant_fallen_1": { "walkThrough": true, "solid": [] },
+  "avalon_giant_fallen_2": { "walkThrough": true, "solid": [] },
   "avalon_log_fallen_1": { "walkThrough": false, "solid": [
     { "part": "log", "kind": "box", "minX": -2.5, "maxX": 2.5, "minZ": -0.6, "maxZ": 0.6, "top": 1.16 }
   ] },
@@ -35,6 +37,7 @@
     { "part": "face_e", "kind": "circle", "x": 1.55, "z": 0.3, "radius": 1.25, "blockerRadius": 1.3, "top": 2.39 },
     { "part": "face_w", "kind": "circle", "x": -1.35, "z": 0.45, "radius": 1.35, "blockerRadius": 1.4, "top": 5.02 }
   ] },
+  "avalon_root_plate_1": { "walkThrough": true, "solid": [] },
   "avalon_ruin_pillar_1": { "walkThrough": false, "solid": [
     { "part": "pillar", "kind": "box", "minX": -0.65, "maxX": 0.65, "minZ": -0.65, "maxZ": 0.65, "top": 1.97 }
   ] },
@@ -49,5 +52,9 @@
   ] },
   "avalon_ruin_wall_3": { "walkThrough": false, "solid": [
     { "part": "wall", "kind": "box", "minX": -3, "maxX": 3, "minZ": -0.4, "maxZ": 0.4, "top": 2.04 }
-  ] }
+  ] },
+  "avalon_tree_ancient_1": { "walkThrough": true, "solid": [] },
+  "avalon_tree_ancient_2": { "walkThrough": true, "solid": [] },
+  "avalon_tree_ancient_3": { "walkThrough": true, "solid": [] },
+  "avalon_tree_ancient_4": { "walkThrough": true, "solid": [] }
 }
