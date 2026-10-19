@@ -138,6 +138,7 @@ public class ForestPiecesShould
     [InlineData("a gap before a segment", "does not start 0.2 m back over the end of the segment before it")]
     [InlineData("two strips at one height", "overlap at one height outside the hub")]
     [InlineData("tall cover on open floor", "walk-through cover there stays under 1.2 m")]
+    [InlineData("a tree wall with too few trees", "a tree wall needs a tree every 3 m of its length")]
     public void Refuse_decor_that_breaks_a_forest_decor_rule(string broken, string refusal)
     {
         ChunkPiece glade = ForestPieces.Singles().Single(p => p.Name == "forest_glade_01");
@@ -194,11 +195,70 @@ public class ForestPiecesShould
             case "tall cover on open floor":
                 decor.Add(new DecorItem("", "Plant_1_Big", 20f, 0f, 20f, 0));
                 break;
+            case "a tree wall with too few trees":
+            {
+                // The longest wall keeps one of its trees, so it still has something solid on it but too few for its length.
+                BoxBlocker wall = glade.Blockers.OfType<BoxBlocker>().Where(b => b.Dressing == Dressing.TreeWall)
+                    .MaxBy(b => Math.Max(b.MaxX - b.MinX, b.MaxZ - b.MinZ))!;
+                List<DecorItem> inside = [.. decor.Where(d => IsTree(d.Model) && wall.DistanceTo(d.X, d.Z) == 0f)];
+                Assert.True(inside.Count > 1, "the glade's longest tree wall holds fewer than two trees as dressed");
+                inside.Skip(1).ToList().ForEach(d => decor.Remove(d));
+                break;
+            }
         }
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => ForestDecorRules.Check(glade, decor, kit));
         Assert.Contains("forest_glade_01", error.Message, StringComparison.Ordinal);
         Assert.Contains(refusal, error.Message, StringComparison.Ordinal);
+    }
+
+    private static bool IsTree(string model) =>
+        Enum.GetNames<TreeSpecies>().Any(s => model.StartsWith(s + "_", StringComparison.Ordinal));
+
+    /// <summary>
+    /// The forest's density comes from tree walls (forest dressing, #1109): every closed side of a single piece, and every
+    /// closed outer edge of a set piece in its 60 x 60 m frame, carries a TreeWall box against that edge and running along it.
+    /// </summary>
+    [Fact]
+    public void Carry_a_tree_wall_along_every_closed_side()
+    {
+        foreach (ChunkPiece piece in ForestPieces.Singles())
+        {
+            foreach (Side side in Enum.GetValues<Side>().Except(piece.Exits))
+                Assert.True(WallAlong(piece.Blockers, side, 0, 0), $"{piece.Name}: no tree wall along its closed {side} side");
+        }
+
+        foreach (ChunkGroupPiece group in ForestPieces.Groups())
+        {
+            foreach ((int cellX, int cellZ) in new[] { (0, 0), (1, 0), (0, 1), (1, 1) })
+            {
+                Side[] outer = [cellZ == 0 ? Side.S : Side.N, cellX == 0 ? Side.W : Side.E];
+                foreach (Side side in outer.Except(group.OuterExits.Where(e => e.CellX == cellX && e.CellZ == cellZ).Select(e => e.Side)))
+                {
+                    Assert.True(WallAlong(group.Blockers, side, cellX, cellZ),
+                        $"{group.Name}: no tree wall along the closed {side} edge of its cell ({cellX}, {cellZ})");
+                }
+            }
+        }
+    }
+
+    /// <summary>Whether a TreeWall box in cell (cellX, cellZ) lies against its <paramref name="side" /> edge (within 0.5 m) and runs along it.</summary>
+    private static bool WallAlong(IEnumerable<Blocker> blockers, Side side, int cellX, int cellZ)
+    {
+        const float Cell = ChunkPiece.CellSize, Against = 0.5f;
+        float ox = cellX * Cell, oz = cellZ * Cell;
+        return blockers.OfType<BoxBlocker>().Where(b => b.Dressing == Dressing.TreeWall).Any(b =>
+        {
+            float alongX = b.MaxX - b.MinX, alongZ = b.MaxZ - b.MinZ;
+            bool inCell = b.MinX >= ox && b.MaxX <= ox + Cell && b.MinZ >= oz && b.MaxZ <= oz + Cell;
+            return inCell && side switch
+            {
+                Side.S => b.MinZ - oz <= Against && alongX >= alongZ,
+                Side.N => oz + Cell - b.MaxZ <= Against && alongX >= alongZ,
+                Side.W => b.MinX - ox <= Against && alongZ >= alongX,
+                _ => ox + Cell - b.MaxX <= Against && alongZ >= alongX,
+            };
+        });
     }
 
     /// <summary>The direction a model's +Z points at a yaw, clockwise seen from above.</summary>

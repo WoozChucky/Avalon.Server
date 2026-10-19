@@ -8,7 +8,8 @@ namespace Avalon.ChunkGen;
 /// <item>every solid part (a tree's trunk, a kit rock's turned box, each footprint part of a custom model, which is
 /// placed at scale 1 and turned by quarter turns, or by multiples of 30 degrees when its footprint is round) lies within
 /// <see cref="Tolerance" /> of one blocker: nothing drawn solid stands where a player walks;</item>
-/// <item>every blocker has a solid part within it: no invisible wall;</item>
+/// <item>every blocker has a solid part within it: no invisible wall; a tree wall (<see cref="Dressing.TreeWall" />)
+/// has a tree's trunk within it for every <see cref="TreeWallSpacing" /> metres of its length, so it reads as a wood;</item>
 /// <item>a path strip of <see cref="ForestPaths.Width" /> (every segment at scale 1) ends at the midpoint of each exit's
 /// side, running straight in from it, and its segments, each starting <see cref="ForestPaths.Overlap" /> back over the
 /// one before (within <see cref="PathTolerance" />), reach the one hub, bending at most <see cref="ForestPaths.MaxBend" />
@@ -47,6 +48,9 @@ public static class ForestDecorRules
     /// <summary>The tallest walk-through cover, drawn (its model's top times its scale), that may stand off a blocker.</summary>
     public const float WalkThroughCap = 1.2f;
 
+    /// <summary>A tree wall carries at least one tree for every this many metres of its length (its longer side).</summary>
+    public const float TreeWallSpacing = 3f;
+
     /// <summary>What a forest model is to the rules.</summary>
     internal enum Kind { Tree, KitRock, Prop, Path, Stone, Cover }
 
@@ -64,6 +68,7 @@ public static class ForestDecorRules
         IReadOnlyDictionary<string, IReadOnlyList<FootprintPart>> footprints = ForestFootprints.Load();
         bool[] covered = new bool[frame.Blockers.Count];
         List<DecorItem> segments = [], hubs = [], stones = [], cover = [];
+        List<Shape> trunks = [];
 
         foreach (DecorItem item in decor)
         {
@@ -88,6 +93,7 @@ public static class ForestDecorRules
 
             foreach ((string part, Shape shape) in SolidShapes(item, kind, kit, footprints, what))
             {
+                if (kind == Kind.Tree) trunks.Add(shape);
                 bool within = false;
                 for (int b = 0; b < frame.Blockers.Count; b++)
                 {
@@ -104,6 +110,18 @@ public static class ForestDecorRules
         {
             if (!covered[b])
                 throw new InvalidOperationException($"{frame.Name}: blocker {ForestText.Of(frame.Blockers[b])} has nothing solid drawn on it: an invisible wall");
+        }
+
+        foreach (BoxBlocker wall in frame.Blockers.OfType<BoxBlocker>().Where(b => b.Dressing == Dressing.TreeWall))
+        {
+            float length = Math.Max(wall.MaxX - wall.MinX, wall.MaxZ - wall.MinZ);
+            int trees = trunks.Count(t => Within(t, wall, Tolerance));
+            if (trees * TreeWallSpacing < length)
+            {
+                throw new InvalidOperationException(
+                    $"{frame.Name}: {ForestText.Of(wall)} carries {trees} trees along {ForestText.N(length)} m: " +
+                    $"a tree wall needs a tree every {ForestText.N(TreeWallSpacing)} m of its length");
+            }
         }
 
         CheckPaths(frame, segments, hubs);

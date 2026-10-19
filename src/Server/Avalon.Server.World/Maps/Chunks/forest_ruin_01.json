@@ -21,8 +21,8 @@
   ],
   "doodadSlots": [
     { "tag": "doodad_large", "localX": 2, "localY": 0, "localZ": 28, "yaw": 180 },
-    { "tag": "doodad", "localX": 3, "localY": 0, "localZ": 20.5, "yaw": 90 },
-    { "tag": "doodad", "localX": 9.5, "localY": 0, "localZ": 27, "yaw": 180 }
+    { "tag": "doodad", "localX": 6.2, "localY": 0, "localZ": 19.9, "yaw": 90 },
+    { "tag": "doodad", "localX": 10.1, "localY": 0, "localZ": 23.8, "yaw": 180 }
   ],
   "tags": ["junction", "forest", "ruins"]
 }

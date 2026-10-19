@@ -33,6 +33,34 @@ public static class ForestDresser
     /// <summary>At most this many twisted trees (red leaves even darkened) in a frame, and only in an old wood.</summary>
     public const int MaxTwistedTrees = 1;
 
+    // ---- tree walls ----
+
+    /// <summary>The scale range of a tree in a tree wall.</summary>
+    public const float WallTreeMinScale = 1f, WallTreeMaxScale = 1.6f;
+
+    /// <summary>How far apart a tree wall's trees stand along one of its rows, drawn in this range; the rows are staggered.</summary>
+    public const float WallTreeMinSpacing = 1.5f, WallTreeMaxSpacing = 2.1f;
+
+    /// <summary>A tree wall this deep or deeper carries three rows of trees, a shallower one two.</summary>
+    public const float WallThreeRowDepth = 3f;
+
+    /// <summary>How far inside a tree wall's sides a trunk keeps, and how far apart two of its trunks keep, in metres.</summary>
+    public const float WallTrunkInset = 0.05f, WallTrunkGap = 0.15f;
+
+    /// <summary>
+    /// A dead tree drawn for a tree wall stays one this share of the time (another species is drawn otherwise), at most
+    /// <see cref="WallDeadTreeMaxScale" />: a few bare trees among the living ones, not a dead wood.
+    /// </summary>
+    public const double WallDeadTreeShare = 0.4;
+
+    public const float WallDeadTreeMaxScale = 1.3f;
+
+    /// <summary>Undergrowth among a tree wall's trunks, per 100 m² of the wall.</summary>
+    public const float WallFillPer100 = 30f;
+
+    /// <summary>Undergrowth at a tree wall's foot, along its open face: one about every this many metres.</summary>
+    public const float WallFootSpacing = 1.2f;
+
     // ---- ground cover, per 100 m² of the frame ----
 
     public const float GrassClumpsPer100 = 6f;
@@ -119,6 +147,7 @@ public static class ForestDresser
     private static readonly (string Model, int Weight)[] s_grass = [("Grass_Common_Short", 40), ("Grass_Wispy_Short", 30), ("Grass_Common_Tall", 20), ("Grass_Wispy_Tall", 10)];
     private static readonly (string Model, int Weight)[] s_undergrowth = [("Fern_1", 30), ("Bush_Common_Flowers", 8), ("Plant_1_Big", 12), ("Grass_Wispy_Tall", 35), ("Grass_Common_Tall", 15)];
     private static readonly (string Model, int Weight)[] s_drumFill = [("Bush_Common_Flowers", 35), ("Plant_1_Big", 30), ("Fern_1", 35)];
+    private static readonly (string Model, int Weight)[] s_wallFill = [("Fern_1", 40), ("Plant_1_Big", 25), ("Grass_Wispy_Tall", 20), ("Bush_Common_Flowers", 15)];
     private static readonly string[] s_plants = ["Plant_1", "Plant_7", "Plant_7_Big"];
     private static readonly string[] s_clover = ["Clover_1", "Clover_2"];
     private static readonly string[] s_flowers = ["Flower_3_Group", "Flower_4_Group", "Flower_3_Single", "Flower_4_Single"];
@@ -263,6 +292,7 @@ public static class ForestDresser
         private readonly List<((float X, float Z) A, (float X, float Z) B)> _strip = [];
         private readonly List<(float X, float Z, float Radius)> _feet = [];
         private readonly HashSet<PropPlacement> _props = [];
+        private readonly List<(float X, float Z, float Radius)> _wallTrunks = [];
         private int _twisted;
         private int _redBushes;
 
@@ -320,6 +350,9 @@ public static class ForestDresser
                     break;
                 case (Dressing.Pillar, CylinderBlocker pillar):
                     DressPillar(pillar);
+                    break;
+                case (Dressing.TreeWall, BoxBlocker wall):
+                    DressTreeWall(wall);
                     break;
                 default:
                     throw new InvalidOperationException($"{frame.Name}: blocker {ForestText.Of(blocker)} is a shape the dresser cannot draw {blocker.Dressing} on without a prop");
@@ -604,6 +637,90 @@ public static class ForestDresser
                 float rho = drum.Radius + Uniform(-0.3f, 0.6f);
                 TryCover(Pick(s_rubble), drum.X + rho * cos, drum.Z + rho * sin, Round(Uniform(1.5f, 3f)), 0.4f, onBlockers: true);
             }
+        }
+
+        /// <summary>
+        /// Two or three rows of trees along the wall, each row's trees about <see cref="WallTreeMinSpacing" /> to
+        /// <see cref="WallTreeMaxSpacing" /> apart and staggered against the next row's, so the canopies overlap; every
+        /// trunk within the box. Then undergrowth among the trunks, at full size, and a skirt of it along the wall's open
+        /// face (the side away from the frame's edge), kept small off the box.
+        /// </summary>
+        private void DressTreeWall(BoxBlocker wall)
+        {
+            bool alongX = wall.MaxX - wall.MinX >= wall.MaxZ - wall.MinZ;
+            (float from, float to, float near, float far) = alongX ? (wall.MinX, wall.MaxX, wall.MinZ, wall.MaxZ) : (wall.MinZ, wall.MaxZ, wall.MinX, wall.MaxX);
+            float length = to - from, depth = far - near;
+            int rows = depth >= WallThreeRowDepth ? 3 : 2;
+            // The open face: the long side farther from the frame's edge; its row is the front.
+            bool openFar = alongX ? wall.MinZ < frame.Size - wall.MaxZ : wall.MinX < frame.Size - wall.MaxX;
+            int planted = 0;
+            for (int row = 0; row < rows; row++)
+            {
+                float across = near + depth * (row + 0.5f) / rows;
+                float first = from + (WallTreeMinSpacing + WallTreeMaxSpacing) / 2f * row / rows + Uniform(0f, 0.6f);
+                bool front = row == (openFar ? rows - 1 : 0);
+                for (float along = first; along < to; along += Uniform(WallTreeMinSpacing, WallTreeMaxSpacing))
+                {
+                    if (TryWallTree(alongX, from, to, near, far, along, across + Uniform(-0.3f, 0.3f), front)) planted++;
+                }
+            }
+            // A short wall the rows leave short of its share gets trees anywhere in it.
+            int needed = (int)MathF.Ceiling(length / ForestDecorRules.TreeWallSpacing - 0.001f);
+            for (int attempt = 0; planted < needed && attempt < 400; attempt++)
+            {
+                if (TryWallTree(alongX, from, to, near, far, Uniform(from, to), Uniform(near, far), false)) planted++;
+            }
+            if (planted < needed)
+                throw new InvalidOperationException($"{frame.Name}: tree wall {ForestText.Of(wall)} holds only {planted} trees, not {needed}");
+
+            float area = length * depth;
+            for (int i = (int)MathF.Round(area / 100f * WallFillPer100), attempts = 0; i > 0 && attempts < 400; attempts++)
+            {
+                string model = PickWeighted(s_wallFill);
+                (float a, float b) = (Uniform(from + 0.2f, to - 0.2f), Uniform(near + 0.2f, far - 0.2f));
+                (float x, float z) = alongX ? (a, b) : (b, a);
+                if (TryCover(model, x, z, Round(Uniform(0.8f, 1.2f)), Radius(model) * 0.7f, big: true, onBlockers: true)) i--;
+            }
+
+            float face = openFar ? far : near, outward = openFar ? 1f : -1f;
+            for (float along = from + Uniform(0f, WallFootSpacing); along < to; along += WallFootSpacing * Uniform(0.7f, 1.3f))
+            {
+                string model = PickWeighted(s_undergrowth);
+                float off = face + outward * Uniform(0.3f, 1.1f);
+                (float x, float z) = alongX ? (along, off) : (off, along);
+                TryCover(model, x, z, Round(Uniform(0.9f, 1.4f)), Radius(model), big: true);
+            }
+        }
+
+        /// <summary>
+        /// A tree of the piece's mix (never a twisted one, a dead one less often) at a scale in the wall range near (along, across), moved inside the wall's box so its
+        /// trunk stays within it (a pine at the least scale when nothing wider fits), unless it would stand on another of
+        /// the frame's wall trunks; one in the front row gets mushrooms at its foot.
+        /// </summary>
+        private bool TryWallTree(bool alongX, float from, float to, float near, float far, float along, float across, bool front)
+        {
+            TreeSpecies species = PickSpecies();
+            if (species == TreeSpecies.DeadTree && rng.NextDouble() >= WallDeadTreeShare) species = PickSpecies();
+            // A twisted tree's red crown stays a rare accent of the drums: a wall of them would read red.
+            if (species == TreeSpecies.TwistedTree) species = TreeSpecies.CommonTree;
+            float scale = Round(Uniform(WallTreeMinScale, species == TreeSpecies.DeadTree ? WallDeadTreeMaxScale : WallTreeMaxScale), 0.05f);
+            float radius = ForestDresser.TrunkRadius(species) * scale;
+            if (2f * (radius + WallTrunkInset) > far - near)
+            {
+                species = TreeSpecies.Pine;
+                scale = WallTreeMinScale;
+                radius = ForestDresser.TrunkRadius(species) * scale;
+            }
+            float keep = radius + WallTrunkInset + 0.01f;   // a centimetre more, for the rounding to centimetres
+            if (2f * keep > far - near || 2f * keep > to - from) return false;
+            along = Round(Math.Clamp(along, from + keep, to - keep));
+            across = Round(Math.Clamp(across, near + keep, far - keep));
+            (float x, float z) = alongX ? (along, across) : (across, along);
+            if (_wallTrunks.Any(t => ForestPaths.Distance(x, z, t.X, t.Z) < radius + t.Radius + WallTrunkGap)) return false;
+            Items.Add(new DecorItem("", $"{species}_{rng.Next(1, 6)}", x, 0f, z, rng.Next(360), scale));
+            _wallTrunks.Add((x, z, radius));
+            if (front && rng.NextDouble() < 0.4) Foot(x, z, radius);
+            return true;
         }
 
         /// <summary>Tall undergrowth (ferns, bushes, tall plants and grass) in the band along every edge of the frame, outside the exits' throats.</summary>

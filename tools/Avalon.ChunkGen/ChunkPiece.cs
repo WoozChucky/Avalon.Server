@@ -55,6 +55,12 @@ public enum Dressing
 
     /// <summary>The base of a rock overhang: a part of <see cref="Blocker.Prop" />'s footprint.</summary>
     Overhang,
+
+    /// <summary>
+    /// A tree wall: a long box along a closed side (or a corner between two exits), packed with two or three staggered
+    /// rows of trees standing inside it and undergrowth at its foot; one blocker for the many trunks it stands for.
+    /// </summary>
+    TreeWall,
 }
 
 /// <summary>The kit's tree species; the variants of one share a trunk radius (ForestDresser.TrunkRadius).</summary>
@@ -89,7 +95,7 @@ public abstract record Blocker
     private protected PropPlacement? PropMoved(float dx, float dz) => Prop is null ? null : Prop with { X = Prop.X + dx, Z = Prop.Z + dz };
 }
 
-/// <summary>A rock or a ruined wall: an axis-aligned box.</summary>
+/// <summary>A rock, a ruined wall or a tree wall: an axis-aligned box.</summary>
 public sealed record BoxBlocker(float MinX, float MaxX, float MinZ, float MaxZ) : Blocker
 {
     public override float DistanceTo(float x, float z)

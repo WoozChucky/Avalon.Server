@@ -330,8 +330,8 @@ chunk but `forest_boss_01` (hand-made, out of the pool). Nine of the singles (`f
 written by hand until forest dressing (#1109) ported them, their exits, spawn slots, tags and the entry's portal as
 they were; six of those floors had their top at y 0.05, and every forest floor now has it at 0. Forest dressing also
 added fifteen, three of each exit shape (see "Overhangs and the fifteen pieces of #1109" below). Each is a flat
-30 x 30 m floor (the forest slab, y -0.2 to 0) with blockers on it, boxes for rocks and ruined walls and twelve-sided
-cylinders for tree clusters, trunks and pillars, 3 m tall. Blockers cut the navmesh (the agent climbs 0.9 m), so creatures path around them and walkable rays (movement,
+30 x 30 m floor (the forest slab, y -0.2 to 0) with blockers on it, boxes for rocks, ruined walls and tree walls and
+twelve-sided cylinders for tree clusters, trunks and pillars, 3 m tall. Blockers cut the navmesh (the agent climbs 0.9 m), so creatures path around them and walkable rays (movement,
 ground-target casts, projectiles) stop at them. What the client draws is the piece's decor file (see "Dressing the
 forest" below); the blockers are its collision.
 
@@ -357,7 +357,7 @@ member one `doodad` slot, and each of the arena's members a `doodad_large` too; 
 frame and they are split into its members as spawn slots are. Doodad slots are written on the floor, at `localY` 0
 (`ChunkPiece.DoodadSlotY`, the floor's top), and spawn slots 1 m up, at `localY` 1. The hand-made `forest_boss_01`
 has none, and the tool writes `"doodadSlots"` only for a piece that has some, so the town squares' files are unchanged
-by it. The entry's slots stand in its corners: the placement drops a slot within 15 m of the entry spawn or 8 m of a
+by it. The entry's slots stand in its corners (its tree walls stop short of them): the placement drops a slot within 15 m of the entry spawn or 8 m of a
 portal (see `docs/doodads.md`), and the corners are the only spots of the entry clear of both. A piece's portal slots
 (`PortalSlots`, `forest_entry_01`'s `Back` at (15, 5)) are written at `localY` 0 (`ChunkPiece.PortalSlotY`), and
 `ForestPiecesShould` holds them to the spawn slots' rules: 2.5 m from any blocker, on the navmesh floor, and reached.
@@ -394,6 +394,7 @@ any machine writes the same bytes. Its densities are named constants in `ForestD
 | `RuinWall` | box | `avalon_ruin_wall_*` sections end to end along its long axis, a pillar where they leave room at an end, stumps along the far side of a box thick enough, rubble over it |
 | `Pillar` | cylinder | `avalon_ruin_pillar_1` and a `_2` stump side by side, rubble at its foot |
 | `Trunk` | cylinder | the free-standing tree of its `Tree` (species and scale; the dresser picks the variant and the yaw) |
+| `TreeWall` | box | two rows of trees (three in a wall 3 m deep or more), each row's trees 1.5 to 2.1 m apart and staggered against the next row's, scale 1 to 1.6, every trunk inside the box; the piece's tree mix, a dead tree less often and at most 1.3, never a twisted one; ferns, tall plants, grass and bushes among the trunks, and a skirt of undergrowth (kept small) along its open face |
 | `Log`, `LeaningRock`, `ArchLeg`, `Overhang` (and `Rock`, `RuinWall`, `Pillar` when it has one) | the model's footprint | the custom model of its `Prop`, once for all its parts |
 
 A free-standing tree stands on its own trunk cylinder, `ForestDresser.Trunk(species, scale, x, z)`: its radius is the
@@ -403,16 +404,32 @@ twelve-gon's flat sides reach the trunk, rounded up to 5 cm. A custom model's bl
 (`ForestDresser.Prop(model, x, z, yaw)`, read from `tools/Avalon.ChunkGen/Kit/forest-footprints.json`): a box part as a
 box, so the model turns only by quarter turns, a circle part as a cylinder of its `blockerRadius`, so a model whose
 parts are all circles turns only by multiples of 30 degrees, and every custom solid model stands at scale 1. Today's
-pieces add a free-standing tree line along their edges (three to eight trunks a single piece, about thirty a set
-piece), a fallen log (three a set piece), and a leaning rock in `forest_rocks_01` and `forest_glade_01`; the drums,
+pieces add a fallen log (three a set piece) and a leaning rock in `forest_rocks_01` and `forest_glade_01`; the drums,
 rock boxes, walls and pillars are unchanged. The nine ported pieces have one or two tree drums or custom rocks each
-(`avalon_rock_large_*` placed by `ForestDresser.Prop`, so their blockers are the rocks' footprints), a log and an
-edge tree line, ten blockers a piece; `forest_clearing_01` has four small drums in its corners instead. Their trees
-keep clear the lines the navmesh vectors' `forest-floors` rays run along (the Exporter's `navmesh` artifact).
+(`avalon_rock_large_*` placed by `ForestDresser.Prop`, so their blockers are the rocks' footprints) and a log;
+`forest_clearing_01` has four small drums in its corners instead.
+
+**Tree walls.** A free-standing tree needs a blocker of its own, so a wood of them would cost a blocker a tree. The
+density comes from tree walls instead (owner decision, #1109): one `TreeWall` box, about 3.5 m deep (from 0.1 m inside
+the edge to 3.6 m), along every closed side of a single piece, and in a piece with at most one closed side (the T
+junctions and the crosses) in the corners between its exits too, outside the throats; a set piece has one along each
+closed outer edge of each of its cells, never touching a cell edge. A wall is made shallower (down to 2 m deep) or
+shorter where it would come within 0.3 m of a drum, a rock or ruin box, a log or a custom rock (none of them moved), or
+too near a slot, and stops 0.1 m short of a throat; so one side may carry a few boxes of different depths, and a wall
+shorter than 2.5 m is left out. The free-standing edge trees the walls replace are gone; the few left stand on the
+exit sides or inside. The dresser packs each wall with trees (the roles table above), which more than trebles the
+forest's trees (1,804 in the 44 decor files, from 492): 23 to 74 a single piece, 106 to 134 a set piece, but 9 and 17
+in the ruined crossroads `forest_ruin_01` and `forest_ruin_05`, whose corners hold their ruins; a piece's blocker count
+stays about where it was (7 to 18 a single piece, from 8 to 15; a set piece 20 to 31, from 34 to 37). `ForestDecorRules` holds a wall to at least one tree for every 3 m of its length, and
+`ForestPiecesShould` to a tree wall along every closed side. Doodad slots near a closed side moved inward, each to the
+nearest spot within 7 m that keeps every slot rule above (and, in a set piece, stays in its cell); a slot with no such
+spot stays where it was and the walls stop short of it, leaving it a nook, as the entry's three corners do. The trees
+keep clear the lines the navmesh vectors' `forest-floors` rays run along (the Exporter's `navmesh` artifact): that
+layout turns `forest_clearing_01` and `forest_path_03` so its seam crossings run exit to exit past the walls.
 
 **Overhangs and the fifteen pieces of #1109.** Fifteen single pieces were added with the dressing, three of each exit
-shape, eight to twelve blockers each (tree drums, rock boxes and cylinders, ruin walls and pillars, logs and an edge
-tree line), every slot rule above kept:
+shape, eight to twelve blockers each before the tree walls (tree drums, rock boxes and cylinders, ruin walls and
+pillars, logs and an edge tree line, which the walls replaced), every slot rule above kept:
 
 | Shape | Pieces |
 |---|---|
@@ -452,8 +469,8 @@ covers the wedge a bend opens at the strip's outer edge; every other segment is 
 draws two strips at one height (the hub's top is above both). About every other segment carries a `RockPath_*`
 stepping stone.
 
-**Undergrowth and ground cover.** Along every edge, outside the exits' throats, a 3.5 m band of ferns, bushes, tall
-plants and tall grass; on the open floor, off the strip and the blockers and clear of the doodad slots (1.5 m, 3 m from
+**Undergrowth and ground cover.** Along every edge, outside the exits' throats and the tree walls, a 3.5 m band of
+ferns, bushes, tall plants and tall grass; on the open floor, off the strip and the blockers and clear of the doodad slots (1.5 m, 3 m from
 a `doodad_large`) and 3 m from a portal slot, grass in clumps (most), ferns, clover, plants, pebbles, a few small
 bushes and very few flowers, and mushrooms at the feet of trees, drums and logs. Off a blocker, cover is scaled down to be drawn no taller than 1.2 m,
 so what a player walks through on open floor reads as small; bushes and tall plants at full size stand only on a drum
@@ -469,7 +486,8 @@ part or exit:
 - a solid part that does not lie within 0.15 m of a blocker: a tree's trunk circle, a kit rock's scaled and turned box,
   or each footprint part of a custom model (off scale 1 or its yaw rule, it is refused outright): nothing drawn solid
   where a player walks;
-- a blocker with no solid part within it: no invisible wall;
+- a blocker with no solid part within it: no invisible wall; a tree wall with fewer trees than one for every 3 m of its
+  length (`ForestDecorRules.TreeWallSpacing`, its trunks within it), so a wall always reads as a wood;
 - an exit with no 2.8 m strip ending on its side's midpoint and running straight in, a strip that breaks off before
   the hub (each segment must start 0.2 m back over the last one's end along its own direction, within 0.01 m, so a
   start ahead of the end or beside it is refused), a segment at another scale,

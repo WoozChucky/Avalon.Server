@@ -21,8 +21,8 @@
   ],
   "doodadSlots": [
     { "tag": "doodad_large", "localX": 4, "localY": 0, "localZ": 27, "yaw": 180 },
-    { "tag": "doodad", "localX": 3, "localY": 0, "localZ": 3, "yaw": 0 },
-    { "tag": "doodad", "localX": 27, "localY": 0, "localZ": 3, "yaw": 0 }
+    { "tag": "doodad", "localX": 4.2, "localY": 0, "localZ": 6.2, "yaw": 0 },
+    { "tag": "doodad", "localX": 23.7, "localY": 0, "localZ": 8.6, "yaw": 0 }
   ],
   "tags": ["deadend", "forest", "ruins"]
 }

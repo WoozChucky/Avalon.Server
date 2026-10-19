@@ -20,9 +20,9 @@
   "portalSlots": [
   ],
   "doodadSlots": [
-    { "tag": "doodad_large", "localX": 25, "localY": 0, "localZ": 25, "yaw": 180 },
-    { "tag": "doodad", "localX": 3, "localY": 0, "localZ": 9, "yaw": 90 },
-    { "tag": "doodad", "localX": 27, "localY": 0, "localZ": 9, "yaw": 270 }
+    { "tag": "doodad_large", "localX": 22.3, "localY": 0, "localZ": 22.3, "yaw": 180 },
+    { "tag": "doodad", "localX": 6.1, "localY": 0, "localZ": 10.5, "yaw": 90 },
+    { "tag": "doodad", "localX": 23.9, "localY": 0, "localZ": 10.5, "yaw": 270 }
   ],
   "tags": ["junction", "forest", "grove"]
 }

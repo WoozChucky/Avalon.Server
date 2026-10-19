@@ -20,7 +20,7 @@
   ],
   "doodadSlots": [
     { "tag": "doodad_large", "localX": 27, "localY": 0, "localZ": 27, "yaw": 180 },
-    { "tag": "doodad", "localX": 3, "localY": 0, "localZ": 20.5, "yaw": 90 },
+    { "tag": "doodad", "localX": 6.1, "localY": 0, "localZ": 19.5, "yaw": 90 },
     { "tag": "doodad", "localX": 27, "localY": 0, "localZ": 3, "yaw": 0 }
   ],
   "tags": ["junction", "forest"]

@@ -20,8 +20,8 @@
   ],
   "doodadSlots": [
     { "tag": "doodad_large", "localX": 27, "localY": 0, "localZ": 3, "yaw": 0 },
-    { "tag": "doodad", "localX": 3, "localY": 0, "localZ": 3, "yaw": 0 },
-    { "tag": "doodad", "localX": 15, "localY": 0, "localZ": 24.5, "yaw": 180 }
+    { "tag": "doodad", "localX": 6.8, "localY": 0, "localZ": 6.2, "yaw": 0 },
+    { "tag": "doodad", "localX": 15, "localY": 0, "localZ": 23.8, "yaw": 180 }
   ],
   "tags": ["path", "forest", "rocks"]
 }
