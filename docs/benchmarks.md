@@ -3712,7 +3712,10 @@ with the committed figure, in every build (Debug and Release, see below) and for
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (14,528 B per window since #1082, whose fighters name a view tick on every
+  `forest-combat` is the largest figure (10,880 B per window since #1109, which dressed the forest pieces the
+  fighters cross first, the entry among them, with trees, rocks and logs: a fighter casts at the nearest creature
+  with no line of sight, so a trunk between them takes its shots, and the seeded fight is smaller, [the forest-combat
+  scenario](#the-forest-combat-scenario); 14,528 B from #1082, whose fighters name a view tick on every
   cast and report a 60 ms round trip, so the rewound hits and the dodge wait run in the gate and the seeded fight goes
   differently, [the forest-combat scenario](#the-forest-combat-scenario); 13,905 B from #973's closing cleanup: quest
   markers are worked out again only when what a marker reads changes, not for every kill credit, 64 B, a pickup's
@@ -3722,7 +3725,7 @@ with the committed figure, in every build (Debug and Release, see below) and for
   #980, which shared the aura updates and reused their entries,
   [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
   which gave the fight a healer, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
-  10,357 B before), and at that size the 256 B floor decides for it too (1% is 145 B): it fails above 14,784 B, a little
+  10,357 B before), and at that size the 256 B floor decides for it too (1% is 109 B): it fails above 11,136 B, a little
   over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. Its Debug run reads the committed
   figure again since #981 (#973): from #972 it read 68 B above Release, because each item destroy in the measured
   minute paid 48 B in unoptimised code for the two boxes `Enum.HasFlag` made in `InventoryMove.DecideDestroy`.
@@ -4181,7 +4184,13 @@ quarter of its health, the revive broadcast). So each forest keeps three fighter
 
 **What one run does.** Every run, on every machine, fights the same fight (the layouts, placement, combat and loot
 rolls and the fighters' turns are seeded, item instance ids are handed out in order, and every timer reads the world's
-clock). #1082's rewinds and waits move some hits by a tick or more, and the seeded fight follows them; since then the
+clock). Since #1109 dressed the nine forest pieces that were bare floors (the entry, the paths, the junctions, the
+small clearing and the dead end), the run's 4,200 ticks give 65 creatures killed, 4 deaths, 10 heals cast (8 landed),
+30 quest accepts, 66 kill credits and 18 completions, 111 drops picked up, 61 bag slots destroyed and 3 drops given
+up: a fighter casts at the nearest creature whatever stands between them, and a trunk or a rock now often does, so
+it stands casting into it until the creature moves (in one forest a fighter stands so for most of the run, at the
+entry's south edge). Before #1109: #1082's rewinds and waits move some hits by a tick or more, and the seeded fight
+follows them; since then the
 run's 4,200 ticks give 102 creatures killed, 2 deaths, 21 heals cast (20 landed), 42 quest accepts, 105 kill credits
 and 30 completions, 189 drops picked up and 101 bag slots destroyed (the measured minute's shares not recounted). The
 measured-minute figures and the level-up tick below are from #973, before #1082: over the run then, 105 creatures
@@ -4196,8 +4205,10 @@ pickups and items destroyed. `ForestCombatScenarioShould` runs the scenario twic
 outcome (every count above) and the same bytes per window, and kills and deaths in it; the second run's creatures
 carry higher ids (the process-wide object id counter), which changes neither.
 
-**Gate.** Committed at **14,528 B per window** (20.2 B per player per tick, 242 B per tick) since #1082, the fight
-above with its fighters lag-compensated, 623 B over the 13,905 B committed from #973's closing cleanup
+**Gate.** Committed at **10,880 B per window** (15.1 B per player per tick, 181 B per tick) since #1109, the smaller
+fight the dressed forest pieces leave (above); Debug reads the same. Before it, committed at 14,528 B (20.2 B per
+player per tick, 242 B per tick) since #1082, the fight above with its fighters lag-compensated, 623 B over the
+13,905 B committed from #973's closing cleanup
 ([the allocation gate](#the-allocation-gate)). The new paths allocate nothing per use: the rewound queries' pooled
 hit lists grow once, as plain queries' do, and a held hit, its resolution and the position histories allocate
 nothing. About 85 B of the rise is two per-cast objects that each gained a field (a projectile's running script
@@ -4260,8 +4271,10 @@ summary.
 | Debug, then | 13,905 |
 | Lag-compensated fighters: a view tick and a 60 ms round trip (#1082, PGO on) | 14,528 |
 | Debug, then | 14,528 |
-| Only moved units recorded, rewound drift bounded by recorded steps (#1082, PGO on), now; not regenerated | 14,536 |
-| Debug, now | 14,536 |
+| Only moved units recorded, rewound drift bounded by recorded steps (#1082, PGO on); not regenerated | 14,536 |
+| Debug, then | 14,536 |
+| The nine bare forest pieces dressed: a smaller fight (#1109, PGO on), now | 10,880 |
+| Debug, now | 10,880 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
