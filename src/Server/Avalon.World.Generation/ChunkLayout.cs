@@ -27,6 +27,10 @@ public record PortalPlacement(
 /// The solid doodads' boxes the navmesh bake cuts out and the layout packet carries, set by the instance build from its
 /// doodad plan before the bake; null (none) for a layout no plan has touched.
 /// </param>
+/// <remarks>
+/// <see cref="Scenery" /> is the drawn ring around the layout's cells. It is kept apart from <see cref="Chunks" />, which
+/// feeds the bake, the spatial grid, creature and doodad placement, so scenery never becomes walkable.
+/// </remarks>
 public record ChunkLayout(
     int Seed,
     IReadOnlyList<PlacedChunk> Chunks,
@@ -38,7 +42,11 @@ public record ChunkLayout(
     ProceduralMapConfig? Config = null,
     string? ConfigVersion = null,
     int MainPathLength = 0,
-    IReadOnlyList<DoodadObstacle>? Obstacles = null);
+    IReadOnlyList<DoodadObstacle>? Obstacles = null)
+{
+    /// <summary>The scenery pieces drawn in the ring cells around the layout; empty for a layout with no ring.</summary>
+    public IReadOnlyList<SceneryPlacement> Scenery { get; init; } = [];
+}
 
 /// <summary>
 /// A solid doodad's box as the navmesh bake cuts it out: its world X/Z bounds, the height it stands at (its slot's) and
