@@ -16,6 +16,7 @@ public class SceneryRingShould
     [Theory]
     [InlineData("one side", "1,0 N", "S")]
     [InlineData("two adjacent", "1,0 N; 0,1 E", "SW")]
+    [InlineData("two adjacent, turned", "0,1 E; 1,2 S", "NW")]
     [InlineData("two opposite", "1,0 N; 1,2 S", "NS")]
     [InlineData("three", "1,0 N; 0,1 E; 1,2 S", "NSW")]
     [InlineData("four", "1,0 N; 0,1 E; 1,2 S; 2,1 W", "NESW")]

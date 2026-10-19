@@ -175,6 +175,7 @@ public class CommittedForestGenerationShould
         var pieces = pool.Pieces.ToDictionary(p => p.Name, StringComparer.Ordinal);
         var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
         int caps = 0;
+        int spots = 0;
 
         for (int seed = 0; seed < 1000; seed++)
         {
@@ -201,6 +202,14 @@ public class CommittedForestGenerationShould
                 if (!capped.ContainsKey(cell))
                     Assert.NotEqual(SceneryKind.Cap, piece.Kind);
 
+                // A border beside the layout turns its front to the first of N, E, S, W that is a layout cell.
+                ExitSide[] beside = [.. s_sides.Where(side => cells.Contains((cell.X + ExitMask.GridDir(side).dx, cell.Z + ExitMask.GridDir(side).dz)))];
+                if (piece.Kind == SceneryKind.Border && beside.Length > 0)
+                {
+                    string front = ScenerySides.Name(ScenerySides.Rotate(ScenerySides.Bit(piece.Front), placement.Rotation));
+                    Assert.True(front == beside[0].ToString(), $"seed {seed * 7919}: the border at {cell} faces {front}, not {beside[0]}");
+                }
+
                 if (piece.Kind == SceneryKind.Border && !piece.Filler)
                 {
                     Assert.False(at.TryGetValue((cell.X + 1, cell.Z), out SceneryPlacement? east) && east.Name == piece.Name,
@@ -214,14 +223,20 @@ public class CommittedForestGenerationShould
             {
                 (int X, int Z) cell = (layout.EntryChunk.GridX + spot.SpotX, layout.EntryChunk.GridZ + spot.SpotZ);
                 if (!cells.Contains(cell) && !capped.ContainsKey(cell))
+                {
                     Assert.Equal(new SceneryPlacement(spot.Name, cell.X, cell.Z, 0), at[cell]);
+                    spots++;
+                }
             }
 
             Assert.Equal(ring, SceneryRing.Build(layout, ExitsOf, pool));
         }
 
         Assert.True(caps > 5000, $"only {caps} capped cells in 1000 layouts");   // measured 8977
+        Assert.True(spots > 3000, $"only {spots} town-ward spots held their own piece in 1000 layouts");   // measured 4553
     }
+
+    private static readonly ExitSide[] s_sides = [ExitSide.N, ExitSide.E, ExitSide.S, ExitSide.W];
 
     [Fact]
     public void Reach_the_boss_arena_deeper_than_the_first_band()

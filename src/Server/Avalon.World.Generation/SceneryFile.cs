@@ -105,7 +105,8 @@ public static class SceneryFile
         }
         catch (InvalidDataException e)
         {
-            throw new InvalidDataException($"{where}: {e.Message}", e);
+            string piece = e.Data[SceneryPool.PieceIndexKey] is int refused ? $"pool[{refused}]: " : "";
+            throw new InvalidDataException($"{where}: {piece}{e.Message}", e);
         }
     }
 

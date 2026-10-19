@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 
 namespace Avalon.World.ChunkLayouts;
@@ -32,10 +33,10 @@ public sealed record SceneryPoolPiece(
 
 /// <summary>
 /// A map's validated scenery pool. The constructor refuses (<see cref="InvalidDataException" />) a piece name that is
-/// empty, not <c>[a-z0-9_]+</c> or listed twice; a border or cap whose weight is not a finite number above 0; a cap
-/// that caps no side (mask 0 or above 15); a pool without a cap of every shape (one side, two adjacent, two opposite,
-/// three, four, whatever the rotation); a pool without a filler border; and town-ward pieces that are neither absent
-/// nor exactly one per spot of (-1..1, -1..1) minus (0, 0).
+/// empty, not <c>[a-z0-9_]+</c> or listed twice; a border or cap whose weight is not a finite number above 0; a border
+/// whose front is none of N, E, S, W; a cap that caps no side (mask 0 or above 15); a pool without a cap of every shape
+/// (one side, two adjacent, two opposite, three, four, whatever the rotation); a pool without a filler border; and
+/// town-ward pieces that are neither absent nor exactly one per spot of (-1..1, -1..1) minus (0, 0).
 /// </summary>
 public sealed class SceneryPool
 {
@@ -53,16 +54,23 @@ public sealed class SceneryPool
         ArgumentNullException.ThrowIfNull(pieces);
 
         HashSet<string> names = new(StringComparer.Ordinal);
-        foreach (SceneryPoolPiece piece in pieces)
+        for (int index = 0; index < pieces.Count; index++)
         {
+            SceneryPoolPiece piece = pieces[index];
             if (!IsPlainName(piece.Name))
-                throw new InvalidDataException($"'{piece.Name}' is not a plain piece name ([a-z0-9_]+)");
+                throw PieceRefusal(index, $"'{piece.Name}' is not a plain piece name ([a-z0-9_]+)");
             if (!names.Add(piece.Name))
-                throw new InvalidDataException($"'{piece.Name}' is listed twice");
+                throw PieceRefusal(index, $"'{piece.Name}' is listed twice");
             if (piece.Kind is SceneryKind.Border or SceneryKind.Cap && !(float.IsFinite(piece.Weight) && piece.Weight > 0))
-                throw new InvalidDataException($"'{piece.Name}' has weight {piece.Weight}, not a finite number above 0");
+            {
+                throw PieceRefusal(index,
+                    $"'{piece.Name}' has weight {piece.Weight.ToString(CultureInfo.InvariantCulture)}, not a finite number above 0");
+            }
+
+            if (piece.Kind == SceneryKind.Border && !Enum.IsDefined(piece.Front))
+                throw PieceRefusal(index, $"border '{piece.Name}' has front {(int)piece.Front}, none of N, E, S, W");
             if (piece.Kind == SceneryKind.Cap && piece.CappedSides is 0 or > 0b1111)
-                throw new InvalidDataException($"cap '{piece.Name}' caps no side: its capped-side mask {piece.CappedSides} is not 1-15");
+                throw PieceRefusal(index, $"cap '{piece.Name}' caps no side: its capped-side mask {piece.CappedSides} is not 1-15");
         }
 
         foreach ((string shape, Func<byte, bool> matches) in s_capShapes)
@@ -83,30 +91,42 @@ public sealed class SceneryPool
 
     private static void CheckTownWard(IReadOnlyList<SceneryPoolPiece> pieces)
     {
-        var townWard = pieces.Where(p => p.Kind == SceneryKind.TownWard).ToList();
-        if (townWard.Count == 0)
-            return;
-
         HashSet<(int X, int Z)> held = [];
-        foreach (SceneryPoolPiece piece in townWard)
+        for (int index = 0; index < pieces.Count; index++)
         {
+            SceneryPoolPiece piece = pieces[index];
+            if (piece.Kind != SceneryKind.TownWard)
+                continue;
+
             (int X, int Z) spot = (piece.SpotX, piece.SpotZ);
             if (spot.X is < -1 or > 1 || spot.Z is < -1 or > 1 || spot == (0, 0))
             {
-                throw new InvalidDataException(
+                throw PieceRefusal(index,
                     $"'{piece.Name}' sits at ({spot.X}, {spot.Z}), none of the town-ward spots (-1..1, -1..1) minus (0, 0)");
             }
 
             if (!held.Add(spot))
-                throw new InvalidDataException($"'{piece.Name}' holds ({spot.X}, {spot.Z}) a second time: the town-ward spots take one piece each");
+            {
+                throw PieceRefusal(index,
+                    $"'{piece.Name}' holds ({spot.X}, {spot.Z}) a second time: the town-ward spots take one piece each");
+            }
         }
 
-        if (held.Count != 8)
+        if (held.Count is not (0 or 8))
         {
             throw new InvalidDataException(
                 $"the town-ward spots take a piece each or none at all, but only {held.Count} of the 8 have one");
         }
     }
+
+    /// <summary>
+    /// The <see cref="Exception.Data" /> key of a refusal of one piece: its index in the pieces given, so the ring file
+    /// reader can name the entry (<c>pool[3]</c>) as it does for its own refusals.
+    /// </summary>
+    internal const string PieceIndexKey = "SceneryPool.PieceIndex";
+
+    private static InvalidDataException PieceRefusal(int index, string message) =>
+        new(message) { Data = { [PieceIndexKey] = index } };
 
     /// <summary>A piece name is <c>[a-z0-9_]+</c>: it names files, so it holds nothing else.</summary>
     internal static bool IsPlainName(string name) =>
