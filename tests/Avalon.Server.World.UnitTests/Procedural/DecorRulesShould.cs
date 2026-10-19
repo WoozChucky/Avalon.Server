@@ -93,15 +93,16 @@ public class DecorRulesShould
     /// <summary>
     /// An item may name its own kit, which must be a decor kit, and its model must be one of that kit's (the file's when
     /// it names none). The bright nature kit holds the nature kit's models, never the custom forest props. An item kit
-    /// other than the file's is written last on its line.
+    /// other than the file's is written last on its line (<paramref name="lineEnd" />); one that is the file's is not.
     /// </summary>
     [Theory]
     [InlineData("nowhere-kit", "Fern_1", "is not a decor kit")]
     [InlineData(DecorJsonWriter.NatureBrightKit, "avalon_log_fallen_1", "is not a model of")]
     [InlineData(DecorJsonWriter.TownKit, "Fern_1", "is not a model of")]
     [InlineData(null, "Wall_Plaster_Straight", "is not a model of")]
-    [InlineData(DecorJsonWriter.NatureBrightKit, "Fern_1", null)]
-    public void Check_an_items_model_against_its_own_kit(string? itemKit, string model, string? refusal)
+    [InlineData(DecorJsonWriter.NatureBrightKit, "Fern_1", null, "\"yaw\": 0, \"kit\": \"stylized-nature-megakit-bright\" }")]
+    [InlineData(DecorJsonWriter.ForestKit, "Fern_1", null, "\"yaw\": 0 }")]
+    public void Check_an_items_model_against_its_own_kit(string? itemKit, string model, string? refusal, string? lineEnd = null)
     {
         var item = new DecorItem(string.Empty, model, 12f, 0f, 7.5f, 0, Kit: itemKit);
 
@@ -111,7 +112,7 @@ public class DecorRulesShould
         {
             Assert.True(thrown is null, thrown?.Message);
             string written = DecorJsonWriter.Write("forest_test", [item], DecorJsonWriter.ForestKit);
-            Assert.Contains("\"yaw\": 0, \"kit\": \"stylized-nature-megakit-bright\" }", written, StringComparison.Ordinal);
+            Assert.Contains(lineEnd!, written, StringComparison.Ordinal);
         }
         else
         {

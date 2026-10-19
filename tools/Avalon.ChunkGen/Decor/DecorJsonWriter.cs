@@ -8,8 +8,8 @@ namespace Avalon.ChunkGen;
 /// Writes a chunk's decor file (Maps/Decor/&lt;chunk&gt;.json), what the client draws from the art kit:
 /// <c>{ "chunk", "kit", "items": [ { "model", "x", "y", "z", "yaw", "scale", "kit" } ] }</c>, "scale" only when it is
 /// not 1 and an item's "kit" only when it names one other than the file's, the items sorted by model, then x, z, y,
-/// yaw, scale and kit, one per line, numbers in invariant culture with at most 3
-/// decimals, 2-space indent, LF line ends, so a rerun on any machine is byte-identical. The server never reads it.
+/// yaw, scale and kit, one per line, numbers in invariant culture with at most 3 decimals, 2-space indent, LF line
+/// ends, so a rerun on any machine is byte-identical. The server never reads it.
 /// </summary>
 public static class DecorJsonWriter
 {
