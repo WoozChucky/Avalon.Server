@@ -114,10 +114,10 @@
 # Recast implementations can legitimately fall either side of one.
 #
 # So none of the sweep's rays is vendored: no row in this file runs through that corner. The
-# two rows that do lie on x = z keep off every corner -- the town's starts at 45 within the
-# agent radius of the well and never moves, and the other starts at 15 on a layout whose own
-# grid starts elsewhere -- and the straight seam crossings and the shallow diagonal are all
-# off-corner for the same reason.
+# one row that does lie on x = z keeps off every corner -- the town's starts at 45 within the
+# agent radius of the well and never moves -- the forest's diagonal runs a metre off x = z on
+# purpose, and the straight seam crossings and the shallow diagonal are all off-corner for
+# the same reason.
 #
 # Clamps at 28.55 in that sweep are NOT this: that is the second corner, where the town's
 # two walls also meet, the seam clamp the old "45 degrees" row showed.
@@ -209,7 +209,7 @@ chunk forest_path_03 1 1 0
 mesh tiles 49 polys 218 verts 517
 ray 15 0.1 15 45 0.1 15 -> reached 45 0.1 15 3.4028235E+38 # east across the seam between two chunks
 ray 15 0.1 15 15 0.1 45 -> reached 15 0.1 45 3.4028235E+38 # north across the seam between two chunks
-ray 15 0.1 15 45 0.1 44 -> reached 45 0.1 44 3.4028235E+38 # diagonally across both seams, off the tile corners
+ray 15 0.1 16 45 0.1 46 -> reached 45 0.1 46 3.4028235E+38 # diagonally across both seams, a metre off x = z and the tile corners
 ray 15 0.1 15 15 0.1 -5 -> clamped 15 0.1 0.8999977 0.7050001 # off the layout's south edge
 ground 15 3 15 -> 0.2 # forest_entry_01, floor top at local y = 0
 ground 45 3 15 -> 0.2 # forest_path_01, floor top at local y = 0

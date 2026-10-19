@@ -208,8 +208,10 @@ public static class NavmeshVectors
                 Ray(15f, 15f, 45f, 15f, "east across the seam between two chunks", y: 0.1f),
                 Ray(15f, 15f, 15f, 45f, "north across the seam between two chunks", y: 0.1f),
                 // Not along x = z: that line runs through the tile corners (every 9.6 m), and the edges the
-                // blockers cut meet there, so a ray along it clamps on a corner (see the header).
-                Ray(15f, 15f, 45f, 44f, "diagonally across both seams, off the tile corners", y: 0.1f),
+                // blockers cut meet there, so a ray along it clamps on a corner (see the header). A metre
+                // north of it, the ray passes every corner 0.71 m off and every blocker 2 m off.
+                Ray(15f, 16f, 45f, 46f, "diagonally across both seams, a metre off x = z and the tile corners",
+                    y: 0.1f),
                 Ray(15f, 15f, 15f, -5f, "off the layout's south edge", y: 0.1f),
             ],
             [
@@ -587,10 +589,10 @@ public static class NavmeshVectors
         # Recast implementations can legitimately fall either side of one.
         #
         # So none of the sweep's rays is vendored: no row in this file runs through that corner. The
-        # two rows that do lie on x = z keep off every corner -- the town's starts at 45 within the
-        # agent radius of the well and never moves, and the other starts at 15 on a layout whose own
-        # grid starts elsewhere -- and the straight seam crossings and the shallow diagonal are all
-        # off-corner for the same reason.
+        # one row that does lie on x = z keeps off every corner -- the town's starts at 45 within the
+        # agent radius of the well and never moves -- the forest's diagonal runs a metre off x = z on
+        # purpose, and the straight seam crossings and the shallow diagonal are all off-corner for
+        # the same reason.
         #
         # Clamps at 28.55 in that sweep are NOT this: that is the second corner, where the town's
         # two walls also meet, the seam clamp the old "45 degrees" row showed.
