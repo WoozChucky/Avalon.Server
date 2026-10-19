@@ -178,7 +178,7 @@ public static class ForestPieces
             [Drum(7, 9, 2), Drum(5, 21, 2.5f), Drum(15, 26, 2), Rocks(21, 27, 20, 27), Drum(25, 12, 2), .. Prop(Log2, 11, 26, 90),
              TreeWall(5.6f, 10.2f, 26.4f, 29.9f), TreeWall(17.3f, 20.6f, 26.4f, 29.9f), TreeWall(20.6f, 27.3f, 27.4f, 29.9f),
              TreeWall(27.3f, 29.9f, 26.4f, 29.9f), TreeWall(0.1f, 3.6f, 0.1f, 18.5f), TreeWall(0.1f, 2.1f, 18.5f, 24.6f),
-             TreeWall(26.4f, 29.9f, 0.1f, 10.1f), TreeWall(27.4f, 29.9f, 10.1f, 19.6f), TreeWall(27.4f, 29.9f, 19.6f, 26.4f)],
+             TreeWall(26.4f, 29.9f, 0.1f, 10.1f), TreeWall(27.4f, 29.9f, 10.1f, 26.4f)],
             [Pack(10, 15), Pack(20, 14), Pack(15, 21), Rare(15, 11)], ["deadend", "forest", "hollow"])
             { DoodadSlots = [LargeDoodad(22.3f, 4), Doodad(6.2f, 4.5f), Doodad(3, 27)], Hints = new(TreeMix.Pine, MeetX: 15, MeetZ: 17) },
         new("forest_ruin_03", [Side.W],
