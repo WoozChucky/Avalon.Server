@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -36,6 +37,39 @@ public class SpawnCommandShould
 
         Assert.Equal(runs, fixture.Dispatch("/spawn 5"));
         Assert.Equal(runs ? 1 : 0, fixture.Spawns().Count);
+        Assert.Equal(runs, fixture.Dispatch("/despawn"));
+    }
+
+    [Fact]
+    public void Despawn_the_living_spawns_of_the_callers_instance_and_nothing_else()
+    {
+        var fixture = new Fixture(AccountAccessLevel.GameMaster);
+        fixture.Dispatch("/spawn 5 3");
+        fixture.Created[1].CurrentHealth = 0;          // killed since: the corpse is the corpse removal's
+        fixture.InInstance.Remove(fixture.Created[2].Guid);   // expired since: already gone
+
+        fixture.Dispatch("/despawn");
+
+        fixture.Host.Received(1).DespawnAfter(fixture.Created[0], TimeSpan.Zero);
+        fixture.Host.DidNotReceive().DespawnAfter(fixture.Created[1], TimeSpan.Zero);
+        fixture.Host.DidNotReceive().DespawnAfter(fixture.Created[2], TimeSpan.Zero);
+        Assert.Equal("Despawned 1.", fixture.LastMessage());
+
+        fixture.Dispatch("/despawn");
+        Assert.Equal("No spawned creatures here.", fixture.LastMessage());
+    }
+
+    [Fact]
+    public void Leave_the_spawns_of_another_instance()
+    {
+        var fixture = new Fixture(AccountAccessLevel.GameMaster);
+        fixture.Dispatch("/spawn 5 3");
+
+        fixture.MoveToAnotherInstance();
+        fixture.Dispatch("/despawn");
+
+        fixture.Host.DidNotReceive().DespawnAfter(Arg.Any<ICreature>(), TimeSpan.Zero);
+        Assert.Equal("No spawned creatures here.", fixture.LastMessage());
     }
 
     [Fact]
@@ -208,14 +242,43 @@ public class SpawnCommandShould
             IWorld world = Substitute.For<IWorld>();
             world.Data.Returns(data);
             world.InstanceRegistry.GetInstanceById(Character.InstanceId).Returns(Host);
+            Host.Creatures.Returns(InInstance);
 
             int calls = 0;
             _placement.SpawnAt(Host, Arg.Any<CreatureTemplateId>(), Arg.Any<Vector3>(), Arg.Any<bool>())
-                .Returns(_ => calls++ < withoutGround ? null : Substitute.For<ICreature>());
+                .Returns(_ =>
+                {
+                    if (calls++ < withoutGround)
+                        return null;
+                    ICreature creature = Substitute.For<ICreature>();
+                    creature.CurrentHealth = 100;
+                    creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, (uint)calls));
+                    Created.Add(creature);
+                    InInstance[creature.Guid] = creature;
+                    return creature;
+                });
+            _world = world;
 
+            var spawns = new GmSpawns();
             _dispatcher = new CommandDispatcher(
-                [new SpawnCommand(world, _placement, NullLogger<SpawnCommand>.Instance)],
+                [
+                    new SpawnCommand(world, _placement, spawns, NullLogger<SpawnCommand>.Instance),
+                    new DespawnCommand(world, spawns, NullLogger<DespawnCommand>.Instance),
+                ],
                 NullLogger<CommandDispatcher>.Instance, TimeProvider.System);
+        }
+
+        private readonly IWorld _world;
+
+        public List<ICreature> Created { get; } = [];
+
+        // What the instance holds: a spawn leaves it at its expiry, as it does at its death and removal.
+        public Dictionary<ObjectGuid, ICreature> InInstance { get; } = [];
+
+        public void MoveToAnotherInstance()
+        {
+            Character.InstanceId = Guid.NewGuid();
+            _world.InstanceRegistry.GetInstanceById(Character.InstanceId).Returns(Substitute.For<IItemUseHost>());
         }
 
         public CharacterEntity Character { get; }
