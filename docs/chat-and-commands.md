@@ -4,6 +4,17 @@ Chat commands (how to add one, access levels, failure reporting), the length of 
 
 ## Chat Commands
 
+**`/speed` (GameMaster/Admin, #1132).** `/speed <multiplier>` changes the invoking character's movement speed
+by a multiplier from 1 to 10 (decimals use a dot on every culture). `/speed` or `/speed 1` restores normal
+movement. Invalid arguments leave the current multiplier unchanged. The multiplier is applied after the
+normal stat cap, so gear and slows still count, and survives stat refreshes and map transfers. It belongs
+only to the selected `CharacterEntity`: **changing character or logging out clears it**, even when selecting
+the same character again on the same connection. Nothing is saved. The reply reports the multiplier and
+resulting m/s, and each accepted command logs the account and character. Non-staff receive "Unknown command."
+The normal character sheet publishes speed changes to the client; no new packet is needed. Movement still
+raycasts the full step and snaps to the navmesh ground. At the seeded +35% stat cap, 10x is 54 m/s (0.9 m per
+input at 60 Hz). The client's existing animation limitation above 12 m/s remains.
+
 Commands live in `Avalon.World/Chat/` (the party commands in `Avalon.World/Parties/PartyCommands.cs`, the ignore commands in `Avalon.World/Social`). To add a new command:
 1. Implement `ICommand`: `Name`, `Aliases[]`, optionally `RequiredAccess` and `ReadsRawText`, and `void Execute(CommandContext ctx, string[] args)`. A command that reads its text from the message as typed (`CommandText`: the text after the command word, or its first word and the rest, as slices of the message) and never its arguments declares `ReadsRawText => true`: the dispatcher then hands it an empty array instead of a string for every word (#973); `/p` and `/w` do. Every other command gets its arguments, as before.
 2. Register as `services.AddSingleton<ICommand, YourCommand>()` in `ServiceExtensions.AddWorldServices`.

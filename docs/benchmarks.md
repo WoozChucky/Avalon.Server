@@ -2,6 +2,12 @@
 
 Benchmarks live in `tools/Avalon.Benchmarking/` and are run with BenchmarkDotNet.
 
+`CharacterMovementSpeedBenchmarks` measures the per-character speed read used by input and sheet updates
+(#1132). On 2026-10-20, Windows 11, i9-12900K, .NET 10.0.13, Release, a short job with three warmups and
+five measured iterations over 1,024 characters measured **0.707 ns/read before** the staff multiplier and
+**0.858 ns/read after**, with **0 B allocated** in both. This isolates the getter, not a whole movement
+step or tick. Run with `--filter "*CharacterMovementSpeedBenchmarks*" --job short --warmupCount 3 --iterationCount 5`.
+
 Whole-tick numbers (tick-thread allocations per tick, tick times and GC for fixed world scenarios) come from the
 scenario runner instead, and the allocations are gated in CI: see [Scenario baseline](#scenario-baseline) at the end.
 
