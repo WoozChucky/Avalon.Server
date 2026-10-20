@@ -152,11 +152,12 @@ public static partial class ForestScenery
                 throw new InvalidOperationException($"{name}: ancient tree {variant} does not fit at ({ForestText.N(x)}, {ForestText.N(z)})");
         }
         feature(d);
-        // No band tree between an ancient trunk and the S edge (the layout, at rotation 0) or the game camera.
+        // No band tree between an ancient trunk and the S edge (the front, which the ring turns toward the layout), nor
+        // on the front's diagonals from a trunk or the glade (InView).
         bool Trunk(float x, float z, float reach) => ancients.Any(t => SceneryDresser.Distance(x, z, t.X, t.Z) < reach);
         bool Open(float x, float z, float margin) => glade is { } g && SceneryDresser.Distance(x, z, g.X, g.Z) < g.Radius + margin;
         bool Hides(float x, float z) =>
-            ancients.Any(t => SegmentDistance(x, z, (t.X, t.Z), (t.X, 0f)) < 2.2f) || InView(x, z, (px, pz) => Trunk(px, pz, 3f) || Open(px, pz, 0f));
+            ancients.Any(t => SegmentDistance(x, z, (t.X, t.Z), (t.X, 0f)) < 2.2f) || InView(x, z, Side.S, (px, pz) => Trunk(px, pz, 3f) || Open(px, pz, 0f));
         d.BarrierBand(mix, s_sides, keepTreesClear: Hides);
         Inner(d, mix, saplings: glade is null ? 1 : 5, understorey: glade is null ? 80 : 60, cover: 60, rocks: 5, clear: (x, z) => Open(x, z, 1.2f),
             treesClear: Hides);
@@ -262,8 +263,8 @@ public static partial class ForestScenery
         }
 
         bool Ground(float x, float z, float keep) => !Inside(brink, x, z) && OutlineDistance(brink, x, z) >= keep;
-        // No band tree beside the brink or between the ravine and the game camera.
-        d.BarrierBand(mix, s_sides, (x, z) => !Ground(x, z, 1.8f), (x, z) => !Ground(x, z, 4.5f) || InView(x, z, (px, pz) => !Ground(px, pz, 1f)));
+        // No band tree beside the brink or between the ravine and the layout's side (InView).
+        d.BarrierBand(mix, s_sides, (x, z) => !Ground(x, z, 1.8f), (x, z) => !Ground(x, z, 4.5f) || InView(x, z, Side.S, (px, pz) => !Ground(px, pz, 1f)));
         // Along the brink: ferns, grass and the odd bush; then the floor between it and the band.
         d.Scatter([("Fern_1", 5), ("Grass_Wispy_Tall", 4), ("Plant_1", 2), ("avalon_hedge_dark", 1), ("Grass_Common_Tall", 2)], 34, 0.8f, 1.2f,
             (x, z) => Ground(x, z, 1.5f) && OutlineDistance(brink, x, z) < 3.5f);
@@ -387,9 +388,9 @@ public static partial class ForestScenery
         d.TryTree(TreeSpecies.Pine, 7.6f, 20.4f, 0.95f);
         Log(d, "avalon_log_fallen_2", 22f, 9.6f, 80, 0.9f);
 
-        // No band tree on the giant or its plate, nor between them and the game camera.
+        // No band tree on the giant or its plate, nor between them and the layout's side (InView).
         bool OnGiant(float x, float z) => Trunk(x, z) < 3.5f || SceneryDresser.Distance(x, z, px, pz) < 4f;
-        d.BarrierBand(TreeMix.Mixed, s_sides, (x, z) => Trunk(x, z) < 3.2f || SceneryDresser.Distance(x, z, px, pz) < 4.5f, (x, z) => InView(x, z, OnGiant));
+        d.BarrierBand(TreeMix.Mixed, s_sides, (x, z) => Trunk(x, z) < 3.2f || SceneryDresser.Distance(x, z, px, pz) < 4.5f, (x, z) => InView(x, z, Side.S, OnGiant));
         d.Understorey(40, (x, z) => Trunk(x, z) > 2.6f && EdgeDistance(x, z) > 3f && SceneryDresser.Distance(x, z, hx, hz) > 2.8f);
         d.GroundCover(45, (x, z) => Trunk(x, z) > 2f);
         d.MossyRocks(3, (x, z) => Trunk(x, z) > 4f && EdgeDistance(x, z) > 6f);
@@ -486,12 +487,12 @@ public static partial class ForestScenery
         d.Scatter([("Fern_1", 5), ("Grass_Common_Tall", 3), ("Grass_Wispy_Tall", 3), ("Plant_1", 2), ("Plant_1_Big", 1)], 46, 0.8f, 1.25f,
             (x, z) => !Wet(x, z) && MathF.Min(Bed(x, z), PoolDistance(x, z)) < HalfWidth + 3f, sink: 0.05f);
 
-        // No band tree beside the water or between it and the game camera, which looks north-east.
+        // No band tree beside the water or between it and the layout's side (InView).
         bool Water(float x, float z) => MathF.Min(Bed(x, z), PoolDistance(x, z)) < HalfWidth + 2.5f;
         d.BarrierBand(mix, s_sides, (x, z) => Wet(x, z) || MathF.Min(Bed(x, z), PoolDistance(x, z)) < HalfWidth + 2f,
-            (x, z) => MathF.Min(Bed(x, z), PoolDistance(x, z)) < HalfWidth + 4.5f || InView(x, z, Water));
+            (x, z) => MathF.Min(Bed(x, z), PoolDistance(x, z)) < HalfWidth + 4.5f || InView(x, z, Side.S, Water));
         Inner(d, mix, saplings: ancient is null ? 2 : 0, understorey: 40, cover: 50, rocks: 3, clear: (x, z) => MathF.Min(Bed(x, z), PoolDistance(x, z)) < HalfWidth + 1.4f,
-            treesClear: (x, z) => InView(x, z, Water));
+            treesClear: (x, z) => InView(x, z, Side.S, Water));
         return Border(name, "stream", 1f, terrain, d);
     }
 
@@ -523,15 +524,44 @@ public static partial class ForestScenery
     }
 
     /// <summary>
-    /// Whether something <paramref name="feature" /> holds lies within 12 m north-east of the point: the point stands
-    /// between it and the game camera (pitch 50 degrees, looking north-east at rotation 0), where a tree would hide it.
+    /// Whether something <paramref name="feature" /> holds lies within 12 m of the point along either diagonal away from
+    /// the piece's <paramref name="front" />: the point stands between it and the side the front faces, where a tree
+    /// would hide it. The ring turns a piece so its front faces the layout (a border's front, a cap's capped side), and
+    /// the game camera (pitch 50 degrees, looking north-east) looks at the feature from the layout's side along one of
+    /// those two diagonals, which one depending on the turn: so both are kept clear, and the rule holds at any rotation.
     /// </summary>
-    private static bool InView(float x, float z, Func<float, float, bool> feature)
+    private static bool InView(float x, float z, Side front, Func<float, float, bool> feature)
+    {
+        // A unit step toward the back, and one across it: the two diagonals are their sum and their difference.
+        (float bx, float bz) = front switch
+        {
+            Side.N => (0f, -1f),
+            Side.E => (-1f, 0f),
+            Side.S => (0f, 1f),
+            _ => (1f, 0f),
+        };
+        (float ax, float az) = (bz, -bx);
+        return Along(x, z, bx + ax, bz + az, feature) || Along(x, z, bx - ax, bz - az, feature);
+    }
+
+    /// <summary>
+    /// Whether something <paramref name="feature" /> holds lies within 12 m north-east of the point: the point stands
+    /// between it and the game camera (pitch 50 degrees, looking north-east), where a tree would hide it. Only for a
+    /// piece the ring never turns (the town-ward pieces), whose north-east is the world's.
+    /// </summary>
+    private static bool InCameraView(float x, float z, Func<float, float, bool> feature) => Along(x, z, 1f, 1f, feature);
+
+    /// <summary>
+    /// Whether <paramref name="feature" /> holds at any of the points 1.5 m apart, 12 m along the diagonal
+    /// (<paramref name="dx" />, <paramref name="dz" />, each 1 or -1) from the point, the point included.
+    /// </summary>
+    private static bool Along(float x, float z, float dx, float dz, Func<float, float, bool> feature)
     {
         const float Step = 1.5f / 1.41421356f;
         for (int k = 0; k <= 8; k++)
         {
-            if (feature(x + Step * k, z + Step * k)) return true;
+            float s = Step * k;
+            if (feature(x + s * dx, z + s * dz)) return true;
         }
         return false;
     }

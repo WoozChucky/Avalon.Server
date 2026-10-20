@@ -229,10 +229,12 @@ public static partial class ForestScenery
             }
         }
 
-        // The band all round, its trees off the clearings, the obstacles and the ravine (and its line to the camera).
+        // The band all round, its trees off the clearings, the obstacles and the ravine, and off the ravine's lines
+        // toward its capped side (InView).
         bool Brinkward(float x, float z, float keep) => InRavine(x, z) || RimDistance(x, z) < keep;
+        bool HidesBrink(float x, float z) => brinkSide is not null && InView(x, z, brinkSide.Side, (px, pz) => Brinkward(px, pz, 1f));
         d.BarrierBand(mix, s_sides, (x, z) => OnPath(x, z, 0.4f) || Brinkward(x, z, 1.8f),
-            (x, z) => Clearing(x, z) || OnObstacle(x, z) || Brinkward(x, z, 4.5f) || InView(x, z, (px, pz) => Brinkward(px, pz, 1f)));
+            (x, z) => Clearing(x, z) || OnObstacle(x, z) || Brinkward(x, z, 4.5f) || HidesBrink(x, z));
         if (ravine is not null)
         {
             d.Scatter([("Fern_1", 5), ("Grass_Wispy_Tall", 4), ("Plant_1", 2), ("avalon_hedge_dark", 1), ("Grass_Common_Tall", 2)], 26, 0.8f, 1.2f,
