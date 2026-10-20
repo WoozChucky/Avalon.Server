@@ -12,10 +12,11 @@ namespace Avalon.World.Chat;
 /// <summary>
 /// <c>/spawn &lt;creature&gt; [count] [radius] [idle]</c> (GameMaster): <c>count</c> creatures of one template spread
 /// over a disc of <c>radius</c> metres around the caller, each gone after <see cref="Lifetime" />. <c>idle</c> spawns
-/// them without their AI script, standing where they are placed. A testing tool: the same scene on any map layout.
+/// them without their AI script, standing where they are placed; <c>/despawn</c> removes them. A testing tool: the
+/// same scene on any map layout.
 /// </summary>
-public sealed class SpawnCommand(IWorld world, ICreaturePlacementService placement, ILogger<SpawnCommand> logger)
-    : ICommand
+public sealed class SpawnCommand(IWorld world, ICreaturePlacementService placement, GmSpawns spawns,
+    ILogger<SpawnCommand> logger) : ICommand
 {
     public const int MaxCount = 50;
     public const float MaxRadius = 40f;
@@ -62,12 +63,14 @@ public sealed class SpawnCommand(IWorld world, ICreaturePlacementService placeme
             return;
         }
 
+        spawns.ForgetGone(world.InstanceRegistry);
         int placed = 0;
         foreach (Vector3 point in Points(character.Position, count, radius))
         {
             if (placement.SpawnAt(instance, template.Id, point, withScript: !idle) is not { } spawned)
                 continue;
             placed++;
+            spawns.Add(character.InstanceId, spawned);
             if (instance is IItemUseHost host)
                 host.DespawnAfter(spawned, Lifetime);
         }
