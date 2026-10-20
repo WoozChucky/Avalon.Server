@@ -43,6 +43,19 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
        Client: PlayerMovementSystem (predict + reconcile)
 ```
 
+### Query storage after the bake (#1116)
+
+`MapNavigator.LoadFromNavMesh` constructs a `ReusingNavMeshQuery` before the finished instance is published to the
+tick. Its constructor prepares the path and surface node pools, open heap and surface queue for the whole mesh:
+one state-zero node per polygon, plus each incoming tile-link state used by `FindPath`. It then clears the searches
+while retaining their storage. A first long or unsuccessful route can therefore use the full mesh without growing
+those collections on the tick. There is no search cap or change to polygon discovery order.
+
+The mesh must be finished before constructing the query; adding or removing tiles afterwards is unsupported, as
+it is for `StandingPolygonSearch`. Each query still belongs to one navigator and serves one thread at a time.
+This reserves memory during construction and makes sparse searches clear larger dictionaries; the measured costs
+and first-use allocation checks are in [benchmarks](benchmarks.md#navigation-search-storage--navigationstorageharnesscs-1116).
+
 ## Repos involved
 
 - **Server:** `C:\dev\Avalon.Server` — chunk catalog, ChunkGen, bake, DB, instance factory, wire packet

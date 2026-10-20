@@ -22,6 +22,8 @@ namespace Avalon.World.Maps.Navigation;
 /// <see cref="DtNavMeshQuery" /> cannot silently get the allocating original.
 /// Like the query's own node pools, the queue is per-call state, so one query serves one thread at a
 /// time.
+/// Construction prepares all search storage for the finished mesh (#1116), off the tick. Adding or removing tiles
+/// afterwards is unsupported, as it is for the navigator's standing-polygon search.
 /// </remarks>
 public sealed class ReusingNavMeshQuery : DtNavMeshQuery
 {
@@ -29,6 +31,45 @@ public sealed class ReusingNavMeshQuery : DtNavMeshQuery
 
     public ReusingNavMeshQuery(DtNavMesh nav) : base(nav)
     {
+        PrepareSearchStorage();
+    }
+
+    private void PrepareSearchStorage()
+    {
+        // Every polygon can be a start (state 0). FindPath also keys a neighbour by the incoming link's side >> 1;
+        // a tiled mesh can need several nodes per polygon. Enumerating those exact states covers every possible
+        // search without an arbitrary node limit, including off-mesh links and polygons excluded by today's filter.
+        for (int i = 0; i < m_nav.GetMaxTiles(); i++)
+        {
+            DtMeshTile tile = m_nav.GetTile(i);
+            if (tile?.data?.header is null)
+                continue;
+
+            long baseRef = m_nav.GetPolyRefBase(tile);
+            for (int p = 0; p < tile.data.header.polyCount; p++)
+            {
+                long polyRef = baseRef | (long)p;
+                m_nodePool.GetNode(polyRef);
+                m_tinyNodePool.GetNode(polyRef);
+                for (int linkIndex = tile.data.polys[p].firstLink; linkIndex != DT_NULL_LINK; linkIndex = tile.links[linkIndex].next)
+                {
+                    DtLink link = tile.links[linkIndex];
+                    if (link.refs != 0)
+                        m_nodePool.GetNode(link.refs, link.side == 0xff ? 0 : link.side >> 1);
+                }
+            }
+        }
+
+        // An open-list node appears at most once at a time; the surface queue visits each polygon at most once.
+        // Fill through Detour's existing APIs so its dictionaries, node objects, lists and heap all retain capacity.
+        // Clear resets the allocation cursor too: real queries still assign node indices in discovery order, which
+        // preserves the heap's tie-breaks and therefore the exact routes.
+        for (int i = 1; i <= m_nodePool.GetNodeCount(); i++)
+            m_openList.Push(m_nodePool.GetNodeAtIdx(i));
+        _queue.EnsureCapacity(m_tinyNodePool.GetNodeCount());
+        m_openList.Clear();
+        m_nodePool.Clear();
+        m_tinyNodePool.Clear();
     }
 
     public DtStatus MoveAlongSurfaceReusing(long startRef, RcVec3f startPos, RcVec3f endPos,
