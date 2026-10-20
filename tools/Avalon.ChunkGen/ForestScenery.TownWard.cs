@@ -31,14 +31,16 @@ public static partial class ForestScenery
     /// <summary>The worn ground where the road ends before the wall: its centre and half-sizes.</summary>
     private const float RoadEndZ = -5.6f, RoadEndHalfX = 4.2f, RoadEndHalfZ = 1.9f;
 
-    /// <summary>The fields' tilled ground, whole metres; the west field's strip east of its stubble line is harvested.</summary>
+    /// <summary>
+    /// The fields' ground, whole metres; the west field's strip east of its stubble line is harvested (tilled soil).
+    /// </summary>
     private static readonly Field s_eastField = new(37f, 59f, -29f, -4f, Stubble: null);
 
     private static readonly Field s_westField = new(-29f, -6f, -29f, -4f, Stubble: -13f);
 
     /// <summary>
-    /// A field: its tilled ground (whole metres), standing wheat on it west of <paramref name="Stubble" /> (all of it
-    /// when null), stubble east of it.
+    /// A field: its ground (whole metres), standing wheat on it west of <paramref name="Stubble" /> (all of it when
+    /// null), stubble on tilled soil east of it.
     /// </summary>
     private sealed record Field(float MinX, float MaxX, float MinZ, float MaxZ, float? Stubble)
     {
@@ -52,7 +54,7 @@ public static partial class ForestScenery
     /// <summary>A fence section's length: sections stand this far apart, end to end.</summary>
     private const float FenceSection = 2f;
 
-    /// <summary>The fences stand this far outside their field's tilled ground.</summary>
+    /// <summary>The fences stand this far outside their field's ground.</summary>
     private const float FenceOut = 0.6f;
 
     /// <summary>
@@ -129,7 +131,7 @@ public static partial class ForestScenery
         return noise * flat * Smooth(0.5f, 6f, edge) + worn * Smooth(0f, 1.5f, edge);
     }
 
-    /// <summary>Metres from a world point to the nearer field's tilled ground, 0 on it.</summary>
+    /// <summary>Metres from a world point to the nearer field's ground, 0 on it.</summary>
     private static float FieldDistance(float x, float z) =>
         MathF.Min(BoxDistance(x, z, s_eastField), BoxDistance(x, z, s_westField));
 
@@ -313,10 +315,10 @@ public static partial class ForestScenery
     }
 
     /// <summary>
-    /// A field's edge: wheat standing in rows on grass (stubble on a tilled, harvested strip, with haystacks and bales), a
-    /// wooden fence round all four sides, so a view from any neighbouring cell meets it, the boundary with the road's
-    /// cell, a scarecrow, a lone tree or two in the field; outside the fence a meadow margin of tall grass and flowers,
-    /// the woods' thin fringe beyond, the band round it all.
+    /// A field's edge: wheat standing in rows on the wheat field ground (stubble on a tilled, harvested strip, with
+    /// haystacks and bales), a wooden fence round all four sides, so a view from any neighbouring cell meets it, the
+    /// boundary with the road's cell, a scarecrow, a lone tree or two in the field; outside the fence a meadow margin of
+    /// tall grass and flowers, the woods' thin fringe beyond, the band round it all.
     /// </summary>
     private static void FieldEdge(
         SceneryDresser d, Field field, Action<SceneryDresser> boundary, (float X, float Z)? scarecrow,
