@@ -144,10 +144,11 @@ public static partial class ForestScenery
 
     /// <summary>
     /// The scene's ground materials: forest floor along every cell edge (the outer metre), wheat field (straw-gold, the
-    /// standing crop's colour seen from afar, where its stalks are thinner than a pixel) under the standing wheat, tilled
-    /// soil under the harvested stubble, dirt on the road and where it ends, meadow (rough grass) on the road's verges and
-    /// the fields' headlands; forest floor elsewhere. The meadow's edges run on whole metres, along the ground's 1 m
-    /// triangles: a light ground's saw-tooth edge beside the dark floor reads as drawn.
+    /// standing crop's colour seen from afar, where its stalks are thinner than a pixel) under the standing wheat,
+    /// tilled soil under the harvested stubble, dirt on the road and where it ends, meadow (rough grass) on the road's
+    /// verges and the fields' headlands; forest floor elsewhere. The meadow's edges run on whole metres, along the
+    /// ground's triangles (one SceneryTerrain.Step, 1 m, across): a light ground's saw-tooth edge beside the dark floor
+    /// reads as drawn.
     /// </summary>
     private static string TownWardMaterial(int seed, float x, float z)
     {

@@ -133,10 +133,10 @@ public static class SceneryRules
 
     /// <summary>
     /// Every surface other than water and mist (dirt or forest floor laid over the ground) lies at or above the drawn
-    /// ground (SceneryObjWriter's triangles, one SceneryTerrain.Step across, over the terrain's heights) everywhere on it, within
-    /// <see cref="OverlayTolerance" />: a surface under the ground is hidden where it should show. Both are planar per
-    /// triangle, so their difference is least at a surface triangle's corners, where its edges cross the ground's grid
-    /// lines (x, z and x - z whole) and at the grid's vertices inside it; every one of those is sampled.
+    /// ground (SceneryObjWriter's triangles, one SceneryTerrain.Step across, over the terrain's heights) everywhere on
+    /// it, within <see cref="OverlayTolerance" />: a surface under the ground is hidden where it should show. Both are
+    /// planar per triangle, so their difference is least at a surface triangle's corners, where its edges cross the
+    /// ground's grid lines (x, z and x - z whole) and at the grid's vertices inside it; every one of those is sampled.
     /// </summary>
     private static void CheckOverlays(SceneryPiece piece)
     {

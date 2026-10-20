@@ -6,10 +6,10 @@ namespace Avalon.ChunkGen;
 /// <summary>
 /// The drawn ground of a scenery piece, never walkable: a heightfield (<paramref name="Height" />, y at an (x, z) in
 /// metres) sampled every <see cref="Step" /> over the 30 x 30 m cell, each triangle wearing the
-/// <paramref name="Material" /> at its centroid, plus rough rock faces (<see cref="Walls" />) and water, mist and dirt drawn
-/// over the ground (<see cref="Surfaces" />). A cliff or a ravine is the heightfield's own slope behind the face (a band one Step wide) with a
-/// wall over it: no hole is cut in the heightfield. The functions take piece-local metres, or world metres in a scene
-/// the composer cuts (SceneryComposer).
+/// <paramref name="Material" /> at its centroid, plus rough rock faces (<see cref="Walls" />) and water, mist and dirt
+/// drawn over the ground (<see cref="Surfaces" />). A cliff or a ravine is the heightfield's own slope behind the face
+/// (a band one Step wide) with a wall over it: no hole is cut in the heightfield. The functions take piece-local
+/// metres, or world metres in a scene the composer cuts (SceneryComposer).
 /// </summary>
 public sealed record SceneryTerrain(Func<float, float, float> Height, Func<float, float, string> Material)
 {
@@ -238,7 +238,8 @@ public sealed record ScenerySurface
     /// Refuses (InvalidOperationException naming the strip by its material and first centre point) an edge that folds
     /// back over itself: a step of it that does not run the way its centre step runs, as a bend too tight for the
     /// half-width makes the inner edge do, or two consecutive steps of it that do not run the same way (each dot
-    /// product 0 or less), as any centre-line corner of 90 degrees or more makes both edges do, whatever the half-width.
+    /// product 0 or less), as any centre-line corner of 90 degrees or more makes both edges do, whatever the
+    /// half-width.
     /// </summary>
     private static void Unfolded(
         (float X, float Y, float Z)[] edge, string side, IReadOnlyList<(float X, float Y, float Z)> centre, string material)
@@ -251,9 +252,10 @@ public sealed record ScenerySurface
             if (against || back)
             {
                 throw new InvalidOperationException(
-                    $"the {material} strip from ({ForestText.N(centre[0].X)}, {ForestText.N(centre[0].Z)}) bends too sharply: its "
-                    + $"{side} edge folds back at ({ForestText.N(edge[i - 1].X)}, {ForestText.N(edge[i - 1].Z)}), at a corner "
-                    + "of 90 degrees or more or a bend too tight for its half-width");
+                    $"the {material} strip from ({ForestText.N(centre[0].X)}, {ForestText.N(centre[0].Z)}) "
+                    + $"bends too sharply: its {side} edge folds back at "
+                    + $"({ForestText.N(edge[i - 1].X)}, {ForestText.N(edge[i - 1].Z)}), "
+                    + "at a corner of 90 degrees or more or a bend too tight for its half-width");
             }
         }
     }

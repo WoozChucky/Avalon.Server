@@ -35,7 +35,7 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
                            │
                            ▼
                 Client: SChunkLayoutPacket
-  (instanceId, seed, cellSize, chunks[], entrySpawn, portals[], obstacles[], scenery[])
+ (seed, instanceId, cellSize, chunks[], entrySpawn, portals[], mapId, obstacles[], scenery[])
                            │
                            ▼
        Client: MapCompositionSystem (draws the vendored chunk meshes and decor + markers)
@@ -585,8 +585,9 @@ the walls are 0.5 m thick and 2 m high, the inner ones opened at 12-18.
     dotnet run --project tools/Avalon.ChunkGen -- town [--maps <Maps directory>]
 
 stages, validates (`ChunkCatalogSeeder.ReadCatalogAsync`), bakes the four squares together and writes them, with the
-town's scenery ring (its 21 pieces and `Maps/Scenery/1.json`, see "Scenery ring"), as the forest command does; a square breaking a layout rule is refused before anything is written (`TownRules`: nothing within
-2 m of a wall, the doorway lanes and the arrival-to-portal corridor clear, 2.5 m of headroom under every flat roof,
+town's scenery ring (its 21 pieces and `Maps/Scenery/1.json`, see "Scenery ring"), as the forest command does; a
+square breaking a layout rule is refused before anything is written (`TownRules`: nothing within 2 m of a wall, the
+doorway lanes and the arrival-to-portal corridor clear, 2.5 m of headroom under every flat roof,
 walkable risers of at most 0.3 m). The headroom rule judges a slab whose base stands 2 m up or more (an awning, a
 balcony, the gate's lintel, the well's and a stall's roof slab); a sloped kit roof is a gable block
 resting on its building and is not judged. Its eaves come down to 2.34 m on a one-storey building, so a player can
@@ -668,15 +669,16 @@ degree whatever its kit (see "Scenery ring").
 
 An item drawn from another kit than its file's names its own, `"kit"`, written last on its line and only when it
 differs from the file's, so one file may mix kits: the town ring's files are the village kit's with the nature kit's
-bright trees, grass and flowers in them, and the forest's town-ward fields carry the village kit's wheat, fences and
-walls. A decor item's kit is one of three: `medieval-village-megakit-standard` (the village kit and the custom town
-props), `stylized-nature-megakit-standard` (the nature kit with its colours darkened for the forest, and the custom
-forest models) and `stylized-nature-megakit-bright` (the nature kit's models in their own bright colours, none of the
-custom forest models). `fantasy-props-megakit-standard`, the props kit, is no decor kit: its models are drawn as
-doodads. `DecorItem.Check` refuses an item whose kit (its own, else the file's where the caller passes it: the scenery
-rules, the forest's decor rules and `TownBuilding.Place` do; a town square's own check, which also sees its
-doodad-drawn props-kit models, does not) is not a decor kit or does not hold its model, as the bounds table records
-each model's kit.
+bright trees, grass and flowers in them, and the forest's town-ward fields carry the village kit's wheat, hedges,
+fences, field walls, hay bales, haystacks and a scarecrow. A decor item's kit is one of three:
+`medieval-village-megakit-standard` (the village kit and the custom town props), `stylized-nature-megakit-standard`
+(the nature kit with its colours darkened for the forest, and the custom forest models) and
+`stylized-nature-megakit-bright` (the nature kit's models in their own bright colours, none of the custom forest
+models). `fantasy-props-megakit-standard`, the props kit, is no decor kit: its models are drawn as doodads.
+`DecorItem.Check` refuses an item whose kit (its own, else the file's where the caller passes it: the scenery rules,
+the forest's decor rules and `TownBuilding.Place` do; a town square's own check, which also sees its doodad-drawn
+props-kit models, does not) is not a decor kit or does not hold its model, as the bounds table records each model's
+kit.
 
 ChunkGen writes one for every generated square (`"items": []` when it has none) and every generated forest piece,
 staged and checked with the chunks and written only when they are, items sorted by model, then x, z, y, yaw and
@@ -755,8 +757,9 @@ models', the `avalon_*` rocks, logs, ruins and dirt paths) from its vertices thr
 rewrites the table, each model under its directory's kit (`"kit"`: the village kit for `--kit` and `--props`, the
 props kit for `--props-kit`, the nature kit for `--nature-kit` and `--forest-props`). The custom directories also hold
 the scenery ring's models: the town ring's fields, yards and landmarks in `--props`, the forest ring's ancient trees,
-cliff and ravine sections, boulders, brambles and fallen giants in `--forest-props`. The vertices are read from each POSITION accessor's buffer, not from the accessor's min and max,
-which some kit exports leave stale: the nature kit's `Fern_1` and `Plant_1_Big` state boxes up to three times their
+cliff and ravine sections, boulders, brambles and fallen giants in `--forest-props`. The vertices are read from each
+POSITION accessor's buffer, not from the accessor's min and max, which some kit exports leave stale: the nature kit's
+`Fern_1` and `Plant_1_Big` state boxes up to three times their
 meshes. With `--forest-props` it also copies that directory's `footprints.json` (the solid parts each custom
 forest model is measured with in Blender) into `tools/Avalon.ChunkGen/Kit/forest-footprints.json`, which the forest
 dresser and its rules read. A model in two of the directories, an empty directory, a file it cannot measure, or a
@@ -841,13 +844,13 @@ is shaped to seat it. Every forest piece is dressed from a random stream of its 
 from one stream seeded by its prefix, so a rerun writes the same files on any machine.
 
 The forest's pieces are drawn from the forest kit (the darkened nature kit and the custom `avalon_*` forest models).
-Each meets every edge at y 0 on forest floor, carries a barrier along all four edges and keeps its feature inside the
-edge band, so any piece sits beside any other, or beside any chunk, at any rotation:
+Each meets every edge at y 0 on forest floor, carries a barrier along all four edges and keeps its feature inward of
+the edge band, so any piece sits beside any other, or beside any chunk, at any rotation:
 
 | Pieces | Kind, family, weight | What they show |
 |---|---|---|
 | `forest_ring_woods_01` to `_04` | border, `woods`, 3, filler | two or three ancient trees (`_04`: one, off the centre beside a glade, kit trees round it), a darker understorey, mossy stones, fallen wood, gentle relief |
-| `forest_ring_cliffs_01`, `_02` | border, `cliffs`, 1 | a plateau 6-8 m up inside the band, its rough rock face dressed with layered face sections, ledges, roots and creepers over the lip, scree at the foot, trees on top (`_02`: a crag whose top falls back to the ground as an earth bank) |
+| `forest_ring_cliffs_01`, `_02` | border, `cliffs`, 1 | a plateau 6-8 m up inward of the edge band, its rough rock face dressed with layered face sections, ledges, roots and creepers over the lip, scree at the foot, trees on top (`_02`: a crag whose top falls back to the ground as an earth bank) |
 | `forest_ring_ravine_01`, `_02` | border, `ravine`, 1 | an irregular cut down to -15 m, below the forest's mist floor, rock walls, an overhanging lip all round its brink, dead trees rising out of three mist layers (`_01` a broad pit, `_02` a ragged slot running corner to corner) |
 | `forest_ring_giant_01` | border, `giant`, 0.75 | a giant fallen tree across the cell, its root plate on edge at its root end over the torn earth it left |
 | `forest_ring_stream_01`, `_02` | border, `stream`, 1 | dark water rising among mossy stones and running down its bed into a still pool (`_01`) or away among stones (`_02`), stones and pebbles along its banks |
@@ -863,10 +866,11 @@ lays them, on ground kept at y 0) and ends under the side's obstacle, which cove
 any slot (left, centre, right) is closed; a brink's path breaks off at the lip, 2 m in. The town-ward pieces are one
 scene in world metres over the 8 spots, cut into a piece per spot, the woods thinning toward the south: spot (0, -1),
 behind the portal, carries the road from the town (x 13-17) to a low field wall with brambles along the cell's north
-band, the visible barrier behind the portal; spots (-1, -1) and (1, -1) the fields' edges, fenced round, standing wheat
-on `wheat_field` ground and, in the west field, stubble on `tilled_soil` (the wheat, fences and walls are town-kit
-items); the other spots the woods' fringe, with deadfall and thorn toward the entry's corners. The road stays inside
-(0, -1), so every town-ward piece still meets its edges at y 0 on forest floor and any of them may be left out.
+band, the visible barrier behind the portal; spots (-1, -1) and (1, -1) the fields' edges, fenced round, standing
+wheat on `wheat_field` ground and, in the west field, stubble on `tilled_soil` (the wheat, hedges, fences, field
+walls, hay bales, haystacks and the scarecrow are town-kit items); the other spots the woods' fringe, with deadfall
+and thorn toward the entry's corners. The road stays inside (0, -1), so every town-ward piece still meets its edges at
+y 0 on forest floor and any of them may be left out.
 
 Glimmerdell's outskirts are one scene in world metres over x and z -30 to 120, cut by `SceneryComposer` into the 21
 pieces `town_ring_<gx>_<gz>` (a negative coordinate written `m<abs>`: `town_ring_m1_3`), all at rotation 0. The ground
@@ -891,13 +895,13 @@ The ground's materials, which the client's palette must hold, are `SceneryTerrai
 
 ChunkGen writes them all (`forest` the forest's, `town` the town's, staged and checked with the chunks; see below):
 
-- **`Maps/Scenery/<name>.obj`**, a piece's terrain, piece-local (x and z 0-30, y up), in the subset the client's vendor
-  script reads: `o Ground` (every grid vertex once, every `SceneryTerrain.Step`, 1 m, apart: 31 x 31 vertices),
+- **`Maps/Scenery/<name>.obj`**, a piece's terrain, piece-local (x and z 0-30, y up), in the subset the client's
+  vendor script reads: `o Ground` (every grid vertex once, every `SceneryTerrain.Step`, 1 m, apart: 31 x 31 vertices),
   one `usemtl` group per material that has faces, in palette order, each quad split along its (x0, z0)-(x1, z1)
   diagonal and each triangle wearing the material at its centroid; then each rough rock face as `o Wall_<n>` and each
-  water, mist or dirt surface as `o Surface_<n>`, each under its material. Ground and surface triangles are wound to
-  face up. No material group is ever empty (the client's script refuses one). Numbers are invariant with at most 3
-  decimals and never `-0`, line ends LF, so a rerun is byte-identical. Nothing bakes it.
+  water, mist, dirt or forest-floor surface as `o Surface_<n>`, each under its material. Ground and surface triangles
+  are wound to face up. No material group is ever empty (the client's script refuses one). Numbers are invariant with
+  at most 3 decimals and never `-0`, line ends LF, so a rerun is byte-identical. Nothing bakes it.
 - **`Maps/Decor/<name>.json`**, a piece's decor, piece-local, in the decor format ("Decor and building recipes"), its
   items at any whole-degree yaw whatever the file's kit, and an item that is not drawn from the file's kit naming its
   own (`"kit"`). A scenery piece's name may never be a chunk's, since both write `Maps/Decor/<name>.json`.
@@ -991,11 +995,11 @@ does).
 A client draws each placement as it draws a chunk: the piece's `Scenery/<name>.obj` drawn by material and its
 `Decor/<name>.json` drawn from the kits, both placed in the cell `(GridX * 30, 0, GridZ * 30)` and turned about the
 cell's centre with `chunkLocalToWorld`. It never bakes them: its navmesh, like the server's, is the chunks and the
-obstacle boxes alone. Today's client (`C:\dev\vulkan-multithreaded`, `main` at `023ed610`) does not know field 9 yet,
-skips it as an unknown field and draws no ring; the client issue covers decoding it, vendoring `Maps/Scenery/*.obj`
-and the new decor files, the new materials (`meadow`, `dirt_road`, `tilled_soil`, `wheat_field`, `cliff_rock`,
-`mist`), an item's own kit and the bright nature kit, the new town-kit and forest-kit models, flowing water and
-drifting mist.
+obstacle boxes alone. Today's client (`C:\dev\vulkan-multithreaded`, `origin/main` at `631ef5e5`) does not know field
+9 yet, skips it as an unknown field and draws no ring; the client issue covers decoding it, vendoring
+`Maps/Scenery/*.obj` (its vendor script already copies every `Maps/Decor/*.json`, the scenery pieces' decor among
+them), the new materials (`meadow`, `dirt_road`, `tilled_soil`, `wheat_field`, `cliff_rock`, `mist`), an item's own
+kit and the bright nature kit, the new town-kit and forest-kit models, flowing water and drifting mist.
 
 ## Chunk groups (set pieces)
 
@@ -1177,7 +1181,7 @@ so the client's reset input sequence is accepted.
 5. **Server `CharacterSelectHandler` (after instance returned):**
    - For Town: overrides `CharacterInfo.X/Y/Z` with `instance.Layout.EntrySpawnWorldPos` (persisted DB coords are stale for hubs).
    - Sends `SCharacterSelectedPacket` with the `CharacterInfo`.
-   - Sends `SChunkLayoutPacket` with `(seed, instanceId, cellSize, chunks[], entrySpawn, portals[], obstacles[], scenery[])`.
+   - Sends `SChunkLayoutPacket` with `(seed, instanceId, cellSize, chunks[], entrySpawn, portals[], mapId, obstacles[], scenery[])`.
 6. **Client `MapCompositionSystem`:** spawns one entity per primitive of each chunk's vendored `chunks/<name>.gltf` (and one batch of its decor), positioned with `chunkLocalToWorld` and turned `90° × rotation` about Y, plus markers for the entry and the portals.
 7. **Client `NavmeshSystem`:** the new instance id starts a bake on a worker thread: `ChunkGeometry` stitches the vendored `chunks/<name>.obj` files with the same rotation, and `navmesh::NavMesh::Bake` bakes them with the mirrored build settings. `LoginFlowSystem` holds back the load report while it bakes.
 8. **Client `PlayerMovementSystem`:** samples input, sends the input packet, predicts each step with `WalkStep` (clamp via `RaycastWalkable`, ground via `SampleGroundHeight`).
