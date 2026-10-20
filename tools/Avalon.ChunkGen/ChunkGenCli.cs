@@ -5,13 +5,14 @@ using Avalon.World.ChunkLayouts;
 namespace Avalon.ChunkGen;
 
 /// <summary>
-/// The tool's commands (Program.cs runs them with <see cref="ForestPieces" />, <see cref="TownPieces" /> and
-/// <see cref="ForestScenery" />): "forest" writes the forest pieces and the forest's scenery, "town" Glimmerdell's four
-/// squares. Every piece is first written into a temporary copy of Maps/, read back through the World server's own
-/// catalog reader (ChunkCatalogSeeder.ReadCatalogAsync) and baked with its own ChunkLayoutNavmeshBuilder, each set piece
-/// with its members at their cells and the town with its four squares together; the forest's scenery pieces are checked
-/// (ChunkFiles.ForestScenery), their names against the staged catalog's chunks (SceneryRules.CheckNames), and the ring
-/// file read back through the World server's scenery reader (SceneryCatalog.Load). Only when all of that passes are the
+/// The tool's commands (Program.cs runs them with <see cref="ForestPieces" />, <see cref="TownPieces" />,
+/// <see cref="ForestScenery" /> and <see cref="TownScenery" />): "forest" writes the forest pieces and the forest's
+/// scenery, "town" Glimmerdell's four squares and the town's scenery ring. Every piece is first written into a temporary
+/// copy of Maps/, read back through the World server's own catalog reader (ChunkCatalogSeeder.ReadCatalogAsync) and
+/// baked with its own ChunkLayoutNavmeshBuilder, each set piece with its members at their cells and the town with its
+/// four squares together; the map's scenery pieces are checked (ChunkFiles.ForestScenery or ChunkFiles.TownScenery),
+/// their names against the staged catalog's chunks (SceneryRules.CheckNames), and the ring file read back through the
+/// World server's scenery reader (SceneryCatalog.Load). Only when all of that passes are the
 /// files copied into Maps/Chunks, each town square's and forest piece's decor file into Maps/Decor (which the seeder
 /// never reads), and each scenery piece's terrain and the ring file into Maps/Scenery, its decor into Maps/Decor. Any
 /// failure before that exits 1 and writes nothing to Maps/.
@@ -36,7 +37,8 @@ public static class ChunkGenCli
 
     public static async Task<int> RunAsync(
         string[] args, Func<IReadOnlyList<ChunkPiece>> singles, Func<IReadOnlyList<ChunkGroupPiece>> groups,
-        Func<IReadOnlyList<TownSquare>> town, Func<IReadOnlyList<SceneryPiece>> forestScenery, TextWriter output, TextWriter error)
+        Func<IReadOnlyList<TownSquare>> town, Func<IReadOnlyList<SceneryPiece>> forestScenery, Func<IReadOnlyList<SceneryPiece>> townScenery,
+        TextWriter output, TextWriter error)
     {
         if (!TryParse(args, out string? command, out IReadOnlyDictionary<string, string> options))
         {
@@ -75,6 +77,7 @@ public static class ChunkGenCli
             {
                 IReadOnlyList<TownSquare> squares = town();
                 files = ChunkFiles.For(squares);
+                scenery = ChunkFiles.TownScenery(townScenery());
                 bakes = [squares.Select(s => (s.Name, s.GridX, s.GridZ)).ToList()];
             }
 

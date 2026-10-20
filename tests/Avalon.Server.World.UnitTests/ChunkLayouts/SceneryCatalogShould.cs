@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Server.World.UnitTests.Procedural;
 using Avalon.World.ChunkLayouts;
 
@@ -53,5 +54,35 @@ public sealed class SceneryCatalogShould : IDisposable
 
         Assert.Contains(path, refusal.Message, StringComparison.Ordinal);
         Assert.Contains(words, refusal.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Every shipped map ships its ring, of the kind its layout source reads: a fixed map (Maps/TownLayouts) its
+    /// placements, a procedural map (Maps/ProceduralMaps) its pool. A map whose ring file is missing, or of the other
+    /// kind, would load cleanly and be drawn without its edge.
+    /// </summary>
+    [Fact]
+    public void Hold_a_ring_for_every_map_with_a_layout()
+    {
+        string maps = Path.Combine(AppContext.BaseDirectory, "Maps");
+        var catalog = SceneryCatalog.Load(maps);
+
+        foreach (ushort id in MapIds(maps, "TownLayouts"))
+        {
+            Assert.NotEmpty(catalog.FixedFor(id));
+            Assert.Null(catalog.PoolFor(id));
+        }
+        foreach (ushort id in MapIds(maps, "ProceduralMaps"))
+        {
+            Assert.NotNull(catalog.PoolFor(id));
+            Assert.Empty(catalog.FixedFor(id));
+        }
+    }
+
+    private static IEnumerable<ushort> MapIds(string maps, string layouts)
+    {
+        string[] files = Directory.GetFiles(Path.Combine(maps, layouts), "*.json");
+        Assert.NotEmpty(files);
+        return files.Select(f => ushort.Parse(Path.GetFileNameWithoutExtension(f), CultureInfo.InvariantCulture));
     }
 }

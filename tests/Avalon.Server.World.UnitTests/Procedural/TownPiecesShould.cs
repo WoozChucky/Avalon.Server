@@ -27,6 +27,14 @@ public class TownPiecesShould
             Assert.Equal(json, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".json"))));
             Assert.Equal(decor, Lf(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json"))));
         }
+
+        SceneryFiles scenery = ChunkFiles.TownScenery(TownScenery.Pieces());
+        foreach ((string name, string obj, string decor) in scenery.Pieces)
+        {
+            Assert.Equal(obj, Lf(File.ReadAllText(Path.Combine(Maps, "Scenery", name + ".obj"))));
+            Assert.Equal(decor, Lf(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json"))));
+        }
+        Assert.Equal(scenery.Ring, Lf(File.ReadAllText(Path.Combine(Maps, "Scenery", $"{TownScenery.MapId}.json"))));
     }
 
     [Fact]
