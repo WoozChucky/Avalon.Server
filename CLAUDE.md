@@ -118,7 +118,7 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 
 ### World
 - [World simulation](docs/world-simulation.md): `WorldServer` ticks at about 60 Hz in two passes (session packets, then each instance's map packets); instances are built off the tick and published on it; `InstanceTicker` contains each instance's failures. Also creature placement, town NPCs and dialogue, AI scripts and locomotion contracts, abilities (aim, shapes, costs, telegraphs, cast ids), the combat formula, haste, regeneration, ground loot, interest-based replication and `/reload`.
-- [Instanced maps](docs/instanced-maps.md), [map generation](docs/map-generation.md) (chunk layouts, procedural forest, ChunkGen), [creature system](docs/creature-system.md), [character login flow](docs/character-login-flow.md) (client view), [readiness barrier](docs/character-readiness-barrier.md).
+- [Instanced maps](docs/instanced-maps.md), [map generation](docs/map-generation.md) (chunk layouts, procedural forest, ChunkGen, the never-walkable scenery ring round every map in `Maps/Scenery`), [creature system](docs/creature-system.md), [character login flow](docs/character-login-flow.md) (client view), [readiness barrier](docs/character-readiness-barrier.md).
 
 ### Gameplay
 - [Parties](docs/parties.md) / [protocol](docs/party-protocol.md): in-memory `PartyService` (tick thread only), party instances, leave countdown, health scaling, shared kills, loot and experience.

@@ -9,7 +9,7 @@ The world is built from **chunks** — modular 30×30m geometry blocks (cell siz
 - **Town maps** (MapType.Town) — chunk placements are PREDEFINED in the database (`MapChunkPlacement` table). Multi-player shared instances. Same layout every time.
 - **Procedural maps** (MapType.Normal) — chunk placements are GENERATED at runtime by `ProceduralChunkLayoutSource` using a chunk pool + RNG seed + per-map config (`ProceduralMapConfig`). Per-player private instances.
 
-Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell size, optional config + seed). One factory (`ChunkLayoutInstanceFactory`) builds a `MapInstance` from the layout, bakes a navmesh from the stitched chunk geometry via DotRecast, and ships the layout to the client over `SChunkLayoutPacket`. The client bakes its own navmesh from the chunk `.obj` files plus the layout's obstacle boxes (its solid doodads', `SChunkLayoutPacket.Obstacles`) for prediction parity; today's client bakes the chunks alone (see [doodads](doodads.md#what-todays-client-does)).
+Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell size, optional config + seed, and the scenery ring drawn round it). One factory (`ChunkLayoutInstanceFactory`) builds a `MapInstance` from the layout, bakes a navmesh from the stitched chunk geometry via DotRecast, and ships the layout to the client over `SChunkLayoutPacket`: its chunks, entry spawn, portals, the solid doodads' obstacle boxes and the scenery ring's placements. The client bakes its own navmesh from the chunk `.obj` files plus the layout's obstacle boxes (`SChunkLayoutPacket.Obstacles`, which it decodes and appends after its chunks) for prediction parity (see [doodads](doodads.md#what-todays-client-does)); the scenery ring is drawn, never baked, on either side (see "Scenery ring").
 
 ```
                   MapTemplate (MapType: Town | Normal)
@@ -24,7 +24,7 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
             └──────────────┬─────────────┘
                            ▼
                        ChunkLayout
-                  (Chunks[], EntrySpawn, Portals[], CellSize)
+        (Chunks[], EntrySpawn, Portals[], CellSize, Scenery[])
                            │
                            ▼
               ChunkLayoutNavmeshBuilder.BakeAsync
@@ -35,11 +35,11 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
                            │
                            ▼
                 Client: SChunkLayoutPacket
-                (instanceId, seed, cellSize, chunks[], entrySpawn)
+  (instanceId, seed, cellSize, chunks[], entrySpawn, portals[], obstacles[], scenery[])
                            │
                            ▼
-       Client: MapCompositionSystem (draws the vendored chunk meshes + markers)
-       Client: NavmeshSystem → navmesh::NavMesh::Bake (mirror bake from the vendored .obj)
+       Client: MapCompositionSystem (draws the vendored chunk meshes and decor + markers)
+       Client: NavmeshSystem → navmesh::NavMesh::Bake (mirror bake from the vendored .obj + obstacle boxes)
        Client: PlayerMovementSystem (predict + reconcile)
 ```
 
@@ -59,18 +59,21 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `src/Server/Avalon.World.Generation/ChunkRotation.cs` | `ChunkRotation.LocalToWorld`, the one rotation case table (bake, slot placement, client mirror) |
 | `src/Server/Avalon.World/Maps/Navigation/MapNavigator.cs` | DotRecast queries (`RaycastWalkable`, `SampleGroundHeight`) |
 | `src/Server/Avalon.World/Maps/Navigation/NavmeshBuildSettings.cs` | Single source of truth for DotRecast bake constants |
-| `src/Server/Avalon.World/Respawn/MapArrival.cs` | Sends `SChunkLayoutPacket` behind every arrival: a character select (`CharacterSelectHandler`), a portal entry (`EnterMapHandler`), a return to town and an item's teleport. Its chunk and portal entries are built with the instance, off the tick (`MapLayoutEntries`) |
-| `src/Shared/Avalon.Network.Packets/World/SChunkLayoutPacket.cs` | Wire format |
+| `src/Server/Avalon.World/Respawn/MapArrival.cs` | Sends `SChunkLayoutPacket` behind every arrival: a character select (`CharacterSelectHandler`), a portal entry (`EnterMapHandler`), a return to town and an item's teleport. Its chunk, portal, obstacle and scenery entries are built with the instance, off the tick (`MapLayoutEntries`) |
+| `src/Shared/Avalon.Network.Packets/World/SChunkLayoutPacket.cs` | Wire format (field 9, `SceneryPlacementDto`, the scenery ring) |
+| `src/Server/Avalon.World.Generation/SceneryRing.cs`, `SceneryPool.cs`, `SceneryFile.cs`, `SceneryPlacement.cs` | The scenery ring: its cells and the forest's ring built per layout (`SceneryRing`), the validated pool, the ring file reader, a placement (see "Scenery ring") |
+| `src/Server/Avalon.World/ChunkLayouts/SceneryCatalog.cs` | Reads every map's ring file once at start-up; the layout sources read it |
 | `src/Shared/Avalon.Domain/World/ChunkTemplate.cs` | DB entity for chunk metadata |
 | `src/Shared/Avalon.Domain/World/MapChunkPlacement.cs` | DB entity joining MapTemplate → predefined chunk placements |
 | `src/Shared/Avalon.Domain/World/ProceduralMapConfig.cs` | DB entity for procedural map RNG config |
 | `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` + `.json` | Chunk geometry (navmesh bake) and metadata (see "The chunk format"). The forest pieces and Glimmerdell's four squares are written by `tools/Avalon.ChunkGen`; the rest (`forest_boss_01`, `town_corner_01`, `town_house_01`, `town_path_01`, `town_square_01`) are committed as they are and no tool writes them |
-| `src/Server/Avalon.Server.World/Maps/Decor/<chunkName>.json` | What the client draws on a generated town square and on every generated forest piece from the art kits (see "Decor and building recipes" and "Dressing the forest"). Written by `tools/Avalon.ChunkGen` beside the chunks, outside `Maps/Chunks/` because the seeder reads every `*.json` there as chunk metadata; the server never reads it |
+| `src/Server/Avalon.Server.World/Maps/Decor/<chunkName>.json` | What the client draws on a generated town square, on every generated forest piece and on every scenery piece from the art kits (see "Decor and building recipes", "Dressing the forest" and "Scenery ring"). Written by `tools/Avalon.ChunkGen` beside the chunks, outside `Maps/Chunks/` because the seeder reads every `*.json` there as chunk metadata; the server never reads it |
+| `src/Server/Avalon.Server.World/Maps/Scenery/<name>.obj` + `<mapTemplateId>.json` | Each scenery piece's drawn terrain, and each map's ring file (the town's placements, the forest's pool), written by `tools/Avalon.ChunkGen` (see "Scenery ring"). The World server reads the ring files at start-up; nothing bakes the terrain, and the seeder never reads the directory |
 | `src/Server/Avalon.Server.World/Maps/TownLayouts/<MapTemplateId>.json` | Town layouts: which chunk sits on which grid cell, edited directly (see "Creating a town"). ChunkGen writes the squares' geometry, not this file |
 | `src/Server/Avalon.Server.World/Maps/chunk-pools.json` | Procedural pool membership (`{ "<pool>": ["<chunk>", …] }`, a member also `{ "chunk", "weight", "max" }`: see "Define a ChunkPool"), edited by hand |
 | `src/Server/Avalon.Server.World/Maps/chunk-groups.json` | Set pieces per pool (see "Chunk groups (set pieces)"), edited by hand |
 | `src/Server/Avalon.Server.World/Maps/spawn-tables.json` + `ProceduralMaps/<mapId>.json` | Spawn tables and procedural map configs with their depth bands (see "Spawn tables and procedural map configs"), edited by hand |
-| `tools/Avalon.ChunkGen/` | Generates the forest pieces' and the town squares' `.obj` + `.json`, and the decor files of the squares and of every forest piece (see "Generated forest chunks" and "Generated town squares") |
+| `tools/Avalon.ChunkGen/` | Generates the forest pieces' and the town squares' `.obj` + `.json`, the decor files of the squares and of every forest piece, and both maps' scenery rings (`Scenery/`, `ForestScenery*.cs`, `TownScenery*.cs`; see "Generated forest chunks", "Generated town squares" and "Scenery ring") |
 | `tools/Avalon.ChunkGen/Recipes/<id>.json`, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, `tools/Avalon.ChunkGen/Kit/forest-footprints.json` | Building recipes (kit pieces plus collision proxies), the art kits' bounds table, and the custom forest models' solid footprints (see "Decor and building recipes" and "Dressing the forest") |
 | `tools/Avalon.Exporter/` | Exports the known-answer vectors the client vendors, among them `schema/vectors/navmesh-v1.txt` (`-- navmesh`) and `schema/vectors/rotation-v1.txt` (`-- rotation`) |
 | `src/Server/Avalon.Database.World/Seeding/ChunkCatalogSeeder.cs` | Seeds chunk templates, town layouts, pools, chunk groups, spawn tables and procedural map configs from `Maps/`; run by the World server on start |
@@ -79,11 +82,11 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 
 | Path | Purpose |
 |---|---|
-| `scripts/vendor-chunks.ps1` | Copies every `Maps/Chunks/*.obj` into `devproject/chunks/`, converts each to a `.gltf` beside it (one primitive per `usemtl` group, coloured from the script's palette: `stone`, `wood`, `roof`, `cloth`, `cloth_2`, `plaster`, `metal`, `water`), and writes `CHUNK-MANIFEST` (the server revision it copied from, plus a SHA-256 per file). The chunk `.json` files are not vendored. An unknown material name or an OBJ directive other than `o`, `v`, `f`, `usemtl` fails the script. The `collision` material (draw nothing) and the decor files (`Maps/Decor/*.json`) arrive with the client issue for the kit-built town |
+| `scripts/vendor-chunks.ps1` | Copies every `Maps/Chunks/*.obj` into `devproject/data/world/chunks/`, converts each to a `.gltf` beside it (one primitive per `usemtl` group, coloured from the script's palette: `stone`, `wood`, `roof`, `cloth`, `cloth_2`, `plaster`, `metal`, `water`, `forest_floor`; a `collision` group is not drawn), copies the decor files (`Maps/Decor/*.json`) byte for byte into `devproject/data/world/decor/`, and writes `CHUNK-MANIFEST` (the server revision it copied from, plus a SHA-256 per file). The chunk `.json` files are not vendored. An unknown material name or an OBJ directive other than `o`, `v`, `f`, `usemtl` fails the script. `Maps/Scenery/` and the scenery materials are not vendored yet (see "Scenery ring") |
 | `scripts/regen-proto.ps1` | Vendors the server's schema set; among it `schema/vectors/navmesh-v1.txt` → `gamenet/schema/navmesh/navmesh-v1.txt` and `rotation-v1.txt` → `gamenet/schema/chunks/rotation-v1.txt` |
-| `game/src/MapCompositionSystem.cpp` | Draws the server's layout from `SChunkLayoutPacket`: one entity per primitive of each chunk's `.gltf`, placed with the mirrored rotation, plus markers for the entry and the portals |
+| `game/src/MapCompositionSystem.cpp` | Draws the server's layout from `SChunkLayoutPacket`: one entity per primitive of each chunk's `.gltf`, and one static batch of its decor file's items, placed with the mirrored rotation, plus markers for the entry and the portals |
 | `common/include/common/scene/ChunkRotation.h` | `chunkLocalToWorld`, the client's mirror of `ChunkRotation.LocalToWorld` |
-| `game/src/ChunkGeometry.cpp` | Stitches the vendored `.obj` files (not the `.gltf`) into one triangle soup for the bake |
+| `game/src/ChunkGeometry.cpp` | Stitches the vendored `.obj` files (not the `.gltf`) into one triangle soup for the bake, then appends the layout's obstacle boxes as the server does |
 | `game/src/NavmeshSystem.cpp` + `NavmeshWorker.cpp` | Bakes the map on a worker thread whenever a new instance id arrives; `LoginFlowSystem` holds back the load report while it bakes |
 | `navmesh/` | Recast/Detour bake + `RaycastWalkable` / `SampleGroundHeight`; `navmesh/src/BuildSettings.h` mirrors `NavmeshBuildSettings.cs` |
 | `game/src/PlayerMovementSystem.cpp` | Movement prediction + reconciliation against server acks |
@@ -171,7 +174,7 @@ and `usemtl` and refuses anything else.
 5. Commit `src/Server/Avalon.Server.World/Maps/` (and `schema/vectors/` if re-exported). These files are the catalog
    every environment is seeded from.
 6. In the client, rerun `scripts/vendor-chunks.ps1` (and `scripts/regen-proto.ps1` for the vectors) and commit
-   `devproject/chunks/`.
+   `devproject/data/world/`.
 
 ## Creating a town
 
@@ -258,7 +261,7 @@ Player should spawn at the entry chunk, walk through unblocked exits between chu
 
 ### 7. Commit
 
-Avalon.Server: `Maps/` (and `schema/vectors/` if re-exported). Client: `devproject/chunks/` (and `gamenet/schema/` if re-vendored).
+Avalon.Server: `Maps/` (and `schema/vectors/` if re-exported). Client: `devproject/data/world/` (and `gamenet/schema/` if re-vendored).
 
 ---
 
@@ -341,9 +344,12 @@ the client draws is the piece's decor file (see "Dressing the forest" below); th
 writes every piece's `.obj` and `.json` into `Maps/Chunks/` and its decor file into `Maps/Decor/` (`Maps/` is
 `src/Server/Avalon.Server.World/Maps/` unless `--maps` names another). Before writing, it reads every piece back
 through the World server's own catalog reader (`ChunkCatalogSeeder.ReadCatalogAsync`) and bakes each piece, and each
-set piece's four members together, with `ChunkLayoutNavmeshBuilder` in a temporary copy of `Maps/`; if anything fails
-it exits 1 and nothing is written. After writing, it lists every `forest_*` file in `Maps/Chunks/` and `Maps/Decor/` it
-did not generate (`forest_boss_01`, or one left over from a renamed piece) and deletes none of
+set piece's four members together, with `ChunkLayoutNavmeshBuilder` in a temporary copy of `Maps/`, and stages the
+forest's scenery there too (each piece's terrain in `Maps/Scenery/`, its decor in `Maps/Decor/`, the ring file
+`Maps/Scenery/2.json`) once the scenery rules pass, its names checked against the staged chunks' and the ring file read
+back through the World server's reader (`SceneryCatalog.Load`, see "Scenery ring"); if anything fails it exits 1 and
+nothing is written. After writing, it lists every `forest_*` file in `Maps/Chunks/`, `Maps/Decor/` and `Maps/Scenery/`
+it did not generate (`forest_boss_01`, or one left over from a renamed piece) and deletes none of
 them. Edit `tools/Avalon.ChunkGen/ForestPieces.cs` and rerun it; `ForestPiecesShould` fails when the committed files
 (decor included) differ from a fresh run, when a slot is within 2.5 m
 of a blocker or 2 m of the chunk's edge, when a blocker stands in an exit's throat, or when a slot or exit cannot be
@@ -549,7 +555,8 @@ navmesh, and the client is sent its box to bake the same wall (see [doodads](doo
   nothing stands there, and the fallback never draws from it, since it draws only polygons connected to the entry's.
 - **The wire.** `SChunkLayoutPacket.Obstacles` (field 8, `DoodadObstacleDto` with fields 1-6: `MinX`, `MaxX`, `MinZ`,
   `MaxZ`, `BaseY`, `TopY`) carries the boxes in the same order; `MapLayoutEntries` builds the list once, with the
-  instance. A client that does not know the field skips it, and bakes no box.
+  instance. The scenery ring follows it in field 9 (see "Scenery ring"). Today's client decodes the boxes
+  (`gamenet/src/session/SessionMap.cpp`) and bakes them after its chunks (`game/src/ChunkGeometry.cpp`).
 - **The client mirror.** A client bakes the boxes after its chunks, with exactly these vertices and faces, or its mesh
   and the server's differ around the doodad. `schema/vectors/navmesh-v1.txt` pins it: its `obstacle <minX> <maxX> <minZ>
   <maxZ> <baseY> <topY>` lines (after a layout's `chunk` lines) are baked in order, and the `forest-doodad` layout puts
@@ -577,8 +584,8 @@ the walls are 0.5 m thick and 2 m high, the inner ones opened at 12-18.
 
     dotnet run --project tools/Avalon.ChunkGen -- town [--maps <Maps directory>]
 
-stages, validates (`ChunkCatalogSeeder.ReadCatalogAsync`), bakes the four squares together and writes them, as the
-forest command does; a square breaking a layout rule is refused before anything is written (`TownRules`: nothing within
+stages, validates (`ChunkCatalogSeeder.ReadCatalogAsync`), bakes the four squares together and writes them, with the
+town's scenery ring (its 21 pieces and `Maps/Scenery/1.json`, see "Scenery ring"), as the forest command does; a square breaking a layout rule is refused before anything is written (`TownRules`: nothing within
 2 m of a wall, the doorway lanes and the arrival-to-portal corridor clear, 2.5 m of headroom under every flat roof,
 walkable risers of at most 0.3 m). The headroom rule judges a slab whose base stands 2 m up or more (an awning, a
 balcony, the gate's lintel, the well's and a stall's roof slab); a sloped kit roof is a gable block
@@ -656,7 +663,20 @@ would write as 0 is refused), written only when it is not 1, so a file whose ite
 The yaw rule follows the file's `kit`: a town square's (`medieval-village-megakit-standard`) keeps quarter turns, since
 its pieces meet on a grid; a forest piece's (`stylized-nature-megakit-standard`) may carry any whole degree, 0-359,
 so trees, rocks and ground cover do not all face four ways. `DecorItem.Check` takes the rule from its caller
-(`DecorYaw.QuarterTurns` or `DecorYaw.AnyDegree`) and refuses anything else.
+(`DecorYaw.QuarterTurns` or `DecorYaw.AnyDegree`) and refuses anything else; a scenery piece's file allows any whole
+degree whatever its kit (see "Scenery ring").
+
+An item drawn from another kit than its file's names its own, `"kit"`, written last on its line and only when it
+differs from the file's, so one file may mix kits: the town ring's files are the village kit's with the nature kit's
+bright trees, grass and flowers in them, and the forest's town-ward fields carry the village kit's wheat, fences and
+walls. A decor item's kit is one of three: `medieval-village-megakit-standard` (the village kit and the custom town
+props), `stylized-nature-megakit-standard` (the nature kit with its colours darkened for the forest, and the custom
+forest models) and `stylized-nature-megakit-bright` (the nature kit's models in their own bright colours, none of the
+custom forest models). `fantasy-props-megakit-standard`, the props kit, is no decor kit: its models are drawn as
+doodads. `DecorItem.Check` refuses an item whose kit (its own, else the file's where the caller passes it: the scenery
+rules, the forest's decor rules and `TownBuilding.Place` do; a town square's own check, which also sees its
+doodad-drawn props-kit models, does not) is not a decor kit or does not hold its model, as the bounds table records
+each model's kit.
 
 ChunkGen writes one for every generated square (`"items": []` when it has none) and every generated forest piece,
 staged and checked with the chunks and written only when they are, items sorted by model, then x, z, y, yaw and
@@ -732,7 +752,10 @@ measures every `*.gltf` directly in the kit directory (and the custom props' dir
 Props MegaKit, CC0, whose `Chest_Wood`, `Barrel` and `Crate_Metal` the forest's doodads wear; the nature kit's:
 Stylized Nature MegaKit, Standard, CC0, the forest's trees, plants, rocks and stepping stones; and the custom forest
 models', the `avalon_*` rocks, logs, ruins and dirt paths) from its vertices through the node transforms, and
-rewrites the table. The vertices are read from each POSITION accessor's buffer, not from the accessor's min and max,
+rewrites the table, each model under its directory's kit (`"kit"`: the village kit for `--kit` and `--props`, the
+props kit for `--props-kit`, the nature kit for `--nature-kit` and `--forest-props`). The custom directories also hold
+the scenery ring's models: the town ring's fields, yards and landmarks in `--props`, the forest ring's ancient trees,
+cliff and ravine sections, boulders, brambles and fallen giants in `--forest-props`. The vertices are read from each POSITION accessor's buffer, not from the accessor's min and max,
 which some kit exports leave stale: the nature kit's `Fern_1` and `Plant_1_Big` state boxes up to three times their
 meshes. With `--forest-props` it also copies that directory's `footprints.json` (the solid parts each custom
 forest model is measured with in Blender) into `tools/Avalon.ChunkGen/Kit/forest-footprints.json`, which the forest
@@ -741,6 +764,238 @@ footprints file that does not list exactly the models beside it leaves both tabl
 is measured from the village kit's `glTF`, `avalon-art\town-kit\gltf`, the props kit's `Exports\glTF`,
 `avalon-art\forest-kit\kit` (the nature kit's `glTF`, its colour textures darkened for the forest) and
 `avalon-art\forest-kit\gltf`.
+
+## Scenery ring
+
+Every map is drawn with a ring of scenery round its playable layout (#1110): drawn ground, rock faces, water, mist and
+decor on the cells past its edge, so the view at any zoom shows a world that goes on. The ring is never walkable and
+never a chunk: no catalog row, no exits, no slots, no navmesh. Glimmerdell's ring is one fixed composition; the
+forest's is generated for each layout from its seed.
+
+### Why, and how deep
+
+Where nothing is drawn, a view ray meets the client's hidden mist floor (`mist.floor` in its environment files: -10 m
+in the forest, -12 m in Glimmerdell), and before the ring that was all a player saw past the last chunk. Closed chunk
+sides are not walled whole either: the forest's tree walls stop short of drums, boxes, logs and slots, and
+`forest_entry_01`'s south wall covers only x 5.6-24.4, so a player at the walkable edge of a closed side looks straight
+out of the map.
+
+The ring's depth comes from the client's camera (`IsometricCameraComponent`): a vertical field of view of 45°, a pitch
+of 50° and a yaw of 45°, looking toward +X and +Z, 5 to 25 m from the player. 25 m is the maximum and is never raised
+(owner). At 25 m on a 16:9 screen the top of the frame meets the ground about 17 m ahead of the player along the
+diagonal, the frame's corners reach about 39 m along X or Z, and toward -X and -Z the view reaches 7 to 17 m; the
+camera never sees sky. Raised ground shows less, not more: a 12 m tall object stays wholly in frame only within about
+8-12 m of the walkable edge. So the ring is **2 cells (60 m) deep toward +X and +Z and 1 cell (30 m) toward -X and
+-Z**, from every layout cell (owner decision); only its first 25-35 m shows in play, the rest is for the overview and
+margin. These figures are kept here so the depth can be checked again if the camera changes. The client cuts away what
+stands between the eye and the character per fragment (a 1.5 m cylinder with a 0.5 m dithered rim, on every static
+mesh), so a ring model near the camera hides no player.
+
+### The cells
+
+For a layout's cells L, the ring is every cell `(x + dx, z + dz)` with `dx, dz` in -1, 0, 1, 2 over every `(x, z)`
+in L, minus L itself (`SceneryRing.Cells`, sorted by GridX then GridZ), and every ring cell gets exactly one piece.
+Round Glimmerdell's 2 x 2 squares that is 21 cells, x and z -1 to 3 without the town.
+
+### The forest's ring, per layout
+
+`SceneryRing.Build(layout, exitsOf, pool)` (`Avalon.World.Generation`) is pure and deterministic.
+`ProceduralChunkLayoutSource` calls it after generating a layout, with the map's pool, so it runs off the tick as the
+instance is built; a map without a ring file is built without a ring. It draws from a random stream of its own, the
+layout seed through the SplitMix64 finalizer over a fixed salt (`"RINGSCEN"` in ASCII), so the layout, and the
+creatures and doodads placed from its seed, are the same with the ring as without it. It visits the ring cells by
+GridX, then GridZ, and each takes the first of:
+
+1. **A cap**, when open exits face the cell. An exit is open when its side of the placed (turned) chunk has any exit
+   slot and the cell beyond holds no chunk (`SceneryRing.CappedSides`; nothing else records open exits). The cell's
+   capped sides are the world sides those exits come through, a 4-bit mask (`ScenerySides`: N 1, E 2, S 4, W 8). It
+   takes a cap whose own capped sides turn exactly onto that mask, drawn by weight among the caps of that shape that
+   are not the piece already west or south of it (a shape with one cap repeats), at one of the turns that fit, drawn
+   too. The pool holds a cap of every shape, so one always fits.
+2. **A town-ward piece**, on one of the 8 spots round the entry chunk (-1 to 1 on each axis from it, the entry
+   itself left out), when the pool has them: that spot's piece, never turned. The entry is always `forest_entry_01` at
+   (0, 0), rotation 0, so the spots never move. A spot the layout fills is a layout cell and gets nothing (spot (0, 1)
+   always is: the entry's only exit is N), and a spot an open exit faces takes a cap.
+3. **A border**, drawn by weight, never the non-filler piece already west or south of it (an old-woods filler may
+   stand beside itself), turned so its front faces the layout: toward the first of N, E, S, W that is a layout cell;
+   else the first of NE, SE, SW, NW that is one, faced through N, E, S, W respectively; else, for a cell with no layout
+   cell round it, toward the nearest layout cell (fewest steps counting diagonals, ties by GridX then GridZ), along Z
+   when it is at least as far along Z as along X, else along X.
+
+A turn is `ChunkRotation`'s (a quarter turn takes N to E, as `ExitMask.Rotate` turns exits), and every forest border's
+front is S. Weighted draws always run the weight loop (one number below the total weight, less each weight in order).
+`CommittedForestGenerationShould` rings the committed forest's layouts from the committed pool and checks one piece on
+every ring cell and none on a layout cell, a cap of the right shape on every cell an open exit faces and none
+elsewhere, the town-ward pieces on their spots, no non-filler border beside itself, and the same ring from the same
+layout every time.
+
+### The pieces
+
+ChunkGen composes every piece (`tools/Avalon.ChunkGen/ForestScenery.cs`, `ForestScenery.Caps.cs`,
+`ForestScenery.TownWard.cs` and `TownScenery.cs`, `TownScenery.Ground.cs`, `TownScenery.Scene.cs`). The terrain (the
+ground's relief, the stream beds and their water, the ravines cut down to their floors, the cliff plateaus and their
+rough rock faces, the mist) is made in C#, so the stale-file tests rebuild it from the repository alone; everything a
+heightfield cannot make, or that needs sculpted detail (the cliffs' strata and ledges, the ravines' overhanging lips,
+roots, creepers, the fallen giants, the landmarks), is a Blender model in an art kit, placed as decor, and the terrain
+is shaped to seat it. Every forest piece is dressed from a random stream of its own (its name's seed) and the town ring
+from one stream seeded by its prefix, so a rerun writes the same files on any machine.
+
+The forest's pieces are drawn from the forest kit (the darkened nature kit and the custom `avalon_*` forest models).
+Each meets every edge at y 0 on forest floor, carries a barrier along all four edges and keeps its feature inside the
+edge band, so any piece sits beside any other, or beside any chunk, at any rotation:
+
+| Pieces | Kind, family, weight | What they show |
+|---|---|---|
+| `forest_ring_woods_01` to `_04` | border, `woods`, 3, filler | two or three ancient trees (`_04`: one, off the centre beside a glade, kit trees round it), a darker understorey, mossy stones, fallen wood, gentle relief |
+| `forest_ring_cliffs_01`, `_02` | border, `cliffs`, 1 | a plateau 6-8 m up inside the band, its rough rock face dressed with layered face sections, ledges, roots and creepers over the lip, scree at the foot, trees on top (`_02`: a crag whose top falls back to the ground as an earth bank) |
+| `forest_ring_ravine_01`, `_02` | border, `ravine`, 1 | an irregular cut down to -15 m, below the forest's mist floor, rock walls, an overhanging lip all round its brink, dead trees rising out of three mist layers (`_01` a broad pit, `_02` a ragged slot running corner to corner) |
+| `forest_ring_giant_01` | border, `giant`, 0.75 | a giant fallen tree across the cell, its root plate on edge at its root end over the torn earth it left |
+| `forest_ring_stream_01`, `_02` | border, `stream`, 1 | dark water rising among mossy stones and running down its bed into a still pool (`_01`) or away among stones (`_02`), stones and pebbles along its banks |
+| `forest_cap_rockfall_01`, `forest_cap_trunk_01`, `forest_cap_thicket_01`, `forest_cap_brink_01` | cap (S), `rockfall`, `trunk`, `thicket`, `brink`, 1 | one capped side: a rockfall, a giant trunk across the path, a thicket, or the path breaking off at a ravine's brink with broken fence posts |
+| `forest_cap_corner_01` | cap (S, W), `cap`, 1 | a rockfall on S and a thicket on W |
+| `forest_cap_opposite_01` | cap (N, S), `cap`, 1 | a trunk across S and a rockfall across N |
+| `forest_cap_three_01` | cap (N, S, W), `cap`, 1 | a rockfall on S, a trunk on N, a thicket on W |
+| `forest_cap_four_01` | cap (N, E, S, W), `cap`, 1 | a rockfall, a trunk, a ravine's brink and a thicket, one on each side, ancient trees only in the centre |
+| `forest_townward_<dx>_<dz>` (8) | town-ward, `townward` | the scene below |
+
+On every capped side the exit's path carries on from the edge's midpoint as a dirt stub (its segments laid as a chunk
+lays them, on ground kept at y 0) and ends under the side's obstacle, which covers the whole edge band, so an exit in
+any slot (left, centre, right) is closed; a brink's path breaks off at the lip, 2 m in. The town-ward pieces are one
+scene in world metres over the 8 spots, cut into a piece per spot, the woods thinning toward the south: spot (0, -1),
+behind the portal, carries the road from the town (x 13-17) to a low field wall with brambles along the cell's north
+band, the visible barrier behind the portal; spots (-1, -1) and (1, -1) the fields' edges, fenced round, standing wheat
+on `wheat_field` ground and, in the west field, stubble on `tilled_soil` (the wheat, fences and walls are town-kit
+items); the other spots the woods' fringe, with deadfall and thorn toward the entry's corners. The road stays inside
+(0, -1), so every town-ward piece still meets its edges at y 0 on forest floor and any of them may be left out.
+
+Glimmerdell's outskirts are one scene in world metres over x and z -30 to 120, cut by `SceneryComposer` into the 21
+pieces `town_ring_<gx>_<gz>` (a negative coordinate written `m<abs>`: `town_ring_m1_3`), all at rotation 0. The ground
+is one function sampled per cell, so every seam meets itself; it lies at y 0 along the town's walls and rises gently
+outward, with a hill under the windmill, rock-faced terraces, a valley under the stream, and the south and west edges
+falling away into the mist. Every building and landmark stands whole inside one cell: an item whose turned box crosses
+a cell edge is refused, and a rock face may not cross one either (only the ground and the surfaces are cut). The
+decor file's kit is the town kit; the trees, grass, bushes and flowers are the nature kit's bright models, the dark
+forest's tree line the forest kit's.
+
+| Side | What it shows |
+|---|---|
+| North (z 60-120) | the road from the gate (x 12-18) winding north to the map's edge, cottages, a well and carts outside the gate, a lane east along the wall to the bridge; hedged and fenced fields beyond (wheat on `wheat_field` ground, vegetables, a ploughed field, hay meadows) with scarecrows, haystacks and bales; scattered trees, then the dark forest from about z 97 (92 in the east), the forest portal's destination showing ahead |
+| East (x 60-120) | the stream down the wall to a still pool short of the map's south edge, the watermill (its house at about (71, 42), its wheel in the water), reeds and stones on the banks, the lane south past the mill, the orchard on its slope, the rocky terraces, the windmill on its hill (about (104, 76)) with a barn; the windmill shows only in the overview, and is kept for it |
+| North-east corner | the stream coming down from the north-east hills, the lane crossing it on the stone bridge, the wayside shrine at the bridge's east foot (about (70.4, 62.4)) and a ring of eight standing stones about 13 m out from the town's corner (centred at (72, 55)), where the game camera sees them (10-20 m, owner decision) |
+| South and west (x or z -30 to 0) | the backs of houses, gardens, lean-to sheds, wood piles, washing lines, compost and low fences, kept low near the wall, between the camera and the player |
+
+The ground's materials, which the client's palette must hold, are `SceneryTerrain.Palette`: `forest_floor`, `meadow`,
+`dirt_road`, `tilled_soil`, `wheat_field`, `cliff_rock`, `water`, `mist`.
+
+### The files
+
+ChunkGen writes them all (`forest` the forest's, `town` the town's, staged and checked with the chunks; see below):
+
+- **`Maps/Scenery/<name>.obj`**, a piece's terrain, piece-local (x and z 0-30, y up), in the subset the client's vendor
+  script reads: `o Ground` (every grid vertex once, every `SceneryTerrain.Step`, 1 m, apart: 31 x 31 vertices),
+  one `usemtl` group per material that has faces, in palette order, each quad split along its (x0, z0)-(x1, z1)
+  diagonal and each triangle wearing the material at its centroid; then each rough rock face as `o Wall_<n>` and each
+  water, mist or dirt surface as `o Surface_<n>`, each under its material. Ground and surface triangles are wound to
+  face up. No material group is ever empty (the client's script refuses one). Numbers are invariant with at most 3
+  decimals and never `-0`, line ends LF, so a rerun is byte-identical. Nothing bakes it.
+- **`Maps/Decor/<name>.json`**, a piece's decor, piece-local, in the decor format ("Decor and building recipes"), its
+  items at any whole-degree yaw whatever the file's kit, and an item that is not drawn from the file's kit naming its
+  own (`"kit"`). A scenery piece's name may never be a chunk's, since both write `Maps/Decor/<name>.json`.
+- **`Maps/Scenery/<mapTemplateId>.json`**, a map's ring file, in one of two shapes, every field required and no other
+  allowed (`SceneryFile.Read`):
+
+  ```json
+  { "mapTemplateId": 1, "placements": [
+    { "name": "town_ring_m1_m1", "gridX": -1, "gridZ": -1, "rotation": 0 } ] }
+
+  { "mapTemplateId": 2, "pool": [
+    { "name": "forest_cap_corner_01", "kind": "cap", "weight": 1, "capped": ["S", "W"] },
+    { "name": "forest_ring_woods_01", "kind": "border", "weight": 3, "front": "S", "filler": true },
+    { "name": "forest_townward_0_m1", "kind": "townward", "spot": [0, -1] } ] }
+  ```
+
+  The town's (`1.json`) is its fixed placements; the forest's (`2.json`) is its pool, each entry its piece, its kind,
+  and a border's weight, front and filler flag, a cap's weight and capped sides (in the piece's own frame), or a
+  town-ward piece's spot (its offset from the entry chunk).
+
+The World server reads every ring file once at start-up (`SceneryCatalog.Load`, an `ISceneryCatalog` singleton), every
+`Maps/Scenery/<n>.json` whose name is a map template id; one that does not read, or whose `mapTemplateId` is not its
+name, stops the start, naming the file. It refuses placements with a rotation outside 0-3, two on one cell or a name
+that is not `[a-z0-9_]+`, and a pool (`SceneryPool`) with a name not `[a-z0-9_]+` or listed twice, a border or cap
+weight that is not a finite number above 0, a border front none of N, E, S, W, a cap that caps no side, no cap for one
+of the five shapes (one side, two adjacent, two opposite, three, four, whatever the turn), no filler border, or
+town-ward pieces neither absent nor exactly one per spot. `PredefinedChunkLayoutSource` puts a town's placements on
+its layout as they are; `ProceduralChunkLayoutSource` builds a procedural map's ring from its pool. The seeder never
+reads `Maps/Scenery/`, and neither does the API. `SceneryCatalogShould.Hold_a_ring_for_every_map_with_a_layout` holds
+every shipped map to its ring, of the kind its layout source reads: a map in `Maps/TownLayouts/` its placements, one in
+`Maps/ProceduralMaps/` its pool. A new map ships its ring with it.
+
+### The rules
+
+`ChunkFiles.ForestScenery` and `ChunkFiles.TownScenery` run `SceneryRules` on every piece before anything is written,
+and `ForestPiecesShould` and `TownPiecesShould` compare the committed files with a fresh run. Each refusal is an
+`InvalidOperationException` naming the piece, the pool or the ring:
+
+- **Inside its cell.** Every item is a model of its kit (`DecorItem.Check`, any whole degree; the item's own kit when
+  it names one) and its kit box, scaled and turned by its yaw, lies within its cell (to 0.01 m).
+- **Small near walkable floor** (forest pieces on all four edges, town pieces on the edges they share with the town).
+  Within 6 m of the edge (`SceneryRules.EdgeBand`, measured from the item's position), an item drawn taller than
+  2.2 m is a kit tree at no more than the tree walls' scale (`ForestDresser.WallTreeMaxScale`, 1.6; a dead tree 1.3),
+  never a twisted or an ancient tree, or another model drawn no taller than 4 m: a bigger crown there hangs over the
+  paths at the camera's full zoom.
+- **The forest's seam.** Every ground vertex on a forest piece's edge is at y 0 (to 0.5 mm) and every ground triangle
+  touching it is `forest_floor`.
+- **The forest's barrier.** Each edge of a forest piece, in ten 3 m runs (`BarrierSpacing`), has for every run a
+  barrier item within 6 m of it whose turned box spans part of the run: a kit tree, undergrowth (`Bush_`, `Fern_`,
+  `Plant_1_Big`), a rock, a cliff or ravine rim, brambles, a field wall, a fence, a fallen giant or log, a hedge or
+  wheat. Closed chunk sides have gaps in their tree walls, so every view from a walkable edge into the ring meets
+  something that reads as impassable, whatever the piece's turn.
+- **A cap's clearing.** No tree, kit or ancient, within 10 m of a capped edge's midpoint, so the obstacle reads from
+  the camera.
+- **Low beside the town's south and west walls.** In a ring cell south or west of the town, nothing whose turned box
+  comes within 4 m of the town is drawn taller than 2 m (the wall), and nothing within 10 m taller than 6 m: those
+  cells lie between the camera and the player.
+- **Dirt on the ground, not under it.** Every surface but water and mist (the dirt and forest floor laid over the
+  ground, whose curves the ground's triangles would give saw-teeth) lies at or above the drawn ground everywhere on it,
+  within 2 mm.
+- **A full forest pool.** At least 3 old-woods borders, every one a filler; a border of each of `cliffs`, `ravine`,
+  `giant` and `stream`; a cap with exactly one capped side of each of `rockfall`, `trunk`, `thicket` and `brink`; and
+  the ring file read back through the server's own reader, which refuses a missing cap shape or town-ward spot.
+- **A whole town ring.** A piece on every one of the 21 cells and none elsewhere; the ground at y 0 along every edge a
+  piece shares with the town; and the same height on both sides of every edge two ring pieces share (the ring is one
+  scene, so a seam between its own cells need not lie at y 0).
+- **Names.** A scenery name that is also a chunk's, or that two pieces share.
+
+The terrain refuses its own mistakes as it is built: a stream's water must drop at least 0.5 % of each step (flowing
+water runs downhill) and its edges never fold back over themselves, at a bend too tight for its half-width or at any
+corner of 90° or more; and the obj writer refuses a material outside the palette and a height that is not a number.
+
+### The wire and the instance
+
+`ChunkLayout.Scenery` holds the placements (`SceneryPlacement(Name, GridX, GridZ, Rotation)`), kept apart from
+`ChunkLayout.Chunks`, which feeds the navmesh bake, the spatial grid's bounds, creature and doodad placement, the
+packet's chunk list and the API's map preview: scenery reaches none of them, and nothing about a layout, its seed's
+creatures and doodads, or its navmesh changes with its ring. `CommittedForestGenerationShould` composes the bake's
+input (`ChunkLayoutNavmeshBuilder.ComposeCombinedObj`) for a committed layout with its ring and without it and finds
+the two identical.
+
+`SChunkLayoutPacket.Scenery` (field 9) carries the ring, a repeated `SceneryPlacementDto` with fields 1-4: `Name`
+(string), `GridX` and `GridZ` (`short`, `int32` on the wire: a ring cell may be negative) and `Rotation` (`byte`,
+quarter turns 0-3). `MapLayoutEntries` builds the list once, with the instance, beside the chunk, portal and obstacle
+entries, so an arrival costs the tick nothing more than writing one entry per ring cell. The scenario allocation gate
+runs forest layouts that carry their ring (`ForestLayouts` in `tests/Avalon.World.Testing` builds them as the source
+does).
+
+### The client's half
+
+A client draws each placement as it draws a chunk: the piece's `Scenery/<name>.obj` drawn by material and its
+`Decor/<name>.json` drawn from the kits, both placed in the cell `(GridX * 30, 0, GridZ * 30)` and turned about the
+cell's centre with `chunkLocalToWorld`. It never bakes them: its navmesh, like the server's, is the chunks and the
+obstacle boxes alone. Today's client (`C:\dev\vulkan-multithreaded`, `main` at `023ed610`) does not know field 9 yet,
+skips it as an unknown field and draws no ring; the client issue covers decoding it, vendoring `Maps/Scenery/*.obj`
+and the new decor files, the new materials (`meadow`, `dirt_road`, `tilled_soil`, `wheat_field`, `cliff_rock`,
+`mist`), an item's own kit and the bright nature kit, the new town-kit and forest-kit models, flowing water and
+drifting mist.
 
 ## Chunk groups (set pieces)
 
@@ -915,15 +1170,15 @@ so the client's reset input sequence is accepted.
 3. **Server `InstanceRegistry`:** if a town instance of that map has room, returns the least populated; if a build of that map is already under way, returns its task; otherwise starts one off the tick (`StartBuild` → `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId: null, ct)`), which `World.PublishBuiltInstances` publishes on a later tick.
 4. **Server `ChunkLayoutInstanceFactory`:**
    - `_resolver.Resolve(template)` → `PredefinedChunkLayoutSource` (for Town).
-   - `source.BuildAsync(template, ct)` → reads `MapChunkPlacement` rows via repository, validates, builds `ChunkLayout` with `Seed=0`, `Chunks[]`, `EntryChunk`, `EntrySpawnWorldPos` (transformed from `EntryLocalX/Y/Z`), `Portals[]` (from chunk `PortalSlots`), `CellSize`, `Config=null`.
+   - `source.BuildAsync(template, ct)` → reads `MapChunkPlacement` rows via repository, validates, builds `ChunkLayout` with `Seed=0`, `Chunks[]`, `EntryChunk`, `EntrySpawnWorldPos` (transformed from `EntryLocalX/Y/Z`), `Portals[]` (from chunk `PortalSlots`), `CellSize`, `Config=null`, and `Scenery` (the town's fixed ring placements, from `Maps/Scenery/<id>.json` through `ISceneryCatalog`; never baked).
    - `_navBuilder.BuildAsync(layout, ct)` → `ChunkLayoutNavmeshBuilder` stitches chunk objs from `Maps/Chunks/<name>.obj` (filename via `IChunkLibrary.GetById(id).Name`), bakes via DotRecast `TileNavMeshBuilder.Build` with `NavmeshBuildSettings.Create()`.
    - Constructs `MapInstance` with the layout + a `MapNavigator` initialized from the bake.
    - `_portalPlace.Place(instance, layout, config: null)` registers Back portals (no Forward for null BossChunk).
 5. **Server `CharacterSelectHandler` (after instance returned):**
    - For Town: overrides `CharacterInfo.X/Y/Z` with `instance.Layout.EntrySpawnWorldPos` (persisted DB coords are stale for hubs).
    - Sends `SCharacterSelectedPacket` with the `CharacterInfo`.
-   - Sends `SChunkLayoutPacket` with `(seed, instanceId, cellSize, chunks[], entrySpawn)`.
-6. **Client `MapCompositionSystem`:** spawns one entity per primitive of each chunk's vendored `chunks/<name>.gltf`, positioned with `chunkLocalToWorld` and turned `90° × rotation` about Y, plus markers for the entry and the portals.
+   - Sends `SChunkLayoutPacket` with `(seed, instanceId, cellSize, chunks[], entrySpawn, portals[], obstacles[], scenery[])`.
+6. **Client `MapCompositionSystem`:** spawns one entity per primitive of each chunk's vendored `chunks/<name>.gltf` (and one batch of its decor), positioned with `chunkLocalToWorld` and turned `90° × rotation` about Y, plus markers for the entry and the portals.
 7. **Client `NavmeshSystem`:** the new instance id starts a bake on a worker thread: `ChunkGeometry` stitches the vendored `chunks/<name>.obj` files with the same rotation, and `navmesh::NavMesh::Bake` bakes them with the mirrored build settings. `LoginFlowSystem` holds back the load report while it bakes.
 8. **Client `PlayerMovementSystem`:** samples input, sends the input packet, predicts each step with `WalkStep` (clamp via `RaycastWalkable`, ground via `SampleGroundHeight`).
 9. **Server `PlayerInputHandler`:** validates seq, integrates the same way (its own `MapNavigator.RaycastWalkable`), updates `entity.Position`, sends `SPlayerStateAckPacket`.
@@ -945,13 +1200,13 @@ Identical bake on both sides (the same chunk `.obj` files plus the layout's obst
 | Server: `unknown chunk names: ...` | Layout references a chunk that is not in `Maps/Chunks/` (or is misspelled); a pool says `pool 'P' names unknown chunks: ...` | Generate the missing chunk; or fix the name in the layout / pool file |
 | Client: player spawns at wrong position | Persisted `Character.X/Y/Z` is stale | For towns, `CharacterSelectHandler` already overrides with `Layout.EntrySpawnWorldPos`. For procedural, persist position correctly when player exits map. |
 | Client: player can't move (navmesh ready but pos stuck) | Navmesh raycast lookup miss | Verify chunk-axis convention: `RaycastWalkable` MUST query with the SAME coords used during bake (no X-flip) |
-| Client: a chunk is missing, or has the old shape, or no prediction on a map | The client has not re-vendored since the server's chunks changed (a chunk the project does not carry fails the client's bake) | Rerun `scripts/vendor-chunks.ps1` in the client and commit `devproject/chunks/` |
+| Client: a chunk is missing, or has the old shape, or no prediction on a map | The client has not re-vendored since the server's chunks changed (a chunk the project does not carry fails the client's bake) | Rerun `scripts/vendor-chunks.ps1` in the client and commit `devproject/data/world/` |
 | Client: chunks visible but "rotation wrong" | Either a chunk error OR the client's rotation mirror disagrees with the server | `ChunkRotation.LocalToWorld` is the source of truth; the client's `chunkLocalToWorld` mirrors it, and the vendored `rotation-v1.txt` carries the server's known answers for it |
 | Layout valid but adjacency broken (chunks isolated) | Chunks have mismatched exits at neighbouring boundaries | Fix the chunks so each pair of neighbouring chunks has an aligned `(side, slot)` exit on both faces of the shared boundary |
 
 ## Conventions and gotchas
 
-- **Chunk filename = `ChunkTemplate.Name`** (NOT `ChunkTemplate.Id`). Files are `Maps/Chunks/<Name>.obj` on the server and `devproject/chunks/<Name>.obj` (+ `.gltf`) in the client. Bake on both sides looks up by name.
+- **Chunk filename = `ChunkTemplate.Name`** (NOT `ChunkTemplate.Id`). Files are `Maps/Chunks/<Name>.obj` on the server and `devproject/data/world/chunks/<Name>.obj` (+ `.gltf`) in the client. Bake on both sides looks up by name.
 - **The bake is deterministic** given identical input + identical `NavmeshBuildSettings`. Server (DotRecast) and client (Recast) baking the same chunk objs produce the same navmesh (modulo last-bit floating-point that's well within snap thresholds). Drift = build settings drift between repos. The constants live in `NavmeshBuildSettings.cs` server-side and `navmesh/src/BuildSettings.h` client-side; **keep them identical**.
 - **`ChunkRotation.LocalToWorld`** is the source of truth for chunk-stitching geometry. Server's `ChunkLayoutNavmeshBuilder.AppendTransformed` calls it, and the client mirrors it in `common/include/common/scene/ChunkRotation.h`. **Both must agree** on the rotation case table (about the chunk centre):
   - `0: (x, z)` — identity
