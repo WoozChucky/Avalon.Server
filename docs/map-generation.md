@@ -59,7 +59,7 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `src/Server/Avalon.World.Generation/ChunkRotation.cs` | `ChunkRotation.LocalToWorld`, the one rotation case table (bake, slot placement, client mirror) |
 | `src/Server/Avalon.World/Maps/Navigation/MapNavigator.cs` | DotRecast queries (`RaycastWalkable`, `SampleGroundHeight`) |
 | `src/Server/Avalon.World/Maps/Navigation/NavmeshBuildSettings.cs` | Single source of truth for DotRecast bake constants |
-| `src/Server/Avalon.World/Respawn/MapArrival.cs` | Sends `SChunkLayoutPacket` behind every arrival: a character select (`CharacterSelectHandler`), a portal entry (`EnterMapHandler`), a return to town and an item's teleport. Its chunk, portal, obstacle and scenery entries are built with the instance, off the tick (`MapLayoutEntries`) |
+| `src/Server/Avalon.World/Respawn/MapArrival.cs` | Shares the `SChunkLayoutPacket` encoded during instance construction behind every arrival: a character select (`CharacterSelectHandler`), a portal entry (`EnterMapHandler`), a return to town and an item's teleport (`MapLayoutEntries`, #1130) |
 | `src/Shared/Avalon.Network.Packets/World/SChunkLayoutPacket.cs` | Wire format (fields 9 and 10, `SceneryPlacementDto` and the piece names: the scenery ring) |
 | `src/Server/Avalon.World.Generation/SceneryRing.cs`, `SceneryPool.cs`, `SceneryFile.cs`, `SceneryPlacement.cs` | The scenery ring: its cells and the forest's ring built per layout (`SceneryRing`), the validated pool, the ring file reader, a placement (see "Scenery ring") |
 | `src/Server/Avalon.World/ChunkLayouts/SceneryCatalog.cs` | Reads every map's ring file once at start-up; the layout sources read it |
@@ -555,7 +555,8 @@ navmesh, and the client is sent its box to bake the same wall (see [doodads](doo
   nothing stands there, and the fallback never draws from it, since it draws only polygons connected to the entry's.
 - **The wire.** `SChunkLayoutPacket.Obstacles` (field 8, `DoodadObstacleDto` with fields 1-6: `MinX`, `MaxX`, `MinZ`,
   `MaxZ`, `BaseY`, `TopY`) carries the boxes in the same order; `MapLayoutEntries` builds the list once, with the
-  instance. The scenery ring follows it in fields 9 and 10 (see "Scenery ring"). Today's client decodes the boxes
+  instance, and encodes it into the cached layout packet (#1130). The scenery ring follows it in fields 9 and 10
+  (see "Scenery ring"). Today's client decodes the boxes
   (`gamenet/src/session/SessionMap.cpp`) and bakes them after its chunks (`game/src/ChunkGeometry.cpp`).
 - **The client mirror.** A client bakes the boxes after its chunks, with exactly these vertices and faces, or its mesh
   and the server's differ around the doodad. `schema/vectors/navmesh-v1.txt` pins it: its `obstacle <minX> <maxX> <minZ>
@@ -993,9 +994,9 @@ is zigzag-encoded: a coordinate within 63 of the origin costs its tag and one by
 `int32` writes a negative one in eleven; the chunks' `PlacedChunkDto.GridX` and `GridZ` (fields 2 and 3) are `sint32`
 for the same reason, since a forest's chunk cells may be negative too. A forest's ring adds 642-1,213 bytes to its
 arrival (929 on average over seeds 1-500), the town's 21 pieces 479. `MapLayoutEntries` builds both lists once, with
-the instance, beside the chunk, portal and obstacle entries, so an arrival costs the tick nothing more than writing
-one entry per ring cell and one name per piece. `MapArrivalShould` sends the town's and two forests' real rings and
-pins each coordinate's two bytes. The scenario allocation gate runs forest layouts that carry their ring
+the instance, beside the chunk, portal and obstacle entries, and encodes the whole layout once (#1130). Arrivals
+share that immutable payload without serializing the ring again. `MapArrivalShould` sends the town's and two forests'
+real rings and pins each coordinate's two bytes. The scenario allocation gate runs forest layouts that carry their ring
 (`ForestLayouts` in `tests/Avalon.World.Testing` builds them as the source does), and `ArrivalBenchmarks` the town's
 (`ScenarioReferenceData.TownLayout`, built with the scenery catalog).
 

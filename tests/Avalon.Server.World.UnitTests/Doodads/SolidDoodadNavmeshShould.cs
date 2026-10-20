@@ -41,7 +41,7 @@ public class SolidDoodadNavmeshShould
     [InlineData(90)]
     public async Task Stop_a_walk_at_a_solid_doodad_and_send_its_box_with_the_layout(int yaw)
     {
-        MapInstance instance = await Build(yaw);
+        using MapInstance instance = await Build(yaw);
 
         (float halfX, float halfZ) = yaw == 90 ? (HalfZ, HalfX) : (HalfX, HalfZ);
         var box = new DoodadObstacle(s_slotAt.x - halfX, s_slotAt.x + halfX, s_slotAt.z - halfZ, s_slotAt.z + halfZ, s_slotAt.y,
@@ -56,12 +56,13 @@ public class SolidDoodadNavmeshShould
         var sent = new List<OutboundPacket>();
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
-        MapArrival.SendLayout(connection, instance, instance.TemplateId.Value);
+        MapArrival.SendLayout(connection, instance);
 
         SChunkLayoutPacket layout = Assert.Single(TestTown.Read<SChunkLayoutPacket>(sent, NetworkPacketType.SMSG_CHUNK_LAYOUT));
         DoodadObstacleDto obstacle = Assert.Single(layout.Obstacles);
         Assert.Equal(box, new DoodadObstacle(obstacle.MinX, obstacle.MaxX, obstacle.MinZ, obstacle.MaxZ, obstacle.BaseY,
             obstacle.TopY));
+        Assert.Single(sent).Release();
     }
 
     private static async Task<MapInstance> Build(int yaw)

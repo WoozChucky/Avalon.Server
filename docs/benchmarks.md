@@ -76,10 +76,10 @@ Three things on it allocated for nothing, until #883:
   a return to town, a select and an item's teleport each turned the instance's layout into the packet's entries with
   two queries, a closure each, and an entry per chunk and per portal; the packet's factory then copied both lists.
   An instance keeps the layout it was built from, and the chunk library that names the chunks is loaded once, so the
-  entries are now built once, with the instance (`MapInstance.LayoutEntries`, `MapLayoutEntries`: its constructor
-  makes them, off the tick, where the instance is built), and the same two lists are written into every packet, from
+  entries were moved into the instance constructor (`MapLayoutEntries`, off the tick), and the same two lists were written into every packet, from
   one place (`MapArrival`). The packet's thread-local message holds them while it is encoded and is cleared after;
-  nothing changes an entry.
+  nothing changes an entry. #1130 subsequently caches the encoded packet itself; the figures in this #883 section
+  describe the earlier implementation.
 - **The map template, found with a query.** `MapTemplates.FirstOrDefault` with a closure, and at two sites a
   `MapTemplateId` made for every template walked; the portal the same way. The map manager now holds the templates
   with a lookup by id (`KeyedRows`, as the item templates and the level rows have; `MapTemplateRows.FindById`), and
@@ -221,6 +221,40 @@ and in Release, the committed figure, and the three town scenarios 0. No scenari
 window, so `perf/scenario-allocations.json` is not regenerated. The scenario harness now registers the chunk library
 for the forests it builds through the instance factory, so they are built with their entries as the server's are:
 build cost, outside every measured window.
+
+#### Encode the layout once per instance (#1130, 2026-10-20)
+
+`MapInstance` now encodes `SMSG_CHUNK_LAYOUT` at the end of construction, off the tick. First and repeated arrivals
+share the same immutable payload, and the temporary DTO lists are no longer retained. The instance keeps one pooled
+reference until disposal; each queued send keeps its own reference until it drains. Failed placement releases the
+unpublished instance's reference too. The wire bytes and arrival packet order stay unchanged.
+
+The comparison uses `main` at `036584b4f` and #1130 on Windows 11, i9-12900K, .NET SDK 10.0.402 / runtime
+10.0.13, Release, BenchmarkDotNet 0.15.8 ShortRun (one launch, three warmups, three measured iterations).
+Both versions use the same benchmark harness, including instance disposal outside the measured methods.
+
+| Arrival | Before mean ± SD (µs) | After mean ± SD (µs) | Before B/op | After B/op |
+|---|---:|---:|---:|---:|
+| Repeated portal into forest | 4.434 ± 0.026 | 0.342 ± 0.003 | 504 | 472 |
+| Repeated portal into town | 2.200 ± 0.026 | 0.352 ± 0.004 | 504 | 472 |
+| Return to town | 2.274 ± 0.016 | 0.445 ± 0.011 | 1,136 | 1,104 |
+| Character select | 8.106 ± 1.704 | 4.002 ± 0.084 | 30,770 | 30,738 |
+| First portal into forest | 13.877 ± 0.380 | 2.079 ± 0.039 | 504 | 472 |
+| First portal into town | 7.835 ± 0.555 | 2.188 ± 0.054 | 504 | 472 |
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter \
+  "*ArrivalBenchmarks.Portal_entry_into_the_*" "*ArrivalBenchmarks.Return_to_town" \
+  "*ArrivalBenchmarks.Character_select" "*FirstArrivalBenchmarks.First_portal*" --job short
+```
+
+The first-arrival rows use 1,024 fresh instances per iteration, built outside the measurement. BenchmarkDotNet flags
+their short iteration times, plus baseline repeated town and updated repeated forest. These timings indicate
+direction rather than precise speedup ratios.
+Character select also has substantial baseline variance; no precise speedup is claimed for that row.
+All six rows save 32 B per arrival: the layout's entry-spawn DTO is now created once during construction.
+These are handler costs up to enqueueing, excluding socket framing, encryption and network latency. The scenario
+allocation baseline is unchanged because its measured windows contain no arrivals.
 
 ### Inventory update and item requests — `Benchmarks/InventoryFlushBenchmarks.cs`, `Benchmarks/ItemRequestBenchmarks.cs` (#883)
 

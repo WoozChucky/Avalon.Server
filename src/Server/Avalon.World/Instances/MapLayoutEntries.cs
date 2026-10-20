@@ -8,9 +8,8 @@ namespace Avalon.World.Instances;
 /// <summary>
 /// One instance's layout as <c>SMSG_CHUNK_LAYOUT</c> carries it (#883): an entry per chunk, with the chunk's name, an
 /// entry per portal, one per solid doodad's box and one per scenery piece in the ring around it, with the ring's piece
-/// names, each once, that those entries index. Built once, with the instance (so off the tick, where the instance is
-/// built), and written into the packet of every character that arrives, where each arrival built them again, on the
-/// tick, in four copies of one block.
+/// names, each once, that those entries index. Built and encoded once, off the tick, at the end of the instance's
+/// construction (#1130). Only the encoded packet survives; the temporary DTOs are not retained by the instance.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -20,29 +19,18 @@ namespace Avalon.World.Instances;
 /// area <c>/reload</c> or live template editing replaces.
 /// </para>
 /// <para>
-/// Nothing changes it once it is built, and nothing outside it holds the five lists: <see cref="Encode" /> hands them
-/// to the packet's thread-local message, which holds them while it is written and lets go of them when it is, or
-/// fails to be (<c>PacketEncoder</c> clears the message's own members, never an entry's). It is complete before its
-/// instance's constructor returns, so before the instance is published to the tick, where every arrival reads it.
-/// It holds no pooled or shared resource: an instance whose build fails later, or that nobody ever enters, leaves
-/// nothing behind but memory the collector takes with it.
+/// The packet's thread-local message lets go of the lists after encoding, also on failure. The returned packet owns
+/// one pooled reference: the instance keeps it until disposal, and each arrival takes a share for its connection.
 /// </para>
 /// </remarks>
-internal sealed class MapLayoutEntries
+internal static class MapLayoutEntries
 {
-    private readonly Guid _instanceId;
-    private readonly ChunkLayout _layout;
-    private readonly List<PlacedChunkDto> _chunks;
-    private readonly List<PortalPlacementDto> _portals;
-    private readonly List<DoodadObstacleDto> _obstacles;
-    private readonly List<SceneryPlacementDto> _scenery;
-    private readonly List<string> _sceneryNames;
-
     /// <summary>
     /// The entries of <paramref name="layout" />, in its order, for the instance <paramref name="instanceId" />;
     /// throws for a chunk <paramref name="chunkLibrary" /> does not hold.
     /// </summary>
-    public MapLayoutEntries(Guid instanceId, ChunkLayout layout, IChunkLibrary chunkLibrary)
+    public static OutboundPacket Encode(Guid instanceId, ushort mapId, ChunkLayout layout, IChunkLibrary chunkLibrary,
+        PacketEncoder encoder)
     {
         IReadOnlyList<PlacedChunk> placed = layout.Chunks;
         var chunks = new List<PlacedChunkDto>(placed.Count);
@@ -113,17 +101,7 @@ internal sealed class MapLayoutEntries
             });
         }
 
-        _instanceId = instanceId;
-        _layout = layout;
-        _chunks = chunks;
-        _portals = portals;
-        _obstacles = obstacles;
-        _scenery = scenery;
-        _sceneryNames = sceneryNames;
+        return SChunkLayoutPacket.Create(layout.Seed, instanceId, mapId, layout.CellSize, chunks, layout.EntrySpawnWorldPos,
+            portals, obstacles, scenery, sceneryNames, encoder);
     }
-
-    /// <summary>The layout's packet, as the layout of map <paramref name="mapId" />.</summary>
-    public OutboundPacket Encode(ushort mapId, PacketEncoder encoder) =>
-        SChunkLayoutPacket.Create(_layout.Seed, _instanceId, mapId, _layout.CellSize, _chunks, _layout.EntrySpawnWorldPos,
-            _portals, _obstacles, _scenery, _sceneryNames, encoder);
 }
