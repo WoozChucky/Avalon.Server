@@ -37,12 +37,17 @@ public static partial class TownScenery
         private readonly float[] _level;
         private readonly (float X, float Z)[][] _roads;
         private readonly float[] _roadHalf;
+        private readonly Dictionary<(int X, int Z), float> _grid = [];
 
         public Ground(IReadOnlyList<PlacedBuilding> buildings)
         {
             _buildings = buildings;
             Course = Spline(s_stream, 1f);
-            _roads = [Spline(s_road, 1f), Spline(s_laneSouth, 1f), [(14f, LaneZ), (BridgeX - 6f, LaneZ)], Spline(s_millTrack, 1f), [.. s_millYard]];
+            _roads =
+            [
+                Spline(s_road, 1f), Spline(s_laneSouth, 1f), Spline([(14f, LaneZ), (BridgeX - 6f, LaneZ)], 1f), Spline(s_millTrack, 1f),
+                Spline(s_millYard, 1f),
+            ];
             _roadHalf = [2f, 1.5f, 1.5f, 1.1f, 1.3f];
 
             // The water's level along the course: under the land there, never rising, dropping at least WaterSlope a metre.
@@ -55,14 +60,23 @@ public static partial class TownScenery
                 _level[i] = i == 0 ? under : MathF.Min(under, _level[i - 1] - WaterSlope * SceneryDresser.Distance(Course[i - 1].X, Course[i - 1].Z, x, z));
             }
             BridgeLevel = WaterLevel(BridgeX, LaneZ) + 0.3f;
+            PoolLevel = _level[^1] - 0.01f;
             Water = ScenerySurface.Strip([.. Course.Select((p, i) => (p.X, _level[i], p.Z))], StreamHalf, "water");
+            Pool = ScenerySurface.Area((x, z) => SceneryDresser.Distance(x, z, PoolX, PoolZ) < PoolRadius, PoolLevel, "water");
 
             List<Polygon> dirt = [];
             for (int r = 0; r < _roads.Length; r++)
-                Band(dirt, _roads[r], -_roadHalf[r], _roadHalf[r], 4);
-            Band(dirt, Course, StreamHalf - 0.15f, StreamHalf + BankEarth, 2);
-            Band(dirt, Course, -StreamHalf - BankEarth, 0.15f - StreamHalf, 2);
+                Band(dirt, _roads[r], -_roadHalf[r], _roadHalf[r], DirtLift);
+            Band(dirt, Course, StreamHalf - 0.15f, StreamHalf + BankEarth, DirtLift);
+            Band(dirt, Course, -StreamHalf - BankEarth, 0.15f - StreamHalf, DirtLift);
+            Band(dirt, [.. Enumerable.Range(0, 37).Select(i => Yaw.Of(i * 10)).Select(a => (PoolX + a.Sin * PoolRadius, PoolZ + a.Cos * PoolRadius))],
+                -0.2f, BankEarth, DirtLift);
             Overlay = ScenerySurface.Of(Dirt, dirt);
+
+            List<Polygon> floor = [];
+            Band(floor, [.. Enumerable.Range(0, 153).Select(i => (RingMin - 1f + i, ForestEdge(RingMin - 1f + i)))], FloorFrom, FloorTo, FloorLift);
+            Fringe = ScenerySurface.Of(Floor, floor);
+            Walls = TerraceFaces();
         }
 
         /// <summary>The stream's course, about 1 m between points, upstream first.</summary>
@@ -71,10 +85,25 @@ public static partial class TownScenery
         /// <summary>The stream's water surface.</summary>
         public ScenerySurface Water { get; }
 
+        /// <summary>The still pool the stream ends in, and its level.</summary>
+        public ScenerySurface Pool { get; }
+
+        public float PoolLevel { get; }
+
         /// <summary>
-        /// The dirt drawn over the ground along the roads and the lanes and on the stream's banks: strips of triangles
-        /// <see cref="DirtLift" /> over it, so a winding road keeps smooth edges where the ground's own material changes
-        /// only from one 1 m triangle to the next and would give it saw-teeth.
+        /// The forest floor's fringe laid over the ground along the forest's edge (from <see cref="FloorFrom" /> to
+        /// <see cref="FloorTo" /> of it), smooth where the ground's own forest floor, wearing it from one 1 m triangle to
+        /// the next, would give the edge saw-teeth.
+        /// </summary>
+        public ScenerySurface Fringe { get; }
+
+        /// <summary>The terraces' rough rock faces (<see cref="TerraceFaces" />).</summary>
+        public IReadOnlyList<SceneryWall> Walls { get; }
+
+        /// <summary>
+        /// The dirt laid over the ground along the roads and the lanes, on the stream's banks and round the pool:
+        /// <see cref="DirtLift" /> over the ground's own triangles (<see cref="Band" />), so a winding road keeps smooth edges
+        /// where the ground's own material changes only from one 1 m triangle to the next and would give it saw-teeth.
         /// </summary>
         public ScenerySurface Overlay { get; }
 
@@ -86,7 +115,7 @@ public static partial class TownScenery
         /// <summary>Metres from a point to the town's square, 0 inside it.</summary>
         public float TownDistance(float x, float z) => BoxDistance(x, z, 0f, TownMax, 0f, TownMax);
 
-        /// <summary>Metres from a point to the stream's middle, and the course's segment and its fraction there.</summary>
+        /// <summary>Metres from a point to the stream's middle.</summary>
         public float StreamDistance(float x, float z) => Nearest(x, z).Distance;
 
         public float WaterLevel(float x, float z)
@@ -95,9 +124,18 @@ public static partial class TownScenery
             return _level[i] + (_level[i + 1] - _level[i]) * t;
         }
 
-        /// <summary>Where the dark forest begins north of the fields, at a given x.</summary>
-        public float ForestEdge(float x) =>
-            97f + 5f * (Noise(s_seed + 7, x, 0.5f, 13f) - 0.5f) + 2f * (Noise(s_seed + 8, x, 0.5f, 4f) - 0.5f) - 5f * Smooth(70f, 95f, x);
+        /// <summary>
+        /// Where the dark forest begins north of the fields, at a given x: about z 97, 92 in the east, and never short of
+        /// the second tier of fields' fences (z 96.4 west of x 57).
+        /// </summary>
+        public float ForestEdge(float x)
+        {
+            float edge = 97f + 5f * (Noise(s_seed + 7, x, 0.5f, 13f) - 0.5f) + 1.2f * (Noise(s_seed + 8, x, 0.5f, 4f) - 0.5f) - 5f * Smooth(70f, 95f, x);
+            return MathF.Max(edge, 96.4f - 6f * Smooth(57f, 63f, x));
+        }
+
+        /// <summary>The forest floor's fringe runs from this far before the forest's edge to this far into it.</summary>
+        private const float FloorFrom = -0.6f, FloorTo = 2.2f;
 
         public bool InForest(float x, float z) => z > ForestEdge(x) + 0.5f;
 
@@ -148,17 +186,18 @@ public static partial class TownScenery
         {
             float d = BoxDistance(x, z, 0f, TownMax, 0f, TownMax);
             float h = 0.7f * Smooth(6f, 40f, d) + 0.9f * Smooth(84f, 116f, z) + 0.6f * Smooth(82f, 116f, x);
-            h += Smooth(3f, 18f, d) * ((Noise(s_seed, x, z, 23f) - 0.5f) * 1.5f + (Noise(s_seed + 1, x, z, 7f) - 0.5f) * 0.4f);
+            // The relief's noise, nearly flat on the terraces, so each step lies level and its face stands one height along it.
+            h += Smooth(3f, 18f, d) * (1f - 0.9f * Terrace(x, z)) * ((Noise(s_seed, x, z, 23f) - 0.5f) * 1.5f + (Noise(s_seed + 1, x, z, 7f) - 0.5f) * 0.4f);
             float hill = SceneryDresser.Distance(x, z, WindmillX, WindmillZ);
             h += 4.4f * (1f - Smooth(4.5f, 17f, hill));
             h += 0.9f * Smooth(78.5f, 90f, x) * Smooth(-6f, 2f, z) * Smooth(64f, 56f, z);
 
-            // The terraces: the land stepped up eastward in three risers 0.85 m high, each 1 m across.
+            // The terraces: the land stepped up eastward in three risers, each 1 m across, under a rock face (TerraceFaces).
             float terrace = Terrace(x, z);
             if (terrace > 0f)
             {
                 for (int k = 0; k < Risers; k++)
-                    h += terrace * 0.85f * Smooth(RiserX(k, z), RiserX(k, z) + 1f, x);
+                    h += terrace * RiserHeight * Smooth(RiserX(k, z), RiserX(k, z) + 1f, x);
             }
             // The south and west edges, which the overview looks at, fall away into the mist; the stream falls with them.
             return h - 9f * (1f - Smooth(0.2f, 6f, MathF.Min(x, z) - RingMin));
@@ -172,7 +211,7 @@ public static partial class TownScenery
         /// jogging a metre or two every 6 m of z, so the riser's rock (one 1 m band of the ground's triangles) keeps
         /// straight edges.
         /// </summary>
-        private static float RiserX(int k, float z) =>
+        public static float RiserX(int k, float z) =>
             95f + 7f * k + MathF.Floor(2.99f * Noise(s_seed + 5 + k, 0.5f, MathF.Floor(z / 6f) * 6f + 3f, 13f));
 
         /// <summary>Whether the point lies on a terrace's riser, where the stepped land wears rock.</summary>
@@ -216,6 +255,13 @@ public static partial class TownScenery
             {
                 h -= 0.06f * (1f - Smooth(-0.6f, 0.4f, RoadDistance(x, z)));
             }
+            float pool = SceneryDresser.Distance(x, z, PoolX, PoolZ);
+            if (pool < PoolRadius + BankRun)
+            {
+                h = MathF.Min(h, pool < PoolRadius
+                    ? PoolLevel - 0.5f * (1f - pool * pool / (PoolRadius * PoolRadius)) - 0.02f
+                    : PoolLevel + (h - PoolLevel) * Smooth(PoolRadius, PoolRadius + BankRun, pool));
+            }
             return h * Smooth(0f, 2.4f, TownDistance(x, z));
         }
 
@@ -223,13 +269,14 @@ public static partial class TownScenery
 
         /// <summary>
         /// The ground's materials (the roads' and the banks' dirt is drawn over it, <see cref="Overlay" />): dirt under the
-        /// stream and on worn patches by the gate, the well and the mill's door; each field's crop ground (wheat field under the standing wheat, tilled soil
-        /// under the vegetables and the ploughed field); tilled soil under the garden beds; rock on the terraces' risers;
-        /// forest floor under the dark forest; meadow elsewhere.
+        /// stream and the pool and on worn patches by the gate, the well and the mill's door; each field's crop ground
+        /// (wheat field under the standing wheat, tilled soil under the vegetables and the ploughed field); tilled soil under
+        /// the garden beds; rock on the terraces' risers; forest floor under the dark forest, from inside its fringe
+        /// (<see cref="Fringe" />); meadow elsewhere.
         /// </summary>
         public string Material(float x, float z)
         {
-            if (StreamDistance(x, z) < StreamHalf || Worn(x, z)) return Dirt;
+            if (StreamDistance(x, z) < StreamHalf || SceneryDresser.Distance(x, z, PoolX, PoolZ) < PoolRadius || Worn(x, z)) return Dirt;
             foreach (Field f in s_fields)
             {
                 if (f.Holds(x, z))
@@ -237,7 +284,7 @@ public static partial class TownScenery
             }
             if (InBed(x, z, 0f)) return Soil;
             if (OnRiser(x, z)) return Rock;
-            return InForest(x, z) ? Floor : Meadow;
+            return z > ForestEdge(x) + (FloorFrom + FloorTo) / 2f ? Floor : Meadow;
         }
 
         /// <summary>Worn earth: round the gate's mouth, the well and the carts, and before each garden's shed.</summary>
@@ -270,32 +317,155 @@ public static partial class TownScenery
         }
 
         /// <summary>
-        /// A strip of triangles along the line, from <paramref name="from" /> to <paramref name="to" /> metres to its left
-        /// (negative: its right) in <paramref name="across" /> rows, each vertex <see cref="DirtLift" /> over the ground.
+        /// The strip along the line from <paramref name="from" /> to <paramref name="to" /> metres to its left (negative:
+        /// its right), laid <paramref name="lift" /> over the drawn ground: each of the strip's quads (two triangles where
+        /// a bend folds it) cut out of the ground's own 1 m triangles (SceneryObjWriter's, split along (x0, z0)-(x1, z1)),
+        /// each piece on its triangle's plane raised by the lift, so no part of it ever dips under the ground
+        /// (SceneryRules checks it).
         /// </summary>
-        private void Band(List<Polygon> polygons, IReadOnlyList<(float X, float Z)> line, float from, float to, int across)
+        private void Band(List<Polygon> polygons, IReadOnlyList<(float X, float Z)> line, float from, float to, float lift)
         {
-            var rows = new (float X, float Y, float Z)[line.Count][];
+            var left = new (float X, float Z)[line.Count];
+            var right = new (float X, float Z)[line.Count];
             for (int i = 0; i < line.Count; i++)
             {
                 (float ax, float az) = line[Math.Max(0, i - 1)];
                 (float bx, float bz) = line[Math.Min(line.Count - 1, i + 1)];
                 float length = SceneryDresser.Distance(ax, az, bx, bz), nx = -(bz - az) / length, nz = (bx - ax) / length;
-                rows[i] = new (float X, float Y, float Z)[across + 1];
-                for (int k = 0; k <= across; k++)
-                {
-                    float off = from + (to - from) * k / across, x = line[i].X + nx * off, z = line[i].Z + nz * off;
-                    rows[i][k] = (x, Height(x, z) + DirtLift, z);
-                }
+                left[i] = (line[i].X + nx * to, line[i].Z + nz * to);
+                right[i] = (line[i].X + nx * from, line[i].Z + nz * from);
             }
             for (int i = 0; i + 1 < line.Count; i++)
             {
-                for (int k = 0; k < across; k++)
+                (float X, float Z)[] quad = [right[i], right[i + 1], left[i + 1], left[i]];
+                if (Convex(quad))
                 {
-                    polygons.Add([rows[i][k], rows[i][k + 1], rows[i + 1][k + 1]]);
-                    polygons.Add([rows[i][k], rows[i + 1][k + 1], rows[i + 1][k]]);
+                    Lay(polygons, quad, lift);
+                }
+                else
+                {
+                    Lay(polygons, [quad[0], quad[1], quad[2]], lift);
+                    Lay(polygons, [quad[0], quad[2], quad[3]], lift);
                 }
             }
+        }
+
+        /// <summary>The convex outline cut out of every ground triangle under it, each piece on its triangle's plane plus the lift.</summary>
+        private void Lay(List<Polygon> polygons, (float X, float Z)[] outline, float lift)
+        {
+            float area = 0f;
+            for (int i = 0; i < outline.Length; i++)
+            {
+                (float X, float Z) a = outline[i], b = outline[(i + 1) % outline.Length];
+                area += a.X * b.Z - b.X * a.Z;
+            }
+            if (MathF.Abs(area) < 1e-4f) return;
+            float sign = MathF.Sign(area);
+            int x0 = (int)MathF.Floor(outline.Min(p => p.X)), x1 = (int)MathF.Ceiling(outline.Max(p => p.X));
+            int z0 = (int)MathF.Floor(outline.Min(p => p.Z)), z1 = (int)MathF.Ceiling(outline.Max(p => p.Z));
+            for (int i = x0; i < x1; i++)
+            {
+                for (int j = z0; j < z1; j++)
+                {
+                    float h00 = GridHeight(i, j), h10 = GridHeight(i + 1, j), h01 = GridHeight(i, j + 1), h11 = GridHeight(i + 1, j + 1);
+                    // The quad's two triangles: (x0z0, x1z1, x1z0) where x - x0 >= z - z0, (x0z0, x0z1, x1z1) where it is less.
+                    foreach (bool lower in new[] { true, false })
+                    {
+                        List<(float X, float Z)> piece = lower ? [(i, j), (i + 1, j), (i + 1, j + 1)] : [(i, j), (i + 1, j + 1), (i, j + 1)];
+                        for (int e = 0; e < outline.Length && piece.Count >= 3; e++)
+                            piece = Clip(piece, outline[e], outline[(e + 1) % outline.Length], sign);
+                        if (piece.Count < 3) continue;
+                        polygons.Add([.. piece.Select(p =>
+                        {
+                            float fx = p.X - i, fz = p.Z - j;
+                            float y = lower ? h00 + fx * (h10 - h00) + fz * (h11 - h10) : h00 + fz * (h01 - h00) + fx * (h11 - h01);
+                            return (p.X, y + lift, p.Z);
+                        })]);
+                    }
+                }
+            }
+        }
+
+        /// <summary>The ground's height at a whole-metre world point, as SceneryObjWriter writes the vertex there.</summary>
+        private float GridHeight(int x, int z)
+        {
+            if (!_grid.TryGetValue((x, z), out float h)) _grid[(x, z)] = h = Height(x, z);
+            return h;
+        }
+
+        /// <summary>One Sutherland-Hodgman pass: the part of the polygon on the inner side of the outline's edge a-b.</summary>
+        private static List<(float X, float Z)> Clip(List<(float X, float Z)> polygon, (float X, float Z) a, (float X, float Z) b, float sign)
+        {
+            float Side((float X, float Z) p) => sign * ((b.X - a.X) * (p.Z - a.Z) - (b.Z - a.Z) * (p.X - a.X));
+            List<(float X, float Z)> kept = [];
+            for (int i = 0; i < polygon.Count; i++)
+            {
+                (float X, float Z) p = polygon[i], q = polygon[(i + 1) % polygon.Count];
+                float sp = Side(p), sq = Side(q);
+                if (sp >= 0f) kept.Add(p);
+                if ((sp >= 0f) != (sq >= 0f))
+                {
+                    float t = sp / (sp - sq);
+                    kept.Add((p.X + (q.X - p.X) * t, p.Z + (q.Z - p.Z) * t));
+                }
+            }
+            return kept;
+        }
+
+        private static bool Convex((float X, float Z)[] outline)
+        {
+            float first = 0f;
+            for (int i = 0; i < outline.Length; i++)
+            {
+                (float X, float Z) a = outline[i], b = outline[(i + 1) % outline.Length], c = outline[(i + 2) % outline.Length];
+                float turn = (b.X - a.X) * (c.Z - b.Z) - (b.Z - a.Z) * (c.X - b.X);
+                if (MathF.Abs(turn) < 1e-6f) continue;
+                if (first == 0f) first = turn;
+                else if (MathF.Sign(turn) != MathF.Sign(first)) return false;
+            }
+            return true;
+        }
+
+        // ---- the terraces' faces ----
+
+        /// <summary>
+        /// A rough rock face (SceneryWall, cliff_rock) over each terrace riser, cell by cell (a wall stays inside one): 0.55 m
+        /// into the riser's 1 m slope, from <see cref="TerraceSouth" /> to <see cref="TerraceNorth" /> and 0.6 m short of
+        /// each seam (boulders close the gap, Terraces), jogging with the riser; from under the lower step's ground to just
+        /// over the upper step's, so it reads as a rock step from the overview. Its outline runs north to south, so the face
+        /// looks west, down the steps (the jogs' short stretches look north or south, down theirs).
+        /// </summary>
+        private List<SceneryWall> TerraceFaces()
+        {
+            List<SceneryWall> walls = [];
+            for (int k = 0; k < Risers; k++)
+            {
+                foreach (int row in new[] { -1, 0, 1 })
+                {
+                    float north = MathF.Min(row * Cell + Cell - 0.6f, TerraceNorth), south = MathF.Max(row * Cell + 0.6f, TerraceSouth);
+                    List<(float X, float Z)> outline = [(RiserX(k, north) + 0.55f, north)];
+                    for (float seam = MathF.Floor(north / 6f) * 6f; seam > south; seam -= 6f)
+                    {
+                        if (seam >= north) continue;
+                        outline.Add((RiserX(k, seam + 0.01f) + 0.55f, seam));
+                        outline.Add((RiserX(k, seam - 0.01f) + 0.55f, seam));
+                    }
+                    outline.Add((RiserX(k, south) + 0.55f, south));
+
+                    float bottom = float.MaxValue, top = float.MinValue;
+                    for (int p = 1; p < outline.Count; p++)
+                    {
+                        for (float t = 0f; t <= 1f; t += 0.25f)
+                        {
+                            float x = outline[p - 1].X + (outline[p].X - outline[p - 1].X) * t, z = outline[p - 1].Z + (outline[p].Z - outline[p - 1].Z) * t;
+                            bottom = MathF.Min(bottom, Height(x - 1.2f, z));
+                            top = MathF.Max(top, Height(x + 1f, z));
+                        }
+                    }
+                    walls.Add(new SceneryWall(outline, Closed: false, Bottom: bottom - 0.35f, Top: top + 0.1f, Rock));
+                }
+            }
+            return walls;
         }
 
         /// <summary>A Catmull-Rom curve through the points, sampled about every <paramref name="spacing" /> metres.</summary>

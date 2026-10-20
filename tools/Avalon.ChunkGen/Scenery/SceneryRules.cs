@@ -9,7 +9,7 @@ namespace Avalon.ChunkGen;
 /// over a path at the game camera's zoom. A forest piece meets every edge at y 0 on forest floor and carries a barrier
 /// all along its 6 m edge band, and a cap keeps its clearing. The town's south and west cells keep low near the wall,
 /// between the camera and the player. A forest pool holds every family and cap shape, and the town ring covers its 21
-/// cells and meets the town and itself. Every refusal is an InvalidOperationException naming the piece, the pool or the
+/// cells and meets the town and itself. A surface laid over the ground (a road's dirt) never dips under it. Every refusal is an InvalidOperationException naming the piece, the pool or the
 /// ring.
 /// </summary>
 public static class SceneryRules
@@ -75,7 +75,8 @@ public static class SceneryRules
     /// A forest piece (border, cap or town-ward): every item a model of its kit (<see cref="DecorItem.Check" />, any
     /// whole degree) whose turned box lies within its cell; tall items in the edge band at chunk-tree size; the ground
     /// at y 0 on forest floor all round its edge; a barrier item for every <see cref="BarrierSpacing" /> metres of each
-    /// edge; and no tree within <see cref="CapClearing" /> of a capped edge's midpoint.
+    /// edge; no tree within <see cref="CapClearing" /> of a capped edge's midpoint; and every surface laid over the
+    /// ground at or above it (<see cref="CheckOverlays" />).
     /// </summary>
     public static void CheckForestPiece(SceneryPiece piece, IReadOnlyDictionary<string, ModelBounds> kit)
     {
@@ -90,31 +91,132 @@ public static class SceneryRules
         CheckForestGround(piece);
         CheckBarrier(piece, footprints);
         CheckCaps(piece);
+        CheckOverlays(piece);
     }
 
     /// <summary>
-    /// A town ring piece: every item a model of its kit whose turned box lies within its cell; tall items within
-    /// <see cref="EdgeBand" /> of an edge it shares with the town at chunk-tree size; and in a cell south or west of
-    /// the town, nothing within <see cref="TownWallNear" /> of the town (<see cref="TownCells" />) drawn taller than
-    /// <see cref="TownWallNearTop" />, nor within <see cref="TownWallFar" /> drawn taller than <see cref="TownWallFarTop" />.
+    /// A town ring piece: every item held to <see cref="CheckTownItem" />, and every surface laid over the ground on it
+    /// (<see cref="CheckOverlays" />).
     /// </summary>
     public static void CheckTownPiece(SceneryPiece piece, IReadOnlyDictionary<string, ModelBounds> kit)
     {
-        IReadOnlyList<(int X, int Z)> town = TownCells;
-        Side[] shared = [.. s_sides.Where(s => town.Contains(Neighbour((piece.GridX, piece.GridZ), s)))];
-        bool cameraSide = piece.GridX < town.Min(c => c.X) || piece.GridZ < town.Min(c => c.Z);   // south or west of the town
         foreach (DecorItem item in piece.Decor)
+            CheckTownItem(piece, item, kit);
+        CheckOverlays(piece);
+    }
+
+    /// <summary>
+    /// One item of a town ring piece (piece-local): a model of its kit whose turned box lies within its cell; drawn
+    /// taller than <see cref="TallItem" /> within <see cref="EdgeBand" /> of an edge the piece shares with the town, at
+    /// chunk-tree size; and in a cell south or west of the town, nothing within <see cref="TownWallNear" /> of the town
+    /// (<see cref="TownCells" />) drawn taller than <see cref="TownWallNearTop" />, nor within <see cref="TownWallFar" />
+    /// drawn taller than <see cref="TownWallFarTop" />. The town ring's scene holds each item it places to this before
+    /// adding it, so its scattering never builds a piece this refuses.
+    /// </summary>
+    internal static void CheckTownItem(SceneryPiece piece, DecorItem item, IReadOnlyDictionary<string, ModelBounds> kit)
+    {
+        IReadOnlyList<(int X, int Z)> town = TownCells;
+        Footprint footprint = CheckItem(piece, item, kit);
+        if (piece.GridX < town.Min(c => c.X) || piece.GridZ < town.Min(c => c.Z))   // south or west of the town
         {
-            Footprint footprint = CheckItem(piece, item, kit);
-            if (cameraSide)
+            float distance = town.Min(cell => DistanceToCell(piece, footprint, cell));
+            if (distance < TownWallNear && footprint.Top > TownWallNearTop)
+                throw new InvalidOperationException(TooTall(piece, footprint, TownWallNearTop, TownWallNear, distance));
+            if (distance < TownWallFar && footprint.Top > TownWallFarTop)
+                throw new InvalidOperationException(TooTall(piece, footprint, TownWallFarTop, TownWallFar, distance));
+        }
+        CheckEdgeBand(piece, footprint, [.. s_sides.Where(s => town.Contains(Neighbour((piece.GridX, piece.GridZ), s)))]);
+    }
+
+    /// <summary>
+    /// Every surface other than water and mist (dirt or forest floor laid over the ground) lies at or above the drawn
+    /// ground (SceneryObjWriter's 1 m triangles over the terrain's heights) everywhere on it, within
+    /// <see cref="OverlayTolerance" />: a surface under the ground is hidden where it should show. Both are planar per
+    /// triangle, so their difference is least at a surface triangle's corners, where its edges cross the ground's grid
+    /// lines (x, z and x - z whole) and at the grid's vertices inside it; every one of those is sampled.
+    /// </summary>
+    private static void CheckOverlays(SceneryPiece piece)
+    {
+        int cells = (int)MathF.Round(ChunkPiece.CellSize / SceneryTerrain.Step);
+        float[,]? ground = null;
+        foreach (ScenerySurface surface in piece.Terrain.Surfaces)
+        {
+            if (surface.Material is "water" or "mist") continue;
+            ground ??= GroundHeights(piece, cells);
+            foreach (IReadOnlyList<(float X, float Y, float Z)> polygon in surface.Within(0f, 0f, ChunkPiece.CellSize, ChunkPiece.CellSize))
             {
-                float distance = town.Min(cell => DistanceToCell(piece, footprint, cell));
-                if (distance < TownWallNear && footprint.Top > TownWallNearTop)
-                    throw new InvalidOperationException(TooTall(piece, footprint, TownWallNearTop, TownWallNear, distance));
-                if (distance < TownWallFar && footprint.Top > TownWallFarTop)
-                    throw new InvalidOperationException(TooTall(piece, footprint, TownWallFarTop, TownWallFar, distance));
+                for (int k = 1; k + 1 < polygon.Count; k++)
+                {
+                    (float X, float Y, float Z) a = polygon[0], b = polygon[k], c = polygon[k + 1];
+                    foreach ((float x, float y, float z) in Samples(a, b, c))
+                    {
+                        float under = GroundAt(ground, cells, x, z) - y;
+                        if (under > OverlayTolerance)
+                        {
+                            throw new InvalidOperationException(
+                                $"{piece.Name}: its {surface.Material} surface at ({N(x)}, {N(z)}) lies {N(under)} m under the ground: it would not show");
+                        }
+                    }
+                }
             }
-            CheckEdgeBand(piece, footprint, shared);
+        }
+    }
+
+    /// <summary>How far a surface laid over the ground may dip under it, in metres: the files' millimetre rounding.</summary>
+    private const float OverlayTolerance = 0.002f;
+
+    private static float[,] GroundHeights(SceneryPiece piece, int cells)
+    {
+        float[,] heights = new float[cells + 1, cells + 1];
+        for (int i = 0; i <= cells; i++)
+        {
+            for (int j = 0; j <= cells; j++)
+                heights[i, j] = piece.Terrain.Height(i * SceneryTerrain.Step, j * SceneryTerrain.Step);
+        }
+        return heights;
+    }
+
+    /// <summary>The drawn ground's height at a piece-local point: its quad's triangle, split along (x0, z0)-(x1, z1).</summary>
+    private static float GroundAt(float[,] heights, int cells, float x, float z)
+    {
+        float gx = Math.Clamp(x / SceneryTerrain.Step, 0f, cells), gz = Math.Clamp(z / SceneryTerrain.Step, 0f, cells);
+        int i = Math.Min((int)MathF.Floor(gx), cells - 1), j = Math.Min((int)MathF.Floor(gz), cells - 1);
+        float fx = gx - i, fz = gz - j;
+        float h00 = heights[i, j], h10 = heights[i + 1, j], h01 = heights[i, j + 1], h11 = heights[i + 1, j + 1];
+        return fx >= fz ? h00 + fx * (h10 - h00) + fz * (h11 - h10) : h00 + fz * (h01 - h00) + fx * (h11 - h01);
+    }
+
+    /// <summary>
+    /// The points of a surface triangle where its height over the ground can be least: its corners, its edges' crossings
+    /// of the ground's grid lines, and the grid's vertices inside it, each with the triangle's height there.
+    /// </summary>
+    private static IEnumerable<(float X, float Y, float Z)> Samples((float X, float Y, float Z) a, (float X, float Y, float Z) b, (float X, float Y, float Z) c)
+    {
+        float area = (b.X - a.X) * (c.Z - a.Z) - (c.X - a.X) * (b.Z - a.Z);
+        if (MathF.Abs(area) < 1e-6f) yield break;
+        yield return a;
+        yield return b;
+        yield return c;
+        foreach (((float X, float Y, float Z) p, (float X, float Y, float Z) q) in new[] { (a, b), (b, c), (c, a) })
+        {
+            foreach (Func<(float X, float Y, float Z), float> line in new Func<(float X, float Y, float Z), float>[] { v => v.X, v => v.Z, v => v.X - v.Z })
+            {
+                float from = line(p), to = line(q);
+                for (float k = MathF.Floor(MathF.Min(from, to)) + 1f; k < MathF.Max(from, to); k += 1f)
+                {
+                    float t = (k - from) / (to - from);
+                    yield return (p.X + (q.X - p.X) * t, p.Y + (q.Y - p.Y) * t, p.Z + (q.Z - p.Z) * t);
+                }
+            }
+        }
+        for (float x = MathF.Ceiling(MathF.Min(a.X, MathF.Min(b.X, c.X))); x <= MathF.Max(a.X, MathF.Max(b.X, c.X)); x += 1f)
+        {
+            for (float z = MathF.Ceiling(MathF.Min(a.Z, MathF.Min(b.Z, c.Z))); z <= MathF.Max(a.Z, MathF.Max(b.Z, c.Z)); z += 1f)
+            {
+                float u = ((b.X - x) * (c.Z - z) - (c.X - x) * (b.Z - z)) / area, v = ((c.X - x) * (a.Z - z) - (a.X - x) * (c.Z - z)) / area;
+                float w = 1f - u - v;
+                if (u >= -1e-5f && v >= -1e-5f && w >= -1e-5f) yield return (x, u * a.Y + v * b.Y + w * c.Y, z);
+            }
         }
     }
 

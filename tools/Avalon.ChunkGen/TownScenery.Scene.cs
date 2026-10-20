@@ -10,14 +10,16 @@ public static partial class TownScenery
     /// <summary>
     /// The scene's dressing: a SceneryDresser per ring cell (its origin the cell's corner), each item sent to the cell
     /// holding its position and refused there when its turned kit box crosses the cell's edge. Before that, an item is
-    /// held to the town ring's rules (SceneryRules.CheckTownPiece) and left out when it breaks one: in a cell south or
-    /// west of the town nothing taller than the wall within 4 m of it nor taller than 6 m within 10 m; within 6 m of an
-    /// edge shared with the town, a tall item no larger than the tree walls' trees or a 4 m rock. Spacing is kept across
-    /// cells, on a 4 m grid of the spots taken.
+    /// held, in its cell's frame, to the town ring's own item rules (SceneryRules.CheckTownItem, which CheckTownPiece
+    /// runs on every item) and left out when it breaks one, so the scattering never builds a piece the rules refuse.
+    /// Spacing is kept across cells, on a 4 m grid of the spots taken.
     /// </summary>
     private sealed class Scene
     {
         private readonly Dictionary<(int X, int Z), SceneryDresser> _cells = [];
+
+        /// <summary>Each cell as an empty piece, for the rules to name and place an item in (SceneryRules.CheckTownItem).</summary>
+        private readonly Dictionary<(int X, int Z), SceneryPiece> _probes = [];
         private readonly IReadOnlyList<(int X, int Z)> _order;
         private readonly IReadOnlyDictionary<string, ModelBounds> _kit;
         private readonly Dictionary<(int X, int Z), List<(float X, float Z, float Radius)>> _taken = [];
@@ -34,6 +36,7 @@ public static partial class TownScenery
                     Origin = (x * Cell, z * Cell),
                     FileKit = DecorJsonWriter.TownKit,
                 };
+                _probes[(x, z)] = new SceneryPiece(SceneryComposer.CellName(Prefix, x, z), terrain, []) { GridX = x, GridZ = z, Kit = DecorJsonWriter.TownKit };
             }
         }
 
@@ -75,8 +78,10 @@ public static partial class TownScenery
                 : kit ?? (box.Kit == DecorJsonWriter.ForestKit && !model.StartsWith("avalon_", StringComparison.Ordinal) ? Bright : null);
             (int X, int Z) cell = ((int)MathF.Floor(x / Cell), (int)MathF.Floor(z / Cell));
             if (!_cells.TryGetValue(cell, out SceneryDresser? dresser)) return false;
-            var item = new DecorItem("", model, SceneryDresser.Round(x), SceneryDresser.Round(y), SceneryDresser.Round(z), Yaw.Normal(yaw), SceneryDresser.Round(scale));
-            return Allowed(item, box, cell) && dresser.TryAddAt(model, x, y, z, yaw, scale, kit);
+            // The item as the dresser writes it, in its cell's frame as the composer moves it there.
+            var item = new DecorItem("", model, SceneryDresser.Round(x) - cell.X * Cell, SceneryDresser.Round(y), SceneryDresser.Round(z) - cell.Z * Cell,
+                Yaw.Normal(yaw), SceneryDresser.Round(scale), kit ?? (box.Kit == DecorJsonWriter.TownKit ? null : box.Kit));
+            return Allowed(item, cell) && dresser.TryAddAt(model, x, y, z, yaw, scale, kit);
         }
 
         /// <summary>The model at an open spot of the radius, which it then takes.</summary>
@@ -216,32 +221,18 @@ public static partial class TownScenery
 
         private static (int X, int Z) Grid(float x, float z) => ((int)MathF.Floor(x / 4f), (int)MathF.Floor(z / 4f));
 
-        /// <summary>The town ring's rules (SceneryRules.CheckTownPiece) for one item in its cell, in world metres.</summary>
-        private bool Allowed(DecorItem item, ModelBounds box, (int X, int Z) cell)
+        /// <summary>Whether the rules let the item (in its cell's frame) stand in the cell: SceneryRules.CheckTownItem's refusal is a no.</summary>
+        private bool Allowed(DecorItem item, (int X, int Z) cell)
         {
-            (float minX, float maxX, float minZ, float maxZ) = SceneryComposer.TurnedBox(item, box);
-            float top = item.Y + box.MaxY * item.Scale;
-            if (cell.X < 0 || cell.Z < 0)
+            try
             {
-                float dx = MathF.Max(0f, MathF.Max(-maxX, minX - TownMax)), dz = MathF.Max(0f, MathF.Max(-maxZ, minZ - TownMax));
-                float distance = MathF.Sqrt(dx * dx + dz * dz);
-                if (distance < SceneryRules.TownWallNear && top > SceneryRules.TownWallNearTop) return false;
-                if (distance < SceneryRules.TownWallFar && top > SceneryRules.TownWallFarTop) return false;
+                SceneryRules.CheckTownItem(_probes[cell], item, _kit);
+                return true;
             }
-            if (top <= SceneryRules.TallItem) return true;
-            float ox = cell.X * Cell, oz = cell.Z * Cell, lx = item.X - ox, lz = item.Z - oz;
-            bool nearShared =
-                (SceneryRules.TownCells.Contains((cell.X, cell.Z + 1)) && Cell - lz < SceneryRules.EdgeBand)
-                || (SceneryRules.TownCells.Contains((cell.X + 1, cell.Z)) && Cell - lx < SceneryRules.EdgeBand)
-                || (SceneryRules.TownCells.Contains((cell.X, cell.Z - 1)) && lz < SceneryRules.EdgeBand)
-                || (SceneryRules.TownCells.Contains((cell.X - 1, cell.Z)) && lx < SceneryRules.EdgeBand);
-            if (!nearShared) return true;
-            if (ForestDecorRules.SpeciesOf(item.Model) is { } species)
+            catch (InvalidOperationException)
             {
-                return species is not TreeSpecies.TwistedTree
-                    && item.Scale <= (species == TreeSpecies.DeadTree ? ForestDresser.WallDeadTreeMaxScale : ForestDresser.WallTreeMaxScale);
+                return false;
             }
-            return top <= SceneryRules.EdgeBandRockTop;
         }
     }
 }

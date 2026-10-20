@@ -34,8 +34,10 @@ public static partial class TownScenery
 
     private const float Cell = ChunkPiece.CellSize;
 
-    /// <summary>The terraces' risers.</summary>
+    /// <summary>The terraces' risers, how high each steps the land, and how far along z their rock faces run.</summary>
     private const int Risers = 3;
+
+    private const float RiserHeight = 1.1f, TerraceSouth = -23f, TerraceNorth = 53.5f;
 
     /// <summary>The town's square (x and z) and the ring's outer square, in world metres.</summary>
     private const float TownMax = 60f, RingMin = -30f, RingMax = 120f;
@@ -49,13 +51,19 @@ public static partial class TownScenery
 
     // ---- the plan (world metres, +X east, +Z north) ----
 
-    /// <summary>The stream's course, upstream first: down from the north-east hills, bending south past the bridge and along the east wall.</summary>
+    /// <summary>
+    /// The stream's course, upstream first: down from the north-east hills, bending south under the bridge and running
+    /// along the east wall to a still pool short of the map's south edge, where the land falls away.
+    /// </summary>
     private static readonly (float X, float Z)[] s_stream =
     [
-        (124f, 104.5f), (114f, 101f), (105f, 97.5f), (96f, 94f), (87f, 91.6f), (79f, 89.6f), (72.6f, 87.4f), (68.8f, 84f),
-        (66.9f, 79.5f), (66.5f, 74f), (66.2f, 69.5f), (65.6f, 65.2f), (65f, 60.5f), (64.8f, 54f), (64.9f, 44f), (64.6f, 34f),
-        (64.9f, 24f), (64.6f, 14f), (65f, 4f), (65.3f, -6f), (65f, -16f), (65.6f, -26f), (66.2f, -34f),
+        (124f, 104.5f), (114f, 101f), (105f, 97.5f), (96f, 94f), (88f, 90.2f), (81f, 86.4f), (75f, 83f), (70.4f, 79.8f), (67.4f, 76.9f),
+        (66.2f, 73.5f), (66f, 70f), (65.6f, 65.4f), (65f, 60.5f), (64.8f, 54f), (64.9f, 44f), (64.6f, 34f), (64.9f, 24f), (64.6f, 14f),
+        (65f, 4f), (65.3f, -6f), (65.2f, -13.5f), (65.5f, -18.2f),
     ];
+
+    /// <summary>The still pool the stream ends in: its middle and radius.</summary>
+    private const float PoolX = 65.6f, PoolZ = -18.6f, PoolRadius = 3.2f;
 
     /// <summary>The stream's half-width (3.4 m wide) and how deep its bed lies under the water at its middle.</summary>
     private const float StreamHalf = 1.7f, StreamDepth = 0.55f;
@@ -63,8 +71,11 @@ public static partial class TownScenery
     /// <summary>The bank's run from the water's edge up to the land around, and the bare earth along its foot.</summary>
     private const float BankRun = 3.6f, BankEarth = 0.9f;
 
-    /// <summary>How far the dirt drawn over the ground (roads, lanes, the stream's banks) lies above it.</summary>
-    private const float DirtLift = 0.05f;
+    /// <summary>
+    /// How far the surfaces laid over the ground lie above it: the dirt (roads, lanes, the stream's banks) over the
+    /// forest floor's fringe where the two cross.
+    /// </summary>
+    private const float DirtLift = 0.06f, FloorLift = 0.03f;
 
     /// <summary>The water lies this far under the land at the stream's course; beside the town no higher than <see cref="DellWater" />.</summary>
     private const float WaterBelow = 0.45f, DellWater = -0.45f;
@@ -72,21 +83,24 @@ public static partial class TownScenery
     /// <summary>The least drop of the water per metre of its course (ScenerySurface's 0.5 %, and a little more for the rounding).</summary>
     private const float WaterSlope = 0.0053f;
 
-    /// <summary>The stone bridge: across the stream at x 66.5, its road along x (a quarter turn), the lane on z 76.5.</summary>
-    private const float BridgeX = 66.5f, LaneZ = 76.5f;
+    /// <summary>
+    /// The stone bridge: across the stream at x 66.1, just where it bends away east, its road along x (a quarter turn),
+    /// the lane on z 73.5; its 12 m length runs from x 60.1, inside cell (2, 2).
+    /// </summary>
+    private const float BridgeX = 66.1f, LaneZ = 73.5f;
 
-    /// <summary>The road from the gate north to the map's edge; 4 m wide, 5 m at the gate.</summary>
+    /// <summary>The road from the gate north to the map's edge, 4 m wide.</summary>
     private static readonly (float X, float Z)[] s_road =
     [
         (15f, 59.5f), (15f, 70f), (15.6f, 74f), (17.3f, 80f), (18.5f, 86f), (19f, 92f), (19.6f, 98f), (21f, 104f), (22.4f, 110f),
         (23.2f, 116f), (23.5f, 121f),
     ];
 
-    /// <summary>The lane from the bridge's east end east and south past the mill and the orchard to the map's south edge.</summary>
+    /// <summary>The lane from the bridge's east end east and south past the mill and the orchard, ending short of the south edge.</summary>
     private static readonly (float X, float Z)[] s_laneSouth =
     [
-        (72.4f, LaneZ), (77.5f, LaneZ), (79.3f, 75.2f), (79.6f, 72f), (79.5f, 60f), (78.9f, 46f), (78.4f, 32f), (78f, 18f), (77.6f, 4f),
-        (77.2f, -12f), (76.8f, -31f),
+        (72.2f, LaneZ), (77.5f, LaneZ), (79.3f, 72.2f), (79.6f, 69f), (79.5f, 60f), (78.9f, 46f), (78.4f, 32f), (78f, 18f), (77.6f, 4f),
+        (77.3f, -10f), (77.1f, -17.5f),
     ];
 
     /// <summary>The track up the windmill's hill from the lane.</summary>
@@ -99,7 +113,10 @@ public static partial class TownScenery
     private const float MillX = 71f, MillZ = 42f, WheelX = 65.2f;
 
     /// <summary>The standing stones' ring, the shrine at the bridge's east foot, the windmill on its hill.</summary>
-    private const float StonesX = 73.6f, StonesZ = 67.2f, StonesRadius = 3.3f, ShrineX = 69.3f, ShrineZ = 71.5f, WindmillX = 104f, WindmillZ = 76f;
+    private const float StonesX = 73.5f, StonesZ = 65.6f, StonesRadius = 3.3f, ShrineX = 70.2f, ShrineZ = 69.6f, WindmillX = 104f, WindmillZ = 76f;
+
+    /// <summary>The windmill's scale: it stands taller than the barn below it.</summary>
+    private const float WindmillScale = 1.3f;
 
     /// <summary>
     /// The fields: whole metres, kept off the cell seams (a stand or a fence on a seam would cross a cell's edge); the
@@ -113,7 +130,7 @@ public static partial class TownScenery
         new(FieldKind.Wheat, 33f, 49f, 80f, 88f),
         new(FieldKind.Ploughed, 51f, 58f, 80f, 88f),
         new(FieldKind.Vegetables, 33f, 56f, 64f, 72f),
-        new(FieldKind.Hay, 77f, 88f, 79.5f, 85.5f),
+        new(FieldKind.Hay, 82f, 89f, 76.5f, 82f),
         new(FieldKind.Wheat, -27f, -9f, 92.5f, 96f),
         new(FieldKind.Hay, -6f, 13f, 92.5f, 96f),
         new(FieldKind.Wheat, 33f, 55f, 92.5f, 96f),
@@ -123,11 +140,11 @@ public static partial class TownScenery
     private static readonly (string Recipe, float X, float Z, int Rotation)[] s_buildings =
     [
         // Outside the gate, their doors toward the road.
-        ("cottage_low", 5.6f, 68.6f, 3), ("cottage_brick", 25.4f, 68.4f, 1),
+        ("cottage_low", 5.6f, 67.8f, 3), ("cottage_brick", 25.4f, 68.4f, 1),
         // The watermill, its door to the south, its wheel side on the stream.
         ("mill_house", MillX, MillZ, 0),
         // The barn below the windmill.
-        ("barn", 112.2f, 66f, 0),
+        ("barn", 98f, 64.5f, 0),
         // South and west: their backs to the wall, their gardens between.
         ("house_a", 8.6f, -16f, 0), ("cottage_brick", 22.4f, -15.4f, 0), ("cottage_low", 38f, -16f, 0), ("house_b", 52f, -15.6f, 0),
         ("house_b", -15.8f, 8.6f, 1), ("cottage_low", -16f, 22.6f, 1), ("house_a", -16f, 38f, 1), ("cottage_brick", -15.4f, 52f, 1),
@@ -151,7 +168,11 @@ public static partial class TownScenery
         IReadOnlyList<(int X, int Z)> cells = SceneryRing.Cells(SceneryRules.TownCells);
         List<PlacedBuilding> buildings = [.. s_buildings.Select((b, i) => PlacedBuilding.Of(b.Recipe, $"{b.Recipe}_{i + 1}", b.X, b.Z, b.Rotation))];
         var ground = new Ground(buildings);
-        var terrain = new SceneryTerrain(ground.Height, ground.Material) { Surfaces = [ground.Water, ground.Overlay] };
+        var terrain = new SceneryTerrain(ground.Height, ground.Material)
+        {
+            Surfaces = [ground.Water, ground.Pool, ground.Overlay, ground.Fringe],
+            Walls = ground.Walls,
+        };
         var scene = new Scene(terrain, ground, kit, cells);
 
         Buildings(scene, buildings);
@@ -252,7 +273,7 @@ public static partial class TownScenery
         // Old trees round the meeting place, behind it as the game camera looks (north-east).
         foreach ((TreeSpecies species, float x, float z, float scale) in new[]
         {
-            (TreeSpecies.CommonTree, 83f, 63.4f, 1.35f), (TreeSpecies.CommonTree, 74.2f, 81.2f, 1.25f), (TreeSpecies.Pine, 86f, 74.5f, 1.2f),
+            (TreeSpecies.CommonTree, 83f, 63.4f, 1.35f), (TreeSpecies.CommonTree, 77.8f, 78.4f, 1.25f), (TreeSpecies.Pine, 86f, 74.5f, 1.2f),
         })
         {
             Require(scene.Tree(species, x, z, scale, Bright), $"the old tree at ({ForestText.N(x)}, {ForestText.N(z)})");
@@ -270,8 +291,8 @@ public static partial class TownScenery
     {
         foreach ((string model, float x, float z, int yaw, float scale) in new[]
         {
-            ("avalon_well", 20.4f, 65.6f, 15, 1f), ("Prop_Wagon", 10.6f, 63.2f, 160, 1f), ("Prop_Wagon", 19.6f, 73.2f, 262, 1f),
-            ("avalon_wood_pile", 11.1f, 72.2f, 90, 1f), ("avalon_wood_pile", 28.4f, 63.4f, 0, 1f), ("avalon_bench", 10.7f, 69.6f, 270, 1f),
+            ("avalon_well", 20.4f, 65.6f, 15, 1f), ("Prop_Wagon", 10.6f, 63.6f, 20, 1f), ("Prop_Wagon", 21.6f, 77.4f, 262, 1f),
+            ("avalon_wood_pile", 11.3f, 70.8f, 90, 1f), ("avalon_wood_pile", 28.4f, 63.4f, 0, 1f), ("avalon_bench", 10.7f, 68.6f, 270, 1f),
             ("avalon_barrel", 11.2f, 66.2f, 0, 1f), ("avalon_barrel", 11.6f, 67.1f, 40, 1f), ("avalon_barrel_broken", 23.8f, 63.2f, 70, 1f),
             ("Prop_Crate", 25.1f, 62.6f, 15, 0.9f), ("Prop_Crate", 26f, 63.6f, 0, 0.8f), ("avalon_lamp_post", 18.4f, 62.2f, 0, 1f),
             ("avalon_notice_board", 10.4f, 61.2f, 180, 1f),
@@ -280,15 +301,13 @@ public static partial class TownScenery
             Require(scene.Place(model, x, z, scene.Spacing(model, scale, 0.3f), yaw, scale, 0f), $"the gate's {model} at ({ForestText.N(x)}, {ForestText.N(z)})");
         }
 
-        // The cottages' yards: a fence behind each; a cabbage bed beside cottage_low, a washing line behind cottage_brick.
-        scene.FenceRun((0.8f, 74.4f), (11.4f, 74.4f));
-        scene.FenceRun((23f, 74.2f), (29.2f, 74.2f));
-        foreach (float z in new[] { 62.6f, 63.4f, 64.2f })
+        // A cabbage bed before cottage_low, a washing line east of cottage_brick.
+        foreach (float z in new[] { 61.8f, 62.6f, 63.4f })
         {
             for (float x = 2.2f; x < 7.4f; x += scene.Uniform(0.45f, 0.55f))
                 scene.Add(scene.Pick(["avalon_cabbage_1", "avalon_cabbage_2", "avalon_cabbage_3"]), x, z + scene.Uniform(-0.06f, 0.06f), scene.Rng.Next(360), scene.Uniform(0.9f, 1.1f));
         }
-        scene.Place("avalon_washing_line", 26f, 72.6f, 1f, 0, 1f, 0f);
+        Require(scene.Place("avalon_washing_line", 31.2f, 66f, 1f, 90, 1f, 0f), "the cottages' washing line");
     }
 
     /// <summary>
@@ -461,37 +480,64 @@ public static partial class TownScenery
     }
 
     /// <summary>
-    /// The rocky terraces east of the orchard: rocks along each step's riser, scrub, pines and grass on the steps.
+    /// The rocky terraces east of the orchard (their faces are the ground's walls, Ground): mossy stones and boulders
+    /// heaped at each face's foot and a few on its lip, boulders where a face breaks at a cell's seam; trees in clumps
+    /// with scrub round them on the steps.
     /// </summary>
     private static void Terraces(Scene scene)
     {
         Ground g = scene.Ground;
-        for (int i = 0; i < 1400; i++)
+        (string Model, int Weight)[] foot =
+        [
+            ("avalon_rock_mossy_1", 3), ("avalon_rock_mossy_2", 3), ("avalon_rock_mossy_3", 3), ("avalon_boulder_1", 2), ("avalon_boulder_3", 1),
+            ("avalon_boulder_4", 1),
+        ];
+        for (int k = 0; k < Risers; k++)
         {
-            float x = scene.Uniform(90.5f, 119.5f), z = scene.Uniform(-29.5f, 57f);
-            if (g.OnRoad(x, z, 1f) || g.StreamDistance(x, z) < StreamHalf + 2f) continue;
-            float slope = g.Slope(x, z);
-            if (slope > 0.5f && scene.Rng.NextDouble() < 0.4)
+            // Stones heaped at the face's foot, a few on its lip; boulders where the face breaks at a cell's seam.
+            for (float z = TerraceSouth + 0.5f; z < TerraceNorth; z += scene.Uniform(1.1f, 2.2f))
             {
-                bool big = scene.Rng.NextDouble() < 0.35;
-                string model = big
-                    ? scene.Pick(["avalon_rock_large_1", "avalon_rock_large_2", "avalon_rock_mossy_2", "avalon_boulder_4"])
-                    : scene.Pick(["Rock_Medium_1", "Rock_Medium_2", "avalon_rock_mossy_1", "avalon_rock_mossy_3", "avalon_boulder_1", "avalon_boulder_3"]);
-                float scale = big ? scene.Uniform(0.45f, 0.75f) : model.StartsWith("Rock", StringComparison.Ordinal) ? scene.Uniform(0.7f, 1.2f) : scene.Uniform(0.8f, 1.2f);
-                scene.Place(model, x, z, scene.Spacing(model, scale, 0.4f), scene.Rng.Next(360), scale, 0.35f, model.StartsWith("Rock", StringComparison.Ordinal) ? Bright : Dark);
+                float x = Ground.RiserX(k, z);
+                string model = scene.PickWeighted(foot);
+                float scale = model.StartsWith("avalon_boulder", StringComparison.Ordinal) ? scene.Uniform(0.45f, 0.8f) : scene.Uniform(0.6f, 1.1f);
+                scene.Place(model, x - scene.Uniform(0.1f, 1.3f), z, scene.Spacing(model, scale, 0.3f), scene.Rng.Next(360), scale, 0.12f, Dark);
+                if (scene.Rng.NextDouble() < 0.3)
+                    scene.Place(scene.Pick(["avalon_rock_mossy_1", "avalon_rock_mossy_3"]), x + scene.Uniform(1.3f, 2f), z, 0.6f, scene.Rng.Next(360), scene.Uniform(0.45f, 0.7f), 0.1f, Dark);
             }
-            else if (slope < 0.25f && scene.Rng.NextDouble() < 0.22)
+            foreach (float seam in new[] { 0f, Cell })
             {
-                if (scene.Rng.NextDouble() < 0.2)
+                foreach (float side in new[] { -1f, 1f })
                 {
-                    scene.Tree(scene.Rng.NextDouble() < 0.75 ? TreeSpecies.Pine : TreeSpecies.CommonTree, x, z, scene.Uniform(0.8f, 1.2f), Bright);
-                }
-                else
-                {
-                    scene.Place(scene.PickWeighted([("avalon_hedge_green", 3), ("Grass_Wispy_Tall", 4), ("Grass_Common_Tall", 3), ("Plant_1_Big", 1), ("Fern_1", 1)]),
-                        x, z, 0.6f, scene.Rng.Next(360), scene.Uniform(0.8f, 1.2f), 0.03f);
+                    bool placed = false;
+                    for (int attempt = 0; !placed && attempt < 10; attempt++)
+                        placed = scene.Place("avalon_boulder_4", Ground.RiserX(k, seam + side) + 0.3f, seam + side * 1.25f, 1f, scene.Rng.Next(360), scene.Uniform(0.5f, 0.62f), 0.15f, Dark);
                 }
             }
+        }
+
+        // The steps: trees in clumps, scrub round them, never against a face.
+        for (int clump = 0, tries = 0; clump < 16 && tries < 400; tries++)
+        {
+            float cx = scene.Uniform(91f, 118.5f), cz = scene.Uniform(TerraceSouth + 2f, TerraceNorth - 2f);
+            if (NearRiser(cx, cz, 2f) || g.OnRoad(cx, cz, 3f)) continue;
+            clump++;
+            for (int i = scene.Rng.Next(3, 7); i > 0; i--)
+            {
+                float x = cx + scene.Uniform(-2.6f, 2.6f), z = cz + scene.Uniform(-3.2f, 3.2f);
+                if (NearRiser(x, z, 0.9f)) continue;
+                scene.Tree(scene.Rng.NextDouble() < 0.65 ? TreeSpecies.Pine : TreeSpecies.CommonTree, x, z, scene.Uniform(0.85f, 1.3f), Bright);
+            }
+            scene.Cluster(cx, cz, ["avalon_hedge_green", "Fern_1", "Grass_Wispy_Tall", "avalon_hedge_dark", "Plant_1_Big"], 3f, 0.8f, 1.2f);
+        }
+
+        static bool NearRiser(float x, float z, float reach)
+        {
+            for (int k = 0; k < Risers; k++)
+            {
+                float rx = Ground.RiserX(k, z);
+                if (x > rx - reach && x < rx + 1f + reach) return true;
+            }
+            return false;
         }
     }
 
@@ -501,8 +547,9 @@ public static partial class TownScenery
     /// </summary>
     private static void WindmillHill(Scene scene)
     {
-        Require(scene.AddAt("avalon_windmill", WindmillX, scene.Ground.Height(WindmillX, WindmillZ) - 0.1f, WindmillZ, 225, 1f, DecorJsonWriter.TownKit), "the windmill");
-        scene.Take(WindmillX, WindmillZ, 5f);
+        Require(scene.AddAt("avalon_windmill", WindmillX, scene.Ground.Height(WindmillX, WindmillZ) - 0.1f, WindmillZ, 225, WindmillScale, DecorJsonWriter.TownKit),
+            "the windmill");
+        scene.Take(WindmillX, WindmillZ, 6f);
         foreach ((string model, float x, float z, int yaw) in new[]
         {
             ("avalon_haystack_2", 116.4f, 72.6f, 30), ("avalon_hay_bale_1", 105.6f, 61.4f, 10), ("avalon_hay_bale_2", 107.4f, 61.2f, 80),
@@ -511,8 +558,8 @@ public static partial class TownScenery
         {
             Require(scene.Place(model, x, z, scene.Spacing(model, 1f, 0.3f), yaw, 1f, 0.03f), $"the hill's {model} at ({ForestText.N(x)}, {ForestText.N(z)})");
         }
-        scene.FenceRun((92.2f, 64.8f), (101f, 64.8f));
-        scene.FenceRun((92.2f, 64.8f), (92.2f, 71.6f));
+        scene.FenceRun((109f, 63.6f), (118.2f, 63.6f));
+        scene.FenceRun((118.2f, 63.6f), (118.2f, 70.6f));
         for (int i = 0; i < 120; i++)
         {
             (float sin, float cos) = Yaw.Of(scene.Rng.Next(360));
@@ -606,17 +653,17 @@ public static partial class TownScenery
     /// Scattered trees and bushes in the open land: between the fields and the forest, behind the houses (10 m or more
     /// from the wall), down the stream's far side, round the windmill's hill; none on a road, a field, a garden or the
     /// water, none near the wall nor between the town's north-east corner and the standing stones, where the game
-    /// camera looks.
+    /// camera looks, and none on the orchard or the terraces, which plant their own.
     /// </summary>
     private static void Trees(Scene scene)
     {
         Ground g = scene.Ground;
-        for (int i = 0, planted = 0; i < 5000 && planted < 320; i++)
+        for (int i = 0; i < 5000; i++)
         {
             float x = scene.Uniform(RingMin + 1f, RingMax - 1f), z = scene.Uniform(RingMin + 1f, RingMax - 1f);
             float d = g.TownDistance(x, z);
             if (d < 9f || g.InForest(x, z) || g.OnRoad(x, z, 3f) || g.InField(x, z, 2.5f) || g.InGarden(x, z, 1.5f) || g.StreamDistance(x, z) < StreamHalf + 2.5f
-                || g.NearBuilding(x, z, 3.5f) || x > 89f && z < 58f && x < 119f && g.Slope(x, z) > 0.3f
+                || g.NearBuilding(x, z, 3.5f) || x > 89f && z < 58f
                 || x > 60f && z > 54f && x + z < 150f)
             {
                 continue;
@@ -626,7 +673,6 @@ public static partial class TownScenery
             if (scene.Rng.NextDouble() > keep) continue;
             TreeSpecies species = scene.Rng.NextDouble() < 0.72 ? TreeSpecies.CommonTree : TreeSpecies.Pine;
             if (!scene.Tree(species, x, z, scene.Uniform(0.85f, 1.3f), Bright)) continue;
-            planted++;
             if (scene.Rng.NextDouble() < 0.6)
                 scene.Cluster(x, z, ["avalon_hedge_green", "Grass_Common_Tall", "Fern_1"], 2.2f, 0.75f, 1.1f);
         }

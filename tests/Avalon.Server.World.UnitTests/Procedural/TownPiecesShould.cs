@@ -293,6 +293,7 @@ public class TownPiecesShould
     [InlineData("a ring cell left out", "no piece for ring cell (3, 3)")]
     [InlineData("a step against the town", "meets the town at y 0.4")]
     [InlineData("a seam between ring cells", "do not meet")]
+    [InlineData("dirt laid under the ground", "m under the ground: it would not show")]
     public void Refuse_town_scenery_that_breaks_a_scenery_rule(string broken, string refusal)
     {
         List<SceneryPiece> pieces = [.. SceneryTestPieces.Town()];
@@ -344,6 +345,19 @@ public class TownPiecesShould
                 // The corner cell (3, 3) has no edge on the town: only its seams with the ring cells beside it break.
                 int corner = pieces.FindIndex(p => (p.GridX, p.GridZ) == (3, 3));
                 pieces[corner] = pieces[corner] with { Terrain = new SceneryTerrain((_, _) => 0.2f, (_, _) => "meadow") };
+                break;
+            }
+            case "dirt laid under the ground":
+            {
+                // Dirt 5 cm up over a cell whose ground rises 0.5 m at one vertex inside it (its seams untouched).
+                int corner = pieces.FindIndex(p => (p.GridX, p.GridZ) == (3, 3));
+                pieces[corner] = pieces[corner] with
+                {
+                    Terrain = new SceneryTerrain((x, z) => x == 15f && z == 15f ? 0.5f : 0f, (_, _) => "meadow")
+                    {
+                        Surfaces = [ScenerySurface.Area((x, z) => x > 14f && x < 17f && z > 14f && z < 17f, 0.05f, "dirt_road")],
+                    },
+                };
                 break;
             }
         }
