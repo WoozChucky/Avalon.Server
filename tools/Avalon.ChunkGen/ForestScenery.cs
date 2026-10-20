@@ -11,8 +11,8 @@ namespace Avalon.ChunkGen;
 /// keeps its feature inside the band, so any piece sits beside any other or any chunk at any rotation. A border's front
 /// is S: the ring generator turns it toward the layout. The borders:
 /// <list type="bullet">
-/// <item>old woods (the filler, four variants): two or three ancient trees, a darker understorey, mossy stones, fallen
-/// wood, gentle relief;</item>
+/// <item>old woods (the filler, four variants): two or three ancient trees, or one over a glade among kit trees, a
+/// darker understorey, mossy stones, fallen wood, gentle relief;</item>
 /// <item>mossy cliffs (two): a plateau inside the band, its rough rock face dressed with layered face sections, ledges,
 /// roots and creepers over the lip, scree at the foot, trees on top;</item>
 /// <item>ravine into mist (two): an irregular cut down to <see cref="RavineFloor" />, rock walls, an overhanging lip
@@ -93,7 +93,8 @@ public static class ForestScenery
             Woods(1, kit, TreeMix.Old, [(1, 9.5f, 10.5f), (4, 20.5f, 12f), (3, 13.5f, 20.5f)], WoodsLogAndStones),
             Woods(2, kit, TreeMix.Mixed, [(2, 10.5f, 18.5f), (3, 19.5f, 10f)], WoodsOutcrop),
             Woods(3, kit, TreeMix.Pine, [(4, 10f, 9.5f), (1, 20.5f, 19f), (2, 10.5f, 20.5f)], WoodsDeadfall),
-            Woods(4, kit, TreeMix.Broadleaf, [(2, 9f, 13f), (4, 20f, 18.5f)], WoodsThicket),
+            // One ancient off the centre over a glade, kit trees round it: the filler that reads apart at a glance.
+            Woods(4, kit, TreeMix.Broadleaf, [(4, 20.5f, 20.5f)], WoodsGlade, glade: (12.5f, 12f, 5.5f)),
             // A long low front tier along the S edge, a higher back tier stepping up behind it.
             Cliffs(1, kit, TreeMix.Mixed,
                 [new CliffTier([(6.4f, 7f), (23.8f, 6.4f), (23.2f, 14.6f), (6.8f, 15.2f)], 6f),
@@ -126,8 +127,14 @@ public static class ForestScenery
 
     // ---- old woods ----
 
+    /// <summary>
+    /// An old-woods border: its ancient trees, its feature, the band, then the floor. With a <paramref name="glade" />
+    /// (centre and radius) the floor inside it stays open (ground cover only) and no tree stands in it or between it
+    /// and the camera; kit trees stand round it instead.
+    /// </summary>
     private static SceneryPiece Woods(
-        int n, IReadOnlyDictionary<string, ModelBounds> kit, TreeMix mix, (int Variant, float X, float Z)[] ancients, Action<SceneryDresser> feature)
+        int n, IReadOnlyDictionary<string, ModelBounds> kit, TreeMix mix, (int Variant, float X, float Z)[] ancients, Action<SceneryDresser> feature,
+        (float X, float Z, float Radius)? glade = null)
     {
         string name = $"forest_ring_woods_{n:00}";
         int seed = ForestDresser.StableSeed(name);
@@ -141,9 +148,11 @@ public static class ForestScenery
         feature(d);
         // No band tree between an ancient trunk and the S edge (the layout, at rotation 0) or the game camera.
         bool Trunk(float x, float z, float reach) => ancients.Any(t => SceneryDresser.Distance(x, z, t.X, t.Z) < reach);
+        bool Open(float x, float z, float margin) => glade is { } g && SceneryDresser.Distance(x, z, g.X, g.Z) < g.Radius + margin;
         d.BarrierBand(mix, s_sides, keepTreesClear: (x, z) =>
-            ancients.Any(t => SegmentDistance(x, z, (t.X, t.Z), (t.X, 0f)) < 2.2f) || InView(x, z, (px, pz) => Trunk(px, pz, 3f)));
-        Inner(d, mix, saplings: 1, understorey: 80, cover: 60, rocks: 5);
+            ancients.Any(t => SegmentDistance(x, z, (t.X, t.Z), (t.X, 0f)) < 2.2f)
+            || InView(x, z, (px, pz) => Trunk(px, pz, 3f) || Open(px, pz, 0f)));
+        Inner(d, mix, saplings: glade is null ? 1 : 5, understorey: glade is null ? 80 : 60, cover: 60, rocks: 5, clear: (x, z) => Open(x, z, 1.2f));
         return Border(name, "woods", 3f, terrain, d, filler: true);
     }
 
@@ -193,15 +202,24 @@ public static class ForestScenery
         HangOver(d, "avalon_creeper_1", 22.4f, 15.2f, 1.46f * 0.9f, 250, top: 2.41f * 0.9f - 0.3f);
     }
 
-    /// <summary>A mossy boulder under a creeper, a thicket of brambles and dark hedges, a log.</summary>
-    private static void WoodsThicket(SceneryDresser d)
+    /// <summary>
+    /// The glade under a single ancient tree (woods_04): a log lying across its edge, ferns ringing it, short grass,
+    /// clover and a few flowers where light reaches the floor, mossy stones; a boulder under a creeper and a thicket of
+    /// brambles and dark hedges in the woods round it.
+    /// </summary>
+    private static void WoodsGlade(SceneryDresser d)
     {
-        if (!d.TryPlace("avalon_boulder_3", 19.5f, 9f, 2f, 1f, 0.2f, yaw: 205))
-            throw new InvalidOperationException($"{d.Name}: the boulder does not fit at (19.5, 9)");
-        HangOver(d, "avalon_creeper_1", 19.5f, 9f, 1.46f, 205, top: 2.41f - 0.3f);
-        Cluster(d, 21.5f, 11.5f, ["avalon_rock_mossy_2", "avalon_rock_mossy_1"], 1.4f, 0.7f, 1f);
-        Cluster(d, 10f, 21.5f, ["avalon_bramble_2", "avalon_hedge_dark", "avalon_bramble_1", "avalon_hedge_dark", "avalon_bramble_2"], 2.8f, 0.9f, 1.25f);
-        Log(d, "avalon_log_fallen_1", 14.5f, 9.5f, 160, 1.2f);
+        const float GX = 12.5f, GZ = 12f, Radius = 5.5f;
+        Log(d, "avalon_log_fallen_1", 14.2f, 8.4f, 160, 1.2f);
+        Cluster(d, 10.2f, 14.6f, ["avalon_rock_mossy_2", "avalon_rock_mossy_1", "avalon_rock_mossy_3"], 1.3f, 0.7f, 1.05f);
+        float Rim(float x, float z) => SceneryDresser.Distance(x, z, GX, GZ) - Radius;
+        d.Scatter([("Fern_1", 6), ("Plant_1_Big", 1), ("Grass_Wispy_Tall", 2)], 22, 0.85f, 1.3f, (x, z) => Rim(x, z) is > -1.4f and < 0.6f);
+        d.Scatter([("Grass_Common_Short", 6), ("Grass_Wispy_Short", 5), ("Clover_1", 3), ("Clover_2", 3), ("Flower_3_Group", 1), ("Flower_4_Single", 1),
+            ("Plant_7", 2)], 34, 0.7f, 1.05f, (x, z) => Rim(x, z) < -1.2f, spread: 0.35f);
+        if (!d.TryPlace("avalon_boulder_3", 21f, 9.5f, 2f, 1f, 0.2f, yaw: 205))
+            throw new InvalidOperationException($"{d.Name}: the boulder does not fit at (21, 9.5)");
+        HangOver(d, "avalon_creeper_1", 21f, 9.5f, 1.46f, 205, top: 2.41f - 0.3f);
+        Cluster(d, 9.5f, 21.5f, ["avalon_bramble_2", "avalon_hedge_dark", "avalon_bramble_1", "avalon_hedge_dark", "avalon_bramble_2"], 2.8f, 0.9f, 1.25f);
     }
 
     // ---- mossy cliffs ----
@@ -219,7 +237,7 @@ public static class ForestScenery
         /// <summary>
         /// The tier's ground at a point (0 off it) and whether that is its rock band: the top, a 1 m band falling from
         /// it under the faces, and the earth bank behind its ramp side, falling over <see cref="RampLength" /> and
-        /// fading off over <see cref="RampFade" /> past the side's ends.
+        /// fading off over <see cref="RampFade" /> past the side's ends, where its steep flanks are rock.
         /// </summary>
         public (float Height, bool Rock) Sample(float x, float z)
         {
@@ -227,6 +245,7 @@ public static class ForestScenery
             float beyond = OutlineDistance(Edge, x, z);
             float band = beyond < 1f ? Top * (1f - beyond) : 0f;
             float bank = 0f;
+            bool flank = false;
             if (Ramp is int k)
             {
                 (float X, float Z) a = Edge[k], b = Edge[(k + 1) % Edge.Count];
@@ -238,9 +257,11 @@ public static class ForestScenery
                 {
                     float past = MathF.Max(MathF.Max(-along, along - length), 0f);
                     bank = Top * (1f - Smooth(0f, RampLength, outward)) * (1f - Smooth(0f, RampFade, past));
+                    flank = past > 0f;
                 }
             }
-            return bank >= band ? (bank, false) : (band, band > 0.05f);
+            // The bank's flanks past its side's ends fall steeply beside the faces: rock, as the faces are.
+            return bank >= band ? (bank, flank && bank > 0.3f) : (band, band > 0.05f);
         }
     }
 
@@ -248,7 +269,7 @@ public static class ForestScenery
     /// How far an earth bank behind a cliff's top runs out to the ground, and how far it fades off past its side's
     /// ends.
     /// </summary>
-    private const float RampLength = 9f, RampFade = 3f;
+    private const float RampLength = 9f, RampFade = 4.5f;
 
     /// <summary>
     /// How much longer than its side (and its corners' reach) a single face section may be, in metres.
@@ -579,7 +600,8 @@ public static class ForestScenery
         }
 
         bool Ground(float x, float z, float keep) => !Inside(brink, x, z) && OutlineDistance(brink, x, z) >= keep;
-        d.BarrierBand(mix, s_sides, (x, z) => !Ground(x, z, 1.8f), (x, z) => !Ground(x, z, 4.5f));
+        // No band tree beside the brink or between the ravine and the game camera.
+        d.BarrierBand(mix, s_sides, (x, z) => !Ground(x, z, 1.8f), (x, z) => !Ground(x, z, 4.5f) || InView(x, z, (px, pz) => !Ground(px, pz, 1f)));
         // Along the brink: ferns, grass and the odd bush, as the spike's rim had; then the floor between it and the band.
         d.Scatter([("Fern_1", 5), ("Grass_Wispy_Tall", 4), ("Plant_1", 2), ("avalon_hedge_dark", 1), ("Grass_Common_Tall", 2)], 34, 0.8f, 1.2f,
             (x, z) => Ground(x, z, 1.5f) && OutlineDistance(brink, x, z) < 3.5f);
