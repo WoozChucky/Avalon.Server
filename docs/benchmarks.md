@@ -1039,6 +1039,62 @@ scan rows are unchanged.
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScanBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8
 ```
 
+### Navigation search storage — `NavigationStorageHarness.cs` (#1116)
+
+`ReusingNavMeshQuery` prepares its two node pools, open heap and surface queue when the navigator loads the finished
+mesh, before instance publication. It enumerates every polygon's state zero and every incoming link's
+`side >> 1` state: one path node per polygon would undercount searches crossing tiles. Clearing the prepared pools
+resets their allocation cursors, so actual searches still assign node indices in discovery order, including the
+heap's tie-breaks. No search limit, algorithm or vendor code changes.
+
+The `navigation-storage` harness measures fresh queries separately from repeated searches. It rehearses code on a
+different query, and excludes mesh creation, output arrays and fixture selection. Its unreachable filter rejects
+the valid goal polygon, forcing the search to exhaust its reachable component. Results on 2026-10-20, against
+`692b85da7`, Windows 11, i9-12900K, .NET 10.0.13 / SDK 10.0.402:
+
+| Mesh | Polygons | First reachable path, before → after | First unreachable path | First surface search |
+|---|---:|---:|---:|---:|
+| Town | 269 | 30,936 → 0 B | 55,240 → 0 B | 32,688 → 0 B |
+| Forest seed 33 | 1,991 | 165,448 → 0 B | 265,504 → 0 B | 4,808 → 0 B |
+
+Repeated calls allocate 0 B in both versions. Six `NavigationStorageShould` cases compare status, every corridor or
+visited polygon, and the surface endpoint against an original `DtNavMeshQuery`; the path cases exercise nonzero
+tile-entry states and more than 100 nodes. `GroundedMovementShould` also checks the navigator's exact outputs.
+These measurements cover query-owned storage, not caller-created route lists or other gameplay work.
+
+| Mesh | Constructor allocation, before → after | Retained storage before first use, before → after | Prepared construction time |
+|---|---:|---:|---:|
+| Town | 552 → 124,880 B | about 550 → 91,960 B | 42–104 µs |
+| Forest seed 33 | 552 → about 1,014,400 B | about 550 → 727,438 B | 1.24–1.98 ms |
+
+Construction timings are the range of five batches of 64 queries and include natural GC; retained memory is a
+whole-heap delta across 64 live queries after full collections, so it is approximate. These are costs paid during
+instance construction, including transient dictionary/list growth, rather than per route. The previous empty
+constructor took about 0.1 µs after rehearsal.
+
+Steady `NavigationQueryBenchmarks.Navigator` routes (256 different routes per invocation, forest seed 7) measured
+18.97 µs before and 19.36–19.48 µs after in town, and 24.92 µs before and 25.74–25.96 µs after in the forest. All six
+route, visibility and projectile cases allocate 0 B. BenchmarkDotNet 0.15.8 used the in-process toolchain, CPU
+affinity 1, tiered compilation disabled, five warmups and five measured iterations; one before and two after runs.
+Unchanged visibility controls also shifted by 8–10%, so the 2–4% route increase alone is not a causal estimate.
+A temporary same-process probe isolated the surface dictionary capacity: two otherwise identical navigators,
+one with only that dictionary shrunk before rehearsal, eight alternating AB/BA timed batches. Median full/small
+route-time ratios were 1.015 in town and 1.021 in the forest, with substantial variation (forest 0.958–1.054).
+Allow for a modest steady route cost from clearing larger dictionaries in exchange for removing first-use
+allocation spikes; this is not a route-speed improvement. The temporary reflection probe is not production code.
+
+Validation: the full Release suite passes (8,841 passed, 2 skipped); Debug passes the six new storage cases and all
+six scenario allocation gates. A separate Release gate reads forest-combat at 15,470 B/window (112 B below the
+committed 15,582, within tolerance), town-social at 728 B and the other four at zero; the baseline is unchanged.
+The performance review found no remaining issues.
+
+```powershell
+dotnet run -c Release --project tools/Avalon.Benchmarking -- navigation-storage
+$env:DOTNET_TieredCompilation = '0'
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*NavigationQueryBenchmarks.Navigator*' --job short --inProcess --affinity 1 --warmupCount 5 --iterationCount 5
+Remove-Item Env:DOTNET_TieredCompilation
+```
+
 ### Nearest-polygon searches — `NavigationMovementBenchmarks.cs`, `NavigationQueryBenchmarks.cs` (#978)
 
 The navigator's queries against the same queries with DotRecast's own full nearest-polygon searches
