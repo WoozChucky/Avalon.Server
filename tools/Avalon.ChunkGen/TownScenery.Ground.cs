@@ -92,8 +92,8 @@ public static partial class TownScenery
 
         /// <summary>
         /// The forest floor's fringe laid over the ground along the forest's edge (from <see cref="FloorFrom" /> to
-        /// <see cref="FloorTo" /> of it), smooth where the ground's own forest floor, wearing it from one 1 m triangle to
-        /// the next, would give the edge saw-teeth.
+        /// <see cref="FloorTo" /> of it), smooth where the ground's own forest floor, wearing it from one triangle (one
+        /// SceneryTerrain.Step across) to the next, would give the edge saw-teeth.
         /// </summary>
         public ScenerySurface Fringe { get; }
 
@@ -103,7 +103,7 @@ public static partial class TownScenery
         /// <summary>
         /// The dirt laid over the ground along the roads and the lanes, on the stream's banks and round the pool:
         /// <see cref="DirtLift" /> over the ground's own triangles (<see cref="Band" />), so a winding road keeps smooth edges
-        /// where the ground's own material changes only from one 1 m triangle to the next and would give it saw-teeth.
+        /// where the ground's own material changes only from one triangle (one Step across) to the next and would give it saw-teeth.
         /// </summary>
         public ScenerySurface Overlay { get; }
 
@@ -195,7 +195,8 @@ public static partial class TownScenery
             h += 4.4f * (1f - Smooth(4.5f, 17f, hill));
             h += 0.9f * Smooth(78.5f, 90f, x) * Smooth(-6f, 2f, z) * Smooth(64f, 56f, z);
 
-            // The terraces: the land stepped up eastward in three risers, each 1 m across, under a rock face (TerraceFaces).
+            // The terraces: the land stepped up eastward in three risers, each one Step of the ground grid across (1 m,
+            // see RiserX), under a rock face (TerraceFaces).
             float terrace = Terrace(x, z);
             if (terrace > 0f)
             {
@@ -214,8 +215,10 @@ public static partial class TownScenery
 
         /// <summary>
         /// Where the terraces' riser <paramref name="k" /> starts at z: about every 7 m east of x 95, on a whole metre,
-        /// jogging a metre or two every 6 m of z, so the riser's rock (one 1 m band of the ground's triangles) keeps
-        /// straight edges.
+        /// jogging a metre or two every 6 m of z, so the riser's rock (one band of the ground's triangles) keeps
+        /// straight edges. This assumes <see cref="SceneryTerrain.Step" /> is 1 m: the whole-metre start, the riser's 1 m
+        /// width (Base, OnRiser) and the jog's whole metres put the riser's rock on one band of grid triangles only at that
+        /// spacing; a finer or coarser Step needs them in Steps.
         /// </summary>
         public static float RiserX(int k, float z) =>
             95f + 7f * k + MathF.Floor(2.99f * Noise(s_seed + 5 + k, 0.5f, MathF.Floor(z / 6f) * 6f + 3f, 13f));
@@ -440,7 +443,7 @@ public static partial class TownScenery
 
         /// <summary>
         /// A rough rock face (SceneryWall, cliff_rock) over each terrace riser, cell by cell (a wall stays inside one): 0.55 m
-        /// into the riser's 1 m slope, from <see cref="TerraceSouth" /> to <see cref="TerraceNorth" /> and 0.6 m short of
+        /// into the riser's slope (one Step across), from <see cref="TerraceSouth" /> to <see cref="TerraceNorth" /> and 0.6 m short of
         /// each seam (boulders close the gap, Terraces), jogging with the riser; from under the lower step's ground to just
         /// over the upper step's, so it reads as a rock step from the overview. Its outline runs north to south, so the face
         /// looks west, down the steps (the jogs' short stretches look north or south, down theirs).

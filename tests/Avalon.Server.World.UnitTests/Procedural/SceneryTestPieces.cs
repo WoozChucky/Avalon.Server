@@ -49,8 +49,8 @@ internal static class SceneryTestPieces
         return pieces;
     }
 
-    /// <summary>The town's four cells, as TownPieces lays its squares out.</summary>
-    public static IReadOnlyList<(int X, int Z)> TownCells { get; } = [(0, 0), (1, 0), (0, 1), (1, 1)];
+    /// <summary>The town's cells, as TownPieces lays its squares out.</summary>
+    public static IReadOnlyList<(int X, int Z)> TownCells { get; } = [.. TownPieces.Squares().Select(s => (s.GridX, s.GridZ))];
 
     /// <summary>
     /// The town's 21 ring cells, x and z -1 to 3 minus the 2 x 2 town, bare, cut from <paramref name="world" /> (world

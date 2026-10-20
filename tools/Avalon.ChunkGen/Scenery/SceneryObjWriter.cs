@@ -13,7 +13,7 @@ public static class SceneryObjWriter
 {
     /// <summary>
     /// <c>o Ground</c>, every grid vertex once (SceneryTerrain.Step apart), then one <c>usemtl</c> group per material
-    /// that has faces, in SceneryTerrain.Palette order, each 1 m quad split along its (x0, z0)-(x1, z1) diagonal and
+    /// that has faces, in SceneryTerrain.Palette order, each quad (one Step square) split along its (x0, z0)-(x1, z1) diagonal and
     /// each triangle wearing the material at its centroid; then each wall as <c>o Wall_&lt;n&gt;</c> and each surface
     /// with faces in the cell as <c>o Surface_&lt;n&gt;</c>, each under its material. Ground and surface triangles are
     /// wound so (b - a) x (c - a) points up. Refuses (InvalidOperationException naming the piece) a material outside

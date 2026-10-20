@@ -563,7 +563,7 @@ public static partial class TownScenery
         }
 
         // A step's flat at z, where trees stand: clear of the stones at the foot of the face east of it (1.2 m) and of
-        // its crest and lip west of it (1.4 m past its 1 m band), and inside the cells' x 90-120 by a crown's reach.
+        // its crest and lip west of it (1.4 m past its riser's band, one Step wide), and inside the cells' x 90-120 by a crown's reach.
         static (float From, float To) Flat(int step, float z) =>
             (step == 0 ? 93f : Ground.RiserX(step - 1, z) + 2.4f, step == Risers ? 117.4f : Ground.RiserX(step, z) - 1.2f);
     }

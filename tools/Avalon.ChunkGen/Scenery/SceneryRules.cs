@@ -47,17 +47,17 @@ public static class SceneryRules
     /// <summary>How far an edge vertex may stand off the height it must meet, in metres.</summary>
     private const float GroundTolerance = 0.0005f;
 
-    private static readonly Lazy<IReadOnlyList<(int X, int Z)>> s_townCells =
-        new(() => [.. TownPieces.Squares().Select(s => (s.GridX, s.GridZ))], isThreadSafe: true);
+    /// <summary>How far a surface laid over the ground may dip under it, in metres: the files' millimetre rounding.</summary>
+    private const float OverlayTolerance = 0.002f;
 
     private const string ForestFloor = "forest_floor";
 
     private const string AncientTree = "avalon_tree_ancient_";
 
-    private static readonly Side[] s_sides = [Side.N, Side.E, Side.S, Side.W];
+    private static readonly Lazy<IReadOnlyList<(int X, int Z)>> s_townCells =
+        new(() => [.. TownPieces.Squares().Select(s => (s.GridX, s.GridZ))], isThreadSafe: true);
 
-    /// <summary>The town's cells, as TownPieces lays its squares out: what the town ring surrounds and its pieces' rules measure from.</summary>
-    internal static IReadOnlyList<(int X, int Z)> TownCells => s_townCells.Value;
+    private static readonly Side[] s_sides = [Side.N, Side.E, Side.S, Side.W];
 
     /// <summary>What reads as impassable along an edge, besides the kit trees: undergrowth, rocks, rims, walls and fences.</summary>
     private static readonly string[] s_barrierPrefixes =
@@ -70,6 +70,9 @@ public static class SceneryRules
     private static readonly string[] s_borderFamilies = ["cliffs", "ravine", "giant", "stream"];
 
     private static readonly string[] s_singleCapFamilies = ["rockfall", "trunk", "thicket", "brink"];
+
+    /// <summary>The town's cells, as TownPieces lays its squares out: what the town ring surrounds and its pieces' rules measure from.</summary>
+    internal static IReadOnlyList<(int X, int Z)> TownCells => s_townCells.Value;
 
     /// <summary>
     /// A forest piece (border, cap or town-ward): every item a model of its kit (<see cref="DecorItem.Check" />, any
@@ -130,7 +133,7 @@ public static class SceneryRules
 
     /// <summary>
     /// Every surface other than water and mist (dirt or forest floor laid over the ground) lies at or above the drawn
-    /// ground (SceneryObjWriter's 1 m triangles over the terrain's heights) everywhere on it, within
+    /// ground (SceneryObjWriter's triangles, one SceneryTerrain.Step across, over the terrain's heights) everywhere on it, within
     /// <see cref="OverlayTolerance" />: a surface under the ground is hidden where it should show. Both are planar per
     /// triangle, so their difference is least at a surface triangle's corners, where its edges cross the ground's grid
     /// lines (x, z and x - z whole) and at the grid's vertices inside it; every one of those is sampled.
@@ -163,9 +166,6 @@ public static class SceneryRules
             }
         }
     }
-
-    /// <summary>How far a surface laid over the ground may dip under it, in metres: the files' millimetre rounding.</summary>
-    private const float OverlayTolerance = 0.002f;
 
     private static float[,] GroundHeights(SceneryPiece piece, int cells)
     {

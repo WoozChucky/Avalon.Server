@@ -17,8 +17,9 @@ public static partial class ForestScenery
     // the south corners, the west side's south third and the east side's ends open.
 
     /// <summary>
-    /// The road from the town, up the middle of spot (0, -1): x 13 to 17, whole metres, so the ground's 1 m triangles
-    /// give it straight edges; from 2 m in from the cell's south edge to the worn ground before the wall.
+    /// The road from the town, up the middle of spot (0, -1): x 13 to 17, whole metres, so the ground's triangles (one
+    /// SceneryTerrain.Step, 1 m, across) give it straight edges; from 2 m in from the cell's south edge to the worn
+    /// ground before the wall.
     /// </summary>
     private const float RoadX = 15f, RoadHalf = 2f, RoadFrom = -28f, RoadTo = -5f;
 
