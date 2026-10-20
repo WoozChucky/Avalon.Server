@@ -217,6 +217,7 @@ public static class ServiceExtensions
         // Chat commands
         services.AddSingleton<ICommand, ReloadCommand>();
         services.AddSingleton<ICommand, GodModeCommand>();
+        services.AddSingleton<ICommand, SpawnCommand>();
         services.AddSingleton<ICommand>(sp => new MaintenanceCommand(
             sp.GetRequiredService<IOptions<GameConfiguration>>().Value.WorldId,
             sp.GetRequiredService<IWorldMaintenanceRepository>(),

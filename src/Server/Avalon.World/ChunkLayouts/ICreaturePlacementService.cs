@@ -31,11 +31,12 @@ public interface ICreaturePlacementService
 
     /// <summary>
     /// One creature of <paramref name="template" /> on the ground at <paramref name="near" /> in
-    /// <paramref name="instance" /> (item use): snapped as a procedural spawn is (#720), its AI script attached, added
+    /// <paramref name="instance" /> (item use, <c>/spawn</c>): snapped as a procedural spawn is (#720), its AI script
+    /// attached unless <paramref name="withScript" /> is false (an idle creature that stands where it is placed), added
     /// to the instance. Null, placing nothing, when no ground is near or the spawn throws (logged). Tick thread: the
     /// instance is live.
     /// </summary>
-    ICreature? SpawnAt(IMapInstance instance, CreatureTemplateId template, Vector3 near);
+    ICreature? SpawnAt(IMapInstance instance, CreatureTemplateId template, Vector3 near, bool withScript = true);
 }
 
 public class CreaturePlacementService : ICreaturePlacementService
@@ -227,7 +228,7 @@ public class CreaturePlacementService : ICreaturePlacementService
         }
     }
 
-    public ICreature? SpawnAt(IMapInstance instance, CreatureTemplateId template, Vector3 near)
+    public ICreature? SpawnAt(IMapInstance instance, CreatureTemplateId template, Vector3 near, bool withScript = true)
     {
         try
         {
@@ -238,7 +239,8 @@ public class CreaturePlacementService : ICreaturePlacementService
             }
 
             ICreature creature = _spawner.Spawn(new CreatureInfo { Position = position, PrototypeIndex = template.Value });
-            AttachScript(creature, instance);
+            if (withScript)
+                AttachScript(creature, instance);
             instance.AddCreature(creature);
             return creature;
         }
