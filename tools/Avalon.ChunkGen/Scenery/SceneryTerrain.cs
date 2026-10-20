@@ -20,7 +20,7 @@ public sealed record SceneryTerrain(Func<float, float, float> Height, Func<float
     /// Every material scenery draws with, in the order a piece's ground writes its groups. The client's palette
     /// (its vendor script) must know each one.
     /// </summary>
-    public static readonly string[] Palette = ["forest_floor", "meadow", "dirt_road", "tilled_soil", "cliff_rock", "water", "mist"];
+    public static readonly string[] Palette = ["forest_floor", "meadow", "dirt_road", "tilled_soil", "wheat_field", "cliff_rock", "water", "mist"];
 
     /// <summary>The rough rock faces, none unless listed.</summary>
     public IReadOnlyList<SceneryWall> Walls { get; init; } = [];

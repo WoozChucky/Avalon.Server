@@ -140,20 +140,20 @@ public static partial class ForestScenery
     }
 
     /// <summary>
-    /// The scene's ground materials: forest floor along every cell edge (the outer metre), meadow (rough grass) under the
-    /// standing wheat, tilled soil under the harvested stubble, dirt on the road and where it ends, meadow on the road's
-    /// verges and the fields' headlands; forest
-    /// floor elsewhere. The meadow's edges run on whole metres, along the ground's 1 m triangles: a light ground's
-    /// saw-tooth edge beside the dark floor reads as drawn.
+    /// The scene's ground materials: forest floor along every cell edge (the outer metre), wheat field (straw-gold, the
+    /// standing crop's colour seen from afar, where its stalks are thinner than a pixel) under the standing wheat, tilled
+    /// soil under the harvested stubble, dirt on the road and where it ends, meadow (rough grass) on the road's verges and
+    /// the fields' headlands; forest floor elsewhere. The meadow's edges run on whole metres, along the ground's 1 m
+    /// triangles: a light ground's saw-tooth edge beside the dark floor reads as drawn.
     /// </summary>
     private static string TownWardMaterial(int seed, float x, float z)
     {
         (float lx, float lz) = CellLocal(x, z);
         if (EdgeDistance(lx, lz) < 1f) return Floor;
-        // Tilled soil only under the harvested stubble; the standing wheat grows on grass, so the crop reads from afar.
+        // Tilled soil under the harvested stubble; the standing crop's own colour under the wheat, so it reads from afar.
         foreach (Field field in new[] { s_eastField, s_westField })
         {
-            if (field.Holds(x, z)) return field.Stubble is { } line && x >= line ? "tilled_soil" : "meadow";
+            if (field.Holds(x, z)) return field.Stubble is { } line && x >= line ? "tilled_soil" : "wheat_field";
         }
         if (OnRoad(seed, x, z)) return "dirt_road";
         bool verge = MathF.Abs(x - RoadX) < RoadHalf + VergeWidth && z > RoadFrom && z < RoadTo - 1f;
