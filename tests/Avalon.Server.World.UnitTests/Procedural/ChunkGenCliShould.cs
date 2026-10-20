@@ -216,7 +216,7 @@ public sealed class ChunkGenCliShould : IDisposable
             Assert.Equal(obj, File.ReadAllText(Path.Combine(_maps, "Scenery", name + ".obj")));
             Assert.Equal(decor, File.ReadAllText(Path.Combine(_maps, "Decor", name + ".json")));
         }
-        Assert.Equal(scenery.Ring, File.ReadAllText(Path.Combine(_maps, "Scenery", $"{TownScenery.MapId}.json")));
+        Assert.Equal(scenery.Ring, File.ReadAllText(Path.Combine(_maps, "Scenery", $"{ChunkFiles.TownMapId}.json")));
     }
 
     [Fact]

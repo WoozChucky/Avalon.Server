@@ -14,11 +14,11 @@ namespace Avalon.ChunkGen;
 /// <item>North: the road from the gate winding north to the map's edge, cottages, a well and carts outside the gate, a
 /// lane east along the walls to the bridge; hedged and fenced fields beyond (wheat, vegetables, a ploughed field, hay
 /// meadows) with scarecrows, haystacks and bales; scattered trees, then the dark forest from about z 97 (92 in the east).</item>
-/// <item>East: the stream down the wall to the map's south edge, the watermill with its wheel in the water, reeds and
-/// stones on the banks, the lane south past the mill, the orchard on its slope, the rocky terraces, the windmill on its
-/// hill with a barn.</item>
+/// <item>East: the stream down the wall to a still pool short of the map's south edge, the watermill with its wheel in
+/// the water, reeds and stones on the banks, the lane south past the mill, the orchard on its slope, the rocky
+/// terraces, the windmill on its hill with a barn.</item>
 /// <item>North-east: the stream coming down from the north-east hills, the lane crossing it on the stone bridge, the
-/// wayside shrine at the bridge's foot and a ring of standing stones about 15 m out from the town's corner.</item>
+/// wayside shrine at the bridge's foot and a ring of standing stones about 13 m out from the town's corner.</item>
 /// <item>South and west: the backs of houses, their gardens, sheds, wood piles, washing lines, compost and fences,
 /// kept low near the wall, between the camera and the player.</item>
 /// </list>
@@ -28,8 +28,6 @@ namespace Avalon.ChunkGen;
 /// </summary>
 public static partial class TownScenery
 {
-    public const ushort MapId = ChunkFiles.TownMapId;
-
     private const string Prefix = "town_ring";
 
     private const float Cell = ChunkPiece.CellSize;
@@ -166,11 +164,7 @@ public static partial class TownScenery
 
     private enum FieldKind { Wheat, Vegetables, Ploughed, Hay }
 
-    private sealed record Field(FieldKind Kind, float MinX, float MaxX, float MinZ, float MaxZ)
-    {
-        public bool Holds(float x, float z, float margin = 0f) =>
-            x > MinX - margin && x < MaxX + margin && z > MinZ - margin && z < MaxZ + margin;
-    }
+    private sealed record Field(FieldKind Kind, float MinX, float MaxX, float MinZ, float MaxZ) : GroundBox(MinX, MaxX, MinZ, MaxZ);
 
     /// <summary>
     /// The 21 town ring pieces: the scene's ground and water cut at the cell edges, each item in the cell holding it.
@@ -209,6 +203,7 @@ public static partial class TownScenery
 
     /// <summary>A recipe put at its anchor: its decor and the footprint its walls cover (its box proxies; a roof may overhang it).</summary>
     private sealed record PlacedBuilding(string Name, IReadOnlyList<DecorItem> Decor, float MinX, float MaxX, float MinZ, float MaxZ)
+        : GroundBox(MinX, MaxX, MinZ, MaxZ)
     {
         public static PlacedBuilding Of(string recipe, string name, float x, float z, int rotation)
         {
@@ -223,9 +218,6 @@ public static partial class TownScenery
         public float X => (MinX + MaxX) / 2f;
 
         public float Z => (MinZ + MaxZ) / 2f;
-
-        /// <summary>Metres from a point to the footprint, 0 inside it.</summary>
-        public float Distance(float x, float z) => BoxDistance(x, z, MinX, MaxX, MinZ, MaxZ);
     }
 
     /// <summary>Every building's kit pieces on its level pad, each refused piece a refusal of the scene.</summary>
@@ -813,11 +805,5 @@ public static partial class TownScenery
     private static void Require(bool placed, string what)
     {
         if (!placed) throw new InvalidOperationException($"{Prefix}: {what} does not fit");
-    }
-
-    private static float BoxDistance(float x, float z, float minX, float maxX, float minZ, float maxZ)
-    {
-        float dx = MathF.Max(0f, MathF.Max(minX - x, x - maxX)), dz = MathF.Max(0f, MathF.Max(minZ - z, z - maxZ));
-        return MathF.Sqrt(dx * dx + dz * dz);
     }
 }

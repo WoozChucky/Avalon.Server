@@ -4,8 +4,9 @@ namespace Avalon.ChunkGen;
 
 /// <summary>
 /// The plane geometry scenery terrain is built from, in piece-local or world metres: value noise, smoothstep, outlines
-/// (inside, distance, signed area, convexity, inset) and segment distances. Only arithmetic and square roots, which
-/// IEEE 754 rounds the same on every machine, so a terrain written on one machine is byte-identical on another.
+/// (inside, distance, signed area, convexity, inset), segment distances and boxes on the ground. Only arithmetic and
+/// square roots, which IEEE 754 rounds the same on every machine, so a terrain written on one machine is
+/// byte-identical on another.
 /// </summary>
 internal static class SceneryShapes
 {
@@ -44,6 +45,13 @@ internal static class SceneryShapes
     }
 
     internal static float EdgeDistance(float x, float z) => MathF.Min(MathF.Min(x, z), MathF.Min(Cell - x, Cell - z));
+
+    /// <summary>Metres from the point to the box (x <paramref name="minX" /> to <paramref name="maxX" />, z likewise), 0 inside it.</summary>
+    internal static float BoxDistance(float x, float z, float minX, float maxX, float minZ, float maxZ)
+    {
+        float dx = MathF.Max(0f, MathF.Max(minX - x, x - maxX)), dz = MathF.Max(0f, MathF.Max(minZ - z, z - maxZ));
+        return MathF.Sqrt(dx * dx + dz * dz);
+    }
 
     internal static bool Inside(Outline outline, float x, float z)
     {
@@ -132,5 +140,19 @@ internal static class SceneryShapes
             corners[i] = (px + ux * s, pz + uz * s);
         }
         return corners;
+    }
+
+    /// <summary>
+    /// A box on the ground, square to the axes, in metres (a field, a building's footprint): x <paramref name="MinX" />
+    /// to <paramref name="MaxX" />, z <paramref name="MinZ" /> to <paramref name="MaxZ" />.
+    /// </summary>
+    internal record GroundBox(float MinX, float MaxX, float MinZ, float MaxZ)
+    {
+        /// <summary>Whether the point lies inside the box grown by <paramref name="margin" /> on every side, its edge excluded.</summary>
+        public bool Holds(float x, float z, float margin = 0f) =>
+            x > MinX - margin && x < MaxX + margin && z > MinZ - margin && z < MaxZ + margin;
+
+        /// <summary>Metres from the point to the box, 0 inside it.</summary>
+        public float Distance(float x, float z) => BoxDistance(x, z, MinX, MaxX, MinZ, MaxZ);
     }
 }

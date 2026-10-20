@@ -3,25 +3,27 @@ namespace Avalon.ChunkGen;
 /// <summary>
 /// Dresses one scenery piece in piece-local metres (0-30 on x and z), or one cell of a scene composed in world metres
 /// (its <see cref="Origin" /> the cell's corner, SceneryComposer cutting the scene): the items so far, the spots they
-/// take, the ancient crowns overhead and the random draws. Scenery has no blockers, so it shares the forest dresser's tree mixes,
-/// models, seed (<see cref="ForestDresser.StableSeed" /> of the piece's name) and yaw table, not its blocker-driven
-/// scene. Every item stands on the terrain (its height at the item's position, less a sink) and inside its cell: an
-/// item whose turned and scaled kit box would cross the cell's edge, or that stands outside the dresser's cell, is
-/// refused silently, so a caller tries another spot or scale. Positions are rounded to the centimetre and scales to 0.01, as the forest's decor is, so a rerun on any
-/// machine writes the same file.
+/// take, the ancient crowns overhead and the random draws. Scenery has no blockers, so it shares the forest dresser's
+/// tree mixes, models, seed (<see cref="ForestDresser.StableSeed" /> of the piece's name) and yaw table, not its
+/// blocker-driven scene. Every item stands on the terrain (its height at the item's position, less a sink) and inside
+/// its cell: an item whose turned and scaled kit box would cross the cell's edge, or that stands outside the dresser's
+/// cell, is refused silently, so a caller tries another spot or scale. Positions are rounded to the centimetre and
+/// scales to 0.01, as the forest's decor is, so a rerun on any machine writes the same file. A scene composed by hand
+/// (TownScenery) shares its draws, spacing, clusters and fence runs: the static members, over the scene's own random
+/// stream.
 /// </summary>
 internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadOnlyDictionary<string, ModelBounds> kit)
 {
     /// <summary>The barrier band's undergrowth stands this far in from an edge, in metres.</summary>
-    public const float UndergrowthFrom = 0.6f, UndergrowthTo = 4f;
+    private const float UndergrowthFrom = 0.6f, UndergrowthTo = 4f;
 
     /// <summary>The barrier band's two rows of tree trunks stand this far in from an edge, in metres.</summary>
-    public const float TrunkFrom = 3.9f, TrunkTo = 5.8f;
+    private const float TrunkFrom = 3.9f, TrunkTo = 5.8f;
 
     /// <summary>
     /// How far apart the trunks of one row of the band stand, drawn in this range; the rows are staggered.
     /// </summary>
-    public const float BandTreeMinSpacing = 6.5f, BandTreeMaxSpacing = 9f;
+    private const float BandTreeMinSpacing = 6.5f, BandTreeMaxSpacing = 9f;
 
     /// <summary>The band's undergrowth, per 100 m² of the strip it stands in.</summary>
     public const float BandUndergrowthPer100 = 24f;
@@ -30,23 +32,33 @@ internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadO
     /// The band's trees are drawn at this scale range, below the tree walls' largest (the rules' cap): kept lower than
     /// a chunk's walls so the feature behind them shows.
     /// </summary>
-    public const float BandTreeMinScale = 0.85f, BandTreeMaxScale = 1.25f;
+    private const float BandTreeMinScale = 0.85f, BandTreeMaxScale = 1.25f;
 
     /// <summary>A kit tree under an ancient crown keeps its top this many metres below the crown's base.</summary>
-    public const float CrownHeadroom = 1f;
+    private const float CrownHeadroom = 1f;
 
     /// <summary>The smallest scale a kit tree is drawn at, here or under a crown.</summary>
-    public const float MinTreeScale = 0.8f;
+    private const float MinTreeScale = 0.8f;
+
+    /// <summary>A wooden fence section's length at scale 1, in metres: sections stand this far apart, end to end.</summary>
+    private const float FenceSection = 2f;
 
     private const float Cell = ChunkPiece.CellSize;
 
-    /// <summary>The ancient trees' crown bases at scale 1 (forest-kit NOTES: each model's crown base).</summary>
+    // The ancient trees' figures at scale 1, one per variant (avalon_tree_ancient_1 to _4). The kit's bounds table holds
+    // only each model's box, so these were measured from the models when the forest kit was built and must be measured
+    // again when a model changes.
+
+    /// <summary>The height above the trunk's foot where each ancient tree's leaves begin (its crown's base).</summary>
     private static readonly float[] s_ancientCrownBase = [9.56f, 11.44f, 9.43f, 11.7f];
 
-    /// <summary>The ancient trees' trunk radius on the ground, flare and buttresses included, at scale 1.</summary>
+    /// <summary>Each ancient tree's trunk radius on the ground, flare and buttresses included.</summary>
     private static readonly float[] s_ancientTrunk = [1.9f, 2.2f, 1.7f, 2f];
 
-    /// <summary>The ancient trees' crown half-width at scale 1 (every part within x, z ±5.9).</summary>
+    /// <summary>
+    /// How far every ancient tree's crown reaches from its trunk on x and z: one figure for every variant, rounded up
+    /// from the farthest any of them reaches (5.88 m, in the bounds table).
+    /// </summary>
     private const float AncientCrown = 5.9f;
 
     private static readonly (string Model, int Weight)[] s_bandUndergrowth =
@@ -298,25 +310,80 @@ internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadO
     /// <summary>
     /// The spacing radius a model keeps at a scale: <paramref name="spread" /> of its box's mean width.
     /// </summary>
-    public float Spacing(string model, float scale, float spread = 0.3f)
+    public float Spacing(string model, float scale, float spread = 0.3f) => Spacing(Box(model), scale, spread);
+
+    /// <summary>The spacing radius a kit box keeps at a scale: <paramref name="spread" /> of its mean width.</summary>
+    public static float Spacing(ModelBounds box, float scale, float spread) =>
+        spread * ((box.MaxX - box.MinX) + (box.MaxZ - box.MinZ)) / 2f * scale;
+
+    public float Uniform(float min, float max) => Uniform(Rng, min, max);
+
+    public static float Uniform(Random rng, float min, float max) => min + (float)rng.NextDouble() * (max - min);
+
+    public string Pick(IReadOnlyList<string> models) => Pick(Rng, models);
+
+    public static string Pick(Random rng, IReadOnlyList<string> models) => models[rng.Next(models.Count)];
+
+    public string PickWeighted(IReadOnlyList<(string Model, int Weight)> models) => PickWeighted(Rng, models);
+
+    /// <summary>A model drawn by weight: always the weight loop, so a draw is one integer whatever the weights.</summary>
+    public static string PickWeighted(Random rng, IReadOnlyList<(string Model, int Weight)> models)
     {
-        ModelBounds box = Box(model);
-        return spread * ((box.MaxX - box.MinX) + (box.MaxZ - box.MinZ)) / 2f * scale;
-    }
-
-    public float Uniform(float min, float max) => min + (float)Rng.NextDouble() * (max - min);
-
-    public string Pick(IReadOnlyList<string> models) => models[Rng.Next(models.Count)];
-
-    public string PickWeighted(IReadOnlyList<(string Model, int Weight)> models)
-    {
-        int roll = Rng.Next(models.Sum(m => m.Weight));
+        int roll = rng.Next(models.Sum(m => m.Weight));
         foreach ((string model, int weight) in models)
         {
             if (roll < weight) return model;
             roll -= weight;
         }
         return models[^1].Model;
+    }
+
+    /// <summary>
+    /// A loose cluster of the models about a point, each at a scale in the range, within <paramref name="spread" />,
+    /// spaced by <paramref name="keep" /> of its box's mean width and sunk a little.
+    /// </summary>
+    public void Cluster(float x, float z, IReadOnlyList<string> models, float spread, float minScale, float maxScale, float keep = 0.5f) =>
+        Cluster(Rng, x, z, models, spread, minScale, maxScale, attempts: 12,
+            (model, px, pz, scale) => TryPlace(model, px, pz, Spacing(model, scale, keep), scale, 0.06f));
+
+    /// <summary>
+    /// A loose cluster of the models about a point: for each model, up to <paramref name="attempts" /> draws of a
+    /// scale in the range and a spot within <paramref name="spread" /> of the point, until <paramref name="place" />
+    /// (the model, the spot's x and z, the scale) takes one.
+    /// </summary>
+    public static void Cluster(
+        Random rng, float x, float z, IReadOnlyList<string> models, float spread, float minScale, float maxScale, int attempts,
+        Func<string, float, float, float, bool> place)
+    {
+        foreach (string model in models)
+        {
+            for (int attempt = 0; attempt < attempts; attempt++)
+            {
+                float scale = Uniform(rng, minScale, maxScale);
+                if (place(model, x + Uniform(rng, -spread, spread), z + Uniform(rng, -spread, spread), scale)) break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A straight run of wooden fence sections (along x or z) from one corner to the next: as many as cover it, each
+    /// <see cref="FenceSection" /> long or a little shorter so the last one ends on the corner; a single section first,
+    /// then the two extensions in turn. Each is its model, its middle, its yaw (square to the run) and its length.
+    /// </summary>
+    public static IReadOnlyList<(string Model, float X, float Z, int Yaw, float Length)> FenceSections((float X, float Z) from, (float X, float Z) to)
+    {
+        float length = Distance(from.X, from.Z, to.X, to.Z);
+        int sections = Math.Max(1, (int)MathF.Ceiling(length / FenceSection - 0.001f));
+        float step = length / sections, dirX = (to.X - from.X) / length, dirZ = (to.Z - from.Z) / length;
+        int yaw = MathF.Abs(dirX) < 0.5f ? 90 : 0;
+        var run = new (string Model, float X, float Z, int Yaw, float Length)[sections];
+        for (int i = 0; i < sections; i++)
+        {
+            float at = step / 2f + step * i;
+            string model = i == 0 ? "Prop_WoodenFence_Single" : i % 2 == 1 ? "Prop_WoodenFence_Extension1" : "Prop_WoodenFence_Extension2";
+            run[i] = (model, from.X + dirX * at, from.Z + dirZ * at, yaw, step);
+        }
+        return run;
     }
 
     /// <summary>

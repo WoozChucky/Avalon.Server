@@ -34,7 +34,7 @@ public class TownPiecesShould
             Assert.Equal(obj, Lf(File.ReadAllText(Path.Combine(Maps, "Scenery", name + ".obj"))));
             Assert.Equal(decor, Lf(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json"))));
         }
-        Assert.Equal(scenery.Ring, Lf(File.ReadAllText(Path.Combine(Maps, "Scenery", $"{TownScenery.MapId}.json"))));
+        Assert.Equal(scenery.Ring, Lf(File.ReadAllText(Path.Combine(Maps, "Scenery", $"{ChunkFiles.TownMapId}.json"))));
     }
 
     [Fact]

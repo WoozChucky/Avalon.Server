@@ -382,9 +382,9 @@ public static partial class ForestScenery
         (float l2x, float l2z) = e.At(27.1f, 4.7f);
         Log(d, "avalon_log_fallen_2", l2x, l2z, e.Turn(100), 0.9f);
         (float b1x, float b1z) = e.At(23.6f, 4.4f);
-        Cluster(d, b1x, b1z, ["avalon_bramble_2", "avalon_bramble_1", "avalon_hedge_dark"], 1.2f, 0.95f, 1.2f);
+        d.Cluster(b1x, b1z, ["avalon_bramble_2", "avalon_bramble_1", "avalon_hedge_dark"], 1.2f, 0.95f, 1.2f);
         (float b2x, float b2z) = e.At(2.4f, 3.8f);
-        Cluster(d, b2x, b2z, ["avalon_bramble_1", "avalon_bramble_2", "Fern_1"], 1.3f, 0.9f, 1.15f);
+        d.Cluster(b2x, b2z, ["avalon_bramble_1", "avalon_bramble_2", "Fern_1"], 1.3f, 0.9f, 1.15f);
 
         d.Scatter([("Fern_1", 6), ("Plant_1_Big", 2), ("Grass_Wispy_Tall", 2), ("Mushroom_Laetiporus", 1)], 26, 0.85f, 1.3f,
             (x, z) => Along(x, z) is > 1.9f and < 4.2f && free(x, z));

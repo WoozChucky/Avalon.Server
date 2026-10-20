@@ -10,15 +10,17 @@ public static partial class TownScenery
     /// <summary>
     /// The scene's dressing: a SceneryDresser per ring cell (its origin the cell's corner), each item sent to the cell
     /// holding its position and refused there when its turned kit box crosses the cell's edge. Before that, an item is
-    /// held, in its cell's frame, to the town ring's own item rules (SceneryRules.CheckTownItem, which CheckTownPiece
-    /// runs on every item) and left out when it breaks one, so the scattering never builds a piece the rules refuse.
-    /// Spacing is kept across cells, on a 4 m grid of the spots taken.
+    /// held, in its cell's frame, to the town ring's height and edge-band rules (SceneryRules.AllowsTownItem, the rules
+    /// CheckTownPiece holds every item to) and left out when they refuse it, so the scattering never builds a piece the
+    /// rules refuse; a wrong model, kit, yaw or scale is thrown. Spacing is kept across cells, on a 4 m grid of the
+    /// spots taken. The draws, spacing, clusters and fence runs are SceneryDresser's, over the scene's one random
+    /// stream.
     /// </summary>
     private sealed class Scene
     {
         private readonly Dictionary<(int X, int Z), SceneryDresser> _cells = [];
 
-        /// <summary>Each cell as an empty piece, for the rules to name and place an item in (SceneryRules.CheckTownItem).</summary>
+        /// <summary>Each cell as an empty piece, for the rules to name and place an item in (SceneryRules.AllowsTownItem).</summary>
         private readonly Dictionary<(int X, int Z), SceneryPiece> _probes = [];
         private readonly IReadOnlyList<(int X, int Z)> _order;
         private readonly IReadOnlyDictionary<string, ModelBounds> _kit;
@@ -81,7 +83,7 @@ public static partial class TownScenery
             // The item as the dresser writes it, in its cell's frame as the composer moves it there.
             var item = new DecorItem("", model, SceneryDresser.Round(x) - cell.X * Cell, SceneryDresser.Round(y), SceneryDresser.Round(z) - cell.Z * Cell,
                 Yaw.Normal(yaw), SceneryDresser.Round(scale), kit ?? (box.Kit == DecorJsonWriter.TownKit ? null : box.Kit));
-            return Allowed(item, cell) && dresser.TryAddAt(model, x, y, z, yaw, scale, kit);
+            return SceneryRules.AllowsTownItem(_probes[cell], item, _kit) && dresser.TryAddAt(model, x, y, z, yaw, scale, kit);
         }
 
         /// <summary>The model at an open spot of the radius, which it then takes.</summary>
@@ -110,33 +112,20 @@ public static partial class TownScenery
         }
 
         /// <summary>A loose cluster of the models about a point, each at a scale in the range, within <paramref name="spread" />.</summary>
-        public void Cluster(float x, float z, string[] models, float spread, float minScale, float maxScale)
-        {
-            foreach (string model in models)
-            {
-                for (int attempt = 0; attempt < 8; attempt++)
-                {
-                    float scale = Uniform(minScale, maxScale);
-                    if (Place(model, x + Uniform(-spread, spread), z + Uniform(-spread, spread), Spacing(model, scale, 0.35f), Rng.Next(360), scale, 0.04f)) break;
-                }
-            }
-        }
+        public void Cluster(float x, float z, string[] models, float spread, float minScale, float maxScale) =>
+            SceneryDresser.Cluster(Rng, x, z, models, spread, minScale, maxScale, attempts: 8,
+                (model, px, pz, scale) => Place(model, px, pz, Spacing(model, scale, 0.35f), Rng.Next(360), scale, 0.04f));
 
         /// <summary>
-        /// Wooden fence sections from one corner to the next along x or z, as many as cover it, the last ending on the
-        /// corner; a single section first, then the two extensions in turn; now and then one left out (<paramref name="gaps" />).
+        /// Wooden fence sections from one corner to the next along x or z (SceneryDresser.FenceSections), each a few
+        /// degrees off square and scaled to its length; now and then one left out (<paramref name="gaps" />).
         /// </summary>
         public void FenceRun((float X, float Z) from, (float X, float Z) to, float gaps = 0f)
         {
-            float length = SceneryDresser.Distance(from.X, from.Z, to.X, to.Z);
-            int sections = Math.Max(1, (int)MathF.Ceiling(length / 2f - 0.001f));
-            float step = length / sections, dirX = (to.X - from.X) / length, dirZ = (to.Z - from.Z) / length;
-            for (int i = 0; i < sections; i++)
+            foreach ((string model, float fx, float fz, int yaw, float length) in SceneryDresser.FenceSections(from, to))
             {
                 if (gaps > 0f && Rng.NextDouble() < gaps) continue;
-                float at = step / 2f + step * i, fx = from.X + dirX * at, fz = from.Z + dirZ * at;
-                string model = i == 0 ? "Prop_WoodenFence_Single" : i % 2 == 1 ? "Prop_WoodenFence_Extension1" : "Prop_WoodenFence_Extension2";
-                if (Add(model, fx, fz, (MathF.Abs(dirX) < 0.5f ? 90 : 0) + Rng.Next(-2, 3), step / 2.04f)) Take(fx, fz, 0.45f);
+                if (Add(model, fx, fz, yaw + Rng.Next(-2, 3), length / 2.04f)) Take(fx, fz, 0.45f);
             }
         }
 
@@ -199,41 +188,14 @@ public static partial class TownScenery
                 dresser.Items.RemoveAll(i => SceneryDresser.Distance(i.X, i.Z, x, z) < radius);
         }
 
-        public float Spacing(string model, float scale, float spread)
-        {
-            ModelBounds box = _kit[model];
-            return spread * ((box.MaxX - box.MinX) + (box.MaxZ - box.MinZ)) / 2f * scale;
-        }
+        public float Spacing(string model, float scale, float spread) => SceneryDresser.Spacing(_kit[model], scale, spread);
 
-        public float Uniform(float min, float max) => min + (float)Rng.NextDouble() * (max - min);
+        public float Uniform(float min, float max) => SceneryDresser.Uniform(Rng, min, max);
 
-        public string Pick(IReadOnlyList<string> models) => models[Rng.Next(models.Count)];
+        public string Pick(IReadOnlyList<string> models) => SceneryDresser.Pick(Rng, models);
 
-        public string PickWeighted(IReadOnlyList<(string Model, int Weight)> models)
-        {
-            int roll = Rng.Next(models.Sum(m => m.Weight));
-            foreach ((string model, int weight) in models)
-            {
-                if (roll < weight) return model;
-                roll -= weight;
-            }
-            return models[^1].Model;
-        }
+        public string PickWeighted(IReadOnlyList<(string Model, int Weight)> models) => SceneryDresser.PickWeighted(Rng, models);
 
         private static (int X, int Z) Grid(float x, float z) => ((int)MathF.Floor(x / 4f), (int)MathF.Floor(z / 4f));
-
-        /// <summary>Whether the rules let the item (in its cell's frame) stand in the cell: SceneryRules.CheckTownItem's refusal is a no.</summary>
-        private bool Allowed(DecorItem item, (int X, int Z) cell)
-        {
-            try
-            {
-                SceneryRules.CheckTownItem(_probes[cell], item, _kit);
-                return true;
-            }
-            catch (InvalidOperationException)
-            {
-                return false;
-            }
-        }
     }
 }

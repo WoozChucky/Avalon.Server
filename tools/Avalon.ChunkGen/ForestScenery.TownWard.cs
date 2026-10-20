@@ -43,17 +43,13 @@ public static partial class ForestScenery
     /// A field: its ground (whole metres), standing wheat on it west of <paramref name="Stubble" /> (all of it when
     /// null), stubble on tilled soil east of it.
     /// </summary>
-    private sealed record Field(float MinX, float MaxX, float MinZ, float MaxZ, float? Stubble)
-    {
-        public bool Holds(float x, float z, float margin = 0f) =>
-            x > MinX - margin && x < MaxX + margin && z > MinZ - margin && z < MaxZ + margin;
-    }
+    private sealed record Field(float MinX, float MaxX, float MinZ, float MaxZ, float? Stubble) : GroundBox(MinX, MaxX, MinZ, MaxZ);
 
-    /// <summary>The wheat's spacing (town-kit NOTES): stands 1 m apart along a row, rows 0.95 m apart.</summary>
+    /// <summary>
+    /// The wheat's spacing: stands 1 m apart along a row, rows 0.95 m apart, the spacing the wheat stands (1.05 to
+    /// 1.18 m across) were built for, so they touch and the field's ground shows between their stalks.
+    /// </summary>
     private const float WheatAlong = 1f, WheatRows = 0.95f;
-
-    /// <summary>A fence section's length: sections stand this far apart, end to end.</summary>
-    private const float FenceSection = 2f;
 
     /// <summary>The fences stand this far outside their field's ground.</summary>
     private const float FenceOut = 0.6f;
@@ -133,14 +129,7 @@ public static partial class ForestScenery
     }
 
     /// <summary>Metres from a world point to the nearer field's ground, 0 on it.</summary>
-    private static float FieldDistance(float x, float z) =>
-        MathF.Min(BoxDistance(x, z, s_eastField), BoxDistance(x, z, s_westField));
-
-    private static float BoxDistance(float x, float z, Field f)
-    {
-        float dx = MathF.Max(0f, MathF.Max(f.MinX - x, x - f.MaxX)), dz = MathF.Max(0f, MathF.Max(f.MinZ - z, z - f.MaxZ));
-        return MathF.Sqrt(dx * dx + dz * dz);
-    }
+    private static float FieldDistance(float x, float z) => MathF.Min(s_eastField.Distance(x, z), s_westField.Distance(x, z));
 
     /// <summary>
     /// The scene's ground materials: forest floor along every cell edge (the outer metre), wheat field (straw-gold, the
@@ -210,11 +199,11 @@ public static partial class ForestScenery
                 if (d.TryPlace(model, x, d.Uniform(-2.3f, -1.75f), 0.6f * scale, scale)) break;
             }
         }
-        Cluster(d, 1.6f, -3.2f, ["avalon_bramble_2", "avalon_hedge_dark", "avalon_bramble_1"], 1.2f, 0.9f, 1.1f);
-        Cluster(d, 28.4f, -3.4f, ["avalon_bramble_2", "avalon_bramble_1", "avalon_hedge_dark"], 1.2f, 0.9f, 1.1f);
+        d.Cluster(1.6f, -3.2f, ["avalon_bramble_2", "avalon_hedge_dark", "avalon_bramble_1"], 1.2f, 0.9f, 1.1f);
+        d.Cluster(28.4f, -3.4f, ["avalon_bramble_2", "avalon_bramble_1", "avalon_hedge_dark"], 1.2f, 0.9f, 1.1f);
         // Clumps at the wall's south foot, the stone showing between them.
         foreach (float x in new[] { 4.2f, 8.6f, 21.6f, 25.8f })
-            Cluster(d, x, WallZ - 1.1f, ["avalon_bramble_1", "Fern_1", "Grass_Wispy_Tall"], 0.9f, 0.8f, 1.05f, keep: 0.4f);
+            d.Cluster(x, WallZ - 1.1f, ["avalon_bramble_1", "Fern_1", "Grass_Wispy_Tall"], 0.9f, 0.8f, 1.05f, keep: 0.4f);
 
         // The road: a strip of grass down its middle between the wheel ruts, tufts breaking its verges, a few pebbles.
         bool Road(float x, float z) => OnRoad(s_townWardSeed, x, z);
@@ -244,10 +233,10 @@ public static partial class ForestScenery
             d.TryPlace(d.Pick(s_scree), x, z, 0.2f, d.Uniform(1.1f, 1.9f), 0.02f);
         }
 
-        // A mossy boulder by the road's end, as the spike had one by the portal; scattered trees, the woods thin here.
+        // A mossy boulder by the road's end, near the portal; scattered trees, the woods thin here.
         if (!d.TryPlace("avalon_boulder_2", 20.6f, -8.4f, 1.2f, 0.95f, 0.18f, yaw: 115))
             throw new InvalidOperationException($"{d.Name}: the boulder by the road does not fit");
-        Cluster(d, 21.4f, -9.6f, ["avalon_rock_mossy_1", "avalon_rock_mossy_3"], 1f, 0.6f, 0.9f);
+        d.Cluster(21.4f, -9.6f, ["avalon_rock_mossy_1", "avalon_rock_mossy_3"], 1f, 0.6f, 0.9f);
         d.TryTree(TreeSpecies.CommonTree, 7f, -15.5f, 1.15f);
         d.TryTree(TreeSpecies.Pine, 23.5f, -21.5f, 1.05f);
         d.TryTree(TreeSpecies.DeadTree, 24.8f, -13.2f, 0.9f);
@@ -310,10 +299,10 @@ public static partial class ForestScenery
                 throw new InvalidOperationException($"{d.Name}: the field wall's {model} at ({ForestText.N(x)}, {ForestText.N(z)}) does not fit");
             for (float t = -2.5f; t <= 2.5f; t += 1f) d.Take(x, z + t, 0.55f);
         }
-        Cluster(d, x - 0.2f, -1.6f, ["avalon_bramble_2", "avalon_bramble_1"], 0.6f, 0.85f, 1f);
-        Cluster(d, x - 0.4f, -28.3f, ["avalon_bramble_1", "avalon_hedge_dark"], 0.6f, 0.85f, 1f);
+        d.Cluster(x - 0.2f, -1.6f, ["avalon_bramble_2", "avalon_bramble_1"], 0.6f, 0.85f, 1f);
+        d.Cluster(x - 0.4f, -28.3f, ["avalon_bramble_1", "avalon_hedge_dark"], 0.6f, 0.85f, 1f);
         foreach (float z in new[] { -22.5f, -12.6f, -7.4f })
-            Cluster(d, x - 1f, z, ["avalon_bramble_1", "Grass_Wispy_Tall", "Fern_1"], 0.8f, 0.8f, 1f, keep: 0.4f);
+            d.Cluster(x - 1f, z, ["avalon_bramble_1", "Grass_Wispy_Tall", "Fern_1"], 0.8f, 0.8f, 1f, keep: 0.4f);
     }
 
     /// <summary>
@@ -404,21 +393,14 @@ public static partial class ForestScenery
     }
 
     /// <summary>
-    /// A straight run of wooden fence sections (along x or z) from one corner to the next: as many as cover it, each
-    /// <see cref="FenceSection" /> apart or a little closer so the last one ends on the corner (their ends overlap by a
-    /// few centimetres); a single section first, then the two extensions in turn, each standing on the ground.
+    /// The fence's sections from one corner to the next (SceneryDresser.FenceSections), each at scale 1 and square to
+    /// the run, standing on the ground, its spot taken.
     /// </summary>
     private static void FenceRun(SceneryDresser d, (float X, float Z) from, (float X, float Z) to)
     {
-        float length = SceneryDresser.Distance(from.X, from.Z, to.X, to.Z);
-        int sections = (int)MathF.Ceiling(length / FenceSection - 0.001f);
-        float step = length / sections, dirX = (to.X - from.X) / length, dirZ = (to.Z - from.Z) / length;
-        for (int i = 0; i < sections; i++)
+        foreach ((string model, float fx, float fz, int yaw, _) in SceneryDresser.FenceSections(from, to))
         {
-            float at = step / 2f + step * i;
-            (float fx, float fz) = (from.X + dirX * at, from.Z + dirZ * at);
-            string model = i == 0 ? "Prop_WoodenFence_Single" : i % 2 == 1 ? "Prop_WoodenFence_Extension1" : "Prop_WoodenFence_Extension2";
-            if (!d.TryAdd(model, fx, fz, MathF.Abs(dirX) < 0.5f ? 90 : 0, 1f))
+            if (!d.TryAdd(model, fx, fz, yaw, 1f))
                 throw new InvalidOperationException($"{d.Name}: the fence's {model} at ({ForestText.N(fx)}, {ForestText.N(fz)}) does not fit");
             d.Take(fx, fz, 0.5f);
         }
@@ -478,10 +460,10 @@ public static partial class ForestScenery
         int yaw = d.Rng.Next(60, 120);
         Log(d, "avalon_log_fallen_1", x, z, yaw, 1.05f);
         Log(d, "avalon_log_fallen_2", x + d.Uniform(-0.8f, 0.8f), z + d.Uniform(-0.8f, 0.8f), yaw + d.Rng.Next(50, 80), 0.95f);
-        Cluster(d, x, z, ["avalon_bramble_2", "avalon_bramble_1", "Fern_1"], 1.8f, 0.85f, 1.1f, keep: 0.4f);
+        d.Cluster(x, z, ["avalon_bramble_2", "avalon_bramble_1", "Fern_1"], 1.8f, 0.85f, 1.1f, keep: 0.4f);
     }
 
     /// <summary>Thorn: a mass of brambles and a dark hedge.</summary>
     private static void Thorn(SceneryDresser d, float x, float z) =>
-        Cluster(d, x, z, ["avalon_bramble_2", "avalon_bramble_1", "avalon_bramble_2", "avalon_hedge_dark"], 1.6f, 0.9f, 1.15f, keep: 0.4f);
+        d.Cluster(x, z, ["avalon_bramble_2", "avalon_bramble_1", "avalon_bramble_2", "avalon_hedge_dark"], 1.6f, 0.9f, 1.15f, keep: 0.4f);
 }

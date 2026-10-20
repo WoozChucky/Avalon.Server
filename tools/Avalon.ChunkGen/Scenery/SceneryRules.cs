@@ -9,8 +9,8 @@ namespace Avalon.ChunkGen;
 /// over a path at the game camera's zoom. A forest piece meets every edge at y 0 on forest floor and carries a barrier
 /// all along its 6 m edge band, and a cap keeps its clearing. The town's south and west cells keep low near the wall,
 /// between the camera and the player. A forest pool holds every family and cap shape, and the town ring covers its 21
-/// cells and meets the town and itself. A surface laid over the ground (a road's dirt) never dips under it. Every refusal is an InvalidOperationException naming the piece, the pool or the
-/// ring.
+/// cells and meets the town and itself. A surface laid over the ground (a road's dirt) never dips under it. Every
+/// refusal is an InvalidOperationException naming the piece, the pool or the ring.
 /// </summary>
 public static class SceneryRules
 {
@@ -18,10 +18,10 @@ public static class SceneryRules
     public const float EdgeBand = 6f;
 
     /// <summary>An item drawn taller than this, in metres, is tall decor: in the edge band it stays at chunk-tree size.</summary>
-    public const float TallItem = 2.2f;
+    private const float TallItem = 2.2f;
 
     /// <summary>The tallest an edge-band item other than a kit tree may be drawn, in metres (the dresser's largest rock fits).</summary>
-    public const float EdgeBandRockTop = 4f;
+    private const float EdgeBandRockTop = 4f;
 
     /// <summary>The radius, in metres, kept clear of trees around each capped edge's midpoint, so the cap reads from the camera.</summary>
     public const float CapClearing = 10f;
@@ -30,13 +30,13 @@ public static class SceneryRules
     public const float BarrierSpacing = 3f;
 
     /// <summary>Within this many metres of the town's wall, a south or west ring cell's decor stays below <see cref="TownWallNearTop" />.</summary>
-    public const float TownWallNear = 4f;
+    private const float TownWallNear = 4f;
 
     /// <summary>The wall's height, in metres: nothing near it on the camera's side stands taller.</summary>
-    public const float TownWallNearTop = 2f;
+    private const float TownWallNearTop = 2f;
 
     /// <summary>Within this many metres of the town's wall, a south or west ring cell's decor stays below <see cref="TownWallFarTop" />.</summary>
-    public const float TownWallFar = 10f;
+    private const float TownWallFar = 10f;
 
     /// <summary>The tallest a south or west ring cell's decor stands within <see cref="TownWallFar" /> of the wall, in metres.</summary>
     public const float TownWallFarTop = 6f;
@@ -74,6 +74,9 @@ public static class SceneryRules
     /// <summary>The town's cells, as TownPieces lays its squares out: what the town ring surrounds and its pieces' rules measure from.</summary>
     internal static IReadOnlyList<(int X, int Z)> TownCells => s_townCells.Value;
 
+    /// <summary>The runs of <see cref="BarrierSpacing" /> metres each edge is checked in.</summary>
+    internal static int BarrierRuns => (int)MathF.Round(ChunkPiece.CellSize / BarrierSpacing);
+
     /// <summary>
     /// A forest piece (border, cap or town-ward): every item a model of its kit (<see cref="DecorItem.Check" />, any
     /// whole degree) whose turned box lies within its cell; tall items in the edge band at chunk-tree size; the ground
@@ -87,7 +90,7 @@ public static class SceneryRules
         foreach (DecorItem item in piece.Decor)
         {
             Footprint footprint = CheckItem(piece, item, kit);
-            CheckEdgeBand(piece, footprint, s_sides);
+            if (EdgeBandRefusal(piece, footprint, s_sides) is { } refusal) throw new InvalidOperationException(refusal);
             footprints.Add(footprint);
         }
 
@@ -109,26 +112,47 @@ public static class SceneryRules
     }
 
     /// <summary>
-    /// One item of a town ring piece (piece-local): a model of its kit whose turned box lies within its cell; drawn
-    /// taller than <see cref="TallItem" /> within <see cref="EdgeBand" /> of an edge the piece shares with the town, at
-    /// chunk-tree size; and in a cell south or west of the town, nothing within <see cref="TownWallNear" /> of the town
-    /// (<see cref="TownCells" />) drawn taller than <see cref="TownWallNearTop" />, nor within <see cref="TownWallFar" />
-    /// drawn taller than <see cref="TownWallFarTop" />. The town ring's scene holds each item it places to this before
-    /// adding it, so its scattering never builds a piece this refuses.
+    /// One item of a town ring piece (piece-local): a model of its kit whose turned box lies within its cell, and held
+    /// to <see cref="TownItemRefusal" />.
     /// </summary>
-    internal static void CheckTownItem(SceneryPiece piece, DecorItem item, IReadOnlyDictionary<string, ModelBounds> kit)
+    private static void CheckTownItem(SceneryPiece piece, DecorItem item, IReadOnlyDictionary<string, ModelBounds> kit)
+    {
+        if (TownItemRefusal(piece, CheckItem(piece, item, kit)) is { } refusal) throw new InvalidOperationException(refusal);
+    }
+
+    /// <summary>
+    /// Whether the town ring's height and edge-band rules (<see cref="TownItemRefusal" />) let an item of a town ring
+    /// piece (piece-local) stand there: the question the town ring's scene asks before it adds an item, so its
+    /// scattering never builds a piece <see cref="CheckTownPiece" /> refuses. The item is first held to
+    /// <see cref="DecorItem.Check" />, whose refusal (a model, kit, yaw or scale that is wrong) is thrown, never a no.
+    /// Its box against the cell's edge is not asked: the scene's dresser refuses an item that crosses it.
+    /// </summary>
+    internal static bool AllowsTownItem(SceneryPiece piece, DecorItem item, IReadOnlyDictionary<string, ModelBounds> kit)
+    {
+        item.Check(piece.Name, kit, DecorYaw.AnyDegree, piece.Kit);
+        return TownItemRefusal(piece, Footprint.Of(item, kit[item.Model])) is null;
+    }
+
+    /// <summary>
+    /// Why the town ring refuses an item of a town ring piece by its height, or null: drawn taller than
+    /// <see cref="TallItem" /> within <see cref="EdgeBand" /> of an edge the piece shares with the town, not at
+    /// chunk-tree size (<see cref="EdgeBandRefusal" />); in a cell south or west of the town, within
+    /// <see cref="TownWallNear" /> of the town (<see cref="TownCells" />) drawn taller than
+    /// <see cref="TownWallNearTop" />, or within <see cref="TownWallFar" /> drawn taller than
+    /// <see cref="TownWallFarTop" />.
+    /// </summary>
+    private static string? TownItemRefusal(SceneryPiece piece, Footprint footprint)
     {
         IReadOnlyList<(int X, int Z)> town = TownCells;
-        Footprint footprint = CheckItem(piece, item, kit);
         if (piece.GridX < town.Min(c => c.X) || piece.GridZ < town.Min(c => c.Z))   // south or west of the town
         {
             float distance = town.Min(cell => DistanceToCell(piece, footprint, cell));
             if (distance < TownWallNear && footprint.Top > TownWallNearTop)
-                throw new InvalidOperationException(TooTall(piece, footprint, TownWallNearTop, TownWallNear, distance));
+                return TooTall(piece, footprint, TownWallNearTop, TownWallNear, distance);
             if (distance < TownWallFar && footprint.Top > TownWallFarTop)
-                throw new InvalidOperationException(TooTall(piece, footprint, TownWallFarTop, TownWallFar, distance));
+                return TooTall(piece, footprint, TownWallFarTop, TownWallFar, distance);
         }
-        CheckEdgeBand(piece, footprint, [.. s_sides.Where(s => town.Contains(Neighbour((piece.GridX, piece.GridZ), s)))]);
+        return EdgeBandRefusal(piece, footprint, [.. s_sides.Where(s => town.Contains(Neighbour((piece.GridX, piece.GridZ), s)))]);
     }
 
     /// <summary>
@@ -344,50 +368,42 @@ public static class SceneryRules
     private static Footprint CheckItem(SceneryPiece piece, DecorItem item, IReadOnlyDictionary<string, ModelBounds> kit)
     {
         item.Check(piece.Name, kit, DecorYaw.AnyDegree, piece.Kit);
-        ModelBounds box = kit[item.Model];
-        (float minX, float maxX, float minZ, float maxZ) = SceneryComposer.TurnedBox(item, box);
-
-        var footprint = new Footprint(item, minX, maxX, minZ, maxZ, item.Y + box.MaxY * item.Scale);
-        if (minX < -CellTolerance || minZ < -CellTolerance || maxX > ChunkPiece.CellSize + CellTolerance || maxZ > ChunkPiece.CellSize + CellTolerance)
+        var footprint = Footprint.Of(item, kit[item.Model]);
+        if (footprint.MinX < -CellTolerance || footprint.MinZ < -CellTolerance
+            || footprint.MaxX > ChunkPiece.CellSize + CellTolerance || footprint.MaxZ > ChunkPiece.CellSize + CellTolerance)
         {
             throw new InvalidOperationException(
-                $"{What(piece, item)} lies outside its cell: its box spans x {N(minX)} to {N(maxX)}, z {N(minZ)} to {N(maxZ)}, past 0-30 m");
+                $"{What(piece, item)} lies outside its cell: its box spans x {N(footprint.MinX)} to {N(footprint.MaxX)}, "
+                + $"z {N(footprint.MinZ)} to {N(footprint.MaxZ)}, past 0-30 m");
         }
         return footprint;
     }
 
     /// <summary>
-    /// An item drawn taller than <see cref="TallItem" /> standing within <see cref="EdgeBand" /> of one of the
-    /// <paramref name="edges" /> is a kit tree at no more than the tree walls' scale (ForestDresser), never a twisted or
-    /// ancient tree, or another model drawn no taller than <see cref="EdgeBandRockTop" />.
+    /// Why an item drawn taller than <see cref="TallItem" /> standing within <see cref="EdgeBand" /> of one of the
+    /// <paramref name="edges" /> is refused, or null: it must be a kit tree at no more than the tree walls' scale
+    /// (ForestDresser), never a twisted or ancient tree, or another model drawn no taller than
+    /// <see cref="EdgeBandRockTop" />.
     /// </summary>
-    private static void CheckEdgeBand(SceneryPiece piece, Footprint footprint, IReadOnlyList<Side> edges)
+    private static string? EdgeBandRefusal(SceneryPiece piece, Footprint footprint, IReadOnlyList<Side> edges)
     {
         DecorItem item = footprint.Item;
-        if (footprint.Top <= TallItem || !edges.Any(side => DistanceToEdge(side, item.X, item.Z) < EdgeBand)) return;
+        if (footprint.Top <= TallItem || !edges.Any(side => DistanceToEdge(side, item.X, item.Z) < EdgeBand)) return null;
 
         string within = $"within {N(EdgeBand)} m of an edge";
         TreeSpecies? species = ForestDecorRules.SpeciesOf(item.Model);
         if (species == TreeSpecies.TwistedTree || item.Model.StartsWith(AncientTree, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"{What(piece, item)} stands {within}: a tree that large would hang over the paths, so it stands further in");
-        }
+            return $"{What(piece, item)} stands {within}: a tree that large would hang over the paths, so it stands further in";
         if (species is { } tree)
         {
             float max = tree == TreeSpecies.DeadTree ? ForestDresser.WallDeadTreeMaxScale : ForestDresser.WallTreeMaxScale;
-            if (item.Scale > max)
-            {
-                throw new InvalidOperationException(
-                    $"{What(piece, item)} stands {within} at scale {N(item.Scale)}, above the tree walls' {N(max)}: its crown would hang over the paths");
-            }
-            return;
+            return item.Scale > max
+                ? $"{What(piece, item)} stands {within} at scale {N(item.Scale)}, above the tree walls' {N(max)}: its crown would hang over the paths"
+                : null;
         }
-        if (footprint.Top > EdgeBandRockTop)
-        {
-            throw new InvalidOperationException(
-                $"{What(piece, item)} is drawn {N(footprint.Top)} m tall {within}, above {N(EdgeBandRockTop)} m: it would hang over the paths");
-        }
+        return footprint.Top > EdgeBandRockTop
+            ? $"{What(piece, item)} is drawn {N(footprint.Top)} m tall {within}, above {N(EdgeBandRockTop)} m: it would hang over the paths"
+            : null;
     }
 
     /// <summary>Every ground vertex on the cell's edge at y 0, and every ground triangle touching it forest floor.</summary>
@@ -445,9 +461,6 @@ public static class SceneryRules
             }
         }
     }
-
-    /// <summary>The runs of <see cref="BarrierSpacing" /> metres each edge is checked in.</summary>
-    internal static int BarrierRuns => (int)MathF.Round(ChunkPiece.CellSize / BarrierSpacing);
 
     /// <summary>
     /// Whether the item holds the run from <paramref name="from" /> to <paramref name="to" /> metres along the side's
@@ -542,5 +555,12 @@ public static class SceneryRules
     private static string I(int value) => value.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>An item's turned and scaled kit box on x and z, piece-local, and the height it is drawn to.</summary>
-    private readonly record struct Footprint(DecorItem Item, float MinX, float MaxX, float MinZ, float MaxZ, float Top);
+    private readonly record struct Footprint(DecorItem Item, float MinX, float MaxX, float MinZ, float MaxZ, float Top)
+    {
+        public static Footprint Of(DecorItem item, ModelBounds box)
+        {
+            (float minX, float maxX, float minZ, float maxZ) = SceneryComposer.TurnedBox(item, box);
+            return new Footprint(item, minX, maxX, minZ, maxZ, item.Y + box.MaxY * item.Scale);
+        }
+    }
 }
