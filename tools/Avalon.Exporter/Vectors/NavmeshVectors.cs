@@ -51,7 +51,7 @@ public static class NavmeshVectors
 
     private sealed record ChunkSpec(string Template, short GridX, short GridZ, byte Rotation);
 
-    private sealed record RaySpec(Vector3 From, Vector3 To, string Label);
+    private sealed record RaySpec(Vector3 From, Vector3 To, string Label, bool MustReach);
 
     private sealed record GroundSpec(float X, float Y, float Z, string Label);
 
@@ -69,8 +69,9 @@ public static class NavmeshVectors
     /// <summary>The default sample height: above the floor, and inside the pick extent's reach.</summary>
     private const float SampleFromY = 3f;
 
-    private static RaySpec Ray(float fx, float fz, float tx, float tz, string label, float y = TownFloorY)
-        => new(new Vector3(fx, y, fz), new Vector3(tx, y, tz), label);
+    private static RaySpec Ray(float fx, float fz, float tx, float tz, string label, float y = TownFloorY,
+        bool mustReach = false)
+        => new(new Vector3(fx, y, fz), new Vector3(tx, y, tz), label, mustReach);
 
     private static GroundSpec Ground(float x, float z, string label, float y = SampleFromY)
         => new(x, y, z, label);
@@ -85,7 +86,7 @@ public static class NavmeshVectors
             [
                 Ray(15f, 15f, 16f, 15f, "open floor, one metre"),
                 Ray(15f, 15f, 25f, 15f, "open floor, the length of a tile and then some"),
-                Ray(45f, 45f, 35f, 35f, "diagonal, north-east quadrant, starting within the agent radius of the well's north post: no step"),
+                Ray(45f, 45f, 35f, 35f, "diagonal, north-east quadrant, stopping short of the torch at the roads' corner"),
 
                 // Tile world size is 32 * 0.3 = 9.6, and the grid starts at the geometry's own
                 // minimum, so the seams fall at -0.25 + k * 9.6: 9.35, 18.95, 28.55. Agent values
@@ -95,16 +96,16 @@ public static class NavmeshVectors
                 Ray(5f, 15f, 15f, 15f, "crosses the x = 9.35 tile seam"),
                 Ray(5f, 15f, 25f, 15f, "crosses the x = 9.35 and 18.95 tile seams"),
                 Ray(5f, 17.95f, 25f, 17.95f, "crosses two seams a metre below the z = 18.95 one"),
-                Ray(6f, 3f, 6f, 25f, "the same, on z -- a transposed tile index lands elsewhere"),
+                Ray(4f, 3f, 4f, 25f, "crosses the z = 9.35 and 18.95 tile seams, west of the brazier", mustReach: true),
 
                 // A SHALLOW diagonal, not a 45-degree one. A ray along x = z from an integer start
                 // passes exactly through the point where four tiles meet, and Detour cannot step a
                 // raycast through a vertex: it clamps there, on a knife edge that two Recast
-                // implementations may fall on either side of. This crosses two seams on each axis,
-                // and a chunk seam through the x = 30 doorway at z = 45, without coming within a metre
-                // of a tile corner or within two of any solid, from the north-east square's road to the
-                // portal square's open ground east of the arch.
-                Ray(42f, 37f, 24f, 49f, "shallow diagonal across the seams on both axes, through the x = 30 doorway"),
+                // implementations may fall on either side of. This crosses x = 38.15 and 28.55,
+                // z = 47.75, and the chunk seam through the x = 30 doorway at z ~= 46.42. It runs
+                // north of the torch and brazier, off tile corners, from the north-east square's
+                // road to the portal square's open ground east of the arch.
+                Ray(43f, 43f, 24f, 48f, "shallow diagonal across the seams on both axes, through the x = 30 doorway", mustReach: true),
 
                 // Into walls, from several angles and distances, each from open ground. The navmesh is
                 // eroded by the agent radius before a polygon reaches a wall, so these clamp short of the
@@ -134,7 +135,7 @@ public static class NavmeshVectors
             ],
             [
                 Ground(15f, 15f, "open floor, south-west quadrant"),
-                Ground(45f, 43.5f, "on the well's rim: no polygon under the point, only beside it, so the height asked is given back"),
+                Ground(45f, 43.5f, "open floor on the north-east square's road"),
                 Ground(11.65f, 17f, "on a curb beside the arrival road: the floor's height"),
                 // Sampled from a metre up, as a player standing there is, under a lintel and a lean-to.
                 Ground(15f, 42f, "under the gate arch's lintel, sampled from a metre up: the floor", y: 1f),
@@ -289,6 +290,14 @@ public static class NavmeshVectors
         {
             (string outcome, float t) = reader.Classify(ray.From, ray.To);
             Vector3 position = navigator.RaycastWalkable(ray.From, ray.To);
+
+            // Seam probes must reach their endpoints: new props must not silently turn them into obstacle probes.
+            if (ray.MustReach && outcome != "reached")
+            {
+                throw new InvalidOperationException(
+                    $"navmesh vectors: layout '{spec.Name}' ray '{ray.Label}' must reach its destination " +
+                    $"to preserve seam coverage, but was {outcome} at ({F(position.x)}, {F(position.y)}, {F(position.z)}).");
+            }
 
             // THE SERVER'S OWN METHOD IS THE ORACLE for the position, and the reconstruction above
             // is held to it on every row. The branch and t cannot be read off RaycastWalkable --
@@ -594,8 +603,8 @@ public static class NavmeshVectors
         # Recast implementations can legitimately fall either side of one.
         #
         # So none of the sweep's rays is vendored: no row in this file runs through that corner. The
-        # one row that does lie on x = z keeps off every corner -- the town's starts at 45 within the
-        # agent radius of the well and never moves -- the forest's diagonal runs a metre off x = z on
+        # one row that does lie on x = z keeps off every corner -- the town's starts at 45 and stops
+        # short of the torch before the first seam -- the forest's diagonal runs a metre off x = z on
         # purpose, and the straight seam crossings and the shallow diagonal are all off-corner for
         # the same reason.
         #

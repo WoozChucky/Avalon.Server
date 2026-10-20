@@ -115,8 +115,8 @@
 # Recast implementations can legitimately fall either side of one.
 #
 # So none of the sweep's rays is vendored: no row in this file runs through that corner. The
-# one row that does lie on x = z keeps off every corner -- the town's starts at 45 within the
-# agent radius of the well and never moves -- the forest's diagonal runs a metre off x = z on
+# one row that does lie on x = z keeps off every corner -- the town's starts at 45 and stops
+# short of the torch before the first seam -- the forest's diagonal runs a metre off x = z on
 # purpose, and the straight seam crossings and the shallow diagonal are all off-corner for
 # the same reason.
 #
@@ -139,12 +139,12 @@ chunk town_ne_01 1 1 0
 mesh tiles 49 polys 269 verts 674
 ray 15 0.15 15 16 0.15 15 -> reached 16 0.15 15 3.4028235E+38 # open floor, one metre
 ray 15 0.15 15 25 0.15 15 -> reached 25 0.15 15 3.4028235E+38 # open floor, the length of a tile and then some
-ray 45 0.15 45 35 0.15 35 -> clamped 41.850002 0.15 41.850002 0.31499985 # diagonal, north-east quadrant, starting within the agent radius of the well's north post: no step
+ray 45 0.15 45 35 0.15 35 -> clamped 41.850002 0.15 41.850002 0.31499985 # diagonal, north-east quadrant, stopping short of the torch at the roads' corner
 ray 5 0.15 15 15 0.15 15 -> reached 15 0.15 15 3.4028235E+38 # crosses the x = 9.35 tile seam
 ray 5 0.15 15 25 0.15 15 -> reached 25 0.15 15 3.4028235E+38 # crosses the x = 9.35 and 18.95 tile seams
 ray 5 0.15 17.95 25 0.15 17.95 -> reached 25 0.15 17.95 3.4028235E+38 # crosses two seams a metre below the z = 18.95 one
-ray 6 0.15 3 6 0.15 25 -> clamped 6 0.15 3.9500003 0.04318183 # the same, on z -- a transposed tile index lands elsewhere
-ray 42 0.15 37 24 0.15 49 -> clamped 37.35652 0.15 40.09565 0.25797096 # shallow diagonal across the seams on both axes, through the x = 30 doorway
+ray 4 0.15 3 4 0.15 25 -> reached 4 0.15 25 3.4028235E+38 # crosses the z = 9.35 and 18.95 tile seams, west of the brazier
+ray 43 0.15 43 24 0.15 48 -> reached 24 0.15 48 3.4028235E+38 # shallow diagonal across the seams on both axes, through the x = 30 doorway
 ray 35 0.15 5 25 0.15 5 -> clamped 30.95 0.15 5 0.4049999 # head-on into the x = 30 wall, west across the market's open ground
 ray 40 0.15 5 20 0.15 5 -> clamped 30.95 0.15 5 0.45249993 # the same line from twice the distance
 ray 34 0.15 4.5 24 0.15 -5.5 -> clamped 30.95 0.15 1.4500008 0.30499992 # 45 degrees toward the corner where the x = 30 and z = 0 walls meet, half a metre north of it
@@ -162,7 +162,7 @@ ray 46 0.15 36 52 0.15 36 -> clamped 47.569447 0.15 36 0.26157415 # east into ho
 ray 8 0.15 17 16 0.15 17 -> reached 16 0.15 17 3.4028235E+38 # east over the curb onto the arrival road: nothing stops the walk
 ray 45 0.15 15 58 0.15 15 -> clamped 52.982143 0.15 15 0.614011 # east across the market into the armourer's counter
 ground 15 3 15 -> 0.15 # open floor, south-west quadrant
-ground 45 3 43.5 -> 0.15 # on the well's rim: no polygon under the point, only beside it, so the height asked is given back
+ground 45 3 43.5 -> 0.15 # open floor on the north-east square's road
 ground 11.65 3 17 -> 0.15 # on a curb beside the arrival road: the floor's height
 ground 15 1 42 -> 0.15 # under the gate arch's lintel, sampled from a metre up: the floor
 ground 17.3 1 37 -> 0.15 # under the hunter's lodge's awning, sampled from a metre up: the floor
