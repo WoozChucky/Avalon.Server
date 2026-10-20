@@ -7,7 +7,7 @@
 | --- | --- |
 | `Avalon.Balance` | the balance simulator's command line ([balance](balance.md)) |
 | `Avalon.Benchmarking` | BenchmarkDotNet harnesses, the `crowd-budget` and `outbox-flush` steady-state harnesses, and the `navmesh-bake` and `candidate-ratio` (#982: a spatial index's view candidates along generated forests) measurements ([benchmarks](benchmarks.md)) |
-| `Avalon.ChunkGen` | generates the forest pieces and the town squares into the chunk catalog ([map generation](map-generation.md)) |
+| `Avalon.ChunkGen` | generates the forest pieces and the town squares into the chunk catalog, the decor the client draws on them, and both maps' scenery rings (`Maps/Scenery`: each piece's drawn terrain and the ring files, the pieces' decor in `Maps/Decor`); `kit-bounds` measures the art kits ([map generation](map-generation.md)) |
 | `Avalon.LoadTest` | load testing ([load testing](load-testing.md)): `provision` creates a run of bot accounts as an admin and keeps it in a local run file; `check` takes one bot (or one fighters' party) end to end into the run's world; `ramp` adds headless bots in steps (idle, walking, changing character, quitting the world and joining again, or fighting through the forest, alone or in parties), judges each step against the limits (Prometheus, the bots, the bot PC) and writes a report with the capacity and what failed first; `cleanup` deletes the run |
 | `Avalon.LocalDev` | local runs ([development setup](development-setup.md#from-clone-to-client-in-world)): `setup` makes the world's three local TLS certificates and writes the API's and the world server's user-secrets for them; `login` signs in over the REST API and hands the game client its game ticket; `check` walks the client's REST chain up to a join ticket, waiting in a full world's line when the join answers 202 (#967: it checks in as told, refreshes the game context as it comes due, and asks again at its turn; Ctrl+C leaves the line) |
 | `Avalon.Scenarios` | the scenario runner (below): runs the world server's fixed scenarios in process and reports tick-thread allocations, tick times and GC |
@@ -78,9 +78,11 @@ to catch.
 subcommand. Chunk data is not exported either: `tools/Avalon.ChunkGen` generates the forest pieces and
 the town's squares straight into `src/Server/Avalon.Server.World/Maps/`, beside the chunk files and the town
 layout kept there as they are, and the World server seeds the database from there on
-start (see [map-generation.md](map-generation.md)). `Avalon.ChunkGen` stays a tool of its own because
-it writes the server's source data, the chunk catalog the World server reads, not an artifact derived
-for clients; how to run it is under "Generated forest chunks" in map-generation.md.
+start (see [map-generation.md](map-generation.md)). Its `forest` and `town` commands also write each map's scenery
+ring into `Maps/Scenery/` (the pieces' terrain and the ring file the World server reads at start-up) and the pieces'
+decor into `Maps/Decor/`. `Avalon.ChunkGen` stays a tool of its own because
+it writes the server's source data, the chunk catalog and the ring files the World server reads, not an artifact
+derived for clients; how to run it is under "Generated forest chunks" and "Scenery ring" in map-generation.md.
 
 ## The API smoke check
 

@@ -1,15 +1,21 @@
+using System.Globalization;
 using Avalon.Database.World.Seeding;
+using Avalon.World.ChunkLayouts;
 
 namespace Avalon.ChunkGen;
 
 /// <summary>
-/// The tool's commands (Program.cs runs them with <see cref="ForestPieces" /> and <see cref="TownPieces" />): "forest"
-/// writes the forest pieces, "town" Glimmerdell's four squares. Every piece is first written into a temporary copy of
-/// Maps/, read back through the World server's own catalog reader (ChunkCatalogSeeder.ReadCatalogAsync) and baked with
-/// its own ChunkLayoutNavmeshBuilder, each set piece with its members at their cells and the town with its four squares
-/// together; only when all of that passes are the files copied into Maps/Chunks, and each town square's and forest
-/// piece's decor file into Maps/Decor (which the seeder never reads). Any failure before that exits 1 and writes
-/// nothing to Maps/.
+/// The tool's commands (Program.cs runs them with <see cref="ForestPieces" />, <see cref="TownPieces" />,
+/// <see cref="ForestScenery" /> and <see cref="TownScenery" />): "forest" writes the forest pieces and the forest's
+/// scenery, "town" Glimmerdell's four squares and the town's scenery ring. Every piece is first written into a temporary
+/// copy of Maps/, read back through the World server's own catalog reader (ChunkCatalogSeeder.ReadCatalogAsync) and
+/// baked with its own ChunkLayoutNavmeshBuilder, each set piece with its members at their cells and the town with its
+/// four squares together; the map's scenery pieces are checked (ChunkFiles.ForestScenery or ChunkFiles.TownScenery),
+/// their names against the staged catalog's chunks (SceneryRules.CheckNames), and the ring file read back through the
+/// World server's scenery reader (SceneryCatalog.Load). Only when all of that passes are the
+/// files copied into Maps/Chunks, each town square's and forest piece's decor file into Maps/Decor (which the seeder
+/// never reads), and each scenery piece's terrain and the ring file into Maps/Scenery, its decor into Maps/Decor. Any
+/// failure before that exits 1 and writes nothing to Maps/.
 /// "kit-bounds" measures the art kit's glTF files into Kit/kit-bounds.json (KitBounds), and copies the custom forest
 /// models' footprints into Kit/forest-footprints.json (ForestFootprints).
 /// </summary>
@@ -18,12 +24,21 @@ public static class ChunkGenCli
     public const string Usage =
         "usage: Avalon.ChunkGen forest|town [--maps <Maps directory>] | kit-bounds --kit <glTF directory> [--props <glTF directory>] [--props-kit <glTF directory>] [--nature-kit <glTF directory>] [--forest-props <glTF directory>]";
 
-    /// <summary>The kit-bounds directories, in the order they are read: the art kit (required), then the optional ones.</summary>
-    private static readonly string[] s_kitDirectories = ["--kit", "--props", "--props-kit", "--nature-kit", "--forest-props"];
+    /// <summary>
+    /// The kit-bounds directories, in the order they are read, each with the kit its models are recorded in: the art kit
+    /// (required) and the custom town props in the village kit, the props kit, then the nature kit and the custom forest
+    /// models in the nature kit.
+    /// </summary>
+    private static readonly (string Option, string Kit)[] s_kitDirectories =
+    [
+        ("--kit", DecorJsonWriter.TownKit), ("--props", DecorJsonWriter.TownKit), ("--props-kit", DecorJsonWriter.PropsKit),
+        ("--nature-kit", DecorJsonWriter.ForestKit), ("--forest-props", DecorJsonWriter.ForestKit),
+    ];
 
     public static async Task<int> RunAsync(
         string[] args, Func<IReadOnlyList<ChunkPiece>> singles, Func<IReadOnlyList<ChunkGroupPiece>> groups,
-        Func<IReadOnlyList<TownSquare>> town, TextWriter output, TextWriter error)
+        Func<IReadOnlyList<TownSquare>> town, Func<IReadOnlyList<SceneryPiece>> forestScenery, Func<IReadOnlyList<SceneryPiece>> townScenery,
+        TextWriter output, TextWriter error)
     {
         if (!TryParse(args, out string? command, out IReadOnlyDictionary<string, string> options))
         {
@@ -37,6 +52,7 @@ public static class ChunkGenCli
         string staging = Path.Combine(Path.GetTempPath(), $"avalon-chunkgen-{Guid.NewGuid():N}");
         string maps;
         IReadOnlyList<(string Name, string Obj, string Json, string? Decor)> files;
+        SceneryFiles scenery;
         try
         {
             maps = mapsArgument is null
@@ -50,6 +66,7 @@ public static class ChunkGenCli
                 IReadOnlyList<ChunkPiece> singlePieces = singles();
                 IReadOnlyList<ChunkGroupPiece> groupPieces = groups();
                 files = ChunkFiles.For(singlePieces, groupPieces);
+                scenery = ChunkFiles.ForestScenery(forestScenery());
                 bakes =
                 [
                     .. singlePieces.Select(p => new List<(string, int, int)> { (p.Name, 0, 0) }),
@@ -60,6 +77,7 @@ public static class ChunkGenCli
             {
                 IReadOnlyList<TownSquare> squares = town();
                 files = ChunkFiles.For(squares);
+                scenery = ChunkFiles.TownScenery(townScenery());
                 bakes = [squares.Select(s => (s.Name, s.GridX, s.GridZ)).ToList()];
             }
 
@@ -72,7 +90,11 @@ public static class ChunkGenCli
             }
             await WriteAsync(stagedMaps, files);
 
-            await ChunkCatalogSeeder.ReadCatalogAsync(stagedMaps);
+            ChunkCatalogFiles catalog = await ChunkCatalogSeeder.ReadCatalogAsync(stagedMaps);
+            // A scenery piece's decor file shares Maps/Decor with the chunks': no name may be both.
+            SceneryRules.CheckNames(scenery.Pieces.Select(p => p.Name), catalog.Chunks.Select(c => c.Name));
+            await WriteAsync(stagedMaps, scenery);
+            SceneryCatalog.Load(stagedMaps);
             foreach (List<(string Name, int CellX, int CellZ)> bake in bakes)
             {
                 if (bake.Count > 0) PieceBake.Check(staging, bake);
@@ -92,6 +114,7 @@ public static class ChunkGenCli
         try
         {
             await WriteAsync(maps, files);
+            await WriteAsync(maps, scenery);
         }
         catch (Exception ex)
         {
@@ -102,10 +125,14 @@ public static class ChunkGenCli
         await output.WriteLineAsync($"validated, baked and wrote {files.Count} chunks to {chunks}");
         int decor = files.Count(f => f.Decor is not null);
         if (decor > 0) await output.WriteLineAsync($"wrote {decor} decor files to {Path.Combine(maps, "Decor")}");
+        await output.WriteLineAsync(
+            $"wrote {scenery.Pieces.Count} scenery pieces to {Path.Combine(maps, "Scenery")} (their decor to {Path.Combine(maps, "Decor")}) "
+            + $"and the ring file {Path.Combine(maps, "Scenery", RingFile(scenery))}");
 
         // Listed, never deleted: a file with the command's prefix that the tool did not write is hand-authored (the four
-        // older town chunks, forest_boss_01) or left over from a renamed piece, in Maps/Chunks and in Maps/Decor.
-        var written = files.Select(f => f.Name).ToHashSet(StringComparer.Ordinal);
+        // older town chunks, forest_boss_01) or left over from a renamed piece, in Maps/Chunks, Maps/Decor and
+        // Maps/Scenery.
+        var written = files.Select(f => f.Name).Concat(scenery.Pieces.Select(p => p.Name)).ToHashSet(StringComparer.Ordinal);
         foreach (string file in NotWritten(chunks, command!, written, ".obj", ".json"))
             await output.WriteLineAsync($"not generated by ChunkGen: {file}");
         string decorDirectory = Path.Combine(maps, "Decor");
@@ -113,6 +140,12 @@ public static class ChunkGenCli
         {
             foreach (string file in NotWritten(decorDirectory, command!, written, ".json"))
                 await output.WriteLineAsync($"not generated by ChunkGen: Decor/{file}");
+        }
+        string sceneryDirectory = Path.Combine(maps, "Scenery");
+        if (Directory.Exists(sceneryDirectory))
+        {
+            foreach (string file in NotWritten(sceneryDirectory, command!, written, ".obj"))
+                await output.WriteLineAsync($"not generated by ChunkGen: Scenery/{file}");
         }
 
         return 0;
@@ -140,6 +173,25 @@ public static class ChunkGenCli
     }
 
     /// <summary>
+    /// Each scenery piece's terrain into Maps/Scenery/&lt;name&gt;.obj and its decor into Maps/Decor/&lt;name&gt;.json, and
+    /// the map's ring file into Maps/Scenery/&lt;map id&gt;.json.
+    /// </summary>
+    private static async Task WriteAsync(string maps, SceneryFiles scenery)
+    {
+        Directory.CreateDirectory(Path.Combine(maps, "Scenery"));
+        Directory.CreateDirectory(Path.Combine(maps, "Decor"));
+        foreach ((string name, string obj, string decor) in scenery.Pieces)
+        {
+            await File.WriteAllTextAsync(Path.Combine(maps, "Scenery", name + ".obj"), obj);
+            await File.WriteAllTextAsync(Path.Combine(maps, "Decor", name + ".json"), decor);
+        }
+        await File.WriteAllTextAsync(Path.Combine(maps, "Scenery", RingFile(scenery)), scenery.Ring);
+    }
+
+    /// <summary>The map's ring file name: &lt;map id&gt;.json.</summary>
+    private static string RingFile(SceneryFiles scenery) => scenery.MapId.ToString(CultureInfo.InvariantCulture) + ".json";
+
+    /// <summary>
     /// Removes the temporary copy of Maps/. A copy that cannot be removed (a file held open in it, say) is only reported:
     /// it runs in a finally, where a throw would replace the run's own exit code and message.
     /// </summary>
@@ -157,7 +209,8 @@ public static class ChunkGenCli
 
     /// <summary>
     /// Measures every *.gltf directly in the kit directory and in each optional one (the custom props, the props kit, the
-    /// nature kit, the custom forest models), and rewrites Kit/kit-bounds.json; with the custom forest models, also
+    /// nature kit, the custom forest models), and rewrites Kit/kit-bounds.json, each model under its directory's kit
+    /// (<see cref="s_kitDirectories" />); with the custom forest models, also
     /// copies their footprints.json into Kit/forest-footprints.json. A name found in two of them, an empty directory, a
     /// file that cannot be measured or a footprints file that does not match its models exits 1 and leaves both tables as
     /// they were.
@@ -174,14 +227,15 @@ public static class ChunkGenCli
                 RepositoryRoot.Find("kit-bounds rewrites the repository's tools/Avalon.ChunkGen/Kit/kit-bounds.json: run it from a build inside the repository."),
                 "tools", "Avalon.ChunkGen", "Kit", "kit-bounds.json");
             var table = new Dictionary<string, ModelBounds>(StringComparer.Ordinal);
-            foreach (string directory in s_kitDirectories.Select(options.GetValueOrDefault).OfType<string>())
+            foreach ((string option, string kit) in s_kitDirectories)
             {
+                if (!options.TryGetValue(option, out string? directory)) continue;
                 string[] models = [.. Directory.EnumerateFiles(Path.GetFullPath(directory), "*.gltf").Order(StringComparer.Ordinal)];
                 if (models.Length == 0) throw new InvalidOperationException($"no .gltf files in {directory}");
                 foreach (string model in models)
                 {
                     string name = Path.GetFileNameWithoutExtension(model);
-                    if (!table.TryAdd(name, KitBounds.Measure(model))) throw new InvalidOperationException($"{name} is in two directories");
+                    if (!table.TryAdd(name, KitBounds.Measure(model, kit))) throw new InvalidOperationException($"{name} is in two directories");
                 }
             }
             json = KitBounds.Write(table);
@@ -240,7 +294,7 @@ public static class ChunkGenCli
         string[] allowed = args switch
         {
             [("forest" or "town"), ..] => ["--maps"],
-            ["kit-bounds", ..] => s_kitDirectories,
+            ["kit-bounds", ..] => [.. s_kitDirectories.Select(d => d.Option)],
             _ => [],
         };
         if (allowed.Length == 0 || args.Length % 2 == 0) return false;

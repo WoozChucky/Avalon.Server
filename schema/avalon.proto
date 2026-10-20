@@ -764,8 +764,8 @@ enum PartyResult {
 }
 message PlacedChunkDto {
    int32 ChunkTemplateId = 1;
-   int32 GridX = 2;
-   int32 GridZ = 3;
+   sint32 GridX = 2;
+   sint32 GridZ = 3;
    uint32 Rotation = 4;
    optional string ChunkName = 5;
 }
@@ -1003,6 +1003,8 @@ message SChunkLayoutPacket {
    repeated PortalPlacementDto Portals = 6;
    uint32 MapId = 7;
    repeated DoodadObstacleDto Obstacles = 8;
+   repeated SceneryPlacementDto Scenery = 9;
+   repeated string SceneryNames = 10;
 }
 message SDialogueEndPacket {
    uint64 SpeakerGuid = 1;
@@ -1264,6 +1266,12 @@ message SWorldHandshakePacket {
 }
 message SWorldListPacket {
    repeated WorldInfo Worlds = 1;
+}
+message SceneryPlacementDto {
+   uint32 NameIndex = 1;
+   sint32 GridX = 2;
+   sint32 GridZ = 3;
+   uint32 Rotation = 4;
 }
 enum ServerInfoResult {
    ServerInfoResult_Success = 0;

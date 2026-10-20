@@ -1,0 +1,32 @@
+{
+  "mapTemplateId": 2,
+  "pool": [
+    { "name": "forest_cap_brink_01", "kind": "cap", "weight": 1, "capped": ["S"] },
+    { "name": "forest_cap_corner_01", "kind": "cap", "weight": 1, "capped": ["S", "W"] },
+    { "name": "forest_cap_four_01", "kind": "cap", "weight": 1, "capped": ["N", "E", "S", "W"] },
+    { "name": "forest_cap_opposite_01", "kind": "cap", "weight": 1, "capped": ["N", "S"] },
+    { "name": "forest_cap_rockfall_01", "kind": "cap", "weight": 1, "capped": ["S"] },
+    { "name": "forest_cap_thicket_01", "kind": "cap", "weight": 1, "capped": ["S"] },
+    { "name": "forest_cap_three_01", "kind": "cap", "weight": 1, "capped": ["N", "S", "W"] },
+    { "name": "forest_cap_trunk_01", "kind": "cap", "weight": 1, "capped": ["S"] },
+    { "name": "forest_ring_cliffs_01", "kind": "border", "weight": 1, "front": "S", "filler": false },
+    { "name": "forest_ring_cliffs_02", "kind": "border", "weight": 1, "front": "S", "filler": false },
+    { "name": "forest_ring_giant_01", "kind": "border", "weight": 0.75, "front": "S", "filler": false },
+    { "name": "forest_ring_ravine_01", "kind": "border", "weight": 1, "front": "S", "filler": false },
+    { "name": "forest_ring_ravine_02", "kind": "border", "weight": 1, "front": "S", "filler": false },
+    { "name": "forest_ring_stream_01", "kind": "border", "weight": 1, "front": "S", "filler": false },
+    { "name": "forest_ring_stream_02", "kind": "border", "weight": 1, "front": "S", "filler": false },
+    { "name": "forest_ring_woods_01", "kind": "border", "weight": 3, "front": "S", "filler": true },
+    { "name": "forest_ring_woods_02", "kind": "border", "weight": 3, "front": "S", "filler": true },
+    { "name": "forest_ring_woods_03", "kind": "border", "weight": 3, "front": "S", "filler": true },
+    { "name": "forest_ring_woods_04", "kind": "border", "weight": 3, "front": "S", "filler": true },
+    { "name": "forest_townward_0_1", "kind": "townward", "spot": [0, 1] },
+    { "name": "forest_townward_0_m1", "kind": "townward", "spot": [0, -1] },
+    { "name": "forest_townward_1_0", "kind": "townward", "spot": [1, 0] },
+    { "name": "forest_townward_1_1", "kind": "townward", "spot": [1, 1] },
+    { "name": "forest_townward_1_m1", "kind": "townward", "spot": [1, -1] },
+    { "name": "forest_townward_m1_0", "kind": "townward", "spot": [-1, 0] },
+    { "name": "forest_townward_m1_1", "kind": "townward", "spot": [-1, 1] },
+    { "name": "forest_townward_m1_m1", "kind": "townward", "spot": [-1, -1] }
+  ]
+}

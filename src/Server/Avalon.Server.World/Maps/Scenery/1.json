@@ -1,0 +1,26 @@
+{
+  "mapTemplateId": 1,
+  "placements": [
+    { "name": "town_ring_m1_m1", "gridX": -1, "gridZ": -1, "rotation": 0 },
+    { "name": "town_ring_m1_0", "gridX": -1, "gridZ": 0, "rotation": 0 },
+    { "name": "town_ring_m1_1", "gridX": -1, "gridZ": 1, "rotation": 0 },
+    { "name": "town_ring_m1_2", "gridX": -1, "gridZ": 2, "rotation": 0 },
+    { "name": "town_ring_m1_3", "gridX": -1, "gridZ": 3, "rotation": 0 },
+    { "name": "town_ring_0_m1", "gridX": 0, "gridZ": -1, "rotation": 0 },
+    { "name": "town_ring_0_2", "gridX": 0, "gridZ": 2, "rotation": 0 },
+    { "name": "town_ring_0_3", "gridX": 0, "gridZ": 3, "rotation": 0 },
+    { "name": "town_ring_1_m1", "gridX": 1, "gridZ": -1, "rotation": 0 },
+    { "name": "town_ring_1_2", "gridX": 1, "gridZ": 2, "rotation": 0 },
+    { "name": "town_ring_1_3", "gridX": 1, "gridZ": 3, "rotation": 0 },
+    { "name": "town_ring_2_m1", "gridX": 2, "gridZ": -1, "rotation": 0 },
+    { "name": "town_ring_2_0", "gridX": 2, "gridZ": 0, "rotation": 0 },
+    { "name": "town_ring_2_1", "gridX": 2, "gridZ": 1, "rotation": 0 },
+    { "name": "town_ring_2_2", "gridX": 2, "gridZ": 2, "rotation": 0 },
+    { "name": "town_ring_2_3", "gridX": 2, "gridZ": 3, "rotation": 0 },
+    { "name": "town_ring_3_m1", "gridX": 3, "gridZ": -1, "rotation": 0 },
+    { "name": "town_ring_3_0", "gridX": 3, "gridZ": 0, "rotation": 0 },
+    { "name": "town_ring_3_1", "gridX": 3, "gridZ": 1, "rotation": 0 },
+    { "name": "town_ring_3_2", "gridX": 3, "gridZ": 2, "rotation": 0 },
+    { "name": "town_ring_3_3", "gridX": 3, "gridZ": 3, "rotation": 0 }
+  ]
+}

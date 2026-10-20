@@ -10,9 +10,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Avalon.World.Testing.Scenarios;
 
 /// <summary>
-/// One seed's forest: its layout as the procedural source generates it, the solid doodads' boxes its doodad plan cuts
-/// out (none when it plans no solid doodad), the navmesh baked from the layout with those boxes, and how long the bake
-/// took.
+/// One seed's forest: its layout as the procedural source generates it (its scenery ring included), the solid
+/// doodads' boxes its doodad plan cuts out (none when it plans no solid doodad), the navmesh baked from the layout with
+/// those boxes, and how long the bake took.
 /// </summary>
 public sealed record ForestLayout(int Seed, ChunkLayout Layout, IReadOnlyList<DoodadObstacle> Obstacles, DtNavMesh NavMesh,
     TimeSpan BakeTime);
@@ -40,9 +40,14 @@ public static class ForestLayouts
         ScenarioReferenceData reference = ScenarioReferenceData.Shared;
         ProceduralMapConfig config = reference.ForestConfig;
 
-        // ProceduralChunkLayoutSource.BuildAsync's generation, with the seed given rather than drawn.
-        ChunkLayout layout = new ProceduralLayoutGenerator(NullLoggerFactory.Instance).Generate(config,
+        // ProceduralChunkLayoutSource.BuildAsync: the generation step, with the seed given rather than drawn, then the
+        // scenery ring built on the layout from the committed pool, so the arrival packet carries it as in play.
+        ChunkLayout generated = new ProceduralLayoutGenerator(NullLoggerFactory.Instance).Generate(config,
             reference.Chunks.GetByPool(config.ChunkPoolId), seed, reference.Chunks.GetGroupsByPool(config.ChunkPoolId));
+        SceneryPool scenery = reference.Scenery.PoolFor(ScenarioReferenceData.ForestMap.Value)
+            ?? throw new InvalidOperationException(
+                $"Map {ScenarioReferenceData.ForestMap.Value} has no scenery pool: a forest scenario would measure layouts without their ring");
+        ChunkLayout layout = generated with { Scenery = SceneryRing.Build(generated, id => reference.Chunks.GetById(id).Exits, scenery) };
 
         RequireEveryLevelSeeded(reference, config, layout, seed);
 

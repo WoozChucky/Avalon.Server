@@ -71,6 +71,20 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
                         "File I/O is tiny (KB-sized local chunk objs) and dwarfed by DotRecast bake cost.")]
     private string ComposeCombinedObjToTempFile(ChunkLayout layout)
     {
+        string tempPath = Path.Combine(Path.GetTempPath(), $"avalon-chunklayout-{layout.Seed}-{Guid.NewGuid():N}.obj");
+        File.WriteAllText(tempPath, ComposeCombinedObj(layout));
+        return tempPath;
+    }
+
+    /// <summary>
+    /// The obj text the layout bakes from: every chunk's geometry, then the solid doodads' boxes. The layout's
+    /// <see cref="ChunkLayout.Scenery" /> is drawn, never walked, and is never part of it (#1110).
+    /// </summary>
+    [SuppressMessage("Performance", "MA0045",
+        Justification = "Runs inside the bake, on a Task.Run worker. " +
+                        "File I/O is tiny (KB-sized local chunk objs) and dwarfed by DotRecast bake cost.")]
+    public string ComposeCombinedObj(ChunkLayout layout)
+    {
         var sb = new System.Text.StringBuilder();
         int vOffset = 0;
         foreach (PlacedChunk chunk in layout.Chunks)
@@ -98,9 +112,7 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
             }
         }
 
-        string tempPath = Path.Combine(Path.GetTempPath(), $"avalon-chunklayout-{layout.Seed}-{Guid.NewGuid():N}.obj");
-        File.WriteAllText(tempPath, sb.ToString());
-        return tempPath;
+        return sb.ToString();
     }
 
     private static int AppendTransformed(System.Text.StringBuilder sb, string objText, Vector3 origin, byte rotation, float cellSize, int vOffset)

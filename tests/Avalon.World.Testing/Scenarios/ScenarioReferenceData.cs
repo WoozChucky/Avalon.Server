@@ -51,14 +51,15 @@ public sealed class ScenarioReferenceData
     private readonly Lazy<(MapTemplate Template, ChunkLayout Layout)> _town;
 
     private ScenarioReferenceData(SqliteConnection keepAlive, ServiceProvider repositories, StaticData data,
-        IScriptManager scripts, IChunkLibrary chunks, MapTemplate forestTemplate, ProceduralMapConfig forestConfig,
-        TimeSpan loadTime)
+        IScriptManager scripts, IChunkLibrary chunks, ISceneryCatalog scenery, MapTemplate forestTemplate,
+        ProceduralMapConfig forestConfig, TimeSpan loadTime)
     {
         _keepAlive = keepAlive;
         _repositories = repositories;
         Data = data;
         Scripts = scripts;
         Chunks = chunks;
+        Scenery = scenery;
         ForestTemplate = forestTemplate;
         ForestConfig = forestConfig;
         LoadTime = loadTime;
@@ -77,6 +78,13 @@ public sealed class ScenarioReferenceData
     /// <summary>The chunk templates, pools and set pieces of the committed <c>Maps/</c> catalog.</summary>
     public IChunkLibrary Chunks { get; }
 
+    /// <summary>
+    /// Every map's scenery ring file under the committed <c>Maps/Scenery/</c>, read as the World server reads it at
+    /// start-up (<see cref="SceneryCatalog.Load" />): the town's fixed ring and the forest's pool its layouts are ringed
+    /// from.
+    /// </summary>
+    public ISceneryCatalog Scenery { get; }
+
     /// <summary>The forest's map template row.</summary>
     public MapTemplate ForestTemplate { get; }
 
@@ -88,9 +96,9 @@ public sealed class ScenarioReferenceData
 
     /// <summary>
     /// The town's layout as the World server builds it: <see cref="PredefinedChunkLayoutSource" /> over the placement
-    /// rows seeded from <c>Maps/TownLayouts/1.json</c>, so its four chunks under the ids and names of the catalog, and
-    /// its portal to the forest. Built on first use (thread-safe): no scenario reads it; a scenario's town instance
-    /// is <see cref="TownNavmesh.Layout" />, which leaves the portal out.
+    /// rows seeded from <c>Maps/TownLayouts/1.json</c>, so its four chunks under the ids and names of the catalog, its
+    /// portal to the forest and its scenery ring from <see cref="Scenery" />. Built on first use (thread-safe): no
+    /// scenario reads it; a scenario's town instance is <see cref="TownNavmesh.Layout" />, which leaves the portal out.
     /// </summary>
     public ChunkLayout TownLayout => _town.Value.Layout;
 
@@ -112,7 +120,7 @@ public sealed class ScenarioReferenceData
                                    .GetAwaiter().GetResult()
                                ?? throw new InvalidOperationException($"The seed has no map template {TownMap.Value}");
         ChunkLayout layout = PredefinedChunkLayoutSource
-            .ForTesting(_repositories.GetRequiredService<IMapChunkPlacementRepository>(), Chunks)
+            .ForTesting(_repositories.GetRequiredService<IMapChunkPlacementRepository>(), Chunks, Scenery)
             .BuildAsync(template, CancellationToken.None).GetAwaiter().GetResult();
         return (template, layout);
     }
@@ -166,6 +174,8 @@ public sealed class ScenarioReferenceData
         var chunks = new ChunkLibrary(NullLoggerFactory.Instance, repositories.GetRequiredService<IServiceScopeFactory>());
         chunks.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
 
+        var scenery = SceneryCatalog.Load(TownNavmesh.ContentRoot);
+
         MapTemplate forestTemplate = repositories.GetRequiredService<IMapTemplateRepository>().FindByIdAsync(ForestMap)
                                          .GetAwaiter().GetResult()
                                      ?? throw new InvalidOperationException($"The seed has no map template {ForestMap.Value}");
@@ -194,7 +204,7 @@ public sealed class ScenarioReferenceData
                 "draws from Random.Shared: a forest scenario would no longer be deterministic. Seed that roll first.");
         }
 
-        return new ScenarioReferenceData(keepAlive, repositories, data, scripts, chunks, forestTemplate, forestConfig,
+        return new ScenarioReferenceData(keepAlive, repositories, data, scripts, chunks, scenery, forestTemplate, forestConfig,
             Stopwatch.GetElapsedTime(start));
     }
 

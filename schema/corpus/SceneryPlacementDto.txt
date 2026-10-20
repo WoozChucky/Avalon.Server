@@ -1,0 +1,63 @@
+# SceneryPlacementDto - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SceneryPlacementDto
+
+variant absent
+  field 1 NameIndex : uint = 0
+  field 2 GridX : short = 0
+  field 3 GridZ : short = 0
+  field 4 Rotation : byte = 0
+  bytes 0
+
+variant empty
+  field 1 NameIndex : uint = 0
+  field 2 GridX : short = 0
+  field 3 GridZ : short = 0
+  field 4 Rotation : byte = 0
+  bytes 0
+
+variant populated
+  field 1 NameIndex : uint = 7
+  field 2 GridX : short = 11
+  field 3 GridZ : short = 19
+  field 4 Rotation : byte = 19
+  bytes 8
+    08 07 10 16 18 26 20 13
+
+variant maxima
+  field 1 NameIndex : uint = 4294967295
+  field 2 GridX : short = 32767
+  field 3 GridZ : short = 32767
+  field 4 Rotation : byte = 255
+  bytes 17
+    08 ff ff ff ff 0f 10 fe ff 03 18 fe ff 03 20 ff
+    01
+
+variant minima
+  field 1 NameIndex : uint = 0
+  field 2 GridX : short = -32768
+  field 3 GridZ : short = -32768
+  field 4 Rotation : byte = 0
+  bytes 8
+    10 ff ff 03 18 ff ff 03
+
+variant varint-edges
+  field 1 NameIndex : uint = 268435456
+  field 2 GridX : short = 127
+  field 3 GridZ : short = -1
+  field 4 Rotation : byte = 127
+  bytes 13
+    08 80 80 80 80 01 10 fe 01 18 01 20 7f

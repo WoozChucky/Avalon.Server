@@ -1,3 +1,4 @@
+using System.Numerics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Database.World.Seeding;
@@ -6,6 +7,7 @@ using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.ChunkLayouts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -18,6 +20,13 @@ public class CommittedForestGenerationShould
 {
     private static readonly Lazy<(ProceduralMapConfig Config, List<ChunkPoolMember> Pool, List<ChunkGroupDefinition> Groups)> s_forest =
         new(Load, isThreadSafe: true);
+
+    /// <summary>The forest's committed scenery pool (Maps/Scenery/2.json), read as the World server's catalog reads it.</summary>
+    private static readonly Lazy<SceneryPool> s_scenery = new(() =>
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "Maps", "Scenery", "2.json");
+        return SceneryFile.Read(File.ReadAllText(path), path).Pool ?? throw new InvalidDataException($"{path} holds no pool");
+    }, isThreadSafe: true);
 
     private static ProceduralMapConfig ForestConfig() => s_forest.Value.Config;
 
@@ -155,6 +164,123 @@ public class CommittedForestGenerationShould
         }
 
         Assert.True(layouts[0] <= 200, $"{layouts[0]} of 1000 layouts hold no overhang (one: {layouts[1]}, two: {layouts[2]})");
+    }
+
+    /// <summary>
+    /// Review Focus 2 and 5 (#1110): every committed layout, ringed from the committed pool, gets one scenery piece on
+    /// each ring cell and none on its own cells, a cap of the right shape at every cell an open exit faces and no cap
+    /// elsewhere, no single-side cap within two cells of itself while another could stand there, the town-ward scene on
+    /// the spots around the entry, no non-filler border beside itself, and the same ring every time from the same layout.
+    /// </summary>
+    [Fact]
+    public void Ring_every_committed_layout_and_cap_every_open_exit()
+    {
+        (ProceduralMapConfig config, List<ChunkPoolMember> chunkPool, List<ChunkGroupDefinition> groups) = s_forest.Value;
+        var exits = chunkPool.Select(m => m.Template)
+            .Concat(groups.SelectMany(g => g.Cells.Select(c => c.Template)))
+            .DistinctBy(t => t.Id)
+            .ToDictionary(t => t.Id, t => t.Exits);
+        ushort ExitsOf(ChunkTemplateId id) => exits[id];
+        SceneryPool pool = s_scenery.Value;
+        var pieces = pool.Pieces.ToDictionary(p => p.Name, StringComparer.Ordinal);
+        var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        string[] singleSide = [.. pool.Pieces.Where(p => p.Kind == SceneryKind.Cap && BitOperations.PopCount(p.CappedSides) == 1).Select(p => p.Name)];
+        int caps = 0;
+        int spots = 0;
+
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            ChunkLayout layout = generator.Generate(config, chunkPool, seed * 7919, groups);
+            var cells = layout.Chunks.Select(c => ((int)c.GridX, (int)c.GridZ)).ToHashSet();
+            IReadOnlyList<SceneryPlacement> ring = SceneryRing.Build(layout, ExitsOf, pool);
+            var at = ring.ToDictionary(p => (p.GridX, p.GridZ));
+
+            Assert.Equal(SceneryRing.Cells(cells), ring.Select(p => (p.GridX, p.GridZ)));
+
+            IReadOnlyDictionary<(int X, int Z), byte> capped = SceneryRing.CappedSides(layout, ExitsOf);
+            foreach (((int X, int Z) cell, byte mask) in capped)
+            {
+                SceneryPoolPiece cap = pieces[at[cell].Name];
+                Assert.Equal(SceneryKind.Cap, cap.Kind);
+                Assert.Equal(mask, ScenerySides.Rotate(cap.CappedSides, at[cell].Rotation));
+
+                // The single-side caps are four pieces: one stands within two cells (counting diagonals) of an earlier
+                // one of itself, in visit order (GridX, then GridZ), only where all four already stand that near, so no
+                // two of one set piece close exits in one view while another could.
+                if (BitOperations.PopCount(cap.CappedSides) != 1)
+                    continue;
+
+                List<string> near = [.. ring.Where(p => (p.GridX, p.GridZ).CompareTo(cell) < 0
+                        && Math.Max(Math.Abs(p.GridX - cell.X), Math.Abs(p.GridZ - cell.Z)) <= 2)
+                    .Select(p => p.Name)];
+                Assert.True(!near.Contains(cap.Name) || singleSide.All(near.Contains),
+                    $"seed {seed * 7919}: {cap.Name} at {cell} repeats within two cells while another single-side cap could stand there");
+            }
+
+            caps += capped.Count;
+            foreach (SceneryPlacement placement in ring)
+            {
+                (int X, int Z) cell = (placement.GridX, placement.GridZ);
+                SceneryPoolPiece piece = pieces[placement.Name];
+                if (!capped.ContainsKey(cell))
+                    Assert.NotEqual(SceneryKind.Cap, piece.Kind);
+
+                // A border beside the layout turns its front to the first of N, E, S, W that is a layout cell.
+                ExitSide[] beside = [.. s_sides.Where(side => cells.Contains((cell.X + ExitMask.GridDir(side).dx, cell.Z + ExitMask.GridDir(side).dz)))];
+                if (piece.Kind == SceneryKind.Border && beside.Length > 0)
+                {
+                    string front = ScenerySides.Name(ScenerySides.Rotate(ScenerySides.Bit(piece.Front), placement.Rotation));
+                    Assert.True(front == beside[0].ToString(), $"seed {seed * 7919}: the border at {cell} faces {front}, not {beside[0]}");
+                }
+
+                if (piece.Kind == SceneryKind.Border && !piece.Filler)
+                {
+                    Assert.False(at.TryGetValue((cell.X + 1, cell.Z), out SceneryPlacement? east) && east.Name == piece.Name,
+                        $"seed {seed * 7919}: {piece.Name} at {cell} and east of it");
+                    Assert.False(at.TryGetValue((cell.X, cell.Z + 1), out SceneryPlacement? north) && north.Name == piece.Name,
+                        $"seed {seed * 7919}: {piece.Name} at {cell} and north of it");
+                }
+            }
+
+            foreach (SceneryPoolPiece spot in pool.Pieces.Where(p => p.Kind == SceneryKind.TownWard))
+            {
+                (int X, int Z) cell = (layout.EntryChunk.GridX + spot.SpotX, layout.EntryChunk.GridZ + spot.SpotZ);
+                if (!cells.Contains(cell) && !capped.ContainsKey(cell))
+                {
+                    Assert.Equal(new SceneryPlacement(spot.Name, cell.X, cell.Z, 0), at[cell]);
+                    spots++;
+                }
+            }
+
+            Assert.Equal(ring, SceneryRing.Build(layout, ExitsOf, pool));
+        }
+
+        Assert.True(caps > 5000, $"only {caps} capped cells in 1000 layouts");   // measured 8977
+        Assert.True(spots > 3000, $"only {spots} town-ward spots held their own piece in 1000 layouts");   // measured 4553
+    }
+
+    private static readonly ExitSide[] s_sides = [ExitSide.N, ExitSide.E, ExitSide.S, ExitSide.W];
+
+    /// <summary>
+    /// #1110: the scenery ring is drawn, never walked, so the navmesh bake must not see it: a layout bakes from the same
+    /// combined obj whether or not it carries its ring (from the committed pool).
+    /// </summary>
+    [Fact]
+    public void Compose_one_bake_input_whether_or_not_the_layout_carries_its_ring()
+    {
+        (ProceduralMapConfig config, List<ChunkPoolMember> chunkPool, List<ChunkGroupDefinition> groups) = s_forest.Value;
+        var templates = chunkPool.Select(m => m.Template)
+            .Concat(groups.SelectMany(g => g.Cells.Select(c => c.Template)))
+            .DistinctBy(t => t.Id)
+            .ToDictionary(t => t.Id);
+        IChunkLibrary library = Substitute.For<IChunkLibrary>();
+        library.GetById(Arg.Any<ChunkTemplateId>()).Returns(call => templates[call.Arg<ChunkTemplateId>()]);
+        ChunkLayout layout = new ProceduralLayoutGenerator(NullLoggerFactory.Instance).Generate(config, chunkPool, 71, groups);
+        IReadOnlyList<SceneryPlacement> ring = SceneryRing.Build(layout, id => templates[id].Exits, s_scenery.Value);
+        var builder = ChunkLayoutNavmeshBuilder.ForTesting(NullLoggerFactory.Instance, library, AppContext.BaseDirectory);
+
+        Assert.NotEmpty(ring);
+        Assert.Equal(builder.ComposeCombinedObj(layout), builder.ComposeCombinedObj(layout with { Scenery = ring }));
     }
 
     [Fact]

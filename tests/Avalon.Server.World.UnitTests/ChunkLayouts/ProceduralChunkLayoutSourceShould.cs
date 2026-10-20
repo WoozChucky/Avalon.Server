@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Procedural;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,9 +37,15 @@ public class ProceduralChunkLayoutSourceShould
             new ChunkGroupCell(Chunk(21, S), 0, 0), new ChunkGroupCell(Chunk(22, 0), 1, 0),
             new ChunkGroupCell(Chunk(23, 0), 0, 1), new ChunkGroupCell(Chunk(24, 0, "boss"), 1, 1),
         ]);
+        ChunkTemplate entry = Chunk(1, N, "entry", PortalRole.Back);
         IChunkLibrary library = Substitute.For<IChunkLibrary>();
-        library.GetByPool(poolId).Returns([new ChunkPoolMember(Chunk(1, N, "entry", PortalRole.Back), 1f)]);
+        library.GetByPool(poolId).Returns([new ChunkPoolMember(entry, 1f)]);
         library.GetGroupsByPool(poolId).Returns([arena]);
+        var templates = arena.Cells.Select(c => c.Template).Append(entry).ToDictionary(t => t.Id);
+        library.GetById(Arg.Any<ChunkTemplateId>()).Returns(call => templates[call.Arg<ChunkTemplateId>()]);
+        ushort ExitsOf(ChunkTemplateId id) => templates[id].Exits;
+        SceneryPool pool = SceneryTestPool.WithoutTownWard;
+        var scenery = new SceneryCatalog(new Dictionary<ushort, SceneryRingFile> { [mapId.Value] = new(mapId.Value, null, pool) });
 
         IProceduralMapConfigRepository configs = Substitute.For<IProceduralMapConfigRepository>();
         configs.FindByTemplateIdAsync(mapId, Arg.Any<CancellationToken>()).Returns(new ProceduralMapConfig
@@ -53,7 +60,7 @@ public class ProceduralChunkLayoutSourceShould
         });
         IServiceScopeFactory scopes = new ServiceCollection().AddScoped(_ => configs).BuildServiceProvider()
             .GetRequiredService<IServiceScopeFactory>();
-        var source = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance, library, scopes);
+        var source = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance, library, scopes, scenery);
 
         ChunkLayout layout = await source.BuildAsync(
             new MapTemplate { Id = mapId, MapType = MapType.Normal, Name = "forest", Description = string.Empty },
@@ -61,5 +68,9 @@ public class ProceduralChunkLayoutSourceShould
 
         Assert.Equal("arena", layout.BossChunk?.Group);
         Assert.Equal(4, layout.Chunks.Count(c => c.Group == "arena"));
+
+        // #1110: the map's ring is built on the layout as it is generated.
+        Assert.NotEmpty(layout.Scenery);
+        Assert.Equal(SceneryRing.Build(layout with { Scenery = [] }, ExitsOf, pool), layout.Scenery);
     }
 }

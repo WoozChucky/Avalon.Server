@@ -1,0 +1,241 @@
+{
+  "id": "cottage_low",
+  "pieces": [
+    {
+      "model": "Wall_Plaster_Window_Wide_Flat",
+      "x": -2.0,
+      "y": 0.0,
+      "z": -4.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Wide_Flat1",
+      "x": -2.0,
+      "y": 0.0,
+      "z": -4.0,
+      "yaw": 180
+    },
+    {
+      "model": "WindowShutters_Wide_Flat_Open",
+      "x": -2.0,
+      "y": 0.0,
+      "z": -4.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Door_Flat",
+      "x": 0.0,
+      "y": 0.0,
+      "z": -4.0,
+      "yaw": 180
+    },
+    {
+      "model": "Door_2_Flat",
+      "x": 0.51,
+      "y": 0.0,
+      "z": -4.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 2.0,
+      "y": 0.0,
+      "z": -4.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": -3.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": -3.0,
+      "y": 0.0,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": -3.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": -3.0,
+      "y": 0.0,
+      "z": 3.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": -2.0,
+      "y": 0.0,
+      "z": 4.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_Window_Thin_Round",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 4.0,
+      "yaw": 0
+    },
+    {
+      "model": "Window_Thin_Round1",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 4.0,
+      "yaw": 0
+    },
+    {
+      "model": "WindowShutters_Thin_Round_Open",
+      "x": 0.0,
+      "y": 0.0,
+      "z": 4.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 2.0,
+      "y": 0.0,
+      "z": 4.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 3.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 3.0,
+      "y": 0.0,
+      "z": -1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_Window_Wide_Flat",
+      "x": 3.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Window_Wide_Flat1",
+      "x": 3.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 90
+    },
+    {
+      "model": "WindowShutters_Wide_Flat_Open",
+      "x": 3.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 3.0,
+      "y": 0.0,
+      "z": 3.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Wood",
+      "x": -3.0,
+      "y": 0.0,
+      "z": 4.0,
+      "yaw": 0
+    },
+    {
+      "model": "Corner_Exterior_Wood",
+      "x": 3.0,
+      "y": 0.0,
+      "z": 4.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Wood",
+      "x": 3.0,
+      "y": 0.0,
+      "z": -4.0,
+      "yaw": 180
+    },
+    {
+      "model": "Corner_Exterior_Wood",
+      "x": -3.0,
+      "y": 0.0,
+      "z": -4.0,
+      "yaw": 270
+    },
+    {
+      "model": "Roof_RoundTiles_6x8",
+      "x": 0.0,
+      "y": 3.12,
+      "z": 0.0,
+      "yaw": 0
+    },
+    {
+      "model": "Roof_Front_Brick6",
+      "x": 0.0,
+      "y": 3.12,
+      "z": 4.0,
+      "yaw": 0
+    },
+    {
+      "model": "Roof_Front_Brick6",
+      "x": 0.0,
+      "y": 3.12,
+      "z": -4.0,
+      "yaw": 180
+    },
+    {
+      "model": "Prop_Chimney",
+      "x": -1.6,
+      "y": 3.933,
+      "z": 2.4,
+      "yaw": 0
+    }
+  ],
+  "proxies": [
+    {
+      "kind": "box",
+      "part": "body",
+      "minX": -3.235,
+      "maxX": 3.235,
+      "minZ": -4.235,
+      "maxZ": 4.235,
+      "y0": 0.0,
+      "top": 3.12,
+      "front": "NegZ"
+    },
+    {
+      "kind": "gable",
+      "part": "roof",
+      "minX": -4.125,
+      "maxX": 4.125,
+      "minZ": -4.829,
+      "maxZ": 4.854,
+      "eaves": 2.338,
+      "ridge": 8.01
+    },
+    {
+      "kind": "box",
+      "part": "chimney",
+      "minX": -2.1,
+      "maxX": -1.1,
+      "minZ": 1.9,
+      "maxZ": 2.9,
+      "y0": 3.933,
+      "top": 7.113
+    }
+  ]
+}

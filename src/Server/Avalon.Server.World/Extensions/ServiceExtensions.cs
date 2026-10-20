@@ -171,6 +171,8 @@ public static class ServiceExtensions
         // The character select's own queue, with the database lane's capacity, beside the static one character create
         // and delete use; counted as lane "select" on world.work.refusals (#1050).
         services.AddSingleton<IWorldDatabaseWork>(new WorldDatabaseWork(lane: "select"));
+        // Every map's scenery ring file, read as the World loads at start-up; one that does not read stops the start (#1110).
+        services.AddSingleton<ISceneryCatalog>(_ => SceneryCatalog.Load(Path.Combine(AppContext.BaseDirectory, "Maps")));
         services.AddSingleton<PredefinedChunkLayoutSource>();
         services.AddSingleton<ProceduralChunkLayoutSource>();
         services.AddSingleton<IChunkLayoutSourceResolver, ChunkLayoutSourceResolver>();

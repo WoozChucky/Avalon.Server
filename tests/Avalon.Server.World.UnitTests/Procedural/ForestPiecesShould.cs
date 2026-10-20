@@ -36,7 +36,11 @@ public class ForestPiecesShould
 
     public static IEnumerable<object[]> Groups() => ForestPieces.Groups().Select(g => new object[] { g.Name });
 
-    /// <summary>The files the tool's run writes (ChunkFiles.For over the singles and the set pieces, as ChunkGenCli calls it).</summary>
+    /// <summary>
+    /// The files the tool's run writes (ChunkFiles.For over the singles and the set pieces, and ChunkFiles.ForestScenery
+    /// over the scenery pieces, as ChunkGenCli calls them): each chunk's, each scenery piece's terrain and decor, and the
+    /// forest's ring file.
+    /// </summary>
     [Fact]
     public void Match_the_committed_files()
     {
@@ -46,6 +50,14 @@ public class ForestPiecesShould
             Assert.Equal(json, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".json"))));
             Assert.Equal(decor, Lf(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json"))));
         }
+
+        SceneryFiles scenery = ChunkFiles.ForestScenery(ForestScenery.Pieces());
+        foreach ((string name, string obj, string decor) in scenery.Pieces)
+        {
+            Assert.Equal(obj, Lf(File.ReadAllText(Path.Combine(Maps, "Scenery", name + ".obj"))));
+            Assert.Equal(decor, Lf(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json"))));
+        }
+        Assert.Equal(scenery.Ring, Lf(File.ReadAllText(Path.Combine(Maps, "Scenery", $"{ChunkFiles.ForestMapId}.json"))));
     }
 
     /// <summary>
@@ -229,6 +241,76 @@ public class ForestPiecesShould
 
     private static bool IsTree(string model) =>
         Enum.GetNames<TreeSpecies>().Any(s => model.StartsWith(s + "_", StringComparison.Ordinal));
+
+    /// <summary>
+    /// Each scenery rule refuses the forest scenery that breaks it (scenery ring, #1110): the minimal pool passes as
+    /// built (SceneryTestPieces), then one thing in it is broken, in an old-woods border or in the rockfall cap (capped S).
+    /// </summary>
+    [Theory]
+    [InlineData("a tree reaching past its cell", "lies outside its cell")]
+    [InlineData("a big tree in the edge band", "within 6 m of an edge")]
+    [InlineData("a tall rock in the edge band", "within 6 m of an edge")]
+    [InlineData("a gap in the barrier", "no barrier along the S edge")]
+    [InlineData("a tree in a cap's clearing", "within 10 m of its capped S edge")]
+    [InlineData("a raised edge", "meets its W edge at y 0.3")]
+    [InlineData("a meadow edge", "forest_floor")]
+    [InlineData("a pool without a four-side cap", "no cap for four capped sides")]
+    [InlineData("too few old woods", "at least 3 old woods")]
+    [InlineData("a piece named like a chunk", "is also a chunk")]
+    public void Refuse_forest_scenery_that_breaks_a_scenery_rule(string broken, string refusal)
+    {
+        List<SceneryPiece> pieces = [.. SceneryTestPieces.Forest()];
+        ChunkFiles.ForestScenery(pieces);   // as built, it passes
+        SceneryRules.CheckNames(pieces.Select(p => p.Name), ForestPieces.Singles().Select(p => p.Name));
+
+        ModelBounds fern = KitBounds.Load()["Fern_1"];
+        int woods = pieces.FindIndex(p => p.Name == "forest_ring_woods_01");
+        int cap = pieces.FindIndex(p => p.Name == "forest_cap_rockfall_01");
+        Action check = () => ChunkFiles.ForestScenery(pieces);
+        switch (broken)
+        {
+            case "a tree reaching past its cell":
+                pieces[woods] = With(pieces[woods], new DecorItem("", "CommonTree_1", 1f, 0f, 15f, 0));
+                break;
+            case "a big tree in the edge band":
+                pieces[woods] = With(pieces[woods], new DecorItem("", "CommonTree_1", 5f, 0f, 15f, 0, 2f));
+                break;
+            case "a tall rock in the edge band":
+                pieces[woods] = With(pieces[woods], new DecorItem("", "Rock_Medium_1", 4.5f, 0f, 15f, 0, 2.5f));
+                break;
+            case "a gap in the barrier":
+                // Every fern in the S band whose box reaches along x 12-18 taken out, so the runs 12-15 and 15-18 hold none.
+                pieces[woods] = pieces[woods] with
+                {
+                    Decor = [.. pieces[woods].Decor.Where(d => !(d.Model == "Fern_1" && d.Z < SceneryRules.EdgeBand && d.X + fern.MaxX > 12f && d.X + fern.MinX < 18f))],
+                };
+                break;
+            case "a tree in a cap's clearing":
+                pieces[cap] = With(pieces[cap], new DecorItem("", "Pine_1", 15f, 0f, 8f, 0));
+                break;
+            case "a raised edge":
+                // The W edge's own vertices, short of the corners the S and N edges also hold.
+                pieces[woods] = pieces[woods] with { Terrain = new SceneryTerrain((x, z) => x == 0f && z > 0f && z < 30f ? 0.3f : 0f, (_, _) => "forest_floor") };
+                break;
+            case "a meadow edge":
+                pieces[woods] = pieces[woods] with { Terrain = SceneryTestPieces.Flat("meadow") };
+                break;
+            case "a pool without a four-side cap":
+                pieces.RemoveAll(p => p.Name == "forest_cap_four_01");
+                break;
+            case "too few old woods":
+                pieces.RemoveAll(p => p.Name == "forest_ring_woods_03");
+                break;
+            case "a piece named like a chunk":
+                check = () => SceneryRules.CheckNames(["forest_path_01"], ["forest_path_01"]);
+                break;
+        }
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(check);
+        Assert.Contains(refusal, error.Message, StringComparison.Ordinal);
+
+        static SceneryPiece With(SceneryPiece piece, DecorItem item) => piece with { Decor = [.. piece.Decor, item] };
+    }
 
     /// <summary>
     /// The forest's density comes from tree walls (forest dressing, #1109): every closed side of a single piece, and every

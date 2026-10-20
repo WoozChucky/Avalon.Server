@@ -64,8 +64,10 @@ public class PredefinedChunkLayoutSourceShould
         IChunkLibrary library = Substitute.For<IChunkLibrary>();
         library.LookupByIds(Arg.Any<IEnumerable<ChunkTemplateId>>())
             .Returns(new Dictionary<ChunkTemplateId, ChunkTemplate> { [chunkId] = chunkTemplate });
+        SceneryPlacement[] placements = [new("town_ring_m1_0", -1, 0, 0), new("town_ring_1_0", 1, 0, 2)];
+        var scenery = new SceneryCatalog(new Dictionary<ushort, SceneryRingFile> { [1] = new(1, placements, null) });
 
-        var source = PredefinedChunkLayoutSource.ForTesting(repo, library);
+        var source = PredefinedChunkLayoutSource.ForTesting(repo, library, scenery);
         ChunkLayout layout = await source.BuildAsync(
             new MapTemplate
             {
@@ -82,6 +84,7 @@ public class PredefinedChunkLayoutSourceShould
         Assert.Equal(15f, layout.EntrySpawnWorldPos.x);
         Assert.Equal(15f, layout.EntrySpawnWorldPos.z);
         Assert.Null(layout.BossChunk);
+        Assert.Equal(placements, layout.Scenery);
     }
 
     [Fact]

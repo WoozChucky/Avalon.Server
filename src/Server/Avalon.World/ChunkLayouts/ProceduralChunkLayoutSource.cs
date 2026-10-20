@@ -15,6 +15,7 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
 {
     private readonly IChunkLibrary _library;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ISceneryCatalog _scenery;
     private readonly ProceduralLayoutGenerator _generator;
     private readonly Random _seedRng = new();
     private readonly object _seedLock = new();
@@ -22,10 +23,12 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
     public ProceduralChunkLayoutSource(
         ILoggerFactory loggerFactory,
         IChunkLibrary library,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        ISceneryCatalog scenery)
     {
         _library = library;
         _scopeFactory = scopeFactory;
+        _scenery = scenery;
         _generator = new ProceduralLayoutGenerator(loggerFactory);
     }
 
@@ -38,7 +41,13 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
                 $"No ProceduralMapConfig for map {template.Id.Value}");
 
         IReadOnlyList<ChunkPoolMember> pool = _library.GetByPool(config.ChunkPoolId);
-        return _generator.Generate(config, pool, NextSeed(), _library.GetGroupsByPool(config.ChunkPoolId));
+        ChunkLayout layout = _generator.Generate(config, pool, NextSeed(), _library.GetGroupsByPool(config.ChunkPoolId));
+
+        // The map's scenery ring (#1110), built here, off the tick, as the instance is. A map without a ring file is
+        // built without a ring.
+        return _scenery.PoolFor(template.Id.Value) is { } scenery
+            ? layout with { Scenery = SceneryRing.Build(layout, id => _library.GetById(id).Exits, scenery) }
+            : layout;
     }
 
     private int NextSeed()

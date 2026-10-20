@@ -28,7 +28,7 @@ public static class TownBuilding
         List<DecorItem> decor = [];
         foreach (DecorItem piece in recipe.Pieces)
         {
-            piece.Check($"recipe {recipe.Id}", kit, DecorYaw.QuarterTurns);
+            piece.Check($"recipe {recipe.Id}", kit, DecorYaw.QuarterTurns, DecorJsonWriter.TownKit);
             (float x, float z) = Turn(piece.X, piece.Z, anchorX, anchorZ, rotation);
             decor.Add(piece with { Building = building, X = x, Z = z, Yaw = (piece.Yaw + 90 * rotation) % 360 });
         }

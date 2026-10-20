@@ -1,9 +1,12 @@
 using Avalon.ChunkGen;
 
-// Writes the generated chunk pieces into the world server's catalog (Maps/Chunks).
+// Writes the generated chunk pieces into the world server's catalog (Maps/Chunks), and the forest's and the town's
+// scenery rings into Maps/Scenery.
 //
 //   dotnet run --project tools/Avalon.ChunkGen -- forest [--maps <Maps directory>]   the forest pieces (ForestPieces.cs)
+//                                                   and the forest's scenery pieces and ring file (ForestScenery.cs)
 //   dotnet run --project tools/Avalon.ChunkGen -- town   [--maps <Maps directory>]   Glimmerdell's four squares (TownPieces.cs)
+//                                                   and the town's scenery ring and its file (TownScenery.cs)
 //   dotnet run --project tools/Avalon.ChunkGen -- kit-bounds --kit <glTF directory> [--props <glTF directory>]
 //                                                   [--props-kit <glTF directory>] [--nature-kit <glTF directory>]
 //                                                   [--forest-props <glTF directory>]
@@ -12,9 +15,10 @@ using Avalon.ChunkGen;
 //
 // Every piece is first written into a temporary copy of Maps/, read back through the World server's own catalog
 // reader (ChunkCatalogSeeder.ReadCatalogAsync) and baked with its own ChunkLayoutNavmeshBuilder, each set piece with
-// its members at their cells and the town with its four squares together; only when all of that passes are the files
-// copied into Maps/Chunks, with each decor file into Maps/Decor (ChunkGenCli). Committed output is
-// checked against a fresh run by ForestPiecesShould and TownPiecesShould, so edit the piece files and rerun this rather
-// than editing the output. chunk-pools.json and chunk-groups.json are edited by hand.
+// its members at their cells and the town with its four squares together, and the map's scenery checked by the
+// scenery rules; only when all of that passes are the files copied into Maps/Chunks and Maps/Scenery, with each decor
+// file into Maps/Decor (ChunkGenCli). Committed output is checked against a fresh run by ForestPiecesShould and
+// TownPiecesShould, so edit the piece files and rerun this rather than editing the output. chunk-pools.json and
+// chunk-groups.json are edited by hand.
 
-return await ChunkGenCli.RunAsync(args, ForestPieces.Singles, ForestPieces.Groups, TownPieces.Squares, Console.Out, Console.Error);
+return await ChunkGenCli.RunAsync(args, ForestPieces.Singles, ForestPieces.Groups, TownPieces.Squares, ForestScenery.Pieces, TownScenery.Pieces, Console.Out, Console.Error);
