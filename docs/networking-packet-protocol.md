@@ -143,6 +143,11 @@ repeated message field is its entries one after another, and protobuf-net writes
 tick (#1066), after them, so the entries followed by the broadcast's tick, encoded once per broadcast
 (`WriteTick`), are the bytes `Create` writes for the same list and tick ([world simulation](world-simulation.md)).
 
+An instance's `SMSG_CHUNK_LAYOUT` uses the same ownership for a longer lifetime (#1130): encoded once at the end of
+construction, one reference retained by the instance, and one share transferred to each arriving connection. Disposing
+the instance releases only its own reference; queued sends remain valid. Failed placement disposes the unpublished
+instance too. No packet is encoded or copied into a new payload segment for an arrival.
+
 Nor a message object per packet. `Create` fills the calling thread's instance of its message type
 (`PacketEncoder.Scratch<T>()`) and encodes it before it returns, so one instance per thread serves every packet of that
 type. A resetter compiled once per type, at each server's startup (`PacketEncoder.PrepareServerPackets`, before

@@ -141,7 +141,7 @@ and it reads only the asking character's and its party's lists, never every inst
 | `_corpseRemover` | Removes corpses after their `BodyRemoveTimer`; creatures never respawn |
 | `MapNavigator _navigator` | Single combined navmesh for the whole instance, baked from the chunk layout |
 | `ChunkLayout Layout` | Authoritative layout (chunks, entry spawn, portals, obstacle boxes, scenery ring) sent to clients via `SChunkLayoutPacket` |
-| `MapLayoutEntries LayoutEntries` | `Layout` as that packet carries it: an entry per chunk, with its name, per portal, per solid doodad's box and per scenery piece, and the ring's piece names, each once. Built in the constructor, never changed (see "What an arrival is sent") |
+| `ShareLayoutPacket()` | A recipient's reference to the layout packet encoded once during construction. The instance owns the cached packet until disposal (see "What an arrival is sent") |
 
 ### Update Loop
 
@@ -568,17 +568,23 @@ spends one of its retries ([parties](parties.md)).
 Every arrival sends the same two packets from one place, `MapArrival` (`Avalon.World/Respawn`): a portal entry, a
 return to town (`TownReturn`) and an item's teleport (`MapTeleport`) call `MapArrival.Send`, the transition and then
 the chunk layout; a character select sends its own `SCharacterSelectedPacket` and then `MapArrival.SendLayout`. The
-layout packet's chunk, portal, obstacle and scenery entries are built once, with the instance
-(`MapInstance.LayoutEntries`, `MapLayoutEntries`, #883): the instance's constructor makes them, so they are built where
-the instance is, off the tick, and the first character to arrive costs the tick what every other one does. They come
+layout packet is encoded once at the end of instance construction (`MapLayoutEntries.Encode`, #1130), off the tick,
+so both the first and subsequent arrivals only take a shared reference. Its temporary chunk, portal, obstacle and
+scenery DTO lists are then collectible; the instance retains only the encoded packet alongside its layout. They come
 from the instance's `ChunkLayout` (its scenery ring included, built with it from the ring files read at start-up),
 which it keeps for its life, and from the chunk library's names, loaded once with the world; neither is something
-`/reload` or live template editing replaces. Every `MapInstance` has them, as it has a layout (#912): a client
+`/reload` or live template editing replaces. Every `MapInstance` has its encoded packet, as it has a layout (#912): a client
 completes a transition on the layout it is sent behind it, so a `Success` with no layout must not be
 possible. The constructor requires the chunk library from its container, as it requires the combat settings and the
 script manager (`WorldHostGraphShould` holds the registration): without one the build fails, and so it does for a
-chunk the library does not hold, as the navmesh bake before it already did. The entries are written into each
-packet and never changed, and `MapArrivalShould` holds every arrival's packet to the layout byte for byte.
+chunk the library does not hold, as the navmesh bake before it already did. The packet always carries the instance's
+own template id. `MapArrivalShould` holds every arrival's packet to the layout byte for byte.
+
+The instance owns one `OutboundPacket` reference. `ShareLayoutPacket()` gives each connection its own reference,
+which the send path releases after framing or refusal; encryption never changes the shared bytes. `Dispose` releases
+the instance's reference once, including for an unentered or discarded instance. An already queued send keeps the
+buffer alive until it drains. Encoding is the constructor's last operation, and the factory disposes the instance
+if later creature, doodad or portal placement fails or is cancelled, so a failed build cannot strand a pooled buffer.
 
 ---
 

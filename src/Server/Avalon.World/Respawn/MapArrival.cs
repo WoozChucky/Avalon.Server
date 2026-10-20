@@ -36,20 +36,17 @@ public static class MapArrival
         connection.Send(SMapTransitionPacket.Create(MapTransitionResult.Success, instance.InstanceId, template.Id.Value,
             at.x, at.y, at.z, template.Name, template.Description, PacketEncoder.Shared));
 
-        SendLayout(connection, instance, template.Id.Value);
+        SendLayout(connection, instance);
     }
 
     /// <summary>
-    /// Sends <paramref name="connection" /> the chunk layout of <paramref name="instance" />, as the layout of map
-    /// <paramref name="mapId" />: the seed, the cell size, the chunks, the entry spawn and the portals a client builds
-    /// the map and bakes its navmesh from. The chunk and portal entries are the instance's own, built with it
-    /// (<see cref="MapInstance.LayoutEntries" />), so an arrival builds nothing. Nothing is sent for an instance that
-    /// is not a <see cref="MapInstance" />: every instance the server builds is one, and every
-    /// <see cref="MapInstance" /> has its entries.
+    /// Sends the instance's layout encoded during construction, under its own template's map id (#1130).
+    /// Each connection takes a shared reference; the instance keeps its own until disposal, so queued sends survive
+    /// the instance's removal. Nothing is sent for an instance that is not a <see cref="MapInstance" />.
     /// </summary>
-    public static void SendLayout(IWorldConnection connection, IMapInstance instance, ushort mapId)
+    public static void SendLayout(IWorldConnection connection, IMapInstance instance)
     {
         if (instance is MapInstance built)
-            connection.Send(built.LayoutEntries.Encode(mapId, PacketEncoder.Shared));
+            connection.Send(built.ShareLayoutPacket());
     }
 }

@@ -42,7 +42,7 @@ public class SharedAuraUpdatesShould
         MapInstanceClient[] clients = [caster, target, watcher];
         instance.Update(s_tick);
         LetGo(clients);
-        Assert.Equal(0, encoder.Pool.Outstanding);
+        Assert.Equal(1, encoder.Pool.Outstanding); // The instance's cached layout (#1130).
 
         if (broadcastThrows)
         {
@@ -63,9 +63,11 @@ public class SharedAuraUpdatesShould
         PayloadSegment shared = Assert.Single(told
             .Select(c => Assert.Single(c.Sent, p => p.Header.Type == NetworkPacketType.SMSG_AURA_UPDATE).Payload!)
             .Distinct());
-        Assert.Equal(Held(clients).Count, encoder.Pool.Outstanding);
+        Assert.Equal(Held(clients).Count + 1, encoder.Pool.Outstanding);
         Assert.Contains(shared, Held(clients));
         LetGo(clients);
+        Assert.Equal(1, encoder.Pool.Outstanding);
+        instance.Dispose();
         Assert.Equal(0, encoder.Pool.Outstanding);
     }
 

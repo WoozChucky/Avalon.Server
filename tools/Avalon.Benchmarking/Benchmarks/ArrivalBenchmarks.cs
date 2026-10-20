@@ -195,6 +195,7 @@ public class ArrivalBenchmarks
     [GlobalCleanup]
     public void Cleanup()
     {
+        _town.Instance.Dispose();
         _scenario.Dispose();
         _instanceServices.Dispose();
     }
@@ -808,16 +809,32 @@ public class FirstArrivalBenchmarks
     {
         _arrivals.Setup();
 
-        int before = _arrivals.EnterForest(_arrivals.NewForest());
-        int forest = _arrivals.EnterForest(_arrivals.NewForest());
-        int town = _arrivals.EnterTown(_arrivals.NewTown());
-        int built = _arrivals.EnterForestBeingBuilt(_arrivals.NewForestBeingBuilt());
+        ArrivalInstance firstForest = _arrivals.NewForest();
+        ArrivalInstance nextForest = _arrivals.NewForest();
+        ArrivalInstance firstTown = _arrivals.NewTown();
+        ArrivalInstance building = _arrivals.NewForestBeingBuilt();
+        using MapInstance firstForestOwner = firstForest.Instance;
+        using MapInstance nextForestOwner = nextForest.Instance;
+        using MapInstance firstTownOwner = firstTown.Instance;
+        using MapInstance buildingOwner = building.Instance;
+        int before = _arrivals.EnterForest(firstForest);
+        int forest = _arrivals.EnterForest(nextForest);
+        int town = _arrivals.EnterTown(firstTown);
+        int built = _arrivals.EnterForestBeingBuilt(building);
         if (forest - before != 2 || town - forest != 2 || built - town != 2)
             throw new InvalidOperationException("An arrival in a new instance did not send its transition and its layout.");
     }
 
     [GlobalCleanup]
     public void Cleanup() => _arrivals.Cleanup();
+
+    [IterationCleanup]
+    public void DisposeInstances()
+    {
+        foreach (ArrivalInstance instance in _fresh)
+            instance.Instance.Dispose();
+        Array.Clear(_fresh);
+    }
 
     [IterationSetup(Target = nameof(First_portal_entry_into_a_forest))]
     public void NewForests()

@@ -1,6 +1,8 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -17,6 +19,57 @@ namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 
 public class ChunkLayoutInstanceFactoryShould
 {
+    [Theory]
+    [InlineData("authored")]
+    [InlineData("doodads")]
+    [InlineData("portals")]
+    [InlineData("cancelled")]
+    public async Task Release_the_encoded_layout_when_placement_fails(string stage)
+    {
+        MapTemplate template = Town(1);
+        ChunkLayout layout = MakeLayout();
+        IChunkLayoutSource source = Substitute.For<IChunkLayoutSource>();
+        source.BuildAsync(template, Arg.Any<CancellationToken>()).Returns(layout);
+        IChunkLayoutSourceResolver resolver = Substitute.For<IChunkLayoutSourceResolver>();
+        resolver.Resolve(template, out Arg.Any<ChunkLayoutSourceKind>()).Returns(call =>
+        {
+            call[1] = ChunkLayoutSourceKind.Predefined;
+            return source;
+        });
+        IChunkLayoutNavmeshBuilder nav = Substitute.For<IChunkLayoutNavmeshBuilder>();
+        nav.BuildAsync(layout, Arg.Any<CancellationToken>()).Returns(new DtNavMesh());
+        ICreaturePlacementService creatures = Substitute.For<ICreaturePlacementService>();
+        IDoodadPlacementService doodads = Substitute.For<IDoodadPlacementService>();
+        doodads.Plan(layout, layout.Config, Arg.Any<DoodadCatalog>(), Arg.Any<IChunkLibrary>())
+            .Returns(DoodadPlan.Empty);
+        IPortalPlacementService portals = Substitute.For<IPortalPlacementService>();
+        var pool = new PayloadSegmentPool(countOutstanding: true);
+        IServiceProvider services = BuildServiceProvider();
+        services.GetService(typeof(PacketEncoder)).Returns(new PacketEncoder(pool));
+        Exception failure = stage == "cancelled" ? new OperationCanceledException() : new InvalidOperationException(stage);
+
+        creatures.PlaceAuthoredAsync(Arg.Any<MapInstance>(), layout, template.Id, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                Assert.Equal(1, pool.Outstanding);
+                return stage is "authored" or "cancelled" ? Task.FromException(failure) : Task.CompletedTask;
+            });
+        if (stage == "doodads")
+        {
+            doodads.PlaceAsync(Arg.Any<MapInstance>(), layout, DoodadPlan.Empty, template.Id, Arg.Any<CancellationToken>())
+                .Returns(Task.FromException(failure));
+        }
+        if (stage == "portals")
+            portals.When(p => p.Place(Arg.Any<MapInstance>(), layout, null)).Do(_ => throw failure);
+        var factory = new ChunkLayoutInstanceFactory(NullLoggerFactory.Instance, resolver, nav, creatures,
+            portals, doodads, services);
+
+        Exception? actual = await Record.ExceptionAsync(() => factory.BuildAsync(template, null, CancellationToken.None));
+
+        Assert.Same(failure, actual);
+        Assert.Equal(0, pool.Outstanding);
+    }
+
     private static MapTemplate Town(ushort id) => new()
     {
         Id = new MapTemplateId(id),
@@ -95,7 +148,7 @@ public class ChunkLayoutInstanceFactoryShould
             doodadPlace,
             sp);
 
-        MapInstance instance = await factory.BuildAsync(template, ownerCharacterId: null, CancellationToken.None);
+        using MapInstance instance = await factory.BuildAsync(template, ownerCharacterId: null, CancellationToken.None);
 
         Assert.Equal(template.Id, instance.TemplateId);
         await navBuilder.Received(1).BuildAsync(layout, Arg.Any<CancellationToken>());
@@ -161,7 +214,7 @@ public class ChunkLayoutInstanceFactoryShould
             doodadPlace,
             sp);
 
-        MapInstance instance = await factory.BuildAsync(template, ownerCharacterId: 99u, CancellationToken.None);
+        using MapInstance instance = await factory.BuildAsync(template, ownerCharacterId: 99u, CancellationToken.None);
 
         Assert.Equal(template.Id, instance.TemplateId);
         Assert.Equal(1234, instance.Seed);

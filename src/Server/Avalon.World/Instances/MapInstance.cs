@@ -156,6 +156,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     private readonly PacketEncoder _replicationEncoder;
 
+    // One owner reference for the instance's lifetime. Only the tick shares or releases it after publication.
+    private OutboundPacket _layoutPacket;
+
     /// <summary>Each changed unit's aura update, encoded once per broadcast pass for every client that hears it (#980).</summary>
     private readonly SharedAuraUpdates _auraUpdates;
 
@@ -284,13 +287,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         Layout = layout;
         EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
 
-        // The layout's packet entries (#883), here rather than at the first arrival: an instance is built off the
-        // tick, and the first character to arrive should cost the tick what every other one does. The chunk library
-        // that names the chunks is required, like the combat settings and the script manager below: without it the
-        // build fails here, loudly, rather than making an instance whose arrivals are told of a map and sent no
-        // layout to build it from. A chunk the library does not hold fails the build the same way, as it already
-        // failed the navmesh bake before it.
-        LayoutEntries = new MapLayoutEntries(InstanceId, layout, serviceProvider.GetRequiredService<IChunkLibrary>());
+        IChunkLibrary chunkLibrary = serviceProvider.GetRequiredService<IChunkLibrary>();
         Seed = seed;
         _navigator = navigator;
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
@@ -390,6 +387,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // Doodad gates: the container's one set of rules, and a set of its own for an instance built without (tests).
         _doodadVisibility = serviceProvider.GetService<DoodadVisibility>() ?? new DoodadVisibility();
+
+        // Last: no later constructor failure can strand the pooled owner reference. Build off the tick, so even the
+        // first arrival only shares these bytes. Placement failures after construction dispose the instance.
+        _layoutPacket = MapLayoutEntries.Encode(InstanceId, TemplateId.Value, layout, chunkLibrary, _replicationEncoder);
     }
 
     /// <summary>
@@ -399,6 +400,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     public void Dispose()
     {
+        OutboundPacket layout = _layoutPacket;
+        _layoutPacket = default;
+        layout.Release();
+
         // Drops are never persisted, and never despawn on a timer: an instance's disposal is the end
         // of every drop still on its ground.
         _groundLoot.Clear();
@@ -436,12 +441,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public ChunkLayout Layout { get; }
 
     /// <summary>
-    /// <see cref="Layout" /> as the <c>SMSG_CHUNK_LAYOUT</c> of every character arriving here carries it (#883): built
-    /// with the instance, so off the tick like the rest of it, and never changed. Every instance has them, as it has
-    /// a layout (#912): a client completes a transition on the layout it is sent behind it, so an instance that could
-    /// not send one must not exist. World-side, not on IMapInstance.
+    /// One recipient's reference to the immutable <c>SMSG_CHUNK_LAYOUT</c> encoded during construction (#1130).
+    /// The caller transfers it to a connection or releases it. Tick only after publication; never after disposal.
     /// </summary>
-    internal MapLayoutEntries LayoutEntries { get; }
+    internal OutboundPacket ShareLayoutPacket()
+    {
+        ObjectDisposedException.ThrowIf(_layoutPacket.Payload is null, this);
+        return _layoutPacket.Share();
+    }
 
     public Vector3 EntrySpawnWorldPos { get; }
     public IReadOnlyList<PortalInstance> Portals => _portals;

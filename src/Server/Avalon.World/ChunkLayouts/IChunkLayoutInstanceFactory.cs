@@ -75,26 +75,33 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
         var instance = new MapInstance(_lf, _sp, world, template.Id, ownerCharacterId, layout, navigator, layout.Seed,
             template.MapType, ownerPartyId: ownerPartyId);
 
-        // Spawn-table placement needs a config and chunk spawn slots, so it is procedural-only;
-        // predefined town layouts leave Config null.
-        if (kind == ChunkLayoutSourceKind.Procedural && layout.Config is { } cfg)
+        try
         {
-            await _creaturePlace.PlaceAsync(instance, layout, cfg, layout.Seed, ct);
+            // Spawn-table placement needs a config and chunk spawn slots, so it is procedural-only;
+            // predefined town layouts leave Config null.
+            if (kind == ChunkLayoutSourceKind.Procedural && layout.Config is { } cfg)
+                await _creaturePlace.PlaceAsync(instance, layout, cfg, layout.Seed, ct);
+
+            // Authored placement runs for every layout kind. It is the only path that puts creatures in
+            // a town, and procedural maps are free to use it too — a map with no MapCreatureSpawn rows
+            // places nothing.
+            await _creaturePlace.PlaceAuthoredAsync(instance, layout, template.Id, ct);
+
+            // On the baked mesh, before the instance is published: the only time a doodad may be added.
+            await _doodadPlace.PlaceAsync(instance, layout, doodads, template.Id, ct);
+
+            // PortalPlacementService tolerates a null config (towns) — portals are read off ChunkLayout.Portals.
+            _portalPlace.Place(instance, layout, layout.Config);
+
+            _logger.LogInformation("Built {Kind} instance {InstanceId} for map {MapId}",
+                kind, instance.InstanceId, template.Id.Value);
+            return instance;
         }
-
-        // Authored placement runs for every layout kind. It is the only path that puts creatures in
-        // a town, and procedural maps are free to use it too — a map with no MapCreatureSpawn rows
-        // places nothing.
-        await _creaturePlace.PlaceAuthoredAsync(instance, layout, template.Id, ct);
-
-        // On the baked mesh, before the instance is published: the only time a doodad may be added.
-        await _doodadPlace.PlaceAsync(instance, layout, doodads, template.Id, ct);
-
-        // PortalPlacementService tolerates a null config (towns) — portals are read off ChunkLayout.Portals.
-        _portalPlace.Place(instance, layout, layout.Config);
-
-        _logger.LogInformation("Built {Kind} instance {InstanceId} for map {MapId}",
-            kind, instance.InstanceId, template.Id.Value);
-        return instance;
+        catch
+        {
+            // The registry never receives a failed build, so the factory must release its cached layout (#1130).
+            instance.Dispose();
+            throw;
+        }
     }
 }

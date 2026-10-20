@@ -9,6 +9,7 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.Server.World.UnitTests.GameAuth;
@@ -41,7 +42,7 @@ namespace Avalon.Server.World.UnitTests.Respawn;
 /// packet that differs by a byte is a map that differs. Every arrival sends it: a portal entry, a return to town, an
 /// item's teleport and a character select, into a town, a character's own forest or a party's.
 /// </summary>
-public class MapArrivalShould
+public class MapArrivalShould : IDisposable
 {
     public enum Arrival
     {
@@ -61,6 +62,7 @@ public class MapArrivalShould
     private readonly MapInstance _town;
     private readonly MapInstance _forest;
     private readonly MapInstance _partyForest;
+    private readonly PayloadSegmentPool _pool = new(countOutstanding: true);
 
     public MapArrivalShould()
     {
@@ -98,6 +100,49 @@ public class MapArrivalShould
         _world.MapTemplates.Returns<IReadOnlyList<MapTemplate>>(MapTemplateRows.Keyed([_townTemplate, _forestTemplate]));
     }
 
+    public void Dispose()
+    {
+        _town.Dispose();
+        _forest.Dispose();
+        _partyForest.Dispose();
+    }
+
+    [Fact]
+    public void Keep_one_layout_reference_until_disposal_and_each_queued_send_until_it_drains()
+    {
+        // All three instances already own their encoded layout, even before their first arrival.
+        Assert.Equal(3, _pool.Outstanding);
+        byte[] expected = Encoded(_town);
+        var queued = new List<OutboundPacket>();
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
+        connection.When(c => c.Send(Arg.Any<OutboundPacket>()))
+            .Do(call => queued.Add(call.Arg<OutboundPacket>()));
+
+        MapArrival.SendLayout(connection, _town);
+        MapArrival.SendLayout(connection, _town);
+        Assert.Same(queued[0].Payload, queued[1].Payload);
+        Assert.Equal(3, _pool.Outstanding);
+        queued[0].Release();
+
+        // A refused send releases immediately, without returning the instance's cached segment to the pool.
+        IWorldConnection refusing = Substitute.For<IWorldConnection>();
+        refusing.When(c => c.Send(Arg.Any<OutboundPacket>()))
+            .Do(call => call.Arg<OutboundPacket>().Release());
+        MapArrival.SendLayout(refusing, _town);
+
+        // Try to reuse a returned buffer: the queued layout must stay intact across sends and instance disposal.
+        var overwrite = new OutboundPacket(default, _pool.Rent(new byte[expected.Length]));
+        Assert.Equal(expected, queued[1].PayloadMemory.ToArray());
+        overwrite.Release();
+        Dispose();
+        Dispose();
+        Assert.Throws<ObjectDisposedException>(() => MapArrival.SendLayout(connection, _town));
+        Assert.Equal(1, _pool.Outstanding);
+        Assert.Equal(expected, queued[1].PayloadMemory.ToArray());
+        queued[1].Release();
+        Assert.Equal(0, _pool.Outstanding);
+    }
+
     /// <summary>
     /// Each arrival is sent its instance's layout exactly as the layout and the chunk library's names encode, behind
     /// the packet that announces the map. Twice, by two characters: an instance is built with the packet's chunk and
@@ -128,6 +173,7 @@ public class MapArrivalShould
         if (arrival == Arrival.PortalIntoAPartysForest)
             _parties.Form(first, second);
 
+        PayloadSegment? shared = null;
         foreach (PartyClient client in new[] { first, second })
         {
             List<OutboundPacket> sent = Arrive(arrival, client);
@@ -136,11 +182,16 @@ public class MapArrivalShould
             Assert.True(layout > 0, $"{arrival} sent no chunk layout behind another packet");
             Assert.Equal(expected, sent[layout].PayloadMemory.ToArray());
             Assert.Single(sent, p => p.Header.Type == NetworkPacketType.SMSG_CHUNK_LAYOUT);
+            if (shared is not null)
+                Assert.Same(shared, sent[layout].Payload);
+            shared = sent[layout].Payload;
 
             OutboundPacket announcement = sent[layout - 1];
             if (arrival == Arrival.Select)
             {
                 Assert.Equal(NetworkPacketType.SMSG_CHARACTER_SELECTED, announcement.Header.Type);
+                foreach (OutboundPacket packet in sent)
+                    packet.Release();
                 continue;
             }
 
@@ -153,6 +204,8 @@ public class MapArrivalShould
             Assert.Equal(into.Layout.EntrySpawnWorldPos, new Vector3(transition.SpawnX, transition.SpawnY, transition.SpawnZ));
             Assert.Equal(template.Name, transition.MapName);
             Assert.Equal(template.Description, transition.MapDescription);
+            foreach (OutboundPacket packet in sent)
+                packet.Release();
         }
     }
 
@@ -362,6 +415,7 @@ public class MapArrivalShould
         services.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         services.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
         services.GetService(typeof(IChunkLibrary)).Returns(_reference.Chunks);
+        services.GetService(typeof(PacketEncoder)).Returns(new PacketEncoder(_pool));
 
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
