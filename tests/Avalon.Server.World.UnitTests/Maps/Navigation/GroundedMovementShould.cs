@@ -15,6 +15,46 @@ public class GroundedMovementShould
     private const int ForestSeed = 7;
     private static readonly Lazy<DtNavMesh> s_floors = new(BakeFloors);
 
+    [Theory]
+    [InlineData(20f)]
+    [InlineData(54f)]
+    public void Clamp_staff_speed_steps_at_a_thin_gap_even_with_walkable_ground_beyond(float speed)
+    {
+        // Two unconnected squares, separated by just 0.2 m: a max-speed input ends on the far square.
+        const int Nvp = 6, None = 0xffff;
+        var create = new DtNavMeshCreateParams
+        {
+            verts = [0, 0, 0, 0, 0, 100, 100, 0, 100, 100, 0, 0,
+                120, 0, 0, 120, 0, 100, 220, 0, 100, 220, 0, 0],
+            vertCount = 8,
+            polys = [0, 1, 2, 3, None, None, None, None, None, None, None, None,
+                4, 5, 6, 7, None, None, None, None, None, None, None, None],
+            polyFlags = [1, 1],
+            polyAreas = [0, 0],
+            polyCount = 2,
+            nvp = Nvp,
+            cs = 0.01f,
+            ch = 0.01f,
+            walkableHeight = 2f,
+            walkableRadius = 0.6f,
+            walkableClimb = 0.8f,
+            bmin = new RcVec3f(0, 0, 0),
+            bmax = new RcVec3f(2.2f, 2, 1),
+            buildBvTree = true,
+        };
+        var mesh = new DtNavMesh();
+        mesh.Init(DtNavMeshBuilder.CreateNavMeshData(create), Nvp, 0);
+        var nav = new MapNavigator(NullLoggerFactory.Instance);
+        nav.LoadFromNavMesh(mesh);
+        var from = new Vector3(0.8f, 0, 0.5f);
+
+        Vector3 actual = nav.MoveOnGround(from, new Vector3(from.x + speed / 60f, 0, from.z));
+
+        Assert.Equal(1f, actual.x, precision: 5);
+        Assert.Equal(0f, actual.y);
+        Assert.Equal(0.5f, actual.z);
+    }
+
     // A ground snap must still happen for an idle input, on either floor and on a slope.
     [Theory]
     [InlineData(0f, 0.5f, 0f, 0f, 0f)]

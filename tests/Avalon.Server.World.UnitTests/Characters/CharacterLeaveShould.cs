@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Common.GameAuth;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -15,10 +16,12 @@ using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
+using Avalon.World.Chat;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
@@ -122,14 +125,20 @@ public class CharacterLeaveShould : IDisposable
     /// <summary>
     /// Acceptance cases 1 and 2: from a live map, the character leaves its instance, its logout save
     /// writes it offline, Left is answered only once that save has committed, and the same connection
-    /// then lists the account's characters and selects a different one, with no new login.
+    /// then lists the account's characters and selects the same or a different one, with no new login.
+    /// The runtime staff speed override must not survive that selection (#1132).
     /// </summary>
-    [Fact]
-    public async Task Leave_answer_Left_after_the_logout_save_then_list_and_select_on_the_same_connection()
+    [Theory]
+    [InlineData(7u)]
+    [InlineData(8u)]
+    public async Task Leave_answer_Left_after_the_logout_save_then_list_and_select_on_the_same_connection(uint selectedId)
     {
         (MapInstance town, TestWorldServer server, Handlers h) = await BuildAsync();
         RecordingConnection connection = Connect(server);
         CharacterEntity live = Spawn(connection, town);
+        var speed = new SpeedCommand(NullLogger<SpeedCommand>.Instance);
+        speed.Execute(new CommandContext(connection, new CChatMessagePacket(), e => throw e), ["5"]);
+        Assert.Equal(20f, live.GetMovementSpeed());
 
         h.Leave.Execute(connection, new CCharacterLeavePacket());
 
@@ -154,10 +163,32 @@ public class CharacterLeaveShould : IDisposable
         SCharacterListPacket list = Assert.Single(connection.Read<SCharacterListPacket>(NetworkPacketType.SMSG_CHARACTER_LIST));
         Assert.Equal([s_theCharacter.Value, s_anotherCharacter.Value], list.Characters.Select(c => c.CharacterId));
 
-        h.Select.Execute(connection, new CCharacterSelectedPacket { CharacterId = s_anotherCharacter });
+        var nextId = new CharacterId(selectedId);
+        _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == s_theAccount),
+                nextId, Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                lock (_selectReads)
+                    _selectReads.Add((call.Arg<CharacterId>(), Volatile.Read(ref _committed) == 1));
+                return Task.FromResult<Character?>(new Character
+                {
+                    Id = nextId,
+                    AccountId = s_theAccount,
+                    Name = "Tester",
+                    Class = CharacterClass.Warrior,
+                    Level = 1,
+                    Map = 1,
+                    Health = 100,
+                });
+            });
+        h.Select.Execute(connection, new CCharacterSelectedPacket { CharacterId = nextId });
         Assert.True(connection.SelectInProgress);
         await UntilAsync(connection, () => SelectReads().Count > 0);
-        Assert.Equal(s_anotherCharacter, Assert.Single(SelectReads()).Id);
+        Assert.Equal(nextId, Assert.Single(SelectReads()).Id);
+        await UntilAsync(connection, () => connection.PendingSpawn is not null);
+        Assert.Equal(4f, connection.PendingSpawn!.Character.GetMovementSpeed());
+        Assert.Equal(4f, Assert.Single(connection.Read<SCharacterSelectedPacket>(
+            NetworkPacketType.SMSG_CHARACTER_SELECTED)).Character!.MovementSpeed);
         Assert.False(connection.IsClosing);
         Assert.Single(_written);
     }
@@ -518,7 +549,7 @@ public class CharacterLeaveShould : IDisposable
             Portals: [], EntrySpawnWorldPos: Vector3.zero, CellSize: 30f, Config: null);
 
         var town = new MapInstance(NullLoggerFactory.Instance, serviceProvider, world, new MapTemplateId(1),
-            ownerCharacterId: null, layout, Substitute.For<IMapNavigator>(), seed: 0);
+            ownerCharacterId: null, layout, Substitute.For<IMapNavigator>(), seed: 0, mapType: MapType.Town);
         return town;
     }
 

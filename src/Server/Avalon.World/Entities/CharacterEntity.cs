@@ -445,6 +445,12 @@ public partial class CharacterEntity : ICharacter
     /// <summary>Temporary staff combat override; never copied to the persisted character row.</summary>
     public bool GodMode { get; set; }
 
+    /// <summary>
+    /// Staff movement multiplier after the stat cap (#1132). Never persisted: each character select builds a
+    /// fresh entity, so changing character or logging out clears it. Transfers retain this entity and override.
+    /// </summary>
+    public float MovementSpeedMultiplier { get; set; } = 1f;
+
     public float BodyRadius => UnitBody.CharacterRadius;
 
     public GameEntityFields ConsumeDirtyFields()
@@ -707,7 +713,7 @@ public partial class CharacterEntity : ICharacter
         }
     }
 
-    public float GetMovementSpeed() => MovementSpeed;
+    public float GetMovementSpeed() => MovementSpeed * MovementSpeedMultiplier;
 
     public void Update(TimeSpan deltaTime)
     {
