@@ -9,6 +9,9 @@ public static partial class ForestScenery
 {
     private const string TownWardPrefix = "forest_townward";
 
+    /// <summary>The scene's ground noise seed: its prefix's stable seed.</summary>
+    private static readonly int s_townWardSeed = ForestDresser.StableSeed(TownWardPrefix);
+
     // World metres, +X east, +Z north. The entry chunk (forest_entry_01, rotation 0) holds cell (0, 0), its only exit
     // north; its portal back to the town stands at (15, 5), 5 m in from its closed south side, and its tree walls leave
     // the south corners, the west side's south third and the east side's ends open.
@@ -62,8 +65,7 @@ public static partial class ForestScenery
     /// </summary>
     private static IReadOnlyList<SceneryPiece> TownWard(IReadOnlyDictionary<string, ModelBounds> kit)
     {
-        int seed = ForestDresser.StableSeed(TownWardPrefix);
-        var terrain = new SceneryTerrain((x, z) => TownWardHeight(seed, x, z), (x, z) => TownWardMaterial(seed, x, z));
+        var terrain = new SceneryTerrain((x, z) => TownWardHeight(s_townWardSeed, x, z), (x, z) => TownWardMaterial(s_townWardSeed, x, z));
         List<(int X, int Z)> spots = [];
         List<DecorItem> decor = [];
         foreach (int dz in new[] { -1, 0, 1 })
@@ -79,10 +81,10 @@ public static partial class ForestScenery
                         RoadToTheWall(d);
                         break;
                     case (1, -1):
-                        FieldEdge(d, s_eastField, fenceEast: false, EastFieldBoundary, scarecrow: (40.6f, -10.2f), lone: [(TreeSpecies.CommonTree, 48.5f, -18f, 1.25f)]);
+                        FieldEdge(d, s_eastField, EastFieldBoundary, scarecrow: (40.6f, -10.2f), lone: [(TreeSpecies.CommonTree, 48.5f, -18f, 1.25f)]);
                         break;
                     case (-1, -1):
-                        FieldEdge(d, s_westField, fenceEast: true, WestFieldBoundary, scarecrow: null, lone: [(TreeSpecies.CommonTree, -21.5f, -19f, 1.3f)]);
+                        FieldEdge(d, s_westField, WestFieldBoundary, scarecrow: null, lone: [(TreeSpecies.CommonTree, -21.5f, -19f, 1.3f)]);
                         break;
                     default:
                         Fringe(d, dx, dz);
@@ -138,8 +140,9 @@ public static partial class ForestScenery
     }
 
     /// <summary>
-    /// The scene's ground materials: forest floor along every cell edge (the outer metre), tilled soil under the fields,
-    /// dirt on the road and where it ends, meadow (rough grass) on the road's verges and the fields' headlands; forest
+    /// The scene's ground materials: forest floor along every cell edge (the outer metre), meadow (rough grass) under the
+    /// standing wheat, tilled soil under the harvested stubble, dirt on the road and where it ends, meadow on the road's
+    /// verges and the fields' headlands; forest
     /// floor elsewhere. The meadow's edges run on whole metres, along the ground's 1 m triangles: a light ground's
     /// saw-tooth edge beside the dark floor reads as drawn.
     /// </summary>
@@ -147,7 +150,11 @@ public static partial class ForestScenery
     {
         (float lx, float lz) = CellLocal(x, z);
         if (EdgeDistance(lx, lz) < 1f) return Floor;
-        if (s_eastField.Holds(x, z) || s_westField.Holds(x, z)) return "tilled_soil";
+        // Tilled soil only under the harvested stubble; the standing wheat grows on grass, so the crop reads from afar.
+        foreach (Field field in new[] { s_eastField, s_westField })
+        {
+            if (field.Holds(x, z)) return field.Stubble is { } line && x >= line ? "tilled_soil" : "meadow";
+        }
         if (OnRoad(seed, x, z)) return "dirt_road";
         bool verge = MathF.Abs(x - RoadX) < RoadHalf + VergeWidth && z > RoadFrom && z < RoadTo - 1f;
         bool headland = s_eastField.Holds(x, z, HeadlandWidth) || s_westField.Holds(x, z, HeadlandWidth);
@@ -164,7 +171,6 @@ public static partial class ForestScenery
     /// </summary>
     private static void RoadToTheWall(SceneryDresser d)
     {
-        int seed = ForestDresser.StableSeed(TownWardPrefix);
 
         // The wall: sections laid end to end along x, their bodies on WallZ; the tumbled sections' fallen stones lie
         // toward the road.
@@ -207,7 +213,7 @@ public static partial class ForestScenery
             Cluster(d, x, WallZ - 1.1f, ["avalon_bramble_1", "Fern_1", "Grass_Wispy_Tall"], 0.9f, 0.8f, 1.05f, keep: 0.4f);
 
         // The road: a strip of grass down its middle between the wheel ruts, tufts breaking its verges, a few pebbles.
-        bool Road(float x, float z) => OnRoad(seed, x, z);
+        bool Road(float x, float z) => OnRoad(s_townWardSeed, x, z);
         for (float z = RoadFrom + 1.2f; z < RoadTo - 1f; z += d.Uniform(0.65f, 1.05f))
         {
             if (d.Rng.NextDouble() < 0.2) continue;
@@ -268,6 +274,8 @@ public static partial class ForestScenery
         foreach ((float x, float z, float scale) in new[] { (4f, 9.5f, 1.1f), (4f, 19f, 1.05f), (4f, 25.6f, 0.95f) })
         {
             bool planted = false;
+            // Each TryTree draws another of the species' five models and another yaw, so a crown whose turned box
+            // crosses the cell's edge at one draw may fit at the next.
             for (int attempt = 0; !planted && attempt < 8; attempt++)
                 planted = d.TryTree(TreeSpecies.CommonTree, d.Origin.X + x, d.Origin.Z + z, scale);
             if (!planted)
@@ -305,16 +313,15 @@ public static partial class ForestScenery
     }
 
     /// <summary>
-    /// A field's edge: wheat standing in rows on the tilled ground (stubble on a harvested strip, with haystacks and
-    /// bales), a wooden fence along its north side (and its east side when <paramref name="fenceEast" />, its west side
-    /// otherwise), the boundary with the road's cell, a scarecrow, a lone tree or two in the field; outside the fence a
-    /// meadow margin of tall grass and flowers, the woods' thin fringe beyond, the band round it all.
+    /// A field's edge: wheat standing in rows on grass (stubble on a tilled, harvested strip, with haystacks and bales), a
+    /// wooden fence round all four sides, so a view from any neighbouring cell meets it, the boundary with the road's
+    /// cell, a scarecrow, a lone tree or two in the field; outside the fence a meadow margin of tall grass and flowers,
+    /// the woods' thin fringe beyond, the band round it all.
     /// </summary>
     private static void FieldEdge(
-        SceneryDresser d, Field field, bool fenceEast, Action<SceneryDresser> boundary, (float X, float Z)? scarecrow,
+        SceneryDresser d, Field field, Action<SceneryDresser> boundary, (float X, float Z)? scarecrow,
         (TreeSpecies Species, float X, float Z, float Scale)[] lone)
     {
-        int seed = ForestDresser.StableSeed(TownWardPrefix);
         foreach ((TreeSpecies species, float x, float z, float scale) in lone)
         {
             if (!d.TryTree(species, x, z, scale))
@@ -364,14 +371,16 @@ public static partial class ForestScenery
             }
         }
 
-        // The fences from the field's corner by the road: one along its north side, one down its side toward the road.
-        float fenceZ = field.MaxZ + FenceOut, sideX = fenceEast ? field.MaxX + FenceOut : field.MinX - FenceOut;
-        float farX = fenceEast ? field.MinX - FenceOut : field.MaxX + FenceOut;
-        FenceRun(d, sideX, fenceZ, fenceEast ? -1f : 1f, 0f, (int)MathF.Floor(MathF.Abs(farX - sideX) / FenceSection));
-        FenceRun(d, sideX, fenceZ, 0f, -1f, (int)MathF.Floor((fenceZ - (field.MinZ - FenceOut)) / FenceSection));
+        // The fence round the field, corner to corner on every side.
+        float west = field.MinX - FenceOut, east = field.MaxX + FenceOut, south = field.MinZ - FenceOut, north = field.MaxZ + FenceOut;
+        FenceRun(d, (west, north), (east, north));
+        FenceRun(d, (east, north), (east, south));
+        FenceRun(d, (east, south), (west, south));
+        FenceRun(d, (west, south), (west, north));
+        // Within the margin of the fence's line, inside or out.
         bool OnFence(float x, float z, float margin) =>
-            (MathF.Abs(z - fenceZ) < margin && x > field.MinX - FenceOut - margin && x < field.MaxX + FenceOut + margin)
-            || (MathF.Abs(x - sideX) < margin && z > field.MinZ - FenceOut - margin && z < fenceZ + margin);
+            x > west - margin && x < east + margin && z > south - margin && z < north + margin
+            && !(x > west + margin && x < east - margin && z > south + margin && z < north - margin);
 
         boundary(d);
 
@@ -383,25 +392,29 @@ public static partial class ForestScenery
         d.BarrierBand(TreeMix.Broadleaf, s_sides, (x, z) => field.Holds(x, z, 0.4f) || OnFence(x, z, 0.5f),
             (x, z) => field.Holds(x, z, 2.5f) || OnFence(x, z, 2f) || InView(x, z, (px, pz) => OnFence(px, pz, 0.5f)), treeRows: 1, undergrowthPer100: 14f);
 
-        bool Meadow(float x, float z) => TownWardMaterial(seed, x, z) == "meadow";
+        bool Headland(float x, float z) => !field.Holds(x, z, 0.3f) && TownWardMaterial(s_townWardSeed, x, z) == "meadow";
         d.Scatter([("Bush_Common_Flowers", 2), ("Flower_3_Group", 2), ("Flower_4_Group", 1), ("Grass_Common_Tall", 3), ("Fern_1", 2)], 10,
-            0.8f, 1.1f, (x, z) => Meadow(x, z) && !OnFence(x, z, 1f) && EdgeDistance(x - d.Origin.X, z - d.Origin.Z) > 3f);
-        d.Understorey(12, (x, z) => !Meadow(x, z) && !field.Holds(x, z, 1f) && !OnFence(x, z, 1f) && EdgeDistance(x - d.Origin.X, z - d.Origin.Z) > 3f);
+            0.8f, 1.1f, (x, z) => Headland(x, z) && !OnFence(x, z, 1f) && EdgeDistance(x - d.Origin.X, z - d.Origin.Z) > 3f);
+        d.Understorey(12, (x, z) => !Headland(x, z) && !field.Holds(x, z, 1f) && !OnFence(x, z, 1f) && EdgeDistance(x - d.Origin.X, z - d.Origin.Z) > 3f);
         d.GroundCover(40, (x, z) => !field.Holds(x, z, 0.3f) && !OnFence(x, z, 0.4f));
     }
 
     /// <summary>
-    /// A run of <paramref name="sections" /> wooden fence sections end to end from (x, z) along the direction (one of
-    /// x or z, plus or minus): a single section first, then the two extensions in turn, each standing on the ground.
+    /// A straight run of wooden fence sections (along x or z) from one corner to the next: as many as cover it, each
+    /// <see cref="FenceSection" /> apart or a little closer so the last one ends on the corner (their ends overlap by a
+    /// few centimetres); a single section first, then the two extensions in turn, each standing on the ground.
     /// </summary>
-    private static void FenceRun(SceneryDresser d, float x, float z, float dirX, float dirZ, int sections)
+    private static void FenceRun(SceneryDresser d, (float X, float Z) from, (float X, float Z) to)
     {
+        float length = SceneryDresser.Distance(from.X, from.Z, to.X, to.Z);
+        int sections = (int)MathF.Ceiling(length / FenceSection - 0.001f);
+        float step = length / sections, dirX = (to.X - from.X) / length, dirZ = (to.Z - from.Z) / length;
         for (int i = 0; i < sections; i++)
         {
-            float at = FenceSection / 2f + FenceSection * i;
-            (float fx, float fz) = (x + dirX * at, z + dirZ * at);
+            float at = step / 2f + step * i;
+            (float fx, float fz) = (from.X + dirX * at, from.Z + dirZ * at);
             string model = i == 0 ? "Prop_WoodenFence_Single" : i % 2 == 1 ? "Prop_WoodenFence_Extension1" : "Prop_WoodenFence_Extension2";
-            if (!d.TryAdd(model, fx, fz, dirX == 0f ? 90 : 0, 1f))
+            if (!d.TryAdd(model, fx, fz, MathF.Abs(dirX) < 0.5f ? 90 : 0, 1f))
                 throw new InvalidOperationException($"{d.Name}: the fence's {model} at ({ForestText.N(fx)}, {ForestText.N(fz)}) does not fit");
             d.Take(fx, fz, 0.5f);
         }
