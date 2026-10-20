@@ -234,7 +234,8 @@ public class CreaturePlacementService : ICreaturePlacementService
         {
             if (!TryPutOnGround(instance.GetNavigatorForPosition(near), near, out Vector3 position))
             {
-                _logger.LogWarning("No ground near {Position} for creature {CreatureId}; it was not spawned", near, template.Value);
+                // Information: a point past a map's edge is the caller's answer (a summon, a /spawn disc), not a fault.
+                _logger.LogInformation("No ground near {Position} for creature {CreatureId}; it was not spawned", near, template.Value);
                 return null;
             }
 

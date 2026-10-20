@@ -46,7 +46,7 @@ public sealed class SpawnCommand(IWorld world, ICreaturePlacementService placeme
             ctx.Reply(candidates.Count == 0
                 ? $"No creature template matches '{creature}'."
                 : $"'{creature}' matches several: {string.Join(", ", candidates.Take(MaxCandidates).Select(t => $"{t.Id.Value} {t.Name}"))}" +
-                  $"{(candidates.Count > MaxCandidates ? ", ..." : "")}.");
+                  (candidates.Count > MaxCandidates ? ", ..." : "."));
             return;
         }
 
@@ -82,9 +82,9 @@ public sealed class SpawnCommand(IWorld world, ICreaturePlacementService placeme
     }
 
     /// <summary>
-    /// The template <paramref name="text" /> names: a number is an id; otherwise the name equal to it ignoring case,
-    /// else the one name containing it. Null when none or several match; <paramref name="candidates" /> holds the
-    /// several, by id.
+    /// The template <paramref name="text" /> names: a number is an id; otherwise the one name equal to it ignoring
+    /// case, else the one name containing it. Null when none or several match; <paramref name="candidates" /> holds
+    /// the several, by id.
     /// </summary>
     public static CreatureTemplate? Find(IEnumerable<CreatureTemplate> templates, string text,
         out IReadOnlyList<CreatureTemplate> candidates)
@@ -93,14 +93,17 @@ public sealed class SpawnCommand(IWorld world, ICreaturePlacementService placeme
         if (ulong.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out ulong id))
             return templates.FirstOrDefault(t => t.Id.Value == id);
 
-        CreatureTemplate? exact = templates.FirstOrDefault(t => string.Equals(t.Name, text, StringComparison.OrdinalIgnoreCase));
-        if (exact is not null)
-            return exact;
-
         var matches = templates
-            .Where(t => t.Name.Contains(text, StringComparison.OrdinalIgnoreCase))
+            .Where(t => string.Equals(t.Name, text, StringComparison.OrdinalIgnoreCase))
             .OrderBy(t => t.Id.Value)
             .ToList();
+        if (matches.Count == 0)
+        {
+            matches = templates
+                .Where(t => t.Name.Contains(text, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(t => t.Id.Value)
+                .ToList();
+        }
         if (matches.Count == 1)
             return matches[0];
         candidates = matches;
@@ -156,9 +159,12 @@ public sealed class SpawnCommand(IWorld world, ICreaturePlacementService placeme
             }
             else if (numbers == 1)
             {
-                radius = float.Parse(arg, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
-                if (radius is < 1f or > MaxRadius)
+                // NaN parses as a number and fails no range test, so the range is asked of a finite value.
+                if (!float.TryParse(arg, NumberStyles.Float, CultureInfo.InvariantCulture, out radius) ||
+                    !float.IsFinite(radius) || radius is < 1f or > MaxRadius)
+                {
                     return false;
+                }
                 numbers++;
             }
             else
@@ -171,6 +177,8 @@ public sealed class SpawnCommand(IWorld world, ICreaturePlacementService placeme
         return true;
     }
 
+    // Anything that reads as a number (a sign, an exponent, NaN) is one, so it is checked as a count or a radius and
+    // never taken for part of a name.
     private static bool IsNumber(string text) =>
-        float.TryParse(text, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out _);
+        float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out _);
 }

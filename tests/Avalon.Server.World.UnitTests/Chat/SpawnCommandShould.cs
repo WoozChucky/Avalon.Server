@@ -85,6 +85,15 @@ public class SpawnCommandShould
         Assert.Equal(text == "r" ? 3 : 0, candidates.Count);
     }
 
+    [Fact]
+    public void Treat_two_templates_of_one_name_as_ambiguous()
+    {
+        CreatureTemplate[] templates = [.. Fixture.Templates, Template(12, "Thornback Boar")];
+
+        Assert.Null(SpawnCommand.Find(templates, "thornback boar", out IReadOnlyList<CreatureTemplate> candidates));
+        Assert.Equal([4ul, 12ul], candidates.Select(t => t.Id.Value));
+    }
+
     [Theory]
     [InlineData("/spawn", Usage)]
     [InlineData("/spawn 5 0", Usage)]
@@ -93,6 +102,10 @@ public class SpawnCommandShould
     [InlineData("/spawn 5 2 0.5", Usage)]
     [InlineData("/spawn 5 2 41", Usage)]
     [InlineData("/spawn 5 2 10 3", Usage)]
+    [InlineData("/spawn 5 2 NaN", Usage)]
+    [InlineData("/spawn 5 2 Infinity", Usage)]
+    [InlineData("/spawn 5 1e3", Usage)]
+    [InlineData("/spawn wolf -5", Usage)]
     [InlineData("/spawn 999", "No creature template matches '999'.")]
     [InlineData("/spawn dragon", "No creature template matches 'dragon'.")]
     [InlineData("/spawn r", "'r' matches several: 4 Thornback Boar, 5 Grey Fen Wolf, 8 Bramblemaw Alpha.")]
@@ -229,7 +242,8 @@ public class SpawnCommandShould
             })
             .Last();
 
-        private static CreatureTemplate Template(ulong id, string name) =>
-            new() { Id = new CreatureTemplateId(id), Name = name, MinLevel = 1, MaxLevel = 1 };
     }
+
+    private static CreatureTemplate Template(ulong id, string name) =>
+        new() { Id = new CreatureTemplateId(id), Name = name, MinLevel = 1, MaxLevel = 1 };
 }
