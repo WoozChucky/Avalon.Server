@@ -13,7 +13,8 @@ namespace Avalon.World.ChunkLayouts;
 /// <item>a <b>cap</b> when open exits face it (<see cref="CappedSides" />): a cap whose capped sides turn exactly onto
 /// the exits' sides, drawn by weight, avoiding any cap already placed within <see cref="CapSpacing" /> cells of it
 /// (counting diagonals) when another of that shape is not, so one set piece does not close two exits in one view (a
-/// shape with one piece repeats; where all of a shape's pieces stand that near, the nearer ones are avoided first);</item>
+/// shape with one piece repeats); where every piece of the shape stands that near, it avoids those within one cell,
+/// then those west or south of it, and repeats a piece only when every piece of the shape stands west or south of it;</item>
 /// <item>a <b>town-ward</b> piece on one of the 8 spots around the entry chunk, when the pool has them: that spot's
 /// piece, never turned;</item>
 /// <item>a <b>border</b>, drawn by weight, never the non-filler piece already west or south of it, with its front turned
@@ -136,12 +137,12 @@ public static class SceneryRing
     {
         // The pool holds a cap of every shape, so some cap always fits.
         // A cap avoids every piece within CapSpacing of it; where its shape's every piece stands that near, it avoids
-        // those nearer still, down to the cells touching it, and only then repeats a neighbour.
+        // those within one cell, then (reach 0) those west or south of it, and only then repeats a neighbour.
         List<SceneryPoolPiece> shaped = [.. caps.Where(p => Turns(p.CappedSides, sides).Count > 0)];
         List<SceneryPoolPiece> candidates = shaped;
-        for (int reach = CapSpacing; reach > 0; reach--)
+        for (int reach = CapSpacing; reach >= 0; reach--)
         {
-            List<SceneryPoolPiece> fresh = [.. shaped.Where(p => !IsNear(placed, cell, p.Name, reach))];
+            List<SceneryPoolPiece> fresh = [.. shaped.Where(p => reach > 0 ? !IsNear(placed, cell, p.Name, reach) : !IsBeside(placed, cell, p.Name))];
             if (fresh.Count > 0)
             {
                 candidates = fresh;
