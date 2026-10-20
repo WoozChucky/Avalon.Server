@@ -1617,6 +1617,22 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             Stacking = (byte)1,
                             TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 11L,
+                            BaseDamageCoefficient = 0f,
+                            DurationMs = 60000L,
+                            Icon = "fortified",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Arrival Protection",
+                            PeriodicBase = 0f,
+                            PeriodicKind = (byte)0,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
                         });
                 });
 

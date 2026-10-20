@@ -1,6 +1,8 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.World.Auras;
+using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
 using Avalon.World.Persistence;
@@ -183,6 +185,10 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
             // was alive when its return started and died before it arrived arrives alive too.
             if (revive || ch.IsDead)
                 ch.Revive();
+
+            // Grant only once the arrival has finished moving and a respawn is alive.
+            if (ch is CharacterEntity entity && townInstance is IAuraHost host)
+                ArrivalProtection.Start(entity, host.Auras);
 
             // The transition the client already handles, then the town's chunk layout, which the client builds the
             // map's geometry and portals from and bakes the same navmesh from: as every arrival sends them.

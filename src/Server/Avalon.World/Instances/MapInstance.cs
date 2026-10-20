@@ -763,6 +763,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         ObjectGuid guid = character.Guid;
 
         EndCastsOf(character);
+        try
+        {
+            ArrivalProtection.End(character);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Ending arrival protection of {CharacterGuid} as it left instance {InstanceId} failed",
+                guid, InstanceId);
+        }
 
         // Membership next. These cannot throw, and once they are gone the tick no longer updates,
         // broadcasts or periodically saves the character, whatever the hooks below do. A disconnect

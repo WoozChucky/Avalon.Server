@@ -60,6 +60,12 @@ public static class AuraRestore
         bool dropped = false;
         foreach (CharacterAura row in rows)
         {
+            if (row.AuraId == ArrivalProtectionAura.Id)
+            {
+                dropped = true;
+                continue;
+            }
+
             if (!data.Auras.TryGet(new AuraId(row.AuraId), out AuraTemplate? template))
             {
                 logger.LogWarning("Dropped the saved aura {AuraId} of character {CharacterId}: it is not loaded",

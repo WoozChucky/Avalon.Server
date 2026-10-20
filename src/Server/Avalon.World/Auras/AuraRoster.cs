@@ -30,6 +30,13 @@ namespace Avalon.World.Auras;
 /// </remarks>
 public sealed class AuraRoster
 {
+    public AuraRoster() { }
+
+    internal AuraRoster(AuraSystem system) => System = system;
+
+    /// <summary>The instance's lifecycle owner, used when a character's movement ends a held buff.</summary>
+    internal AuraSystem? System { get; }
+
     private readonly List<IUnit> _characterHolders = [];
     private readonly List<IUnit> _creatureHolders = [];
     private readonly List<IUnit> _changedCharacters = [];

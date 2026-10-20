@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
+using Avalon.World.Auras;
 using Avalon.World.Combat;
 using Avalon.World.Creatures;
 using Avalon.World.Public.Abilities;
@@ -263,7 +264,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
     public override void OnEnteredRange(ICharacter character)
     {
-        if (State is CombatState.None)
+        if (State is CombatState.None && !ArrivalProtection.IsProtected(character))
         {
             _target = character;
             _home = Creature.Position;
@@ -324,6 +325,9 @@ public class CreatureCombatScript : AiScript, IReturningHome
     /// </summary>
     private void Engage(IUnit attacker)
     {
+        if (ArrivalProtection.IsProtected(attacker))
+            return;
+
         if (!ReferenceEquals(_target, attacker))
         {
             if (_target is not null)
@@ -378,7 +382,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
         // or another mob landed the killing blow). Without this the creature keeps grinding
         // attacks against the corpse — visible client-side as repeated hit packets after
         // the death overlay shows up. Drop target + return to spawn.
-        if (_target is ICharacter targetChar && targetChar.IsDead)
+        if ((_target is ICharacter targetChar && targetChar.IsDead) || ArrivalProtection.IsProtected(_target))
         {
             GiveUpAndGoHome(_target);
             return;
@@ -756,13 +760,46 @@ public class CreatureCombatScript : AiScript, IReturningHome
         // Taunt override: while the taunt is active, the creature is locked onto the
         // taunter regardless of threat ordering. This mirrors CombatService.ApplyTaunt
         // which sets these fields and bumps threat above the current top.
-        if (Creature.TauntedBy is { } tauntedBy && _time.GetUtcNow().UtcDateTime < Creature.TauntExpiresAt)
+        if (Creature.TauntedBy is { } tauntedBy && !ArrivalProtection.IsProtected(tauntedBy)
+            && _time.GetUtcNow().UtcDateTime < Creature.TauntExpiresAt)
         {
             return tauntedBy;
         }
 
         IEncounter? encounter = Context.CombatService.GetEncounterFor(Creature);
-        return encounter?.GetTopThreat(Creature);
+        IUnit? top = encounter?.GetTopThreat(Creature);
+        if (top is null || !ArrivalProtection.IsProtected(top))
+            return top;
+
+        // The usual top-threat path stays unchanged; only a protected top requires another eligible pick.
+        IUnit? eligible = null;
+        float mostThreat = float.MinValue;
+        IReadOnlyDictionary<IUnit, float> threats = encounter!.GetThreatList(Creature);
+        // Production encounters expose their dictionary: use its struct enumerator on this per-tick path.
+        if (threats is Dictionary<IUnit, float> list)
+        {
+            foreach ((IUnit unit, float threat) in list)
+            {
+                if (threat > mostThreat && !ArrivalProtection.IsProtected(unit))
+                {
+                    eligible = unit;
+                    mostThreat = threat;
+                }
+            }
+
+            return eligible;
+        }
+
+        foreach ((IUnit unit, float threat) in threats)
+        {
+            if (threat > mostThreat && !ArrivalProtection.IsProtected(unit))
+            {
+                eligible = unit;
+                mostThreat = threat;
+            }
+        }
+
+        return eligible;
     }
 
     /// <summary>

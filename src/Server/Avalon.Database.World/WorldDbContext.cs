@@ -3230,20 +3230,22 @@ public class WorldDbContext : DbContext
             Aura(7, "Sundered", AuraKind.Harmful, 10000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
             Aura(8, "Blessed", AuraKind.Helpful, 120000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
             Aura(9, "Emboldened", AuraKind.Helpful, 120000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
-            Aura(10, "Hexed", AuraKind.Harmful, 60000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1));
+            Aura(10, "Hexed", AuraKind.Harmful, 60000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
+            Aura(ArrivalProtectionAura.Id, "Arrival Protection", AuraKind.Helpful, 60000, 0, AuraPeriodicKind.None, 0f,
+                ScalingStat.Attack, 0f, AuraStacking.Refresh, 1, icon: "fortified"));
     }
 
     /// <summary>
-    /// An aura row; its icon is its name in lower case, and no seeded aura names a script. <paramref name="baseDamage" />
+    /// An aura row; its icon defaults to its name in lower case, and no seeded aura names a script. <paramref name="baseDamage" />
     /// is its base damage coefficient, 0 unless the aura should grow with its caster's base damage.
     /// </summary>
     private static AuraTemplate Aura(uint id, string name, AuraKind kind, uint durationMs, uint tickIntervalMs,
         AuraPeriodicKind periodic, float periodicBase, ScalingStat stat, float coefficient, AuraStacking stacking,
-        uint maxStacks, float baseDamage = 0f) => new()
+        uint maxStacks, float baseDamage = 0f, string? icon = null) => new()
         {
             Id = id,
             Name = name,
-            Icon = name.ToLowerInvariant(),
+            Icon = icon ?? name.ToLowerInvariant(),
             Kind = kind,
             DurationMs = durationMs,
             TickIntervalMs = tickIntervalMs,

@@ -535,6 +535,10 @@ public partial class CharacterEntity : ICharacter
                 return;
             }
 
+            // Only actual horizontal movement ends arrival protection; grounding and turning do not.
+            if (Data.X != value.x || Data.Z != value.z)
+                ArrivalProtection.End(this);
+
             Data.X = value.x;
             Data.Y = value.y;
             Data.Z = value.z;

@@ -7,6 +7,7 @@ using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Chat;
+using Avalon.World.Auras;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Dialogue;
@@ -192,6 +193,8 @@ public class World : IWorld
         _tick?.AssertOnTick("World.SpawnInInstance");
 
         instance.AddCharacter(connection);
+        if (connection.Character is CharacterEntity arriving && instance is IAuraHost host)
+            ArrivalProtection.Start(arriving, host.Auras);
 
         // The party learns the character is online, and its members get the roster (2026-09-30). Contained: a throw
         // must not cost the character its online row below.

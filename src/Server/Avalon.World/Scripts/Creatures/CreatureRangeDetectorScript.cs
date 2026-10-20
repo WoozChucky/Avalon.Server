@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Auras;
 using Avalon.World.Creatures;
 using Avalon.World.Instances;
 using Avalon.World.Public.Characters;
@@ -156,7 +157,7 @@ public class CreatureRangeDetectorScript : AiScript
         // Don't aggro on dead characters — they're stuck in the respawn modal until they
         // click the button or force-quit, and the combat handlers already drop their
         // input/attack packets. Aggroing would just queue a kill on a corpse.
-        if (character.IsDead) return false;
+        if (character.IsDead || ArrivalProtection.IsProtected(character)) return false;
 
         if (SearchWork.Counted)
             DistanceChecks++;
