@@ -383,7 +383,7 @@ public static partial class ForestScenery
 
         // The band, one row of trees kept off the field and its fence; undergrowth off the field.
         d.BarrierBand(TreeMix.Broadleaf, s_sides, (x, z) => field.Holds(x, z, 0.4f) || OnFence(x, z, 0.5f),
-            (x, z) => field.Holds(x, z, 2.5f) || OnFence(x, z, 2f) || InCameraView(x, z, (px, pz) => OnFence(px, pz, 0.5f)), treeRows: 1, undergrowthPer100: 14f);
+            (x, z) => field.Holds(x, z, 2.5f) || OnFence(x, z, 2f) || InView(x, z, (px, pz) => OnFence(px, pz, 0.5f)), treeRows: 1, undergrowthPer100: 14f);
 
         bool Headland(float x, float z) => !field.Holds(x, z, 0.3f) && TownWardMaterial(s_townWardSeed, x, z) == "meadow";
         d.Scatter([("Bush_Common_Flowers", 2), ("Flower_3_Group", 2), ("Flower_4_Group", 1), ("Grass_Common_Tall", 3), ("Fern_1", 2)], 10,
@@ -448,10 +448,10 @@ public static partial class ForestScenery
 
         bool Feature(float x, float z, float reach) => held.Any(h => SceneryDresser.Distance(x, z, h.X, h.Z) < reach);
         TreeMix mix = dz == 0 ? TreeMix.Broadleaf : TreeMix.Mixed;
-        d.BarrierBand(mix, s_sides, (x, z) => Feature(x, z, 1.6f), (x, z) => Feature(x, z, 3.6f) || InCameraView(x, z, (px, pz) => Feature(px, pz, 2f)),
+        d.BarrierBand(mix, s_sides, (x, z) => Feature(x, z, 1.6f), (x, z) => Feature(x, z, 3.6f) || InView(x, z, (px, pz) => Feature(px, pz, 2f)),
             treeRows: dz == 0 ? 1 : 2, undergrowthPer100: dz == 0 ? 18f : SceneryDresser.BandUndergrowthPer100);
         Inner(d, mix, saplings: dz == 0 ? 3 : 2, understorey: dz == 0 ? 45 : 60, cover: 55, rocks: 3, clear: (x, z) => Feature(x, z, 1.2f),
-            treesClear: (x, z) => InCameraView(x, z, (px, pz) => Feature(px, pz, 2f)));
+            treesClear: (x, z) => InView(x, z, (px, pz) => Feature(px, pz, 2f)));
     }
 
     /// <summary>Deadfall: two fallen logs crossed, mushrooms on them, brambles grown over them.</summary>
