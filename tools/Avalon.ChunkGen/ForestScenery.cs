@@ -88,6 +88,12 @@ public static partial class ForestScenery
 
     private static readonly string[] s_mossyRocks = ["avalon_rock_mossy_1", "avalon_rock_mossy_2", "avalon_rock_mossy_3"];
 
+    /// <summary>
+    /// The largest a kit rock (<c>Rock_Medium_*</c>) is drawn among scree and torn earth: larger, its pale faces read as
+    /// dice beside the mossy stones.
+    /// </summary>
+    private const float KitScreeMaxScale = 0.26f;
+
     /// <summary>Every forest scenery piece: the eleven borders and the eight exit caps.</summary>
     public static IReadOnlyList<SceneryPiece> Pieces()
     {
@@ -766,7 +772,7 @@ public static partial class ForestScenery
             float a = d.Uniform(0f, 360f), r = d.Uniform(0.4f, 2.6f);
             (float s, float c) = Yaw.Of((int)a);
             string model = i < 6 ? d.Pick(s_scree) : d.Pick(["avalon_rock_mossy_3", "Rock_Medium_2"]);
-            float scale = i < 6 ? d.Uniform(1.4f, 2.6f) : model == "Rock_Medium_2" ? d.Uniform(0.22f, 0.35f) : d.Uniform(0.45f, 0.65f);
+            float scale = i < 6 ? d.Uniform(1.4f, 2.6f) : model == "Rock_Medium_2" ? d.Uniform(0.16f, KitScreeMaxScale) : d.Uniform(0.45f, 0.65f);
             d.TryPlace(model, hx + c * r, hz + s * r, 0.3f, scale, 0.03f);
         }
 

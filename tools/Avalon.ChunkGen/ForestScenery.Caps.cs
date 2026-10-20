@@ -296,7 +296,7 @@ public static partial class ForestScenery
             else if (roll < 0.58)
             {
                 // Kit rocks only as small scree: larger, their pale faces read as dice beside the mossy boulders.
-                float scale = d.Uniform(0.16f, 0.26f);
+                float scale = d.Uniform(0.16f, KitScreeMaxScale);
                 d.TryPlace(d.Pick(["Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3"]), x, z, 1.4f * scale, scale, 0.08f);
             }
             else
@@ -340,7 +340,10 @@ public static partial class ForestScenery
         }
         d.Scatter([("Fern_1", 5), ("Bush_Common_Flowers", 2), ("Plant_1_Big", 2), ("Grass_Wispy_Tall", 3), ("avalon_hedge_dark", 1)], 24, 0.8f, 1.2f,
             (x, z) => Heap(x, z) && free(x, z));
-        // The heap and the stones and thorn closing the edge: the floor's ferns keep off them.
+        // The heap and the stones and thorn closing the edge: the floor's ferns keep off them, and so do the band's trees
+        // (Cap passes this to BarrierBand's keepTreesClear too). Within 8.4 m of the capped edge that is the whole edge,
+        // its corners included, so the bands beside it carry no tree for their first 8.4 m either: the flank's four rows
+        // of stones and thorn run into both corners and stand there instead.
         return (x, z) => Heap(x, z) || e.Of(x, z).V < 8.4f;
     }
 
@@ -368,7 +371,8 @@ public static partial class ForestScenery
             (float s, float c) = Yaw.Of(d.Rng.Next(360));
             float r = d.Uniform(0.4f, 2.2f);
             string model = i < 5 ? d.Pick(s_scree) : d.Pick(["avalon_rock_mossy_3", "Rock_Medium_2"]);
-            float scale = i < 5 ? d.Uniform(1.4f, 2.6f) : model == "Rock_Medium_2" ? d.Uniform(0.22f, 0.35f) : d.Uniform(0.45f, 0.65f);
+            // A kit rock only as small as the rockfall's scree: larger, its pale faces read as dice.
+            float scale = i < 5 ? d.Uniform(1.4f, 2.6f) : model == "Rock_Medium_2" ? d.Uniform(0.16f, KitScreeMaxScale) : d.Uniform(0.45f, 0.65f);
             d.TryPlace(model, hx + c * r, hz + s * r, 0.3f, scale, 0.03f);
         }
 
