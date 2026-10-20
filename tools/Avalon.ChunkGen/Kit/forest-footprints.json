@@ -1,4 +1,19 @@
 {
+  "avalon_boulder_1": { "walkThrough": true, "solid": [] },
+  "avalon_boulder_2": { "walkThrough": true, "solid": [] },
+  "avalon_boulder_3": { "walkThrough": true, "solid": [] },
+  "avalon_boulder_4": { "walkThrough": true, "solid": [] },
+  "avalon_bramble_1": { "walkThrough": true, "solid": [] },
+  "avalon_bramble_2": { "walkThrough": true, "solid": [] },
+  "avalon_cliff_face_1": { "walkThrough": true, "solid": [] },
+  "avalon_cliff_face_2": { "walkThrough": true, "solid": [] },
+  "avalon_cliff_face_3": { "walkThrough": true, "solid": [] },
+  "avalon_cliff_ledge_1": { "walkThrough": true, "solid": [] },
+  "avalon_cliff_ledge_2": { "walkThrough": true, "solid": [] },
+  "avalon_creeper_1": { "walkThrough": true, "solid": [] },
+  "avalon_creeper_2": { "walkThrough": true, "solid": [] },
+  "avalon_fence_broken_1": { "walkThrough": true, "solid": [] },
+  "avalon_fence_broken_2": { "walkThrough": true, "solid": [] },
   "avalon_giant_fallen_1": { "walkThrough": true, "solid": [] },
   "avalon_giant_fallen_2": { "walkThrough": true, "solid": [] },
   "avalon_log_fallen_1": { "walkThrough": false, "solid": [
@@ -9,6 +24,9 @@
   ] },
   "avalon_path_dirt_2m": { "walkThrough": true, "solid": [] },
   "avalon_path_dirt_hub": { "walkThrough": true, "solid": [] },
+  "avalon_ravine_lip_1": { "walkThrough": true, "solid": [] },
+  "avalon_ravine_lip_2": { "walkThrough": true, "solid": [] },
+  "avalon_ravine_lip_3": { "walkThrough": true, "solid": [] },
   "avalon_rock_arch": { "walkThrough": false, "solid": [
     { "part": "leg_e", "kind": "circle", "x": 3.55, "z": -0.15, "radius": 1.35, "blockerRadius": 1.4, "top": 3.6 },
     { "part": "leg_w", "kind": "circle", "x": -3.55, "z": 0.15, "radius": 1.35, "blockerRadius": 1.4, "top": 3.6 }
@@ -32,12 +50,17 @@
     { "part": "chunk", "kind": "circle", "x": -0.85, "z": 0.3, "radius": 0.55, "blockerRadius": 0.6, "top": 0.54 },
     { "part": "slab", "kind": "circle", "x": 0, "z": -0.1, "radius": 1.35, "blockerRadius": 1.4, "top": 2.19 }
   ] },
+  "avalon_rock_mossy_1": { "walkThrough": true, "solid": [] },
+  "avalon_rock_mossy_2": { "walkThrough": true, "solid": [] },
+  "avalon_rock_mossy_3": { "walkThrough": true, "solid": [] },
   "avalon_rock_overhang": { "walkThrough": false, "solid": [
     { "part": "face_c", "kind": "circle", "x": 0.05, "z": -0.35, "radius": 1.4, "blockerRadius": 1.45, "top": 6.18 },
     { "part": "face_e", "kind": "circle", "x": 1.55, "z": 0.3, "radius": 1.25, "blockerRadius": 1.3, "top": 2.39 },
     { "part": "face_w", "kind": "circle", "x": -1.35, "z": 0.45, "radius": 1.35, "blockerRadius": 1.4, "top": 5.02 }
   ] },
   "avalon_root_plate_1": { "walkThrough": true, "solid": [] },
+  "avalon_roots_hanging_1": { "walkThrough": true, "solid": [] },
+  "avalon_roots_hanging_2": { "walkThrough": true, "solid": [] },
   "avalon_ruin_pillar_1": { "walkThrough": false, "solid": [
     { "part": "pillar", "kind": "box", "minX": -0.65, "maxX": 0.65, "minZ": -0.65, "maxZ": 0.65, "top": 1.97 }
   ] },
