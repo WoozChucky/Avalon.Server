@@ -324,17 +324,12 @@ public static class SceneryRules
     /// </summary>
     private static void CheckBarrier(SceneryPiece piece, IReadOnlyList<Footprint> footprints)
     {
-        List<Footprint> barrier = [.. footprints.Where(f => IsBarrier(f.Item.Model))];
-        int runs = (int)MathF.Round(ChunkPiece.CellSize / BarrierSpacing);
         foreach (Side side in s_sides)
         {
-            bool alongX = side is Side.N or Side.S;
-            for (int r = 0; r < runs; r++)
+            for (int r = 0; r < BarrierRuns; r++)
             {
                 float from = r * BarrierSpacing, to = from + BarrierSpacing;
-                bool held = barrier.Any(f => DistanceToEdge(side, f.Item.X, f.Item.Z) < EdgeBand
-                    && (alongX ? f.MaxX > from && f.MinX < to : f.MaxZ > from && f.MinZ < to));
-                if (!held)
+                if (!footprints.Any(f => HoldsRun(f.Item, (f.MinX, f.MaxX, f.MinZ, f.MaxZ), side, from, to)))
                 {
                     throw new InvalidOperationException(
                         $"{piece.Name}: no barrier along the {side} edge between {N(from)} and {N(to)} m: a view from the walkable edge would see through");
@@ -342,6 +337,18 @@ public static class SceneryRules
             }
         }
     }
+
+    /// <summary>The runs of <see cref="BarrierSpacing" /> metres each edge is checked in.</summary>
+    internal static int BarrierRuns => (int)MathF.Round(ChunkPiece.CellSize / BarrierSpacing);
+
+    /// <summary>
+    /// Whether the item holds the run from <paramref name="from" /> to <paramref name="to" /> metres along the side's
+    /// edge: a barrier model standing within <see cref="EdgeBand" /> of the edge whose turned box (piece-local) spans
+    /// part of the run.
+    /// </summary>
+    internal static bool HoldsRun(DecorItem item, (float MinX, float MaxX, float MinZ, float MaxZ) box, Side side, float from, float to) =>
+        IsBarrier(item.Model) && DistanceToEdge(side, item.X, item.Z) < EdgeBand
+        && (side is Side.N or Side.S ? box.MaxX > from && box.MinX < to : box.MaxZ > from && box.MinZ < to);
 
     /// <summary>No tree, kit or ancient, within <see cref="CapClearing" /> of a capped edge's midpoint, in the piece's frame.</summary>
     private static void CheckCaps(SceneryPiece piece)
@@ -367,7 +374,9 @@ public static class SceneryRules
         }
     }
 
-    /// <summary>Whether the model reads as impassable along an edge: a kit tree, undergrowth, a rock, a rim, a wall or a fence.</summary>
+    /// <summary>
+    /// Whether the model reads as impassable along an edge: a kit tree, undergrowth, a rock, a rim, a wall or a fence.
+    /// </summary>
     internal static bool IsBarrier(string model) =>
         ForestDecorRules.SpeciesOf(model) is not null || s_barrierPrefixes.Any(p => model.StartsWith(p, StringComparison.Ordinal));
 

@@ -223,7 +223,7 @@ internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadO
 
         foreach (Side side in sides)
         {
-            for (int run = 0; run < (int)MathF.Round(Cell / SceneryRules.BarrierSpacing); run++)
+            for (int run = 0; run < SceneryRules.BarrierRuns; run++)
             {
                 float from = run * SceneryRules.BarrierSpacing, to = from + SceneryRules.BarrierSpacing;
                 bool held = Holds(side, from, to);
@@ -348,21 +348,7 @@ internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadO
         return species == TreeSpecies.TwistedTree ? TreeSpecies.CommonTree : species;
     }
 
-    /// <summary>
-    /// Whether a barrier item stands within the edge band of the side with its box over part of the run, as the scenery
-    /// rules check it.
-    /// </summary>
-    private bool Holds(Side side, float from, float to)
-    {
-        bool alongX = side is Side.N or Side.S;
-        foreach (DecorItem item in Items)
-        {
-            if (!SceneryRules.IsBarrier(item.Model)) continue;
-            float edge = side switch { Side.N => Cell - item.Z, Side.E => Cell - item.X, Side.S => item.Z, _ => item.X };
-            if (edge >= SceneryRules.EdgeBand) continue;
-            (float minX, float maxX, float minZ, float maxZ) = SceneryComposer.TurnedBox(item, Box(item.Model));
-            if (alongX ? maxX > from && minX < to : maxZ > from && minZ < to) return true;
-        }
-        return false;
-    }
+    /// <summary>Whether an item holds the run of the side's edge, as the scenery rules check it.</summary>
+    private bool Holds(Side side, float from, float to) =>
+        Items.Any(item => SceneryRules.HoldsRun(item, SceneryComposer.TurnedBox(item, Box(item.Model)), side, from, to));
 }

@@ -1,4 +1,5 @@
 using Avalon.World.ChunkLayouts;
+using static Avalon.ChunkGen.SceneryShapes;
 using Outline = System.Collections.Generic.IReadOnlyList<(float X, float Z)>;
 
 namespace Avalon.ChunkGen;
@@ -68,7 +69,7 @@ public static class ForestScenery
     /// <summary>
     /// The most two face sections overlap, where their least scales make them longer than their side.
     /// </summary>
-    private const float MaxOverlap = 3f;
+    private const float MaxOverlap = 3.5f;
 
     /// <summary>
     /// A face section's foot stands this far out from the plateau's rough face, which stands this far out from the
@@ -77,7 +78,7 @@ public static class ForestScenery
     private const float FaceToWall = 2.2f, WallToTop = 0.4f;
 
     /// <summary>The scale range a cliff face section is drawn at.</summary>
-    private const float FaceMinScale = 0.85f, FaceMaxScale = 1.25f;
+    private const float FaceMinScale = 0.85f, FaceMaxScale = 1.35f;
 
     private static readonly string[] s_scree = ["Pebble_Round_1", "Pebble_Round_3", "Pebble_Round_5", "Pebble_Round_2"];
 
@@ -93,13 +94,25 @@ public static class ForestScenery
             Woods(2, kit, TreeMix.Mixed, [(2, 10.5f, 18.5f), (3, 19.5f, 10f)], WoodsOutcrop),
             Woods(3, kit, TreeMix.Pine, [(4, 10f, 9.5f), (1, 20.5f, 19f), (2, 10.5f, 20.5f)], WoodsDeadfall),
             Woods(4, kit, TreeMix.Broadleaf, [(2, 9f, 13f), (4, 20f, 18.5f)], WoodsThicket),
-            Cliffs(1, kit, 7f, TreeMix.Mixed, [(7f, 9.5f), (11.5f, 6.4f), (19.5f, 6.8f), (23.6f, 11f), (23.2f, 19.5f), (17.5f, 23.6f), (8.5f, 22f), (6.3f, 16f)], ancientOnTop: true),
-            Cliffs(2, kit, 7.8f, TreeMix.Pine, [(6.4f, 12f), (9.5f, 6.6f), (17f, 6.2f), (23.4f, 9.8f), (23.8f, 17.5f), (20f, 23.4f), (11f, 23.6f), (6.2f, 19f)], ancientOnTop: false),
+            // A long low front tier along the S edge, a higher back tier stepping up behind it.
+            Cliffs(1, kit, TreeMix.Mixed,
+                [new CliffTier([(6.4f, 7f), (23.8f, 6.4f), (23.2f, 14.6f), (6.8f, 15.2f)], 6f),
+                 new CliffTier([(6.6f, 12f), (17.5f, 11f), (22.5f, 16f), (16.5f, 23.4f), (8f, 22f)], 7.8f)],
+                ancientOnTop: true),
+            // A crag with a long S face whose top falls back to the ground on the N as an earth bank.
+            Cliffs(2, kit, TreeMix.Pine,
+                [new CliffTier([(6.3f, 8.5f), (14f, 6.4f), (23.6f, 7.6f), (22.8f, 16.8f), (12.5f, 17.8f), (6.6f, 15.5f)], 7.4f, Ramp: 3)],
+                ancientOnTop: false),
+            // A broad pit: a bay to the north-east, a spur of ground jutting in from the west, a pinch on the east.
             Ravine(1, kit, TreeMix.Old,
-                [(12.5f, 24.2f), (18.5f, 23.6f), (23.2f, 20.5f), (24.4f, 15f), (22.6f, 9.6f), (18f, 6.2f), (12f, 5.8f), (7.5f, 8.6f), (5.8f, 13.8f), (6.6f, 19.5f), (9f, 22.8f)],
-                [("DeadTree_5", 14.5f, 16f, 1.15f), ("DeadTree_2", 18.5f, 11.5f, 1.5f)]),
+                [(11.5f, 24.8f), (19f, 25.2f), (23f, 22f), (25f, 17f), (21.4f, 14.4f), (23.6f, 9.6f), (19.8f, 5.4f), (11.2f, 6.2f),
+                 (7.4f, 9f), (10.2f, 12.8f), (9.4f, 15.6f), (5.2f, 17.8f), (6f, 22.4f)],
+                [("DeadTree_5", 15.5f, 17.5f, 1.15f), ("DeadTree_2", 17f, 10f, 1.5f)]),
+            // A ragged slot running corner to corner, 4-8 m wide, both ends in the band.
             Ravine(2, kit, TreeMix.Mixed,
-                [(5.6f, 11.5f), (8.5f, 15.2f), (12f, 17f), (15.5f, 20.2f), (19.5f, 22f), (23f, 24.2f), (24.6f, 21f), (23.8f, 16.5f), (19.8f, 14.8f), (16.5f, 11.6f), (12.5f, 9.8f), (9f, 6f), (6f, 7.2f)],
+                [(5.6f, 11.5f), (7.6f, 14.6f), (9.2f, 15.4f), (11.6f, 17.6f), (14f, 17.8f), (15.8f, 20.6f), (18.6f, 21.4f), (20.2f, 23.6f),
+                 (23f, 24.2f), (24.6f, 21f), (23.6f, 17.8f), (21.2f, 16.8f), (19.6f, 14.2f), (17.4f, 13.6f), (16.2f, 11f), (13.2f, 10.4f),
+                 (11.6f, 8f), (9f, 6f), (6f, 7.2f)],
                 [("DeadTree_5", 11.5f, 12.8f, 1.05f), ("DeadTree_2", 18f, 17.8f, 1.4f)]),
             Giant(kit),
             Stream(1, kit, TreeMix.Broadleaf,
@@ -126,13 +139,17 @@ public static class ForestScenery
                 throw new InvalidOperationException($"{name}: ancient tree {variant} does not fit at ({ForestText.N(x)}, {ForestText.N(z)})");
         }
         feature(d);
-        d.BarrierBand(mix, s_sides);
+        // No band tree between an ancient trunk and the S edge (the layout, at rotation 0) or the game camera.
+        bool Trunk(float x, float z, float reach) => ancients.Any(t => SceneryDresser.Distance(x, z, t.X, t.Z) < reach);
+        d.BarrierBand(mix, s_sides, keepTreesClear: (x, z) =>
+            ancients.Any(t => SegmentDistance(x, z, (t.X, t.Z), (t.X, 0f)) < 2.2f) || InView(x, z, (px, pz) => Trunk(px, pz, 3f)));
         Inner(d, mix, saplings: 1, understorey: 80, cover: 60, rocks: 5);
         return Border(name, "woods", 3f, terrain, d, filler: true);
     }
 
     /// <summary>
-    /// A long fallen log across the middle, mushrooms on it, mossy stones in a cluster and a bramble patch.
+    /// A long fallen log across the middle, mushrooms on it, mossy stones in a cluster, a bramble patch and a boulder
+    /// under roots and a creeper.
     /// </summary>
     private static void WoodsLogAndStones(SceneryDresser d)
     {
@@ -140,6 +157,11 @@ public static class ForestScenery
         Log(d, "avalon_log_fallen_2", 19.2f, 22.4f, 152, 1.1f);
         Cluster(d, 21.5f, 20.5f, ["avalon_rock_mossy_1", "avalon_rock_mossy_2", "avalon_rock_mossy_3", "avalon_rock_mossy_2"], 2.6f, 0.8f, 1.25f);
         Cluster(d, 8f, 17f, ["avalon_bramble_2", "avalon_bramble_1", "avalon_bramble_1"], 2.2f, 0.9f, 1.15f);
+        // A mossy boulder by the stones, roots gripping over it and a creeper down its far side.
+        if (!d.TryPlace("avalon_boulder_2", 18.6f, 19f, 1.3f, 1f, 0.15f, yaw: 30))
+            throw new InvalidOperationException($"{d.Name}: the boulder does not fit at (18.6, 19)");
+        HangOver(d, "avalon_roots_hanging_1", 18.6f, 19f, 0.92f, 210, top: 1.5f - 0.25f);
+        HangOver(d, "avalon_creeper_1", 18.6f, 19f, 0.92f, 30, top: 1.5f - 0.3f);
     }
 
     /// <summary>
@@ -153,7 +175,10 @@ public static class ForestScenery
         Cluster(d, 15f, 15f, ["avalon_rock_mossy_3", "avalon_rock_mossy_1"], 1.6f, 0.8f, 1.1f);
     }
 
-    /// <summary>Two fallen logs crossed, a line of mossy stones and a dead snag among the ferns.</summary>
+    /// <summary>
+    /// Two fallen logs crossed, a line of mossy stones, a boulder under roots and a creeper, a dead snag among the
+    /// ferns.
+    /// </summary>
     private static void WoodsDeadfall(SceneryDresser d)
     {
         Log(d, "avalon_log_fallen_1", 19.5f, 9f, 115, 1.25f);
@@ -161,6 +186,11 @@ public static class ForestScenery
         for (int i = 0; i < 4; i++)
             d.TryPlace(d.Pick(["avalon_rock_mossy_1", "avalon_rock_mossy_2", "avalon_rock_mossy_3"]), 14f + i * 1.9f, 14.5f - i * 0.5f + d.Uniform(-0.4f, 0.4f), 0.8f, d.Uniform(0.75f, 1.2f), 0.05f);
         d.TryTree(TreeSpecies.DeadTree, 15.5f, 21.5f, 1.05f);
+        // A split boulder by the logs, roots gripping over it and a creeper down its face.
+        if (!d.TryPlace("avalon_boulder_3", 22.4f, 15.2f, 1.9f, 0.9f, 0.2f, yaw: 250))
+            throw new InvalidOperationException($"{d.Name}: the boulder does not fit at (22.4, 15.2)");
+        HangOver(d, "avalon_roots_hanging_1", 22.4f, 15.2f, 1.46f * 0.9f, 70, top: 2.41f * 0.9f - 0.3f);
+        HangOver(d, "avalon_creeper_1", 22.4f, 15.2f, 1.46f * 0.9f, 250, top: 2.41f * 0.9f - 0.3f);
     }
 
     /// <summary>A mossy boulder under a creeper, a thicket of brambles and dark hedges, a log.</summary>
@@ -176,38 +206,117 @@ public static class ForestScenery
 
     // ---- mossy cliffs ----
 
-    private static SceneryPiece Cliffs(int n, IReadOnlyDictionary<string, ModelBounds> kit, float height, TreeMix mix, Outline foot, bool ancientOnTop)
+    /// <summary>
+    /// One tier of a cliff plateau: its foot (convex, counter-clockwise: where its face sections stand), its top's
+    /// height, and the side (foot[Ramp] to the next corner) that falls back to the ground as an earth bank instead of a
+    /// face, if any. Tiers overlap; the ground is the highest of them.
+    /// </summary>
+    private sealed record CliffTier(Outline Foot, float Top, int? Ramp = null)
+    {
+        /// <summary>The top's edge: the foot moved in to where the face sections' turf caps end.</summary>
+        public Outline Edge { get; } = Inset(Foot, FaceToWall + WallToTop);
+
+        /// <summary>
+        /// The tier's ground at a point (0 off it) and whether that is its rock band: the top, a 1 m band falling from
+        /// it under the faces, and the earth bank behind its ramp side, falling over <see cref="RampLength" /> and
+        /// fading off over <see cref="RampFade" /> past the side's ends.
+        /// </summary>
+        public (float Height, bool Rock) Sample(float x, float z)
+        {
+            if (Inside(Edge, x, z)) return (Top, false);
+            float beyond = OutlineDistance(Edge, x, z);
+            float band = beyond < 1f ? Top * (1f - beyond) : 0f;
+            float bank = 0f;
+            if (Ramp is int k)
+            {
+                (float X, float Z) a = Edge[k], b = Edge[(k + 1) % Edge.Count];
+                float length = SceneryDresser.Distance(a.X, a.Z, b.X, b.Z);
+                float tx = (b.X - a.X) / length, tz = (b.Z - a.Z) / length;
+                float outward = (x - a.X) * tz - (z - a.Z) * tx;
+                float along = (x - a.X) * tx + (z - a.Z) * tz;
+                if (outward > 0f)
+                {
+                    float past = MathF.Max(MathF.Max(-along, along - length), 0f);
+                    bank = Top * (1f - Smooth(0f, RampLength, outward)) * (1f - Smooth(0f, RampFade, past));
+                }
+            }
+            return bank >= band ? (bank, false) : (band, band > 0.05f);
+        }
+    }
+
+    /// <summary>
+    /// How far an earth bank behind a cliff's top runs out to the ground, and how far it fades off past its side's
+    /// ends.
+    /// </summary>
+    private const float RampLength = 9f, RampFade = 3f;
+
+    /// <summary>
+    /// How much longer than its side (and its corners' reach) a single face section may be, in metres.
+    /// </summary>
+    private const float MaxOvershoot = 2f;
+
+    /// <summary>The most a face section's top stands above its tier's rim, in metres: a crag.</summary>
+    private const float MaxCrag = 0.6f;
+
+    private static SceneryPiece Cliffs(int n, IReadOnlyDictionary<string, ModelBounds> kit, TreeMix mix, CliffTier[] tiers, bool ancientOnTop)
     {
         string name = $"forest_ring_cliffs_{n:00}";
-        Convex(name, foot);
-        Outline wall = Inset(foot, FaceToWall);
-        Outline top = Inset(foot, FaceToWall + WallToTop);
+        foreach (CliffTier tier in tiers) Convex(name, tier.Foot);
         int seed = ForestDresser.StableSeed(name);
 
-        float Height(float x, float z)
+        float FootDistance(float x, float z) => tiers.Min(t => Inside(t.Foot, x, z) ? 0f : OutlineDistance(t.Foot, x, z));
+        (float Height, bool Rock) Sample(float x, float z)
         {
-            if (Inside(top, x, z)) return height;
-            float beyond = OutlineDistance(top, x, z);
-            if (beyond < 1f) return height * (1f - beyond);
-            return Relief(seed, x, z) * Smooth(FaceToWall + WallToTop + 1f, FaceToWall + WallToTop + 4f, beyond);
+            (float Height, bool Rock) best = (0f, false);
+            foreach (CliffTier tier in tiers)
+            {
+                (float h, bool rock) = tier.Sample(x, z);
+                if (h > best.Height) best = (h, rock);
+            }
+            // The woods' relief off the cliff, faded out toward its foot and under any bank.
+            float relief = Relief(seed, x, z) * Smooth(2f, 5f, FootDistance(x, z)) * (1f - Smooth(0f, 0.5f, best.Height));
+            return (best.Height + relief, best.Rock);
         }
+        float Height(float x, float z) => Sample(x, z).Height;
 
-        var terrain = new SceneryTerrain(Height, (x, z) => Height(x, z) > 0.2f && Height(x, z) < height - 0.05f ? Rock : Floor)
+        List<SceneryWall> walls = [];
+        foreach (CliffTier tier in tiers)
         {
-            Walls = [new SceneryWall(wall, Closed: true, Bottom: -0.6f, Top: height, Rock)],
-        };
+            Outline wall = Inset(tier.Foot, FaceToWall);
+            // A ramp side has no rough face: the wall runs open round the others.
+            walls.Add(tier.Ramp is int k
+                ? new SceneryWall([.. Enumerable.Range(1, wall.Count).Select(i => wall[(k + i) % wall.Count])], Closed: false, Bottom: -0.6f, Top: tier.Top, Rock)
+                : new SceneryWall(wall, Closed: true, Bottom: -0.6f, Top: tier.Top, Rock));
+        }
+        var terrain = new SceneryTerrain(Height, (x, z) => Sample(x, z).Rock ? Rock : Floor) { Walls = walls };
         var d = new SceneryDresser(name, terrain, kit);
 
-        // The face: layered sections end to end along each side of the foot, with ledges, roots and creepers.
-        for (int i = 0; i < foot.Count; i++)
-            FaceSections(d, foot[i], foot[(i + 1) % foot.Count], height);
+        // The faces: layered sections end to end along each side of each tier but a ramp, with ledges, roots and
+        // creepers; a section stands from the ground in front of it, and one a higher tier buries is left out.
+        foreach (CliffTier tier in tiers)
+        {
+            for (int i = 0; i < tier.Foot.Count; i++)
+            {
+                if (i == tier.Ramp) continue;
+                FaceSections(d, tier.Foot[i], tier.Foot[(i + 1) % tier.Foot.Count], tier.Top,
+                    (x, z) => tiers.Any(other => other.Top > tier.Top && Inside(other.Edge, x, z)));
+            }
+        }
 
-        // On top: an ancient tree or a stand of kit trees, undergrowth to the lip.
-        bool OnTop(float x, float z, float margin) => Inside(top, x, z) && OutlineDistance(top, x, z) >= margin;
-        (float cx, float cz) = Centroid(top);
+        // On top: an ancient tree on the highest tier, or a stand of kit trees, undergrowth to the lip; ferns on a bank.
+        bool Flat(float x, float z, float least)
+        {
+            float h = Height(x, z);
+            return h >= least && MathF.Abs(Height(x + 0.8f, z) - h) < 0.05f && MathF.Abs(Height(x - 0.8f, z) - h) < 0.05f
+                && MathF.Abs(Height(x, z + 0.8f) - h) < 0.05f && MathF.Abs(Height(x, z - 0.8f) - h) < 0.05f;
+        }
+        bool OnTop(float x, float z, float margin) =>
+            Flat(x, z, 1f) && tiers.Any(t => Inside(t.Edge, x, z) && OutlineDistance(t.Edge, x, z) >= margin);
+        CliffTier highest = tiers.MaxBy(t => t.Top)!;
+        (float cx, float cz) = Centroid(highest.Edge);
         if (ancientOnTop && !d.TryAncient(1 + d.Rng.Next(4), cx, cz, d.Rng.Next(360)))
             throw new InvalidOperationException($"{name}: no ancient tree fits on top at ({ForestText.N(cx)}, {ForestText.N(cz)})");
-        for (int planted = 0, attempts = 0; planted < (ancientOnTop ? 3 : 6) && attempts < 300; attempts++)
+        for (int planted = 0, attempts = 0; planted < (ancientOnTop ? 3 : 6) && attempts < 400; attempts++)
         {
             float x = d.Uniform(0f, Cell), z = d.Uniform(0f, Cell);
             if (!OnTop(x, z, 1.4f)) continue;
@@ -215,34 +324,46 @@ public static class ForestScenery
             if (species == TreeSpecies.TwistedTree) species = TreeSpecies.Pine;
             if (d.TryTree(species, x, z, d.Uniform(0.85f, 1.25f))) planted++;
         }
-        d.Understorey(ancientOnTop ? 24 : 30, (x, z) => OnTop(x, z, 0.7f), 0.7f, 1.2f);
-        d.GroundCover(20, (x, z) => OnTop(x, z, 0.4f));
+        d.Understorey(ancientOnTop ? 30 : 34, (x, z) => OnTop(x, z, 0.9f), 0.7f, 1.2f);
+        d.GroundCover(24, (x, z) => OnTop(x, z, 0.5f));
+        d.Scatter([("Fern_1", 5), ("Grass_Wispy_Tall", 3), ("Plant_1", 2), ("avalon_hedge_dark", 1)], 26, 0.8f, 1.2f,
+            (x, z) => Sample(x, z) is { Rock: false, Height: > 0.4f } && !Flat(x, z, 0f), sink: 0.15f);
 
-        // At the foot: scree of pebbles and small rocks, ferns among it.
-        for (int i = 0; i < foot.Count; i++)
-            Scree(d, foot[i], foot[(i + 1) % foot.Count]);
+        // At the foot of every face: scree of pebbles and small rocks, ferns among it, on whatever level ground is there.
+        foreach (CliffTier tier in tiers)
+        {
+            for (int i = 0; i < tier.Foot.Count; i++)
+            {
+                if (i != tier.Ramp) Scree(d, tier.Foot[i], tier.Foot[(i + 1) % tier.Foot.Count], (x, z) => Flat(x, z, -1f));
+            }
+        }
 
-        bool Off(float x, float z, float keep) => !Inside(foot, x, z) && OutlineDistance(foot, x, z) >= keep;
+        bool Off(float x, float z, float keep) => FootDistance(x, z) >= keep;
         d.BarrierBand(mix, s_sides, (x, z) => !Off(x, z, 2.8f));
-        d.Understorey(26, (x, z) => Off(x, z, 0.6f) && EdgeDistance(x, z) > 3f);
+        d.Understorey(26, (x, z) => Off(x, z, 0.6f) && EdgeDistance(x, z) > 3f && Flat(x, z, -1f));
         d.GroundCover(30, (x, z) => Off(x, z, 0.3f));
         return Border(name, "cliffs", 1f, terrain, d);
     }
 
     /// <summary>
-    /// Face sections along a side of the foot (from <paramref name="a" /> to <paramref name="b" />, the outline running
-    /// counter-clockwise so the face looks out), end to end with at least <see cref="SectionOverlap" />, reaching a
-    /// little past each corner; each scaled so its rock stands at least the plateau's height and sunk so its top meets
-    /// the plateau. The chain of sections is the one whose scales come nearest 1.
+    /// Face sections along a side of a tier's foot (from <paramref name="a" /> to <paramref name="b" />, the outline
+    /// running counter-clockwise so the face looks out), end to end with at least <see cref="SectionOverlap" />,
+    /// reaching a little past each corner. Each rises from the ground in front of it to the tier's top, its own top up
+    /// to <see cref="MaxCrag" /> above or a little below the rim so neighbouring sections' strata never run round as
+    /// one band, and is sunk so its top stands there. The chain of sections is the one whose scales come nearest 1; a
+    /// section whose foot <paramref name="buried" /> holds, or that would rise less than a metre, is left out.
     /// </summary>
-    private static void FaceSections(SceneryDresser d, (float X, float Z) a, (float X, float Z) b, float height)
+    private static void FaceSections(SceneryDresser d, (float X, float Z) a, (float X, float Z) b, float top, Func<float, float, bool> buried)
     {
         float length = SceneryDresser.Distance(a.X, a.Z, b.X, b.Z);
         (float tx, float tz) = ((b.X - a.X) / length, (b.Z - a.Z) / length);
         (float nx, float nz) = (tz, -tx);                       // outward
         int yaw = SceneryDresser.YawToward(nx, nz);
         (float ax, float az) = Yaw.Turn(1f, 0f, yaw);            // the section's own +X
-        float target = length + 0.7f;
+        float target = length + 0.3f;
+        float Base(float along) => d.Height(a.X + tx * along + nx * 1.2f, a.Z + tz * along + nz * 1.2f);
+        // The most the side's sections must rise, with room for the tallest crag above the rim.
+        float rise = Enumerable.Range(0, 9).Max(i => top - Base(length * i / 8f)) + MaxCrag / 2f;
 
         List<int> best = [];
         float bestScore = float.MaxValue, bestFactor = 1f, bestOverlap = SectionOverlap;
@@ -251,12 +372,14 @@ public static class ForestScenery
             foreach (int[] chain in Chains(k))
             {
                 // At their least scales the sections may be longer than the side: they overlap more, up to MaxOverlap.
-                float least = chain.Sum(c => s_faces[c].Length * MinFaceScale(c, height));
+                float least = chain.Sum(c => s_faces[c].Length * MinFaceScale(c, rise));
                 float overlap = k == 1 ? 0f : MathF.Max(SectionOverlap, (least - target) / (k - 1));
                 if (overlap > MaxOverlap) continue;
                 float factor = (target + overlap * (k - 1)) / least;
-                if (factor < 1f - 0.001f || chain.Any(c => MinFaceScale(c, height) * factor > FaceMaxScale)) continue;
-                float score = chain.Sum(c => MathF.Abs(MinFaceScale(c, height) * factor - 1.05f)) / k + 0.08f * k
+                // A single section a little longer than its side reaches further past the corners.
+                if (k == 1 && factor < 1f && least - target <= MaxOvershoot) factor = 1f;
+                if (factor < 1f - 0.001f || chain.Any(c => MinFaceScale(c, rise) * factor > FaceMaxScale)) continue;
+                float score = chain.Sum(c => MathF.Abs(MinFaceScale(c, rise) * factor - 1.05f)) / k + 0.08f * k
                     + 0.1f * (overlap - SectionOverlap) + 0.15f * Repeats(chain) + d.Uniform(0f, 0.12f);
                 if (score < bestScore) (best, bestScore, bestFactor, bestOverlap) = ([.. chain], score, factor, overlap);
             }
@@ -264,7 +387,7 @@ public static class ForestScenery
         if (best.Count == 0)
             throw new InvalidOperationException($"{d.Name}: no chain of face sections spans the {ForestText.N(length)} m side from ({ForestText.N(a.X)}, {ForestText.N(a.Z)})");
 
-        float[] scales = [.. best.Select(c => SceneryDresser.Round(MinFaceScale(c, height) * bestFactor))];
+        float[] scales = [.. best.Select(c => SceneryDresser.Round(MinFaceScale(c, rise) * bestFactor))];
         float total = best.Select((c, i) => s_faces[c].Length * scales[i]).Sum() - bestOverlap * (best.Count - 1);
         float cursor = (length - total) / 2f;
         for (int i = 0; i < best.Count; i++)
@@ -273,27 +396,32 @@ public static class ForestScenery
             float scale = scales[i];
             float along = cursor + sectionLength * scale / 2f;
             cursor += sectionLength * scale - bestOverlap;
-            float x = a.X + tx * along, z = a.Z + tz * along, y = height - rock * scale;
+            float x = a.X + tx * along, z = a.Z + tz * along, ground = Base(along);
+            if (buried(x, z) || top - ground < 1f) continue;
+            // Its top a little above or below the rim, never so high that its foot would show above the ground.
+            float crag = MathF.Min(d.Uniform(-0.25f, MaxCrag), rock * scale - (top - ground) - 0.1f);
+            float rim = top + crag, y = rim - rock * scale;
             if (!d.TryAddAt(model, x, y, z, yaw, scale))
                 throw new InvalidOperationException($"{d.Name}: face section {model} at ({ForestText.N(x)}, {ForestText.N(z)}) crosses the cell's edge");
 
             // A point on the face at its own (u across -1..1, h up in its metres): its plan bulges, its ends turn back, it leans back.
             (float X, float Z) OnFace(float u, float h, float back)
             {
-                float plan = bulge * (1f - u * u) - ends * MathF.Pow(Smooth(0.62f, 1f, MathF.Abs(u)), 1.4f) - lean * h / rock - back;
+                float plan = bulge * (1f - u * u) - ends * TurnBack(Smooth(0.62f, 1f, MathF.Abs(u))) - lean * h / rock - back;
                 float lx = u * sectionLength / 2f;
                 return (x + (ax * lx + nx * plan) * scale, z + (az * lx + nz * plan) * scale);
             }
 
-            // Ledges a third to two thirds up, one or two, apart.
-            int ledges = d.Rng.NextDouble() < 0.8 ? 1 + (d.Rng.NextDouble() < 0.45 ? 1 : 0) : 0;
+            // Ledges a third to two thirds down what shows of it, one or two, apart.
+            float shows = (rim - ground) / scale;
+            int ledges = shows < 2.5f ? 0 : d.Rng.NextDouble() < 0.8 ? 1 + (d.Rng.NextDouble() < 0.45 ? 1 : 0) : 0;
             float lastU = 9f;
             for (int l = 0; l < ledges; l++)
             {
                 float u = d.Uniform(-0.45f, 0.45f);
                 if (MathF.Abs(u - lastU) < 0.45f) u = -u;
                 lastU = u;
-                float h = rock * d.Uniform(0.3f, 0.68f);
+                float h = rock - shows * d.Uniform(0.32f, 0.7f);
                 (float lx, float lz) = OnFace(u, h, 0f);
                 d.TryAddAt(d.Pick(["avalon_cliff_ledge_1", "avalon_cliff_ledge_2"]), lx, y + h * scale, lz, yaw + d.Rng.Next(-6, 7), d.Uniform(0.85f, 1.1f));
             }
@@ -303,21 +431,27 @@ public static class ForestScenery
             {
                 float u = d.Uniform(-0.5f, 0.5f);
                 (float rx, float rz) = OnFace(u, rock, 0.05f);
-                d.TryAddAt("avalon_roots_hanging_1", rx, height, rz, yaw + d.Rng.Next(-10, 11), d.Uniform(0.9f, 1.15f));
+                d.TryAddAt("avalon_roots_hanging_1", rx, rim, rz, yaw + d.Rng.Next(-10, 11), d.Uniform(0.9f, 1.15f));
                 float v = u > 0f ? u - d.Uniform(0.35f, 0.6f) : u + d.Uniform(0.35f, 0.6f);
                 if (d.Rng.NextDouble() < 0.55)
                 {
                     (float cxx, float czz) = OnFace(v, rock, 0.05f);
-                    d.TryAddAt("avalon_creeper_1", cxx, height, czz, yaw + d.Rng.Next(-8, 9), d.Uniform(0.9f, 1.15f));
+                    d.TryAddAt("avalon_creeper_1", cxx, rim, czz, yaw + d.Rng.Next(-8, 9), d.Uniform(0.9f, 1.15f));
                 }
             }
         }
     }
 
     /// <summary>
-    /// The least scale a face section is drawn at for a plateau of the height: its rock reaches the top.
+    /// How far a face section's ends have turned back at a share of their reach: the strata script's t^1.4, drawn as
+    /// t^1.5 (a square root, which every machine rounds alike, where a power does not).
     /// </summary>
-    private static float MinFaceScale(int face, float height) => MathF.Max(FaceMinScale, height / s_faces[face].Height);
+    private static float TurnBack(float t) => t * MathF.Sqrt(t);
+
+    /// <summary>
+    /// The least scale a face section is drawn at to rise <paramref name="rise" /> metres: its rock spans it.
+    /// </summary>
+    private static float MinFaceScale(int face, float rise) => MathF.Max(FaceMinScale, rise / s_faces[face].Height);
 
     /// <summary>Every sequence of <paramref name="k" /> face sections.</summary>
     private static IEnumerable<int[]> Chains(int k) =>
@@ -330,7 +464,7 @@ public static class ForestScenery
     /// Scree along a side of the foot: pebbles mostly, small rocks and mossy stones, thinning out from the face; ferns
     /// and grass among it.
     /// </summary>
-    private static void Scree(SceneryDresser d, (float X, float Z) a, (float X, float Z) b)
+    private static void Scree(SceneryDresser d, (float X, float Z) a, (float X, float Z) b, Func<float, float, bool> level)
     {
         float length = SceneryDresser.Distance(a.X, a.Z, b.X, b.Z);
         (float tx, float tz) = ((b.X - a.X) / length, (b.Z - a.Z) / length);
@@ -341,6 +475,7 @@ public static class ForestScenery
             float beyond = 0.2f + 2.6f * r * r;
             float x = a.X + tx * along + nx * beyond, z = a.Z + tz * along + nz * beyond;
             double roll = d.Rng.NextDouble();
+            if (!level(x, z)) continue;
             if (roll < 0.5)
             {
                 float scale = d.Uniform(1.2f, 2.4f) * (1.2f - r * 0.5f);
@@ -388,7 +523,8 @@ public static class ForestScenery
         };
         var d = new SceneryDresser(name, terrain, kit);
 
-        // The lip all round the brink: one section a side, its void toward the ravine, a few more roots and creepers under it.
+        // The lip all round the brink, its void toward the ravine: one section a side, two on a long side at different
+        // scales, each set a little out over the drop and turned a few degrees; a few more roots and creepers under it.
         int last = -1;
         for (int i = 0; i < brink.Count; i++)
         {
@@ -396,20 +532,43 @@ public static class ForestScenery
             float length = SceneryDresser.Distance(a.X, a.Z, b.X, b.Z);
             (float tx, float tz) = ((b.X - a.X) / length, (b.Z - a.Z) / length);
             (float nx, float nz) = (tz, -tx);                    // into the ravine
-            int lip = Enumerable.Range(0, s_lips.Length).Where(l => l != last)
-                .OrderBy(l => MathF.Abs((length + SectionOverlap) / s_lips[l].Length - 1f) + d.Uniform(0f, 0.08f)).First();
-            last = lip;
-            float scale = Math.Clamp((length + SectionOverlap) / s_lips[lip].Length, 0.8f, 1.25f);
-            float mx = (a.X + b.X) / 2f, mz = (a.Z + b.Z) / 2f;
             int yaw = SceneryDresser.YawToward(nx, nz);
-            if (!d.TryAddAt(s_lips[lip].Model, mx, 0f, mz, yaw, scale))
-                throw new InvalidOperationException($"{name}: lip {s_lips[lip].Model} at ({ForestText.N(mx)}, {ForestText.N(mz)}) crosses the cell's edge");
-            d.Take(mx - nx * 0.6f, mz - nz * 0.6f, 1.4f);
+            float need = length + SectionOverlap;
+            List<(int Lip, float Scale)> chain = [];
+            if (need <= s_lips.Max(l => l.Length) * 1.1f)
+            {
+                int lip = Enumerable.Range(0, s_lips.Length).Where(l => l != last)
+                    .OrderBy(l => MathF.Abs(need / s_lips[l].Length - 1f) + d.Uniform(0f, 0.08f)).First();
+                chain.Add((lip, Math.Clamp(need / s_lips[lip].Length, 0.8f, 1.25f)));
+            }
+            else
+            {
+                int first = Enumerable.Range(0, s_lips.Length).Where(l => l != last).OrderBy(_ => d.Rng.Next()).First();
+                int second = Enumerable.Range(0, s_lips.Length).Where(l => l != first).OrderBy(_ => d.Rng.Next()).First();
+                float firstScale = d.Uniform(0.85f, 1.15f);
+                float secondScale = Math.Clamp((need + SectionOverlap - s_lips[first].Length * firstScale) / s_lips[second].Length, 0.8f, 1.25f);
+                chain.Add((first, firstScale));
+                chain.Add((second, secondScale));
+            }
+            last = chain[^1].Lip;
+            float total = chain.Sum(c => s_lips[c.Lip].Length * c.Scale) - SectionOverlap * (chain.Count - 1);
+            float cursor = (length - total) / 2f;
+            foreach ((int lip, float scale) in chain)
+            {
+                float along = cursor + s_lips[lip].Length * scale / 2f;
+                cursor += s_lips[lip].Length * scale - SectionOverlap;
+                // Out over the drop only: set back, its rock would stand behind the wall.
+                float over = d.Uniform(0f, 0.18f);
+                float mx = a.X + tx * along + nx * over, mz = a.Z + tz * along + nz * over;
+                if (!d.TryAddAt(s_lips[lip].Model, mx, 0f, mz, yaw + d.Rng.Next(-5, 6), scale))
+                    throw new InvalidOperationException($"{name}: lip {s_lips[lip].Model} at ({ForestText.N(mx)}, {ForestText.N(mz)}) crosses the cell's edge");
+                d.Take(mx - nx * 0.6f, mz - nz * 0.6f, 1.4f);
+            }
             if (d.Rng.NextDouble() < 0.45)
             {
-                float along = d.Uniform(-0.3f, 0.3f) * length;
+                float along = d.Uniform(0.2f, 0.8f) * length;
                 d.TryAddAt(d.Rng.NextDouble() < 0.6 ? "avalon_roots_hanging_2" : "avalon_creeper_2",
-                    mx + tx * along + nx * 0.8f, 0f, mz + tz * along + nz * 0.8f, yaw + d.Rng.Next(-12, 13), d.Uniform(0.9f, 1.2f));
+                    a.X + tx * along + nx * 0.8f, 0f, a.Z + tz * along + nz * 0.8f, yaw + d.Rng.Next(-12, 13), d.Uniform(0.9f, 1.2f));
             }
         }
 
@@ -434,11 +593,14 @@ public static class ForestScenery
     private static SceneryPiece Giant(IReadOnlyDictionary<string, ModelBounds> kit)
     {
         const string Name = "forest_ring_giant_01", Model = "avalon_giant_fallen_1";
-        const int GiantYaw = 135;                               // its +X, root end to crown end, runs south-west
+        // Its +X, root end to crown end, runs west, 10 degrees off the x axis: across the game camera's view (which looks
+        // north-east), as the spike laid its giants along a cell edge, so the whole trunk and the plate's face show.
+        const int GiantYaw = 170;
         const float HalfLength = 9.1f, PlateBack = 0.25f, PlateFromCentre = 6.8f;
         int seed = ForestDresser.StableSeed(Name);
         (float dx, float dz) = Yaw.Turn(1f, 0f, GiantYaw);
-        // The plate stands 6.8 m from the cell's centre along the diagonal, the giant running back across the centre.
+        // The plate stands 6.8 m east of the cell's centre (the 5.6 m plate outside the band), the giant running back
+        // across the centre; its broken crown end, at most 3.8 m tall, reaches into the west band.
         float px = 15f - dx * PlateFromCentre, pz = 15f - dz * PlateFromCentre;
         float gx = px + dx * (HalfLength + PlateBack), gz = pz + dz * (HalfLength + PlateBack);
         // The torn earth: the hole the roots left, under the plate's torn side.
@@ -469,13 +631,15 @@ public static class ForestScenery
         // Ferns and big plants crowding both flanks of the trunk, mushrooms along it.
         d.Scatter([("Fern_1", 6), ("Plant_1_Big", 2), ("Grass_Wispy_Tall", 2), ("Mushroom_Laetiporus", 1)], 36, 0.85f, 1.35f,
             (x, z) => Trunk(x, z) is > 1.9f and < 4.6f);
-        if (!d.TryAncient(3, 8.4f, 21.6f, d.Rng.Next(360)))
+        if (!d.TryAncient(3, 16.5f, 23.2f, d.Rng.Next(360)))
             throw new InvalidOperationException($"{Name}: the ancient tree does not fit");
-        d.TryTree(TreeSpecies.DeadTree, 21.5f, 8.6f, 0.9f);
-        d.TryTree(TreeSpecies.Pine, 18.6f, 7.4f, 0.95f);
-        Log(d, "avalon_log_fallen_2", 21.5f, 12.8f, 80, 0.9f);
+        d.TryTree(TreeSpecies.DeadTree, 23f, 22.5f, 0.9f);
+        d.TryTree(TreeSpecies.Pine, 7.6f, 20.4f, 0.95f);
+        Log(d, "avalon_log_fallen_2", 22f, 9.6f, 80, 0.9f);
 
-        d.BarrierBand(TreeMix.Mixed, s_sides, (x, z) => Trunk(x, z) < 3.2f || SceneryDresser.Distance(x, z, px, pz) < 4.5f);
+        // No band tree on the giant or its plate, nor between them and the game camera.
+        bool OnGiant(float x, float z) => Trunk(x, z) < 3.5f || SceneryDresser.Distance(x, z, px, pz) < 4f;
+        d.BarrierBand(TreeMix.Mixed, s_sides, (x, z) => Trunk(x, z) < 3.2f || SceneryDresser.Distance(x, z, px, pz) < 4.5f, (x, z) => InView(x, z, OnGiant));
         d.Understorey(40, (x, z) => Trunk(x, z) > 2.6f && EdgeDistance(x, z) > 3f && SceneryDresser.Distance(x, z, hx, hz) > 2.8f);
         d.GroundCover(45, (x, z) => Trunk(x, z) > 2f);
         d.MossyRocks(3, (x, z) => Trunk(x, z) > 4f && EdgeDistance(x, z) > 6f);
@@ -490,7 +654,7 @@ public static class ForestScenery
     {
         string name = $"forest_ring_stream_{n:00}";
         int seed = ForestDresser.StableSeed(name);
-        const float HalfWidth = 0.85f, Top = -0.4f, Slope = 0.012f;
+        const float HalfWidth = 1.4f, Top = -0.4f, Slope = 0.012f;
 
         // The water's level at each course point: it runs downhill from the spring.
         List<(float X, float Y, float Z)> water = [];
@@ -572,8 +736,10 @@ public static class ForestScenery
         d.Scatter([("Fern_1", 5), ("Grass_Common_Tall", 3), ("Grass_Wispy_Tall", 3), ("Plant_1", 2), ("Plant_1_Big", 1)], 46, 0.8f, 1.25f,
             (x, z) => !Wet(x, z) && MathF.Min(Bed(x, z), PoolDistance(x, z)) < HalfWidth + 3f, sink: 0.05f);
 
+        // No band tree beside the water or between it and the game camera, which looks north-east.
+        bool Water(float x, float z) => MathF.Min(Bed(x, z), PoolDistance(x, z)) < HalfWidth + 2.5f;
         d.BarrierBand(mix, s_sides, (x, z) => Wet(x, z) || MathF.Min(Bed(x, z), PoolDistance(x, z)) < HalfWidth + 2f,
-            (x, z) => MathF.Min(Bed(x, z), PoolDistance(x, z)) < HalfWidth + 4.5f);
+            (x, z) => MathF.Min(Bed(x, z), PoolDistance(x, z)) < HalfWidth + 4.5f || InView(x, z, Water));
         Inner(d, mix, saplings: ancient is null ? 2 : 0, understorey: 40, cover: 50, rocks: 3, clear: (x, z) => MathF.Min(Bed(x, z), PoolDistance(x, z)) < HalfWidth + 1.4f);
         return Border(name, "stream", 1f, terrain, d);
     }
@@ -598,6 +764,20 @@ public static class ForestScenery
         d.Understorey(understorey, (x, z) => EdgeDistance(x, z) > 3.5f && !clear(x, z));
         d.MossyRocks(rocks, (x, z) => EdgeDistance(x, z) > 5f && !clear(x, z));
         d.GroundCover(cover, (x, z) => !clear(x, z));
+    }
+
+    /// <summary>
+    /// Whether something <paramref name="feature" /> holds lies within 12 m north-east of the point: the point stands
+    /// between it and the game camera (pitch 50 degrees, looking north-east at rotation 0), where a tree would hide it.
+    /// </summary>
+    private static bool InView(float x, float z, Func<float, float, bool> feature)
+    {
+        const float Step = 1.5f / 1.41421356f;
+        for (int k = 0; k <= 8; k++)
+        {
+            if (feature(x + Step * k, z + Step * k)) return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -679,128 +859,5 @@ public static class ForestScenery
     {
         float noise = (Noise(seed, x, z, 9f) - 0.5f) * 0.7f + (Noise(seed + 1, x, z, 3.5f) - 0.5f) * 0.2f;
         return ReliefHeight / 0.45f * noise * Smooth(0.5f, 6f, EdgeDistance(x, z));
-    }
-
-    /// <summary>
-    /// Value noise 0-1 on a lattice of the cell size: hashed corners, smoothstep between them (no trigonometry, so
-    /// every machine agrees).
-    /// </summary>
-    private static float Noise(int seed, float x, float z, float size)
-    {
-        float fx = x / size, fz = z / size;
-        int ix = (int)MathF.Floor(fx), iz = (int)MathF.Floor(fz);
-        float tx = fx - ix, tz = fz - iz;
-        tx = tx * tx * (3f - 2f * tx);
-        tz = tz * tz * (3f - 2f * tz);
-        float a = Lattice(seed, ix, iz), b = Lattice(seed, ix + 1, iz), c = Lattice(seed, ix, iz + 1), e = Lattice(seed, ix + 1, iz + 1);
-        return a + (b - a) * tx + (c - a) * tz + (a - b - c + e) * tx * tz;
-    }
-
-    private static float Lattice(int seed, int x, int z)
-    {
-        uint h = unchecked((uint)seed * 0x9E3779B9u ^ (uint)x * 0x85EBCA6Bu ^ (uint)z * 0xC2B2AE35u);
-        h ^= h >> 16;
-        h = unchecked(h * 0x7FEB352Du);
-        h ^= h >> 15;
-        h = unchecked(h * 0x846CA68Bu);
-        h ^= h >> 16;
-        return (h & 0xFFFFFF) / 16777216f;
-    }
-
-    private static float Smooth(float from, float to, float value)
-    {
-        float t = Math.Clamp((value - from) / (to - from), 0f, 1f);
-        return t * t * (3f - 2f * t);
-    }
-
-    private static float EdgeDistance(float x, float z) => MathF.Min(MathF.Min(x, z), MathF.Min(Cell - x, Cell - z));
-
-    private static bool Inside(Outline outline, float x, float z)
-    {
-        bool inside = false;
-        for (int i = 0, j = outline.Count - 1; i < outline.Count; j = i++)
-        {
-            (float X, float Z) a = outline[i], b = outline[j];
-            if ((a.Z > z) != (b.Z > z) && x < (b.X - a.X) * (z - a.Z) / (b.Z - a.Z) + a.X) inside = !inside;
-        }
-        return inside;
-    }
-
-    /// <summary>Metres from the point to the closed outline's nearest side.</summary>
-    private static float OutlineDistance(Outline outline, float x, float z)
-    {
-        float least = float.MaxValue;
-        for (int i = 0; i < outline.Count; i++)
-            least = MathF.Min(least, SegmentDistance(x, z, outline[i], outline[(i + 1) % outline.Count]));
-        return least;
-    }
-
-    /// <summary>Metres from the point to the open line's nearest segment.</summary>
-    private static float PolylineDistance(Outline line, float x, float z)
-    {
-        float least = float.MaxValue;
-        for (int i = 1; i < line.Count; i++)
-            least = MathF.Min(least, SegmentDistance(x, z, line[i - 1], line[i]));
-        return least;
-    }
-
-    private static float SegmentDistance(float x, float z, (float X, float Z) a, (float X, float Z) b)
-    {
-        float vx = b.X - a.X, vz = b.Z - a.Z;
-        float t = Math.Clamp(((x - a.X) * vx + (z - a.Z) * vz) / (vx * vx + vz * vz), 0f, 1f);
-        return SceneryDresser.Distance(x, z, a.X + vx * t, a.Z + vz * t);
-    }
-
-    /// <summary>
-    /// Twice-signed area over two: positive for an outline running counter-clockwise seen from above.
-    /// </summary>
-    private static float SignedArea(Outline outline)
-    {
-        float sum = 0f;
-        for (int i = 0; i < outline.Count; i++)
-        {
-            (float X, float Z) a = outline[i], b = outline[(i + 1) % outline.Count];
-            sum += a.X * b.Z - b.X * a.Z;
-        }
-        return sum / 2f;
-    }
-
-    private static (float X, float Z) Centroid(Outline outline) => (outline.Average(p => p.X), outline.Average(p => p.Z));
-
-    /// <summary>Refuses an outline that is not convex and counter-clockwise (every turn to the left).</summary>
-    private static void Convex(string name, Outline outline)
-    {
-        for (int i = 0; i < outline.Count; i++)
-        {
-            (float X, float Z) a = outline[i], b = outline[(i + 1) % outline.Count], c = outline[(i + 2) % outline.Count];
-            if ((b.X - a.X) * (c.Z - b.Z) - (b.Z - a.Z) * (c.X - b.X) <= 0f)
-                throw new InvalidOperationException($"{name}: the cliff's foot turns right at ({ForestText.N(b.X)}, {ForestText.N(b.Z)}): it must be convex, counter-clockwise");
-        }
-    }
-
-    /// <summary>
-    /// A convex counter-clockwise outline with every side moved <paramref name="by" /> metres in, its corners where the
-    /// moved sides meet.
-    /// </summary>
-    private static Outline Inset(Outline outline, float by)
-    {
-        int count = outline.Count;
-        var lines = new (float X, float Z, float DX, float DZ)[count];
-        for (int i = 0; i < count; i++)
-        {
-            (float X, float Z) a = outline[i], b = outline[(i + 1) % count];
-            float length = SceneryDresser.Distance(a.X, a.Z, b.X, b.Z);
-            float dx = (b.X - a.X) / length, dz = (b.Z - a.Z) / length;
-            lines[i] = (a.X - dz * by, a.Z + dx * by, dx, dz);  // the left of a counter-clockwise side is inside
-        }
-        var corners = new (float X, float Z)[count];
-        for (int i = 0; i < count; i++)
-        {
-            (float px, float pz, float ux, float uz) = lines[(i + count - 1) % count];
-            (float qx, float qz, float vx, float vz) = lines[i];
-            float s = ((qx - px) * vz - (qz - pz) * vx) / (ux * vz - uz * vx);
-            corners[i] = (px + ux * s, pz + uz * s);
-        }
-        return corners;
     }
 }
