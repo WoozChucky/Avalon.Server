@@ -148,7 +148,7 @@ public class ArrivalBenchmarks
         var saver = new FinishedSaver();
         var resolver = new TownResolver(townTemplate.Id);
         _enterMap = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, saver, world);
-        _townReturn = new TownReturn(NullLogger.Instance, world, resolver);
+        _townReturn = new TownReturn(NullLogger.Instance, world, resolver, new InlineWork());
         _select = new CharacterSelectHandler(
             NullLogger<CharacterSelectHandler>.Instance,
             NullLoggerFactory.Instance,
