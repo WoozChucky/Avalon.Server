@@ -367,7 +367,8 @@ public static class SceneryRules
         }
     }
 
-    private static bool IsBarrier(string model) =>
+    /// <summary>Whether the model reads as impassable along an edge: a kit tree, undergrowth, a rock, a rim, a wall or a fence.</summary>
+    internal static bool IsBarrier(string model) =>
         ForestDecorRules.SpeciesOf(model) is not null || s_barrierPrefixes.Any(p => model.StartsWith(p, StringComparison.Ordinal));
 
     /// <summary>Metres from a piece-local position to the side's edge.</summary>

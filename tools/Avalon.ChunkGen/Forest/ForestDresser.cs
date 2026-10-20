@@ -283,6 +283,22 @@ public static class ForestDresser
         return scene.Items;
     }
 
+    /// <summary>One draw of a species from the mix's weights (one roll of <paramref name="rng" />); a caller capping twisted trees draws again.</summary>
+    internal static TreeSpecies PickSpecies(TreeMix mix, Random rng)
+    {
+        (TreeSpecies Species, int Weight)[] weights = s_mixes[mix];
+        int roll = rng.Next(weights.Sum(m => m.Weight));
+        foreach ((TreeSpecies species, int weight) in weights)
+        {
+            if (roll < weight) return species;
+            roll -= weight;
+        }
+        return weights[^1].Species;
+    }
+
+    /// <summary>One of the species' five kit models, <c>&lt;Species&gt;_&lt;1..5&gt;</c>, drawn with <paramref name="rng" />.</summary>
+    internal static string TreeModel(TreeSpecies species, Random rng) => $"{species}_{rng.Next(1, 6)}";
+
     /// <summary>FNV-1a over the name's UTF-8 bytes: a seed no runtime or machine changes (string.GetHashCode does).</summary>
     internal static int StableSeed(string name)
     {
@@ -731,7 +747,7 @@ public static class ForestDresser
             across = Round(Math.Clamp(across, near + keep, far - keep));
             (float x, float z) = alongX ? (along, across) : (across, along);
             if (_wallTrunks.Any(t => ForestPaths.Distance(x, z, t.X, t.Z) < radius + t.Radius + WallTrunkGap)) return false;
-            Items.Add(new DecorItem("", $"{species}_{rng.Next(1, 6)}", x, 0f, z, rng.Next(360), scale));
+            Items.Add(new DecorItem("", TreeModel(species, rng), x, 0f, z, rng.Next(360), scale));
             _wallTrunks.Add((x, z, radius));
             if (front && rng.NextDouble() < 0.4) Foot(x, z, radius);
             return true;
@@ -864,7 +880,7 @@ public static class ForestDresser
         private void AddTree(TreeSpecies species, float scale, float x, float z, bool round = true)
         {
             if (species == TreeSpecies.TwistedTree) _twisted++;
-            string model = $"{species}_{rng.Next(1, 6)}";
+            string model = TreeModel(species, rng);
             Items.Add(new DecorItem("", model, round ? Round(x) : x, 0f, round ? Round(z) : z, rng.Next(360), scale));
         }
 
@@ -872,19 +888,10 @@ public static class ForestDresser
 
         private TreeSpecies PickSpecies()
         {
-            (TreeSpecies Species, int Weight)[] mix = s_mixes[frame.Hints.Trees];
             while (true)
             {
-                int roll = rng.Next(mix.Sum(m => m.Weight));
-                foreach ((TreeSpecies species, int weight) in mix)
-                {
-                    if (roll < weight)
-                    {
-                        if (species != TreeSpecies.TwistedTree || _twisted < MaxTwistedTrees) return species;
-                        break;
-                    }
-                    roll -= weight;
-                }
+                TreeSpecies species = ForestDresser.PickSpecies(frame.Hints.Trees, rng);
+                if (species != TreeSpecies.TwistedTree || _twisted < MaxTwistedTrees) return species;
             }
         }
 
