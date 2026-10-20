@@ -51,14 +51,15 @@ public sealed class ScenarioReferenceData
     private readonly Lazy<(MapTemplate Template, ChunkLayout Layout)> _town;
 
     private ScenarioReferenceData(SqliteConnection keepAlive, ServiceProvider repositories, StaticData data,
-        IScriptManager scripts, IChunkLibrary chunks, MapTemplate forestTemplate, ProceduralMapConfig forestConfig,
-        TimeSpan loadTime)
+        IScriptManager scripts, IChunkLibrary chunks, ISceneryCatalog scenery, MapTemplate forestTemplate,
+        ProceduralMapConfig forestConfig, TimeSpan loadTime)
     {
         _keepAlive = keepAlive;
         _repositories = repositories;
         Data = data;
         Scripts = scripts;
         Chunks = chunks;
+        Scenery = scenery;
         ForestTemplate = forestTemplate;
         ForestConfig = forestConfig;
         LoadTime = loadTime;
@@ -76,6 +77,12 @@ public sealed class ScenarioReferenceData
 
     /// <summary>The chunk templates, pools and set pieces of the committed <c>Maps/</c> catalog.</summary>
     public IChunkLibrary Chunks { get; }
+
+    /// <summary>
+    /// Every map's scenery ring file under the committed <c>Maps/Scenery/</c>, read as the World server reads it at
+    /// start-up (<see cref="SceneryCatalog.Load" />): the forest's pool its layouts are ringed from.
+    /// </summary>
+    public ISceneryCatalog Scenery { get; }
 
     /// <summary>The forest's map template row.</summary>
     public MapTemplate ForestTemplate { get; }
@@ -166,6 +173,8 @@ public sealed class ScenarioReferenceData
         var chunks = new ChunkLibrary(NullLoggerFactory.Instance, repositories.GetRequiredService<IServiceScopeFactory>());
         chunks.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
 
+        var scenery = SceneryCatalog.Load(TownNavmesh.ContentRoot);
+
         MapTemplate forestTemplate = repositories.GetRequiredService<IMapTemplateRepository>().FindByIdAsync(ForestMap)
                                          .GetAwaiter().GetResult()
                                      ?? throw new InvalidOperationException($"The seed has no map template {ForestMap.Value}");
@@ -194,7 +203,7 @@ public sealed class ScenarioReferenceData
                 "draws from Random.Shared: a forest scenario would no longer be deterministic. Seed that roll first.");
         }
 
-        return new ScenarioReferenceData(keepAlive, repositories, data, scripts, chunks, forestTemplate, forestConfig,
+        return new ScenarioReferenceData(keepAlive, repositories, data, scripts, chunks, scenery, forestTemplate, forestConfig,
             Stopwatch.GetElapsedTime(start));
     }
 

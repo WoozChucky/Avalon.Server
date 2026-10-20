@@ -20,6 +20,13 @@ public class CommittedForestGenerationShould
     private static readonly Lazy<(ProceduralMapConfig Config, List<ChunkPoolMember> Pool, List<ChunkGroupDefinition> Groups)> s_forest =
         new(Load, isThreadSafe: true);
 
+    /// <summary>The forest's committed scenery pool (Maps/Scenery/2.json), read as the World server's catalog reads it.</summary>
+    private static readonly Lazy<SceneryPool> s_scenery = new(() =>
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "Maps", "Scenery", "2.json");
+        return SceneryFile.Read(File.ReadAllText(path), path).Pool ?? throw new InvalidDataException($"{path} holds no pool");
+    }, isThreadSafe: true);
+
     private static ProceduralMapConfig ForestConfig() => s_forest.Value.Config;
 
     private static (ProceduralMapConfig, List<ChunkPoolMember>, List<ChunkGroupDefinition>) Load()
@@ -159,9 +166,10 @@ public class CommittedForestGenerationShould
     }
 
     /// <summary>
-    /// Review Focus 2 and 5 (#1110): every committed layout gets one scenery piece on each ring cell and none on its own
-    /// cells, a cap of the right shape at every cell an open exit faces and no cap elsewhere, the town-ward scene on the
-    /// spots around the entry, no non-filler border beside itself, and the same ring every time from the same layout.
+    /// Review Focus 2 and 5 (#1110): every committed layout, ringed from the committed pool, gets one scenery piece on
+    /// each ring cell and none on its own cells, a cap of the right shape at every cell an open exit faces and no cap
+    /// elsewhere, the town-ward scene on the spots around the entry, no non-filler border beside itself, and the same
+    /// ring every time from the same layout.
     /// </summary>
     [Fact]
     public void Ring_every_committed_layout_and_cap_every_open_exit()
@@ -172,7 +180,7 @@ public class CommittedForestGenerationShould
             .DistinctBy(t => t.Id)
             .ToDictionary(t => t.Id, t => t.Exits);
         ushort ExitsOf(ChunkTemplateId id) => exits[id];
-        SceneryPool pool = SceneryTestPool.Pool;
+        SceneryPool pool = s_scenery.Value;
         var pieces = pool.Pieces.ToDictionary(p => p.Name, StringComparer.Ordinal);
         var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
         int caps = 0;
@@ -241,7 +249,7 @@ public class CommittedForestGenerationShould
 
     /// <summary>
     /// #1110: the scenery ring is drawn, never walked, so the navmesh bake must not see it: a layout bakes from the same
-    /// combined obj whether or not it carries its ring.
+    /// combined obj whether or not it carries its ring (from the committed pool).
     /// </summary>
     [Fact]
     public void Compose_one_bake_input_whether_or_not_the_layout_carries_its_ring()
@@ -254,7 +262,7 @@ public class CommittedForestGenerationShould
         IChunkLibrary library = Substitute.For<IChunkLibrary>();
         library.GetById(Arg.Any<ChunkTemplateId>()).Returns(call => templates[call.Arg<ChunkTemplateId>()]);
         ChunkLayout layout = new ProceduralLayoutGenerator(NullLoggerFactory.Instance).Generate(config, chunkPool, 71, groups);
-        IReadOnlyList<SceneryPlacement> ring = SceneryRing.Build(layout, id => templates[id].Exits, SceneryTestPool.Pool);
+        IReadOnlyList<SceneryPlacement> ring = SceneryRing.Build(layout, id => templates[id].Exits, s_scenery.Value);
         var builder = ChunkLayoutNavmeshBuilder.ForTesting(NullLoggerFactory.Instance, library, AppContext.BaseDirectory);
 
         Assert.NotEmpty(ring);

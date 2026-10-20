@@ -26,6 +26,9 @@ namespace Avalon.ChunkGen;
 /// stub and ends under an obstacle covering the whole edge band (a rockfall, a giant trunk across it, a thicket, or a
 /// ravine's brink where it breaks off), with no tree within 10 m of the midpoint; one cap of each obstacle with its S
 /// side capped, and caps for two adjacent, two opposite, three and four capped sides.
+/// The town-ward pieces fill the eight spots round the entry chunk, never turned: one scene in world metres cut into a
+/// piece per spot (ForestScenery.TownWard.cs), the road from the town ending at a low wall behind the portal, field
+/// edges either side of it, the woods' fringe with deadfall and thorn toward the entry's corners.
 /// Every piece is composed by hand around a few fixed points and dressed from its own random stream (its name's seed),
 /// so a rerun writes the same files.
 /// </summary>
@@ -94,7 +97,7 @@ public static partial class ForestScenery
     /// </summary>
     private const float KitScreeMaxScale = 0.26f;
 
-    /// <summary>Every forest scenery piece: the eleven borders and the eight exit caps.</summary>
+    /// <summary>Every forest scenery piece: the eleven borders, the eight exit caps and the eight town-ward pieces.</summary>
     public static IReadOnlyList<SceneryPiece> Pieces()
     {
         IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
@@ -147,6 +150,8 @@ public static partial class ForestScenery
             Cap("forest_cap_four_01", "cap", kit, TreeMix.Mixed,
                 [new(Side.S, Obstacle.Rockfall), new(Side.N, Obstacle.Trunk), new(Side.E, Obstacle.Brink, s_capGorge), new(Side.W, Obstacle.Thicket)],
                 [(4, 15f, 15f)], 0),
+            // The town-ward scene round the entry chunk, one piece per spot.
+            .. TownWard(kit),
         ];
     }
 
@@ -898,7 +903,8 @@ public static partial class ForestScenery
     /// <summary>
     /// The floor inside the band: a few kit saplings or snags of the mix (kept under any ancient crown), the darker
     /// understorey, mossy stones and ground cover, none where <paramref name="clear" /> holds, and no sapling where
-    /// <paramref name="treesClear" /> does (a feature's line to the camera).
+    /// <paramref name="treesClear" /> does (a feature's line to the camera). Measured from the dresser's origin, so a
+    /// cell of a world scene is dressed alike.
     /// </summary>
     private static void Inner(
         SceneryDresser d, TreeMix mix, int saplings, int understorey, int cover, int rocks, Func<float, float, bool>? clear = null,
@@ -908,14 +914,14 @@ public static partial class ForestScenery
         treesClear ??= static (_, _) => false;
         for (int planted = 0, attempts = 0; planted < saplings && attempts < 200; attempts++)
         {
-            float x = d.Uniform(7f, 23f), z = d.Uniform(7f, 23f);
+            float x = d.Origin.X + d.Uniform(7f, 23f), z = d.Origin.Z + d.Uniform(7f, 23f);
             if (clear(x, z) || treesClear(x, z)) continue;
             TreeSpecies species = ForestDresser.PickSpecies(mix, d.Rng);
             if (species == TreeSpecies.TwistedTree) species = TreeSpecies.DeadTree;
             if (d.TryTree(species, x, z, d.Uniform(0.85f, 1.15f))) planted++;
         }
-        d.Understorey(understorey, (x, z) => EdgeDistance(x, z) > 3.5f && !clear(x, z));
-        d.MossyRocks(rocks, (x, z) => EdgeDistance(x, z) > 5f && !clear(x, z));
+        d.Understorey(understorey, (x, z) => EdgeDistance(x - d.Origin.X, z - d.Origin.Z) > 3.5f && !clear(x, z));
+        d.MossyRocks(rocks, (x, z) => EdgeDistance(x - d.Origin.X, z - d.Origin.Z) > 5f && !clear(x, z));
         d.GroundCover(cover, (x, z) => !clear(x, z));
     }
 

@@ -36,7 +36,11 @@ public class ForestPiecesShould
 
     public static IEnumerable<object[]> Groups() => ForestPieces.Groups().Select(g => new object[] { g.Name });
 
-    /// <summary>The files the tool's run writes (ChunkFiles.For over the singles and the set pieces, as ChunkGenCli calls it).</summary>
+    /// <summary>
+    /// The files the tool's run writes (ChunkFiles.For over the singles and the set pieces, and ChunkFiles.ForestScenery
+    /// over the scenery pieces, as ChunkGenCli calls them): each chunk's, each scenery piece's terrain and decor, and the
+    /// forest's ring file.
+    /// </summary>
     [Fact]
     public void Match_the_committed_files()
     {
@@ -46,6 +50,14 @@ public class ForestPiecesShould
             Assert.Equal(json, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".json"))));
             Assert.Equal(decor, Lf(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json"))));
         }
+
+        SceneryFiles scenery = ChunkFiles.ForestScenery(ForestScenery.Pieces());
+        foreach ((string name, string obj, string decor) in scenery.Pieces)
+        {
+            Assert.Equal(obj, Lf(File.ReadAllText(Path.Combine(Maps, "Scenery", name + ".obj"))));
+            Assert.Equal(decor, Lf(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json"))));
+        }
+        Assert.Equal(scenery.Ring, Lf(File.ReadAllText(Path.Combine(Maps, "Scenery", $"{ForestScenery.MapId}.json"))));
     }
 
     /// <summary>

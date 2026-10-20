@@ -1,12 +1,13 @@
 namespace Avalon.ChunkGen;
 
 /// <summary>
-/// Dresses one scenery piece in piece-local metres (0-30 on x and z): the items so far, the spots they take, the
-/// ancient crowns overhead and the random draws. Scenery has no blockers, so it shares the forest dresser's tree mixes,
+/// Dresses one scenery piece in piece-local metres (0-30 on x and z), or one cell of a scene composed in world metres
+/// (its <see cref="Origin" /> the cell's corner, SceneryComposer cutting the scene): the items so far, the spots they
+/// take, the ancient crowns overhead and the random draws. Scenery has no blockers, so it shares the forest dresser's tree mixes,
 /// models, seed (<see cref="ForestDresser.StableSeed" /> of the piece's name) and yaw table, not its blocker-driven
 /// scene. Every item stands on the terrain (its height at the item's position, less a sink) and inside its cell: an
-/// item whose turned and scaled kit box would cross the cell's edge is refused silently, so a caller tries another spot
-/// or scale. Positions are rounded to the centimetre and scales to 0.01, as the forest's decor is, so a rerun on any
+/// item whose turned and scaled kit box would cross the cell's edge, or that stands outside the dresser's cell, is
+/// refused silently, so a caller tries another spot or scale. Positions are rounded to the centimetre and scales to 0.01, as the forest's decor is, so a rerun on any
 /// machine writes the same file.
 /// </summary>
 internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadOnlyDictionary<string, ModelBounds> kit)
@@ -78,6 +79,14 @@ internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadO
     /// <summary>The piece's name, in refusals.</summary>
     public string Name { get; } = name;
 
+    /// <summary>
+    /// The cell's south-west corner in the terrain's metres: (0, 0) for a piece dressed in piece-local metres, the
+    /// cell's corner (cell x * 30, cell z * 30) in a scene composed in world metres. Every position the dresser takes
+    /// and gives, and every predicate it calls, is in the terrain's metres; the band, the scatters and the barrier
+    /// check measure from this corner.
+    /// </summary>
+    public (float X, float Z) Origin { get; init; }
+
     /// <summary>The piece's random draws, seeded from its name.</summary>
     public Random Rng { get; } = new(ForestDresser.StableSeed(name));
 
@@ -109,14 +118,16 @@ internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadO
     }
 
     /// <summary>
-    /// The item at a given y (on a ledge, a lip or a face), unless its box would cross the cell's edge.
+    /// The item at a given y (on a ledge, a lip or a face), unless it stands outside the dresser's cell or its box would
+    /// cross the cell's edge.
     /// </summary>
     public bool TryAddAt(string model, float x, float y, float z, int yaw, float scale, string? kit = null)
     {
         ModelBounds box = Box(model);
         kit ??= box.Kit == FileKit ? null : box.Kit;
         var item = new DecorItem("", model, Round(x), Round(y), Round(z), Yaw.Normal(yaw), Round(scale), kit);
-        if (!SceneryComposer.FitsInCell(item, _bounds)) return false;
+        float lx = item.X - Origin.X, lz = item.Z - Origin.Z;
+        if (lx < 0f || lx >= Cell || lz < 0f || lz >= Cell || !SceneryComposer.FitsInCell(item, _bounds)) return false;
         Items.Add(item);
         return true;
     }
@@ -184,20 +195,23 @@ internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadO
     /// without a barrier item (SceneryRules.IsBarrier) within the band, a fern, a dark hedge or a bramble. Nothing
     /// stands where <paramref name="keepClear" /> holds, and no tree where <paramref name="keepTreesClear" /> does (a
     /// feature the trees would hide or crowd); a run that cannot be filled is refused (InvalidOperationException), as
-    /// the scenery rules would refuse the piece.
+    /// the scenery rules would refuse the piece. Thinner woods (the town-ward scene's south) pass one
+    /// <paramref name="treeRows" /> or none, and less <paramref name="undergrowthPer100" />.
     /// </summary>
-    public void BarrierBand(TreeMix mix, IReadOnlyList<Side> sides, Func<float, float, bool>? keepClear = null, Func<float, float, bool>? keepTreesClear = null)
+    public void BarrierBand(
+        TreeMix mix, IReadOnlyList<Side> sides, Func<float, float, bool>? keepClear = null, Func<float, float, bool>? keepTreesClear = null,
+        int treeRows = 2, float undergrowthPer100 = BandUndergrowthPer100)
     {
         keepClear ??= static (_, _) => false;
         keepTreesClear ??= static (_, _) => false;
         foreach (Side side in sides)
         {
-            for (int row = 0; row < 2; row++)
+            for (int row = 0; row < treeRows; row++)
             {
                 for (float along = 2.6f + row * 3.6f + Uniform(0f, 2f); along < Cell - 2.6f; along += Uniform(BandTreeMinSpacing, BandTreeMaxSpacing))
                 {
                     float depth = row == 0 ? Uniform(TrunkFrom, 4.7f) : Uniform(5f, TrunkTo);
-                    (float x, float z) = Local(side, along, depth);
+                    (float x, float z) = At(side, along, depth);
                     if (keepClear(x, z) || keepTreesClear(x, z)) continue;
                     TreeSpecies species = BandSpecies(mix);
                     float max = species == TreeSpecies.DeadTree ? Math.Min(BandTreeMaxScale, ForestDresser.WallDeadTreeMaxScale) : BandTreeMaxScale;
@@ -210,11 +224,11 @@ internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadO
             }
         }
 
-        int count = (int)MathF.Round(sides.Count * Cell * (UndergrowthTo - UndergrowthFrom) / 100f * BandUndergrowthPer100);
+        int count = (int)MathF.Round(sides.Count * Cell * (UndergrowthTo - UndergrowthFrom) / 100f * undergrowthPer100);
         for (int placed = 0, attempts = 0; placed < count && attempts < count * 30; attempts++)
         {
             Side side = sides[Rng.Next(sides.Count)];
-            (float x, float z) = Local(side, Uniform(0.4f, Cell - 0.4f), Uniform(UndergrowthFrom, UndergrowthTo));
+            (float x, float z) = At(side, Uniform(0.4f, Cell - 0.4f), Uniform(UndergrowthFrom, UndergrowthTo));
             if (keepClear(x, z)) continue;
             string model = PickWeighted(s_bandUndergrowth);
             float scale = Uniform(0.85f, 1.35f);
@@ -229,7 +243,7 @@ internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadO
                 bool held = Holds(side, from, to);
                 for (int attempt = 0; !held && attempt < 80; attempt++)
                 {
-                    (float x, float z) = Local(side, Uniform(from + 0.3f, to - 0.3f), Uniform(0.8f, 4.5f));
+                    (float x, float z) = At(side, Uniform(from + 0.3f, to - 0.3f), Uniform(0.8f, 4.5f));
                     if (!keepClear(x, z)) held = TryAdd(s_gapFill[Rng.Next(s_gapFill.Length)], x, z, Rng.Next(360), Uniform(0.8f, 1.1f));
                 }
                 if (!held)
@@ -272,7 +286,7 @@ internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadO
         int placed = 0;
         for (int attempts = 0; placed < count && attempts < count * 40; attempts++)
         {
-            float x = Uniform(0.3f, Cell - 0.3f), z = Uniform(0.3f, Cell - 0.3f);
+            float x = Origin.X + Uniform(0.3f, Cell - 0.3f), z = Origin.Z + Uniform(0.3f, Cell - 0.3f);
             if (!where(x, z)) continue;
             string model = PickWeighted(models);
             float scale = Uniform(minScale, maxScale);
@@ -334,6 +348,13 @@ internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadO
         _ => (depth, along),
     };
 
+    /// <summary><see cref="Local" />'s point in the terrain's metres: moved to this dresser's <see cref="Origin" />.</summary>
+    public (float X, float Z) At(Side side, float along, float depth)
+    {
+        (float x, float z) = Local(side, along, depth);
+        return (Origin.X + x, Origin.Z + z);
+    }
+
     public static float Distance(float x0, float z0, float x1, float z1) => MathF.Sqrt((x1 - x0) * (x1 - x0) + (z1 - z0) * (z1 - z0));
 
     public static float Round(float value, float step = 0.01f) => MathF.Round(value / step) * step;
@@ -348,7 +369,8 @@ internal sealed class SceneryDresser(string name, SceneryTerrain terrain, IReadO
         return species == TreeSpecies.TwistedTree ? TreeSpecies.CommonTree : species;
     }
 
-    /// <summary>Whether an item holds the run of the side's edge, as the scenery rules check it.</summary>
+    /// <summary>Whether an item holds the run of the side's edge, as the scenery rules check it (in the piece's metres).</summary>
     private bool Holds(Side side, float from, float to) =>
-        Items.Any(item => SceneryRules.HoldsRun(item, SceneryComposer.TurnedBox(item, Box(item.Model)), side, from, to));
+        Items.Select(item => item with { X = item.X - Origin.X, Z = item.Z - Origin.Z })
+            .Any(item => SceneryRules.HoldsRun(item, SceneryComposer.TurnedBox(item, Box(item.Model)), side, from, to));
 }
