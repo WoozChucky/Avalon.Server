@@ -35,7 +35,7 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
                            │
                            ▼
                 Client: SChunkLayoutPacket
- (seed, instanceId, cellSize, chunks[], entrySpawn, portals[], mapId, obstacles[], scenery[])
+ (seed, instanceId, cellSize, chunks[], entrySpawn, portals[], mapId, obstacles[], scenery[], sceneryNames[])
                            │
                            ▼
        Client: MapCompositionSystem (draws the vendored chunk meshes and decor + markers)
@@ -677,8 +677,8 @@ fences, field walls, hay bales, haystacks and a scarecrow. A decor item's kit is
 models). `fantasy-props-megakit-standard`, the props kit, is no decor kit: its models are drawn as doodads.
 `DecorItem.Check` refuses an item whose kit (its own, else the file's where the caller passes it: the scenery rules,
 the forest's decor rules and `TownBuilding.Place` do; a town square's own check, which also sees its doodad-drawn
-props-kit models, does not) is not a decor kit or does not hold its model, as the bounds table records each model's
-kit.
+props-kit models, does not) is not a decor kit or does not hold its model, as the bounds table records each
+model's kit.
 
 ChunkGen writes one for every generated square (`"items": []` when it has none) and every generated forest piece,
 staged and checked with the chunks and written only when they are, items sorted by model, then x, z, y, yaw and
@@ -759,14 +759,13 @@ props kit for `--props-kit`, the nature kit for `--nature-kit` and `--forest-pro
 the scenery ring's models: the town ring's fields, yards and landmarks in `--props`, the forest ring's ancient trees,
 cliff and ravine sections, boulders, brambles and fallen giants in `--forest-props`. The vertices are read from each
 POSITION accessor's buffer, not from the accessor's min and max, which some kit exports leave stale: the nature kit's
-`Fern_1` and `Plant_1_Big` state boxes up to three times their
-meshes. With `--forest-props` it also copies that directory's `footprints.json` (the solid parts each custom
-forest model is measured with in Blender) into `tools/Avalon.ChunkGen/Kit/forest-footprints.json`, which the forest
-dresser and its rules read. A model in two of the directories, an empty directory, a file it cannot measure, or a
-footprints file that does not list exactly the models beside it leaves both tables as they were. The committed table
-is measured from the village kit's `glTF`, `avalon-art\town-kit\gltf`, the props kit's `Exports\glTF`,
-`avalon-art\forest-kit\kit` (the nature kit's `glTF`, its colour textures darkened for the forest) and
-`avalon-art\forest-kit\gltf`.
+`Fern_1` and `Plant_1_Big` state boxes up to three times their meshes. With `--forest-props` it also copies that
+directory's `footprints.json` (the solid parts each custom forest model is measured with in Blender) into
+`tools/Avalon.ChunkGen/Kit/forest-footprints.json`, which the forest dresser and its rules read. A model in two of the
+directories, an empty directory, a file it cannot measure, or a footprints file that does not list exactly the models
+beside it leaves both tables as they were. The committed table is measured from the village kit's `glTF`,
+`avalon-art\town-kit\gltf`, the props kit's `Exports\glTF`, `avalon-art\forest-kit\kit` (the nature kit's `glTF`, its
+colour textures darkened for the forest) and `avalon-art\forest-kit\gltf`.
 
 ## Scenery ring
 

@@ -18,8 +18,9 @@ public enum SceneryKind
 /// One piece of a map's scenery pool. <paramref name="Front" /> is used by borders (the side turned toward the layout),
 /// <paramref name="CappedSides" /> by caps (a <see cref="ScenerySides" /> mask in the piece's own frame),
 /// <paramref name="Filler" /> by borders (a filler may repeat beside itself) and <paramref name="SpotX" />/
-/// <paramref name="SpotZ" /> by town-ward pieces (the spot's offset from the entry chunk); a kind's unused fields are
-/// 0 or false. <paramref name="Weight" /> is the draw weight of a border or a cap.
+/// <paramref name="SpotZ" /> by town-ward pieces (the spot's offset from the entry chunk). The pool neither reads nor
+/// checks a kind's unused fields (SceneryFile.Read leaves them 0, false or N). <paramref name="Weight" /> is the draw
+/// weight of a border or a cap.
 /// </summary>
 public sealed record SceneryPoolPiece(
     string Name,

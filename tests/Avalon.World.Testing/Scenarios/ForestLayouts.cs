@@ -10,9 +10,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Avalon.World.Testing.Scenarios;
 
 /// <summary>
-/// One seed's forest: its layout as the procedural source generates it (its scenery ring included), the solid doodads' boxes its doodad plan cuts
-/// out (none when it plans no solid doodad), the navmesh baked from the layout with those boxes, and how long the bake
-/// took.
+/// One seed's forest: its layout as the procedural source generates it (its scenery ring included), the solid
+/// doodads' boxes its doodad plan cuts out (none when it plans no solid doodad), the navmesh baked from the layout with
+/// those boxes, and how long the bake took.
 /// </summary>
 public sealed record ForestLayout(int Seed, ChunkLayout Layout, IReadOnlyList<DoodadObstacle> Obstacles, DtNavMesh NavMesh,
     TimeSpan BakeTime);

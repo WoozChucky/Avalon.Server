@@ -6,8 +6,8 @@ namespace Avalon.ChunkGen;
 /// <summary>
 /// The drawn ground of a scenery piece, never walkable: a heightfield (<paramref name="Height" />, y at an (x, z) in
 /// metres) sampled every <see cref="Step" /> over the 30 x 30 m cell, each triangle wearing the
-/// <paramref name="Material" /> at its centroid, plus rough rock faces (<see cref="Walls" />) and water, mist and dirt
-/// drawn over the ground (<see cref="Surfaces" />). A cliff or a ravine is the heightfield's own slope behind the face
+/// <paramref name="Material" /> at its centroid, plus rough rock faces (<see cref="Walls" />) and water, mist, dirt and
+/// forest floor drawn over the ground (<see cref="Surfaces" />). A cliff or a ravine is the heightfield's own slope behind the face
 /// (a band one Step wide) with a wall over it: no hole is cut in the heightfield. The functions take piece-local
 /// metres, or world metres in a scene the composer cuts (SceneryComposer).
 /// </summary>
@@ -25,7 +25,7 @@ public sealed record SceneryTerrain(Func<float, float, float> Height, Func<float
     /// <summary>The rough rock faces, none unless listed.</summary>
     public IReadOnlyList<SceneryWall> Walls { get; init; } = [];
 
-    /// <summary>The water, the mist and the dirt drawn over the ground, none unless listed.</summary>
+    /// <summary>The water, the mist, the dirt and the forest floor drawn over the ground, none unless listed.</summary>
     public IReadOnlyList<ScenerySurface> Surfaces { get; init; } = [];
 }
 
@@ -153,8 +153,9 @@ public sealed record SceneryWall(IReadOnlyList<(float X, float Z)> Outline, bool
 }
 
 /// <summary>
-/// Water, mist or a road's dirt drawn over the ground: convex polygons (<see cref="Strip" />, or the cut of one by SceneryComposer) or
-/// an area of 0.5 m grid squares whose centres a test holds (<see cref="Area" />). The obj format the client reads
+/// Water, mist, a road's dirt or forest floor (the town ring's fringe under its tree line) drawn over the ground:
+/// convex polygons (<see cref="Strip" />, or the cut of one by SceneryComposer) or an area of 0.5 m grid squares whose
+/// centres a test holds (<see cref="Area" />). The obj format the client reads
 /// carries no flow, so water's flow is its slope: a flowing surface slopes down along its flow by at least
 /// <see cref="MinFlowSlope" />, and a still one (an area) is flat.
 /// </summary>

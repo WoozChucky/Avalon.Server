@@ -56,8 +56,9 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// <para>
 /// The instances are real: the town in the layout the World server builds from <c>Maps/TownLayouts/1.json</c> (four
 /// chunks, its portal to the forest and its scenery ring) and a forest generated on <see cref="ForestSeed" /> by the
-/// World server's own generator, ringed from the committed pool. Every row here arrives in an instance others have arrived in before; <see cref="FirstArrivalBenchmarks" />
-/// arrives in one nobody has entered, which is every entry of a character's own forest outside its re-entry window.
+/// World server's own generator, ringed from the committed pool. Every row here arrives in an instance others have
+/// arrived in before; <see cref="FirstArrivalBenchmarks" /> arrives in one nobody has entered, which is every entry of
+/// a character's own forest outside its re-entry window.
 /// </para>
 /// <para>
 /// Everything around the handlers is hand-written and holds its answers, so a row is the handler and what it sends:
