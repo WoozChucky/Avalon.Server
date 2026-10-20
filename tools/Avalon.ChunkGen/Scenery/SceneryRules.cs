@@ -145,16 +145,18 @@ public static class SceneryRules
             ground ??= GroundHeights(piece, cells);
             foreach (IReadOnlyList<(float X, float Y, float Z)> polygon in surface.Within(0f, 0f, ChunkPiece.CellSize, ChunkPiece.CellSize))
             {
+                // In grid units (SceneryTerrain.Step to one), where the ground's vertices lie on whole numbers.
+                const float S = SceneryTerrain.Step;
                 for (int k = 1; k + 1 < polygon.Count; k++)
                 {
                     (float X, float Y, float Z) a = polygon[0], b = polygon[k], c = polygon[k + 1];
-                    foreach ((float x, float y, float z) in Samples(a, b, c))
+                    foreach ((float x, float y, float z) in Samples((a.X / S, a.Y, a.Z / S), (b.X / S, b.Y, b.Z / S), (c.X / S, c.Y, c.Z / S)))
                     {
                         float under = GroundAt(ground, cells, x, z) - y;
                         if (under > OverlayTolerance)
                         {
                             throw new InvalidOperationException(
-                                $"{piece.Name}: its {surface.Material} surface at ({N(x)}, {N(z)}) lies {N(under)} m under the ground: it would not show");
+                                $"{piece.Name}: its {surface.Material} surface at ({N(x * S)}, {N(z * S)}) lies {N(under)} m under the ground: it would not show");
                         }
                     }
                 }
@@ -176,10 +178,13 @@ public static class SceneryRules
         return heights;
     }
 
-    /// <summary>The drawn ground's height at a piece-local point: its quad's triangle, split along (x0, z0)-(x1, z1).</summary>
-    private static float GroundAt(float[,] heights, int cells, float x, float z)
+    /// <summary>
+    /// The drawn ground's height at a piece-local point in grid units: its quad's triangle, split along (x0, z0)-(x1, z1).
+    /// </summary>
+    private static float GroundAt(float[,] heights, int cells, float gx, float gz)
     {
-        float gx = Math.Clamp(x / SceneryTerrain.Step, 0f, cells), gz = Math.Clamp(z / SceneryTerrain.Step, 0f, cells);
+        gx = Math.Clamp(gx, 0f, cells);
+        gz = Math.Clamp(gz, 0f, cells);
         int i = Math.Min((int)MathF.Floor(gx), cells - 1), j = Math.Min((int)MathF.Floor(gz), cells - 1);
         float fx = gx - i, fz = gz - j;
         float h00 = heights[i, j], h10 = heights[i + 1, j], h01 = heights[i, j + 1], h11 = heights[i + 1, j + 1];
@@ -187,8 +192,9 @@ public static class SceneryRules
     }
 
     /// <summary>
-    /// The points of a surface triangle where its height over the ground can be least: its corners, its edges' crossings
-    /// of the ground's grid lines, and the grid's vertices inside it, each with the triangle's height there.
+    /// The points of a surface triangle (x and z in grid units) where its height over the ground can be least: its
+    /// corners, its edges' crossings of the ground's grid lines (x, z and x - z whole), and the grid's vertices inside
+    /// it, each with the triangle's height there.
     /// </summary>
     private static IEnumerable<(float X, float Y, float Z)> Samples((float X, float Y, float Z) a, (float X, float Y, float Z) b, (float X, float Y, float Z) c)
     {

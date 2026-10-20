@@ -45,7 +45,7 @@ public static partial class TownScenery
             Course = Spline(s_stream, 1f);
             _roads =
             [
-                Spline(s_road, 1f), Spline(s_laneSouth, 1f), Spline([(14f, LaneZ), (BridgeX - 6f, LaneZ)], 1f), Spline(s_millTrack, 1f),
+                Spline(s_road, 1f), Spline(s_laneSouth, 1f), Spline(s_laneWest, 1f), Spline(s_millTrack, 1f),
                 Spline(s_millYard, 1f),
             ];
             _roadHalf = [2f, 1.5f, 1.5f, 1.1f, 1.3f];
@@ -153,6 +153,9 @@ public static partial class TownScenery
 
         public bool InField(float x, float z, float margin) => s_fields.Any(f => f.Holds(x, z, margin));
 
+        /// <summary>Whether the point lies in the stream's pool, or within the margin of its shore.</summary>
+        public bool InPool(float x, float z, float margin) => SceneryDresser.Distance(x, z, PoolX, PoolZ) < PoolRadius + margin;
+
         public bool InGarden(float x, float z, float margin) => Gardens.Any(g => Within(x, z, g.MinX, g.MaxX, g.MinZ, g.MaxZ, margin));
 
         /// <summary>Whether the point lies on a garden's bed or on the cabbage bed beside cottage_low, or within the margin of one.</summary>
@@ -203,8 +206,11 @@ public static partial class TownScenery
             return h - 9f * (1f - Smooth(0.2f, 6f, MathF.Min(x, z) - RingMin));
         }
 
-        /// <summary>How much of the terraces' stepping the land takes at a point: 1 over most of x 93-120, z -27 to 54.</summary>
-        private static float Terrace(float x, float z) => Smooth(88f, 93f, x) * Smooth(62f, 54f, z) * Smooth(-31f, -27f, z);
+        /// <summary>
+        /// How much of the terraces' stepping the land takes at a point: 1 over x 93-120, z -23 to 54, fading out before
+        /// the land falls away at the south edge (z -24).
+        /// </summary>
+        private static float Terrace(float x, float z) => Smooth(88f, 93f, x) * Smooth(62f, 54f, z) * Smooth(-26f, -23f, z);
 
         /// <summary>
         /// Where the terraces' riser <paramref name="k" /> starts at z: about every 7 m east of x 95, on a whole metre,
@@ -217,7 +223,7 @@ public static partial class TownScenery
         /// <summary>Whether the point lies on a terrace's riser, where the stepped land wears rock.</summary>
         private static bool OnRiser(float x, float z)
         {
-            if (Terrace(x, z) < 0.6f) return false;
+            if (Terrace(x, z) < 0.6f || z < TerraceSouth - 0.5f || z > TerraceNorth + 0.5f) return false;
             for (int k = 0; k < Risers; k++)
             {
                 if (x >= RiserX(k, z) && x < RiserX(k, z) + 1f) return true;
@@ -319,9 +325,9 @@ public static partial class TownScenery
         /// <summary>
         /// The strip along the line from <paramref name="from" /> to <paramref name="to" /> metres to its left (negative:
         /// its right), laid <paramref name="lift" /> over the drawn ground: each of the strip's quads (two triangles where
-        /// a bend folds it) cut out of the ground's own 1 m triangles (SceneryObjWriter's, split along (x0, z0)-(x1, z1)),
-        /// each piece on its triangle's plane raised by the lift, so no part of it ever dips under the ground
-        /// (SceneryRules checks it).
+        /// a bend folds it) cut out of the ground's own triangles (SceneryObjWriter's, a SceneryTerrain.Step grid split
+        /// along (x0, z0)-(x1, z1)), each piece on its triangle's plane raised by the lift, so no part of it ever dips
+        /// under the ground (SceneryRules checks it).
         /// </summary>
         private void Band(List<Polygon> polygons, IReadOnlyList<(float X, float Z)> line, float from, float to, float lift)
         {
@@ -361,23 +367,27 @@ public static partial class TownScenery
             }
             if (MathF.Abs(area) < 1e-4f) return;
             float sign = MathF.Sign(area);
-            int x0 = (int)MathF.Floor(outline.Min(p => p.X)), x1 = (int)MathF.Ceiling(outline.Max(p => p.X));
-            int z0 = (int)MathF.Floor(outline.Min(p => p.Z)), z1 = (int)MathF.Ceiling(outline.Max(p => p.Z));
+            // The ground's grid, every SceneryTerrain.Step on world multiples of it: a cell's corner (a multiple of 30 m)
+            // lies on it, so it is the grid SceneryObjWriter writes in every piece.
+            const float S = SceneryTerrain.Step;
+            int x0 = (int)MathF.Floor(outline.Min(p => p.X) / S), x1 = (int)MathF.Ceiling(outline.Max(p => p.X) / S);
+            int z0 = (int)MathF.Floor(outline.Min(p => p.Z) / S), z1 = (int)MathF.Ceiling(outline.Max(p => p.Z) / S);
             for (int i = x0; i < x1; i++)
             {
                 for (int j = z0; j < z1; j++)
                 {
                     float h00 = GridHeight(i, j), h10 = GridHeight(i + 1, j), h01 = GridHeight(i, j + 1), h11 = GridHeight(i + 1, j + 1);
+                    float ax = i * S, az = j * S, bx = (i + 1) * S, bz = (j + 1) * S;
                     // The quad's two triangles: (x0z0, x1z1, x1z0) where x - x0 >= z - z0, (x0z0, x0z1, x1z1) where it is less.
                     foreach (bool lower in new[] { true, false })
                     {
-                        List<(float X, float Z)> piece = lower ? [(i, j), (i + 1, j), (i + 1, j + 1)] : [(i, j), (i + 1, j + 1), (i, j + 1)];
+                        List<(float X, float Z)> piece = lower ? [(ax, az), (bx, az), (bx, bz)] : [(ax, az), (bx, bz), (ax, bz)];
                         for (int e = 0; e < outline.Length && piece.Count >= 3; e++)
                             piece = Clip(piece, outline[e], outline[(e + 1) % outline.Length], sign);
                         if (piece.Count < 3) continue;
                         polygons.Add([.. piece.Select(p =>
                         {
-                            float fx = p.X - i, fz = p.Z - j;
+                            float fx = (p.X - ax) / S, fz = (p.Z - az) / S;
                             float y = lower ? h00 + fx * (h10 - h00) + fz * (h11 - h10) : h00 + fz * (h01 - h00) + fx * (h11 - h01);
                             return (p.X, y + lift, p.Z);
                         })]);
@@ -386,10 +396,10 @@ public static partial class TownScenery
             }
         }
 
-        /// <summary>The ground's height at a whole-metre world point, as SceneryObjWriter writes the vertex there.</summary>
-        private float GridHeight(int x, int z)
+        /// <summary>The ground's height at grid vertex (i, j), world (i * Step, j * Step), as SceneryObjWriter writes it.</summary>
+        private float GridHeight(int i, int j)
         {
-            if (!_grid.TryGetValue((x, z), out float h)) _grid[(x, z)] = h = Height(x, z);
+            if (!_grid.TryGetValue((i, j), out float h)) _grid[(i, j)] = h = Height(i * SceneryTerrain.Step, j * SceneryTerrain.Step);
             return h;
         }
 

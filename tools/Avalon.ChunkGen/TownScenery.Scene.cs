@@ -94,12 +94,13 @@ public static partial class TownScenery
 
         /// <summary>
         /// A kit tree of the species (one of <paramref name="models" />, else one of its five) at an open spot, from the kit
-        /// given, its trunk's spot taken. Near a cell's edge a crown's box, turned, may cross it at one yaw and not at
-        /// another: each of a few tries draws the model and the yaw again.
+        /// given, its trunk's spot taken with <paramref name="clearance" /> round it (less in a clump). Near a cell's
+        /// edge a crown's box, turned, may cross it at one yaw and not at another: each of a few tries draws the model
+        /// and the yaw again.
         /// </summary>
-        public bool Tree(TreeSpecies species, float x, float z, float scale, string kit, IReadOnlyList<string>? models = null)
+        public bool Tree(TreeSpecies species, float x, float z, float scale, string kit, IReadOnlyList<string>? models = null, float clearance = 1f)
         {
-            float radius = ForestDresser.TrunkRadius(species) * scale + 1f;
+            float radius = ForestDresser.TrunkRadius(species) * scale + clearance;
             for (int attempt = 0; attempt < 6; attempt++)
             {
                 string model = models is null ? ForestDresser.TreeModel(species, Rng) : Pick(models);
