@@ -69,23 +69,15 @@ public class MapArrivalShould
         _townTemplate = Described(_reference.TownTemplate, "Where every character enters the world");
         _forestTemplate = Described(_reference.ForestTemplate, "Beyond the town's portal");
 
-        // The town as the World server builds it, and two forests off its own generator: real layouts, with their
-        // rotations, set pieces and portals, and a scenery ring of their own (negative cells and turned pieces).
-        _town = Instance(_reference.TownLayout with
-        {
-            EntrySpawnWorldPos = new Vector3(14f, 0.5f, 17f),
-            Scenery = [new("town_ring_m1_3", -1, 3, 0), new("town_ring_2_m1", 2, -1, 3)],
-        }, _townTemplate.Id, MapType.Town);
-        _forest = Instance(Forest(seed: 1) with
-        {
-            EntrySpawnWorldPos = new Vector3(11f, 0.25f, 19f),
-            Scenery = [new("t_woods_1", -1, 0, 1), new("t_cap_s", 0, 5, 2)],
-        }, _forestTemplate.Id, MapType.Normal);
-        _partyForest = Instance(Forest(seed: 2) with
-        {
-            EntrySpawnWorldPos = new Vector3(9f, 0.75f, 21f),
-            Scenery = [new("t_woods_1", -1, 0, 1), new("t_cap_s", 0, 5, 2)],
-        }, _forestTemplate.Id, MapType.Normal, new PartyId(9));
+        // The town as the World server builds it, and two forests off its own generator and the committed scenery
+        // pool: real layouts, with their rotations, set pieces and portals, and their real scenery rings (negative
+        // cells, turned pieces and, in a forest, pieces used more than once).
+        _town = Instance(_reference.TownLayout with { EntrySpawnWorldPos = new Vector3(14f, 0.5f, 17f) },
+            _townTemplate.Id, MapType.Town);
+        _forest = Instance(Forest(seed: 1) with { EntrySpawnWorldPos = new Vector3(11f, 0.25f, 19f) },
+            _forestTemplate.Id, MapType.Normal);
+        _partyForest = Instance(Forest(seed: 2) with { EntrySpawnWorldPos = new Vector3(9f, 0.75f, 21f) },
+            _forestTemplate.Id, MapType.Normal, new PartyId(9));
 
         IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
         foreach (MapInstance instance in new[] { _town, _forest, _partyForest })
@@ -166,14 +158,21 @@ public class MapArrivalShould
 
     /// <summary>
     /// The layout's packet, written here from the layout itself: the seed, the instance, the map, the cell size, an
-    /// entry per chunk with the name the chunk library gives it, the entry spawn, an entry per portal and one per
-    /// scenery piece.
+    /// entry per chunk with the name the chunk library gives it, the entry spawn, an entry per portal, one per scenery
+    /// piece, and the ring's piece names, each once, in the order the ring first uses them, which the pieces index.
     /// </summary>
     private byte[] Encoded(MapInstance instance)
     {
         ChunkLayout layout = instance.Layout;
         Assert.True(layout.Chunks.Count > 1 && layout.Portals.Count > 0 && layout.Scenery.Count > 1,
             "a layout with several chunks, a portal and a scenery ring");
+
+        var names = new List<string>();
+        foreach (SceneryPlacement piece in layout.Scenery)
+        {
+            if (!names.Contains(piece.Name))
+                names.Add(piece.Name);
+        }
 
         var message = new SChunkLayoutPacket
         {
@@ -199,13 +198,34 @@ public class MapArrivalShould
             }).ToList(),
             Scenery = layout.Scenery.Select(s => new SceneryPlacementDto
             {
-                Name = s.Name,
+                NameIndex = (uint)names.IndexOf(s.Name),
                 GridX = (short)s.GridX,
                 GridZ = (short)s.GridZ,
                 Rotation = (byte)s.Rotation,
             }).ToList(),
+            SceneryNames = names,
         };
 
+        // A ring cell is often at -1, and a chunk's may be negative too: zigzag writes each coordinate near the origin
+        // in its tag and one byte, where a plain int32 writes a negative one in eleven.
+        Assert.Contains(message.Scenery, s => s.GridX < 0 || s.GridZ < 0);
+        Assert.All(message.Chunks, c => Assert.Equal(CoordinateBytes(c.GridX, c.GridZ), Encode(c).Length
+            - Encode(new PlacedChunkDto
+            {
+                ChunkTemplateId = c.ChunkTemplateId,
+                ChunkName = c.ChunkName,
+                Rotation = c.Rotation,
+            }).Length));
+        Assert.All(message.Scenery, s => Assert.Equal(CoordinateBytes(s.GridX, s.GridZ), Encode(s).Length
+            - Encode(new SceneryPlacementDto { NameIndex = s.NameIndex, Rotation = s.Rotation }).Length));
+
+        return Encode(message);
+    }
+
+    private static int CoordinateBytes(int gridX, int gridZ) => (gridX == 0 ? 0 : 2) + (gridZ == 0 ? 0 : 2);
+
+    private static byte[] Encode<T>(T message)
+    {
         using var stream = new MemoryStream();
         Serializer.Serialize(stream, message);
         return stream.ToArray();
@@ -326,8 +346,10 @@ public class MapArrivalShould
     private ChunkLayout Forest(int seed)
     {
         ProceduralMapConfig config = _reference.ForestConfig;
-        return new ProceduralLayoutGenerator(NullLoggerFactory.Instance).Generate(config,
+        ChunkLayout generated = new ProceduralLayoutGenerator(NullLoggerFactory.Instance).Generate(config,
             _reference.Chunks.GetByPool(config.ChunkPoolId), seed, _reference.Chunks.GetGroupsByPool(config.ChunkPoolId));
+        SceneryPool pool = _reference.Scenery.PoolFor(ScenarioReferenceData.ForestMap.Value)!;
+        return generated with { Scenery = SceneryRing.Build(generated, id => _reference.Chunks.GetById(id).Exits, pool) };
     }
 
     /// <summary>

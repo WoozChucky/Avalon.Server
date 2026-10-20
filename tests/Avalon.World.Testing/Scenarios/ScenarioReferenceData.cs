@@ -80,7 +80,8 @@ public sealed class ScenarioReferenceData
 
     /// <summary>
     /// Every map's scenery ring file under the committed <c>Maps/Scenery/</c>, read as the World server reads it at
-    /// start-up (<see cref="SceneryCatalog.Load" />): the forest's pool its layouts are ringed from.
+    /// start-up (<see cref="SceneryCatalog.Load" />): the town's fixed ring and the forest's pool its layouts are ringed
+    /// from.
     /// </summary>
     public ISceneryCatalog Scenery { get; }
 
@@ -95,9 +96,9 @@ public sealed class ScenarioReferenceData
 
     /// <summary>
     /// The town's layout as the World server builds it: <see cref="PredefinedChunkLayoutSource" /> over the placement
-    /// rows seeded from <c>Maps/TownLayouts/1.json</c>, so its four chunks under the ids and names of the catalog, and
-    /// its portal to the forest. Built on first use (thread-safe): no scenario reads it; a scenario's town instance
-    /// is <see cref="TownNavmesh.Layout" />, which leaves the portal out.
+    /// rows seeded from <c>Maps/TownLayouts/1.json</c>, so its four chunks under the ids and names of the catalog, its
+    /// portal to the forest and its scenery ring from <see cref="Scenery" />. Built on first use (thread-safe): no
+    /// scenario reads it; a scenario's town instance is <see cref="TownNavmesh.Layout" />, which leaves the portal out.
     /// </summary>
     public ChunkLayout TownLayout => _town.Value.Layout;
 
@@ -119,7 +120,7 @@ public sealed class ScenarioReferenceData
                                    .GetAwaiter().GetResult()
                                ?? throw new InvalidOperationException($"The seed has no map template {TownMap.Value}");
         ChunkLayout layout = PredefinedChunkLayoutSource
-            .ForTesting(_repositories.GetRequiredService<IMapChunkPlacementRepository>(), Chunks)
+            .ForTesting(_repositories.GetRequiredService<IMapChunkPlacementRepository>(), Chunks, Scenery)
             .BuildAsync(template, CancellationToken.None).GetAwaiter().GetResult();
         return (template, layout);
     }

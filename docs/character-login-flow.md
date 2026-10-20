@@ -224,7 +224,7 @@ Sent immediately after the character entity is built and spawned. Contains:
 | `MapId`            | `character.Map`                         |
 | `InstanceId`       | See [Instance ID section](#instance-id) |
 
-Immediately after `SCharacterSelectedPacket`, in the same continuation, the server sends `SChunkLayoutPacket` carrying the chunk layout (chunks, entry spawn, cell size, portal placements, the solid doodads' obstacle boxes and the scenery ring's placements, field 9, which the client draws and never bakes). A client must be ready for it as soon as it sends `CMSG_CHARACTER_SELECTED`, since it can arrive while the client is still loading the scene; the client composes the map and bakes its navmesh from it. See **[Map Generation](map-generation.md)** for the full layout pipeline.
+Immediately after `SCharacterSelectedPacket`, in the same continuation, the server sends `SChunkLayoutPacket` carrying the chunk layout (chunks, entry spawn, cell size, portal placements, the solid doodads' obstacle boxes and the scenery ring's placements and piece names, fields 9 and 10, which the client draws and never bakes). A client must be ready for it as soon as it sends `CMSG_CHARACTER_SELECTED`, since it can arrive while the client is still loading the scene; the client composes the map and bakes its navmesh from it. See **[Map Generation](map-generation.md)** for the full layout pipeline.
 
 Selecting a character does not put it in the world. The entity is held out of its instance until
 the client sends `CMSG_CHARACTER_LOADED`, or until the wait expires. See

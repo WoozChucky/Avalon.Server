@@ -141,7 +141,7 @@ and it reads only the asking character's and its party's lists, never every inst
 | `_corpseRemover` | Removes corpses after their `BodyRemoveTimer`; creatures never respawn |
 | `MapNavigator _navigator` | Single combined navmesh for the whole instance, baked from the chunk layout |
 | `ChunkLayout Layout` | Authoritative layout (chunks, entry spawn, portals, obstacle boxes, scenery ring) sent to clients via `SChunkLayoutPacket` |
-| `MapLayoutEntries LayoutEntries` | `Layout` as that packet carries it: an entry per chunk, with its name, per portal, per solid doodad's box and per scenery piece. Built in the constructor, never changed (see "What an arrival is sent") |
+| `MapLayoutEntries LayoutEntries` | `Layout` as that packet carries it: an entry per chunk, with its name, per portal, per solid doodad's box and per scenery piece, and the ring's piece names, each once. Built in the constructor, never changed (see "What an arrival is sent") |
 
 ### Update Loop
 
@@ -470,7 +470,7 @@ Steps 2 to 6 are PortalChecks.Check, which the portal's menu (CMSG_INSTANCE_LIST
        MapInstance
 11. Send SMapTransitionPacket(Success, instanceId, mapId, spawn, map name and description)
 12. Send SChunkLayoutPacket for the new instance (seed, cell size, chunks, entry spawn, portals,
-       obstacle boxes, scenery ring)
+       obstacle boxes, scenery ring and its piece names)
        when the target is a MapInstance, in the same continuation as 9 and 11: the instance
        sends its loot snapshot on its next tick, and the client has to know the map first
     11 and 12 are MapArrival.Send, the one place every arrival's packets are sent from (below)

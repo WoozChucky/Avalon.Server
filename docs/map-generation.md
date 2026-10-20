@@ -60,7 +60,7 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `src/Server/Avalon.World/Maps/Navigation/MapNavigator.cs` | DotRecast queries (`RaycastWalkable`, `SampleGroundHeight`) |
 | `src/Server/Avalon.World/Maps/Navigation/NavmeshBuildSettings.cs` | Single source of truth for DotRecast bake constants |
 | `src/Server/Avalon.World/Respawn/MapArrival.cs` | Sends `SChunkLayoutPacket` behind every arrival: a character select (`CharacterSelectHandler`), a portal entry (`EnterMapHandler`), a return to town and an item's teleport. Its chunk, portal, obstacle and scenery entries are built with the instance, off the tick (`MapLayoutEntries`) |
-| `src/Shared/Avalon.Network.Packets/World/SChunkLayoutPacket.cs` | Wire format (field 9, `SceneryPlacementDto`, the scenery ring) |
+| `src/Shared/Avalon.Network.Packets/World/SChunkLayoutPacket.cs` | Wire format (fields 9 and 10, `SceneryPlacementDto` and the piece names: the scenery ring) |
 | `src/Server/Avalon.World.Generation/SceneryRing.cs`, `SceneryPool.cs`, `SceneryFile.cs`, `SceneryPlacement.cs` | The scenery ring: its cells and the forest's ring built per layout (`SceneryRing`), the validated pool, the ring file reader, a placement (see "Scenery ring") |
 | `src/Server/Avalon.World/ChunkLayouts/SceneryCatalog.cs` | Reads every map's ring file once at start-up; the layout sources read it |
 | `src/Shared/Avalon.Domain/World/ChunkTemplate.cs` | DB entity for chunk metadata |
@@ -555,7 +555,7 @@ navmesh, and the client is sent its box to bake the same wall (see [doodads](doo
   nothing stands there, and the fallback never draws from it, since it draws only polygons connected to the entry's.
 - **The wire.** `SChunkLayoutPacket.Obstacles` (field 8, `DoodadObstacleDto` with fields 1-6: `MinX`, `MaxX`, `MinZ`,
   `MaxZ`, `BaseY`, `TopY`) carries the boxes in the same order; `MapLayoutEntries` builds the list once, with the
-  instance. The scenery ring follows it in field 9 (see "Scenery ring"). Today's client decodes the boxes
+  instance. The scenery ring follows it in fields 9 and 10 (see "Scenery ring"). Today's client decodes the boxes
   (`gamenet/src/session/SessionMap.cpp`) and bakes them after its chunks (`game/src/ChunkGeometry.cpp`).
 - **The client mirror.** A client bakes the boxes after its chunks, with exactly these vertices and faces, or its mesh
   and the server's differ around the doodad. `schema/vectors/navmesh-v1.txt` pins it: its `obstacle <minX> <maxX> <minZ>
@@ -985,20 +985,30 @@ creatures and doodads, or its navmesh changes with its ring. `CommittedForestGen
 input (`ChunkLayoutNavmeshBuilder.ComposeCombinedObj`) for a committed layout with its ring and without it and finds
 the two identical.
 
-`SChunkLayoutPacket.Scenery` (field 9) carries the ring, a repeated `SceneryPlacementDto` with fields 1-4: `Name`
-(string), `GridX` and `GridZ` (`short`, `int32` on the wire: a ring cell may be negative) and `Rotation` (`byte`,
-quarter turns 0-3). `MapLayoutEntries` builds the list once, with the instance, beside the chunk, portal and obstacle
-entries, so an arrival costs the tick nothing more than writing one entry per ring cell. The scenario allocation gate
-runs forest layouts that carry their ring (`ForestLayouts` in `tests/Avalon.World.Testing` builds them as the source
-does).
+`SChunkLayoutPacket.Scenery` (field 9) carries the ring, a repeated `SceneryPlacementDto` with fields 1-4:
+`NameIndex` (`uint32`, the piece's index into field 10), `GridX` and `GridZ` (`short`, `sint32` on the wire) and
+`Rotation` (`byte`, quarter turns 0-3). `SChunkLayoutPacket.SceneryNames` (field 10, repeated string) names each piece
+the ring uses once, in the order the placements first use it, so a forest's border pieces, repeated round the ring, cost
+a byte or two each rather than their name. A ring cell lies outside the map's own cells and is often at -1, so the cell
+is zigzag-encoded: a coordinate within 63 of the origin costs its tag and one byte either side of it, where a plain
+`int32` writes a negative one in eleven; the chunks' `PlacedChunkDto.GridX` and `GridZ` (fields 2 and 3) are `sint32`
+for the same reason, since a forest's chunk cells may be negative too. A forest's ring adds 642-1,213 bytes to its
+arrival (929 on average over seeds 1-500), the town's 21 pieces 479. `MapLayoutEntries` builds both lists once, with
+the instance, beside the chunk, portal and obstacle entries, so an arrival costs the tick nothing more than writing
+one entry per ring cell and one name per piece. `MapArrivalShould` sends the town's and two forests' real rings and
+pins each coordinate's two bytes. The scenario allocation gate runs forest layouts that carry their ring
+(`ForestLayouts` in `tests/Avalon.World.Testing` builds them as the source does), and `ArrivalBenchmarks` the town's
+(`ScenarioReferenceData.TownLayout`, built with the scenery catalog).
 
 ### The client's half
 
 A client draws each placement as it draws a chunk: the piece's `Scenery/<name>.obj` drawn by material and its
 `Decor/<name>.json` drawn from the kits, both placed in the cell `(GridX * 30, 0, GridZ * 30)` and turned about the
 cell's centre with `chunkLocalToWorld`. It never bakes them: its navmesh, like the server's, is the chunks and the
-obstacle boxes alone. Today's client (`C:\dev\vulkan-multithreaded`, `origin/main` at `631ef5e5`) does not know field
-9 yet, skips it as an unknown field and draws no ring; the client issue covers decoding it, vendoring
+obstacle boxes alone. Today's client (`C:\dev\vulkan-multithreaded`, `origin/main` at `631ef5e5`) does not know fields
+9 and 10 yet, skips them as unknown fields and draws no ring; it also still reads a chunk's `GridX` and `GridZ` as
+`int32`, so it places a chunk at a cell other than 0 wrongly until it re-vendors the schema. The client issue covers
+re-vendoring, decoding the ring (each placement's piece is `SceneryNames[NameIndex]`), vendoring
 `Maps/Scenery/*.obj` (its vendor script already copies every `Maps/Decor/*.json`, the scenery pieces' decor among
 them), the new materials (`meadow`, `dirt_road`, `tilled_soil`, `wheat_field`, `cliff_rock`, `mist`), an item's own
 kit and the bright nature kit, the new town-kit and forest-kit models, flowing water and drifting mist.
@@ -1183,7 +1193,7 @@ so the client's reset input sequence is accepted.
 5. **Server `CharacterSelectHandler` (after instance returned):**
    - For Town: overrides `CharacterInfo.X/Y/Z` with `instance.Layout.EntrySpawnWorldPos` (persisted DB coords are stale for hubs).
    - Sends `SCharacterSelectedPacket` with the `CharacterInfo`.
-   - Sends `SChunkLayoutPacket` with `(seed, instanceId, cellSize, chunks[], entrySpawn, portals[], mapId, obstacles[], scenery[])`.
+   - Sends `SChunkLayoutPacket` with `(seed, instanceId, cellSize, chunks[], entrySpawn, portals[], mapId, obstacles[], scenery[], sceneryNames[])`.
 6. **Client `MapCompositionSystem`:** spawns one entity per primitive of each chunk's vendored `chunks/<name>.gltf` (and one batch of its decor), positioned with `chunkLocalToWorld` and turned `90° × rotation` about Y, plus markers for the entry and the portals.
 7. **Client `NavmeshSystem`:** the new instance id starts a bake on a worker thread: `ChunkGeometry` stitches the vendored `chunks/<name>.obj` files with the same rotation, and `navmesh::NavMesh::Bake` bakes them with the mirrored build settings. `LoginFlowSystem` holds back the load report while it bakes.
 8. **Client `PlayerMovementSystem`:** samples input, sends the input packet, predicts each step with `WalkStep` (clamp via `RaycastWalkable`, ground via `SampleGroundHeight`).
