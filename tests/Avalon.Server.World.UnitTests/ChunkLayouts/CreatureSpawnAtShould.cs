@@ -87,8 +87,10 @@ public class CreatureSpawnAtShould
         _spawner.Received(1).Spawn(Arg.Is<CreatureInfo>(i => i.Position == ground));
     }
 
-    [Fact]
-    public void Attach_the_creatures_named_script()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Attach_the_creatures_named_script_unless_spawned_idle(bool withScript)
     {
         IMapInstance instance = Substitute.For<IMapInstance, Avalon.World.Public.Instances.ISimulationContext>();
         instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(Substitute.For<IMapNavigator>());
@@ -96,9 +98,12 @@ public class CreatureSpawnAtShould
         _scripts.GetAiScript(nameof(Avalon.World.Scripts.Creatures.TownNpcScript))
             .Returns(typeof(Avalon.World.Scripts.Creatures.TownNpcScript));
 
-        Assert.Same(_creature, Service().SpawnAt(instance, new CreatureTemplateId(4), Vector3.zero));
+        Assert.Same(_creature, Service().SpawnAt(instance, new CreatureTemplateId(4), Vector3.zero, withScript));
 
-        Assert.IsType<Avalon.World.Scripts.Creatures.TownNpcScript>(_creature.Script);
+        if (withScript)
+            Assert.IsType<Avalon.World.Scripts.Creatures.TownNpcScript>(_creature.Script);
+        else
+            Assert.Null(_creature.Script);
         instance.Received(1).AddCreature(_creature);
     }
 }

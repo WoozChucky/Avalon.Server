@@ -124,6 +124,7 @@ public class WorldHostGraphShould
             // this proves production registers it.
             Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Respawn.TownReturn>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is GodModeCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is SpawnCommand);
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PartyChatCommand);
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is InviteCommand);
             // Whispers (#717). PartyService takes the online lookup optionally and would otherwise keep a private one the
