@@ -813,8 +813,10 @@ GridX, then GridZ, and each takes the first of:
    slot and the cell beyond holds no chunk (`SceneryRing.CappedSides`; nothing else records open exits). The cell's
    capped sides are the world sides those exits come through, a 4-bit mask (`ScenerySides`: N 1, E 2, S 4, W 8). It
    takes a cap whose own capped sides turn exactly onto that mask, drawn by weight among the caps of that shape that
-   are not the piece already west or south of it (a shape with one cap repeats), at one of the turns that fit, drawn
-   too. The pool holds a cap of every shape, so one always fits.
+   no cell within two of it (counting diagonals) already holds, so one set piece does not close two exits in one view
+   (a shape with one cap repeats; where every cap of the shape stands that near, it avoids those nearer still, down to
+   the cells touching it, and only then repeats a neighbour), at one of the turns that fit, drawn too. The pool holds a
+   cap of every shape, so one always fits.
 2. **A town-ward piece**, on one of the 8 spots round the entry chunk (-1 to 1 on each axis from it, the entry
    itself left out), when the pool has them: that spot's piece, never turned. The entry is always `forest_entry_01` at
    (0, 0), rotation 0, so the spots never move. A spot the layout fills is a layout cell and gets nothing (spot (0, 1)

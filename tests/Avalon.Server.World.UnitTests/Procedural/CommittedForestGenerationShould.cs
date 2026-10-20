@@ -1,3 +1,4 @@
+using System.Numerics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Database.World.Seeding;
@@ -168,8 +169,8 @@ public class CommittedForestGenerationShould
     /// <summary>
     /// Review Focus 2 and 5 (#1110): every committed layout, ringed from the committed pool, gets one scenery piece on
     /// each ring cell and none on its own cells, a cap of the right shape at every cell an open exit faces and no cap
-    /// elsewhere, the town-ward scene on the spots around the entry, no non-filler border beside itself, and the same
-    /// ring every time from the same layout.
+    /// elsewhere, no single-side cap within two cells of itself while another could stand there, the town-ward scene on
+    /// the spots around the entry, no non-filler border beside itself, and the same ring every time from the same layout.
     /// </summary>
     [Fact]
     public void Ring_every_committed_layout_and_cap_every_open_exit()
@@ -183,6 +184,7 @@ public class CommittedForestGenerationShould
         SceneryPool pool = s_scenery.Value;
         var pieces = pool.Pieces.ToDictionary(p => p.Name, StringComparer.Ordinal);
         var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        string[] singleSide = [.. pool.Pieces.Where(p => p.Kind == SceneryKind.Cap && BitOperations.PopCount(p.CappedSides) == 1).Select(p => p.Name)];
         int caps = 0;
         int spots = 0;
 
@@ -201,6 +203,18 @@ public class CommittedForestGenerationShould
                 SceneryPoolPiece cap = pieces[at[cell].Name];
                 Assert.Equal(SceneryKind.Cap, cap.Kind);
                 Assert.Equal(mask, ScenerySides.Rotate(cap.CappedSides, at[cell].Rotation));
+
+                // The single-side caps are four pieces: one stands within two cells (counting diagonals) of an earlier
+                // one of itself, in visit order (GridX, then GridZ), only where all four already stand that near, so no
+                // two of one set piece close exits in one view while another could.
+                if (BitOperations.PopCount(cap.CappedSides) != 1)
+                    continue;
+
+                List<string> near = [.. ring.Where(p => (p.GridX, p.GridZ).CompareTo(cell) < 0
+                        && Math.Max(Math.Abs(p.GridX - cell.X), Math.Abs(p.GridZ - cell.Z)) <= 2)
+                    .Select(p => p.Name)];
+                Assert.True(!near.Contains(cap.Name) || singleSide.All(near.Contains),
+                    $"seed {seed * 7919}: {cap.Name} at {cell} repeats within two cells while another single-side cap could stand there");
             }
 
             caps += capped.Count;

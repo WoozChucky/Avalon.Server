@@ -11,8 +11,9 @@ namespace Avalon.World.ChunkLayouts;
 /// Ring cells are visited by GridX then GridZ, and each takes, in this priority:
 /// <list type="number">
 /// <item>a <b>cap</b> when open exits face it (<see cref="CappedSides" />): a cap whose capped sides turn exactly onto
-/// the exits' sides, drawn by weight, avoiding the piece already west or south of it when another of that shape exists
-/// (a shape with one piece repeats);</item>
+/// the exits' sides, drawn by weight, avoiding any cap already placed within <see cref="CapSpacing" /> cells of it
+/// (counting diagonals) when another of that shape is not, so one set piece does not close two exits in one view (a
+/// shape with one piece repeats; where all of a shape's pieces stand that near, the nearer ones are avoided first);</item>
 /// <item>a <b>town-ward</b> piece on one of the 8 spots around the entry chunk, when the pool has them: that spot's
 /// piece, never turned;</item>
 /// <item>a <b>border</b>, drawn by weight, never the non-filler piece already west or south of it, with its front turned
@@ -24,6 +25,9 @@ namespace Avalon.World.ChunkLayouts;
 /// </remarks>
 public static class SceneryRing
 {
+    /// <summary>How near (in cells, counting diagonals) a cap may not repeat a cap already placed, when its shape allows.</summary>
+    private const int CapSpacing = 2;
+
     private static readonly int[] s_offsets = [-1, 0, 1, 2];
 
     private static readonly ExitSide[] s_sides = [ExitSide.N, ExitSide.E, ExitSide.S, ExitSide.W];
@@ -131,9 +135,21 @@ public static class SceneryRing
         Dictionary<(int X, int Z), string> placed, Random rng)
     {
         // The pool holds a cap of every shape, so some cap always fits.
+        // A cap avoids every piece within CapSpacing of it; where its shape's every piece stands that near, it avoids
+        // those nearer still, down to the cells touching it, and only then repeats a neighbour.
         List<SceneryPoolPiece> shaped = [.. caps.Where(p => Turns(p.CappedSides, sides).Count > 0)];
-        List<SceneryPoolPiece> fresh = [.. shaped.Where(p => !IsBeside(placed, cell, p.Name))];
-        SceneryPoolPiece piece = Draw(fresh.Count > 0 ? fresh : shaped, rng);
+        List<SceneryPoolPiece> candidates = shaped;
+        for (int reach = CapSpacing; reach > 0; reach--)
+        {
+            List<SceneryPoolPiece> fresh = [.. shaped.Where(p => !IsNear(placed, cell, p.Name, reach))];
+            if (fresh.Count > 0)
+            {
+                candidates = fresh;
+                break;
+            }
+        }
+
+        SceneryPoolPiece piece = Draw(candidates, rng);
         List<int> turns = Turns(piece.CappedSides, sides);
         return new SceneryPlacement(piece.Name, cell.X, cell.Z, turns[rng.Next(turns.Count)]);
     }
@@ -159,6 +175,21 @@ public static class SceneryRing
         }
 
         return turns;
+    }
+
+    /// <summary>Whether any cell within <paramref name="reach" /> of <paramref name="cell" /> (counting diagonals) holds the piece.</summary>
+    private static bool IsNear(Dictionary<(int X, int Z), string> placed, (int X, int Z) cell, string name, int reach)
+    {
+        for (int dx = -reach; dx <= reach; dx++)
+        {
+            for (int dz = -reach; dz <= reach; dz++)
+            {
+                if (placed.TryGetValue((cell.X + dx, cell.Z + dz), out string? near) && near == name)
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Whether the cell west or south of <paramref name="cell" />, both visited before it, holds the piece.</summary>
