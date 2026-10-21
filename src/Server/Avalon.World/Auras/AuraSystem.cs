@@ -153,9 +153,11 @@ public sealed class AuraSystem
     /// immune), the smallest winning, each type then recorded as landed. Nothing landing (a share of 0, the immune step,
     /// or a creature walking home) is Resisted: nothing is placed and nothing recorded. Its refresh keeps the later of
     /// the held expiry and the new one. A stun or a silence that landed then ends the target's running cast bar, through
-    /// the instance.
+    /// the instance. A <paramref name="durationMs" /> given (a GameMaster's /aura, #1152) is the duration placed exactly,
+    /// a refresh included: no resistance share, no diminishing step, nothing recorded.
     /// </remarks>
-    public AuraApplyResult Apply(IUnit? caster, IUnit target, AuraTemplate template, AuraSource source)
+    public AuraApplyResult Apply(IUnit? caster, IUnit target, AuraTemplate template, AuraSource source,
+        uint? durationMs = null)
     {
         // The fit alone: the row is in hand, and a lookup delegate over it cost every application a closure, made on
         // entry and so before any refusal, and a delegate with it for an ability's aura.
@@ -204,18 +206,19 @@ public sealed class AuraSystem
 
         // Past the cap, so an aura refused there is no diminishing step (#770).
         DateTimeOffset now = _time.GetUtcNow();
-        uint durationMs = template.DurationMs;
-        if (controls)
+        bool scaled = controls && durationMs is null;
+        uint placedMs = durationMs ?? template.DurationMs;
+        if (scaled)
         {
-            durationMs = ControlledDuration(caster, target, template, now);
-            if (durationMs == 0)
+            placedMs = ControlledDuration(caster, target, template, now);
+            if (placedMs == 0)
                 return AuraApplyResult.Resisted;
         }
 
         // Rolled once, here, past every refusal, so a refused aura draws nothing from the combat random.
         AuraSnapshot snapshot = AuraRules.Snapshot(template, caster is null ? default : CombatService.AttackerFor(caster),
             _combat.Random);
-        AuraApplyResult result = Place(target, auras, held, template, casterGuid, source, snapshot, durationMs, controls,
+        AuraApplyResult result = Place(target, auras, held, template, casterGuid, source, snapshot, placedMs, scaled,
             now);
 
         // A first hook (or the removal it asked for) that killed the target: death ends every aura, and a corpse enters

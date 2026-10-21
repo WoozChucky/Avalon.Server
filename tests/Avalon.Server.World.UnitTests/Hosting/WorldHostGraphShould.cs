@@ -127,6 +127,7 @@ public class WorldHostGraphShould
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is SpeedCommand);
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is SpawnCommand);
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is DespawnCommand);
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is AuraCommand);
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PartyChatCommand);
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is InviteCommand);
             // Whispers (#717). PartyService takes the online lookup optionally and would otherwise keep a private one the
