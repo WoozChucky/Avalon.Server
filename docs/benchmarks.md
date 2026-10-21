@@ -1459,6 +1459,12 @@ arrival stamp and the filters') and dispatched to a handler that counts it. `Que
 connections through the real `QuestService` over the seeded quests and a real town instance (no quest NPC placed in
 it, so markers walk no creature; #973 row 1 grows with them), each character holding quest 1 with its log already
 sent; `NoChange` is the common tick, `OneChanged` one character's kill count moved, `AllChanged` every one's.
+`ResetPassed` (#710) is the tick a daily quest reset passes, the one tick on which no connection takes the early
+exit: its own setup places the town's seven seeded NPCs and gives every character a completion of the daily quest 10,
+so every flush works the markers out again over them and sends the changed list; the reset clock goes one boundary
+forward, then back, on alternate invocations, so each invocation is such a tick. One run (InProcess, 3 warm-ups, 5
+iterations, i9-12900K, runtime 10.0.13, 2026-10-21): 694 ns per connection (±300 ns), allocating nothing, so about
+1.25 ms once per reset at 1,800 connections ([quests](quests.md)).
 
 **Results, per connection, ns.** BenchmarkDotNet 0.15.8 ShortRun, Windows 11, i9-12900K, SDK 10.0.401 / runtime
 10.0.12, 2026-10-14. Other builds and tests ran on the machine at the same time, so the timings are noisy: two runs

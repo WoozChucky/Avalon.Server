@@ -1,4 +1,5 @@
 using Avalon.Common;
+using Avalon.Domain.World;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
@@ -21,19 +22,31 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// nothing changed since the last flush, the common tick. <see cref="OneChanged" />: one character's kill count moved,
 /// so it is owed an update and its markers are worked out again. <see cref="AllChanged" />: every character's moved.
 /// Per connection. The town has no quest NPC placed, so working the markers out walks no creature (#973 row 1 grows
-/// with them).
+/// with them). <see cref="ResetPassed" /> (#710): the tick a daily reset passes, the one tick on which every connection
+/// skips the #977 early exit. Its own setup places the town's seven seeded NPCs (Hilde, who gives the daily quest 10,
+/// among them) and gives every character, at level 10, a completion of quest 10, so each one's reset step finds a
+/// rolled completion, its markers are worked out again over the seven creatures and the changed list is sent. The
+/// reset clock goes one daily boundary forward, then back before it, on alternate invocations, so every invocation is
+/// such a tick (the blue marker shows, then goes): its one <c>QuestResetClock.Advance</c> is part of that tick too.
 /// </summary>
 [MemoryDiagnoser]
 public class QuestFlushBenchmarks
 {
     private const uint KillQuest = 1;
+    private const uint DailyQuest = 10;
     private const int Connections = 300;
+
+    // The town's NPCs, as its MapCreatureSpawns rows place them on map 1.
+    private static readonly ulong[] s_townNpcs = [1, 2, 3, 11, 12, 13, 14];
 
     private ScenarioWorld _scenario = null!;
     private QuestService _quests = null!;
     private QuietConnection[] _connections = null!;
     private CharacterEntity[] _characters = null!;
     private uint _objective;
+    private DateTime _afterReset;
+    private DateTime _beforeReset;
+    private bool _forward;
 
     [GlobalSetup]
     public void Setup()
@@ -65,6 +78,48 @@ public class QuestFlushBenchmarks
             throw new InvalidOperationException("The flush did not send what the changes owed.");
     }
 
+    [GlobalSetup(Target = nameof(ResetPassed))]
+    public void SetupResetPassed()
+    {
+        Setup();
+        MapInstance town = _scenario.Maps[0];
+        uint guid = 1;
+        foreach (CreatureTemplate metadata in _scenario.Host.Data.CreatureTemplates.Where(t => s_townNpcs.Contains(t.Id.Value)))
+        {
+            town.AddCreature(new Creature
+            {
+                Guid = new ObjectGuid(ObjectType.Creature, guid++),
+                TemplateId = metadata.Id,
+                Metadata = metadata,
+                Name = metadata.Name,
+                Position = TownNavmesh.EntrySpawn,
+                Health = 100,
+                CurrentHealth = 100,
+            });
+        }
+
+        if (guid != s_townNpcs.Length + 1)
+            throw new InvalidOperationException("The seed lacks a town NPC.");
+
+        // Turned in 8 h after the latest daily boundary: done for this period, available again after the next boundary.
+        QuestResetClock resets = _quests.Resets;
+        DateTime boundary = resets.LastBoundary(QuestRepeat.Daily);
+        _beforeReset = boundary.AddHours(9);
+        _afterReset = boundary.AddDays(1).AddHours(1);
+        foreach (CharacterEntity character in _characters)
+        {
+            character.Level = 10;
+            character.Quests.Complete(DailyQuest, boundary.AddHours(8));
+        }
+
+        resets.Advance(_beforeReset);
+        FlushAll();
+        _forward = true;
+        int generation = resets.Generation;
+        if (Sent(ResetPassed) != Connections || Sent(ResetPassed) != Connections || resets.Generation != generation + 2)
+            throw new InvalidOperationException("A reset did not move every character's markers.");
+    }
+
     [Benchmark(OperationsPerInvoke = Connections)]
     public void NoChange() => FlushAll();
 
@@ -80,6 +135,14 @@ public class QuestFlushBenchmarks
     {
         for (int i = 0; i < _characters.Length; i++)
             Credit(_characters[i]);
+        FlushAll();
+    }
+
+    [Benchmark(OperationsPerInvoke = Connections)]
+    public void ResetPassed()
+    {
+        _quests.Resets.Advance(_forward ? _afterReset : _beforeReset);
+        _forward = !_forward;
         FlushAll();
     }
 
