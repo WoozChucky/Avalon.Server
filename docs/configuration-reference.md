@@ -246,6 +246,9 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `PartyExperienceBonusPerExtra`   | float  | `0.10`     | Experience added to a shared kill per counted member beyond the first (`0.1` is +10 %). `0` to `10`; startup refuses anything else |
 | `PartyExperienceLevelGap`        | int    | `5`        | A character this many levels or more above a creature gets no experience from it, in a party or solo. Range `1`–`1000` |
 | `MaxActiveQuests`                | int    | `20`       | How many quests a character may hold at once; an accept past it is answered `LogFull` (#433). Range `1`–`100` |
+| `QuestResets:DailyResetTime`     | TimeSpan | `04:00:00` | The time of day at which daily, weekly and monthly quests come back (#710). UTC, the same moment for every character. At least `00:00:00` and below `1.00:00:00`. Read at startup; an invalid value stops the start |
+| `QuestResets:WeeklyResetDay`     | DayOfWeek | `Monday` | The day on which weekly quests come back, at `DailyResetTime` (#710). UTC, the same moment for every character. Must be a day of the week. Read at startup; an invalid value stops the start |
+| `QuestResets:MonthlyResetDay`    | int    | `1`        | The day of the month on which monthly quests come back, at `DailyResetTime` (#710). UTC, the same moment for every character. Range `1`–`28`, so every month has the day. Read at startup; an invalid value stops the start |
 | `MaxIgnoredCharacters`           | int    | `50`       | How many characters one character may ignore (#723); `/ignore` past it is refused with a system line. Range `1`–`500` |
 | `MaxAurasPerUnit`                | int    | `32`       | How many auras one unit may hold at once; a new aura past it is refused and logged (auras). Range `1`–`256` |
 | `CrowdControlDiminishWindow`     | TimeSpan | `00:00:06` | The PvP diminishing window (#770): a stun, root or silence one character puts on another lands at full, half, then a quarter of its duration, and the next is refused ("Immune"), counted per type on the target whoever cast it, until none of that type has landed on it for this long. A refused one does not restart the window. Creatures never diminish, and slows never do. Above `0` and at most `00:00:07`; startup refuses anything else |
@@ -286,6 +289,11 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "PartyExperienceBonusPerExtra": 0.10,
   "PartyExperienceLevelGap": 5,
   "MaxActiveQuests": 20,
+  "QuestResets": {
+    "DailyResetTime": "04:00:00",
+    "WeeklyResetDay": "Monday",
+    "MonthlyResetDay": 1
+  },
   "MaxIgnoredCharacters": 50,
   "MaxAurasPerUnit": 32,
   "CrowdControlDiminishWindow": "00:00:06",

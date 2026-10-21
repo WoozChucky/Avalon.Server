@@ -256,6 +256,9 @@ public class GameConfiguration
     [Range(1, 100)]
     public int MaxActiveQuests { get; set; } = 20;
 
+    /// <summary>When daily, weekly and monthly quests come back (#710), UTC. Read at startup.</summary>
+    public QuestResetConfiguration QuestResets { get; set; } = new();
+
     /// <summary>How many characters one character may ignore (#723). A full list refuses /ignore with a system line.</summary>
     [Range(1, 500)]
     public int MaxIgnoredCharacters { get; set; } = 50;
