@@ -45,7 +45,7 @@ public sealed record CreaturesPatch(
         => $"{Templates.Count} templates, {BaseStats.Count} base stats, {Rarities.Count} rarities";
 
     /// <summary>
-    /// #627 and #770: see <see cref="CreatureTemplateRules.Validate" /> and
+    /// #627, #770 and #1145: see <see cref="CreatureTemplateRules.Validate" /> and
     /// <see cref="CreatureTemplateRules.ValidateRarities" />.
     /// </summary>
     public static void Validate(IEnumerable<CreatureTemplate> templates, IEnumerable<CreatureRarityModifier> rarities)
