@@ -110,6 +110,38 @@ public sealed class QuestSaveRoundTripShould : IDisposable
         Assert.Equal(s_now, loaded.CompletedAt(5));
     }
 
+    /// <summary>
+    /// #710 save hole: a turn-in and a new accept of the same quest in one save window save both, a retried save
+    /// writes the same, and an abandon afterwards keeps the completion.
+    /// </summary>
+    [Fact]
+    public async Task Keep_a_completion_and_the_quest_accepted_again_in_one_save_window()
+    {
+        CharacterEntity character = await StoredCharacterAsync();
+        character.Quests.Start(5, s_now);
+        character.Quests.Complete(5, s_now);
+        await SaveAsync(character);                                  // first completion stored
+
+        DateTime later = s_now.AddDays(1);
+        character.Quests.Start(5, later);                            // one save window: accept, turn in, accept again
+        character.Quests.Complete(5, later);
+        character.Quests.Start(5, later);
+        var snapshot = CharacterSaveSnapshot.Take(character);
+        await _saves.WriteAsync([snapshot.Batch]);
+        await _saves.WriteAsync([snapshot.Batch]);                   // retried
+        character.SaveState.Acknowledge(snapshot.Marks);
+
+        QuestLog loaded = await ReloadAsync();
+        Assert.Equal(new QuestCompletion(5, s_now, later, 2), loaded.Completion(5));
+        Assert.Equal((5u, later), (Assert.Single(loaded.Active).QuestId, loaded.Active.Single().AcceptedAt));
+
+        character.Quests.Remove(5);
+        await SaveAsync(character);
+        loaded = await ReloadAsync();
+        Assert.Empty(loaded.Active);
+        Assert.Equal(new QuestCompletion(5, s_now, later, 2), loaded.Completion(5));
+    }
+
     [Fact]
     public async Task Take_a_characters_quest_rows_with_it_when_the_character_is_deleted()
     {

@@ -45,15 +45,16 @@ public class QuestLogShould
         Assert.Empty(c.Quests.ClientChanges);
     }
 
-    /// <summary>The saved row keeps the first completion time (an insert that skips an existing row), so memory does too.</summary>
+    /// <summary>#710: the first time stays, the last time and the count follow every turn-in.</summary>
     [Fact]
-    public void Keep_the_first_completion_time()
+    public void Keep_the_first_completion_time_and_count_every_turn_in()
     {
         CharacterEntity c = Character();
         c.Quests.Complete(5, s_now);
 
         c.Quests.Complete(5, s_now.AddHours(1));
 
+        Assert.Equal(new QuestCompletion(5, s_now, s_now.AddHours(1), 2), c.Quests.Completion(5));
         Assert.Equal(s_now, c.Quests.CompletedAt(5));
     }
 }

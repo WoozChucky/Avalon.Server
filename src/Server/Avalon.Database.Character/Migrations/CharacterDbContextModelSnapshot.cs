@@ -256,6 +256,12 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<DateTime>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<long>("CompletionCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("LastCompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("CharacterId", "QuestId");
 
                     b.ToTable("CharacterCompletedQuests");

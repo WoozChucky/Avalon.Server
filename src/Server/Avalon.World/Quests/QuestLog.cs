@@ -43,8 +43,14 @@ public sealed class ActiveQuest(uint questId, DateTime acceptedAt)
 }
 
 /// <summary>
-/// One character's quests (#433): the active ones, with their stage and objective counts, and the ids it has turned
-/// in. World-side and tick-thread only, like the inventory. Every change marks the save
+/// A quest one character has turned in (#710): its first and most recent turn-ins and how many there were. A
+/// repeatable keeps one record and counts.
+/// </summary>
+public readonly record struct QuestCompletion(uint QuestId, DateTime FirstCompletedAt, DateTime LastCompletedAt, uint Count);
+
+/// <summary>
+/// One character's quests (#433): the active ones, with their stage and objective counts, and the ones it has turned
+/// in (<see cref="QuestCompletion" />). World-side and tick-thread only, like the inventory. Every change marks the save
 /// (<see cref="SaveStateTracker.QuestChanged" />) and what the client must hear; <see cref="Load" /> marks neither.
 /// It knows nothing about the catalog: QuestService decides what a change means and caps every count. The
 /// mutators are public only because the tests cannot see internals; QuestService is their one caller.
@@ -52,7 +58,7 @@ public sealed class ActiveQuest(uint questId, DateTime acceptedAt)
 public sealed class QuestLog(SaveStateTracker save)
 {
     private readonly Dictionary<uint, ActiveQuest> _active = [];
-    private readonly Dictionary<uint, DateTime> _completed = [];
+    private readonly Dictionary<uint, QuestCompletion> _completed = [];
     private readonly Dictionary<uint, QuestClientChange> _client = [];
     private readonly List<string> _lines = [];
 
@@ -71,7 +77,14 @@ public sealed class QuestLog(SaveStateTracker save)
     /// </summary>
     public Dictionary<uint, ActiveQuest>.ValueCollection Active => _active.Values;
 
+    /// <summary>The ids of the quests turned in at least once.</summary>
     public IReadOnlyCollection<uint> Completed => _completed.Keys;
+
+    /// <summary>
+    /// The quests turned in at least once. The dictionary's own collection, so a <c>foreach</c> over it uses its struct
+    /// enumerator and allocates nothing.
+    /// </summary>
+    public Dictionary<uint, QuestCompletion>.ValueCollection Completions => _completed.Values;
 
     public int ActiveCount => _active.Count;
 
@@ -136,7 +149,13 @@ public sealed class QuestLog(SaveStateTracker save)
 
     public bool IsCompleted(uint questId) => _completed.ContainsKey(questId);
 
-    public DateTime? CompletedAt(uint questId) => _completed.TryGetValue(questId, out DateTime at) ? at : null;
+    /// <summary>When the quest was first turned in, or null if it never was.</summary>
+    public DateTime? CompletedAt(uint questId) =>
+        _completed.TryGetValue(questId, out QuestCompletion done) ? done.FirstCompletedAt : null;
+
+    /// <summary>The quest's completion record, or null if it was never turned in.</summary>
+    public QuestCompletion? Completion(uint questId) =>
+        _completed.TryGetValue(questId, out QuestCompletion done) ? done : null;
 
     /// <summary>The quests whose client update is owed, and which update. QuestFlusher sends and clears them.</summary>
     public IReadOnlyDictionary<uint, QuestClientChange> ClientChanges => _client;
@@ -236,7 +255,7 @@ public sealed class QuestLog(SaveStateTracker save)
         }
 
         foreach (CharacterCompletedQuest row in rows.Completed)
-            _completed[row.QuestId] = row.CompletedAt;
+            _completed[row.QuestId] = new QuestCompletion(row.QuestId, row.CompletedAt, row.LastCompletedAt, row.CompletionCount);
 
         HeldVersion++;
         MarkerVersion++;
@@ -298,13 +317,16 @@ public sealed class QuestLog(SaveStateTracker save)
     }
 
     /// <summary>
-    /// A turn-in: the quest leaves the active set and joins the completed one. A quest already completed keeps its
-    /// first completion time, as the saved row does.
+    /// A turn-in: the quest leaves the active set and its completion record is written. A first turn-in records
+    /// <paramref name="now" /> as both its first and last time with a count of 1; a later one (a repeatable, #710) keeps
+    /// the first time, moves the last time to <paramref name="now" /> and adds one to the count, as the saved row does.
     /// </summary>
     public void Complete(uint questId, DateTime now)
     {
         _active.Remove(questId);
-        _completed.TryAdd(questId, now);
+        _completed[questId] = _completed.TryGetValue(questId, out QuestCompletion done)
+            ? done with { LastCompletedAt = now, Count = done.Count + 1 }
+            : new QuestCompletion(questId, now, now, 1);
         HeldVersion++;
         MarkerVersion++;
         GateVersion++;
