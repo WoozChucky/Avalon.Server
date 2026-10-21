@@ -1201,6 +1201,8 @@ public sealed class QuestService(
 
     private OutboundPacket? UpdatePacket(IWorldConnection connection, CharacterEntity character, uint questId, QuestClientChange change)
     {
+        // The flush splits CompletedThenAccepted into its two updates; here it would read as Progress.
+        Debug.Assert(change != QuestClientChange.CompletedThenAccepted);
         var update = new SQuestUpdatePacket { QuestId = questId };
         switch (change)
         {

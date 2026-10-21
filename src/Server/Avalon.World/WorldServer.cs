@@ -255,6 +255,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ThrottledErrorLog _memberStatusErrors;
     private readonly QuestService? _quests;
     private readonly ThrottledErrorLog _questFlushErrors;
+    private readonly ThrottledErrorLog _questResetErrors;
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IScriptManager _scriptManager;
     private readonly Stopwatch _serverTimer = new();
@@ -360,6 +361,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _quests = serviceProvider.GetService<QuestService>();
         _questFlushErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The quest flush");
+        _questResetErrors = new ThrottledErrorLog(_logger,
+            serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The quest reset check");
         _world = world;
         // Optional, like the clock: the tests that build a WorldServer from a bare provider have none.
         _tickThreadGuard = serviceProvider.GetService<TickThreadGuard>();
@@ -872,7 +875,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             }
             catch (Exception e)
             {
-                _questFlushErrors.Failed(e);
+                _questResetErrors.Failed(e);
             }
 
             for (int i = 0; i < conns.Length; i++)

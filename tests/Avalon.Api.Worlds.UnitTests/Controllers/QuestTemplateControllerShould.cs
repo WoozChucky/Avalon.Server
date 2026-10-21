@@ -108,7 +108,8 @@ public class QuestTemplateControllerShould
         Assert.Equal(2u, dto.RequiredQuestId);
         Assert.Equal("AlphaHowlScript", dto.ScriptName);
         Assert.Equal((600u, 400ul), (dto.RewardExperience, dto.RewardMoney));
-        Assert.Equal((true, (Avalon.Api.Contract.QuestRepeatFrequency?)Avalon.Api.Contract.QuestRepeatFrequency.Weekly), (dto.IsRepeatable, dto.RepeatFrequency));
+        Assert.Equal((true, (Avalon.Api.Contract.QuestRepeatFrequency?)Avalon.Api.Contract.QuestRepeatFrequency.Weekly),
+            (dto.IsRepeatable, dto.RepeatFrequency));
 
         Assert.Equal([0, 1], dto.Stages.Select(s => s.Sequence));
         Assert.Equal(((string?)null, (int?)null), (dto.Stages[0].Text, dto.Stages[0].TextId));

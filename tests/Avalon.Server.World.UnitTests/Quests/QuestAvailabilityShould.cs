@@ -9,7 +9,10 @@ using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;
 
-/// <summary>The one availability rule (#433), pure: not done, not held, prerequisite done, level, class, script, room.</summary>
+/// <summary>
+/// The one availability rule (#433), pure: not held, never turned in or available again by its repeat kind (#710),
+/// prerequisite turned in, level, class, script, room.
+/// </summary>
 public class QuestAvailabilityShould
 {
     private static readonly QuestCatalog s_catalog = new(Chain().Append(

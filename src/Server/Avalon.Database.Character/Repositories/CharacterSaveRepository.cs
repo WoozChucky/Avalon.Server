@@ -191,7 +191,8 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
                                 continue;
                             }
 
-                            // Written by column, never whole: the first turn-in time stays as stored.
+                            // Written by column, never whole: the first turn-in time stays as stored. Raw Attach, not
+                            // TrackForUpdate, which marks every column; the row has no navigation to drag a graph in.
                             EntityEntry<CharacterCompletedQuest> entry = context.CharacterCompletedQuests.Attach(completed);
                             entry.Property(c => c.LastCompletedAt).IsModified = true;
                             entry.Property(c => c.CompletionCount).IsModified = true;

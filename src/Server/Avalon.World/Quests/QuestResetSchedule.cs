@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.World.Configuration;
 
 namespace Avalon.World.Quests;
@@ -10,10 +11,11 @@ namespace Avalon.World.Quests;
 /// </summary>
 public static class QuestResetSchedule
 {
-    /// <summary>The latest boundary of <paramref name="repeat" /> at or before <paramref name="utcNow" />.</summary>
+    /// <summary>The latest boundary of <paramref name="repeat" /> at or before <paramref name="utcNow" />, a UTC moment.</summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="repeat" /> has no boundary (Once or Repeatable).</exception>
     public static DateTime LastBoundary(QuestRepeat repeat, DateTime utcNow, QuestResetConfiguration options)
     {
+        Debug.Assert(utcNow.Kind != DateTimeKind.Local, "Quest reset boundaries are worked out on UTC, never local time.");
         DateTime today = utcNow.Date + options.DailyResetTime;
         DateTime daily = utcNow >= today ? today : today.AddDays(-1);  // the latest reset-time moment <= now
         switch (repeat)
@@ -32,18 +34,17 @@ public static class QuestResetSchedule
         }
     }
 
-    /// <summary>The earliest boundary of <paramref name="repeat" /> after <paramref name="utcNow" />.</summary>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="repeat" /> has no boundary (Once or Repeatable).</exception>
+    /// <summary>
+    /// The first daily boundary after <paramref name="utcNow" />, a UTC moment. Every weekly and monthly boundary is also
+    /// a daily one, so it is the next boundary of any frequency, and the only one the reset clock needs.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="repeat" /> is not Daily.</exception>
     public static DateTime NextBoundary(QuestRepeat repeat, DateTime utcNow, QuestResetConfiguration options)
     {
-        DateTime last = LastBoundary(repeat, utcNow, options);
-        return repeat switch
-        {
-            QuestRepeat.Daily => last.AddDays(1),
-            QuestRepeat.Weekly => last.AddDays(7),
-            // The day is 1-28, so every month has it.
-            _ => Utc(last.Date.AddMonths(1) + options.DailyResetTime),
-        };
+        if (repeat != QuestRepeat.Daily)
+            throw new ArgumentOutOfRangeException(nameof(repeat), repeat, "Only the next daily boundary is worked out.");
+
+        return LastBoundary(QuestRepeat.Daily, utcNow, options).AddDays(1);
     }
 
     private static DateTime Utc(DateTime value) => DateTime.SpecifyKind(value, DateTimeKind.Utc);

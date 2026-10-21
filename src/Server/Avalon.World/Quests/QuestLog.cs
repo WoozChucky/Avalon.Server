@@ -376,15 +376,22 @@ public sealed class QuestLog(SaveStateTracker save)
         // An accept stays an accept for the rest of its tick: the client needs its display data. A turn-in followed by
         // a new accept (a repeatable, #710) owes both, in that order; abandoning or turning in that new accept within
         // the tick leaves only the turn-in to tell.
-        QuestClientChange next = !_client.TryGetValue(questId, out QuestClientChange owed) ? change : (owed, change) switch
+        QuestClientChange next = change;
+        if (_client.TryGetValue(questId, out QuestClientChange owed))
         {
-            (QuestClientChange.Accepted, QuestClientChange.Progress) => QuestClientChange.Accepted,
-            (QuestClientChange.Completed or QuestClientChange.CompletedThenAccepted, QuestClientChange.Accepted) =>
-                QuestClientChange.CompletedThenAccepted,
-            (QuestClientChange.CompletedThenAccepted, QuestClientChange.Progress) => QuestClientChange.CompletedThenAccepted,
-            (QuestClientChange.CompletedThenAccepted, _) => QuestClientChange.Completed,      // abandoned or turned in again
-            _ => change,
-        };
+            next = (owed, change) switch
+            {
+                (QuestClientChange.Accepted, QuestClientChange.Progress) => QuestClientChange.Accepted,
+                (QuestClientChange.Completed or QuestClientChange.CompletedThenAccepted, QuestClientChange.Accepted) =>
+                    QuestClientChange.CompletedThenAccepted,
+                (QuestClientChange.CompletedThenAccepted, QuestClientChange.Progress) =>
+                    QuestClientChange.CompletedThenAccepted,
+                // Abandoned or turned in again.
+                (QuestClientChange.CompletedThenAccepted, _) => QuestClientChange.Completed,
+                _ => change,
+            };
+        }
+
         _client[questId] = next;
 
         save.QuestChanged(questId);

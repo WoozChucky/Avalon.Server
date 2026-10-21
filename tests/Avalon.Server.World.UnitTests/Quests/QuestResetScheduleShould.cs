@@ -64,13 +64,16 @@ public class QuestResetScheduleShould
         Assert.True(clock.AvailableAgain(QuestRepeat.Repeatable, boundary));
     }
 
+    // Each row changes one setting from the defaults; the inclusive upper edges are accepted, which the defaults are too.
     [Theory]
-    [InlineData("DailyResetTime", "-00:00:01")]
-    [InlineData("DailyResetTime", "1.00:00:00")]
-    [InlineData("WeeklyResetDay", "7")]
-    [InlineData("MonthlyResetDay", "0")]
-    [InlineData("MonthlyResetDay", "29")]
-    public void Refuse_a_reset_setting_outside_its_range(string setting, string value)
+    [InlineData("DailyResetTime", "-00:00:01", false)]
+    [InlineData("DailyResetTime", "1.00:00:00", false)]
+    [InlineData("DailyResetTime", "23:59:59", true)]
+    [InlineData("WeeklyResetDay", "7", false)]
+    [InlineData("MonthlyResetDay", "0", false)]
+    [InlineData("MonthlyResetDay", "29", false)]
+    [InlineData("MonthlyResetDay", "28", true)]
+    public void Accept_a_reset_setting_only_inside_its_range(string setting, string value, bool accepted)
     {
         var options = new QuestResetConfiguration();
         switch (setting)
@@ -82,9 +85,9 @@ public class QuestResetScheduleShould
 
         ValidateOptionsResult result = new QuestResetValidation().Validate(null, new GameConfiguration { QuestResets = options });
 
-        Assert.True(result.Failed);
-        Assert.Contains($"Game:QuestResets:{setting}", result.FailureMessage, StringComparison.Ordinal);
-        Assert.True(new QuestResetValidation().Validate(null, new GameConfiguration()).Succeeded);
+        Assert.Equal(accepted, result.Succeeded);
+        if (!accepted)
+            Assert.Contains($"Game:QuestResets:{setting}", result.FailureMessage, StringComparison.Ordinal);
     }
 
     private static DateTime Utc(string iso) =>
