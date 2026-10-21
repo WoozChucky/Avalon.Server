@@ -31,6 +31,7 @@ variant empty
     field 2 Text : string = null
     field 3 Stages : List<QuestStageDto> = null
     field 4 Rewards : QuestRewardsDto = null
+    field 5 Repeat : QuestRepeatKind = Unknown (0)
   bytes 2
     22 00
 
@@ -84,8 +85,9 @@ variant populated
         element 1
           field 1 ItemTemplateId : ulong = 7
           field 2 Count : uint = 7
-  bytes 277
-    08 07 10 ac 02 18 02 22 8b 02 0a 15 65 6d 6f 6a
+    field 5 Repeat : QuestRepeatKind = Daily (3)
+  bytes 279
+    08 07 10 ac 02 18 02 22 8d 02 0a 15 65 6d 6f 6a
     69 20 f0 9f 9c 81 f0 9f 9a 80 20 61 73 74 72 61
     6c 12 0d 68 c3 a9 6c 6c 6f 20 77 c3 b6 72 6c 64
     1a 69 08 13 12 18 22 71 75 6f 74 65 64 22 20 61
@@ -102,7 +104,7 @@ variant populated
     20 07 2a 18 e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae
     e3 83 86 e3 82 ad e3 82 b9 e3 83 88 22 17 08 ac
     02 10 ff ff 03 1a 08 08 ff ff 03 10 c0 84 3d 1a
-    04 08 07 10 07
+    04 08 07 10 07 28 03
 
 variant maxima
   field 1 QuestId : uint = 4294967295
@@ -191,9 +193,10 @@ variant maxima
         element 2
           field 1 ItemTemplateId : ulong = 18446744073709551615
           field 2 Count : uint = 4294967295
-  bytes 2267
+    field 5 Repeat : QuestRepeatKind = Monthly (5)
+  bytes 2269
     08 ff ff ff ff 0f 10 ff ff ff ff ff ff ff ff ff
-    01 18 02 22 c5 11 0a 84 01 ce a9 78 ce a9 78 ce
+    01 18 02 22 c7 11 0a 84 01 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -333,7 +336,7 @@ variant maxima
     ff 01 1a 11 08 ff ff ff ff ff ff ff ff ff 01 10
     ff ff ff ff 0f 1a 11 08 ff ff ff ff ff ff ff ff
     ff 01 10 ff ff ff ff 0f 1a 11 08 ff ff ff ff ff
-    ff ff ff ff 01 10 ff ff ff ff 0f
+    ff ff ff ff 01 10 ff ff ff ff 0f 28 05
 
 variant minima
   field 1 QuestId : uint = 0
@@ -360,6 +363,7 @@ variant minima
         element 0
           field 1 ItemTemplateId : ulong = 0
           field 2 Count : uint = 0
+    field 5 Repeat : QuestRepeatKind = Unknown (0)
   bytes 33
     22 1f 0a 01 20 12 01 01 1a 13 08 80 80 80 80 f8
     ff ff ff ff 01 12 01 20 1a 03 2a 01 00 22 02 1a
@@ -415,8 +419,9 @@ variant varint-edges
         element 1
           field 1 ItemTemplateId : ulong = 16384
           field 2 Count : uint = 268435455
-  bytes 1173
-    08 80 01 10 ff ff ff 7f 18 03 22 88 09 0a 81 01
+    field 5 Repeat : QuestRepeatKind = <not a declared member> (6)
+  bytes 1175
+    08 80 01 10 ff ff ff 7f 18 03 22 8a 09 0a 81 01
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
@@ -489,4 +494,4 @@ variant varint-edges
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 22 1b 08 ff 7f 10 ff ff
     7f 1a 07 08 ff ff 7f 10 80 01 1a 09 08 80 80 01
-    10 ff ff ff 7f
+    10 ff ff ff 7f 28 06

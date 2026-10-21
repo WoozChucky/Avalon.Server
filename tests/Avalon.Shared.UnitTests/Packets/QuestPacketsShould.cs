@@ -45,6 +45,7 @@ public class QuestPacketsShould
         Assert.Equal("0a00" + "120141", Hex(new QuestDisplayDto { Text = "A" }));
         Assert.Equal(EmptyTitleAndText + "1a02" + "1200", Hex(new QuestDisplayDto { Stages = [new QuestStageDto()] }));
         Assert.Equal(EmptyTitleAndText + "2200", Hex(new QuestDisplayDto { Rewards = new QuestRewardsDto() }));
+        Assert.Equal(EmptyTitleAndText + "2803", Hex(new QuestDisplayDto { Repeat = QuestRepeatKind.Daily }));
     }
 
     [Fact]
@@ -150,7 +151,8 @@ public class QuestPacketsShould
     {
         Assert.Equal([0, 1, 2], Enum.GetValues<QuestStateKind>().Select(v => (int)v));
         Assert.Equal([0, 1, 2, 3, 4], Enum.GetValues<QuestUpdateKind>().Select(v => (int)v));
-        Assert.Equal([0, 1, 2, 3], Enum.GetValues<QuestMarker>().Select(v => (int)v));
+        Assert.Equal([0, 1, 2, 3, 4, 5], Enum.GetValues<QuestMarker>().Select(v => (int)v));
+        Assert.Equal([0, 1, 2, 3, 4, 5], Enum.GetValues<QuestRepeatKind>().Select(v => (int)v));
         Assert.Equal(9, (int)QuestResult.NoConversation);
     }
 }

@@ -38,17 +38,17 @@ variant maxima
   field 1 Markers : List<QuestMarkerDto> = 3 elements
     element 0
       field 1 CreatureGuid : ulong = 18446744073709551615
-      field 2 Marker : QuestMarker = ReadyToTurnIn (3)
+      field 2 Marker : QuestMarker = RepeatableReadyToTurnIn (5)
     element 1
       field 1 CreatureGuid : ulong = 18446744073709551615
-      field 2 Marker : QuestMarker = ReadyToTurnIn (3)
+      field 2 Marker : QuestMarker = RepeatableReadyToTurnIn (5)
     element 2
       field 1 CreatureGuid : ulong = 18446744073709551615
-      field 2 Marker : QuestMarker = ReadyToTurnIn (3)
+      field 2 Marker : QuestMarker = RepeatableReadyToTurnIn (5)
   bytes 45
-    0a 0d 08 ff ff ff ff ff ff ff ff ff 01 10 03 0a
-    0d 08 ff ff ff ff ff ff ff ff ff 01 10 03 0a 0d
-    08 ff ff ff ff ff ff ff ff ff 01 10 03
+    0a 0d 08 ff ff ff ff ff ff ff ff ff 01 10 05 0a
+    0d 08 ff ff ff ff ff ff ff ff ff 01 10 05 0a 0d
+    08 ff ff ff ff ff ff ff ff ff 01 10 05
 
 variant minima
   field 1 Markers : List<QuestMarkerDto> = 1 element
@@ -62,10 +62,10 @@ variant varint-edges
   field 1 Markers : List<QuestMarkerDto> = 2 elements
     element 0
       field 1 CreatureGuid : ulong = 268435455
-      field 2 Marker : QuestMarker = <not a declared member> (4)
+      field 2 Marker : QuestMarker = <not a declared member> (6)
     element 1
       field 1 CreatureGuid : ulong = 2097152
-      field 2 Marker : QuestMarker = <not a declared member> (4)
+      field 2 Marker : QuestMarker = <not a declared member> (6)
   bytes 18
-    0a 07 08 ff ff ff 7f 10 04 0a 07 08 80 80 80 01
-    10 04
+    0a 07 08 ff ff ff 7f 10 06 0a 07 08 80 80 80 01
+    10 06

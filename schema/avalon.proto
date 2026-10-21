@@ -794,6 +794,7 @@ message QuestDisplayDto {
    optional string Text = 2;
    repeated QuestStageDto Stages = 3;
    QuestRewardsDto Rewards = 4;
+   QuestRepeatKind Repeat = 5;
 }
 message QuestLogEntryDto {
    uint32 QuestId = 1;
@@ -807,6 +808,8 @@ enum QuestMarker {
    QuestMarker_None = 1;
    QuestMarker_Available = 2;
    QuestMarker_ReadyToTurnIn = 3;
+   QuestMarker_RepeatableAvailable = 4;
+   QuestMarker_RepeatableReadyToTurnIn = 5;
 }
 message QuestMarkerDto {
    uint64 CreatureGuid = 1;
@@ -835,6 +838,14 @@ enum QuestOfferMode {
 message QuestProgressDto {
    uint32 ObjectiveId = 1;
    uint32 Progress = 2;
+}
+enum QuestRepeatKind {
+   QuestRepeatKind_Unknown = 0;
+   QuestRepeatKind_Once = 1;
+   QuestRepeatKind_Repeatable = 2;
+   QuestRepeatKind_Daily = 3;
+   QuestRepeatKind_Weekly = 4;
+   QuestRepeatKind_Monthly = 5;
 }
 enum QuestResult {
    QuestResult_Unknown = 0;

@@ -13,6 +13,22 @@ public enum QuestObjectiveKind
     UseDoodad = 5,
 }
 
+/// <summary>How a quest comes back (#710). Append-only.</summary>
+public enum QuestRepeatKind
+{
+    Unknown = 0,
+    /// <summary>Done once, never offered again.</summary>
+    Once = 1,
+    /// <summary>Offered again as soon as it is turned in.</summary>
+    Repeatable = 2,
+    /// <summary>Offered again after the next daily reset.</summary>
+    Daily = 3,
+    /// <summary>Offered again after the next weekly reset.</summary>
+    Weekly = 4,
+    /// <summary>Offered again after the next monthly reset.</summary>
+    Monthly = 5,
+}
+
 /// <summary>Why SMSG_QUEST_OFFER was sent (#433). Append-only.</summary>
 public enum QuestOfferMode
 {
@@ -75,6 +91,9 @@ public class QuestDisplayDto
 
     [ProtoMember(3)] public List<QuestStageDto> Stages { get; set; } = [];
     [ProtoMember(4)] public QuestRewardsDto? Rewards { get; set; }
+
+    /// <summary>How the quest comes back (#710), so the client can label it without a quest catalog.</summary>
+    [ProtoMember(5)] public QuestRepeatKind Repeat { get; set; }
 }
 
 /// <summary>Where a held quest stands (#433). Append-only.</summary>
@@ -106,6 +125,10 @@ public enum QuestMarker
     None = 1,
     Available = 2,
     ReadyToTurnIn = 3,
+    /// <summary>A repeatable quest is available again (#710); the client draws it blue.</summary>
+    RepeatableAvailable = 4,
+    /// <summary>A repeatable quest is ready to turn in (#710); the client draws it blue.</summary>
+    RepeatableReadyToTurnIn = 5,
 }
 
 [ProtoContract]

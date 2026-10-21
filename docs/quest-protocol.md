@@ -95,6 +95,7 @@ language:
 | 2 `Text` | string | The description; in a `TurnIn` offer, the completion text (what the NPC says when it is handed in). |
 | 3 `Stages` | repeated `QuestStageDto` | Every stage, in order. |
 | 4 `Rewards` | `QuestRewardsDto` | What a turn-in pays. |
+| 5 `Repeat` | `QuestRepeatKind` | How the quest comes back once turned in (#710). |
 
 `QuestStageDto`: 1 `Sequence` (int, from 0), 2 `Text` (the stage's line, empty when it has none),
 3 `Objectives` (repeated `QuestObjectiveDto`).
@@ -109,6 +110,11 @@ language:
 
 A quest's stages run in order: all of a stage's objectives (at most 4) complete it and the next stage starts;
 after the last, the quest is ready to turn in.
+
+`QuestRepeatKind` (#710, append-only): `Once` 1 (never offered again), `Repeatable` 2 (offered again as soon as
+it is turned in), `Daily` 3, `Weekly` 4 and `Monthly` 5 (offered again after the next daily, weekly or monthly
+reset, fixed UTC times the world sets). A client labels a quest "Daily" and so on from this field alone, without a
+quest catalog. `Unknown` 0 is never sent for a catalogued quest.
 
 ## 4. Answers
 
@@ -207,8 +213,13 @@ client replaces what it held.
 | Value | Name | Meaning |
 |---|---|---|
 | 1 | `None` | Nothing to show. |
-| 2 | `Available` | It offers a quest the character may accept (a full log still shows `Available`). |
-| 3 | `ReadyToTurnIn` | It takes back a quest the character holds ready to turn in. Outranks `Available`. |
+| 2 | `Available` | It offers a one-time quest (`Once`) the character may accept (a full log still shows `Available`). |
+| 3 | `ReadyToTurnIn` | It takes back a one-time quest the character holds ready to turn in. |
+| 4 | `RepeatableAvailable` | It offers a repeatable quest (any `QuestRepeatKind` but `Once`) the character may accept. Drawn blue by the client. |
+| 5 | `RepeatableReadyToTurnIn` | It takes back a repeatable quest the character holds ready to turn in. Drawn blue by the client. |
+
+When an NPC qualifies for several, the highest wins: `ReadyToTurnIn` > `RepeatableReadyToTurnIn` > `Available` >
+`RepeatableAvailable` > `None` (a turn-in before an offer, a one-time quest before a repeatable one within each).
 
 It is worked out again on entering the world, on entering another instance, and when an accept, a quest
 becoming ready to turn in or no longer ready, a turn-in, an abandon, a level-up or a reload of the quest data may
