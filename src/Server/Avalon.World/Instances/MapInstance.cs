@@ -489,7 +489,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     bool IItemUseHost.CastForItem(IUnit caster, AbilityAim aim, IAbility ability, bool free) =>
         ability.Metadata.CastTime > 0
-            ? _abilityCastSystem.QueueAbility(caster, aim, ability, free)
+            ? _abilityCastSystem.QueueAbility(caster, aim, ability, free, forItem: true)
             : _abilityCastSystem.RunInstant(caster, aim, ability, free);
 
     void IItemUseHost.DespawnAfter(ICreature creature, TimeSpan lifetime) =>

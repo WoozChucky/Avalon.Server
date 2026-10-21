@@ -29,9 +29,10 @@ public interface IAbilityCastSystem
     /// The script is built now, with this aim and the caster's position now as its origin, and fired once the
     /// cast time has run out. Any unit may cast (#163); a creature's casts cost nothing.
     /// A <paramref name="free" /> cast (an item's, item use) neither checks nor pays the cost. A cast taken ends its
-    /// caster's arrival protection (#1088); a refused one does not.
+    /// caster's arrival protection (#1088); a refused one does not. One <paramref name="forItem" /> was started by an
+    /// item (item use) and is marked so (<see cref="AbilityInstance.ForItem" />): a silence spares it (#770).
     /// </summary>
-    bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false);
+    bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, bool forItem = false);
 
     /// <summary>
     /// Instant-cast counterpart to <see cref="QueueAbility" />: builds the script, pays the cost, starts
@@ -71,9 +72,10 @@ public interface IAbilityCastSystem
     /// Ends the running cast bar of <paramref name="caster" /> (#770: a stun, or a silence, landed on it): each of its
     /// queued casts still winding up resets and clears <c>Casting</c>, and its interrupt is sent; nothing fires, nothing
     /// is refunded and no cooldown starts. With <paramref name="spareBasic" /> (a silence) its basic attack's cast goes
-    /// on. Unlike <see cref="CancelCasts" />, a hit it already fired and held for the dodge wait still lands, and its
-    /// running scripts (a projectile in flight) go on. Safe from inside a cast firing this tick (a stun dealt by one):
-    /// a cast that already fired is left alone, and the ones it ends leave the queue once the tick's walk is over.
+    /// on, and so does a cast an item started (an item use). Unlike <see cref="CancelCasts" />, a hit it already fired
+    /// and held for the dodge wait still lands, and its running scripts (a projectile in flight) go on. Safe from inside
+    /// a cast firing this tick (a stun dealt by one): a cast that already fired is left alone, and the ones it ends leave
+    /// the queue once the tick's walk is over.
     /// </summary>
     void Interrupt(IUnit caster, bool spareBasic);
 
@@ -135,7 +137,7 @@ public class InstanceAbilityCastSystem(
     /// </summary>
     internal PendingHits PendingHits => _pendingHits;
 
-    public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false)
+    public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, bool forItem = false)
     {
         bool pays = !free && !IsFree(caster);
         if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
@@ -169,6 +171,7 @@ public class InstanceAbilityCastSystem(
             HastePct = haste,
             CastId = castId,
             Footprint = footprint,
+            ForItem = forItem,
         });
 
         // #521 item 1: Casting is set, and the cost paid, only once the queue has taken the cast.
@@ -274,7 +277,7 @@ public class InstanceAbilityCastSystem(
             IAbility ability = cast.Ability;
 
             // Ended earlier in this walk by a stun or a silence a cast that fired dealt (#770): it waits to leave.
-            if (!ability.Casting)
+            if (cast.Ended)
             {
                 continue;
             }
@@ -462,17 +465,19 @@ public class InstanceAbilityCastSystem(
     public void Interrupt(IUnit caster, bool spareBasic)
     {
         // Collected first: nothing is removed from the queue while it is enumerated, and this may run inside
-        // AdvanceQueue's own walk of it. A cast with Casting clear already fired this tick (or was ended earlier in it).
+        // AdvanceQueue's own walk of it. A cast with Casting clear already fired this tick; one Ended was ended earlier in
+        // it. A silence spares the basic attack and an item's cast (an item use).
         int first = _controlled.Count;
         foreach (AbilityInstance cast in _abilityQueue)
         {
-            if (!ReferenceEquals(cast.Caster, caster) || !cast.Ability.Casting
-                || spareBasic && ControlGates.IsBasic(caster, cast.Ability))
+            if (!ReferenceEquals(cast.Caster, caster) || cast.Ended || !cast.Ability.Casting
+                || spareBasic && (cast.ForItem || ControlGates.IsBasic(caster, cast.Ability)))
             {
                 continue;
             }
 
             ResetCast(cast.Ability);
+            cast.Ended = true;
             _controlled.Add(cast);
             CombatLog.CastInterruptedByControl(_logger, cast.Ability.AbilityId, caster.Guid);
         }

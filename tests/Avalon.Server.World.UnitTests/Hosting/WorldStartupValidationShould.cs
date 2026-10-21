@@ -53,7 +53,8 @@ public class WorldStartupValidationShould
     /// <summary>
     /// A Game setting out of its range stops the start, naming the setting: a row at each bound with a reason. The
     /// floats must be finite (#532, #593, #526): the interest radius at least 1 m, the interest remove margin and both
-    /// Fury rates 0 or more. The tick's CPU (#1002) is a CPU number a mask can name, on every system.
+    /// Fury rates 0 or more. The crowd-control diminishing window (#770) is above 0 and at most 7 s. The tick's CPU
+    /// (#1002) is a CPU number a mask can name, on every system.
     /// </summary>
     [Theory]
     [InlineData("InterestRadius", "0.5")]
@@ -84,6 +85,8 @@ public class WorldStartupValidationShould
     [InlineData("MaxActiveQuests", "101")]
     [InlineData("MaxAurasPerUnit", "0")]
     [InlineData("MaxAurasPerUnit", "257")]
+    [InlineData("CrowdControlDiminishWindow", "00:00:00")]
+    [InlineData("CrowdControlDiminishWindow", "00:00:07.001")]
     [InlineData("MaxIgnoredCharacters", "0")]
     [InlineData("MaxIgnoredCharacters", "501")]
     [InlineData("TickThreadCpu", "-1")]

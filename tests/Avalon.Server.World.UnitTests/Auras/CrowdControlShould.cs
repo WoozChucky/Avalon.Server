@@ -11,8 +11,10 @@ using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
+using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Items;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -76,8 +78,8 @@ public class CrowdControlShould
 
     /// <summary>
     /// Stuns from characters on a character step down whoever casts them (full, half, quarter, then immune), and start
-    /// over once none has landed for the 6 s window: the immune attempt does not restart it. Each type counts on its own,
-    /// and a creature's never diminishes.
+    /// over once none has landed for the 6 s window: the immune attempt does not restart it, and is told as "Immune", a
+    /// hit of 0, to the target and to its caster. Each type counts on its own, and a creature's never diminishes.
     /// </summary>
     [Fact]
     public void Diminish_player_crowd_control_and_reset_after_the_window()
@@ -85,7 +87,8 @@ public class CrowdControlShould
         using MapInstance instance = Instance();
         MapInstanceClient warrior = Join(instance, 770_201);
         MapInstanceClient other = Join(instance, 770_202);
-        CharacterEntity target = Join(instance, 770_203).Character;
+        MapInstanceClient targetClient = Join(instance, 770_203);
+        CharacterEntity target = targetClient.Character;
         GameAbility bash = Seeded(204);
 
         DateTimeOffset start = _clock.GetUtcNow();
@@ -95,6 +98,10 @@ public class CrowdControlShould
         Assert.Equal(375u, LandAndExpire(instance, warrior.Character, target, bash, Stunned));
         Assert.Equal(0u, LandAndExpire(instance, other.Character, target, bash, Stunned));
         Assert.Equal(start.AddMilliseconds(1500 + 750 + 375), _clock.GetUtcNow());
+        Assert.Single(targetClient.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED),
+            p => p is { Result: HitResult.Immune, Damage: 0, AbilityId: 204 } && p.Attacker == other.Character.Guid.RawValue);
+        Assert.Single(other.Read<SUnitDamagePacket>(NetworkPacketType.SMSG_CREATURE_DAMAGED),
+            p => p is { Result: HitResult.Immune, Damage: 0 } && p.Target == target.Guid.RawValue);
 
         _clock.SetUtcNow(lastLanded.AddSeconds(6));
         Assert.Equal(1500u, LandAndExpire(instance, other.Character, target, bash, Stunned));
@@ -142,7 +149,8 @@ public class CrowdControlShould
 
     /// <summary>
     /// A stun ends only running cast bars, with no cooldown started and each interrupt sent once: a creature's wind-up,
-    /// stunned by a character's cast firing in the same tick's walk of the queue, and a character's cast bar. Queued
+    /// stunned by a character's cast firing in the same tick's walk of the queue, and a character's ability, item and
+    /// doodad cast bars (the item's use told it was interrupted). Queued
     /// after the stunner, the wind-up is ended before the walk reaches it, and a wind-up shorter than a tick must not
     /// fire there anyway; queued before, it already ran down this tick. A hit already fired and held for the dodge wait
     /// still lands, its caster stunned or not.
@@ -166,6 +174,7 @@ public class CrowdControlShould
         GameAbility bash = Cast(AbilityTestData.Cone(204, reach: 2.5f), 10);   // the seeded row's aura: Stunned
         var forward = new AbilityAim(new Vector3(0f, 0f, 1f), null);
 
+        // The cast queue (a HashSet with nothing removed yet) is walked in the order the casts were queued.
         Assert.True(instance.QueueAbility(novaCaster, forward, nova));
         if (stunnerQueuedFirst)
             Assert.True(instance.QueueAbility(warrior.Character, forward, bash));
@@ -173,6 +182,20 @@ public class CrowdControlShould
         if (!stunnerQueuedFirst)
             Assert.True(instance.QueueAbility(warrior.Character, forward, bash));
         Assert.True(instance.QueueAbility(caster.Character, forward, longCast));
+        bool itemUseInterrupted = false;
+        instance.ItemUses.Start(new PendingItemUse
+        {
+            Character = caster.Character,
+            Item = new ItemTemplateId(14),
+            StartPosition = caster.Character.Position,
+            CastId = instance.ItemUses.TakeCastId(),
+            CastTimeSeconds = 5f,
+            CanComplete = static () => true,
+            Completed = static () => { },
+            Interrupted = () => itemUseInterrupted = true,
+        });
+        instance.DoodadCasts.Start(new PendingDoodadUse(caster.Character, Barrel(770_801), caster.Character.Position,
+            instance.DoodadCasts.TakeCastId(), _clock.GetUtcNow().UtcDateTime.AddSeconds(5), 5f, caster.Connection));
 
         // The bash and the nova fire on the first tick: the nova's hit on the victim waits, the bash stuns the wind-up.
         Tick(instance, ticks);
@@ -184,6 +207,8 @@ public class CrowdControlShould
         instance.Auras.Apply(warrior.Character, caster.Character, new AuraId(Stunned), AuraSource.None);
         instance.Auras.Apply(warrior.Character, novaCaster, new AuraId(Stunned), AuraSource.None);
         Assert.Equal((false, 0f), (longCast.Casting, longCast.CooldownTimer));
+        Assert.Equal((false, false, true), (instance.ItemUses.IsCasting(caster.Character.Guid),
+            instance.DoodadCasts.IsCasting(caster.Character.Guid), itemUseInterrupted));
 
         // Past the wind-up's whole cast time: nothing it would have hit (the warrior) is hit.
         for (int i = 0; i < 150; i++)
@@ -191,10 +216,14 @@ public class CrowdControlShould
         Assert.True(victim.Character.CurrentHealth < 100u);
         Assert.Equal(100u, warrior.Character.CurrentHealth);
         Assert.Equal(1, Interrupts(warrior, windingUp));
-        Assert.Equal(1, Interrupts(caster, caster.Character));
+        Assert.Equal((1, 1, 1), (Interrupts(caster, caster.Character), Interrupts(caster, caster.Character, item: true),
+            Interrupts(caster, caster.Character, doodad: true)));
     }
 
-    /// <summary>A silence ends a running cast bar but spares the basic attack's.</summary>
+    /// <summary>
+    /// A silence ends a running cast bar but spares the basic attack's, and an ability cast an item started (an item
+    /// use), which a stun then ends.
+    /// </summary>
     [Fact]
     public void Spare_the_basic_attack_when_silenced()
     {
@@ -214,6 +243,14 @@ public class CrowdControlShould
 
         Assert.Equal((true, false), (basic.Casting, spell.Casting));
         Assert.Equal((0, 1), (Interrupts(basicCaster, basicCaster.Character), Interrupts(spellCaster, spellCaster.Character)));
+
+        MapInstanceClient itemUser = Player(instance, 770_503, new Vector3(-10f, 0f, 0f));
+        GameAbility itemCast = Cast(AbilityTestData.Circle(320, radius: 3f), 2000);
+        Assert.True(((IItemUseHost)instance).CastForItem(itemUser.Character, forward, itemCast, free: true));
+        instance.Auras.Apply(spellCaster.Character, itemUser.Character, new AuraId(Silenced), AuraSource.None);
+        Assert.True(itemCast.Casting);
+        instance.Auras.Apply(spellCaster.Character, itemUser.Character, new AuraId(Stunned), AuraSource.None);
+        Assert.Equal((false, 1), (itemCast.Casting, Interrupts(itemUser, itemUser.Character)));
     }
 
     private MapInstance Instance(WorldTicks? ticks = null) =>
@@ -248,9 +285,17 @@ public class CrowdControlShould
         return AbilityTestData.Game(row);
     }
 
-    private static int Interrupts(MapInstanceClient client, IUnit caster) =>
+    /// <summary>The interrupts of <paramref name="caster" />'s ability casts the client saw, or of its item or doodad bars.</summary>
+    private static int Interrupts(MapInstanceClient client, IUnit caster, bool item = false, bool doodad = false) =>
         client.Read<SCharacterInterruptedCastPacket>(NetworkPacketType.SMSG_INTERRUPTED_CAST)
-            .Count(p => p.Caster == caster.Guid.RawValue);
+            .Count(p => p.Caster == caster.Guid.RawValue && p.ItemTemplateId != 0 == item && p.DoodadTemplateId != 0 == doodad);
+
+    /// <summary>A plain clicked barrel: what a doodad cast bar is started on.</summary>
+    private static Doodad Barrel(uint id) => new(new ObjectGuid(ObjectType.Doodad, id), new DoodadTemplateView(
+            new DoodadTemplateId(1), "Barrel", "props-kit", "Barrel", null, null, null, null,
+            DoodadInteraction.Click, 0, 5f, 0f, DoodadUseLimit.OncePerInstance, DoodadSpentLook.ShowUsed, null, null,
+            null, 0, 0, 0, DoodadCollision.None, 0f, 0f, 0f, null, null, [], 0, ScriptCanSee: false),
+        new Vector3(-20f, 0f, 1f), 0f);
 
     private static void Tick(MapInstance instance, WorldTicks ticks)
     {

@@ -169,17 +169,20 @@ public sealed class AuraSystem
         if (AuraHolders.Of(target) is not { } auras || IsDead(target))
             return AuraApplyResult.Refused;
 
-        // A crowd-control aura (#770): one that grants a stun, root or silence, or a slow. Either is harmful.
-        bool controls = template.Control != CrowdControl.None || AuraRules.IsSlow(template);
+        // A crowd-control aura (#770): one that grants a stun, root or silence, or a slow; only a harmful aura can.
+        bool controls = false;
         if (template.Kind == AuraKind.Harmful)
         {
+            controls = template.Control != CrowdControl.None || AuraRules.IsSlow(template);
+
             // A creature walking home resists crowd control (its caster is told "Immune") and refuses any other harmful
-            // aura; one every hit passes over (arrival protection, invulnerable, a corpse) refuses either.
-            bool walkingHome = IsWalkingHome(target);
-            if (walkingHome && controls && target is not ICreature { Invulnerable: true })
-                return AuraApplyResult.Resisted;
-            if (walkingHome || CombatService.IgnoresHits(target))
-                return AuraApplyResult.Refused;
+            // aura; one every hit passes over for any other reason (arrival protection, invulnerable) refuses either.
+            if (CombatService.IgnoresHits(target) || IsWalkingHome(target))
+            {
+                return controls && IsWalkingHome(target) && target is not ICreature { Invulnerable: true }
+                    ? AuraApplyResult.Resisted
+                    : AuraApplyResult.Refused;
+            }
         }
 
         // A copy keyed by caster only for Independent rows: Renew overwrites the caster of every other kind.
