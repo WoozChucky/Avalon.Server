@@ -485,7 +485,7 @@ public sealed class AuraSystem
         for (int k = 0; k < due; k++)
         {
             aura.Schedule = aura.Schedule.AfterTicks(1);
-            Tick(unit, aura, lastTick: aura.Schedule.TicksLeft == 0);
+            Tick(unit, auras, aura, lastTick: aura.Schedule.TicksLeft == 0);
             if (IsDead(unit) || !auras.Contains(aura) || aura.ScriptEnded)
                 break;
         }
@@ -591,9 +591,11 @@ public sealed class AuraSystem
 
     /// <summary>
     /// One tick: its damage or heal, from the caster if it is still here, otherwise from nobody, with the copy's own
-    /// fraction of a point carried in and out; its <paramref name="lastTick" /> rounds what is left.
+    /// fraction of a point carried in and out; its <paramref name="lastTick" /> rounds what is left. Its script hears
+    /// OnTick only while <paramref name="auras" /> still holds it: a tick that ended its own aura (its unit killed, or
+    /// the aura broken by the tick's damage, #770) has already told the script OnRemove.
     /// </summary>
-    private void Tick(IUnit unit, ActiveAura aura, bool lastTick)
+    private void Tick(IUnit unit, UnitAuras auras, ActiveAura aura, bool lastTick)
     {
         var hit = new PeriodicHit(CasterHere(aura.CasterGuid), unit, aura.Id,
             aura.Snapshot.PerTickPerStack * aura.Stacks, aura.Snapshot, aura.Source);
@@ -617,7 +619,8 @@ public sealed class AuraSystem
             aura.PeriodicCarry = carry;
         }
 
-        RunHook(unit, aura, "OnTick", static (s, c, _) => s.OnTick(c));
+        if (auras.Contains(aura))
+            RunHook(unit, aura, "OnTick", static (s, c, _) => s.OnTick(c));
     }
 
     /// <summary>

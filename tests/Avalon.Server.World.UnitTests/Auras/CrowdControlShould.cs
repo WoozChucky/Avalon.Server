@@ -2,6 +2,7 @@ using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
@@ -260,7 +261,9 @@ public class CrowdControlShould
     /// <summary>
     /// A held CC aura may end early, as Broken, by its row's chances: once per hit or tick on its holder that dealt
     /// something, one roll each (Bound 25 %, Stunned 10 %, Silenced 0 %, which draws nothing), and once per whole second
-    /// held (Bound 0.5 %, Silenced never). A dodged hit deals nothing and so rolls nothing.
+    /// held (Bound 0.5 %, Silenced never). A dodged hit deals nothing and so rolls nothing. The rolls keep to the whole
+    /// seconds since the aura was applied: those that fell while the instance stood empty are skipped, never paid in a
+    /// burst on return, and a restored aura owes none it took before it was saved nor any for the loading screen.
     /// </summary>
     [Theory]
     [InlineData(Bound, "hit", new[] { 0.249 }, true)]
@@ -271,16 +274,22 @@ public class CrowdControlShould
     [InlineData(Bound, "dodge", new double[0], false)]
     [InlineData(Bound, "held", new[] { 0.99, 0.004 }, true)]
     [InlineData(Silenced, "held", new double[0], false)]
+    [InlineData(Bound, "paused", new[] { 0.004 }, true)]
+    [InlineData(Bound, "restored", new[] { 0.004 }, true)]
     public void Break_crowd_control_by_chance_on_damage_and_over_time(uint auraId, string how, double[] breakRolls,
         bool broken)
     {
         BreakRecorder.Reasons.Clear();
         var random = new ScriptedCombatRandom();
-        using MapInstance instance = Instance(random: random, auraScripts: RecorderScripts());
-        CharacterEntity hunter = Join(instance, 770_601).Character;
+        using MapInstance instance = Instance(random: random, auraScripts: new AuraScripts(RecorderScriptManager(),
+            new ServiceCollection().BuildServiceProvider(), _clock, NullLogger<AuraScripts>.Instance));
+        MapInstanceClient hunterClient = Join(instance, 770_601);
+        CharacterEntity hunter = hunterClient.Character;
         Creature boar = AddCreature(instance, 770_905, new Vector3(0f, 0f, 2f), Loot.LootTestData.BoarTemplate(null),
             dodgePct: how == "dodge" ? 30f : 0f);
-        Assert.Equal(AuraApplyResult.Applied, instance.Auras.Apply(hunter, boar, Recorded(auraId), AuraSource.None));
+        UnitAuras holder = boar.Auras;
+        if (how != "restored")
+            Assert.Equal(AuraApplyResult.Applied, instance.Auras.Apply(hunter, boar, Recorded(auraId), AuraSource.None));
 
         switch (how)
         {
@@ -307,10 +316,28 @@ public class CrowdControlShould
                 }
 
                 break;
+            case "paused":   // empty from 0 s to 1.5 s, past the 1 s roll: the next is the 2 s one
+                random.Doubles(breakRolls);
+                instance.RemoveCharacter(hunterClient.Connection);
+                instance.Update(TimeSpan.FromSeconds(1d / 60d));
+                _clock.Advance(TimeSpan.FromMilliseconds(1500));
+                instance.AddCharacter(hunterClient.Connection);
+                PassAndCount(instance, random, [(0, 1), (250, 1), (500, 0)]);
+                break;
+            case "restored":   // saved 1.5 s into a 3 s root, 1 s of loading: its 2 s roll comes 0.5 s after it enters
+                random.Doubles(breakRolls);
+                CharacterEntity restored = Inventory.TestCharacters.New(770_602, time: _clock);
+                AuraRestore.Restore(restored, [SavedHalfway(auraId)], RecorderData(auraId), 32, NullLogger.Instance);
+                _clock.Advance(TimeSpan.FromSeconds(1));
+                Join(instance, restored);
+                holder = restored.Auras;
+                Assert.Single(holder.All);
+                PassAndCount(instance, random, [(250, 1), (250, 0)]);
+                break;
         }
 
         Assert.Equal(0, random.DoublesLeft);
-        Assert.Equal(!broken, boar.Auras.All.Any(a => a.Id.Value == auraId));
+        Assert.Equal(!broken, holder.All.Any(a => a.Id.Value == auraId));
         AuraRemoveReason[] reasons = broken ? [AuraRemoveReason.Broken] : [];
         Assert.Equal(reasons, BreakRecorder.Reasons);
     }
@@ -321,6 +348,7 @@ public class CrowdControlShould
             time: _clock, worldTicks: ticks, auraScripts: auraScripts);
 
     /// <summary>The seeded aura <paramref name="id" /> as loaded, its script <see cref="BreakRecorder" />.</summary>
+    /// <remarks>Copied field by field: a new AuraTemplate field that changes behaviour must be copied here too.</remarks>
     private static AuraTemplate Recorded(uint id)
     {
         Assert.True(Data.Auras.TryGet(new AuraId(id), out AuraTemplate? row));
@@ -343,12 +371,42 @@ public class CrowdControlShould
         };
     }
 
-    private AuraScripts RecorderScripts()
+    private static IScriptManager RecorderScriptManager()
     {
         IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetAuraScript(nameof(BreakRecorder)).Returns(typeof(BreakRecorder));
-        return new AuraScripts(scripts, new ServiceCollection().BuildServiceProvider(), _clock,
-            NullLogger<AuraScripts>.Instance);
+        return scripts;
+    }
+
+    /// <summary>Reference data whose aura catalog holds only <see cref="Recorded" />'s copy of <paramref name="id" />.</summary>
+    private static StaticData RecorderData(uint id) =>
+        TestStaticData.LoadAsync(TestStaticData.Repositories(scripts: RecorderScriptManager(),
+            auras: () => [Recorded(id)])).GetAwaiter().GetResult();
+
+    /// <summary>A saved copy of the 3 s aura <paramref name="id" />, from nobody, with half its time left.</summary>
+    private CharacterAura SavedHalfway(uint id) => new()
+    {
+        CharacterId = new CharacterId(770_602),
+        AuraId = id,
+        Stacks = 1,
+        RemainingMs = 1500,
+        DurationMs = 3000,
+        CasterLevel = 1,
+        AppliedAt = _clock.GetUtcNow().UtcDateTime.AddDays(-1),
+    };
+
+    /// <summary>
+    /// For each step, runs the clock on by its milliseconds and the instance by one pass, then checks how many scripted
+    /// rolls are left.
+    /// </summary>
+    private void PassAndCount(MapInstance instance, ScriptedCombatRandom random, (int Ms, int Left)[] steps)
+    {
+        foreach ((int ms, int left) in steps)
+        {
+            _clock.Advance(TimeSpan.FromMilliseconds(ms));
+            instance.Update(TimeSpan.FromSeconds(1d / 60d));
+            Assert.Equal(left, random.DoublesLeft);
+        }
     }
 
     /// <summary>Records why each aura naming it ended. Only this class's tests use it, one at a time.</summary>
