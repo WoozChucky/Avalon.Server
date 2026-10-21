@@ -84,38 +84,38 @@ lowers the speed through the stat fold as before. A unit holding several is in e
   saved, so a new session starts clean): counted per type on the target, whoever cast it, the first lands at 100 %, the
   second at 50 %, the third at 25 % and the fourth is refused (`CrowdControlRules.DiminishPct`), and the count starts
   over once none of that type has landed for `Game:CrowdControlDiminishWindow` (default 6 s, above 0 and at most 7 s;
-  [configuration](configuration-reference.md)). An aura granting several types takes the smallest step and records
-  each. A creature's control on a character, an aura from nobody, and a slow alone never diminish. Every step that
-  lands, a refresh included, is recorded and restarts the window; the refused step records nothing, so repeated tries
-  cannot hold a target immune. **Nothing landing** (a resistance of 0, the refused step, or a creature walking home) is
+  [configuration](configuration-reference.md)). An aura granting several types takes the smallest step and records each.
+  A creature's control on a character, an aura from nobody, and a slow alone never diminish. Every step that lands, a
+  refresh included, is recorded and restarts the window; the refused step records nothing, so repeated tries cannot hold
+  a target immune. **Nothing landing** (a resistance of 0, the refused step, or a creature walking home) is
   `AuraApplyResult.Resisted`: nothing is placed or recorded and the aura enters no combat; for an ability's aura its
-  caster and whoever would have seen the hit get a hit of 0 marked `HitResult.Immune` (`ICombatOutcomes.ControlResisted`,
-  sent as a dodge is), after the ability's own damage. A creature walking home is told so only by an ability with no
-  direct amount: one with a direct amount, as all four seeded ones have, sees its hit passed over first, and a hit that
-  did not land applies no aura, so nothing is resisted and nothing is sent. Arrival protection, an invulnerable creature and a corpse still
-  refuse it (`Refused`, no Immune). A doodad's or an item's application that is resisted counts as not applied. A
-  refresh of a held crowd-control aura never shortens it: the copy keeps the later of its expiry and the new one, its
-  `DurationMs` then being the time it had left.
+  caster and whoever would have seen the hit get a hit of 0 marked `HitResult.Immune`
+  (`ICombatOutcomes.ControlResisted`, sent as a dodge is), after the ability's own damage. A creature walking home is
+  told so only by an ability with no direct amount: one with a direct amount, as all four seeded ones have, sees its hit
+  passed over first, and a hit that did not land applies no aura, so nothing is resisted and nothing is sent. Arrival
+  protection, an invulnerable creature and a corpse still refuse it (`Refused`, no Immune). A doodad's or an item's
+  application that is resisted counts as not applied. A refresh of a held crowd-control aura never shortens it: the copy
+  keeps the later of its expiry and the new one, its `DurationMs` then being the time it had left.
 - **Interrupts.** A stun or a silence that landed (and that a first hook did not end at once) ends the target's running
-  cast bar through its instance (`AuraSystem`'s `controlled` callback, `MapInstance.Controlled`): a stun ends its ability
-  cast (`IAbilityCastSystem.Interrupt`) and, for a character, its item and doodad cast bars; a silence ends its ability
-  cast unless that is the basic attack or a cast an item started (`AbilityInstance.ForItem`), and no item or doodad bar.
-  Only the wind-up ends, out loud, with the usual interrupt and its cast id: nothing fires, nothing is refunded and no
-  cooldown starts, while a hit already fired and held for the dodge wait still lands and a projectile in flight flies on
-  (unlike `CancelCasts`). It is safe from inside a cast firing on that tick (a stun dealt by a cast). A root interrupts
-  nothing; for a character moving still does, and a rooted character does not move.
-- **Characters.** Input while stunned or rooted (`PlayerInputHandler`) is taken but no step is: its sequence advances and
-  the ack carries the unchanged position and zero velocity, so the client reconciles without drifting, and its
-  velocity is set to zero; a rooted character turns to the input's yaw, a stunned one keeps its own. `CastAbilityHandler`
-  refuses `CastRejectReason.Stunned` (15) right after `Dead`, and `Silenced` (16) once the ability is known, after
-  `NotOwned`; the cast system refuses the same on both paths (`QueueAbility`, `RunInstant`), the one choke point for
-  players, creatures and items, a cast an item started being spared by a silence. A stun refuses, each reply with an
-  appended `Stunned` reason: an item use, gear included (`ItemUseResult.Stunned` 17, right after `Dead`), a drag or a
-  destroy that touches Equipment or the Bank (`ItemRequestResult.Stunned` 13; Bag moves and destroying a Bag item still
-  go), vendor buy, sell and buyback (`VendorResult.Stunned` 13, after `Dead`, before the leash), quest accept and
-  turn-in (`QuestResult.Stunned` 11), a ground-loot pickup (`LootPickupResult.Stunned` 7) and a portal entry
-  (`MapTransitionResult.Stunned` 14, asked at the request and again on arrival, after the instance is built). An open NPC
-  conversation stays open. NPC and doodad interaction (`InteractHandler`; `DoodadUseService` as
+  cast bar through its instance (`AuraSystem`'s `controlled` callback, `MapInstance.Controlled`): a stun ends its
+  ability cast (`IAbilityCastSystem.Interrupt`) and, for a character, its item and doodad cast bars; a silence ends its
+  ability cast unless that is the basic attack or a cast an item started (`AbilityInstance.ForItem`), and no item or
+  doodad bar. Only the wind-up ends, out loud, with the usual interrupt and its cast id: nothing fires, nothing is
+  refunded and no cooldown starts, while a hit already fired and held for the dodge wait still lands and a projectile in
+  flight flies on (unlike `CancelCasts`). It is safe from inside a cast firing on that tick (a stun dealt by a cast). A
+  root interrupts nothing; for a character moving still does, and a rooted character does not move.
+- **Characters.** Input while stunned or rooted (`PlayerInputHandler`) is taken but no step is: its sequence advances
+  and the ack carries the unchanged position and zero velocity, so the client reconciles without drifting, and its
+  velocity is set to zero; a rooted character turns to the input's yaw, a stunned one keeps its own.
+  `CastAbilityHandler` refuses `CastRejectReason.Stunned` (15) right after `Dead`, and `Silenced` (16) once the ability
+  is known, after `NotOwned`; the cast system refuses the same on both paths (`QueueAbility`, `RunInstant`), the one
+  choke point for players, creatures and items, a cast an item started being spared by a silence. A stun refuses, each
+  reply with an appended `Stunned` reason: an item use, gear included (`ItemUseResult.Stunned` 17, right after `Dead`),
+  a drag or a destroy that touches Equipment or the Bank (`ItemRequestResult.Stunned` 13; Bag moves and destroying a Bag
+  item still go), vendor buy, sell and buyback (`VendorResult.Stunned` 13, after `Dead`, before the leash), quest accept
+  and turn-in (`QuestResult.Stunned` 11), a ground-loot pickup (`LootPickupResult.Stunned` 7) and a portal entry
+  (`MapTransitionResult.Stunned` 14, asked at the request and again on arrival, after the instance is built). An open
+  NPC conversation stays open. NPC and doodad interaction (`InteractHandler`; `DoodadUseService` as
   `DoodadUseRefusal.Stunned`) and dialogue choices are dropped silently, as their other refusals are. Cancelling one's
   own helpful aura (`CMSG_AURA_CANCEL`) is allowed. God mode does not lift crowd control.
 - **Creatures.** `CreatureCombatScript` reads the cache once a tick as it engages: stunned, it stands as for a wind-up
@@ -123,21 +123,21 @@ lowers the speed through the stat fold as before. A unit holding several is in e
   but turns to and attacks a target in reach; silenced, it casts only its basic, ready and in reach (`ChooseAbility`,
   and so a forest rotation, is not asked: a rotation preferring a ready special would leave it attacking nothing).
   Neither stun nor root counts toward the 5 s unreachable give-up; the leash and the walk home are unchanged.
-  `CreaturePatrolScript` takes no step while stunned or rooted: a leg in progress is stopped and asked for again once
-  it is free, so its point is neither skipped nor counted reached. A slow needs nothing: the locomotion moves the
-  creature at its slowed speed. The creature scheduler needs no hold: a fighting or walking creature is updated every
-  tick, and a parked one reads its state when it wakes. Known limits: a rooted creature keeps the melee slot it already
-  held for the root's few seconds; a crowd's separation can still push a controlled creature; a patrol's pause at a
-  point runs on through crowd control.
+  `CreaturePatrolScript` takes no step while stunned or rooted: a leg in progress is stopped and asked for again once it
+  is free, so its point is neither skipped nor counted reached. A slow needs nothing: the locomotion moves the creature
+  at its slowed speed. The creature scheduler needs no hold: a fighting or walking creature is updated every tick, and a
+  parked one reads its state when it wakes. Known limits: a rooted creature keeps the melee slot it already held for the
+  root's few seconds; a crowd's separation can still push a controlled creature; a patrol's pause at a point runs on
+  through crowd control.
 - **Breaks** (`AuraRemoveReason.Broken` 6, World-side; a client hears an ordinary `Removed`). Two chances per aura row,
   in percent. `BreakOnDamagePct` is rolled once by each aura its holder holds whenever a hit or a periodic tick deals
   more than 0 to it and leaves it alive (`CombatService` reports `ICombatOutcomes.DamageTaken`, once per hit or tick, to
   `AuraSystem.DamageTaken`; the copies that break are ended after the walk). `BreakPerSecondPct` is rolled by the aura
   pass once for every whole second held (`ActiveAura.NextBreakRollAt`: a second after the copy was applied or renewed,
   then every second), never at or past its end, after its ticks and before its expiry. A late pass rolls every second it
-  owes, as it pays ticks; the empty-instance skip, a hold (the loading screen, a move between instances) and a restore at
-  select do not: the next roll keeps its place on the whole seconds held, so no burst of owed rolls follows. Every roll
-  draws from the combat service's `ICombatRandom`, and a chance of 0 draws nothing. Any aura row may carry the two
+  owes, as it pays ticks; the empty-instance skip, a hold (the loading screen, a move between instances) and a restore
+  at select do not: the next roll keeps its place on the whole seconds held, so no burst of owed rolls follows. Every
+  roll draws from the combat service's `ICombatRandom`, and a chance of 0 draws nothing. Any aura row may carry the two
   chances; the seed gives them only to the crowd-control auras and the two slows.
 - **Data.** World migration `SeedCrowdControl`: the aura columns above; on `CreatureRarityModifiers` four duration
   percentages, `StunDurationPct`, `RootDurationPct`, `SilenceDurationPct` and `SlowDurationPct` (0 immune to 100 the

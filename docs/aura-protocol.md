@@ -230,22 +230,22 @@ holds (the union of their bits), never from the catalog:
 - **Refusals** carry their reason: `SAbilityNotReadyPacket` `CastRejectReason` `Stunned` 15 or `Silenced` 16;
   `ItemUseResult` `Stunned` 17; `ItemRequestResult` `Stunned` 13 (a drag or destroy touching Equipment or the Bank);
   `VendorResult` `Stunned` 13; `QuestResult` `Stunned` 11; `LootPickupResult` `Stunned` 7; `MapTransitionResult`
-  `Stunned` 14. An open NPC conversation stays open. An interaction with an NPC or a doodad, and a dialogue choice, are
-  dropped with no answer, as their other refusals are.
+  `Stunned` 14. An open NPC conversation stays open. An interaction with an NPC or a doodad, and a dialogue choice,
+  are dropped with no answer, as their other refusals are.
 - **Interrupts.** A stun ends the unit's running cast bar, an ability's, an item's or a doodad's; a silence ends an
   ability cast unless it is the basic attack or an item's. Each ends with the usual interrupt packet and its cast id;
   a hit the cast already fired still lands.
-- **Immune.** Crowd control a target resists whole is not applied, and the caster and everyone who would have seen the
-  hit get a damage packet of 0 with `Result` `HitResult.Immune` (8), after the ability's own damage packet if it has
-  one: on a
-  creature whose resistance to that type is 0 (a boss is immune to stun and silence), on a character that has already
-  taken a stun, root or silence of that type three times from other characters within the diminishing window, and on a
-  creature walking home hit by an ability with no direct amount (an ability with one, as every seeded crowd-control
-  ability has, is passed over whole by such a creature: no damage, no aura, no "Immune").
+- **Immune.** Crowd control a target resists whole is not applied, and the caster and everyone who would have seen
+  the hit get a damage packet of 0 with `Result` `HitResult.Immune` (8), after the ability's own damage packet if it
+  has one: on a creature whose resistance to that type is 0 (a boss is immune to stun and silence), on a character
+  that has already taken a stun, root or silence of that type three times from other characters within the
+  diminishing window, and on a creature walking home hit by an ability with no direct amount (an ability with one, as
+  every seeded crowd-control ability has, is passed over whole by such a creature: no damage, no aura, no "Immune").
 - **Shorter durations.** Resistance and diminishing shorten an aura rather than refuse it: a Rare creature takes half
   of each, a Boss half a root or slow, and a character takes a stun, root or silence from another character at full,
-  then half, then a quarter of its duration until none of that type has landed for 6 s (`Game:CrowdControlDiminishWindow`).
-  The entry's `DurationMs` is the shortened duration, so draw the timer from the entry. A refresh never shortens what
-  is left: its `DurationMs` may then be the time left rather than the row's duration.
+  then half, then a quarter of its duration until none of that type has landed for 6 s
+  (`Game:CrowdControlDiminishWindow`). The entry's `DurationMs` is the shortened duration, so draw the timer from the
+  entry. A refresh never shortens what is left: its `DurationMs` may then be the time left rather than the row's
+  duration.
 - **Breaking early.** A crowd-control aura can end before its time, by chance, when its holder takes damage or once
   per second held (the catalog's break chances). It arrives as an ordinary `Removed` entry.

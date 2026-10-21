@@ -135,14 +135,14 @@ then keeps the dialogue node it had until it talks to the NPC again.
 | 11 | `Stunned` | The character is stunned (crowd control, [aura protocol](aura-protocol.md) section 10). The conversation stays open; try again once the stun ends. |
 
 The checks run in this order, and the first failure is the answer:
-- **Accept:** `NoConversation` (dead, no open conversation, or a different NPC), `Stunned`, `NoConversation` (the
-  NPC gone or dead), `TooFar`, `NotAvailable` (unknown quest, or this NPC is not its giver), then availability: `NotAvailable`
-  (completed or held, prerequisite, level, class, script), and last `LogFull`.
-- **Turn in:** `NoConversation`, `Stunned`, `TooFar` (as for accept), `NotActive` (not held, or unknown), `NoConversation`
-  (this NPC is not the quest's ender), `NotReady` (not ready, or the last stage's items are not all in the
-  bag as it is now), `Error` (a reward item the server can no longer pay), `BagFull`, `MoneyCap`. A refused
-  turn-in takes nothing and pays nothing. (The bag is recounted first, so a quest found short goes back to
-  `Active` and its `Progress` update follows.)
+- **Accept:** `NoConversation` (dead, no open conversation, or a different NPC), `Stunned`, `NoConversation`
+  (the NPC gone or dead), `TooFar`, `NotAvailable` (unknown quest, or this NPC is not its giver), then
+  availability: `NotAvailable` (completed or held, prerequisite, level, class, script), and last `LogFull`.
+- **Turn in:** `NoConversation`, `Stunned`, `TooFar` (as for accept), `NotActive` (not held, or unknown),
+  `NoConversation` (this NPC is not the quest's ender), `NotReady` (not ready, or the last stage's items are not
+  all in the bag as it is now), `Error` (a reward item the server can no longer pay), `BagFull`, `MoneyCap`. A
+  refused turn-in takes nothing and pays nothing. (The bag is recounted first, so a quest found short goes back
+  to `Active` and its `Progress` update follows.)
 - **Abandon:** `NotActive`. Abandon works anywhere, with no conversation.
 
 ## 5. The log

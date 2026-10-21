@@ -30,17 +30,17 @@ then asks `CreatureStatDeriver.Derive` for the stats that level gives:
    (`HealthMultiplier`, `DamageMultiplier`, `ExperienceMultiplier`). A rarity with no row logs a
    warning and is not scaled.
 4. Floor health and minimum damage at 1, and keep the maximum damage at or above the minimum.
-5. Armour (#506) is the level's `Armor` scaled by the template's `ArmorModifier`, rounded. There is
-   no rarity armour multiplier yet. The creature's crit, dodge and block chances, in percentage
-   points, are its rarity row's `CritPct`, `DodgePct` and `BlockPct` (Normal 0/0/0, Elite 5/3/0,
-   Rare 8/5/5, Boss 10/5/10). `CreatureSpawner` copies all four onto the World-side `Creature`,
-   init-only and not on `ICreature`, so a `/reload creatures` reaches only creatures spawned after it.
-   Its crowd-control resistance (#770, `Creature.ControlResistance`) is fixed the same way: for each of
-   stun, root, silence and slow, the template's nullable `StunDurationPct`, `RootDurationPct`,
-   `SilenceDurationPct` or `SlowDurationPct` where set, else the rarity row's (Normal and Elite 100 each,
-   Rare 50 each, Boss 0 stun, 50 root, 0 silence, 50 slow), else 100: the percentage of such an aura's
-   duration it takes, 0 immune (see [Auras](auras.md#crowd-control-770)). No template overrides it yet.
-   Seeded armour rises from 0 at level 1 to 30 at level 10, `round(30 x (L - 1) / 9)`.
+5. Armour (#506) is the level's `Armor` scaled by the template's `ArmorModifier`, rounded. There is no
+   rarity armour multiplier yet. The creature's crit, dodge and block chances, in percentage points,
+   are its rarity row's `CritPct`, `DodgePct` and `BlockPct` (Normal 0/0/0, Elite 5/3/0, Rare 8/5/5,
+   Boss 10/5/10). `CreatureSpawner` copies all four onto the World-side `Creature`, init-only and not
+   on `ICreature`, so a `/reload creatures` reaches only creatures spawned after it. Its crowd-control
+   resistance (#770, `Creature.ControlResistance`) is fixed the same way: for each of stun, root,
+   silence and slow, the template's nullable `StunDurationPct`, `RootDurationPct`,
+   `SilenceDurationPct` or `SlowDurationPct` where set, else the rarity row's (Normal and Elite 100
+   each, Rare 50 each, Boss 0 stun, 50 root, 0 silence, 50 slow), else 100: the percentage of such an
+   aura's duration it takes, 0 immune (see [Auras](auras.md#crowd-control-770)). No template overrides
+   it yet. Seeded armour rises from 0 at level 1 to 30 at level 10, `round(30 x (L - 1) / 9)`.
 
 A modifier or multiplier of 0 or less counts as 1, so a zero in seed data does not zero a stat.
 
@@ -261,26 +261,27 @@ contracts.
 - It gives up and returns home at full health when a character target dies, the target leaves the
   instance, or the creature is more than 40 m from where the fight started. The death check covers
   character targets only.
-- It also gives up when it has had no way to reach its target for more than 5 s in a row (#606).
-  That is read from where its route really ends (`ICreatureLocomotion.ResolvedDestination`), not
-  from `HasArrived`: while out of attack range, there is no route, or the route ends farther than
-  attack range plus the arrival tolerance from the target. A settled creature out of range re-plans
-  every tick, so the route judged is always fresh. A partial route
-  toward a ledge or an island is unreachable; a slot against a wall whose route still ends within
-  reach of the target is not. A tick that can reach, and a change of target, start the count over.
-  The count does not run while the creature is stunned or rooted (#770).
-- **Crowd control** (#770, [Auras](auras.md#crowd-control-770)), read once a tick from the cache its auras
-  keep (`ControlGates`): stunned, it stands as for a wind-up, a walk in progress stopped, and neither turns,
-  attacks nor casts; rooted, it asks for no step and claims no new melee slot, but turns to and attacks a
-  target in reach; silenced, it casts only its basic, ready and in reach, and `ChooseAbility` is not asked.
-  A slow needs nothing here: the locomotion moves it at its slowed speed. The leash and the walk home are
-  unchanged, and a creature walking home resists crowd control (its caster is told "Immune" when an
-  aura-only ability reaches it; an ability with a direct amount is passed over whole). Known
-  limits: a rooted creature keeps the melee slot it already held for the root's few seconds, a crowd's
-  separation can still push a controlled creature, and `CreaturePatrolScript` (which takes no step while
-  stunned or rooted, stopping a leg in progress and asking for it again once free) lets a pause at a point
-  run on through it. The creature scheduler needs no hold: a fighting or walking creature is updated every
-  tick, and a parked one reads its state when it wakes.
+- It also gives up when it has had no way to reach its target for more than 5 s in a row (#606). That
+  is read from where its route really ends (`ICreatureLocomotion.ResolvedDestination`), not from
+  `HasArrived`: while out of attack range, there is no route, or the route ends farther than attack
+  range plus the arrival tolerance from the target. A settled creature out of range re-plans every
+  tick, so the route judged is always fresh. A partial route toward a ledge or an island is
+  unreachable; a slot against a wall whose route still ends within reach of the target is not. A tick
+  that can reach, and a change of target, start the count over. A tick the creature is stunned or
+  rooted starts the count over too (#770), so crowd control never counts toward giving up.
+- **Crowd control** (#770, [Auras](auras.md#crowd-control-770)), read once a tick from the cache its
+  auras keep (`ControlGates`): stunned, it stands as for a wind-up, a walk in progress stopped, and
+  neither turns, attacks nor casts; rooted, it asks for no step and claims no new melee slot, but
+  turns to and attacks a target in reach; silenced, it casts only its basic, ready and in reach, and
+  `ChooseAbility` is not asked. A slow needs nothing here: the locomotion moves it at its slowed
+  speed. The leash and the walk home are unchanged, and a creature walking home resists crowd control
+  (its caster is told "Immune" when an aura-only ability reaches it; an ability with a direct amount
+  is passed over whole). Known limits: a rooted creature keeps the melee slot it already held for the
+  root's few seconds, a crowd's separation can still push a controlled creature, and
+  `CreaturePatrolScript` (which takes no step while stunned or rooted, stopping a leg in progress and
+  asking for it again once free) lets a pause at a point run on through it. The creature scheduler
+  needs no hold: a fighting or walking creature is updated every tick, and a parked one reads its
+  state when it wakes.
 - Where the fight started is its home, and any position is a valid home, the origin included.
 - A creature walking home after the leash or a lost target ignores hits entirely until it is home
   and reset (owner decision, #606): `CombatService` refuses them, step 2 below (#610). It cannot be
@@ -309,14 +310,14 @@ contracts.
   `SwingInterval`, which already carries the haste; every other ability's is its row's `Cooldown`
   divided by it.
 - **Choosing.** `ChooseAbility(target, distance)` (protected virtual) answers which ability to start,
-  every tick the creature fights and is not casting, stunned or silenced (#770). The base answers the basic when it is ready and
-  reaches. `Ready(id, distance)` answers a held ability when it is ready and reaches, and a rotation
-  chains them, most preferred first. `distance` runs to the edge of the target's body, with no
-  allowance; instead the creature's slot or stand-off point is pulled in toward the target so its basic
-  reaches from anywhere within the locomotion's arrival tolerance of it (a crowd's 0.6 m brings the
-  Blightfly's slot in to 1.3 m; waypoint locomotion leaves the default slot alone). What
-  `ChooseAbility` answers is started only when the creature holds it, it is ready, and it reaches: a
-  cone's `Reach`, a projectile's `Reach`, a circle on the caster's `Radius`.
+  every tick the creature fights and is not casting, stunned or silenced (#770). The base answers the
+  basic when it is ready and reaches. `Ready(id, distance)` answers a held ability when it is ready
+  and reaches, and a rotation chains them, most preferred first. `distance` runs to the edge of the
+  target's body, with no allowance; instead the creature's slot or stand-off point is pulled in toward
+  the target so its basic reaches from anywhere within the locomotion's arrival tolerance of it (a
+  crowd's 0.6 m brings the Blightfly's slot in to 1.3 m; waypoint locomotion leaves the default slot
+  alone). What `ChooseAbility` answers is started only when the creature holds it, it is ready, and it
+  reaches: a cone's `Reach`, a projectile's `Reach`, a circle on the caster's `Radius`.
 - **Aim.** A Movement ability is aimed along the facing toward the target, a Cursor one at the target's
   position, captured when the cast starts.
 - **Wind-ups.** An ability with a `CastTime` is queued: the creature stops, the start of the cast is

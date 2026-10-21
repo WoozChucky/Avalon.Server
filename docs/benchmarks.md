@@ -29,12 +29,13 @@ protection: `ScenarioWorld` adds its characters through `instance.AddCharacter`,
 not cover the buff's apply, hold and removal; the two benchmarks above cover its checks.
 Run with `--filter "*ArrivalProtectionBenchmarks*" "*ArrivalTargetSelectionBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1`.
 
-`CrowdControlBenchmarks` measures the crowd-control gates player input, casts and creature AI ask every tick (#770):
-`ControlGates.CanMove` and `ControlGates.CanCast` (not the basic attack) on a character holding no aura, one holding
-Renew (an aura that controls nothing) and one stunned (Stunned, aura 12, applied by nobody through an instance's aura
-system backed by loaded seed data). Each is one read of the state the unit's auras cache (`UnitAuras.Control`), never a
-look at its auras or the clock, so every row is expected at about the cost of a field read and 0 B. Numbers: not yet
-run (the controller's run fills this in).
+`CrowdControlBenchmarks` measures the crowd-control gates on the hot paths (#770): player input and the creature
+patrol ask `ControlGates.CanMove`, the cast handler and the cast system `ControlGates.CanCast`, and the creature
+combat AI reads `ControlGates.Of`, the same cached field both wrap. It times `CanMove` and `CanCast` (not the basic
+attack) on a character holding no aura, one holding Renew (an aura that controls nothing) and one stunned (Stunned,
+aura 12, applied by nobody through an instance's aura system backed by loaded seed data). Each is one read of the
+state the unit's auras cache (`UnitAuras.Control`), never a look at its auras or the clock, so every row is expected
+at about the cost of a field read and 0 B. Numbers: not yet run (the controller's run fills this in).
 
 | Operation | Mean | Allocated |
 |---|---:|---:|
