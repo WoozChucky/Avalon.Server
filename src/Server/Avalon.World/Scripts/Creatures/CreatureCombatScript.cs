@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
@@ -31,6 +32,13 @@ namespace Avalon.World.Scripts.Creatures;
 /// with the aim captured now, the creature stops, and it asks for no movement until the cast ends (it fires,
 /// or the cast system drops it because the creature died or turned for home), so the cast is never
 /// interrupted by its own steps and a player can step out of it.
+/// <para>
+/// Crowd control (#770), read each tick from the cache the creature's auras keep (<see cref="ControlGates" />): stunned,
+/// it stands as for a wind-up, neither turning nor attacking; rooted, it asks for no step but turns and attacks what
+/// is in reach; silenced, it casts its basic alone. Neither stun nor root counts toward giving up on a target it cannot
+/// reach; the leash and the walk home are unchanged. A slow needs nothing here: it lowers the speed the locomotion
+/// moves the creature at.
+/// </para>
 /// </remarks>
 public class CreatureCombatScript : AiScript, IReturningHome
 {
@@ -556,7 +564,28 @@ public class CreatureCombatScript : AiScript, IReturningHome
     /// </summary>
     private void Engage(IUnit target, Vector3 currentPosition, Vector3 targetPosition, TimeSpan deltaTime)
     {
-        bool hasSlot = ChooseDestination(target, currentPosition, targetPosition, out Vector3 destination);
+        // Crowd control (#770), one read of the cached state. Stunned, the creature stands as for a wind-up: no step,
+        // no turn, no attack, and the unreachable count does not run.
+        CrowdControl control = ControlGates.Of(Creature);
+        if ((control & CrowdControl.Stun) != 0)
+        {
+            HoldStill();
+            _unreachableFor = TimeSpan.Zero;
+            return;
+        }
+
+        // Rooted, it claims no slot and asks for no step, but still turns to and attacks a target in reach.
+        bool rooted = (control & CrowdControl.Root) != 0;
+        bool hasSlot = false;
+        Vector3 destination = default;
+        if (rooted)
+        {
+            HoldStill();
+        }
+        else
+        {
+            hasSlot = ChooseDestination(target, currentPosition, targetPosition, out destination);
+        }
 
         bool hasArrived = Context.Locomotion.HasArrived(Creature);
 
@@ -576,7 +605,16 @@ public class CreatureCombatScript : AiScript, IReturningHome
             Creature.LookAt(targetPosition);
         }
 
-        if (TryAttack(target, currentPosition, targetPosition, facing: inRange))
+        if (TryAttack(target, currentPosition, targetPosition, facing: inRange,
+                silenced: (control & CrowdControl.Silence) != 0))
+        {
+            _unreachableFor = TimeSpan.Zero;
+            return;
+        }
+
+        // A rooted creature cannot close on a target out of reach, so standing there never counts toward giving up on
+        // it; the leash still holds.
+        if (rooted)
         {
             _unreachableFor = TimeSpan.Zero;
             return;
@@ -590,6 +628,18 @@ public class CreatureCombatScript : AiScript, IReturningHome
             : TimeSpan.Zero;
 
         KeepStation(currentPosition, destination, hasSlot, hasArrived, inRange);
+    }
+
+    /// <summary>
+    /// Stops a walk the locomotion is still on, for a stunned or rooted creature (#770): it asks for no step, and one
+    /// already given would otherwise run on. Once: a stopped creature has arrived, so the ticks after ask nothing.
+    /// </summary>
+    private void HoldStill()
+    {
+        if (!Context.Locomotion.HasArrived(Creature))
+        {
+            Context.Locomotion.Stop(Creature);
+        }
     }
 
     /// <summary>
@@ -789,17 +839,20 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
     /// <summary>
     /// Which ability to start now against <paramref name="target" />, or null for none this tick (#163).
-    /// Called every tick the creature fights and is not already casting, in range or not. The base answers
-    /// the basic when it is ready and <paramref name="target" /> is in its reach; a creature type's script
-    /// overrides it with its rotation (see <see cref="Ready" />). Whatever it answers is started only if it is
-    /// one of this creature's own abilities, ready, and in reach.
+    /// Called every tick the creature fights and is not casting, stunned or silenced (#770), in range or not. The
+    /// base answers the basic when it is ready and <paramref name="target" /> is in its reach; a creature type's
+    /// script overrides it with its rotation (see <see cref="Ready" />). Whatever it answers is started only if it
+    /// is one of this creature's own abilities, ready, and in reach.
     /// </summary>
     /// <param name="distance">
     /// Metres on X/Z from the creature's centre to the edge of the target's body: what a shape must reach to
     /// hit it, since a shape hits every body it overlaps. Where the creature stands is pulled in so its basic
     /// reaches from anywhere its locomotion counts as arrived (see ChooseDestination).
     /// </param>
-    protected virtual IAbility? ChooseAbility(IUnit target, float distance) =>
+    protected virtual IAbility? ChooseAbility(IUnit target, float distance) => ReadyBasic(distance);
+
+    /// <summary>The creature's basic when it is ready and a target <paramref name="distance" /> away is in its reach.</summary>
+    private IAbility? ReadyBasic(float distance) =>
         _abilities.Basic is { } basic && CreatureAbilities.IsReady(basic) && InReach(basic, distance) ? basic : null;
 
     /// <summary>
@@ -836,10 +889,15 @@ public class CreatureCombatScript : AiScript, IReturningHome
     /// simply not started.
     /// </summary>
     /// <param name="facing">Whether the creature already turned to the target this tick.</param>
-    private bool TryAttack(IUnit target, Vector3 currentPosition, Vector3 targetPosition, bool facing)
+    /// <param name="silenced">
+    /// Whether the creature is silenced (#770): its basic alone, ready and in reach, and <see cref="ChooseAbility" /> is
+    /// not asked, since a rotation that puts a ready special ahead of the basic would leave it attacking nothing.
+    /// </param>
+    private bool TryAttack(IUnit target, Vector3 currentPosition, Vector3 targetPosition, bool facing, bool silenced)
     {
         float distance = MathF.Max(0f, HitShapes.Distance2D(currentPosition, targetPosition) - target.BodyRadius);
-        if (ChooseAbility(target, distance) is not { } ability
+        IAbility? chosen = silenced ? ReadyBasic(distance) : ChooseAbility(target, distance);
+        if (chosen is not { } ability
             || !_abilities.Holds(ability)   // a script casts only what its creature holds
             || !CreatureAbilities.IsReady(ability)
             || !InReach(ability, distance))
