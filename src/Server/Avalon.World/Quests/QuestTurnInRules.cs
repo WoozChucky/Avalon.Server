@@ -10,13 +10,15 @@ using Avalon.World.Public.Characters;
 namespace Avalon.World.Quests;
 
 /// <summary>
-/// Whether a turn-in can go ahead, changing nothing (#433): ready; the last stage's Collect items all in the bag;
-/// every reward template known and not Unique; the rewards fit the bag as it will be once every quest item has left
-/// it; the money under the cap. Everything after it is ordered so nothing can refuse, as VendorRules is for a trade.
+/// Whether a turn-in can go ahead, changing nothing (#433): ready; the last stage's Collect items all in the bag; the
+/// pick one of the quest's choice set, or none for a quest without one (#711); every reward template, fixed and
+/// picked, known and not Unique; the fixed rewards and the pick fit the bag as it will be once every quest item has
+/// left it; the money under the cap. Everything after it is ordered so nothing can refuse, as VendorRules is for a
+/// trade.
 /// </summary>
 public static class QuestTurnInRules
 {
-    public static QuestResult Decide(CharacterEntity character, QuestView quest, ActiveQuest active,
+    public static QuestResult Decide(CharacterEntity character, QuestView quest, ActiveQuest active, ulong choiceItemTemplateId,
         Func<ItemTemplateId, ItemTemplate?> findTemplate, ulong maxMoney, out IReadOnlyList<(ItemTemplate Template, uint Count)> rewards)
     {
         List<(ItemTemplate Template, uint Count)> paid = [];
@@ -30,6 +32,12 @@ public static class QuestTurnInRules
                 return QuestResult.NotReady;
         }
 
+        // The pick names an item template, not a place in the set, so a reload that changed the set cannot turn it
+        // into another item. Without a set, a pick is a client mistake, refused rather than ignored.
+        QuestItemRewardView? choice = Choice(quest, choiceItemTemplateId);
+        if (quest.ItemChoices.Count == 0 ? choiceItemTemplateId != 0 : choice is null)
+            return QuestResult.InvalidChoice;
+
         foreach (QuestItemRewardView reward in quest.ItemRewards)
         {
             // A reload removed a reward's template after the catalog was built: nothing is paid rather than part.
@@ -42,6 +50,18 @@ public static class QuestTurnInRules
             }
 
             paid.Add((template, reward.Count));
+        }
+
+        // The pick is one more reward item, judged as the fixed ones are and placed after them.
+        if (choice is not null)
+        {
+            if (findTemplate(choice.ItemTemplateId) is not { } picked
+                || (picked.Flags & ItemTemplateFlags.Unique) != 0)
+            {
+                return QuestResult.Error;
+            }
+
+            paid.Add((picked, choice.Count));
         }
 
         var questItems = quest.Objectives
@@ -60,6 +80,25 @@ public static class QuestTurnInRules
             return QuestResult.MoneyCap;
 
         return QuestResult.Ok;
+    }
+
+    /// <summary>
+    /// The entry of the quest's choice set the pick names (#711); null for no pick (0) or a pick outside the set.
+    /// Walked by index, so it allocates nothing.
+    /// </summary>
+    public static QuestItemRewardView? Choice(QuestView quest, ulong choiceItemTemplateId)
+    {
+        if (choiceItemTemplateId == 0)
+            return null;
+
+        IReadOnlyList<QuestItemRewardView> choices = quest.ItemChoices;
+        for (int i = 0; i < choices.Count; i++)
+        {
+            if (choices[i].ItemTemplateId.Value == choiceItemTemplateId)
+                return choices[i];
+        }
+
+        return null;
     }
 
     /// <summary>

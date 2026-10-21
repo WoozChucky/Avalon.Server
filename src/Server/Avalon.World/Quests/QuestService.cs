@@ -274,10 +274,12 @@ public sealed class QuestService(
 
     /// <summary>
     /// CMSG_QUEST_TURN_IN (#433), all or nothing: an open conversation with the quest's ender inside the leash, the
-    /// quest held, the bag recounted as it is now, then QuestTurnInRules. Only then do the quest items leave, and
-    /// experience (personal: no party split, no level gap, no map band), money and items are paid.
+    /// quest held, the bag recounted as it is now, then QuestTurnInRules (ready, the pick, the reward templates, the
+    /// bag, the money). Only then do the quest items leave, and experience (personal: no party split, no level gap, no
+    /// map band), money and items, the fixed ones and the one picked from the choice set (#711; 0 is no pick), are paid.
     /// </summary>
-    public QuestResult TurnIn(IWorldConnection connection, CharacterEntity character, uint questId, ulong npcGuid)
+    public QuestResult TurnIn(IWorldConnection connection, CharacterEntity character, uint questId, ulong npcGuid,
+        ulong choiceItemTemplateId = 0)
     {
         QuestResult talk = Conversation(connection, character, npcGuid, out ICreature? npc);
         if (talk != QuestResult.Ok)
@@ -295,10 +297,10 @@ public sealed class QuestService(
         // The bag as it is now: an item destroyed this tick has not been through QuestFlusher yet.
         Recount(character, quest, active);
 
-        QuestResult decision = QuestTurnInRules.Decide(character, quest, active, FindTemplate, world.Configuration.MaxMoney,
-            out IReadOnlyList<(ItemTemplate Template, uint Count)> rewards);
+        QuestResult decision = QuestTurnInRules.Decide(character, quest, active, choiceItemTemplateId, FindTemplate,
+            world.Configuration.MaxMoney, out IReadOnlyList<(ItemTemplate Template, uint Count)> rewards);
         if (decision == QuestResult.Error)
-            LogUnpayableRewards(quest);
+            LogUnpayableRewards(quest, choiceItemTemplateId);
         if (decision != QuestResult.Ok)
             return decision;
 
@@ -327,18 +329,24 @@ public sealed class QuestService(
 
     /// <summary>
     /// A reward template that is gone or Unique blocks every turn-in of the quest (a reload since the catalog was
-    /// built), so it is logged at Error, naming the quest and the template.
+    /// built), or every turn-in with that pick (#711), so it is logged at Error, naming the quest and the template.
     /// </summary>
-    private void LogUnpayableRewards(QuestView quest)
+    private void LogUnpayableRewards(QuestView quest, ulong choiceItemTemplateId)
     {
         foreach (QuestItemRewardView reward in quest.ItemRewards)
+            LogIfUnpayable(quest, reward);
+
+        if (QuestTurnInRules.Choice(quest, choiceItemTemplateId) is { } choice)
+            LogIfUnpayable(quest, choice);
+    }
+
+    private void LogIfUnpayable(QuestView quest, QuestItemRewardView reward)
+    {
+        ItemTemplate? template = FindTemplate(reward.ItemTemplateId);
+        if (template is null || (template.Flags & ItemTemplateFlags.Unique) != 0)
         {
-            ItemTemplate? template = FindTemplate(reward.ItemTemplateId);
-            if (template is null || (template.Flags & ItemTemplateFlags.Unique) != 0)
-            {
-                logger.LogError("Quest {QuestId} cannot be turned in: reward item template {Item} is {Problem}",
-                    quest.Id, reward.ItemTemplateId.Value, template is null ? "missing" : "Unique");
-            }
+            logger.LogError("Quest {QuestId} cannot be turned in: reward item template {Item} is {Problem}",
+                quest.Id, reward.ItemTemplateId.Value, template is null ? "missing" : "Unique");
         }
     }
 

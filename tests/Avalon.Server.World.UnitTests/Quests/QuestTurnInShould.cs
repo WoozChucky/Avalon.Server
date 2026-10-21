@@ -2,12 +2,15 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Entities;
+using Avalon.World.Handlers;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
@@ -38,6 +41,15 @@ public class QuestTurnInShould
     }
 
     private static long Held(QuestClient c, ulong item) => QuestService.HeldInBag(c.Character, new ItemTemplateId(item));
+
+    /// <summary>Fills every free bag slot with a charm, so the only room left is the slot the tusks free.</summary>
+    private static void FillBagWithCharms(QuestClient c)
+    {
+        ItemTemplate charm = Items().Single(i => i.Id.Value == Charm);
+        CharacterInventoryContainer bag = c.Character.Container(InventoryType.Bag);
+        bag.Load(bag.Items.Concat(Enumerable.Range(0, bag.Capacity).Select(s => (byte)s)
+            .Where(s => bag.Items.All(i => i.Slot != s)).Select(s => TestCharacters.Item(s, charm))).ToList());
+    }
 
     [Fact]
     public async Task Pay_experience_money_and_items_take_the_quest_items_and_complete()
@@ -106,11 +118,8 @@ public class QuestTurnInShould
     public async Task Count_the_slot_the_quest_items_free_as_room()
     {
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync();
-        ItemTemplate charm = Items().Single(i => i.Id.Value == Charm);
-        CharacterInventoryContainer bag = c.Character.Container(InventoryType.Bag);
-        bag.Load(bag.Items.Concat(Enumerable.Range(0, bag.Capacity).Select(s => (byte)s)
-            .Where(s => bag.Items.All(i => i.Slot != s)).Select(s => TestCharacters.Item(s, charm))).ToList());
-        Assert.Empty(bag.FreeSlots());
+        FillBagWithCharms(c);
+        Assert.Empty(c.Character.Container(InventoryType.Bag).FreeSlots());
 
         Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));
         Assert.Equal(2, Held(c, Tonic));
@@ -122,10 +131,7 @@ public class QuestTurnInShould
         List<QuestTemplate> quests = Chain();
         quests.Single(q => q.Id.Value == Tusks).ItemRewards[0].Count = 11;   // two stacks of Tonic; one slot will be free
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync(quests);
-        ItemTemplate charm = Items().Single(i => i.Id.Value == Charm);
-        CharacterInventoryContainer bag = c.Character.Container(InventoryType.Bag);
-        bag.Load(bag.Items.Concat(Enumerable.Range(0, bag.Capacity).Select(s => (byte)s)
-            .Where(s => bag.Items.All(i => i.Slot != s)).Select(s => TestCharacters.Item(s, charm))).ToList());
+        FillBagWithCharms(c);
 
         Assert.Equal(QuestResult.BagFull, w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));
         Assert.Equal(2, Held(c, Tusk));
@@ -181,6 +187,74 @@ public class QuestTurnInShould
         Assert.Equal(0ul, c.Character.Experience);
         Assert.Equal(0ul, c.Character.Data!.Money);
         Assert.True(c.Character.Quests.IsActive(Tusks));
+    }
+
+    public static TheoryData<string, bool, ulong, bool, bool, QuestResult> Picks => new()
+    {
+        // case, offers a choice set, pick, bag filled, pick made Unique by a reload, answer
+        { "a pick from the set", true, Charm, false, false, QuestResult.Ok },
+        { "no pick", true, 0, false, false, QuestResult.InvalidChoice },
+        { "a fixed reward as the pick", true, Tonic, false, false, QuestResult.InvalidChoice },     // Review Focus 1
+        { "a pick on a quest with no choice set", false, Charm, false, false, QuestResult.InvalidChoice },
+        { "a bad pick with a full bag", true, Tusk, true, false, QuestResult.InvalidChoice },      // Review Focus 2
+        { "room for the fixed items only", true, Charm, true, false, QuestResult.BagFull },
+        { "a pick a reload made Unique", true, Blade, false, true, QuestResult.Error },            // Review Focus 3
+    };
+
+    /// <summary>
+    /// #711, through the handler: a choice set pays the fixed items plus the one item picked from it, all or nothing.
+    /// A missing pick, a pick outside the set, or a pick on a quest with no set is refused InvalidChoice before the
+    /// bag is judged; the bag must hold the fixed items and the pick; a pick a reload made Unique is refused Error and
+    /// logged naming the quest and the template.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Picks))]
+#pragma warning disable xUnit1026 // the case names the row in the test output
+    public async Task Pay_the_fixed_items_and_the_pick_or_refuse_and_change_nothing(string @case, bool offers, ulong pick,
+        bool fillBag, bool pickUnique, QuestResult expected)
+#pragma warning restore xUnit1026
+    {
+        var log = new TestLog();
+        List<QuestTemplate> quests = Chain();
+        if (offers)
+            quests.Single(q => q.Id.Value == Tusks).Offering((Charm, 1), (Blade, 1));
+        (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync(quests, log: log);
+        if (fillBag)
+            FillBagWithCharms(c);
+        if (pickUnique)
+            w.Data.ItemTemplates.Single(t => t.Id.Value == Blade).Flags |= ItemTemplateFlags.Unique;
+        long charmsBefore = Held(c, Charm);
+
+        new QuestTurnInHandler(w.Quests, NullLogger<QuestTurnInHandler>.Instance).Execute(c.Connection,
+            new CQuestTurnInPacket { QuestId = Tusks, NpcGuid = ender.Guid.RawValue, ChoiceItemTemplateId = pick });
+
+        SQuestResultPacket answer = Assert.Single(c.Read<SQuestResultPacket>(NetworkPacketType.SMSG_QUEST_RESULT));
+        Assert.Equal(Tusks, answer.QuestId);
+        Assert.Equal(expected, answer.Result);
+        Assert.Equal(0, Held(c, Blade));
+        if (expected == QuestResult.Ok)
+        {
+            Assert.Equal(0, Held(c, Tusk));
+            Assert.Equal(2, Held(c, Tonic));
+            Assert.Equal(1, Held(c, Charm));
+            Assert.Equal(30ul, c.Character.Data!.Money);
+            Assert.Equal(50ul, c.Character.Experience);
+            Assert.True(c.Character.Quests.IsCompleted(Tusks));
+            return;
+        }
+
+        Assert.Equal(2, Held(c, Tusk));
+        Assert.Equal(0, Held(c, Tonic));
+        Assert.Equal(charmsBefore, Held(c, Charm));
+        Assert.Equal(0ul, c.Character.Data!.Money);
+        Assert.Equal(0ul, c.Character.Experience);
+        Assert.True(c.Character.Quests.IsActive(Tusks));
+        Assert.False(c.Character.Quests.IsCompleted(Tusks));
+        if (expected == QuestResult.Error)
+        {
+            Assert.Contains(log.Errors, e => e.Message.Contains($"Quest {Tusks} ", StringComparison.Ordinal)
+                && e.Message.Contains($"{Blade}", StringComparison.Ordinal));
+        }
     }
 
     /// <summary>Review Focus 3.</summary>
