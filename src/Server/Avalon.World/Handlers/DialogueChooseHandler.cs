@@ -40,7 +40,7 @@ namespace Avalon.World.Handlers;
 /// (#432), each for as long as this conversation stays open.
 /// </remarks>
 [PacketHandler(NetworkPacketType.CMSG_DIALOGUE_CHOOSE)]
-public class DialogueChooseHandler(
+public partial class DialogueChooseHandler(
     ILogger<DialogueChooseHandler> logger, IWorld world, IQuestProgress? quests = null, QuestService? questService = null)
     : WorldPacketHandler<CDialogueChoosePacket>
 {
@@ -55,14 +55,14 @@ public class DialogueChooseHandler(
         ICharacter? character = connection.Character;
         if (character is null || character.IsDead)
         {
-            logger.LogDebug("Dropped CMSG_DIALOGUE_CHOOSE from dead/missing char");
+            Log.DeadOrMissing(logger);
             return;
         }
 
         // #770: a stunned character chooses nothing, and the conversation stays where it was.
         if (!ControlGates.CanAct(character))
         {
-            logger.LogDebug("Dropped CMSG_DIALOGUE_CHOOSE from stunned char");
+            Log.Stunned(logger);
             return;
         }
 
@@ -214,5 +214,14 @@ public class DialogueChooseHandler(
                 logger.LogWarning("Dialogue action {Action} is not one this server knows", action);
                 break;
         }
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped CMSG_DIALOGUE_CHOOSE from dead/missing char")]
+        public static partial void DeadOrMissing(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped CMSG_DIALOGUE_CHOOSE from stunned char")]
+        public static partial void Stunned(ILogger logger);
     }
 }

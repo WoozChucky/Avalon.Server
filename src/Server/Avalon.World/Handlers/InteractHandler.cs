@@ -26,7 +26,7 @@ namespace Avalon.World.Handlers;
 /// something across the map gets no reply rather than an error packet.
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_INTERACT)]
-public class InteractHandler(
+public partial class InteractHandler(
     ILogger<InteractHandler> logger,
     IWorld world,
     QuestService? quests = null,
@@ -50,14 +50,14 @@ public class InteractHandler(
         ICharacter? character = connection.Character;
         if (character is null || character.IsDead)
         {
-            logger.LogDebug("Dropped CMSG_INTERACT from dead/missing char");
+            Log.DeadOrMissing(logger);
             return;
         }
 
         // #770: a stunned character talks to no one and uses no doodad; a conversation already open stays open.
         if (!ControlGates.CanAct(character))
         {
-            logger.LogDebug("Dropped CMSG_INTERACT from stunned char");
+            Log.Stunned(logger);
             return;
         }
 
@@ -80,13 +80,13 @@ public class InteractHandler(
 
         if (!context.Creatures.TryGetValue(targetGuid, out ICreature? npc))
         {
-            logger.LogDebug("Interact reject TargetNotFound target={TargetGuid}", packet.TargetGuid);
+            Log.TargetNotFound(logger, packet.TargetGuid);
             return;
         }
 
         if (npc.CurrentHealth == 0)
         {
-            logger.LogDebug("Interact reject TargetDead target={TargetGuid}", packet.TargetGuid);
+            Log.TargetDead(logger, packet.TargetGuid);
             return;
         }
 
@@ -98,14 +98,14 @@ public class InteractHandler(
         if (root is null)
         {
             // Every monster in the game lands here, so this is not worth a warning.
-            logger.LogTrace("Interact on creature {TemplateId} which has no dialogue", npc.Metadata.Id);
+            Log.NoDialogue(logger, npc.Metadata.Id.Value);
             return;
         }
 
         float distance = Vector3.Distance(character.Position, npc.Position);
         if (distance > InteractRange)
         {
-            logger.LogDebug("Interact reject Range dist={Distance} max={Max}", distance, InteractRange);
+            Log.OutOfRange(logger, distance, InteractRange);
             return;
         }
 
@@ -207,5 +207,26 @@ public class InteractHandler(
                 questing.Guid.Id, npc.Guid, npc.Metadata.Id.Value);
             return null;
         }
+    }
+
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped CMSG_INTERACT from dead/missing char")]
+        public static partial void DeadOrMissing(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped CMSG_INTERACT from stunned char")]
+        public static partial void Stunned(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Interact reject TargetNotFound target={TargetGuid}")]
+        public static partial void TargetNotFound(ILogger logger, ulong targetGuid);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Interact reject TargetDead target={TargetGuid}")]
+        public static partial void TargetDead(ILogger logger, ulong targetGuid);
+
+        [LoggerMessage(Level = LogLevel.Trace, Message = "Interact on creature {TemplateId} which has no dialogue")]
+        public static partial void NoDialogue(ILogger logger, ulong templateId);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Interact reject Range dist={Distance} max={Max}")]
+        public static partial void OutOfRange(ILogger logger, float distance, float max);
     }
 }
