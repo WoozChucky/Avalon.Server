@@ -454,6 +454,14 @@ public partial class EnterMapHandler(
                 return;
             }
 
+            // #770: one stunned while its instance was being built is refused as at the request, and not moved.
+            if (!ControlGates.CanAct(character))
+            {
+                Log.Stunned(logger, character.Name);
+                Refuse(connection, MapTransitionResult.Stunned, Refusal.Stunned);
+                return;
+            }
+
             if (!built)
             {
                 return;

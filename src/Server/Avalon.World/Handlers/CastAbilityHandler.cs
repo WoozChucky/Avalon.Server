@@ -48,10 +48,11 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             return;
         }
 
-        // #770: a stunned caster casts nothing, and a silenced one only its basic attack (asked below, once the ability
-        // is known). Refused here, before the cast system refuses them, which it answers InternalError. A cached field.
+        // #770: a stunned caster casts nothing, not even a basic attack, and a silenced one only its basic attack (asked
+        // below, once the ability is known). Refused here, before the cast system refuses them, which it answers
+        // InternalError. A cached field.
         CrowdControl control = ControlGates.Of(caster);
-        if ((control & CrowdControl.Stun) != 0)
+        if (control != CrowdControl.None && !ControlGates.CanCast(caster, basic: true))
         {
             Refuse(connection, packet, CastRejectReason.Stunned);
             return;
@@ -81,7 +82,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         }
 
         // A silence spares the basic attack: a class basic by its row, a creature's own basic.
-        if ((control & CrowdControl.Silence) != 0 && !ControlGates.IsBasic(caster, ability))
+        if (control != CrowdControl.None && !ControlGates.CanCast(caster, ControlGates.IsBasic(caster, ability)))
         {
             Refuse(connection, packet, CastRejectReason.Silenced);
             return;

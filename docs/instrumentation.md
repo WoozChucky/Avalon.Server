@@ -191,7 +191,7 @@ meter it carries no world of its own: the world is the label the collector gives
 |---|---|---|
 | `dead` | nothing | the character is dead as the request arrives, or has died by the time its instance is ready |
 | `move_in_progress` | `MoveInProgress` | another move is under way: a return to town, a teleport, a respawn, or an earlier portal entry that has not ended |
-| `stunned` | `Stunned` | the character is stunned (#770) |
+| `stunned` | `Stunned` | the character is stunned (#770) as the request arrives, or has been stunned by the time its instance is ready |
 | `unknown_map` | `MapNotFound` | no map has the id asked for |
 | `no_instance` | `MapNotFound` | the character is in no live instance: the server's own fault, also logged at Error |
 | `no_portal` | `MapNotFound` | the map the character is on has no portal to the one asked for |

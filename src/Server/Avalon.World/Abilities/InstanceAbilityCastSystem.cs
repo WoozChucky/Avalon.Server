@@ -631,11 +631,11 @@ public class InstanceAbilityCastSystem(
         if (control == CrowdControl.None)
             return false;
 
-        bool refused = (control & CrowdControl.Stun) != 0
-            || (control & CrowdControl.Silence) != 0 && !forItem && !ControlGates.IsBasic(caster, ability);
-        if (refused)
-            CombatLog.ControlledCastRefused(_logger, control, ability.AbilityId, caster.Guid);
-        return refused;
+        if (ControlGates.CanCast(caster, forItem || ControlGates.IsBasic(caster, ability)))
+            return false;
+
+        CombatLog.ControlledCastRefused(_logger, control, ability.AbilityId, caster.Guid);
+        return true;
     }
 
     /// <summary>A character is dead by its flag, a creature at 0 health.</summary>

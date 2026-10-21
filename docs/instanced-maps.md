@@ -452,7 +452,8 @@ Steps 2 to 6 are PortalChecks.Check, which the portal's menu (CMSG_INSTANCE_LIST
                     the party and seat checks on arrival
        The arrival continuation first checks the character is still the connection's (a select
        on another connection can take it meanwhile: nothing is done, no reply), then that it is
-       still alive (one that died meanwhile is not moved: no reply), then that the
+       still alive (one that died meanwhile is not moved: no reply), then that it is not
+       stunned (#770: one stunned meanwhile → send Stunned, return), then that the
        instance is still registered; for a Default entry one released meanwhile is resolved
        again once (see Expiry Cleanup), and a second release in a row → send MapNotFound,
        return; a chosen instance released meanwhile → send InstanceUnavailable, return, never

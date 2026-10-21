@@ -28,7 +28,8 @@ public class AuraWireShould
         auras.Add(Aura(AuraTestData.Burn(), new ObjectGuid(ObjectType.Character, 8)), s_t0.AddSeconds(1));
         auras.Add(Aura(AuraTestData.Crippled(), new ObjectGuid(ObjectType.Character, 8)), s_t0.AddSeconds(1));
         auras.Add(AuraTestData.HeldControl(CrowdControl.Root | CrowdControl.Silence), s_t0.AddSeconds(1));
-        uint[] control = [0u, 0u, 8u, 2u | 4u];
+        auras.Add(AuraTestData.HeldControl(CrowdControl.Stun), s_t0.AddSeconds(1));
+        uint[] control = [0u, 0u, 8u, 2u | 4u, 1u];   // the wire's bits: 1 stun, 2 root, 4 silence, 8 slow
         Assert.Equal(control, new AuraWire().List(auras, s_t0).Select(e => e.Control));
         Assert.Equal(control, new AuraWire().Updates(auras.Changes).Select(e => e.Control));
         var reused = new AuraWire();
