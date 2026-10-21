@@ -223,6 +223,13 @@ public sealed class QuestLog(SaveStateTracker save)
     public Guid? ScriptsInstance { get; set; }
 
     /// <summary>
+    /// The reset generation (<see cref="QuestResetClock.Generation" />) this session last looked at (#710), set by
+    /// <see cref="QuestService.ApplyResets" />. 0 for a new session, so in a world that has passed a reset its first flush
+    /// looks once. Never saved.
+    /// </summary>
+    public int ResetGeneration { get; set; }
+
+    /// <summary>
     /// Whether the next quest flush has anything of this character's to do (#977). Set by everything that changes what
     /// the flush sends or settles from the character: every change to the log (<see cref="Start" />,
     /// <see cref="SetProgress" />, <see cref="SetStage" />, <see cref="SetState" />, <see cref="Remove" />,
@@ -230,8 +237,9 @@ public sealed class QuestLog(SaveStateTracker save)
     /// and level (the hooks' and the markers' inputs; <c>CharacterEntity</c>'s setters mark them as they change, so an
     /// instance or a level written to the row directly is not seen). Set to begin with, so a new session's first flush
     /// sends the log. Cleared by QuestFlusher once a flush leaves nothing for a later one. What a flush reads from
-    /// elsewhere it checks itself: the catalog's generation (a /reload quests, one for every character) and the Bag's
-    /// slot changes (the inventory's). Never saved.
+    /// elsewhere it checks itself: the catalog's generation (a /reload quests, one for every character), the Bag's
+    /// slot changes (the inventory's) and the reset generation (<see cref="ResetGeneration" />, #710: a daily, weekly or
+    /// monthly reset, one for every character). Never saved.
     /// </summary>
     public bool FlushOwed { get; internal set; } = true;
 
@@ -331,6 +339,18 @@ public sealed class QuestLog(SaveStateTracker save)
         MarkerVersion++;
         GateVersion++;
         Changed(questId, QuestClientChange.Completed);
+    }
+
+    /// <summary>
+    /// A reset made one of this character's repeatable completions available again (#710): its markers and doodad gates
+    /// are worked out again. Called only by <see cref="QuestService.ApplyResets" />. Marks no quest changed: nothing is
+    /// saved or sent for it but what the markers and the doodad views find.
+    /// </summary>
+    public void ResetPassed()
+    {
+        MarkerVersion++;
+        GateVersion++;
+        FlushOwed = true;
     }
 
     public void Say(string line)

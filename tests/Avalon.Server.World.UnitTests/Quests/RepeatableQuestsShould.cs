@@ -1,5 +1,8 @@
 using System.Globalization;
+using Avalon.Database.Character.Repositories;
+using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
 using Avalon.World.Doodads;
 using Avalon.World.Entities;
@@ -16,11 +19,14 @@ namespace Avalon.Server.World.UnitTests.Quests;
 public class RepeatableQuestsShould
 {
     private const uint Again = 7801, Daily = 7802, Weekly = 7803, Monthly = 7804, After = 7805;
+    private const uint DailyKill = Daily * 10 + 1;
+
+    private static QuestTemplate DailyQuest() => Quest(Daily).WithStage(0, Kill(DailyKill, Boar, 1)).Repeating(QuestRepeatFrequency.Daily);
 
     private static List<QuestTemplate> Quests() =>
     [
         Quest(Again).WithStage(0, Kill(Again * 10 + 1, Boar, 1)).Repeating(null),
-        Quest(Daily).WithStage(0, Kill(Daily * 10 + 1, Boar, 1)).Repeating(QuestRepeatFrequency.Daily),
+        DailyQuest(),
         Quest(Weekly).WithStage(0, Kill(Weekly * 10 + 1, Boar, 1)).Repeating(QuestRepeatFrequency.Weekly),
         Quest(Monthly).WithStage(0, Kill(Monthly * 10 + 1, Boar, 1)).Repeating(QuestRepeatFrequency.Monthly),
         Quest(After, requires: Daily).WithStage(0, Kill(After * 10 + 1, Boar, 1)),
@@ -60,6 +66,57 @@ public class RepeatableQuestsShould
         At(w, "2026-02-01T04:00:00Z");                                       // monthly reset
         Assert.Equal(QuestResult.Ok, w.Quests.Availability(c.Character, Q(w, Monthly)));
     }
+
+    /// <summary>#710: crossing a reset online brings the blue marker and a daily's doodad back, touches no one else, and a relog after it sees the same.</summary>
+    [Fact]
+    public async Task Bring_the_blue_marker_and_the_doodad_back_when_a_reset_passes_online()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync([DailyQuest()]);   // Giver offers only the daily
+        Creature giver = w.Place(Giver);
+        QuestClient c = w.Join(1), bystander = w.Join(2);                     // bystander holds no completion
+        Tick(w, c, bystander);
+        Assert.Equal(QuestMarker.RepeatableAvailable, Marker(c, giver));
+
+        w.Accept(c, Daily);
+        w.Quests.AddProgress(c.Character, Daily, DailyKill, 1);
+        Tick(w, c, bystander);
+        Assert.Equal(QuestMarker.RepeatableReadyToTurnIn, Marker(c, giver));
+
+        Finish(w, c, Daily, accept: false);                                    // turned in at the clock's start, Thu 00:00Z
+        Tick(w, c, bystander);
+        Assert.Equal(QuestMarker.None, Marker(c, giver));
+        int gates = c.Character.Quests.GateVersion, bystanderGates = bystander.Character.Quests.GateVersion;
+        Assert.False(Gate(w, c, Daily, DoodadGateCondition.NotCompleted));
+
+        w.Clock.Advance(TimeSpan.FromDays(1));                                 // past Thu 04:00Z
+        w.Quests.Resets.Advance();
+        Tick(w, c, bystander);                                                 // no log change: the reset alone
+
+        Assert.Equal(QuestMarker.RepeatableAvailable, Marker(c, giver));
+        Assert.True(c.Character.Quests.GateVersion > gates);
+        Assert.True(Gate(w, c, Daily, DoodadGateCondition.NotCompleted));
+        Assert.Equal(bystanderGates, bystander.Character.Quests.GateVersion);
+
+        QuestClient relog = w.Join(3);                                         // saved before the reset, selected after it
+        relog.Character.Quests.Load(new CharacterQuestRows([], [],
+            [new CharacterCompletedQuest { CharacterId = 3, QuestId = Daily, CompletedAt = Yesterday(w), LastCompletedAt = Yesterday(w), CompletionCount = 1 }]));
+        Tick(w, relog);
+        Assert.Equal(QuestMarker.RepeatableAvailable, Marker(relog, giver));
+    }
+
+    /// <summary>The end of a tick's quest work for each client, as WorldServer runs it.</summary>
+    private static void Tick(QuestTestWorld w, params QuestClient[] clients)
+    {
+        foreach (QuestClient c in clients)
+            QuestFlusher.Flush(c.Connection, w.Quests);
+    }
+
+    /// <summary>What the last SMSG_QUEST_MARKERS sent to the client shows over <paramref name="npc" />.</summary>
+    private static QuestMarker Marker(QuestClient c, Creature npc) =>
+        c.Read<SQuestMarkersPacket>(NetworkPacketType.SMSG_QUEST_MARKERS).Last().Markers
+            .Single(m => m.CreatureGuid == npc.Guid.RawValue).Marker;
+
+    private static DateTime Yesterday(QuestTestWorld w) => w.Clock.GetUtcNow().UtcDateTime.AddDays(-1);
 
     private static DateTime Utc(string iso) =>
         DateTime.Parse(iso, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);

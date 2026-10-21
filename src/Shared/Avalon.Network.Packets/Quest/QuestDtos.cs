@@ -125,7 +125,7 @@ public enum QuestMarker
     None = 1,
     Available = 2,
     ReadyToTurnIn = 3,
-    /// <summary>A repeatable quest is available again (#710); the client draws it blue.</summary>
+    /// <summary>A repeatable quest (any repeat kind but Once) is available (#710); the client draws it blue.</summary>
     RepeatableAvailable = 4,
     /// <summary>A repeatable quest is ready to turn in (#710); the client draws it blue.</summary>
     RepeatableReadyToTurnIn = 5,

@@ -222,8 +222,8 @@ When an NPC qualifies for several, the highest wins: `ReadyToTurnIn` > `Repeatab
 `RepeatableAvailable` > `None` (a turn-in before an offer, a one-time quest before a repeatable one within each).
 
 It is worked out again on entering the world, on entering another instance, and when an accept, a quest
-becoming ready to turn in or no longer ready, a turn-in, an abandon, a level-up or a reload of the quest data may
-have changed it (progress that leaves a quest's state as it is changes no marker), and it is **sent only when
+becoming ready to turn in or no longer ready, a turn-in, an abandon, a level-up, a reload of the quest data or a daily, weekly or monthly
+reset may have changed it (progress that leaves a quest's state as it is changes no marker), and it is **sent only when
 the list differs from the last one sent**, across instances too. So an arrival whose list equals the last one
 sends nothing: two instances in a row with no quest NPC (both empty lists), or a transfer back into the same
 town instance (where every creature is removed and added again through `SMSG_WORLD_STATE_REMOVE` and fresh
@@ -234,6 +234,11 @@ there is no interest radius, so a marker may name a creature the client has not 
 apply it when the creature appears. The list is worked out from the creatures present when one of those
 inputs changes; a quest NPC spawned or removed later is not reflected until the next change (the seeded quest
 NPCs are town NPCs, which stand for good).
+
+At a daily, weekly or monthly reset, a character in the world holding a completion of a quest of a frequency that
+rolled gets its markers worked out again on that tick, so the blue `RepeatableAvailable` comes back without a relog
+(and is sent only if the list changed). A character with no such completion is sent nothing. An NPC conversation
+already open at the reset is not refreshed: its quest options show the quest once it is opened again.
 
 ## 8. Quest items
 

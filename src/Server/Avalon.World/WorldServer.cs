@@ -863,6 +863,18 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // log and markers out), and the flush per connection: one character's throw costs nobody else.
         if (_quests is not null)
         {
+            // The daily, weekly and monthly quest reset (#710), once per tick before any flush: one comparison against
+            // the next boundary until one passes; then each flush below sees the new generation and settles its
+            // character. Contained like the flushes: a throw costs this tick's reset check, not the tick.
+            try
+            {
+                _quests.Resets.Advance(now.UtcNow);
+            }
+            catch (Exception e)
+            {
+                _questFlushErrors.Failed(e);
+            }
+
             for (int i = 0; i < conns.Length; i++)
             {
                 try

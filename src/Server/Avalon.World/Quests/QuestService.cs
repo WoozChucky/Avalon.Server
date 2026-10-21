@@ -1344,23 +1344,46 @@ public sealed class QuestService(
         return _markerDtos;
     }
 
-    /// <summary>A ready turn-in outranks an available quest; a quest refused only by a full log still shows as available.</summary>
+    /// <summary>
+    /// What <paramref name="npc" /> shows over its head for the character, highest first (#710): a once-only quest ready
+    /// to turn in (<see cref="QuestMarker.ReadyToTurnIn" />), a repeatable one ready to turn in
+    /// (<see cref="QuestMarker.RepeatableReadyToTurnIn" />), a once-only quest it offers (<see cref="QuestMarker.Available" />),
+    /// a repeatable one it offers (<see cref="QuestMarker.RepeatableAvailable" />), else <see cref="QuestMarker.None" />. A
+    /// turn-in before an offer, and a story quest before a repeatable one within each. A quest refused only by a full log
+    /// still shows as offered. Repeatable means any repeat kind but Once. Indexed walks over the catalog's lists: a
+    /// <c>foreach</c> through the interface would allocate an enumerator per list, for every quest NPC each time the
+    /// markers are worked out again (a reset does that for many characters on one tick).
+    /// </summary>
     public QuestMarker MarkerFor(CharacterEntity character, CreatureTemplateId npc)
     {
         QuestCatalog catalog = Catalog;
-        foreach (QuestView quest in catalog.EndedBy(npc))
+        bool repeatable = false;
+        IReadOnlyList<QuestView> ended = catalog.EndedBy(npc);
+        for (int i = 0; i < ended.Count; i++)
         {
-            if (character.Quests.Get(quest.Id) is { State: CharacterQuestState.ReadyToTurnIn })
+            QuestView quest = ended[i];
+            if (character.Quests.Get(quest.Id) is not { State: CharacterQuestState.ReadyToTurnIn })
+                continue;
+            if (quest.Repeat == QuestRepeat.Once)
                 return QuestMarker.ReadyToTurnIn;
+            repeatable = true;
         }
 
-        foreach (QuestView quest in catalog.GivenBy(npc))
+        if (repeatable)
+            return QuestMarker.RepeatableReadyToTurnIn;
+
+        IReadOnlyList<QuestView> given = catalog.GivenBy(npc);
+        for (int i = 0; i < given.Count; i++)
         {
-            if (Availability(character, quest) is QuestResult.Ok or QuestResult.LogFull)
+            QuestView quest = given[i];
+            if (Availability(character, quest) is not (QuestResult.Ok or QuestResult.LogFull))
+                continue;
+            if (quest.Repeat == QuestRepeat.Once)
                 return QuestMarker.Available;
+            repeatable = true;
         }
 
-        return QuestMarker.None;
+        return repeatable ? QuestMarker.RepeatableAvailable : QuestMarker.None;
     }
 
     /// <summary>
@@ -1385,6 +1408,37 @@ public sealed class QuestService(
                 logger.LogError(e, "Re-sending NPC {Npc}'s root after quest {QuestId} changed for character {CharacterId} failed; " +
                                    "the request still succeeded. {Suppressed} earlier failures for this quest were not logged",
                     npc.Metadata.Id.Value, questId, character.Guid.Id, suppressed);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A daily, weekly or monthly reset passed since this session last looked (#710, <see cref="QuestResetClock.Generation" />
+    /// against <see cref="QuestLog.ResetGeneration" />): when the character holds a completion of a quest whose frequency
+    /// rolled meanwhile, its markers and doodad gates are worked out again (<see cref="QuestLog.ResetPassed" />); anyone
+    /// else is left alone. At most once per character per reset; a new session (generation 0) in a world that has passed
+    /// a reset looks once, at its first flush. QuestFlusher's first step. Tick thread only; walks the completions with the dictionary's struct
+    /// enumerator, so it allocates nothing.
+    /// </summary>
+    public void ApplyResets(CharacterEntity character)
+    {
+        QuestLog log = character.Quests;
+        QuestResetClock resets = Resets;
+        int seen = log.ResetGeneration;
+        if (seen == resets.Generation)
+            return;
+
+        // First, so a throw below is not tried again on every tick.
+        log.ResetGeneration = resets.Generation;
+        QuestCatalog catalog = Catalog;
+        foreach (QuestCompletion done in log.Completions)
+        {
+            if (catalog.TryGet(done.QuestId, out QuestView? quest)
+                && quest.Repeat is QuestRepeat.Daily or QuestRepeat.Weekly or QuestRepeat.Monthly
+                && resets.RolledAt(quest.Repeat) > seen)
+            {
+                log.ResetPassed();
+                return;
             }
         }
     }
