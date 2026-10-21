@@ -48,5 +48,6 @@ public class QuestRepository(IDbContextFactory<WorldDbContext> contextFactory) :
             .AsSplitQuery()
             .Include(q => q.Stages)
             .Include(q => q.Objectives).ThenInclude(o => o.Drops)
-            .Include(q => q.ItemRewards);
+            .Include(q => q.ItemRewards)
+            .Include(q => q.ItemChoices);
 }

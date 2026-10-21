@@ -73,6 +73,7 @@ public class WorldDbContext : DbContext
     public DbSet<QuestStage> QuestStages { get; set; } = null!;
     public DbSet<QuestObjective> QuestObjectives { get; set; } = null!;
     public DbSet<QuestItemReward> QuestItemRewards { get; set; } = null!;
+    public DbSet<QuestItemChoice> QuestItemChoices { get; set; } = null!;
     public DbSet<QuestItemDrop> QuestItemDrops { get; set; } = null!;
     public DbSet<ClassLevelStat> ClassLevelStats { get; set; } = null!;
     public DbSet<CharacterLevelExperience> CharacterLevelExperiences { get; set; } = null!;
@@ -133,6 +134,7 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<QuestStage>());
         Configure(modelBuilder.Entity<QuestObjective>());
         Configure(modelBuilder.Entity<QuestItemReward>());
+        Configure(modelBuilder.Entity<QuestItemChoice>());
         Configure(modelBuilder.Entity<QuestItemDrop>());
         Configure(modelBuilder.Entity<ClassLevelStat>());
         Configure(modelBuilder.Entity<CharacterLevelExperience>());
@@ -667,6 +669,7 @@ public class WorldDbContext : DbContext
         builder.HasMany(b => b.Stages).WithOne().HasForeignKey(s => s.QuestId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(b => b.Objectives).WithOne().HasForeignKey(o => o.QuestId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(b => b.ItemRewards).WithOne().HasForeignKey(r => r.QuestId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(b => b.ItemChoices).WithOne().HasForeignKey(c => c.QuestId).OnDelete(DeleteBehavior.Cascade);
 
         SeedForestStorylineQuests(builder);
     }
@@ -947,6 +950,16 @@ public class WorldDbContext : DbContext
             new QuestItemReward { QuestId = 8, ItemTemplateId = 65, Count = 1 });  // Thornheart Signet
 
         builder.HasData(new QuestItemReward { QuestId = 9, ItemTemplateId = 56, Count = 2 });   // Greater Health Potions
+    }
+
+    /// <summary>A quest's choose-one item set (#711), shaped and constrained as QuestItemRewards.</summary>
+    private static void Configure(EntityTypeBuilder<QuestItemChoice> builder)
+    {
+        builder.ToTable("QuestItemChoices", t => t.HasCheckConstraint("CK_QuestItemChoices_CountPositive", "\"Count\" >= 1"));
+        builder.HasKey(b => new { b.QuestId, b.ItemTemplateId });
+        builder.Property(b => b.QuestId).HasConversion(v => v.Value, v => new QuestTemplateId(v)).IsRequired();
+        builder.Property(b => b.ItemTemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
+        builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(b => b.ItemTemplateId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void Configure(EntityTypeBuilder<QuestItemDrop> builder)

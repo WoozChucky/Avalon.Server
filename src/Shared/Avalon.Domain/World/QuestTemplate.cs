@@ -6,7 +6,8 @@ namespace Avalon.Domain.World;
 
 /// <summary>
 /// A quest (#433): who gives it and who takes it back, what it asks for, and what it pays. Reference data,
-/// written only by migrations. Its stages and objectives are ordered; QuestCatalog validates the whole.
+/// written only by migrations. Its stages and objectives are ordered. It pays every fixed item reward and, when it has a
+/// choice set (#711), the one item the player picks from it; QuestCatalog validates the whole.
 /// </summary>
 public class QuestTemplate
 {
@@ -50,4 +51,7 @@ public class QuestTemplate
     public List<QuestStage> Stages { get; set; } = [];
     public List<QuestObjective> Objectives { get; set; } = [];
     public List<QuestItemReward> ItemRewards { get; set; } = [];
+
+    /// <summary>The choose-one set (#711): empty, or 2-6 items of which the player picks one on turn-in.</summary>
+    public List<QuestItemChoice> ItemChoices { get; set; } = [];
 }

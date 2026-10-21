@@ -8350,6 +8350,27 @@ namespace Avalon.Database.World.Migrations
                     b.ToTable("ProceduralMapConfigs");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.QuestItemChoice", b =>
+                {
+                    b.Property<long>("QuestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("ItemTemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<long>("Count")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("QuestId", "ItemTemplateId");
+
+                    b.HasIndex("ItemTemplateId");
+
+                    b.ToTable("QuestItemChoices", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_QuestItemChoices_CountPositive", "\"Count\" >= 1");
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.QuestItemDrop", b =>
                 {
                     b.Property<long>("ObjectiveId")
@@ -9719,6 +9740,21 @@ namespace Avalon.Database.World.Migrations
                     b.Navigation("DoodadRules");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.QuestItemChoice", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("ItemTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.QuestTemplate", null)
+                        .WithMany("ItemChoices")
+                        .HasForeignKey("QuestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.QuestItemDrop", b =>
                 {
                     b.HasOne("Avalon.Domain.World.CreatureTemplate", null)
@@ -9919,6 +9955,8 @@ namespace Avalon.Database.World.Migrations
 
             modelBuilder.Entity("Avalon.Domain.World.QuestTemplate", b =>
                 {
+                    b.Navigation("ItemChoices");
+
                     b.Navigation("ItemRewards");
 
                     b.Navigation("Objectives");

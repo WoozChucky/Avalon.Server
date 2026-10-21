@@ -8,13 +8,13 @@ namespace Avalon.Server.World.UnitTests.Quests;
 
 /// <summary>
 /// The quest fixtures every quest test shares: three NPCs (a giver, an ender, a talk target), two creatures (a
-/// boar that drops the tusk, a wolf), three items (the tusk quest item, a stackable reward, a one-off reward) and
+/// boar that drops the tusk, a wolf), four items (the tusk quest item, a stackable reward, two one-off rewards) and
 /// three chained quests. Numbers are far from the seed's so a failure names the fixture, not the storyline.
 /// </summary>
 internal static class QuestTestData
 {
     public const ulong Giver = 701, Ender = 702, TalkTarget = 703, Boar = 704, Wolf = 705;
-    public const ulong Tusk = 7101, Tonic = 7102, Charm = 7103;
+    public const ulong Tusk = 7101, Tonic = 7102, Charm = 7103, Blade = 7104;
     public const uint Lever = 7501, Scenery = 7502;
     public const uint Hunt = 7201, Tusks = 7202, Howl = 7203;
     public const uint HuntKill = 72011, TusksCollect = 72021, HowlKill = 72031, HowlTalk = 72032, HowlScripted = 72033;
@@ -59,6 +59,7 @@ internal static class QuestTestData
         TuskItem(),
         new() { Id = Tonic, Name = "Tonic", Class = ItemClass.Consumable, MaxStackSize = 10 },
         new() { Id = Charm, Name = "Charm", Class = ItemClass.Armor, MaxStackSize = 1 },
+        new() { Id = Blade, Name = "Blade", Class = ItemClass.Weapon, MaxStackSize = 1 },
     ];
 
     public static List<LocalizedText> Texts() =>
@@ -102,6 +103,14 @@ internal static class QuestTestData
     public static QuestTemplate Paying(this QuestTemplate quest, ulong item, uint count)
     {
         quest.ItemRewards.Add(new QuestItemReward { QuestId = quest.Id, ItemTemplateId = item, Count = count });
+        return quest;
+    }
+
+    /// <summary>Adds a choose-one item set (#711): the player picks exactly one of these at turn-in.</summary>
+    public static QuestTemplate Offering(this QuestTemplate quest, params (ulong Item, uint Count)[] choices)
+    {
+        foreach ((ulong item, uint count) in choices)
+            quest.ItemChoices.Add(new QuestItemChoice { QuestId = quest.Id, ItemTemplateId = item, Count = count });
         return quest;
     }
 
