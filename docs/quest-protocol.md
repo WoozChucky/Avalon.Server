@@ -175,7 +175,8 @@ followed by no progress lines for them.
 ## 6. Updates
 
 After the log, each change to a quest arrives as one `SMSG_QUEST_UPDATE`, **at most one per quest per tick**,
-sent at the end of the tick in quest id order:
+except a turn-in followed by a new accept, which sends `Completed` then `Accepted` (see below); they are sent at the
+end of the tick in quest id order:
 
 | `Kind` | When | What it carries |
 |---|---|---|
@@ -190,6 +191,11 @@ ignores a `Removed` for a quest it never had. A quest accepted and turned in in 
 `Completed` only; a client just adds the id to the completed set. A quest abandoned and accepted again in the
 same tick arrives as `Accepted` only, for a quest the client still holds: a client replaces that entry with the
 one the update carries (the new accept's stage and counts).
+
+**A repeatable turned in and accepted again in the same tick** (#710) arrives as two updates for that quest, one
+right after the other: `Completed`, then `Accepted` with the new accept's display, stage and counts. A client handles
+each as usual: it drops the entry and adds the id to the completed set, then adds the new entry. If that new accept is
+abandoned or turned in again within the same tick, only the `Completed` arrives.
 
 **After a reload of the quest data.** When the server's quest data is reloaded with a lower count or an objective
 removed, every held quest is settled once at the end of the next tick: a count above its new target comes down to it,

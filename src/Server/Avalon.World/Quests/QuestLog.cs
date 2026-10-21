@@ -5,13 +5,19 @@ using Avalon.World.Persistence;
 
 namespace Avalon.World.Quests;
 
-/// <summary>What the client must hear about a quest at the end of the tick. At most one per quest per tick.</summary>
+/// <summary>
+/// What the client must hear about a quest at the end of the tick. At most one per quest per tick, except a turn-in
+/// followed by a new accept. World-side only: never on the wire.
+/// </summary>
 public enum QuestClientChange : byte
 {
     Progress = 1,
     Accepted = 2,
     Removed = 3,
     Completed = 4,
+
+    /// <summary>A repeatable turned in and accepted again in the same tick (#710): sent as Completed, then Accepted.</summary>
+    CompletedThenAccepted = 5,
 }
 
 /// <summary>One active quest of one character. Changed only through its <see cref="QuestLog" />.</summary>
@@ -367,12 +373,19 @@ public sealed class QuestLog(SaveStateTracker save)
 
     private void Changed(uint questId, QuestClientChange change)
     {
-        // An accept stays an accept for the rest of its tick: the client needs its display data.
-        if (!(change == QuestClientChange.Progress && _client.TryGetValue(questId, out QuestClientChange owed)
-              && owed == QuestClientChange.Accepted))
+        // An accept stays an accept for the rest of its tick: the client needs its display data. A turn-in followed by
+        // a new accept (a repeatable, #710) owes both, in that order; abandoning or turning in that new accept within
+        // the tick leaves only the turn-in to tell.
+        QuestClientChange next = !_client.TryGetValue(questId, out QuestClientChange owed) ? change : (owed, change) switch
         {
-            _client[questId] = change;
-        }
+            (QuestClientChange.Accepted, QuestClientChange.Progress) => QuestClientChange.Accepted,
+            (QuestClientChange.Completed or QuestClientChange.CompletedThenAccepted, QuestClientChange.Accepted) =>
+                QuestClientChange.CompletedThenAccepted,
+            (QuestClientChange.CompletedThenAccepted, QuestClientChange.Progress) => QuestClientChange.CompletedThenAccepted,
+            (QuestClientChange.CompletedThenAccepted, _) => QuestClientChange.Completed,      // abandoned or turned in again
+            _ => change,
+        };
+        _client[questId] = next;
 
         save.QuestChanged(questId);
         FlushOwed = true;

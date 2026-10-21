@@ -1103,8 +1103,9 @@ public sealed class QuestService(
 
     /// <summary>
     /// What the client is owed this tick (#433): the whole log the first time (which carries every change already, so
-    /// the pending updates are dropped), otherwise one SMSG_QUEST_UPDATE per changed quest in id order; then the
-    /// milestone lines on the system channel. Clears what it sent.
+    /// the pending updates are dropped), otherwise one SMSG_QUEST_UPDATE per changed quest in id order (two, Completed
+    /// then Accepted, for a repeatable turned in and accepted again, #710); then the milestone lines on the system
+    /// channel. Clears what it sent.
     /// </summary>
     public void FlushClient(IWorldConnection connection, CharacterEntity character)
     {
@@ -1121,18 +1122,16 @@ public sealed class QuestService(
             for (int i = 0; i < owed.Count; i++)
             {
                 (uint questId, QuestClientChange change) = owed[i];
-                OutboundPacket? update = null;
-                try
+                if (change == QuestClientChange.CompletedThenAccepted)
                 {
-                    update = UpdatePacket(connection, character, questId, change);
+                    // A repeatable turned in and accepted again this tick (#710): the client hears both, in that order.
+                    SendUpdate(connection, character, questId, QuestClientChange.Completed);
+                    SendUpdate(connection, character, questId, QuestClientChange.Accepted);
                 }
-                catch (Exception e)
+                else
                 {
-                    LogClientBuildFailure(e, character, questId, "update");
+                    SendUpdate(connection, character, questId, change);
                 }
-
-                if (update is not null)
-                    connection.Send(update.Value);
             }
         }
 
@@ -1145,6 +1144,23 @@ public sealed class QuestService(
         }
 
         log.ClearClientChanges();
+    }
+
+    /// <summary>One SMSG_QUEST_UPDATE; a quest whose update cannot be built is logged and left out.</summary>
+    private void SendUpdate(IWorldConnection connection, CharacterEntity character, uint questId, QuestClientChange change)
+    {
+        OutboundPacket? update = null;
+        try
+        {
+            update = UpdatePacket(connection, character, questId, change);
+        }
+        catch (Exception e)
+        {
+            LogClientBuildFailure(e, character, questId, "update");
+        }
+
+        if (update is not null)
+            connection.Send(update.Value);
     }
 
     private OutboundPacket LogPacket(IWorldConnection connection, CharacterEntity character)
@@ -1417,8 +1433,8 @@ public sealed class QuestService(
     /// against <see cref="QuestLog.ResetGeneration" />): when the character holds a completion of a quest whose frequency
     /// rolled meanwhile, its markers and doodad gates are worked out again (<see cref="QuestLog.ResetPassed" />); anyone
     /// else is left alone. At most once per character per reset; a new session (generation 0) in a world that has passed
-    /// a reset looks once, at its first flush. QuestFlusher's first step. Tick thread only; walks the completions with the dictionary's struct
-    /// enumerator, so it allocates nothing.
+    /// a reset looks once, at its first flush. QuestFlusher's first step. Tick thread only; walks the completions with
+    /// the dictionary's struct enumerator, so it allocates nothing.
     /// </summary>
     public void ApplyResets(CharacterEntity character)
     {

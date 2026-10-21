@@ -7,6 +7,7 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Quests;
 using NSubstitute;
@@ -190,6 +191,30 @@ public class QuestFlusherShould
         Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, Hunt, giver.Guid.RawValue));
         Tick(w, c);
         Assert.Equal(QuestUpdateKind.Completed, Assert.Single(Updates(c)).Kind);
+    }
+
+    /// <summary>#710: a repeatable turned in and accepted again in one tick: the client hears both, in that order.</summary>
+    [Fact]
+    public async Task Send_Completed_then_Accepted_for_a_turn_in_and_a_new_accept_in_one_tick()
+    {
+        const uint Again = 7811;
+        QuestTestWorld w = await QuestTestWorld.CreateAsync([.. Chain(),
+            Quest(Again).Repeating(QuestRepeatFrequency.None).WithStage(0, Kill(78111, Boar, 1))]);
+        QuestClient c = w.Join();
+        w.Accept(c, Again);
+        w.Quests.AddProgress(c.Character, Again, 78111, 1);
+        Tick(w, c);
+        c.Clear();
+
+        Creature giver = w.Place(Giver);
+        w.Talk(c, giver);
+        Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, Again, giver.Guid.RawValue));
+        Assert.Equal(QuestResult.Ok, w.Quests.Accept(c.Connection, c.Character, Again, giver.Guid.RawValue));
+        Tick(w, c);
+
+        List<SQuestUpdatePacket> updates = Updates(c);
+        Assert.Equal([(Again, QuestUpdateKind.Completed), (Again, QuestUpdateKind.Accepted)], updates.Select(u => (u.QuestId, u.Kind)));
+        Assert.Equal(QuestRepeatKind.Repeatable, updates[1].Display!.Repeat);
     }
 
     [Fact]
