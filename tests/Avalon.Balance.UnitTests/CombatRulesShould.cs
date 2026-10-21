@@ -176,10 +176,10 @@ public class CombatRulesShould
     [Fact]
     public void Restore_no_more_than_the_health_missing()
     {
-        var healer = SimPlayer.Create(Data, CharacterClass.Healer, 1, []);
-        healer.CurrentHealth = healer.Health - 5;
+        var cleric = SimPlayer.Create(Data, CharacterClass.Cleric, 1, []);
+        cleric.CurrentHealth = cleric.Health - 5;
 
-        Assert.Equal(5u, CombatRules.HealPlayer(healer, 40));
-        Assert.Equal(healer.Health, healer.CurrentHealth);
+        Assert.Equal(5u, CombatRules.HealPlayer(cleric, 40));
+        Assert.Equal(cleric.Health, cleric.CurrentHealth);
     }
 }

@@ -348,7 +348,7 @@ enum CharacterClass {
    CharacterClass_Warrior = 1;
    CharacterClass_Wizard = 2;
    CharacterClass_Hunter = 3;
-   CharacterClass_Healer = 4;
+   CharacterClass_Cleric = 4;
 }
 enum CharacterGender {
    CharacterGender_Male = 0;

@@ -99,7 +99,7 @@ public class CombatReloadShould
     {
         { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).AttackPerStrength = -1 },
         { "ClassStatFactors Hunter", r => r.Factors.Single(f => f.Class == CharacterClass.Hunter).BaseCrit = float.NaN },
-        { "ClassStatFactors Healer", r => r.Factors.RemoveAll(f => f.Class == CharacterClass.Healer) },
+        { "ClassStatFactors Cleric", r => r.Factors.RemoveAll(f => f.Class == CharacterClass.Cleric) },
         { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).HpPerStamina = -1 },
         { "ClassStatFactors Wizard", r => r.Factors.Single(f => f.Class == CharacterClass.Wizard).HpPerStamina = uint.MaxValue + 1L },
         { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).FixedPower = -5 },

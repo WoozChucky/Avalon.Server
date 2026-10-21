@@ -309,7 +309,7 @@ public sealed class Fighter
             1 => (200u, 2.5f), // Warrior, Cleave
             2 => (210u, 20f), // Wizard, Arcane Bolt
             3 => (220u, 25f), // Hunter, Quick Shot
-            _ => (230u, 18f), // Healer, Smite
+            _ => (230u, 18f), // Cleric, Smite
         };
         _reach = reach - MathF.Min(ReachMargin, ReachMarginShare * reach);
         _lookIn = botIndex % LookEvery + 1;

@@ -6317,7 +6317,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 14,
-                            Text = "Healer"
+                            Text = "Cleric"
                         },
                         new
                         {
@@ -6720,7 +6720,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             TextId = 14,
                             Locale = "ptPT",
-                            Text = "Curandeir{g:o|a}"
+                            Text = "Clérig{g:o|a}"
                         },
                         new
                         {

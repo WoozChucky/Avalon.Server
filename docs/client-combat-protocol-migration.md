@@ -281,10 +281,10 @@ The retired abilities 1, 2 and 100-103 are gone, and their ids are never reused,
 | 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 28 | no | Hostile | 0 | 800 ms | 0 |
 | 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 24 | yes | Hostile | 0 | 4000 ms | 15 |
 | 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4000 ms | 20 |
-| 230 | Healer | Smite | Projectile | Cursor | – | 18 | – | – | 20 | no | Hostile | 0 | 800 ms | 0 |
-| 231 | Healer | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5000 ms | 20 |
-| 232 | Healer | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8000 ms | 25 |
+| 230 | Cleric | Smite | Projectile | Cursor | – | 18 | – | – | 20 | no | Hostile | 0 | 800 ms | 0 |
+| 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5000 ms | 20 |
+| 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8000 ms | 25 |
 
-On the wire `AbilityInfo.Cooldown` and `CastTime` are seconds (floats); the table gives the stored milliseconds. The cost is paid from the class's pool: Warrior Fury, Wizard and Healer Mana, Hunter Energy. Damage and heal amounts, and threat, are not transmitted in `AbilityInfo`; they are server-side only and surface through the damage packets, health replication and `SThreatListPacket`. `AbilityInfo.Range` still carries the legacy `SpellRange` value but the server no longer reads it; use `Reach`.
+On the wire `AbilityInfo.Cooldown` and `CastTime` are seconds (floats); the table gives the stored milliseconds. The cost is paid from the class's pool: Warrior Fury, Wizard and Cleric Mana, Hunter Energy. Damage and heal amounts, and threat, are not transmitted in `AbilityInfo`; they are server-side only and surface through the damage packets, health replication and `SThreatListPacket`. `AbilityInfo.Range` still carries the legacy `SpellRange` value but the server no longer reads it; use `Reach`.
 
 Numbers are placeholders pending a balance pass.

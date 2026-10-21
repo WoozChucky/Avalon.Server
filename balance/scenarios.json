@@ -9,7 +9,7 @@
     "Warrior",
     "Wizard",
     "Hunter",
-    "Healer"
+    "Cleric"
   ],
   "gear": [
     "none",
@@ -128,7 +128,7 @@
         49,
         50
       ],
-      "Healer": [
+      "Cleric": [
         35,
         51,
         52,
@@ -162,7 +162,7 @@
         25,
         26
       ],
-      "Healer": [
+      "Cleric": [
         8,
         27,
         28,

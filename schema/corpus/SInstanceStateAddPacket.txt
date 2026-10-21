@@ -56,7 +56,7 @@ variant populated
       field 20 CanInteract : bool? = true
       field 21 PvpEnabled : bool? = true
       field 22 Rarity : CreatureRarity? = Elite (1)
-      field 23 Class : CharacterClass? = Healer (4)
+      field 23 Class : CharacterClass? = Cleric (4)
       field 24 Gender : CharacterGender? = Female (1)
       field 25 DisplayId : uint? = 19
       field 26 DoodadTemplateId : uint? = 300
@@ -146,7 +146,7 @@ variant maxima
       field 20 CanInteract : bool? = true
       field 21 PvpEnabled : bool? = true
       field 22 Rarity : CreatureRarity? = Boss (3)
-      field 23 Class : CharacterClass? = Healer (4)
+      field 23 Class : CharacterClass? = Cleric (4)
       field 24 Gender : CharacterGender? = Female (1)
       field 25 DisplayId : uint? = 4294967295
       field 26 DoodadTemplateId : uint? = 4294967295
@@ -180,7 +180,7 @@ variant maxima
       field 20 CanInteract : bool? = true
       field 21 PvpEnabled : bool? = true
       field 22 Rarity : CreatureRarity? = Boss (3)
-      field 23 Class : CharacterClass? = Healer (4)
+      field 23 Class : CharacterClass? = Cleric (4)
       field 24 Gender : CharacterGender? = Female (1)
       field 25 DisplayId : uint? = 4294967295
       field 26 DoodadTemplateId : uint? = 4294967295
@@ -214,7 +214,7 @@ variant maxima
       field 20 CanInteract : bool? = true
       field 21 PvpEnabled : bool? = true
       field 22 Rarity : CreatureRarity? = Boss (3)
-      field 23 Class : CharacterClass? = Healer (4)
+      field 23 Class : CharacterClass? = Cleric (4)
       field 24 Gender : CharacterGender? = Female (1)
       field 25 DisplayId : uint? = 4294967295
       field 26 DoodadTemplateId : uint? = 4294967295
@@ -464,7 +464,7 @@ variant float-specials
       field 20 CanInteract : bool? = true
       field 21 PvpEnabled : bool? = true
       field 22 Rarity : CreatureRarity? = Elite (1)
-      field 23 Class : CharacterClass? = Healer (4)
+      field 23 Class : CharacterClass? = Cleric (4)
       field 24 Gender : CharacterGender? = Female (1)
       field 25 DisplayId : uint? = 19
       field 26 DoodadTemplateId : uint? = 300

@@ -18,7 +18,7 @@ public class PowerRegenShould
 
     [Theory]
     [InlineData(CharacterClass.Wizard, 23u)]
-    [InlineData(CharacterClass.Healer, 23u)]
+    [InlineData(CharacterClass.Cleric, 23u)]
     [InlineData(CharacterClass.Hunter, 31u)]
     [InlineData(CharacterClass.Warrior, 0u)]
     public void Read_the_stat_each_class_regenerates_from(CharacterClass @class, uint expected) =>

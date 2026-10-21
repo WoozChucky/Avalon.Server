@@ -58,15 +58,15 @@ public class LocalizedTextCatalogShould
             texts: [Text(1, "Welcome, {class} {name}.")],
             locales: [Locale(1, AccountLocale.ptPT, "Bem-{g:vindo|vinda}, {class} {name}.")],
             classNames: [new CharacterClassName { Class = CharacterClass.Warrior, TextId = 2 },
-                         new CharacterClassName { Class = CharacterClass.Healer, TextId = 3 }]);
+                         new CharacterClassName { Class = CharacterClass.Cleric, TextId = 3 }]);
 
         Assert.Equal("Welcome, Warrior Aldric.",
             catalog.Get(new LocalizedTextId(1),
                 Context(AccountLocale.enUS, name: "Aldric", className: "Warrior")));
 
-        Assert.Equal("Bem-vinda, Curandeira Mira.",
+        Assert.Equal("Bem-vinda, Clériga Mira.",
             catalog.Get(new LocalizedTextId(1),
-                Context(AccountLocale.ptPT, name: "Mira", className: "Curandeira",
+                Context(AccountLocale.ptPT, name: "Mira", className: "Clériga",
                     gender: CharacterGender.Female)));
     }
 

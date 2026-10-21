@@ -163,7 +163,7 @@ public class CombatServiceShould
     public void Should_not_generate_heal_threat_when_target_not_in_encounter()
     {
         (CombatService? svc, EncounterRegistry? reg) = BuildService();
-        ICharacter healer = StubCharacter(CharacterClass.Healer);
+        ICharacter healer = StubCharacter(CharacterClass.Cleric);
         ICharacter ally = StubCharacter(CharacterClass.Warrior);
         ally.Health.Returns(300u); // room to restore, so the heal reaches the guard this test is named for
         IAbility ab = Substitute.For<IAbility>();
@@ -178,7 +178,7 @@ public class CombatServiceShould
     public void Should_skip_heal_threat_when_HealThreatPerHp_is_zero()
     {
         (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
-        ICharacter healer = StubCharacter(CharacterClass.Healer);
+        ICharacter healer = StubCharacter(CharacterClass.Cleric);
         ICharacter ally = StubCharacter(CharacterClass.Warrior);
         ally.Health.Returns(300u); // room to restore, so the heal reaches the guard this test is named for
         ICreature hostile = StubCreature();
@@ -199,7 +199,7 @@ public class CombatServiceShould
         // A unit can sit above its maximum (equipment removed, a buff that raised it dropped).
         // A heal must never take health away: 120 of 100 stays 120, restores 0 and adds no threat (#548).
         (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
-        ICharacter healer = StubCharacter(CharacterClass.Healer);
+        ICharacter healer = StubCharacter(CharacterClass.Cleric);
         ICharacter ally = StubCharacter(CharacterClass.Warrior);
         ally.Health.Returns(100u);
         ally.CurrentHealth.Returns(120u);
@@ -743,7 +743,7 @@ public class CombatServiceShould
     public void Add_no_heal_threat_to_a_creature_that_is_returning_home()
     {
         (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
-        ICharacter healer = StubCharacter(CharacterClass.Healer);
+        ICharacter healer = StubCharacter(CharacterClass.Cleric);
         ICharacter ally = StubCharacter(CharacterClass.Warrior);
         ally.Health.Returns(300u);
         Creature returning = CreatureReturningHome(Substitute.For<ISimulationContext>(), nameof(CreatureCombatScript), health: 30);

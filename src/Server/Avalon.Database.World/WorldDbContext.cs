@@ -347,7 +347,7 @@ public class WorldDbContext : DbContext
             StartingSpells = [220, 221, 222, 223, 224]
         }, new CharacterCreateInfo
         {
-            Class = CharacterClass.Healer,
+            Class = CharacterClass.Cleric,
             Map = 1,
             X = 25,
             Y = 51,
@@ -514,7 +514,7 @@ public class WorldDbContext : DbContext
             Intellect = 20
         }, new ClassLevelStat
         {
-            Class = CharacterClass.Healer,
+            Class = CharacterClass.Cleric,
             Level = 1,
             BaseHp = 18,
             BaseMana = 20,
@@ -524,7 +524,7 @@ public class WorldDbContext : DbContext
             Intellect = 23
         }, new ClassLevelStat
         {
-            Class = CharacterClass.Healer,
+            Class = CharacterClass.Cleric,
             Level = 2,
             BaseHp = 36,
             BaseMana = 40,
@@ -534,7 +534,7 @@ public class WorldDbContext : DbContext
             Intellect = 25
         }, new ClassLevelStat
         {
-            Class = CharacterClass.Healer,
+            Class = CharacterClass.Cleric,
             Level = 3,
             BaseHp = 54,
             BaseMana = 60,
@@ -544,7 +544,7 @@ public class WorldDbContext : DbContext
             Intellect = 27
         }, new ClassLevelStat
         {
-            Class = CharacterClass.Healer,
+            Class = CharacterClass.Cleric,
             Level = 4,
             BaseHp = 72,
             BaseMana = 80,
@@ -554,7 +554,7 @@ public class WorldDbContext : DbContext
             Intellect = 29
         }, new ClassLevelStat
         {
-            Class = CharacterClass.Healer,
+            Class = CharacterClass.Cleric,
             Level = 5,
             BaseHp = 90,
             BaseMana = 100,
@@ -570,7 +570,7 @@ public class WorldDbContext : DbContext
         //   Warrior: BaseHp 20L, BaseMana 0,   Stamina 20+2L, Strength 21+2L, Agility 20+floor(3(L-1)/2), Intellect 20
         //   Wizard:  BaseHp 16L, BaseMana 20L, Stamina 20+L,  Strength 20,    Agility 19+L,  Intellect 21+2L
         //   Hunter:  BaseHp 18L, BaseMana 10L, Stamina 19+L,  Strength 20+L,  Agility 21+2L, Intellect 20
-        //   Healer:  BaseHp 18L, BaseMana 20L, Stamina 19+L,  Strength 20,    Agility 20+L,  Intellect 21+2L
+        //   Cleric:  BaseHp 18L, BaseMana 20L, Stamina 19+L,  Strength 20,    Agility 20+L,  Intellect 21+2L
         // Warrior Agility is the one column that does not rise by a whole step: 20, 21, 23, 24, 26
         // alternates +1 and +2, so it keeps alternating. Every formula reproduces levels 1-5 exactly.
         // Provisional, like the creature numbers: revisited in the combat-balance pass (#506).
@@ -608,17 +608,17 @@ public class WorldDbContext : DbContext
             new ClassLevelStat { Class = CharacterClass.Hunter, Level = 14, BaseHp = 252, BaseMana = 140, Stamina = 33, Strength = 34, Agility = 49, Intellect = 20 },
             new ClassLevelStat { Class = CharacterClass.Hunter, Level = 15, BaseHp = 270, BaseMana = 150, Stamina = 34, Strength = 35, Agility = 51, Intellect = 20 },
             new ClassLevelStat { Class = CharacterClass.Hunter, Level = 16, BaseHp = 288, BaseMana = 160, Stamina = 35, Strength = 36, Agility = 53, Intellect = 20 },
-            new ClassLevelStat { Class = CharacterClass.Healer, Level = 6, BaseHp = 108, BaseMana = 120, Stamina = 25, Strength = 20, Agility = 26, Intellect = 33 },
-            new ClassLevelStat { Class = CharacterClass.Healer, Level = 7, BaseHp = 126, BaseMana = 140, Stamina = 26, Strength = 20, Agility = 27, Intellect = 35 },
-            new ClassLevelStat { Class = CharacterClass.Healer, Level = 8, BaseHp = 144, BaseMana = 160, Stamina = 27, Strength = 20, Agility = 28, Intellect = 37 },
-            new ClassLevelStat { Class = CharacterClass.Healer, Level = 9, BaseHp = 162, BaseMana = 180, Stamina = 28, Strength = 20, Agility = 29, Intellect = 39 },
-            new ClassLevelStat { Class = CharacterClass.Healer, Level = 10, BaseHp = 180, BaseMana = 200, Stamina = 29, Strength = 20, Agility = 30, Intellect = 41 },
-            new ClassLevelStat { Class = CharacterClass.Healer, Level = 11, BaseHp = 198, BaseMana = 220, Stamina = 30, Strength = 20, Agility = 31, Intellect = 43 },
-            new ClassLevelStat { Class = CharacterClass.Healer, Level = 12, BaseHp = 216, BaseMana = 240, Stamina = 31, Strength = 20, Agility = 32, Intellect = 45 },
-            new ClassLevelStat { Class = CharacterClass.Healer, Level = 13, BaseHp = 234, BaseMana = 260, Stamina = 32, Strength = 20, Agility = 33, Intellect = 47 },
-            new ClassLevelStat { Class = CharacterClass.Healer, Level = 14, BaseHp = 252, BaseMana = 280, Stamina = 33, Strength = 20, Agility = 34, Intellect = 49 },
-            new ClassLevelStat { Class = CharacterClass.Healer, Level = 15, BaseHp = 270, BaseMana = 300, Stamina = 34, Strength = 20, Agility = 35, Intellect = 51 },
-            new ClassLevelStat { Class = CharacterClass.Healer, Level = 16, BaseHp = 288, BaseMana = 320, Stamina = 35, Strength = 20, Agility = 36, Intellect = 53 });
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 6, BaseHp = 108, BaseMana = 120, Stamina = 25, Strength = 20, Agility = 26, Intellect = 33 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 7, BaseHp = 126, BaseMana = 140, Stamina = 26, Strength = 20, Agility = 27, Intellect = 35 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 8, BaseHp = 144, BaseMana = 160, Stamina = 27, Strength = 20, Agility = 28, Intellect = 37 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 9, BaseHp = 162, BaseMana = 180, Stamina = 28, Strength = 20, Agility = 29, Intellect = 39 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 10, BaseHp = 180, BaseMana = 200, Stamina = 29, Strength = 20, Agility = 30, Intellect = 41 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 11, BaseHp = 198, BaseMana = 220, Stamina = 30, Strength = 20, Agility = 31, Intellect = 43 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 12, BaseHp = 216, BaseMana = 240, Stamina = 31, Strength = 20, Agility = 32, Intellect = 45 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 13, BaseHp = 234, BaseMana = 260, Stamina = 32, Strength = 20, Agility = 33, Intellect = 47 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 14, BaseHp = 252, BaseMana = 280, Stamina = 33, Strength = 20, Agility = 34, Intellect = 49 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 15, BaseHp = 270, BaseMana = 300, Stamina = 34, Strength = 20, Agility = 35, Intellect = 51 },
+            new ClassLevelStat { Class = CharacterClass.Cleric, Level = 16, BaseHp = 288, BaseMana = 320, Stamina = 35, Strength = 20, Agility = 36, Intellect = 53 });
     }
 
     /// <summary>Quests (#433). Reference data; QuestCatalog validates it on load and on /reload quests.</summary>
@@ -1597,7 +1597,7 @@ public class WorldDbContext : DbContext
                 BuyPrice = 200,
                 SellPrice = 50,
                 Slot = ItemSlotType.MainHand,
-                AllowedClasses = [CharacterClass.Healer],
+                AllowedClasses = [CharacterClass.Cleric],
                 ItemPower = 3,
                 RequiredLevel = 1,
                 DamageMin1 = 7,
@@ -1652,7 +1652,7 @@ public class WorldDbContext : DbContext
 
         // Items 12-31: the forest armour, one set per class in five slots, each piece its own 2 %
         // entry in loot table 11. Every piece carries Armor, so no class is unarmoured when
-        // mitigation lands: in each slot cloth (Wizard, Healer) is below leather (Hunter), which is
+        // mitigation lands: in each slot cloth (Wizard, Cleric) is below leather (Hunter), which is
         // below plate (Warrior).
         builder.HasData(
             ForestArmourPiece(12, "Barkplate Helm", CharacterClass.Warrior, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Strength, 1), (StatType.Armor, 4), (StatType.Stamina, 1)),
@@ -1670,11 +1670,11 @@ public class WorldDbContext : DbContext
             ForestArmourPiece(24, "Fernstalker Breeches", CharacterClass.Hunter, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Agility, 3), (StatType.Armor, 4)),
             ForestArmourPiece(25, "Fernstalker Grips", CharacterClass.Hunter, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Agility, 1), (StatType.Armor, 2)),
             ForestArmourPiece(26, "Fernstalker Boots", CharacterClass.Hunter, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Agility, 1), (StatType.Armor, 2)),
-            ForestArmourPiece(27, "Dewleaf Circlet", CharacterClass.Healer, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
-            ForestArmourPiece(28, "Dewleaf Vestments", CharacterClass.Healer, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Intellect, 2), (StatType.Stamina, 2), (StatType.Armor, 3)),
-            ForestArmourPiece(29, "Dewleaf Leggings", CharacterClass.Healer, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Intellect, 2), (StatType.Stamina, 1), (StatType.Armor, 2)),
-            ForestArmourPiece(30, "Dewleaf Handwraps", CharacterClass.Healer, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
-            ForestArmourPiece(31, "Dewleaf Sandals", CharacterClass.Healer, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)));
+            ForestArmourPiece(27, "Dewleaf Circlet", CharacterClass.Cleric, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
+            ForestArmourPiece(28, "Dewleaf Vestments", CharacterClass.Cleric, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Intellect, 2), (StatType.Stamina, 2), (StatType.Armor, 3)),
+            ForestArmourPiece(29, "Dewleaf Leggings", CharacterClass.Cleric, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Intellect, 2), (StatType.Stamina, 1), (StatType.Armor, 2)),
+            ForestArmourPiece(30, "Dewleaf Handwraps", CharacterClass.Cleric, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
+            ForestArmourPiece(31, "Dewleaf Sandals", CharacterClass.Cleric, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)));
 
         // The Common starter tier (#432), what the town vendors sell: one weapon per class and a
         // five-slot set per class. Each stat is the matching forest piece's (items 5-8, 12-31) times
@@ -1686,7 +1686,7 @@ public class WorldDbContext : DbContext
             StarterWeapon(32, "Ironwood Sword", CharacterClass.Warrior, ItemSubClass.OneHanded, attackSpeed: 3, (StatType.Strength, 1)),
             StarterWeapon(33, "Ash Staff", CharacterClass.Wizard, ItemSubClass.TwoHanded, attackSpeed: 0, (StatType.Intellect, 1)),
             StarterWeapon(34, "Hunter's Shortbow", CharacterClass.Hunter, ItemSubClass.Ranged, attackSpeed: 3, (StatType.Agility, 1)),
-            StarterWeapon(35, "Oak Mace", CharacterClass.Healer, ItemSubClass.OneHanded, attackSpeed: 2, (StatType.Intellect, 1)));
+            StarterWeapon(35, "Oak Mace", CharacterClass.Cleric, ItemSubClass.OneHanded, attackSpeed: 2, (StatType.Intellect, 1)));
 
         builder.HasData(
             StarterArmourPiece(36, "Ironbound Helm", CharacterClass.Warrior, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Strength, 1), (StatType.Armor, 2), (StatType.Stamina, 1)),
@@ -1704,11 +1704,11 @@ public class WorldDbContext : DbContext
             StarterArmourPiece(48, "Hide Breeches", CharacterClass.Hunter, ItemSubClass.Legs, ItemSlotType.Legs, 80, (StatType.Agility, 2), (StatType.Armor, 2)),
             StarterArmourPiece(49, "Hide Grips", CharacterClass.Hunter, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Agility, 1), (StatType.Armor, 1)),
             StarterArmourPiece(50, "Hide Boots", CharacterClass.Hunter, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Agility, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(51, "Wool Circlet", CharacterClass.Healer, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(52, "Wool Vestments", CharacterClass.Healer, ItemSubClass.Chest, ItemSlotType.Chest, 100, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 2)),
-            StarterArmourPiece(53, "Wool Leggings", CharacterClass.Healer, ItemSubClass.Legs, ItemSlotType.Legs, 80, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(54, "Wool Handwraps", CharacterClass.Healer, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(55, "Wool Sandals", CharacterClass.Healer, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)));
+            StarterArmourPiece(51, "Wool Circlet", CharacterClass.Cleric, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
+            StarterArmourPiece(52, "Wool Vestments", CharacterClass.Cleric, ItemSubClass.Chest, ItemSlotType.Chest, 100, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 2)),
+            StarterArmourPiece(53, "Wool Leggings", CharacterClass.Cleric, ItemSubClass.Legs, ItemSlotType.Legs, 80, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
+            StarterArmourPiece(54, "Wool Handwraps", CharacterClass.Cleric, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
+            StarterArmourPiece(55, "Wool Sandals", CharacterClass.Cleric, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)));
 
         // Item 56 (#432): Tobin's Greater Health Potion, sold for gold plus two Health Potions. A use restores
         // 60 % of the maximum health (item use), sharing the potions' cooldown.
@@ -2376,7 +2376,7 @@ public class WorldDbContext : DbContext
             new LocalizedText { Id = 11, Text = "Warrior" },
             new LocalizedText { Id = 12, Text = "Wizard" },
             new LocalizedText { Id = 13, Text = "Hunter" },
-            new LocalizedText { Id = 14, Text = "Healer" });
+            new LocalizedText { Id = 14, Text = "Cleric" });
 
         // Marta Ledgerwell, the banker (#463). Her closing option reuses "Farewell." (10).
         builder.HasData(
@@ -2505,7 +2505,7 @@ public class WorldDbContext : DbContext
             new LocalizedTextLocale { TextId = 11, Locale = AccountLocale.ptPT, Text = "Guerreir{g:o|a}" },
             new LocalizedTextLocale { TextId = 12, Locale = AccountLocale.ptPT, Text = "Mag{g:o|a}" },
             new LocalizedTextLocale { TextId = 13, Locale = AccountLocale.ptPT, Text = "Caçador{g:|a}" },
-            new LocalizedTextLocale { TextId = 14, Locale = AccountLocale.ptPT, Text = "Curandeir{g:o|a}" });
+            new LocalizedTextLocale { TextId = 14, Locale = AccountLocale.ptPT, Text = "Clérig{g:o|a}" });
 
         // Marta (#463). Needs native-speaker review before merge, like the rows above.
         builder.HasData(
@@ -2725,7 +2725,7 @@ public class WorldDbContext : DbContext
             new CharacterClassName { Class = CharacterClass.Warrior, TextId = 11 },
             new CharacterClassName { Class = CharacterClass.Wizard, TextId = 12 },
             new CharacterClassName { Class = CharacterClass.Hunter, TextId = 13 },
-            new CharacterClassName { Class = CharacterClass.Healer, TextId = 14 });
+            new CharacterClassName { Class = CharacterClass.Cleric, TextId = 14 });
     }
 
     /// <summary>Loot tables (issue #460). Rolled on the tick when a creature dies; see Avalon.World.Loot.</summary>
@@ -3043,18 +3043,18 @@ public class WorldDbContext : DbContext
             Kit(220, CharacterClass.Hunter, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f, flags: AbilityFlags.Basic),
             Kit(221, CharacterClass.Hunter, "Piercing Arrow", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 30f, speed: 24f, pierce: true, cooldown: 4000, cost: 15, value: 25, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.2f),
             Kit(222, CharacterClass.Hunter, "Scatter Shot", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 8f, arc: 45f, cooldown: 4000, cost: 20, value: 22, range: SpellRange.Medium, scaling: ScalingStat.Attack, coefficient: 0.4f, weapon: 0.8f),
-            Kit(230, CharacterClass.Healer, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.3f, flags: AbilityFlags.Basic),
-            Kit(231, CharacterClass.Healer, "Radiant Pulse", AbilityShape.Circle, AbilityAimMode.Movement, radius: 4f, cooldown: 5000, cost: 20, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f),
-            Kit(232, CharacterClass.Healer, "Mending Circle", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 8000, cost: 25, value: 40, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, coefficient: 0.6f));
+            Kit(230, CharacterClass.Cleric, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.3f, flags: AbilityFlags.Basic),
+            Kit(231, CharacterClass.Cleric, "Radiant Pulse", AbilityShape.Circle, AbilityAimMode.Movement, radius: 4f, cooldown: 5000, cost: 20, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f),
+            Kit(232, CharacterClass.Cleric, "Mending Circle", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 8000, cost: 25, value: 40, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, coefficient: 0.6f));
 
-        // Auras: one new ability per class (two for the Healer), each applying its aura; the existing skills are
+        // Auras: one new ability per class (two for the Cleric), each applying its aura; the existing skills are
         // untouched. Ignite, Renew and Fortify deal and heal nothing directly (Effects has no Damage or Heal).
         builder.HasData(
             Kit(203, CharacterClass.Warrior, "Rend", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 6000, cost: 10, value: 8, range: SpellRange.Melee, scaling: ScalingStat.Attack, coefficient: 0.2f, weapon: 0.5f, aura: 1),
             Kit(213, CharacterClass.Wizard, "Ignite", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 6000, cost: 20, value: 0, range: SpellRange.Long, scaling: ScalingStat.Ability, effects: SpellEffect.Debuff, aura: 2),
             Kit(223, CharacterClass.Hunter, "Crippling Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 8000, cost: 15, value: 14, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.35f, weapon: 0.6f, aura: 3),
-            Kit(233, CharacterClass.Healer, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 6000, cost: 15, value: 0, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, effects: SpellEffect.Buff, aura: 4),
-            Kit(234, CharacterClass.Healer, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, radius: 8f, cooldown: 20000, cost: 20, value: 0, range: SpellRange.Short, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, effects: SpellEffect.Buff, aura: 5));
+            Kit(233, CharacterClass.Cleric, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 6000, cost: 15, value: 0, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, effects: SpellEffect.Buff, aura: 4),
+            Kit(234, CharacterClass.Cleric, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, radius: 8f, cooldown: 20000, cost: 20, value: 0, range: SpellRange.Short, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, effects: SpellEffect.Buff, aura: 5));
 
         // Crowd control (#770): one ability per class, each a small direct amount plus its aura, as Rend and Crippling
         // Shot are, so a dodged or missed hit lands no control (an aura lands only on a landed hit). Shapes and reach
@@ -3063,7 +3063,7 @@ public class WorldDbContext : DbContext
             Kit(204, CharacterClass.Warrior, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 15000, cost: 15, value: 6, range: SpellRange.Melee, scaling: ScalingStat.Attack, coefficient: 0.15f, weapon: 0.3f, aura: 12),
             Kit(214, CharacterClass.Wizard, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 20000, cost: 25, value: 6, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.1f, aura: 14),
             Kit(224, CharacterClass.Hunter, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 15000, cost: 20, value: 8, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.2f, weapon: 0.3f, aura: 13),
-            Kit(235, CharacterClass.Healer, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 20000, cost: 20, value: 6, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.1f, aura: 15));
+            Kit(235, CharacterClass.Cleric, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 20000, cost: 20, value: 6, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.1f, aura: 15));
 
         // The forest creatures' abilities (#163), creature-only (no class), free, and dealt from each creature's
         // natural damage range through BaseDamageCoefficient. Each creature's AI script declares its own ids and
@@ -3150,7 +3150,7 @@ public class WorldDbContext : DbContext
     private static PowerType ClassPool(CharacterClass cls) => cls switch
     {
         CharacterClass.Warrior => PowerType.Fury,
-        CharacterClass.Wizard or CharacterClass.Healer => PowerType.Mana,
+        CharacterClass.Wizard or CharacterClass.Cleric => PowerType.Mana,
         CharacterClass.Hunter => PowerType.Energy,
         _ => PowerType.None,
     };
@@ -3239,7 +3239,7 @@ public class WorldDbContext : DbContext
         builder.HasMany(b => b.Modifiers).WithOne().HasForeignKey(m => m.AuraId).OnDelete(DeleteBehavior.Cascade);
 
         // The seeded auras: numbers set against the kit (a level-1 Warrior attacks for 46, a Wizard has 69 ability
-        // damage, a Healer 46). A creature has no damage stats, so Poison scales through one roll of its natural damage
+        // damage, a Cleric 46). A creature has no damage stats, so Poison scales through one roll of its natural damage
         // (base damage coefficient 1.0) and grows with its level as its hits do; base 3 keeps a floor under a low roll.
         // Every other aura has no base damage term: Bleed already scales with attack damage, the spells (Burn, Renew)
         // with ability damage, and the stat auras have no periodic amount. Auras 8-10 are the forest shrine's outcomes

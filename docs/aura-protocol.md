@@ -191,7 +191,7 @@ no answer.
 | 15 | Silenced (`silenced`) | Harmful | 3 000 ms, no ticks | | Refresh | none; silence |
 
 The periodic amount is the total per stack, split over the ticks. At level 1 (a Warrior's attack 46, a Wizard's
-ability damage 69, a Healer's 46) that is 23.5 for Bleed, 65.4 for Burn and 42.4 for Renew. Armour auras are
+ability damage 69, a Cleric's 46) that is 23.5 for Bleed, 65.4 for Burn and 42.4 for Renew. Armour auras are
 percentages: they scale the armour a unit already has and do nothing to a unit with none. Crippled (3) and Hexed (10)
 are slows. Break chances (on damage / on its own, per second): Stunned 10 % / 0.5 %, Bound and Frozen 25 % / 0.5 %,
 Silenced never, Crippled and Hexed 0 % / 0.5 %.
@@ -201,14 +201,14 @@ Silenced never, Crippled and Hexed 0 % / 0.5 %.
 | 203 Rend | Warrior | Cone | Movement | reach 2.5, arc 90 | 6 s | 10 Fury | Damage: 8 + Attack x 0.2 + weapon x 0.5 | 1 Bleed |
 | 213 Ignite | Wizard | Circle on the aim point | Cursor | reach 18, radius 3 | 6 s | 20 Mana | none | 2 Burn |
 | 223 Crippling Shot | Hunter | Projectile, 28 m/s | Cursor | reach 25 | 8 s | 15 Energy | Damage: 14 + Attack x 0.35 + weapon x 0.6 | 3 Crippled |
-| 233 Renew | Healer | Ally circle on the aim point | Cursor | reach 15, radius 4 | 6 s | 15 Mana | none | 4 Renew |
-| 234 Fortify | Healer | Ally circle on the caster | Movement | radius 8 | 20 s | 20 Mana | none | 5 Fortified |
+| 233 Renew | Cleric | Ally circle on the aim point | Cursor | reach 15, radius 4 | 6 s | 15 Mana | none | 4 Renew |
+| 234 Fortify | Cleric | Ally circle on the caster | Movement | radius 8 | 20 s | 20 Mana | none | 5 Fortified |
 | 317 Venom Spit | Blightfly Swarmling | Projectile, 14 m/s | Cursor | reach 10 | 8 s | none | Damage: natural roll x 0.6 | 6 Poison |
 | 318 Sundering Howl | Bramblemaw Alpha | Circle on the caster | Movement | radius 6 | 18 s | none | none | 7 Sundered |
 | 204 Shield Bash | Warrior | Cone | Movement | reach 2.5, arc 90 | 15 s | 15 Fury | Damage: 6 + Attack x 0.15 + weapon x 0.3 | 12 Stunned |
 | 214 Frost Bind | Wizard | Circle on the aim point | Cursor | reach 18, radius 3 | 20 s | 25 Mana | Damage: 6 + Ability x 0.1 | 14 Frozen |
 | 224 Binding Shot | Hunter | Projectile, 28 m/s | Cursor | reach 25 | 15 s | 20 Energy | Damage: 8 + Attack x 0.2 + weapon x 0.3 | 13 Bound |
-| 235 Hush | Healer | Projectile, 20 m/s | Cursor | reach 18 | 20 s | 20 Mana | Damage: 6 + Ability x 0.1 | 15 Silenced |
+| 235 Hush | Cleric | Projectile, 20 m/s | Cursor | reach 18 | 20 s | 20 Mana | Damage: 6 + Ability x 0.1 | 15 Silenced |
 
 All are instant. Every character of a class holds its class's new abilities. An Ally circle affects the caster too when
 the circle covers it.

@@ -88,7 +88,7 @@ everywhere else, and always for built-in types, the explicit type (IDE0008).
 ```csharp
 var spillover = (Encounter)_registry.CreateEncounter();
 var fighting = enc.Hostiles.Where(h => !IsReturningHome(h)).ToList();
-CharacterClass healerClass = (healer as ICharacter)?.Class ?? CharacterClass.Healer;
+CharacterClass healerClass = (healer as ICharacter)?.Class ?? CharacterClass.Cleric;
 int count = members.Count;
 ```
 

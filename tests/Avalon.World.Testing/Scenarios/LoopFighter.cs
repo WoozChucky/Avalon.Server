@@ -53,7 +53,7 @@ namespace Avalon.World.Testing.Scenarios;
 /// creatures' telegraphed hits on it wait its one-way delay for it to step out, so the allocation gate measures both.
 /// </para>
 /// <para>
-/// <b>Healing.</b> A healer first looks after its party (<see cref="Enter" />): when Mending Circle
+/// <b>Healing.</b> A cleric first looks after its party (<see cref="Enter" />): when Mending Circle
 /// (<see cref="HealAbility" />) is ready, it has the mana and a living member within the heal's reach is under
 /// <see cref="HealBelow" /> of its health, it casts the circle at the most hurt one's feet through the same cast
 /// handler, walking or standing; otherwise it fights like the others. The heal goes through the instance's combat
@@ -119,15 +119,15 @@ public sealed class LoopFighter
     /// </summary>
     public const int ViewLagTicks = 10;
 
-    /// <summary>A healer's heal: Mending Circle, an ally circle at the aim point (4 m, 15 m reach, 8 s, 25 mana).</summary>
+    /// <summary>A cleric's heal: Mending Circle, an ally circle at the aim point (4 m, 15 m reach, 8 s, 25 mana).</summary>
     public const uint HealAbility = 232u;
 
     /// <summary>
-    /// A healer heals a party member under this share of its health. At level 1 one Mending Circle heals about 65
-    /// health: a quarter of a warrior's, two fifths of a hunter's or a healer's, a little over half a wizard's. A
+    /// A cleric heals a party member under this share of its health. At level 1 one Mending Circle heals about 65
+    /// health: a quarter of a warrior's, two fifths of a hunter's or a cleric's, a little over half a wizard's. A
     /// member under 70% has lost at least 30%, so most of a heal lands rather than topping up health already full,
     /// and a member is healed well before it is about to die; with the heal's 8 s cooldown and the threshold, the
-    /// healer still spends nearly all of its casts attacking.
+    /// cleric still spends nearly all of its casts attacking.
     /// </summary>
     public const float HealBelow = 0.7f;
 
@@ -162,7 +162,7 @@ public sealed class LoopFighter
     private readonly Vector3Dto _aimPoint = new();
     private readonly CCastAbilityPacket _castPacket;
 
-    // A healer's heal (Mending Circle 232), its aim and its packet; null for every other class.
+    // A cleric's heal (Mending Circle 232), its aim and its packet; null for every other class.
     private readonly IAbility? _heal;
     private readonly Vector3Dto _healPoint = new();
     private readonly CCastAbilityPacket? _healPacket;
@@ -212,7 +212,7 @@ public sealed class LoopFighter
         _stopDistance = meta.Reach - MathF.Min(ReachMargin, ReachMarginShare * meta.Reach);
         _castPacket = new CCastAbilityPacket { AbilityId = abilityId, GroundPos = _cursorAim ? _aimPoint : null };
 
-        if (character.Class == CharacterClass.Healer)
+        if (character.Class == CharacterClass.Cleric)
         {
             _heal = character.Spells[new AbilityId(HealAbility)]
                     ?? throw new InvalidOperationException($"{character.Name} has no heal {HealAbility}");
@@ -226,7 +226,7 @@ public sealed class LoopFighter
     /// <summary>The times the fighter died.</summary>
     public int Deaths { get; private set; }
 
-    /// <summary>The heals the cast handler accepted (a healer's only).</summary>
+    /// <summary>The heals the cast handler accepted (a cleric's only).</summary>
     public int Heals { get; private set; }
 
     /// <summary>The accepted heals that raised the health of the party member they were aimed at, in the same call.</summary>
@@ -276,7 +276,7 @@ public sealed class LoopFighter
         CharacterClass.Warrior => 200u, // Cleave: a cone, along the facing
         CharacterClass.Wizard => 210u, // Arcane Bolt: a projectile, at the cursor
         CharacterClass.Hunter => 220u, // Quick Shot: a projectile, at the cursor
-        CharacterClass.Healer => 230u, // Smite: a projectile, at the cursor
+        CharacterClass.Cleric => 230u, // Smite: a projectile, at the cursor
         _ => throw new ArgumentOutOfRangeException(nameof(characterClass), characterClass, "No basic ability"),
     };
 
@@ -331,7 +331,7 @@ public sealed class LoopFighter
             return;
         }
 
-        // In reach: standing, facing it, casting when the ability is ready; a healer heals first when someone needs it.
+        // In reach: standing, facing it, casting when the ability is ready; a cleric heals first when someone needs it.
         _detouring = false;
         Send(connection, 0f, 0f, goalYaw);
         _moved = false;
@@ -353,7 +353,7 @@ public sealed class LoopFighter
     }
 
     /// <summary>
-    /// Gives the fighter its forest, once the forest is built, and its party (itself among them), whom a healer heals:
+    /// Gives the fighter its forest, once the forest is built, and its party (itself among them), whom a cleric heals:
     /// until then its step throws.
     /// </summary>
     public void Enter(FightForest forest, ICharacter[] party)
@@ -538,10 +538,10 @@ public sealed class LoopFighter
     }
 
     /// <summary>
-    /// A healer's heal: the party member alive with the smallest share of its health, when that share is under
+    /// A cleric's heal: the party member alive with the smallest share of its health, when that share is under
     /// <see cref="HealBelow" /> and the member stands within the heal's reach, gets a Mending Circle at its feet through
-    /// the real cast handler, once the heal is off cooldown, the global cooldown is over and the healer has the mana. The
-    /// circle heals every ally inside it, the healer too, and gives each creature fighting them threat for the healing.
+    /// the real cast handler, once the heal is off cooldown, the global cooldown is over and the cleric has the mana. The
+    /// circle heals every ally inside it, the cleric too, and gives each creature fighting them threat for the healing.
     /// False, sending nothing, when there is no heal to cast.
     /// </summary>
     private bool TryHeal(ScenarioConnection connection, ICharacter character)

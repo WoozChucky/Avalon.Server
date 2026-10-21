@@ -357,11 +357,11 @@ are never reused. Every kit skill has `AllowedClasses` its own class, `ThreatMul
 | 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 28 | no | Hostile | 0 | 0.8 s | 0 | 12 |
 | 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 24 | yes | Hostile | 0 | 4 s | 15 | 25 |
 | 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4 s | 20 | 22 |
-| 230 | Healer | Smite | Projectile | Cursor | – | 18 | – | – | 20 | no | Hostile | 0 | 0.8 s | 0 | 12 |
-| 231 | Healer | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5 s | 20 | 22 |
-| 232 | Healer | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8 s | 25 | 40 |
+| 230 | Cleric | Smite | Projectile | Cursor | – | 18 | – | – | 20 | no | Hostile | 0 | 0.8 s | 0 | 12 |
+| 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5 s | 20 | 22 |
+| 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8 s | 25 | 40 |
 
-Costs are paid from the class's pool: Warriors Fury, Wizards and Healers Mana, Hunters Energy
+Costs are paid from the class's pool: Warriors Fury, Wizards and Clerics Mana, Hunters Energy
 (`ClassPowerType`). `SeedIntegrityShould` pins the twelve rows, the class links, the starting skills,
 one script per shape, Mending Circle as the only ally heal, and that every cost is payable by its
 class's pool under the power rule.

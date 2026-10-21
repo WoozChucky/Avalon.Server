@@ -3648,7 +3648,7 @@ The scenarios live in `tests/Avalon.World.Testing/Scenarios`, the runner in `too
 | `town-walk` | 1 town | 30 | Players walking an 8 m circle centred at (45, 10), the south-east chunk's open square. Each player's input goes through the real `PlayerInputHandler` (one input packet per player, reused every tick), and each player is sent the real `SPlayerStateAckPacket` through the real cipher every tick. Ten engaged "Bench Wolf" creatures (seed 425) share the instance. |
 | `town-social` | 1 town | 30 | A town at its cap (`MaxPlayers`, 30) walking `town-walk`'s circle with no creatures, in ten parties of three that keep changing, and chatting, through the real party and chat handlers: in every second a party's leader leaves, is invited back and accepts, one player says a line to the town, one whispers, one speaks to its party and one runs `/ignorelist`. See [The town-social scenario](#the-town-social-scenario) (#972). |
 | `many-instances` | 250 normal maps | 500 | Two walking players in each of 250 normal-map instances, every instance created through the real `InstanceRegistry.GetOrCreateNormalInstanceAsync`. It measures many small instances rather than one crowd. |
-| `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 33, 46, 56 and 36 (1 to 4 until #1109, then 45, 46, 15 and 36 until its tree walls, then 33, 46, 15 and 36 until #1113), each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 325, 226, 198 and 231 creatures, each run on the ticks its script is active or due, as in production since #979), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a healer. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach and in sight casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a healer heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
+| `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 33, 46, 56 and 36 (1 to 4 until #1109, then 45, 46, 15 and 36 until its tree walls, then 33, 46, 15 and 36 until #1113), each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 325, 226, 198 and 231 creatures, each run on the ticks its script is active or due, as in production since #979), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a cleric. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach and in sight casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a cleric heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
 | `town-doodads` | 1 town | 30 | `town-walk`'s circle with no creatures, among 40 doodads on a ring 20 m from its centre: 20 without rules and 20 behind a NotStarted quest gate, which every other player has taken, so half the views refuse them. Every view decision lists the ungated ones by distance alone and the gated ones by the answer the view holds (`CharacterCharacterGameState.Sees`); the scenario checks that each view holds exactly the doodads its rules allow. |
 
 No scenario was reduced in size: `many-instances` takes 1 to 8 s for its 600 warm-up ticks and windows (5 to 7 s with
@@ -3926,7 +3926,7 @@ with the committed figure, in every build (Debug and Release, see below) and for
   sends, [a social town, quieter](#results--a-social-town-quieter-973-2026-10-15); 14,176 B from
   #980, which shared the aura updates and reused their entries,
   [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
-  which gave the fight a healer, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
+  which gave the fight a cleric, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
   10,357 B before), and at that size the 256 B floor decides for it too (1% is 156 B): it fails above 15,838 B, a little
   over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. Its Debug run reads the committed
   figure again since #981 (#973): from #972 it read 68 B above Release, because each item destroy in the measured
@@ -4329,8 +4329,8 @@ scripts), each as its party's forest (`GetOrCreatePartyInstanceAsync`). In each,
 built as character creation and select build them (the class's level 1 stats and starting abilities), formed through
 the real `PartyService` and joined at the forest's entry (15, 1, 15). The harness cannot transfer a player between
 instances, so players start in the forest. Since #972 the classes cycle over all four across the roster rather than per
-party slot (warrior, wizard, hunter; healer, warrior, wizard; hunter, healer, warrior; wizard, hunter, healer), as the
-load test's parties of three do, so three parties in four carry a healer. Each character starts with 28 of its 30 bag
+party slot (warrior, wizard, hunter; cleric, warrior, wizard; hunter, cleric, warrior; wizard, hunter, cleric), as the
+load test's parties of three do, so three parties in four carry a cleric. Each character starts with 28 of its 30 bag
 slots holding a piece of forest armour (item 12, which does not stack), added through its inventory service: a level 1
 bag fills far slower than a minute's fight, and this stands for a character that has played a while, so the item
 destroy path runs in every minute.
@@ -4364,7 +4364,7 @@ moved. Since #972 it also does, every step, in this order:
 - **Loot.** It walks to the nearest drop it may take now (reserved for it, or free for all by now) within 26 m, a
   little past the longest basic reach, and within 3.5 m stands and asks for it through the real `LootPickupHandler`.
   A drop it walks at for 10 s, or one refused, is given up (none is, in the committed run).
-- **Heal.** A healer casts Mending Circle (232: an ally circle at the aim point, 15 m reach, 8 s cooldown, 25 mana,
+- **Heal.** A cleric casts Mending Circle (232: an ally circle at the aim point, 15 m reach, 8 s cooldown, 25 mana,
   about 65 health at level 1) at the feet of the most hurt living member under 70% of its health within reach, when
   the heal and the global cooldown are ready and it has the mana, walking or standing, through the same
   `CastAbilityHandler`; otherwise it fights. A member under 70% has lost at least 30%, and the heal restores a
@@ -4411,7 +4411,7 @@ credits (87) and 27 completions (all 27 in the minute), 250 drops picked up (226
 drop given up; 22, 34, 38 and 40 kills in the four forests. The walls alone, on the seeds 45, 46, 15 and 36, gave 135
 killed (122 in the minute) but a single death (1), 19 heals (17), 42 accepts, 105 credits (96), 30 completions (30),
 243 pickups (217), 123 slots destroyed (98) and 1 drop given up: the fight kept its size, but the margin over the
-scenario's need for deaths was spent, all of them in the first party, which has no healer. So #1109 ran seeds 1 to 64
+scenario's need for deaths was spent, all of them in the first party, which has no cleric. So #1109 ran seeds 1 to 64
 in the first slot beside 46, 15 and 36: 24 gave at least 3 deaths with every floor held, from 3 to 8 deaths and 106 to
 134 kills; seed 33 gave the largest fight among those with 4 deaths or more (134 kills, 27 completions, 250 pickups),
 ahead of 51 (126 kills, 5 deaths), 3 (123, 5), 8 (126, 4) and 27 (118, 4); 50 gave 8 deaths but 106 kills. Before the walls, on the same seeds, the run gave 141 creatures killed (126 in the measured minute), 3 deaths, 17 heals
@@ -4421,15 +4421,15 @@ gave seeds 1 to 4 other layouts and a fight half the size: 63 killed, 5 deaths, 
 accepts, 39 credits, 9 completions, 115 pickups, 64 slots destroyed, at 14,491 B per window, with every fighter
 casting 30 to 72 times, none stuck: their forests (214, 288, 187 and 286 creatures) put other packs nearest the entry.
 So #1109 ran seeds 1 to 64, each forest in its party slot (the slot decides the party's classes; the first party has
-no healer), and took the four that give the largest fight together with deaths in it:
+no cleric), and took the four that give the largest fight together with deaths in it:
 
 | Slot | Seeds tried (kills / completions / pickups / heals landed over the run), most kills first |
 |---|---|
 | 0 (warrior, wizard, hunter) | 45: 32/9/56/0, 13: 29/8/54/0, 5: 23/6/37/0, 57: 22/0/44/0, 1: 18/3/39/0, ... 37: 7/3/14/0 |
 | 0 again, after the tree walls, beside 46, 15 and 36 (the four forests' kills / deaths over the run; the 24 seeds with 3 deaths or more and every floor held) | 33: 134/4, 63: 133/3, 48: 132/3, 57: 131/3, 53: 128/3, 56: 127/3, 8: 126/4, 24: 126/3, 51: 126/5, ... 50: 106/8 |
-| 1 (healer, warrior, wizard) | 14: 38/12/70/7, 46: 35/9/65/7, 22: 34/3/63/8, 18: 34/3/61/7, 58: 33/9/63/7, 54: 30/9/60/6, ... 30: 3/0/7/8 |
-| 2 (hunter, healer, warrior) | 19: 37/6/69/6, 15: 34/9/61/6, 63: 34/0/65/7, 23: 31/9/55/6, 59: 30/6/56/5, 27: 27/18/51/8, ... 7: 14/3/27/7 |
-| 3 (wizard, hunter, healer) | 36: 38/6/66/5, 64: 32/9/55/4, 44: 32/6/63/4, 48: 31/12/67/3, 16: 30/6/46/7, 8: 29/9/56/5, ... 60: 1/0/2/6 |
+| 1 (cleric, warrior, wizard) | 14: 38/12/70/7, 46: 35/9/65/7, 22: 34/3/63/8, 18: 34/3/61/7, 58: 33/9/63/7, 54: 30/9/60/6, ... 30: 3/0/7/8 |
+| 2 (hunter, cleric, warrior) | 19: 37/6/69/6, 15: 34/9/61/6, 63: 34/0/65/7, 23: 31/9/55/6, 59: 30/6/56/5, 27: 27/18/51/8, ... 7: 14/3/27/7 |
+| 3 (wizard, hunter, cleric) | 36: 38/6/66/5, 64: 32/9/55/4, 44: 32/6/63/4, 48: 31/12/67/3, 16: 30/6/46/7, 8: 29/9/56/5, ... 60: 1/0/2/6 |
 | 2 again, after #1113, beside 33, 46 and 36 (the four forests' kills / deaths / completions over the run; 52 of the 64 passed `Verify`) | 56: 129/4/24, 48: 127/3/30 (1 drop given up), 36: 127/3/27 (3 given up), 22: 126/2/21, 45: 124/4/18, 61: 123/4/21, 51: 123/3/24, ... 15: 111/5/15; 6, 34, 43 and 63 fell short of the completions floor, and on 4, 7, 30, 37, 38, 39, 55 and 60 a fighter of the slot cast nothing in the measured minute |
 
 The forests share the world's combat and loot rolls, so a set fights a little differently from its seeds alone; the
@@ -4450,7 +4450,7 @@ measured-minute figures and the level-up tick below are from #973, before #1082:
 killed (93 in the measured minute), 2 deaths, 18 heals cast and landed (16 in the minute), 36 quest accepts, 93 kill
 credits (78) and 24 completions (all 24 in the minute), 198 drops picked up (180) and 106 bag slots destroyed (85, the
 first 21 in the first steps, from the filled bags), and no drop given up. Before #972 the run killed 71 (60 in the
-minute) with 9 deaths: the healers keep their parties alive, and fighters walking to their drops meet more creatures.
+minute) with 9 deaths: the clerics keep their parties alive, and fighters walking to their drops meet more creatures.
 Experience is shared; one party's three members reach level 2 together near the end of the measured minute (tick 3,422
 of 3,600, counted at #973), and no other character does. The scenario's check (`Verify`) requires, over the measured
 ticks, besides every fighter casting and every forest losing creatures, about half of what the fight on its seeds does
@@ -4496,7 +4496,7 @@ under the 14,292 B committed since #972 ([shared state and aura encoding](#resul
 The 14,292 B were the sum of
 10,361 B (the fight before #972: the file held 10,357 B, and the 4 B are #898's roster lists growing to their size
 once during the run, see [aura scans](#aura-scans--benchmarksaurascanbenchmarkscs-898)) and the increments of [a fuller fight](#results--a-fuller-fight-972-2026-10-14): the real send
-call 0 B, the healer +1,118 B, the kill quest +1,457 B and loot +1,356 B. A hard gate like the town scenarios: see
+call 0 B, the cleric +1,118 B, the kill quest +1,457 B and loot +1,356 B. A hard gate like the town scenarios: see
 [The allocation gate](#the-allocation-gate) for the floor. Before #972 it was committed at **10,357 B per window**
 (14.4 B per player per tick, 173 B per tick), recorded on the developer machine, Release,
 dynamic PGO on, after #880's allocations were taken out of the combat and AI paths ([Dynamic PGO](#dynamic-pgo)), #888
@@ -4534,7 +4534,7 @@ summary.
 | After the corpse remover (#883, PGO on) | 10,357 |
 | Release with PGO off, then | 10,357 |
 | Debug, then | 10,357 |
-| A fuller fight: healer, kill quest, loot (#972, PGO on) | 14,292 |
+| A fuller fight: cleric, kill quest, loot (#972, PGO on) | 14,292 |
 | Debug, then | 14,360 |
 | Aura updates shared, their entries reused (#980, PGO on) | 14,176 |
 | Debug, then | 14,244 |
@@ -5105,7 +5105,7 @@ are Windows figures (i9-12900K, Windows 11, .NET 10.0.13, BenchmarkDotNet 0.15.8
 
 The gate held only what the scenarios ran, and several paths that allocate per packet or per event were outside every
 one of them (#972). This widens what it sees, in four steps, each measured on its own before the next: the real send
-call in every scenario, then a healer, a kill quest and loot in `forest-combat` ([what the fighters
+call in every scenario, then a cleric, a kill quest and loot in `forest-combat` ([what the fighters
 do](#the-forest-combat-scenario)). Bytes per window of `forest-combat`, the runner (`--scenario forest-combat
 --measure-ticks 0`, 5 s rehearsal), developer machine (i9-12900K, Windows 11, .NET 10.0.12), with other builds and
 tests running beside it; every run of a step read the same figure, to the byte:
@@ -5114,7 +5114,7 @@ tests running beside it; every run of a step read the same figure, to the byte:
 |---|---|---:|---:|---:|---|
 | Before (main `2d948654`; the file held 10,357, 4 B under #898's roster lists) | | 10,361 | 10,361 | | 3 + 3 |
 | The real send path: `Connection.Send` and `OnQueued` | `6291eaa2` | 10,361 | 10,361 | 0 | 3 + 3 |
-| A healer in three parties in four | `45704b77` | 11,479 | 11,479 | +1,118 | 3 + 3 |
+| A cleric in three parties in four | `45704b77` | 11,479 | 11,479 | +1,118 | 3 + 3 |
 | The kill quest | `aaca7ed8` | 12,936 | 12,936 | +1,457 | 3 + 3 |
 | Loot and item destroys | `75aeb59e` | 14,292 | 14,360 | +1,356 | 3 + 3, then 5 + 5 |
 
@@ -5130,7 +5130,7 @@ What each step costs, and why:
   outbox on the counting stream): `Connection.Send` reads the packet's size, adds to two counters with `Interlocked`
   and calls `OnQueued`, whose two `Counter<long>.Add` calls, with no listener, are a check each. None of it
   allocates, as `ConnectionSendBenchmarks` showed (#970).
-- **The healer, +1,118 B.** Changing the roster alone (the healer casting Smite, no heals) is +435 B; the heals take it
+- **The cleric, +1,118 B.** Changing the roster alone (the cleric casting Smite, no heals) is +435 B; the heals take it
   to +1,118 B. A heal cast itself allocates about 460 B (its circle script and the heal's hit and threat), about what
   an attack cast does, and there are 8 in the measured minute; most of the rest is the fight the heals change (the
   party lives, casts and kills more: 83 kills over the run against 71). Nothing is allocated per tick.
@@ -5247,7 +5247,7 @@ committed 11,543 B. The measured minute kills 60 creatures (parties of three) an
 | The experience shares in a list the instance keeps (#890) | 11,063 | 11,095 | 11,063 | Two lists and their arrays, a delegate over the reference data, the boxed enumerator of the eligible, and the boxed enumerator of the result (48 B, the part the profile decided: the result was an empty array, a one-element list or a `List` behind one interface): 336 B a kill. |
 | A kill's drops placed without a closure, its lists or its messages (#890) | 10,407 | 10,407 | 10,407 | The lambda's closure (56 B; 88 B in two objects in Debug, below) and its delegate, the merged list of rolled drops, the list of placed drops, the list of loot messages and each drop's message with two `Vector3Dto`: 480 B a kill of one drop, and 192 B for each drop more. |
 | Item templates, level rows and the map template found by key (#883, row 7) | 10,407 | 10,407 | 10,407 | Nothing allocated: three walks per kill ([below](#reference-row-lookup--benchmarksreferencerowlookupbenchmarkscs-883)). |
-| A heal's threat shared out in place (#883, row 6a) | 10,407 | 10,407 | 10,407 | No healer fights in the forest; measured by its own test, below. Read together with the row above. |
+| A heal's threat shared out in place (#883, row 6a) | 10,407 | 10,407 | 10,407 | No cleric fights in the forest; measured by its own test, below. Read together with the row above. |
 | Auras ended without a copy, a closure or a delegate (#883, row 6c) | 10,396 | 10,396 | 10,396 | The forest's few poisons: a closure for every apply, tick and removal of an aura, and a closure, a delegate and an array for each removal. |
 | An aura's fit checked without a closure (#883) | 10,385 | 10,385 | 10,385 | `AuraSystem.Apply` handed the aura's row to the link check through a lambda: a closure for every application (24 B, made on entry, so before any refusal) and a delegate with it for an ability's aura (64 B). Read together with the lookups of one row by key through `StaticData`, none of which is on the fight's path. |
 
@@ -5318,7 +5318,7 @@ steps of `DropLoot`, every one of which read the same in both builds, which left
 - **An aura's fit** is asked of `AuraRules.FitProblem`, the half of `LinkProblem` that takes the row itself;
   `LinkProblem` ends in it, so the rule and its wording are one.
 
-**Rows 6a and 6c, which the forest does not reach** (it has no healer, and few auras), each have an allocation
+**Rows 6a and 6c, which the forest does not reach** (it has no cleric, and few auras), each have an allocation
 assertion, read before and after on the same test:
 
 | Test | Before | After |

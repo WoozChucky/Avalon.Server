@@ -74,14 +74,14 @@ public class GraderShould
         RowResult[] rows =
         [
             Row(CharacterClass.Warrior, 1, "normal-3", 100, 20), Row(CharacterClass.Wizard, 1, "normal-3", 100, 20),
-            Row(CharacterClass.Hunter, 1, "normal-3", 100, 20), Row(CharacterClass.Healer, 1, "normal-3", 60, 20),
+            Row(CharacterClass.Hunter, 1, "normal-3", 100, 20), Row(CharacterClass.Cleric, 1, "normal-3", 60, 20),
         ];
 
         GradeReport report = Grader.Grade(rows, TestData.Seeded, Scenarios(), Targets());
 
-        GradedMetric healer = report.Metrics.Single(m => m.Check == "class parity" && m.Metric == "Healer L1 win rate vs average");
-        Assert.Equal(-30d, healer.Value);
-        Assert.Equal(Grade.Red, healer.Grade);
+        GradedMetric cleric = report.Metrics.Single(m => m.Check == "class parity" && m.Metric == "Cleric L1 win rate vs average");
+        Assert.Equal(-30d, cleric.Value);
+        Assert.Equal(Grade.Red, cleric.Grade);
     }
 
     [Fact]
