@@ -1,14 +1,14 @@
-using Avalon.World.Public.Combat;
 using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
+using Avalon.World.Public.Combat;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Server.World.UnitTests.Auras;
 
 /// <summary>Loads the arrival fixture through StaticData and applies it through a real instance aura system.</summary>
-internal static class ArrivalTestData
+internal static class ArrivalProtectionTestData
 {
     public static AuraSystem System(TimeProvider time)
     {

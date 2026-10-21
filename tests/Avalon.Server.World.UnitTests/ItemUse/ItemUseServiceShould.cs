@@ -1,8 +1,8 @@
-using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Combat;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Auras;
 using Avalon.World.Inventory;
@@ -34,32 +34,27 @@ public class ItemUseServiceShould : IAsyncLifetime
         return (result.RequestId, result.Result);
     }
 
+    /// <summary>A use that passed its checks ends arrival protection (#1088), whatever it does; a refused one keeps it.</summary>
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
-    public void Keep_arrival_protection_when_using_an_item_without_moving(int action)
+    [InlineData(0, true)]   // a script run at once
+    [InlineData(1, true)]   // a cast bar started
+    [InlineData(2, true)]   // gear put on
+    [InlineData(3, true)]   // gear taken off
+    [InlineData(4, false)]  // refused by the script's CanUse
+    public void End_arrival_protection_only_when_an_item_use_passes_its_checks(int action, bool ends)
     {
         if (action == 3)
             _w.Character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.MainHand, EquipTemplates.Longsword)]);
         else
-            _w.Bag(Item(0, action switch { 0 => Tonic, 1 => Scroll, _ => EquipTemplates.Longsword }));
-        ArrivalTestData.Apply(_w.Character);
+            _w.Bag(Item(0, action switch { 0 => Tonic, 1 => Scroll, 2 => EquipTemplates.Longsword, _ => Refuser }));
+        ArrivalProtectionTestData.Apply(_w.Character);
 
         _w.Use(1, action == 3 ? EquipmentSlots.MainHand : (byte)0,
             action == 3 ? InventoryType.Equipment : InventoryType.Bag);
 
-        if (action == 1)
-        {
-            Assert.True(_w.Instance.ItemUses.IsCasting(_w.Character.Guid));
-            Assert.Empty(_w.Results());
-        }
-        else
-        {
-            Assert.Equal((1u, ItemUseResult.Ok), Only());
-        }
-        Assert.True(ArrivalProtection.IsProtected(_w.Character));
+        if (!ends)
+            Assert.Equal(ItemUseResult.Refused, Assert.Single(_w.Results()).Result);
+        Assert.Equal(!ends, ArrivalProtection.IsProtected(_w.Character));
     }
 
     [Fact]

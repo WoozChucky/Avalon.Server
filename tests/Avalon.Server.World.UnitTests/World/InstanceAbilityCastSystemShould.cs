@@ -1,8 +1,8 @@
-using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Scripts;
 using Avalon.World.Abilities;
@@ -46,27 +46,30 @@ public class InstanceAbilityCastSystemShould
         _sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), _scripts, _arena);
     }
 
+    /// <summary>A cast taken ends arrival protection (#1088) before it is sent or fires; a refused one keeps it.</summary>
     [Theory]
-    [InlineData(0f)]
-    [InlineData(1f)]
-    public void Keep_arrival_protection_when_a_stationary_cast_is_accepted(float castTime)
+    [InlineData(0f, 0u)]
+    [InlineData(1f, 0u)]
+    [InlineData(0f, 30u)]   // refused: the cost cannot be paid
+    public void End_arrival_protection_only_when_a_cast_is_taken(float castTime, uint cost)
     {
-        CharacterEntity caster = GodCaster();
-        ArrivalTestData.Apply(caster);
-        GameAbility ability = Ability(castTime: castTime);
-        bool? protectedAtBroadcast = null;
+        CharacterEntity caster = GodCaster(PowerType.Mana);
+        caster.GodMode = false;
+        ArrivalProtectionTestData.Apply(caster);
+        GameAbility ability = Ability(cost, castTime);
+        bool? protectedWhenSent = null;
         _arena.When(a => a.BroadcastUnitStartCast(caster, ability, Arg.Any<uint>(), Arg.Any<AbilityFootprint?>()))
-            .Do(_ => protectedAtBroadcast = ArrivalProtection.IsProtected(caster));
+            .Do(_ => protectedWhenSent = ArrivalProtection.IsProtected(caster));
         _arena.When(a => a.BroadcastFinishCast(caster, ability, Arg.Any<uint>()))
-            .Do(_ => protectedAtBroadcast = ArrivalProtection.IsProtected(caster));
+            .Do(_ => protectedWhenSent = ArrivalProtection.IsProtected(caster));
 
         bool accepted = castTime > 0
             ? _sut.QueueAbility(caster, s_aim, ability)
             : _sut.RunInstant(caster, s_aim, ability);
 
-        Assert.True(accepted);
-        Assert.Equal(true, protectedAtBroadcast);
-        Assert.True(ArrivalProtection.IsProtected(caster));
+        Assert.Equal(cost == 0, accepted);
+        Assert.Equal(accepted ? false : null, protectedWhenSent);
+        Assert.Equal(!accepted, ArrivalProtection.IsProtected(caster));
     }
 
     /// <summary>An ability whose cost, if any, is spent from <paramref name="pool" /> (#652): Mana, the default caster's.</summary>

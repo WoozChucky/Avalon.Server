@@ -1,10 +1,10 @@
-using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.World;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World;
@@ -49,7 +49,7 @@ public class MapTeleportShould
 
     public MapTeleportShould()
     {
-        AuraSystem auras = ArrivalTestData.System(_character.Clock);
+        AuraSystem auras = ArrivalProtectionTestData.System(_character.Clock);
         ((IAuraHost)_town).Auras.Returns(auras);
         _world.When(w => w.TransferPlayer(_connection, _town)).Do(_ => auras.Roster.Join(_character));
         _town.InstanceId.Returns(Guid.NewGuid());
@@ -133,7 +133,7 @@ public class MapTeleportShould
     [Fact]
     public void Move_the_character_to_a_town_at_the_position_given_and_tell_the_client()
     {
-        ArrivalTestData.Apply(_character);
+        ArrivalProtectionTestData.Apply(_character);
         Assert.True(_teleport.Start(_connection, s_town, new Vector3(5, 0, 6)));
         Assert.True(_connection.RespawnInFlight);
 

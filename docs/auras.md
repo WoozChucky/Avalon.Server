@@ -14,16 +14,22 @@ when the character actually enters the instance. Portals and respawns grant a fr
 packets display its countdown, and the player can cancel it through `CMSG_AURA_CANCEL`.
 
 The protection prevents enemy targeting, creature aggro, direct and periodic damage, and new harmful auras. Helpful
-area effects can still affect the character. The buff ends only when its character changes horizontal position, its
-60 seconds expire, or its owner cancels it. Turning, idle input and pressing into a wall without moving do not end
-it. Casting and item use keep it unless they move the character. A portal or teleport removes the old protection
-when leaving or repositioning and grants fresh protection on arrival.
+area effects can still affect the character. It protects the holder only as a target: a protected character cannot
+act without ending it, and an aura it put on others before it arrived still ticks, threatens and tags combat as usual.
+The buff ends when its character changes horizontal position, when the cast system takes a cast of its (cast bar or
+instant, item casts included: `InstanceAbilityCastSystem.QueueAbility`/`RunInstant`, before the start is sent or the
+cast fires), when an item use of its passes its checks (a script use, a cast bar, an equip or unequip: `ItemUseService`,
+with the item and doodad cast interrupts), when its 60 seconds expire, or when its owner cancels it. A refused cast or
+use keeps it. Turning, idle input and pressing into a wall without moving do not end it. A portal or teleport removes
+the old protection when leaving or repositioning and grants fresh protection on arrival.
 
 The buff is seeded with the other auras and loaded through `StaticData.Auras`. Arrival applies its ID through the
 destination instance's `AuraSystem`, using the loaded duration and metadata; a missing or refused row grants no
 protection and uses the ordinary throttled refusal log. The seeded row has no script, ticks or stat modifiers.
-Movement removes the held buff through the aura system bound to the character's current roster, preserving normal
-removal hooks and stat updates. It has one reserved slot outside
+Every early end (`ArrivalProtection.End`) removes the held buff through the aura system that owns the character's
+current roster (`AuraRoster.System`), preserving normal removal hooks and stat updates; movement ends it once the new
+position is written. `ArrivalProtection.Is` is the one check of its id (the cap, the cache, save and restore). It has
+one reserved slot outside
 `Game:MaxAurasPerUnit`, so a full normal buff list neither prevents protection nor loses a buff. If a catalog edit
 allows independent copies, only the first reserves that extra slot and movement ends every copy. A cached reference
 avoids scanning buffs during combat/movement checks, and the character's clock enforces the exact deadline even before

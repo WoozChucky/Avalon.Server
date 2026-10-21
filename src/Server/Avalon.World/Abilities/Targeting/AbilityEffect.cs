@@ -27,10 +27,6 @@ public static class AbilityEffect
     public static void Apply(IAbilityArena arena, IUnit caster, IAbility ability, IUnit unit)
     {
         AbilityMetadata metadata = ability.Metadata;
-        // Also checked at application: deferred hits and aura-only abilities must pass over protected arrivals.
-        if (metadata.Affects != AbilityAffects.Ally && CombatService.IgnoresHits(unit))
-            return;
-
         bool direct = AbilityRules.HasDirectEffect(metadata.Effects, metadata.Affects);
 
         if (metadata.Affects == AbilityAffects.Ally)

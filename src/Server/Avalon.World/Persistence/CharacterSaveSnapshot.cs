@@ -153,7 +153,7 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
         List<CharacterAura> rows = [];
         foreach (ActiveAura aura in character.Auras.All)
         {
-            if (aura.Id.Value == ArrivalProtectionAura.Id)
+            if (ArrivalProtection.Is(aura.Id.Value))
                 continue;
 
             uint remaining = UnitAuras.RemainingMs(aura, now);

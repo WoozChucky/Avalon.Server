@@ -1,14 +1,27 @@
-using Avalon.Server.World.UnitTests.Inventory;
-using Avalon.Server.World.UnitTests.World;
+using Avalon.Combat;
+using Avalon.Common;
+using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Auras;
-using Avalon.World.Persistence;
-using Avalon.World.Entities;
+using Avalon.Network.Packets.State;
+using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.Server.World.UnitTests.Combat;
+using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.Server.World.UnitTests.World;
 using Avalon.World.Auras;
+using Avalon.World.Combat;
+using Avalon.World.Entities;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Characters;
+using Avalon.World.Public.Combat;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Scripts.Abstractions;
+using Avalon.World.Scripts.Creatures;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
@@ -182,9 +195,136 @@ public class ArrivalProtectionShould
         Assert.True(ArrivalProtection.IsProtected(character));
         h.Auras.Apply(second, character, arrival.Id, AuraSource.None);
 
-        character.Position = new Avalon.Common.Mathematics.Vector3(1, 0, 0);
+        character.Position = new Vector3(1, 0, 0);
 
         Assert.False(ArrivalProtection.IsProtected(character));
         Assert.Equal(ordinary.Id, Assert.Single(character.Auras.All).Id);
+    }
+
+    [Theory]
+    [InlineData("raw")]
+    [InlineData("ability")]
+    [InlineData("periodic")]
+    public void Ignore_hits_and_fights_without_rolls_power_combat_or_reports_until_it_expires(string source)
+    {
+        var time = new FakeTimeProvider();
+        var encounters = new EncounterRegistry(new CombatConfig(), time);
+        var random = ScriptedCombatRandom.Plain();
+        ICombatOutcomes outcomes = Substitute.For<ICombatOutcomes>();
+        var combat = new CombatService(new CombatConfig(), encounters, time: time, random: random, outcomes: outcomes);
+        CharacterEntity attacker = Fighter(1, time);
+        CharacterEntity target = Fighter(2, time);
+        attacker.CurrentPower = 0;
+        target.CurrentPower = 0;
+        ArrivalProtectionTestData.Apply(target);
+        AbilityTemplate row = AbilityTestData.Circle(1);
+        row.PowerGainPerHit = 10;
+        IAbility ability = AbilityTestData.Game(row);
+        var tick = new PeriodicHit(attacker, target, new AuraId(901), 10, new AuraSnapshot(10, 0, 1),
+            AuraSource.None with { PowerGainPerHit = 10 });
+        double carry = 0.25;
+
+        combat.EnterCombat(new Creature { Guid = new ObjectGuid(ObjectType.Creature, 10) }, target);
+        Hit();
+
+        Assert.Equal(100u, target.CurrentHealth);
+        Assert.Equal(0u, target.CurrentPower);
+        Assert.Equal(0u, attacker.CurrentPower);
+        Assert.False(target.IsInCombat);
+        Assert.False(attacker.IsInCombat);
+        Assert.Empty(encounters.Active);
+        Assert.Equal(0, random.DoublesDrawn);
+        Assert.Equal(0.25, carry);
+        Assert.Empty(outcomes.ReceivedCalls());
+
+        time.Advance(TimeSpan.FromSeconds(60));
+        Hit();
+
+        Assert.True(target.CurrentHealth < 100);
+        Assert.True(target.IsInCombat);
+        Assert.Single(encounters.Active);
+        Assert.True(random.DoublesDrawn > 0);
+        return;
+
+        void Hit()
+        {
+            switch (source)
+            {
+                case "raw": combat.ApplyDamage(attacker, target, 10); break;
+                case "ability": combat.ApplyDamage(attacker, target, 10, ability); break;
+                case "periodic": combat.ApplyPeriodicDamage(tick, ref carry, lastTick: false); break;
+            }
+        }
+    }
+
+    [Fact]
+    public void Keep_creatures_from_detecting_or_engaging_a_protected_character_until_it_expires()
+    {
+        var clock = new FakeTimeProvider();
+        CharacterEntity character = Fighter(1, clock);
+        var creature = new Creature { Metadata = Substitute.For<ICreatureMetadata>() };
+        ISimulationContext context = Substitute.For<ISimulationContext>();
+        context.Characters.Returns(new Dictionary<ObjectGuid, ICharacter> { [character.Guid] = character });
+        context.GetNavigatorForPosition(Arg.Any<Vector3>())
+            .HasVisibility(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(true);
+        var detector = new CreatureRangeDetectorScript(creature, context, 10);
+        var combat = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context, clock);
+        detector.CharacterDetected += combat.OnEnteredRange;
+        ArrivalProtectionTestData.Apply(character);
+
+        detector.Update(TimeSpan.FromSeconds(1));
+        combat.OnEnteredRange(character);
+
+        Assert.Equal(CreatureRangeDetectorScript.RangeDetectionState.Searching, detector.State);
+        Assert.Equal(CreatureCombatScript.CombatState.None, combat.State);
+
+        clock.Advance(TimeSpan.FromSeconds(60));
+        detector.Update(TimeSpan.FromSeconds(1));
+        Assert.Equal(CreatureRangeDetectorScript.RangeDetectionState.Detected, detector.State);
+        Assert.Equal(CreatureCombatScript.CombatState.Combat, combat.State);
+    }
+
+    [Fact]
+    public void Skip_a_protected_taunter_and_top_threat_then_release_the_last_protected_target()
+    {
+        var clock = new FakeTimeProvider();
+        CharacterEntity arrival = Fighter(1, clock);
+        CharacterEntity fighter = Fighter(2, clock);
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 3),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+        };
+        ISimulationContext context = Substitute.For<ISimulationContext>();
+        var encounter = new Encounter(new CombatConfig(), clock);
+        encounter.AddHostile(creature);
+        encounter.AddPlayer(fighter);
+        encounter.AddPlayer(arrival);
+        encounter.AddThreat(creature, arrival, 100);
+        context.CombatService.GetEncounterFor(creature).Returns(encounter);
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context, clock);
+        script.OnEnteredRange(arrival);
+        creature.TauntedBy = arrival;
+        creature.TauntExpiresAt = clock.GetUtcNow().UtcDateTime.AddSeconds(10);
+        ArrivalProtectionTestData.Apply(arrival);
+
+        Assert.Same(fighter, script.PickTarget());
+        script.Update(TimeSpan.FromMilliseconds(16));
+        Assert.Equal(CreatureCombatScript.CombatState.Combat, script.State);
+
+        ArrivalProtectionTestData.Apply(fighter);
+        Assert.Null(script.PickTarget());
+        script.Update(TimeSpan.FromMilliseconds(16));
+        Assert.Equal(CreatureCombatScript.CombatState.Returning, script.State);
+    }
+
+    private static CharacterEntity Fighter(uint id, TimeProvider time)
+    {
+        CharacterEntity character = TestCharacters.New(id, time: time);
+        character.Health = 100;
+        character.CurrentHealth = 100;
+        character.Power = 100;
+        character.PowerType = PowerType.Fury;
+        return character;
     }
 }

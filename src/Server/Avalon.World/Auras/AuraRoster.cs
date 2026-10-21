@@ -30,17 +30,19 @@ namespace Avalon.World.Auras;
 /// </remarks>
 public sealed class AuraRoster
 {
-    public AuraRoster() { }
-
-    internal AuraRoster(AuraSystem system) => System = system;
-
-    /// <summary>The instance's lifecycle owner, used when a character's movement ends a held buff.</summary>
-    internal AuraSystem? System { get; }
-
     private readonly List<IUnit> _characterHolders = [];
     private readonly List<IUnit> _creatureHolders = [];
     private readonly List<IUnit> _changedCharacters = [];
     private readonly List<IUnit> _changedCreatures = [];
+
+    /// <param name="system">The aura system that owns this roster, one per instance.</param>
+    internal AuraRoster(AuraSystem system) => System = system;
+
+    /// <summary>
+    /// The aura system that owns this roster: how a bound unit's own code (a character ending its arrival protection)
+    /// reaches the instance's removal, with its hooks and stat refresh, without knowing its instance.
+    /// </summary>
+    internal AuraSystem System { get; }
 
     /// <summary>The characters here whose auras changed since the last <see cref="ClearChanges" />, first changed first.</summary>
     public IReadOnlyList<IUnit> ChangedCharacters => _changedCharacters;

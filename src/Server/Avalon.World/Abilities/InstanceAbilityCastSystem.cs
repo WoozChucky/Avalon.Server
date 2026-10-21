@@ -3,6 +3,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abilities;
+using Avalon.World.Auras;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -27,7 +28,8 @@ public interface IAbilityCastSystem
     /// and <c>Casting</c> left clear, when its script is missing or cannot be built, or the cost cannot be paid.
     /// The script is built now, with this aim and the caster's position now as its origin, and fired once the
     /// cast time has run out. Any unit may cast (#163); a creature's casts cost nothing.
-    /// A <paramref name="free" /> cast (an item's, item use) neither checks nor pays the cost.
+    /// A <paramref name="free" /> cast (an item's, item use) neither checks nor pays the cost. A cast taken ends its
+    /// caster's arrival protection (#1088); a refused one does not.
     /// </summary>
     bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false);
 
@@ -36,7 +38,8 @@ public interface IAbilityCastSystem
     /// the cooldown, broadcasts the finish-cast, runs <c>Prepare()</c>, and keeps the script ticking if it
     /// has not finished (a projectile). False, with nothing spent, when the script cannot be built or
     /// the cost cannot be paid.
-    /// A <paramref name="free" /> cast (an item's, item use) neither checks nor pays the cost.
+    /// A <paramref name="free" /> cast (an item's, item use) neither checks nor pays the cost. A cast taken ends its
+    /// caster's arrival protection before it fires (#1088).
     /// <paramref name="view" /> is how far its hits are rewound (#1082): a player's cast through the instance's
     /// <c>IPlayerCastHost</c>; the default, none, for every other.
     /// </summary>
@@ -162,6 +165,8 @@ public class InstanceAbilityCastSystem(
 
         CombatLog.CastQueued(_logger, ability.AbilityId, caster.Guid, ability.Metadata.CastTime, _abilityQueue.Count);
 
+        // #1088: a cast taken ends its caster's arrival protection, before anything is sent of it.
+        ArrivalProtection.End(caster);
         arena.BroadcastUnitStartCast(caster, ability, castId, footprint);
         return true;
     }
@@ -186,6 +191,8 @@ public class InstanceAbilityCastSystem(
             AbilityCost.Pay(caster, ability.Metadata);
         }
 
+        // #1088: a cast taken ends its caster's arrival protection, before it fires, so it lands as any other caster's.
+        ArrivalProtection.End(caster);
         Fire(caster, ability, script, HasteOf(caster), TakeCastId(), view, null);
         return true;
     }

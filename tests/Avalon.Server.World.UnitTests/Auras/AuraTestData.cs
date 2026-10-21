@@ -11,7 +11,7 @@ internal static class AuraTestData
     {
         Id = new AuraId(ArrivalProtectionAura.Id),
         Name = "Arrival Protection",
-        Icon = "fortified",
+        Icon = "arrival protection",
         Kind = AuraKind.Helpful,
         DurationMs = 60000,
         Stacking = AuraStacking.Refresh,

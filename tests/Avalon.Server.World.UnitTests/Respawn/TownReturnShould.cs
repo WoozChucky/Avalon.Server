@@ -1,9 +1,9 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.Server.World.UnitTests.Inventory;
-using Avalon.Server.World.UnitTests.Auras;
 using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
@@ -87,7 +87,7 @@ public class TownReturnShould
         character.CurrentHealth = 0;
         character.IsDead = true;
         _connection.Character.Returns(character);
-        AuraSystem auras = ArrivalTestData.System(character.Clock);
+        AuraSystem auras = ArrivalProtectionTestData.System(character.Clock);
         ((IAuraHost)_townInstance).Auras.Returns(auras);
         _world.When(w => w.TransferPlayer(_connection, _townInstance)).Do(_ => auras.Roster.Join(character));
 

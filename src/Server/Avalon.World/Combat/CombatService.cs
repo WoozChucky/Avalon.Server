@@ -138,13 +138,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             _pvp?.OnPlayerHitPlayer(attackerEntity, targetEntity);
         }
 
-        bool attackerProtected = ArrivalProtection.IsProtected(attacker);
-        Encounter? enc = attackerProtected
-            ? _registry.FindEncounterContaining(target) as Encounter
-            : ResolveOrSpawn(attacker, target);
+        Encounter enc = ResolveOrSpawn(attacker, target);
 
         // Threat is only meaningful when the target is a hostile creature with a threat list.
-        if (target is ICreature && enc is not null && !attackerProtected)
+        if (target is ICreature)
         {
             CharacterClass attackerClass = (attacker as ICharacter)?.Class ?? CharacterClass.Hunter;
             float threat = damage
@@ -168,7 +165,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // Combat tag — MarkCombat exists only on ICharacter (see ICharacter.cs). Apply to whichever
         // participants are characters; creature in-combat state is tracked through encounter membership.
-        if (!attackerProtected && attacker is ICharacter attackerCharacter) attackerCharacter.MarkCombat();
+        if (attacker is ICharacter attackerCharacter) attackerCharacter.MarkCombat();
         if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();
 
         // Death detection (G1): if the OnHit above pushed the target to a lethal state, notify the
@@ -242,17 +239,14 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// </summary>
     private void Dodged(IUnit attacker, IUnit target, float baseThreat, AbilityId? abilityId)
     {
-        bool attackerProtected = ArrivalProtection.IsProtected(attacker);
-        Encounter? enc = attackerProtected
-            ? _registry.FindEncounterContaining(target) as Encounter
-            : ResolveOrSpawn(attacker, target);
+        Encounter enc = ResolveOrSpawn(attacker, target);
 
         // Sent like a hit, with 0, to whoever would have seen it land; a dead character is sent nothing,
         // as a hit on it would not be.
         if (target is not ICharacter { IsDead: true })
             _outcomes?.HitDodged(attacker, target, abilityId);
 
-        if (target is ICreature creature && enc is not null && !attackerProtected)
+        if (target is ICreature creature)
         {
             CharacterClass attackerClass = (attacker as ICharacter)?.Class ?? CharacterClass.Hunter;
             enc.AddThreat(target, attacker, baseThreat * ClassThreatModifier.Get(attackerClass));
@@ -261,7 +255,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             Attacked(creature, attacker);
         }
 
-        if (!attackerProtected && attacker is ICharacter attackerCharacter) attackerCharacter.MarkCombat();
+        if (attacker is ICharacter attackerCharacter) attackerCharacter.MarkCombat();
         if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();
     }
 
@@ -271,9 +265,6 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// </summary>
     private static void Attacked(ICreature creature, IUnit attacker)
     {
-        if (ArrivalProtection.IsProtected(attacker))
-            return;
-
         if (creature is Creature scheduled)
             scheduled.OnAttacked(attacker);
         else
@@ -403,7 +394,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// </remarks>
     private void AddHealThreat(IUnit healer, IUnit target, uint restored, float healThreatPerHp)
     {
-        if (healThreatPerHp <= 0 || restored == 0 || ArrivalProtection.IsProtected(healer))
+        if (healThreatPerHp <= 0 || restored == 0)
             return;
 
         var enc = _registry.FindEncounterContaining(target) as Encounter;
@@ -533,8 +524,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (dealt > 0 && healthBefore > 0 && hit.Source.PowerGainPerHit > 0 && caster is CharacterEntity gainer)
             gainer.GainPower(hit.Source.PowerGainPerHit);
 
-        if (caster is ICharacter casterCharacter && !ArrivalProtection.IsProtected(caster))
-            casterCharacter.MarkCombat();
+        if (caster is ICharacter casterCharacter) casterCharacter.MarkCombat();
         if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();
 
         NotifyDeathIfApplicable(enc, target, caster);
@@ -551,11 +541,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     {
         IUnit target = hit.Target;
         IUnit? caster = hit.Caster;
-        bool casterProtected = caster is not null && ArrivalProtection.IsProtected(caster);
-        Encounter? enc = caster is null or ICreature || casterProtected
+        Encounter? enc = caster is null or ICreature
             ? _registry.FindEncounterContaining(target) as Encounter
             : ResolveOrSpawn(caster, target);
-        if (caster is not null && enc is not null && target is ICreature && !casterProtected)
+        if (caster is not null && enc is not null && target is ICreature)
         {
             CharacterClass casterClass = (caster as ICharacter)?.Class ?? CharacterClass.Hunter;
             enc.AddThreat(target, caster, dealt * hit.Source.ThreatMultiplier * ClassThreatModifier.Get(casterClass));
@@ -615,21 +604,16 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (IgnoresHits(target))
             return;
 
-        if (!ArrivalProtection.IsProtected(caster))
-        {
-            ResolveOrSpawn(caster, target);
-            if (target is ICreature creature)
-                Attacked(creature, caster);
-            if (caster is ICharacter casterCharacter) casterCharacter.MarkCombat();
-        }
-
+        ResolveOrSpawn(caster, target);
+        if (target is ICreature creature)
+            Attacked(creature, caster);
+        if (caster is ICharacter casterCharacter) casterCharacter.MarkCombat();
         if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();
     }
 
     public void ApplyTaunt(IUnit caster, IUnit target, uint durationMs)
     {
         if (target is not ICreature creature) return;
-        if (ArrivalProtection.IsProtected(caster)) return;
 
         // A creature walking home cannot be taunted (#614), as it cannot be hit (#610).
         if (IsReturningHome(creature)) return;

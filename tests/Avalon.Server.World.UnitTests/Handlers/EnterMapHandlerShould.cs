@@ -1,4 +1,3 @@
-using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -7,6 +6,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World;
@@ -183,7 +183,7 @@ public class EnterMapHandlerShould
         });
         MapInstanceClient there = MapInstanceClients.Join(target, New(8));
         there.Character.Position = spawn;
-        ArrivalTestData.Apply(entry.Character);
+        ArrivalProtectionTestData.Apply(entry.Character);
 
         entry.Request();
         entry.Flush();

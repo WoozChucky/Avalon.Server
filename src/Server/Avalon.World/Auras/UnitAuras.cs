@@ -1,7 +1,6 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
-using Avalon.Domain.World;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Auras;
@@ -24,10 +23,11 @@ public sealed class UnitAuras(Action? changed = null)
 
     public int Count => _auras.Count;
 
-    /// <summary>The arrival copy with the latest expiry, cached for combat and input checks.</summary>
-    internal ActiveAura? Arrival { get; private set; }
+    /// <summary>The held arrival protection copy with the latest expiry, cached for combat and AI checks.</summary>
+    internal ActiveAura? HeldArrivalProtection { get; private set; }
 
-    internal int OrdinaryCount => Count - (Arrival is null ? 0 : 1);
+    /// <summary>The auras <c>Game:MaxAurasPerUnit</c> counts: all but the held arrival protection's slot.</summary>
+    internal int OrdinaryCount => Count - (HeldArrivalProtection is null ? 0 : 1);
 
     public IReadOnlyList<ActiveAura> All => _auras;
 
@@ -115,12 +115,10 @@ public sealed class UnitAuras(Action? changed = null)
     public void Load(IEnumerable<ActiveAura> restored, DateTimeOffset? heldSince = null)
     {
         _auras.Clear();
-        Arrival = null;
+        HeldArrivalProtection = null;
         _changes.Clear();
         foreach (ActiveAura aura in restored)
         {
-            if (aura.Id.Value == ArrivalProtectionAura.Id)
-                continue;
             aura.Key = _nextKey++;
             _auras.Add(aura);
         }
@@ -160,16 +158,17 @@ public sealed class UnitAuras(Action? changed = null)
 
     private void Record(ActiveAura aura, AuraChangeKind kind, DateTimeOffset now)
     {
-        if (aura.Id.Value == ArrivalProtectionAura.Id)
+        if (ArrivalProtection.Is(aura.Id.Value))
         {
             // Normally one Refresh buff; catalog rows may also allow Independent copies. Recompute only on changes.
-            Arrival = null;
+            HeldArrivalProtection = null;
             foreach (ActiveAura held in _auras)
             {
-                if (held.Id.Value == ArrivalProtectionAura.Id
-                    && (Arrival is null || held.Schedule.ExpiresAt > Arrival.Schedule.ExpiresAt))
+                if (ArrivalProtection.Is(held.Id.Value)
+                    && (HeldArrivalProtection is null
+                        || held.Schedule.ExpiresAt > HeldArrivalProtection.Schedule.ExpiresAt))
                 {
-                    Arrival = held;
+                    HeldArrivalProtection = held;
                 }
             }
         }

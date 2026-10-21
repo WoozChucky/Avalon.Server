@@ -535,16 +535,18 @@ public partial class CharacterEntity : ICharacter
                 return;
             }
 
-            // Only actual horizontal movement ends arrival protection; grounding and turning do not.
-            if (Data.X != value.x || Data.Z != value.z)
-                ArrivalProtection.End(this);
-
+            bool horizontal = Data.X != value.x || Data.Z != value.z;
             Data.X = value.x;
             Data.Y = value.y;
             Data.Z = value.z;
             _dirtyFields |= GameEntityFields.Position;
             if (_spatial.Grid is { } grid)
                 grid.Moved(_spatial.Slot, value);
+
+            // Only actual horizontal movement ends arrival protection; grounding and turning do not. Ended once the move
+            // is written, so its removal hooks see where the character now stands.
+            if (horizontal)
+                ArrivalProtection.End(this);
         }
     }
 

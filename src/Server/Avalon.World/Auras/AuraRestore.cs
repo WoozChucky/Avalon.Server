@@ -60,7 +60,8 @@ public static class AuraRestore
         bool dropped = false;
         foreach (CharacterAura row in rows)
         {
-            if (row.AuraId == ArrivalProtectionAura.Id)
+            // Arrival protection is never saved; a row holding it anyway is deleted by the next save.
+            if (ArrivalProtection.Is(row.AuraId))
             {
                 dropped = true;
                 continue;

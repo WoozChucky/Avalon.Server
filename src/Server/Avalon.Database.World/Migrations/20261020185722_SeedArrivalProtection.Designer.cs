@@ -1626,7 +1626,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 11L,
                             BaseDamageCoefficient = 0f,
                             DurationMs = 60000L,
-                            Icon = "fortified",
+                            Icon = "arrival protection",
                             Kind = (byte)1,
                             MaxStacks = 1L,
                             Name = "Arrival Protection",

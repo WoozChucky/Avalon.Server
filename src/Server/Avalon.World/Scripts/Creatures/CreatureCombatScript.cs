@@ -325,9 +325,6 @@ public class CreatureCombatScript : AiScript, IReturningHome
     /// </summary>
     private void Engage(IUnit attacker)
     {
-        if (ArrivalProtection.IsProtected(attacker))
-            return;
-
         if (!ReferenceEquals(_target, attacker))
         {
             if (_target is not null)
@@ -772,25 +769,13 @@ public class CreatureCombatScript : AiScript, IReturningHome
             return top;
 
         // The usual top-threat path stays unchanged; only a protected top requires another eligible pick.
+        // An Encounter's list is a dictionary, walked with its struct enumerator on this per-tick path; any other
+        // IEncounter's is copied first.
+        IReadOnlyDictionary<IUnit, float> threats = encounter!.GetThreatList(Creature);
+        Dictionary<IUnit, float> list = threats as Dictionary<IUnit, float> ?? new Dictionary<IUnit, float>(threats);
         IUnit? eligible = null;
         float mostThreat = float.MinValue;
-        IReadOnlyDictionary<IUnit, float> threats = encounter!.GetThreatList(Creature);
-        // Production encounters expose their dictionary: use its struct enumerator on this per-tick path.
-        if (threats is Dictionary<IUnit, float> list)
-        {
-            foreach ((IUnit unit, float threat) in list)
-            {
-                if (threat > mostThreat && !ArrivalProtection.IsProtected(unit))
-                {
-                    eligible = unit;
-                    mostThreat = threat;
-                }
-            }
-
-            return eligible;
-        }
-
-        foreach ((IUnit unit, float threat) in threats)
+        foreach ((IUnit unit, float threat) in list)
         {
             if (threat > mostThreat && !ArrivalProtection.IsProtected(unit))
             {

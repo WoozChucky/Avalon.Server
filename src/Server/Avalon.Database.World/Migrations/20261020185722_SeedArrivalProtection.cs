@@ -13,7 +13,7 @@ namespace Avalon.Database.World.Migrations
             migrationBuilder.InsertData(
                 table: "AuraTemplates",
                 columns: new[] { "Id", "BaseDamageCoefficient", "DurationMs", "Icon", "Kind", "MaxStacks", "Name", "PeriodicBase", "PeriodicKind", "ScalingCoefficient", "ScalingStat", "ScriptName", "Stacking", "TickIntervalMs" },
-                values: new object[] { 11L, 0f, 60000L, "fortified", (byte)1, 1L, "Arrival Protection", 0f, (byte)0, 0f, (byte)0, null, (byte)1, 0L });
+                values: new object[] { 11L, 0f, 60000L, "arrival protection", (byte)1, 1L, "Arrival Protection", 0f, (byte)0, 0f, (byte)0, null, (byte)1, 0L });
         }
 
         /// <inheritdoc />

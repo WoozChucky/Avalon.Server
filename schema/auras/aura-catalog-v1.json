@@ -170,7 +170,7 @@
     {
       "id": 11,
       "name": "Arrival Protection",
-      "icon": "fortified",
+      "icon": "arrival protection",
       "kind": 1,
       "durationMs": 60000,
       "tickIntervalMs": 0,

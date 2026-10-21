@@ -1,6 +1,6 @@
-using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Movement;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Creatures;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
@@ -36,7 +36,7 @@ public class PlayerInputHandlerShould
         nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(new Vector3(allowedX, 0, 0));
         conn.When(c => c.Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.OutboundPacket>()))
             .Do(call => call.Arg<global::Avalon.Network.Packets.Abstractions.OutboundPacket>().Release());
-        ArrivalTestData.Apply(character);
+        ArrivalProtectionTestData.Apply(character);
 
         handler.Execute(conn, new CPlayerInputPacket { Seq = sequence, DirX = direction, YawDeg = 90 });
 
@@ -53,7 +53,7 @@ public class PlayerInputHandlerShould
         float x, float y, float z, bool protectedAfter)
     {
         CharacterEntity character = TestCharacters.New();
-        ArrivalTestData.Apply(character);
+        ArrivalProtectionTestData.Apply(character);
 
         // Relocation through ICharacter is also how movement abilities change position.
         ((ICharacter)character).Position = new Vector3(x, y, z);

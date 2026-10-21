@@ -149,7 +149,7 @@ public sealed class AuraSystem
         ActiveAura? held = auras.Find(template.Id, AuraRules.KeysByCaster(template.Stacking) ? casterGuid : null);
 
         // The cap counts new auras only: a copy the unit holds still refreshes or stacks.
-        bool reservesArrivalSlot = template.Id.Value == ArrivalProtectionAura.Id && auras.Arrival is null;
+        bool reservesArrivalSlot = ArrivalProtection.Is(template.Id.Value) && auras.HeldArrivalProtection is null;
         if (held is null && !reservesArrivalSlot && auras.OrdinaryCount >= _maxPerUnit)
         {
             if (ShouldLogRefusal("cap", template.Id.Value))
