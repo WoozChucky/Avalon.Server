@@ -342,7 +342,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "aura", "icon", " ", "icon" },
         { "aura", "maxStacks", 0, "maxStacks" },
         { "aura", "durationMs", 0, "durationMs" },
-        { "aura", "control", "Stun", "control" },          // on the helpful test ward: only a harmful aura may control
+        { "aura", "control", 1, "control" },               // stun, on the helpful test ward: only a harmful aura may control
         { "aura", "breakOnDamagePct", 101, "breakOnDamagePct" },
         { "aura", "breakPerSecondPct", -1, "breakPerSecondPct" },
         { "creature", "stunDurationPct", -1, "stunDurationPct" },

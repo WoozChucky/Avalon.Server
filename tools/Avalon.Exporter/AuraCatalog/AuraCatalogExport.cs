@@ -55,7 +55,8 @@ public static class AuraCatalogExport
                      "caster. Modifiers: stat 1 armor, 2 attack damage, 3 ability damage, 4 crit %, 5 dodge %, 6 block %, " +
                      "7 haste %, 8 movement speed %, 9 max health, 10 max power; kind 1 flat, 2 percent; each times the " +
                      "stacks held. durationMs and tickIntervalMs in milliseconds; 0 ticks never. control: flags, 1 stun, 2 root, " +
-                     "4 silence, 0 none (a slow is a harmful aura with a negative movement speed modifier, never a flag); " +
+                     "4 silence, 0 none (a slow, a harmful aura with a negative movement speed modifier, is never a flag in " +
+                     "this file; aura entries on the wire add 8 for it); " +
                      "breakOnDamagePct: percent chance it ends each time its holder takes damage; breakPerSecondPct: " +
                      "percent chance it ends on its own, once per second held. The server sends the control on the wire " +
                      "too: trust that over this file.",
