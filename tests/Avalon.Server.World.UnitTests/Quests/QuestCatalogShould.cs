@@ -1,5 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 using Microsoft.Extensions.Logging.Abstractions;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
@@ -68,6 +69,8 @@ public class QuestCatalogShould
         { Quest(0).WithStage(0, Kill(11, Boar, 1)), "id" },
         { Quest(1).WithStage(0, Collect(11, Tonic, 1)), "not a QuestItem" },
         { Quest(1).WithStage(0, Collect(11, Tusk, 1)).WithStage(1, Collect(12, Tusk, 1)), "objective 12 collects item template 7101, which objective 11 already collects" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Repeating(QuestRepeatFrequency.Daily, repeatable: false), "repeat frequency Daily" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Repeating((QuestRepeatFrequency)7), "repeat frequency 7" },
     };
 
     [Theory]

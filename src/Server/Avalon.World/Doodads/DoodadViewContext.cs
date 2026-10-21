@@ -16,6 +16,7 @@ public sealed class DoodadViewContext : IDoodadViewContext
     private Doodad? _doodad;
     private CharacterEntity? _viewer;
     private QuestCatalog? _quests;
+    private QuestResetClock? _resets;
     private bool _dataGateAllows;
 
     public DoodadTemplateId TemplateId => Doodad.Template.Id;
@@ -38,17 +39,22 @@ public sealed class DoodadViewContext : IDoodadViewContext
 
     public bool ViewerHolds(uint questId) => Viewer.Quests.IsActive(questId);
 
-    public bool ViewerCompleted(uint questId) => Viewer.Quests.IsCompleted(questId);
+    public bool ViewerCompleted(uint questId) =>
+        DoodadGates.Completed(Viewer.Quests, _quests ?? throw Closed(), questId, _resets);
 
     public bool ViewerOnObjective(uint questId, uint objectiveId) =>
         DoodadGates.OnObjective(Viewer.Quests, _quests ?? throw Closed(), questId, objectiveId);
 
-    /// <summary>Points the context at one viewer's question about one doodad, whose data gate answered <paramref name="dataGateAllows" />.</summary>
-    internal void Open(Doodad doodad, CharacterEntity viewer, QuestCatalog quests, bool dataGateAllows)
+    /// <summary>
+    /// Points the context at one viewer's question about one doodad, whose data gate answered
+    /// <paramref name="dataGateAllows" />; <paramref name="resets" /> decides what completed means, as for the gates.
+    /// </summary>
+    internal void Open(Doodad doodad, CharacterEntity viewer, QuestCatalog quests, QuestResetClock? resets, bool dataGateAllows)
     {
         _doodad = doodad;
         _viewer = viewer;
         _quests = quests;
+        _resets = resets;
         _dataGateAllows = dataGateAllows;
     }
 
@@ -58,6 +64,7 @@ public sealed class DoodadViewContext : IDoodadViewContext
         _doodad = null;
         _viewer = null;
         _quests = null;
+        _resets = null;
         _dataGateAllows = false;
     }
 

@@ -112,4 +112,14 @@ public sealed class QuestResetClock
         QuestRepeat.Repeatable => true,
         _ => lastCompletedAt < LastBoundary(repeat),
     };
+
+    /// <summary>
+    /// Whether the owner of <paramref name="log" /> turned the quest in within the current period of its repeat kind:
+    /// turned in, and not <see cref="AvailableAgain" />. For a once-only quest, and for one the catalog no longer has,
+    /// that is "turned in at all"; a plain repeatable is never completed this period. What doodad gates ask, as against
+    /// prerequisites and vendor gates, which ask <see cref="QuestLog.IsCompleted" />. Allocates nothing.
+    /// </summary>
+    public bool CompletedThisPeriod(QuestLog log, QuestCatalog quests, uint questId) =>
+        log.Completion(questId) is { } done
+        && !(quests.TryGet(questId, out QuestView? quest) && AvailableAgain(quest.Repeat, done.LastCompletedAt));
 }

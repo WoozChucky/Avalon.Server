@@ -97,11 +97,12 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
   - A despawned doodad is in no view.
 - **Rules.** `DoodadVisibility.AsksRules` is true when a doodad has a visibility gate, a script that decides who sees it, or a usability gate. Only such a doodad has its rules asked. One without rules is seen by everyone in range, and usable while its state allows it (`DoodadVisibility.Usable`: a Click doodad, not despawned, and Ready or Unlimited).
 - **The four gate conditions** (`DoodadGates.Allows`, over the viewer's `QuestLog`):
-  - **NotStarted:** the quest is neither held nor turned in.
+  - **NotStarted:** the quest is neither held nor completed.
   - **OnObjective:** the quest is held and is not ready to turn in, its current stage holds the objective, and the objective's count is below the catalog's. A quest the catalog no longer has lets no one through. The stage's objectives are walked by index, so the check allocates nothing.
-  - **Completed:** the quest was turned in.
-  - **NotCompleted:** the quest was not turned in.
+  - **Completed:** the quest is completed.
+  - **NotCompleted:** the quest is not completed.
   - A condition this build does not know lets no one through.
+  - **Completed follows availability (#710).** For a gate, "completed" is `QuestResetClock.CompletedThisPeriod`: turned in, and not yet available again by its repeat kind. A once-only quest (and one the catalog no longer has) is completed once turned in, as before. A plain repeatable reads as not completed straight after its turn-in, and a daily, weekly or monthly one once the next reset of its frequency passes, so a doodad gated on a daily comes back each period. Prerequisites and vendor gates differ: they ask whether the quest was turned in at least once ([quests](quests.md)). `IDoodadViewContext.ViewerCompleted` gives a script the same answer as the gates. `DoodadVisibility` takes the world's reset clock from the container; one built without it (a test that places no repeatable, `MapInstance`'s fallback) reads "turned in at all".
 - **The order of the rules.**
   1. The visibility gate.
   2. For a template with `ScriptCanSee`, the script's `CanSee` (`DoodadVisibility.IsVisibleTo`). Null keeps the gate's answer (`IDoodadViewContext.DataGateAllows`), and true or false overrides it.

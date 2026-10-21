@@ -97,7 +97,8 @@ public class QuestFlusherShould
         c.Character.Quests.Load(new Avalon.Database.Character.Repositories.CharacterQuestRows(
             [new CharacterQuest { CharacterId = c.Id, QuestId = Tusks, State = CharacterQuestState.Active, Stage = 0, AcceptedAt = DateTime.UnixEpoch }],
             [],
-            [new CharacterCompletedQuest { CharacterId = c.Id, QuestId = Hunt, CompletedAt = DateTime.UnixEpoch }]));
+            [new CharacterCompletedQuest { CharacterId = c.Id, QuestId = Hunt, CompletedAt = DateTime.UnixEpoch,
+                LastCompletedAt = DateTime.UnixEpoch, CompletionCount = 1 }]));
         Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(c.Character).TryAdd(new ItemTemplateId(Tusk), 2));
         InventoryUpdateFlusher.Flush(c.Connection);   // the bag came with the load, not with this tick
         c.Clear();

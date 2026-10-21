@@ -32,7 +32,8 @@ namespace Avalon.World.Quests;
 /// Everything a quest does at run time (#433): availability, the dialogue options and offers, accept, progress
 /// (kills, talk, collect, doodad uses, scripts), stages, turn-in and abandon. A DI singleton, World-side, and <b>tick thread
 /// only</b>: every caller (the quest handlers, InteractHandler, DialogueChooseHandler, MapInstance.CreatureKilled,
-/// DoodadUseService, QuestFlusher) runs on the tick. No timers and no awaits; the clock is read only to stamp accept and completion.
+/// DoodadUseService, QuestFlusher) runs on the tick. No timers and no awaits; the clock is read only to stamp accept and completion
+/// (and to build the service's own reset clock when the container hands it none).
 /// It changes a character only through its QuestLog, its IInventoryService and its IWallet.
 /// </summary>
 public sealed class QuestService(
@@ -42,7 +43,8 @@ public sealed class QuestService(
     ILootRandom random,
     TimeProvider time,
     ILogger<QuestService> logger,
-    PartyService? parties = null)
+    PartyService? parties = null,
+    QuestResetClock? resets = null)
 {
     // The quests whose Settle loop is running, so a stage-start hook that advances an objective of the same quest
     // (Task 7's collect recount, Task 9's scripts) does not settle it from inside its own loop. Per quest, never
@@ -82,11 +84,21 @@ public sealed class QuestService(
     // closure and a delegate per call, and the markers ask once per quest of each quest NPC.
     private Func<QuestView, CharacterEntity, bool>? _scriptAllows;
 
+    // The world's reset clock (#710): the DI singleton WorldServer advances, or, for a service built without one (a
+    // test), one of its own over the service's clock, built on first use.
+    private QuestResetClock? _resets = resets;
+
     /// <summary>The generation of quests this tick reads. One reference per call site.</summary>
     public QuestCatalog Catalog => world.Data.Quests;
 
+    /// <summary>
+    /// The daily, weekly and monthly reset clock availability, markers and doodad gates read (#710): the container's,
+    /// or, without one, the service's own over its TimeProvider. Tick thread only.
+    /// </summary>
+    public QuestResetClock Resets => _resets ??= new QuestResetClock(world.Configuration.QuestResets, time);
+
     public QuestResult Availability(CharacterEntity character, QuestView quest) =>
-        QuestAvailability.Check(quest, character, world.Configuration.MaxActiveQuests, _scriptAllows ??= ScriptAllows);
+        QuestAvailability.Check(quest, character, world.Configuration.MaxActiveQuests, Resets, _scriptAllows ??= ScriptAllows);
 
     public static QuestStageView? CurrentStage(QuestView quest, ActiveQuest active) =>
         active.Stage >= 0 && active.Stage < quest.Stages.Count ? quest.Stages[active.Stage] : null;

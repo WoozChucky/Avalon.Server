@@ -23,7 +23,7 @@ public class QuestLogShould
         c.Quests.Load(new Avalon.Database.Character.Repositories.CharacterQuestRows(
             [new CharacterQuest { CharacterId = 1, QuestId = 5, State = CharacterQuestState.Active, Stage = 1, AcceptedAt = s_now }],
             [new CharacterQuestObjective { CharacterId = 1, QuestId = 5, ObjectiveId = 51, Progress = 3 }],
-            [new CharacterCompletedQuest { CharacterId = 1, QuestId = 4, CompletedAt = s_now }]));
+            [new CharacterCompletedQuest { CharacterId = 1, QuestId = 4, CompletedAt = s_now, LastCompletedAt = s_now, CompletionCount = 1 }]));
 
         Assert.Equal(1, c.Quests.ActiveCount);
         Assert.Equal(3u, c.Quests.Get(5)!.ProgressOf(51));

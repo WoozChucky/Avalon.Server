@@ -209,9 +209,11 @@ public static class ServiceExtensions
         services.AddSingleton<AuraScripts>();
 
         // Doodads: their scripts, built once per type, and who may see and use each one, asked by every instance's view
-        // decisions (with the scripts, so a CanSee is never silently skipped).
+        // decisions (with the scripts, so a CanSee is never silently skipped, and the reset clock, so a gate on a
+        // repeatable quest follows its availability).
         services.AddSingleton<DoodadScripts>();
-        services.AddSingleton(sp => new DoodadVisibility(sp.GetRequiredService<DoodadScripts>()));
+        services.AddSingleton(sp => new DoodadVisibility(
+            sp.GetRequiredService<DoodadScripts>(), sp.GetRequiredService<QuestResetClock>()));
 
         // Doodad use: the interact handler hands it a doodad's CMSG_INTERACT, and every instance's doodad casts and
         // respawns answer to it (MapInstance reads it with GetService).

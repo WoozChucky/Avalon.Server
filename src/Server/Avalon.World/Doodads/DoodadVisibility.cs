@@ -13,7 +13,11 @@ namespace Avalon.World.Doodads;
 /// its own doodad, and never for a solid one.
 /// </summary>
 /// <param name="scripts">The doodad scripts asked; none is asked without them, as in a test that places no scripted doodad.</param>
-public sealed class DoodadVisibility(DoodadScripts? scripts = null)
+/// <param name="resets">
+/// The world's quest reset clock, so a gate on a repeatable quest follows its availability (#710); without it (a test
+/// that places no repeatable, MapInstance's fallback) a gate reads "turned in at all".
+/// </param>
+public sealed class DoodadVisibility(DoodadScripts? scripts = null, QuestResetClock? resets = null)
 {
     private const string CanSeeHook = nameof(DoodadScript.CanSee);
 
@@ -47,7 +51,7 @@ public sealed class DoodadVisibility(DoodadScripts? scripts = null)
         if (!doodad.Visible)
             return false;
 
-        bool data = DoodadGates.Allows(doodad.VisibleGate, viewer.Quests, quests);
+        bool data = DoodadGates.Allows(doodad.VisibleGate, viewer.Quests, quests, resets);
         return doodad.AsksScript && scripts?.For(doodad.Template) is { } script
             ? AskScript(script, doodad, viewer, quests, data)
             : data;
@@ -72,17 +76,17 @@ public sealed class DoodadVisibility(DoodadScripts? scripts = null)
     /// a view decision (<see cref="Answer" />) and by an interact's checks (DoodadUseService), so what a client is offered
     /// and what an interact is let through by never differ.
     /// </summary>
-    internal static DoodadUseRefusal? UseRefusal(Doodad doodad, CharacterEntity viewer, QuestCatalog quests) =>
-        !DoodadGates.Allows(doodad.UsableGate, viewer.Quests, quests) ? DoodadUseRefusal.NotUsable
+    internal DoodadUseRefusal? UseRefusal(Doodad doodad, CharacterEntity viewer, QuestCatalog quests) =>
+        !DoodadGates.Allows(doodad.UsableGate, viewer.Quests, quests, resets) ? DoodadUseRefusal.NotUsable
         : Usable(doodad) ? null
         : DoodadUseRefusal.Spent;
 
-    private static bool Interactable(bool visible, Doodad doodad, CharacterEntity viewer, QuestCatalog quests) =>
+    private bool Interactable(bool visible, Doodad doodad, CharacterEntity viewer, QuestCatalog quests) =>
         visible && UseRefusal(doodad, viewer, quests) is null;
 
     private bool AskScript(DoodadScript script, Doodad doodad, CharacterEntity viewer, QuestCatalog quests, bool data)
     {
-        _view.Open(doodad, viewer, quests, data);
+        _view.Open(doodad, viewer, quests, resets, data);
         try
         {
             return script.CanSee(_view) ?? data;

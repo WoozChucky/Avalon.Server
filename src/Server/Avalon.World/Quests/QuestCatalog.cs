@@ -4,6 +4,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Doodads;
 using Avalon.World.Public.Dialogue;
+using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Quests;
@@ -34,7 +35,8 @@ public sealed record QuestView(
     ulong RewardMoney,
     Type? ScriptType,
     IReadOnlyList<QuestStageView> Stages,
-    IReadOnlyList<QuestItemRewardView> ItemRewards)
+    IReadOnlyList<QuestItemRewardView> ItemRewards,
+    QuestRepeat Repeat)
 {
     public QuestStageView LastStage => Stages[^1];
 
@@ -241,6 +243,10 @@ public sealed class QuestCatalog
         uint id = quest.Id.Value;
         if (id == 0 || id > int.MaxValue)
             return $"id {id} is outside 1-{int.MaxValue}; quest dialogue options carry it as a negative int";
+        if (quest.RepeatFrequency is { } frequency && !Enum.IsDefined(frequency))
+            return $"repeat frequency {(int)frequency} is not a known frequency";
+        if (!quest.IsRepeatable && quest.RepeatFrequency is { } set && set != QuestRepeatFrequency.None)
+            return $"repeat frequency {set} is set on a quest that is not repeatable";
         if (!creatures.Contains(quest.GiverCreatureId.Value))
             return $"giver creature template {quest.GiverCreatureId.Value} does not exist";
         if (!creatures.Contains(quest.EnderCreatureId.Value))
@@ -447,5 +453,15 @@ public sealed class QuestCatalog
                 .Select(o => new QuestObjectiveView(o.Id, q.Id.Value, o.StageSequence, o.Type, o.CreatureTemplateId,
                     o.ItemTemplateId, o.Count, o.DescriptionTextId, o.DoodadTemplateId))
                 .ToList())).ToList(),
-        q.ItemRewards.OrderBy(r => r.ItemTemplateId.Value).Select(r => new QuestItemRewardView(r.ItemTemplateId, r.Count)).ToList());
+        q.ItemRewards.OrderBy(r => r.ItemTemplateId.Value).Select(r => new QuestItemRewardView(r.ItemTemplateId, r.Count)).ToList(),
+        RepeatOf(q));
+
+    /// <summary>The repeat kind the catalog reads from a quest's repeat pair: Once unless repeatable; no frequency repeats at once.</summary>
+    private static QuestRepeat RepeatOf(QuestTemplate q) => !q.IsRepeatable ? QuestRepeat.Once : q.RepeatFrequency switch
+    {
+        QuestRepeatFrequency.Daily => QuestRepeat.Daily,
+        QuestRepeatFrequency.Weekly => QuestRepeat.Weekly,
+        QuestRepeatFrequency.Monthly => QuestRepeat.Monthly,
+        _ => QuestRepeat.Repeatable,
+    };
 }

@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Quest;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Quests;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,8 +25,10 @@ public class QuestAvailabilityShould
         return c;
     }
 
+    private static readonly QuestResetClock s_resets = new(new QuestResetConfiguration(), new ManualTimerClock());
+
     private static QuestResult Check(QuestView quest, CharacterEntity c, int max = 20, bool script = true) =>
-        QuestAvailability.Check(quest, c, max, (_, _) => script);
+        QuestAvailability.Check(quest, c, max, s_resets, (_, _) => script);
 
     [Fact]
     public void Not_offer_a_quest_already_held_or_already_done()

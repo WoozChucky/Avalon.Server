@@ -177,7 +177,7 @@ public sealed partial class DoodadUseService(
             return DoodadUseRefusal.NotVisible;
 
         // The usability gate, then the doodad's state: the rule the client's CanInteract is told by.
-        if (DoodadVisibility.UseRefusal(doodad, character, catalog) is { } unusable)
+        if (visibility.UseRefusal(doodad, character, catalog) is { } unusable)
             return unusable;
 
         if (askBusy && character.Spells.IsCasting)
