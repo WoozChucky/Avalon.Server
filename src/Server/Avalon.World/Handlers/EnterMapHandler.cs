@@ -6,6 +6,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.World;
+using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Parties;
@@ -624,6 +625,9 @@ public partial class EnterMapHandler(
             // Through the entity, which writes the row and keeps the target's spatial index where the character is
             // (#982); the row written alone would move the character but leave its index entry where it stood.
             entity.Position = spawn;
+            // Positioning ends the previous arrival's protection; grant the new one only afterward.
+            if (targetInstance is IAuraHost host)
+                ArrivalProtection.Start(entity, host.Auras);
 
             // The saver logs a failure itself; this logs the transfer once the save has finished.
             connection.EnqueueContinuation(characterSaver.Save(connection, entity), committed =>

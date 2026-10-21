@@ -141,7 +141,7 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
   9. `Busy`: an ability cast is running.
   10. `ScriptRefused`: the script's `CanUse` returns a line, or throws.
   - **Every refusal is silent.** Nothing is sent back. The refusal is one Debug line through a generated `LoggerMessage`, and it allocates nothing (`DoodadUseShould.Refuse_a_use_the_rules_forbid`).
-- **A use that passed** first ends the user's item cast and doodad cast, out loud. Then it either completes at once (`InteractionTimeMs` 0) or starts a cast bar.
+- **A use that passed** first ends the user's item cast and doodad cast, out loud, and its [arrival protection](auras.md#arrival-protection-1088). Then it either completes at once (`InteractionTimeMs` 0) or starts a cast bar.
 - **The cast bar** is `DoodadCasts`: one per instance, at most one cast per character, ticked right after the item cast bars. Only the active casts are visited, and a tick with none reads nothing.
   - Its end time (`PendingDoodadUse.EndsAt`) is absolute, on the instance's `TimeProvider`, so nothing counts it down.
   - Its cast ids come from the instance's ability cast ids.
@@ -151,7 +151,7 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
     - moves or dies, checked each tick against the start position (damage alone never ends it);
     - leaves the instance (`EndCastsOf`);
     - starts an ability cast that `CastAbilityHandler` accepts;
-    - uses an item that passed its checks, gear included (`ItemUseService.InterruptCasts`);
+    - uses an item that passed its checks, gear included (`ItemUseService.EndForUse`);
     - or uses another doodad.
   - Every broadcast and owner call is contained, so one that fails never leaves a cast stuck.
   - `DoodadUseShould.End_a_cast_when_the_user_moves_dies_leaves_or_casts` and `End_an_item_cast_when_its_user_uses_a_doodad_that_passed_its_checks` pin these.

@@ -3230,7 +3230,9 @@ public class WorldDbContext : DbContext
             Aura(7, "Sundered", AuraKind.Harmful, 10000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
             Aura(8, "Blessed", AuraKind.Helpful, 120000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
             Aura(9, "Emboldened", AuraKind.Helpful, 120000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
-            Aura(10, "Hexed", AuraKind.Harmful, 60000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1));
+            Aura(10, "Hexed", AuraKind.Harmful, 60000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
+            Aura(ArrivalProtectionAura.Id, "Arrival Protection", AuraKind.Helpful, 60000, 0, AuraPeriodicKind.None, 0f,
+                ScalingStat.Attack, 0f, AuraStacking.Refresh, 1));
     }
 
     /// <summary>

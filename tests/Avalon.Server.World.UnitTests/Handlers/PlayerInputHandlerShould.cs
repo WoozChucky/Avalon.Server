@@ -1,7 +1,11 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Movement;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Creatures;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
+using Avalon.World.Auras;
+using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
@@ -16,6 +20,46 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 public class PlayerInputHandlerShould
 {
     private const float TickDt = 1f / 60f;
+
+    [Theory]
+    [InlineData(1f, 1u, 0.05f, false)]
+    [InlineData(1f, 1u, 0f, true)]
+    [InlineData(0f, 1u, 0f, true)]
+    [InlineData(1f, 0u, 0.05f, true)]
+    public void End_arrival_protection_only_when_accepted_input_actually_moves_the_character(
+        float direction, uint sequence, float allowedX, bool protectedAfter)
+    {
+        (PlayerInputHandler handler, IWorldConnection conn, ICharacter placeholder, IMapNavigator nav) = Setup();
+        CharacterEntity character = TestCharacters.New();
+        character.InstanceId = placeholder.InstanceId;
+        conn.Character.Returns(character);
+        nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(new Vector3(allowedX, 0, 0));
+        conn.When(c => c.Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.OutboundPacket>()))
+            .Do(call => call.Arg<global::Avalon.Network.Packets.Abstractions.OutboundPacket>().Release());
+        ArrivalProtectionTestData.Apply(character);
+
+        handler.Execute(conn, new CPlayerInputPacket { Seq = sequence, DirX = direction, YawDeg = 90 });
+
+        Assert.Equal(protectedAfter, ArrivalProtection.IsProtected(character));
+        Assert.Equal(sequence > 0 ? allowedX : 0f, character.Position.x);
+    }
+
+    [Theory]
+    [InlineData(1f, 0f, 0f, false)]
+    [InlineData(0f, 0f, 1f, false)]
+    [InlineData(0f, 1f, 0f, true)]
+    [InlineData(0f, 0f, 0f, true)]
+    public void End_arrival_protection_for_horizontal_relocation_but_keep_it_for_grounding(
+        float x, float y, float z, bool protectedAfter)
+    {
+        CharacterEntity character = TestCharacters.New();
+        ArrivalProtectionTestData.Apply(character);
+
+        // Relocation through ICharacter is also how movement abilities change position.
+        ((ICharacter)character).Position = new Vector3(x, y, z);
+
+        Assert.Equal(protectedAfter, ArrivalProtection.IsProtected(character));
+    }
 
     private static (PlayerInputHandler handler, IWorldConnection conn, ICharacter ch, IMapNavigator nav) Setup(
         float speed = 5f, Vector3 startPos = default, IMapNavigator? navigator = null)

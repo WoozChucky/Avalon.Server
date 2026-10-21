@@ -1,7 +1,12 @@
+using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.GameAuth;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
+using Avalon.World.Auras;
+using Avalon.World.Entities;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -21,7 +26,7 @@ public class TownReturnShould
     private readonly ICharacter _character = Substitute.For<ICharacter>();
     private readonly IWorld _world = Substitute.For<IWorld>();
     private readonly IMapInstance _source = Substitute.For<IMapInstance>();
-    private readonly IMapInstance _townInstance = Substitute.For<IMapInstance>();
+    private readonly IMapInstance _townInstance = Substitute.For<IMapInstance, IAuraHost>();
     private readonly IRespawnTargetResolver _resolver = Substitute.For<IRespawnTargetResolver>();
     private readonly IInstanceRegistry _registry = Substitute.For<IInstanceRegistry>();
     private readonly TestLog _log = new();
@@ -75,9 +80,23 @@ public class TownReturnShould
     [Fact]
     public void Revive_a_dead_character_it_moves_when_asked()
     {
+        CharacterEntity character = TestCharacters.New();
+        character.InstanceId = _character.InstanceId;
+        character.Position = new Vector3(20, 0, 30);
+        character.Health = 100;
+        character.CurrentHealth = 0;
+        character.IsDead = true;
+        _connection.Character.Returns(character);
+        AuraSystem auras = ArrivalProtectionTestData.System(character.Clock);
+        ((IAuraHost)_townInstance).Auras.Returns(auras);
+        _world.When(w => w.TransferPlayer(_connection, _townInstance)).Do(_ => auras.Roster.Join(character));
+
         _town.Start(_connection, revive: true, dropEncounter: false);
 
-        _character.Received(1).Revive();
+        Assert.False(character.IsDead);
+        Assert.Equal(100u, character.CurrentHealth);
+        Assert.Equal(Vector3.zero, character.Position);
+        Assert.True(ArrivalProtection.IsProtected(character));
         _source.CombatService.DidNotReceiveWithAnyArgs().DropPlayerFromEncounter(default!);
         _world.Received(1).TransferPlayer(_connection, _townInstance);
     }

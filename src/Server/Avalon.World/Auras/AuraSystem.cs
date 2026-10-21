@@ -42,7 +42,7 @@ public sealed class AuraSystem
     private readonly Dictionary<(string Why, uint AuraId), DateTimeOffset> _refusalsLogged = [];
 
     // Which units here hold an aura, and which changed this tick (#898): kept as they change, never found by a walk.
-    private readonly AuraRoster _roster = new();
+    private readonly AuraRoster _roster;
 
     // Reused by every update: the units holding an aura, and the auras of the unit being ticked, walked as a copy so
     // that an aura ending (a death included) never changes the list under the walk.
@@ -73,6 +73,7 @@ public sealed class AuraSystem
         int maxAurasPerUnit, ILogger logger, AuraScripts? scripts = null,
         Func<ObjectGuid, IWorldConnection?>? connectionOf = null, Func<IUnit, bool>? returningHome = null)
     {
+        _roster = new AuraRoster(this);
         _combat = combat;
         _characters = characters;
         _creatures = creatures;
@@ -148,12 +149,13 @@ public sealed class AuraSystem
         ActiveAura? held = auras.Find(template.Id, AuraRules.KeysByCaster(template.Stacking) ? casterGuid : null);
 
         // The cap counts new auras only: a copy the unit holds still refreshes or stacks.
-        if (held is null && auras.Count >= _maxPerUnit)
+        bool reservesArrivalSlot = ArrivalProtection.Is(template.Id.Value) && auras.HeldArrivalProtection is null;
+        if (held is null && !reservesArrivalSlot && auras.OrdinaryCount >= _maxPerUnit)
         {
             if (ShouldLogRefusal("cap", template.Id.Value))
             {
                 _logger.LogWarning("Refused aura {AuraId} on {Unit}: it already holds {Count}, the most Game:MaxAurasPerUnit allows",
-                    template.Id.Value, target.Guid, auras.Count);
+                    template.Id.Value, target.Guid, auras.OrdinaryCount);
             }
 
             return AuraApplyResult.Refused;
@@ -593,6 +595,30 @@ public sealed class AuraSystem
 
             EndEach(unit, copies, AuraRemoveReason.Cancelled);
             return AuraCancelResult.Ok;
+        }
+        finally
+        {
+            ReturnEnding(copies);
+        }
+    }
+
+    /// <summary>Ends every held copy of an aura through the normal removal hooks, regardless of its kind.</summary>
+    public void Remove(IUnit unit, AuraId id, AuraRemoveReason reason)
+    {
+        if (AuraHolders.Of(unit) is not { Count: > 0 } auras)
+            return;
+
+        List<ActiveAura> copies = RentEnding();
+        try
+        {
+            IReadOnlyList<ActiveAura> all = auras.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (all[i].Id.Value == id.Value)
+                    copies.Add(all[i]);
+            }
+
+            EndEach(unit, copies, reason);
         }
         finally
         {

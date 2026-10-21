@@ -166,6 +166,18 @@
           "value": -15
         }
       ]
+    },
+    {
+      "id": 11,
+      "name": "Arrival Protection",
+      "icon": "arrival protection",
+      "kind": 1,
+      "durationMs": 60000,
+      "tickIntervalMs": 0,
+      "periodicKind": 0,
+      "stacking": 1,
+      "maxStacks": 1,
+      "modifiers": []
     }
   ]
 }

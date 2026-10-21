@@ -6,6 +6,7 @@ using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
+using Avalon.World.Auras;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
@@ -81,6 +82,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// </param>
     private HitOutcome ApplyDamageCore(IUnit attacker, IUnit target, uint damage, IAbility? ability)
     {
+        // Arrival protection passes over the whole hit, including its rolls, threat and combat tags.
+        if (ArrivalProtection.IsProtected(target)) return HitOutcome.Ignored;
+
         // Invulnerable creatures (town NPCs) absorb nothing and provoke nothing. This sits ahead of
         // ResolveOrSpawn deliberately: attacking one must not create an encounter, add threat, or
         // put the attacker in combat, or a player could tag themselves in combat on the innkeeper.
@@ -292,10 +296,11 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     /// <summary>
     /// A target every hit passes over, as ApplyDamage does before rolling anything: an invulnerable creature, a corpse,
-    /// or a creature walking home.
+    /// a creature walking home, or a protected arrival.
     /// </summary>
     internal static bool IgnoresHits(IUnit target) =>
-        target is ICreature { Invulnerable: true } or ICreature { CurrentHealth: 0 } || IsReturningHome(target);
+        target is ICreature { Invulnerable: true } or ICreature { CurrentHealth: 0 }
+        || IsReturningHome(target) || ArrivalProtection.IsProtected(target);
 
     private void NotifyDeathIfApplicable(Encounter? enc, IUnit target, IUnit? attacker)
     {
@@ -633,6 +638,8 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     public void EnterCombat(IUnit hostile, IUnit player)
     {
+        if (ArrivalProtection.IsProtected(player)) return;
+
         // A creature walking home is pulled into no fight until it is home and reset (#614).
         if (IsReturningHome(hostile)) return;
 

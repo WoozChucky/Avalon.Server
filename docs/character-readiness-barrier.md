@@ -2,6 +2,11 @@
 
 A selected character does not enter the world until its client says it is ready.
 
+Once it enters, the server grants the cancellable **60-second Arrival Protection buff** (#1088), as on portal
+transfers and respawns. Movement, any accepted cast, item use, gear drag or doodad use, and manual cancellation end it
+early. This is independent of the readiness barrier; duplicate loaded reports do not cancel or refresh it. See
+[arrival protection](auras.md#arrival-protection-1088).
+
 ## Why select was the wrong place to spawn
 
 `CharacterSelectHandler` used to finish by assigning `connection.Character` and calling

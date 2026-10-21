@@ -4,9 +4,11 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.World;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World;
+using Avalon.World.Auras;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
@@ -35,7 +37,7 @@ public class MapTeleportShould
 
     private readonly IWorld _world = Substitute.For<IWorld>();
     private readonly IInstanceRegistry _registry = Substitute.For<IInstanceRegistry>();
-    private readonly IMapInstance _town = Substitute.For<IMapInstance>();
+    private readonly IMapInstance _town = Substitute.For<IMapInstance, IAuraHost>();
     private readonly IMapInstance _forest = Substitute.For<IMapInstance>();
     private readonly IMapInstance _source = Substitute.For<IMapInstance>();
     private readonly CharacterEntity _character = TestCharacters.New(7);
@@ -47,6 +49,9 @@ public class MapTeleportShould
 
     public MapTeleportShould()
     {
+        AuraSystem auras = ArrivalProtectionTestData.System(_character.Clock);
+        ((IAuraHost)_town).Auras.Returns(auras);
+        _world.When(w => w.TransferPlayer(_connection, _town)).Do(_ => auras.Roster.Join(_character));
         _town.InstanceId.Returns(Guid.NewGuid());
         _forest.InstanceId.Returns(Guid.NewGuid());
         _character.InstanceId = Guid.NewGuid();
@@ -128,6 +133,7 @@ public class MapTeleportShould
     [Fact]
     public void Move_the_character_to_a_town_at_the_position_given_and_tell_the_client()
     {
+        ArrivalProtectionTestData.Apply(_character);
         Assert.True(_teleport.Start(_connection, s_town, new Vector3(5, 0, 6)));
         Assert.True(_connection.RespawnInFlight);
 
@@ -136,6 +142,7 @@ public class MapTeleportShould
         _source.CombatService.Received(1).DropPlayerFromEncounter(_character);
         _world.Received(1).TransferPlayer(_connection, _town);
         Assert.Equal(new Vector3(5, 0, 6), _character.Position);
+        Assert.True(ArrivalProtection.IsProtected(_character));
         SMapTransitionPacket transition = Assert.Single(TestTown.Read<SMapTransitionPacket>(_sent, NetworkPacketType.SMSG_MAP_TRANSITION));
         Assert.Equal((MapTransitionResult.Success, (ushort)1), (transition.Result, transition.MapId));
         Assert.False(_connection.RespawnInFlight);

@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
+using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
@@ -166,6 +167,9 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChar
             world.TransferPlayer(connection, target);
 
             character.Position = at;
+            // Positioning ends the previous arrival's protection; grant the new one only afterward.
+            if (character is CharacterEntity entity && target is IAuraHost host)
+                ArrivalProtection.Start(entity, host.Auras);
             MapArrival.Send(connection, target, template, at);
             SaveOnArrival(connection, target, template, at);
         }

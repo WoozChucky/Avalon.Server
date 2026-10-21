@@ -6,9 +6,11 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World;
+using Avalon.World.Auras;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
@@ -161,14 +163,17 @@ public class EnterMapHandlerShould
     /// which stays where it stood, out of reach of every view around the spawn, its own included.
     /// </summary>
     [Fact]
-    public void Arrive_where_the_target_s_spatial_index_has_the_character()
+    public async Task Arrive_where_the_target_s_spatial_index_has_the_character()
     {
         PlacedChunk[] chunks = Enumerable.Range(0, 10)
             .Select(x => new PlacedChunk(new ChunkTemplateId(1), (short)x, 0, 0, new Vector3(x * 30f, 0f, 0f)))
             .ToArray();
         var spawn = new Vector3(285f, 0f, 15f);
         var layout = new ChunkLayout(0, chunks, chunks[0], null, [], spawn, 30f);
-        using MapInstance target = TestMapInstances.Build(MapInstanceClients.NewWorld(), layout: layout);
+        AuraTemplate arrival = AuraTestData.ArrivalProtection();
+        arrival.DurationMs = 12000;
+        StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(auras: () => [arrival]));
+        using MapInstance target = TestMapInstances.Build(MapInstanceClients.NewWorld(data), layout: layout);
         var entry = new Entry(target: target);
         entry.Character.Spells.Load(Array.Empty<IAbility>());   // the tick updates abilities; an unloaded list throws
         entry.World.When(w => w.TransferPlayer(entry.Connection, target)).Do(_ =>
@@ -178,6 +183,7 @@ public class EnterMapHandlerShould
         });
         MapInstanceClient there = MapInstanceClients.Join(target, New(8));
         there.Character.Position = spawn;
+        ArrivalProtectionTestData.Apply(entry.Character);
 
         entry.Request();
         entry.Flush();
@@ -185,8 +191,13 @@ public class EnterMapHandlerShould
 
         Assert.Equal(MapTransitionResult.Success, entry.Results()[^1]);
         Assert.Equal(spawn, entry.Character.Position);
+        Assert.True(ArrivalProtection.IsProtected(entry.Character));
+        Assert.Same(arrival, Assert.Single(entry.Character.Auras.All).Template);
         Assert.Contains(entry.Character.Guid.RawValue, entry.Added());
         Assert.Contains(entry.Character.Guid.RawValue, there.Added().Select(s => s.Guid));
+        entry.Character.Position = spawn + new Vector3(1, 0, 0);
+        Assert.False(ArrivalProtection.IsProtected(entry.Character));
+        Assert.Empty(entry.Character.Auras.All);
     }
 
     public enum Ending

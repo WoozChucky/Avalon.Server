@@ -60,6 +60,13 @@ public static class AuraRestore
         bool dropped = false;
         foreach (CharacterAura row in rows)
         {
+            // Arrival protection is never saved; a row holding it anyway is deleted by the next save.
+            if (ArrivalProtection.Is(row.AuraId))
+            {
+                dropped = true;
+                continue;
+            }
+
             if (!data.Auras.TryGet(new AuraId(row.AuraId), out AuraTemplate? template))
             {
                 logger.LogWarning("Dropped the saved aura {AuraId} of character {CharacterId}: it is not loaded",

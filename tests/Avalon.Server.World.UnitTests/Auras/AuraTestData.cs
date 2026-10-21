@@ -7,6 +7,17 @@ namespace Avalon.Server.World.UnitTests.Auras;
 /// <summary>Aura rows the catalog accepts, one per behaviour. Each test changes only what it is about.</summary>
 internal static class AuraTestData
 {
+    public static AuraTemplate ArrivalProtection() => new()
+    {
+        Id = new AuraId(ArrivalProtectionAura.Id),
+        Name = "Arrival Protection",
+        Icon = "arrival protection",
+        Kind = AuraKind.Helpful,
+        DurationMs = 60000,
+        Stacking = AuraStacking.Refresh,
+        MaxStacks = 1,
+    };
+
     public static AuraTemplate Bleed(uint id = 901) => new()
     {
         Id = new AuraId(id),

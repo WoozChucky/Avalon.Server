@@ -1,5 +1,6 @@
 using Avalon.Combat;
 using Avalon.Network.Packets.Abilities;
+using Avalon.World.Auras;
 using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Units;
@@ -16,7 +17,7 @@ public static class AbilityEffect
     public static bool Qualifies(IAbilityArena arena, IUnit caster, IAbility ability, IUnit unit) =>
         ability.Metadata.Affects == AbilityAffects.Ally
             ? Hostility.IsAlly(caster, unit, arena.MapType)
-            : Hostility.IsHostile(caster, unit, arena.MapType);
+            : !ArrivalProtection.IsProtected(unit) && Hostility.IsHostile(caster, unit, arena.MapType);
 
     /// <summary>
     /// What the ability does to one unit its shape affects: its direct amount when Effects has one for what it affects

@@ -6,6 +6,9 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.Server.World.UnitTests.Auras;
+using Avalon.World;
+using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
@@ -26,6 +29,26 @@ namespace Avalon.Server.World.UnitTests.Instances;
 public class MapInstanceScriptLifecycleShould
 {
     private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
+
+    [Fact]
+    public void Remove_membership_even_when_ending_arrival_protection_fails()
+    {
+        IWorld world = NewWorld();
+        using MapInstance instance = TestMapInstances.Build(world);
+        MapInstanceClient client = Join(instance, 541_199);
+        AuraTemplate buff = AuraTestData.ArrivalProtection();
+        buff.Modifiers = AuraTestData.Fortified().Modifiers;
+        Assert.Equal(AuraApplyResult.Applied,
+            instance.Auras.Apply(client.Character, client.Character, buff, AuraSource.None));
+        world.Data.Returns(_ => throw new InvalidOperationException("stat data failed"));
+
+        instance.RemoveCharacter(client.Connection);
+
+        Assert.Empty(instance.Characters);
+        Assert.Empty(instance.Connections);
+        Assert.Empty(client.Character.Auras.All);
+        Assert.False(instance.Auras.Roster.CollectHolders([]));
+    }
 
     private static void Ticks(MapInstance instance, int count)
     {

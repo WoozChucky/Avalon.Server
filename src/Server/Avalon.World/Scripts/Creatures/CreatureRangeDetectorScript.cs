@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Auras;
 using Avalon.World.Creatures;
 using Avalon.World.Instances;
 using Avalon.World.Public.Characters;
@@ -163,6 +164,9 @@ public class CreatureRangeDetectorScript : AiScript
         Vector3 characterPosition = character.Position;
         float distance = Vector3.Distance(Creature.Position, characterPosition);
         if (distance > _aggroRange) return false;
+
+        // Asked only in range, so a protected character out of reach costs no clock read (#1088).
+        if (ArrivalProtection.IsProtected(character)) return false;
 
         if (!Context.GetNavigatorForPosition(Creature.Position).HasVisibility(Creature.Position, characterPosition)) return false;
         State = RangeDetectionState.Detected;

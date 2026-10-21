@@ -48,6 +48,19 @@ public class AuraScriptHooksShould
     }
 
     [Fact]
+    public void Run_the_arrival_buffs_removal_hook_when_the_character_moves()
+    {
+        CharacterEntity character = _h.Player(911_101);
+        _h.Use(AuraTestData.Scripted(AuraTestData.ArrivalProtection(), nameof(RecordingAuraScript)));
+        ArrivalProtection.Start(character, _h.Auras);
+
+        character.Position = new Avalon.Common.Mathematics.Vector3(1, 0, 0);
+
+        Assert.Empty(character.Auras.All);
+        Assert.Equal(["Arrival Protection:apply:1", "Arrival Protection:remove:Cancelled"], RecordingAuraScript.Heard);
+    }
+
+    [Fact]
     public void Hear_apply_stack_tick_and_remove_in_order()
     {
         CharacterEntity warrior = _h.Player(911_101);

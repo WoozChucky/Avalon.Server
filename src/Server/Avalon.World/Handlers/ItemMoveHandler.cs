@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
@@ -72,10 +73,12 @@ public class ItemMoveHandler(ILogger<ItemMoveHandler> logger, IWorld world, ICha
 
         ItemRequestResult result = economy.InventoryOf(character).TryMove(from, to, count, bankAccessible);
 
+        // An accepted equip or unequip ends the character's arrival protection (#1088), as one through item use does.
         if (result == ItemRequestResult.Ok
             && (from.Container == InventoryType.Equipment || to.Container == InventoryType.Equipment))
         {
             CharacterStatsRefresh.AfterGearChange(character, world.Data, logger);
+            ArrivalProtection.End(character);
         }
 
         return result;

@@ -23,6 +23,12 @@ public sealed class UnitAuras(Action? changed = null)
 
     public int Count => _auras.Count;
 
+    /// <summary>The held arrival protection copy with the latest expiry, cached for combat and AI checks.</summary>
+    internal ActiveAura? HeldArrivalProtection { get; private set; }
+
+    /// <summary>The auras <c>Game:MaxAurasPerUnit</c> counts: all but the held arrival protection's slot.</summary>
+    internal int OrdinaryCount => Count - (HeldArrivalProtection is null ? 0 : 1);
+
     public IReadOnlyList<ActiveAura> All => _auras;
 
     public bool HasChanges => _changes.Count > 0;
@@ -109,6 +115,7 @@ public sealed class UnitAuras(Action? changed = null)
     public void Load(IEnumerable<ActiveAura> restored, DateTimeOffset? heldSince = null)
     {
         _auras.Clear();
+        HeldArrivalProtection = null;
         _changes.Clear();
         foreach (ActiveAura aura in restored)
         {
@@ -151,6 +158,21 @@ public sealed class UnitAuras(Action? changed = null)
 
     private void Record(ActiveAura aura, AuraChangeKind kind, DateTimeOffset now)
     {
+        if (ArrivalProtection.Is(aura.Id.Value))
+        {
+            // Normally one Refresh buff; catalog rows may also allow Independent copies. Recompute only on changes.
+            HeldArrivalProtection = null;
+            foreach (ActiveAura held in _auras)
+            {
+                if (ArrivalProtection.Is(held.Id.Value)
+                    && (HeldArrivalProtection is null
+                        || held.Schedule.ExpiresAt > HeldArrivalProtection.Schedule.ExpiresAt))
+                {
+                    HeldArrivalProtection = held;
+                }
+            }
+        }
+
         uint remaining = kind == AuraChangeKind.Removed ? 0u : RemainingMs(aura, now);
         _changes.Add(new AuraChange(aura.Id, aura.Key, aura.CasterGuid.RawValue, aura.Stacks, remaining, aura.DurationMs, kind));
         _totals = null;
