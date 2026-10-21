@@ -32,4 +32,9 @@ public enum QuestResult
     /// The character is stunned (#770): it accepts and turns in nothing until the stun ends. The conversation stays open.
     /// </summary>
     Stunned = 11,
+    /// <summary>
+    /// The quest has a choice set and the pick is missing or not in it, or it has none and a pick was sent (#711);
+    /// nothing changed.
+    /// </summary>
+    InvalidChoice = 12,
 }

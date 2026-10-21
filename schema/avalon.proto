@@ -291,6 +291,7 @@ message CQuestAcceptPacket {
 message CQuestTurnInPacket {
    uint32 QuestId = 1;
    uint64 NpcGuid = 2;
+   uint64 ChoiceItemTemplateId = 3;
 }
 message CRegisterPacket {
    optional string Username = 1;
@@ -860,6 +861,7 @@ enum QuestResult {
    QuestResult_NoConversation = 9;
    QuestResult_Error = 10;
    QuestResult_Stunned = 11;
+   QuestResult_InvalidChoice = 12;
 }
 message QuestRewardItemDto {
    uint64 ItemTemplateId = 1;
@@ -869,6 +871,7 @@ message QuestRewardsDto {
    uint32 Experience = 1;
    uint64 Money = 2;
    repeated QuestRewardItemDto Items = 3;
+   repeated QuestRewardItemDto Choices = 4;
 }
 message QuestStageDto {
    int32 Sequence = 1;

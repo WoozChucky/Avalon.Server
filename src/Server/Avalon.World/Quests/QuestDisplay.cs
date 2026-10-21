@@ -29,6 +29,7 @@ public static class QuestDisplay
             Experience = quest.RewardExperience,
             Money = quest.RewardMoney,
             Items = quest.ItemRewards.Select(r => new QuestRewardItemDto { ItemTemplateId = r.ItemTemplateId.Value, Count = r.Count }).ToList(),
+            Choices = quest.ItemChoices.Select(r => new QuestRewardItemDto { ItemTemplateId = r.ItemTemplateId.Value, Count = r.Count }).ToList(),
         },
         Repeat = RepeatKindOf(quest.Repeat),
     };

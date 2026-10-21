@@ -90,6 +90,13 @@ variant populated
         element 1
           field 1 ItemTemplateId : ulong = 7
           field 2 Count : uint = 7
+      field 4 Choices : List<QuestRewardItemDto> = 2 elements
+        element 0
+          field 1 ItemTemplateId : ulong = 65535
+          field 2 Count : uint = 1000000
+        element 1
+          field 1 ItemTemplateId : ulong = 7
+          field 2 Count : uint = 7
     field 5 Repeat : QuestRepeatKind = Daily (3)
   field 6 Progress : List<QuestProgressDto> = 2 elements
     element 0
@@ -98,8 +105,8 @@ variant populated
     element 1
       field 1 ObjectiveId : uint = 300
       field 2 Progress : uint = 4000000000
-  bytes 301
-    08 c0 84 3d 10 02 18 01 20 13 2a 8d 02 0a 15 65
+  bytes 317
+    08 c0 84 3d 10 02 18 01 20 13 2a 9d 02 0a 15 65
     6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61 73
     74 72 61 6c 12 0d 68 c3 a9 6c 6c 6f 20 77 c3 b6
     72 6c 64 1a 69 08 13 12 18 22 71 75 6f 74 65 64
@@ -115,8 +122,9 @@ variant populated
     9a 80 20 61 73 74 72 61 6c 1a 24 08 c0 84 3d 10
     01 18 2a 20 07 2a 18 e6 97 a5 e6 9c ac e8 aa 9e
     e3 81 ae e3 83 86 e3 82 ad e3 82 b9 e3 83 88 22
-    17 08 ac 02 10 ff ff 03 1a 08 08 ff ff 03 10 c0
-    84 3d 1a 04 08 07 10 07 28 03 32 06 08 2a 10 c0
+    27 08 ac 02 10 ff ff 03 1a 08 08 ff ff 03 10 c0
+    84 3d 1a 04 08 07 10 07 22 08 08 ff ff 03 10 c0
+    84 3d 22 04 08 07 10 07 28 03 32 06 08 2a 10 c0
     84 3d 32 09 08 ac 02 10 80 d0 ac f3 0e
 
 variant maxima
@@ -207,6 +215,16 @@ variant maxima
         element 2
           field 1 ItemTemplateId : ulong = 18446744073709551615
           field 2 Count : uint = 4294967295
+      field 4 Choices : List<QuestRewardItemDto> = 3 elements
+        element 0
+          field 1 ItemTemplateId : ulong = 18446744073709551615
+          field 2 Count : uint = 4294967295
+        element 1
+          field 1 ItemTemplateId : ulong = 18446744073709551615
+          field 2 Count : uint = 4294967295
+        element 2
+          field 1 ItemTemplateId : ulong = 18446744073709551615
+          field 2 Count : uint = 4294967295
     field 5 Repeat : QuestRepeatKind = Monthly (5)
   field 6 Progress : List<QuestProgressDto> = 3 elements
     element 0
@@ -218,9 +236,9 @@ variant maxima
     element 2
       field 1 ObjectiveId : uint = 4294967295
       field 2 Progress : uint = 4294967295
-  bytes 2308
+  bytes 2366
     08 ff ff ff ff 0f 10 04 18 02 20 ff ff ff ff 07
-    2a c7 11 0a 84 01 ce a9 78 ce a9 78 ce a9 78 ce
+    2a 81 12 0a 84 01 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -355,15 +373,18 @@ variant maxima
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 22 4a 08 ff
-    ff ff ff 0f 10 ff ff ff ff ff ff ff ff ff 01 1a
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 22 83 01 08
+    ff ff ff ff 0f 10 ff ff ff ff ff ff ff ff ff 01
+    1a 11 08 ff ff ff ff ff ff ff ff ff 01 10 ff ff
+    ff ff 0f 1a 11 08 ff ff ff ff ff ff ff ff ff 01
+    10 ff ff ff ff 0f 1a 11 08 ff ff ff ff ff ff ff
+    ff ff 01 10 ff ff ff ff 0f 22 11 08 ff ff ff ff
+    ff ff ff ff ff 01 10 ff ff ff ff 0f 22 11 08 ff
+    ff ff ff ff ff ff ff ff 01 10 ff ff ff ff 0f 22
     11 08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff
-    ff 0f 1a 11 08 ff ff ff ff ff ff ff ff ff 01 10
-    ff ff ff ff 0f 1a 11 08 ff ff ff ff ff ff ff ff
-    ff 01 10 ff ff ff ff 0f 28 05 32 0c 08 ff ff ff
-    ff 0f 10 ff ff ff ff 0f 32 0c 08 ff ff ff ff 0f
-    10 ff ff ff ff 0f 32 0c 08 ff ff ff ff 0f 10 ff
-    ff ff ff 0f
+    ff 0f 28 05 32 0c 08 ff ff ff ff 0f 10 ff ff ff
+    ff 0f 32 0c 08 ff ff ff ff 0f 10 ff ff ff ff 0f
+    32 0c 08 ff ff ff ff 0f 10 ff ff ff ff 0f
 
 variant minima
   field 1 QuestId : uint = 0
@@ -391,15 +412,19 @@ variant minima
         element 0
           field 1 ItemTemplateId : ulong = 0
           field 2 Count : uint = 0
+      field 4 Choices : List<QuestRewardItemDto> = 1 element
+        element 0
+          field 1 ItemTemplateId : ulong = 0
+          field 2 Count : uint = 0
     field 5 Repeat : QuestRepeatKind = Unknown (0)
   field 6 Progress : List<QuestProgressDto> = 1 element
     element 0
       field 1 ObjectiveId : uint = 0
       field 2 Progress : uint = 0
-  bytes 46
-    20 80 80 80 80 f8 ff ff ff ff 01 2a 1f 0a 01 20
+  bytes 48
+    20 80 80 80 80 f8 ff ff ff ff 01 2a 21 0a 01 20
     12 01 01 1a 13 08 80 80 80 80 f8 ff ff ff ff 01
-    12 01 20 1a 03 2a 01 00 22 02 1a 00 32 00
+    12 01 20 1a 03 2a 01 00 22 04 1a 00 22 00 32 00
 
 variant varint-edges
   field 1 QuestId : uint = 127
@@ -452,6 +477,13 @@ variant varint-edges
         element 1
           field 1 ItemTemplateId : ulong = 16384
           field 2 Count : uint = 268435455
+      field 4 Choices : List<QuestRewardItemDto> = 2 elements
+        element 0
+          field 1 ItemTemplateId : ulong = 2097151
+          field 2 Count : uint = 128
+        element 1
+          field 1 ItemTemplateId : ulong = 16384
+          field 2 Count : uint = 268435455
     field 5 Repeat : QuestRepeatKind = <not a declared member> (6)
   field 6 Progress : List<QuestProgressDto> = 2 elements
     element 0
@@ -460,8 +492,8 @@ variant varint-edges
     element 1
       field 1 ObjectiveId : uint = 16383
       field 2 Progress : uint = 16384
-  bytes 1194
-    08 7f 10 05 18 03 20 ff ff ff 7f 2a 8a 09 0a 81
+  bytes 1214
+    08 7f 10 05 18 03 20 ff ff ff 7f 2a 9e 09 0a 81
     01 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
@@ -532,7 +564,8 @@ variant varint-edges
     c3 a9 c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 22 1b 08 ff 7f 10 ff
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 22 2f 08 ff 7f 10 ff
     ff 7f 1a 07 08 ff ff 7f 10 80 01 1a 09 08 80 80
-    01 10 ff ff ff 7f 28 06 32 07 08 80 80 80 01 10
-    7f 32 07 08 ff 7f 10 80 80 01
+    01 10 ff ff ff 7f 22 07 08 ff ff 7f 10 80 01 22
+    09 08 80 80 01 10 ff ff ff 7f 28 06 32 07 08 80
+    80 80 01 10 7f 32 07 08 ff 7f 10 80 80 01

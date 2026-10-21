@@ -75,6 +75,9 @@ public class QuestRewardsDto
     [ProtoMember(1)] public uint Experience { get; set; }
     [ProtoMember(2)] public ulong Money { get; set; }
     [ProtoMember(3)] public List<QuestRewardItemDto> Items { get; set; } = [];
+
+    /// <summary>Pick exactly one at turn-in (#711); empty when the quest has none.</summary>
+    [ProtoMember(4)] public List<QuestRewardItemDto> Choices { get; set; } = [];
 }
 
 /// <summary>
