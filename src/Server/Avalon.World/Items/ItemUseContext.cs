@@ -218,7 +218,8 @@ public sealed class ItemUseContext(
         // aura is still held afterwards is the aura system's business (a hook may already have ended it).
         try
         {
-            return auras.Apply(character, target, template, AuraSource.None) != AuraApplyResult.Refused;
+            return auras.Apply(character, target, template, AuraSource.None) is not (AuraApplyResult.Refused
+                or AuraApplyResult.Resisted);
         }
         catch (Exception e)
         {

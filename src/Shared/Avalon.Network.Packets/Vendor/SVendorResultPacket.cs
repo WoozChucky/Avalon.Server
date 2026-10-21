@@ -43,6 +43,9 @@ public enum VendorResult : byte
 
     /// <summary>The item's durability is below full, so it cannot be sold.</summary>
     Damaged = 12,
+
+    /// <summary>The character is stunned (#770): it trades nothing until the stun ends. The shop stays open.</summary>
+    Stunned = 13,
 }
 
 /// <summary>The answer to one vendor request, sent to the requester only, for every request.</summary>

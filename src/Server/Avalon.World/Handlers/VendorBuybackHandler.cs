@@ -29,10 +29,10 @@ public class VendorBuybackHandler(ILogger<VendorBuybackHandler> logger, IWorld w
         VendorResult result;
         try
         {
-            // Alive first, so a dead character's request neither checks the leash nor ends the conversation.
-            result = character.IsDead
-                ? VendorResult.Dead
-                : economy.VendorOf(character).TryBuyback(
+            // Alive and free first (#770), so a dead or stunned character's request neither checks the leash nor
+            // ends the conversation.
+            result = ShopAccess.Refusal(character)
+                ?? economy.VendorOf(character).TryBuyback(
                     ShopAccess.TryUse(connection, character, world, out _), packet.Index);
         }
         catch (Exception e)

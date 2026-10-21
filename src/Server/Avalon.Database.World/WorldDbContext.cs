@@ -236,17 +236,28 @@ public class WorldDbContext : DbContext
 
     /// <summary>
     /// What each rarity tier multiplies a creature's base stats by. A table rather than a switch so a
-    /// tier is retuned as data alongside the base stats themselves.
+    /// tier is retuned as data alongside the base stats themselves. The crowd-control duration percentages
+    /// (#770) are 0 (immune) to 100 (the full duration), as CreatureTemplateRules.ValidateRarities refuses
+    /// anything else.
     /// </summary>
     private static void Configure(EntityTypeBuilder<CreatureRarityModifier> builder)
     {
+        builder.ToTable("CreatureRarityModifiers", t =>
+        {
+            t.HasCheckConstraint("CK_CreatureRarityModifiers_StunDurationPct", Percentage("StunDurationPct"));
+            t.HasCheckConstraint("CK_CreatureRarityModifiers_RootDurationPct", Percentage("RootDurationPct"));
+            t.HasCheckConstraint("CK_CreatureRarityModifiers_SilenceDurationPct", Percentage("SilenceDurationPct"));
+            t.HasCheckConstraint("CK_CreatureRarityModifiers_SlowDurationPct", Percentage("SlowDurationPct"));
+        });
         builder.HasKey(b => b.Rarity);
 
+        // Crowd-control durations (#770): Normal and Elite take the full duration (the properties' default of 100),
+        // Rare half of each, and a Boss is immune to stun and silence and takes half a root or slow.
         builder.HasData(
             new CreatureRarityModifier { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f, CritPct = 0f, DodgePct = 0f, BlockPct = 0f },
             new CreatureRarityModifier { Rarity = CreatureRarity.Elite, HealthMultiplier = 2.5f, DamageMultiplier = 1.4f, ExperienceMultiplier = 3.0f, CritPct = 5f, DodgePct = 3f, BlockPct = 0f },
-            new CreatureRarityModifier { Rarity = CreatureRarity.Rare, HealthMultiplier = 4.0f, DamageMultiplier = 1.7f, ExperienceMultiplier = 6.0f, CritPct = 8f, DodgePct = 5f, BlockPct = 5f },
-            new CreatureRarityModifier { Rarity = CreatureRarity.Boss, HealthMultiplier = 8.0f, DamageMultiplier = 2.2f, ExperienceMultiplier = 15.0f, CritPct = 10f, DodgePct = 5f, BlockPct = 10f });
+            new CreatureRarityModifier { Rarity = CreatureRarity.Rare, HealthMultiplier = 4.0f, DamageMultiplier = 1.7f, ExperienceMultiplier = 6.0f, CritPct = 8f, DodgePct = 5f, BlockPct = 5f, StunDurationPct = 50f, RootDurationPct = 50f, SilenceDurationPct = 50f, SlowDurationPct = 50f },
+            new CreatureRarityModifier { Rarity = CreatureRarity.Boss, HealthMultiplier = 8.0f, DamageMultiplier = 2.2f, ExperienceMultiplier = 15.0f, CritPct = 10f, DodgePct = 5f, BlockPct = 10f, StunDurationPct = 0f, RootDurationPct = 50f, SilenceDurationPct = 0f, SlowDurationPct = 50f });
     }
 
     private static void Configure(EntityTypeBuilder<CharacterLevelExperience> builder)
@@ -313,7 +324,7 @@ public class WorldDbContext : DbContext
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2, 3],
-            StartingSpells = [200, 201, 202, 203]
+            StartingSpells = [200, 201, 202, 203, 204]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Wizard,
@@ -323,7 +334,7 @@ public class WorldDbContext : DbContext
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = [210, 211, 212, 213]
+            StartingSpells = [210, 211, 212, 213, 214]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Hunter,
@@ -333,7 +344,7 @@ public class WorldDbContext : DbContext
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = [220, 221, 222, 223]
+            StartingSpells = [220, 221, 222, 223, 224]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Healer,
@@ -343,7 +354,7 @@ public class WorldDbContext : DbContext
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = [230, 231, 232, 233, 234]
+            StartingSpells = [230, 231, 232, 233, 234, 235]
         });
     }
 
@@ -951,6 +962,17 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint(
                 "CK_CreatureTemplates_BaseAttackTime",
                 "\"BaseAttackTime\" >= 0.5 AND \"BaseAttackTime\" < 'Infinity'");
+
+            // #770: a crowd-control duration override is null (the rarity's) or a percentage, as
+            // CreatureTemplateRules.Validate refuses anything else.
+            foreach (string column in new[]
+                     {
+                         "StunDurationPct", "RootDurationPct", "SilenceDurationPct", "SlowDurationPct",
+                     })
+            {
+                t.HasCheckConstraint($"CK_CreatureTemplates_{column}",
+                    $"\"{column}\" IS NULL OR ({Percentage(column)})");
+            }
         });
         builder.Property(b => b.Id)
             .HasConversion(
@@ -3022,18 +3044,19 @@ public class WorldDbContext : DbContext
 
         // The starter kit (#164): three skills per class, one generic script per shape. The ids are new,
         // so no client that cached the retired abilities (1, 2, 100-103) confuses them. Numbers are
-        // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres.
+        // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres. Each class's free
+        // 800 ms skill is its basic attack, flagged Basic (#770): the one ability a silence does not stop.
         builder.HasData(
-            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Melee, powerGainPerHit: 8, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f),
+            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Melee, powerGainPerHit: 8, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f, flags: AbilityFlags.Basic),
             Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, value: 25, range: SpellRange.Short, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.5f),
             Kit(202, CharacterClass.Warrior, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 18f, cooldown: 3000, cost: 10, value: 20, range: SpellRange.Medium, scaling: ScalingStat.Attack, coefficient: 0.5f, weapon: 1.0f),
-            Kit(210, CharacterClass.Wizard, "Arcane Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 22f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.25f),
+            Kit(210, CharacterClass.Wizard, "Arcane Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 22f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.25f, flags: AbilityFlags.Basic),
             Kit(211, CharacterClass.Wizard, "Flame Burst", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, castTime: 600, cooldown: 5000, cost: 25, value: 18, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.4f),
             Kit(212, CharacterClass.Wizard, "Frost Fan", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 6f, arc: 60f, cooldown: 4000, cost: 15, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f),
-            Kit(220, CharacterClass.Hunter, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f),
+            Kit(220, CharacterClass.Hunter, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f, flags: AbilityFlags.Basic),
             Kit(221, CharacterClass.Hunter, "Piercing Arrow", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 30f, speed: 24f, pierce: true, cooldown: 4000, cost: 15, value: 25, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.2f),
             Kit(222, CharacterClass.Hunter, "Scatter Shot", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 8f, arc: 45f, cooldown: 4000, cost: 20, value: 22, range: SpellRange.Medium, scaling: ScalingStat.Attack, coefficient: 0.4f, weapon: 0.8f),
-            Kit(230, CharacterClass.Healer, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.3f),
+            Kit(230, CharacterClass.Healer, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.3f, flags: AbilityFlags.Basic),
             Kit(231, CharacterClass.Healer, "Radiant Pulse", AbilityShape.Circle, AbilityAimMode.Movement, radius: 4f, cooldown: 5000, cost: 20, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f),
             Kit(232, CharacterClass.Healer, "Mending Circle", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 8000, cost: 25, value: 40, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, coefficient: 0.6f));
 
@@ -3045,6 +3068,15 @@ public class WorldDbContext : DbContext
             Kit(223, CharacterClass.Hunter, "Crippling Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 8000, cost: 15, value: 14, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.35f, weapon: 0.6f, aura: 3),
             Kit(233, CharacterClass.Healer, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 6000, cost: 15, value: 0, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, effects: SpellEffect.Buff, aura: 4),
             Kit(234, CharacterClass.Healer, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, radius: 8f, cooldown: 20000, cost: 20, value: 0, range: SpellRange.Short, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, effects: SpellEffect.Buff, aura: 5));
+
+        // Crowd control (#770): one ability per class, each a small direct amount plus its aura, as Rend and Crippling
+        // Shot are, so a dodged or missed hit lands no control (an aura lands only on a landed hit). Shapes and reach
+        // follow each class's neighbouring rows; the cooldowns are the design's.
+        builder.HasData(
+            Kit(204, CharacterClass.Warrior, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 15000, cost: 15, value: 6, range: SpellRange.Melee, scaling: ScalingStat.Attack, coefficient: 0.15f, weapon: 0.3f, aura: 12),
+            Kit(214, CharacterClass.Wizard, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 20000, cost: 25, value: 6, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.1f, aura: 14),
+            Kit(224, CharacterClass.Hunter, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 15000, cost: 20, value: 8, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.2f, weapon: 0.3f, aura: 13),
+            Kit(235, CharacterClass.Healer, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 20000, cost: 20, value: 6, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.1f, aura: 15));
 
         // The forest creatures' abilities (#163), creature-only (no class), free, and dealt from each creature's
         // natural damage range through BaseDamageCoefficient. Each creature's AI script declares its own ids and
@@ -3141,13 +3173,14 @@ public class WorldDbContext : DbContext
         float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false, uint castTime = 0,
         AbilityAffects affects = AbilityAffects.Hostile, int powerGainPerHit = 0,
         ScalingStat scaling = ScalingStat.Attack, float coefficient = 0f, float weapon = 0f, SpellEffect? effects = null,
-        uint? aura = null) => new()
+        uint? aura = null, AbilityFlags flags = AbilityFlags.None) => new()
         {
             Id = id,
             Name = name,
             CastTime = castTime,
             Cooldown = cooldown,
             Cost = cost,
+            Flags = flags,
             CostPowerType = cost == 0 ? PowerType.None : ClassPool(cls),
             Range = range,
             Effects = effects ?? (affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage),
@@ -3181,7 +3214,7 @@ public class WorldDbContext : DbContext
     /// Auras: timed effects abilities, items and scripts put on units. Reference data; the world's AuraCatalog validates
     /// it on load and on /reload auras. The checks mirror AuraRules.Problem, so a row the world would refuse never
     /// reaches it. Kind 1 Helpful, 2 Harmful; PeriodicKind 0 None, 1 Damage, 2 Heal; Stacking 1 Refresh, 2 Stack,
-    /// 3 Independent.
+    /// 3 Independent. Control is flags (#770), so 0 (none) is allowed: 1 Stun, 2 Root, 4 Silence, any of them together.
     /// </summary>
     private static void Configure(EntityTypeBuilder<AuraTemplate> builder)
     {
@@ -3202,6 +3235,11 @@ public class WorldDbContext : DbContext
             // A harmful aura never heals and a helpful one never deals damage.
             t.HasCheckConstraint("CK_AuraTemplates_PeriodicFitsKind",
                 "(\"Kind\" = 2 OR \"PeriodicKind\" <> 1) AND (\"Kind\" = 1 OR \"PeriodicKind\" <> 2)");
+            t.HasCheckConstraint("CK_AuraTemplates_Control", "\"Control\" BETWEEN 0 AND 7");
+            // Only a harmful aura stuns, roots or silences.
+            t.HasCheckConstraint("CK_AuraTemplates_ControlIsHarmful", "\"Control\" = 0 OR \"Kind\" = 2");
+            t.HasCheckConstraint("CK_AuraTemplates_BreakOnDamagePct", Percentage("BreakOnDamagePct"));
+            t.HasCheckConstraint("CK_AuraTemplates_BreakPerSecondPct", Percentage("BreakPerSecondPct"));
         });
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id)
@@ -3219,10 +3257,14 @@ public class WorldDbContext : DbContext
         // Every other aura has no base damage term: Bleed already scales with attack damage, the spells (Burn, Renew)
         // with ability damage, and the stat auras have no periodic amount. Auras 8-10 are the forest shrine's outcomes
         // (doodads), applied with no caster: two blessings and a curse, long enough to matter over a few pulls.
+        // Auras 12-15 are the classes' crowd control (#770): a stun, two roots and a silence, each a chance to end early
+        // per hit taken and per second held (the design's break table; a silence never ends early). The two slows,
+        // Crippled and Hexed, take the slow row of that table: never on damage, 0.5 % a second.
         builder.HasData(
             Aura(1, "Bleed", AuraKind.Harmful, 12000, 3000, AuraPeriodicKind.Damage, 12f, ScalingStat.Attack, 0.25f, AuraStacking.Stack, 3),
             Aura(2, "Burn", AuraKind.Harmful, 9000, 3000, AuraPeriodicKind.Damage, 24f, ScalingStat.Ability, 0.6f, AuraStacking.Refresh, 1),
-            Aura(3, "Crippled", AuraKind.Harmful, 6000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
+            Aura(3, "Crippled", AuraKind.Harmful, 6000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1,
+                breakPerSecond: 0.5f),
             Aura(4, "Renew", AuraKind.Helpful, 12000, 3000, AuraPeriodicKind.Heal, 24f, ScalingStat.Ability, 0.4f, AuraStacking.Refresh, 1),
             Aura(5, "Fortified", AuraKind.Helpful, 30000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
             Aura(6, "Poison", AuraKind.Harmful, 9000, 3000, AuraPeriodicKind.Damage, 3f, ScalingStat.Attack, 0f, AuraStacking.Stack, 3,
@@ -3230,18 +3272,29 @@ public class WorldDbContext : DbContext
             Aura(7, "Sundered", AuraKind.Harmful, 10000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
             Aura(8, "Blessed", AuraKind.Helpful, 120000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
             Aura(9, "Emboldened", AuraKind.Helpful, 120000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
-            Aura(10, "Hexed", AuraKind.Harmful, 60000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
+            Aura(10, "Hexed", AuraKind.Harmful, 60000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1,
+                breakPerSecond: 0.5f),
             Aura(ArrivalProtectionAura.Id, "Arrival Protection", AuraKind.Helpful, 60000, 0, AuraPeriodicKind.None, 0f,
-                ScalingStat.Attack, 0f, AuraStacking.Refresh, 1));
+                ScalingStat.Attack, 0f, AuraStacking.Refresh, 1),
+            Aura(12, "Stunned", AuraKind.Harmful, 1500, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1,
+                control: CrowdControl.Stun, breakOnDamage: 10f, breakPerSecond: 0.5f),
+            Aura(13, "Bound", AuraKind.Harmful, 3000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1,
+                control: CrowdControl.Root, breakOnDamage: 25f, breakPerSecond: 0.5f),
+            Aura(14, "Frozen", AuraKind.Harmful, 2500, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1,
+                control: CrowdControl.Root, breakOnDamage: 25f, breakPerSecond: 0.5f),
+            Aura(15, "Silenced", AuraKind.Harmful, 3000, 0, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, AuraStacking.Refresh, 1,
+                control: CrowdControl.Silence));
     }
 
     /// <summary>
     /// An aura row; its icon is its name in lower case, and no seeded aura names a script. <paramref name="baseDamage" />
     /// is its base damage coefficient, 0 unless the aura should grow with its caster's base damage.
+    /// <paramref name="breakOnDamage" /> and <paramref name="breakPerSecond" /> are percentages (#770).
     /// </summary>
     private static AuraTemplate Aura(uint id, string name, AuraKind kind, uint durationMs, uint tickIntervalMs,
         AuraPeriodicKind periodic, float periodicBase, ScalingStat stat, float coefficient, AuraStacking stacking,
-        uint maxStacks, float baseDamage = 0f) => new()
+        uint maxStacks, float baseDamage = 0f, CrowdControl control = CrowdControl.None, float breakOnDamage = 0f,
+        float breakPerSecond = 0f) => new()
         {
             Id = id,
             Name = name,
@@ -3256,6 +3309,9 @@ public class WorldDbContext : DbContext
             BaseDamageCoefficient = baseDamage,
             Stacking = stacking,
             MaxStacks = maxStacks,
+            Control = control,
+            BreakOnDamagePct = breakOnDamage,
+            BreakPerSecondPct = breakPerSecond,
         };
 
     /// <summary>

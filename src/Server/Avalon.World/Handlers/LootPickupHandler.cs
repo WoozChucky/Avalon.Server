@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Loot;
 using Avalon.Network.Packets.Serialization;
+using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
@@ -35,6 +36,13 @@ public class LootPickupHandler(
         if (connection.Character is not CharacterEntity character || character.IsDead)
         {
             logger.LogDebug("Dropped CMSG_LOOT_PICKUP from a dead or missing character");
+            return;
+        }
+
+        // 2. Free to act (#770): a stunned character picks nothing up, and hears so.
+        if (!ControlGates.CanAct(character))
+        {
+            connection.Send(SLootPickupResultPacket.Create(packet.LootGuid, LootPickupResult.Stunned, PacketEncoder.Shared));
             return;
         }
 

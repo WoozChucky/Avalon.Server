@@ -20,7 +20,8 @@ public interface IItemUseHost : IMapInstance, IAuraHost
 
     /// <summary>
     /// An ability an item's script casts (item use), through the cast system like any cast: queued when it has a cast
-    /// time, instant otherwise; <paramref name="free" /> skips the cost only.
+    /// time, instant otherwise; <paramref name="free" /> skips the cost only. A queued one is marked as an item's
+    /// (<c>AbilityInstance.ForItem</c>), so a silence spares it (#770).
     /// </summary>
     bool CastForItem(IUnit caster, AbilityAim aim, IAbility ability, bool free);
 

@@ -99,6 +99,9 @@ public class AuraTemplateController(
         BaseDamageCoefficient = t.BaseDamageCoefficient,
         Stacking = (AuraStacking)t.Stacking,
         MaxStacks = t.MaxStacks,
+        Control = (CrowdControl)t.Control,
+        BreakOnDamagePct = t.BreakOnDamagePct,
+        BreakPerSecondPct = t.BreakPerSecondPct,
         ScriptName = t.ScriptName,
         Modifiers = t.Modifiers.OrderBy(m => m.Stat)
             .Select(m => new AuraStatModifierDto { Stat = (AuraStat)m.Stat, Value = m.Value, Kind = (AuraModifierKind)m.Kind })

@@ -152,7 +152,7 @@ namespace Avalon.Database.World.Migrations
                             CostPowerType = 0,
                             EffectValue = 12L,
                             Effects = 1,
-                            Flags = 0L,
+                            Flags = 4L,
                             HealThreatPerHp = 0f,
                             Name = "Cleave",
                             Pierce = false,
@@ -248,7 +248,7 @@ namespace Avalon.Database.World.Migrations
                             CostPowerType = 0,
                             EffectValue = 12L,
                             Effects = 1,
-                            Flags = 0L,
+                            Flags = 4L,
                             HealThreatPerHp = 0f,
                             Name = "Arcane Bolt",
                             Pierce = false,
@@ -344,7 +344,7 @@ namespace Avalon.Database.World.Migrations
                             CostPowerType = 0,
                             EffectValue = 12L,
                             Effects = 1,
-                            Flags = 0L,
+                            Flags = 4L,
                             HealThreatPerHp = 0f,
                             Name = "Quick Shot",
                             Pierce = false,
@@ -440,7 +440,7 @@ namespace Avalon.Database.World.Migrations
                             CostPowerType = 0,
                             EffectValue = 12L,
                             Effects = 1,
-                            Flags = 0L,
+                            Flags = 4L,
                             HealThreatPerHp = 0f,
                             Name = "Smite",
                             Pierce = false,
@@ -682,6 +682,138 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)1,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 204L,
+                            Affects = (byte)0,
+                            AimMode = (byte)0,
+                            AllowedClasses = new byte[] { 1 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 90f,
+                            AuraId = 12L,
+                            BaseDamageCoefficient = 0.3f,
+                            CastTime = 0L,
+                            Cooldown = 15000L,
+                            Cost = 15L,
+                            CostPowerType = 2,
+                            EffectValue = 6L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Shield Bash",
+                            Pierce = false,
+                            PowerGainPerHit = 0,
+                            ProjectileSpeed = 0f,
+                            Radius = 0f,
+                            Range = 2,
+                            Reach = 2.5f,
+                            ScalingCoefficient = 0.15f,
+                            ScalingStat = (byte)0,
+                            ScriptName = "ConeAbilityScript",
+                            Shape = (byte)1,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 214L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new byte[] { 2 },
+                            Anchor = (byte)1,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            AuraId = 14L,
+                            BaseDamageCoefficient = 0f,
+                            CastTime = 0L,
+                            Cooldown = 20000L,
+                            Cost = 25L,
+                            CostPowerType = 1,
+                            EffectValue = 6L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Frost Bind",
+                            Pierce = false,
+                            PowerGainPerHit = 0,
+                            ProjectileSpeed = 0f,
+                            Radius = 3f,
+                            Range = 20,
+                            Reach = 18f,
+                            ScalingCoefficient = 0.1f,
+                            ScalingStat = (byte)1,
+                            ScriptName = "CircleAbilityScript",
+                            Shape = (byte)0,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 224L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new byte[] { 3 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            AuraId = 13L,
+                            BaseDamageCoefficient = 0.3f,
+                            CastTime = 0L,
+                            Cooldown = 15000L,
+                            Cost = 20L,
+                            CostPowerType = 3,
+                            EffectValue = 8L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Binding Shot",
+                            Pierce = false,
+                            PowerGainPerHit = 0,
+                            ProjectileSpeed = 28f,
+                            Radius = 0f,
+                            Range = 20,
+                            Reach = 25f,
+                            ScalingCoefficient = 0.2f,
+                            ScalingStat = (byte)0,
+                            ScriptName = "ProjectileAbilityScript",
+                            Shape = (byte)2,
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 235L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new byte[] { 4 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            AuraId = 15L,
+                            BaseDamageCoefficient = 0f,
+                            CastTime = 0L,
+                            Cooldown = 20000L,
+                            Cost = 20L,
+                            CostPowerType = 1,
+                            EffectValue = 6L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Hush",
+                            Pierce = false,
+                            PowerGainPerHit = 0,
+                            ProjectileSpeed = 20f,
+                            Radius = 0f,
+                            Range = 20,
+                            Reach = 18f,
+                            ScalingCoefficient = 0.1f,
+                            ScalingStat = (byte)1,
+                            ScriptName = "ProjectileAbilityScript",
+                            Shape = (byte)2,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
@@ -1389,6 +1521,15 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("BaseDamageCoefficient")
                         .HasColumnType("real");
 
+                    b.Property<float>("BreakOnDamagePct")
+                        .HasColumnType("real");
+
+                    b.Property<float>("BreakPerSecondPct")
+                        .HasColumnType("real");
+
+                    b.Property<byte>("Control")
+                        .HasColumnType("smallint");
+
                     b.Property<long>("DurationMs")
                         .HasColumnType("bigint");
 
@@ -1436,6 +1577,14 @@ namespace Avalon.Database.World.Migrations
                         {
                             t.HasCheckConstraint("CK_AuraTemplates_BaseDamageCoefficient", "\"BaseDamageCoefficient\" >= 0 AND \"BaseDamageCoefficient\" < 'Infinity'");
 
+                            t.HasCheckConstraint("CK_AuraTemplates_BreakOnDamagePct", "\"BreakOnDamagePct\" >= 0 AND \"BreakOnDamagePct\" <= 100");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_BreakPerSecondPct", "\"BreakPerSecondPct\" >= 0 AND \"BreakPerSecondPct\" <= 100");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_Control", "\"Control\" BETWEEN 0 AND 7");
+
+                            t.HasCheckConstraint("CK_AuraTemplates_ControlIsHarmful", "\"Control\" = 0 OR \"Kind\" = 2");
+
                             t.HasCheckConstraint("CK_AuraTemplates_DurationMs", "\"DurationMs\" > 0");
 
                             t.HasCheckConstraint("CK_AuraTemplates_Kind", "\"Kind\" IN (1, 2)");
@@ -1462,6 +1611,9 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 1L,
                             BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
                             DurationMs = 12000L,
                             Icon = "bleed",
                             Kind = (byte)2,
@@ -1478,6 +1630,9 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 2L,
                             BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
                             DurationMs = 9000L,
                             Icon = "burn",
                             Kind = (byte)2,
@@ -1494,6 +1649,9 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 3L,
                             BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0.5f,
+                            Control = (byte)0,
                             DurationMs = 6000L,
                             Icon = "crippled",
                             Kind = (byte)2,
@@ -1510,6 +1668,9 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 4L,
                             BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
                             DurationMs = 12000L,
                             Icon = "renew",
                             Kind = (byte)1,
@@ -1526,6 +1687,9 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 5L,
                             BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
                             DurationMs = 30000L,
                             Icon = "fortified",
                             Kind = (byte)1,
@@ -1542,6 +1706,9 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 6L,
                             BaseDamageCoefficient = 1f,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
                             DurationMs = 9000L,
                             Icon = "poison",
                             Kind = (byte)2,
@@ -1558,6 +1725,9 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 7L,
                             BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
                             DurationMs = 10000L,
                             Icon = "sundered",
                             Kind = (byte)2,
@@ -1574,6 +1744,9 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 8L,
                             BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
                             DurationMs = 120000L,
                             Icon = "blessed",
                             Kind = (byte)1,
@@ -1590,6 +1763,9 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 9L,
                             BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
                             DurationMs = 120000L,
                             Icon = "emboldened",
                             Kind = (byte)1,
@@ -1606,6 +1782,9 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 10L,
                             BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0.5f,
+                            Control = (byte)0,
                             DurationMs = 60000L,
                             Icon = "hexed",
                             Kind = (byte)2,
@@ -1622,11 +1801,90 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 11L,
                             BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)0,
                             DurationMs = 60000L,
                             Icon = "arrival protection",
                             Kind = (byte)1,
                             MaxStacks = 1L,
                             Name = "Arrival Protection",
+                            PeriodicBase = 0f,
+                            PeriodicKind = (byte)0,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 12L,
+                            BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 10f,
+                            BreakPerSecondPct = 0.5f,
+                            Control = (byte)1,
+                            DurationMs = 1500L,
+                            Icon = "stunned",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Stunned",
+                            PeriodicBase = 0f,
+                            PeriodicKind = (byte)0,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 13L,
+                            BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 25f,
+                            BreakPerSecondPct = 0.5f,
+                            Control = (byte)2,
+                            DurationMs = 3000L,
+                            Icon = "bound",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Bound",
+                            PeriodicBase = 0f,
+                            PeriodicKind = (byte)0,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 14L,
+                            BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 25f,
+                            BreakPerSecondPct = 0.5f,
+                            Control = (byte)2,
+                            DurationMs = 2500L,
+                            Icon = "frozen",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Frozen",
+                            PeriodicBase = 0f,
+                            PeriodicKind = (byte)0,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 15L,
+                            BaseDamageCoefficient = 0f,
+                            BreakOnDamagePct = 0f,
+                            BreakPerSecondPct = 0f,
+                            Control = (byte)4,
+                            DurationMs = 3000L,
+                            Icon = "silenced",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Silenced",
                             PeriodicBase = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
@@ -1710,7 +1968,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2,3",
-                            StartingSpells = "200,201,202,203",
+                            StartingSpells = "200,201,202,203,204",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -1721,7 +1979,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
-                            StartingSpells = "210,211,212,213",
+                            StartingSpells = "210,211,212,213,214",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -1732,7 +1990,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
-                            StartingSpells = "220,221,222,223",
+                            StartingSpells = "220,221,222,223,224",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -1743,7 +2001,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
-                            StartingSpells = "230,231,232,233,234",
+                            StartingSpells = "230,231,232,233,234,235",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -3095,9 +3353,30 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("HealthMultiplier")
                         .HasColumnType("real");
 
+                    b.Property<float>("RootDurationPct")
+                        .HasColumnType("real");
+
+                    b.Property<float>("SilenceDurationPct")
+                        .HasColumnType("real");
+
+                    b.Property<float>("SlowDurationPct")
+                        .HasColumnType("real");
+
+                    b.Property<float>("StunDurationPct")
+                        .HasColumnType("real");
+
                     b.HasKey("Rarity");
 
-                    b.ToTable("CreatureRarityModifiers");
+                    b.ToTable("CreatureRarityModifiers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CreatureRarityModifiers_RootDurationPct", "\"RootDurationPct\" >= 0 AND \"RootDurationPct\" <= 100");
+
+                            t.HasCheckConstraint("CK_CreatureRarityModifiers_SilenceDurationPct", "\"SilenceDurationPct\" >= 0 AND \"SilenceDurationPct\" <= 100");
+
+                            t.HasCheckConstraint("CK_CreatureRarityModifiers_SlowDurationPct", "\"SlowDurationPct\" >= 0 AND \"SlowDurationPct\" <= 100");
+
+                            t.HasCheckConstraint("CK_CreatureRarityModifiers_StunDurationPct", "\"StunDurationPct\" >= 0 AND \"StunDurationPct\" <= 100");
+                        });
 
                     b.HasData(
                         new
@@ -3108,7 +3387,11 @@ namespace Avalon.Database.World.Migrations
                             DamageMultiplier = 1f,
                             DodgePct = 0f,
                             ExperienceMultiplier = 1f,
-                            HealthMultiplier = 1f
+                            HealthMultiplier = 1f,
+                            RootDurationPct = 100f,
+                            SilenceDurationPct = 100f,
+                            SlowDurationPct = 100f,
+                            StunDurationPct = 100f
                         },
                         new
                         {
@@ -3118,7 +3401,11 @@ namespace Avalon.Database.World.Migrations
                             DamageMultiplier = 1.4f,
                             DodgePct = 3f,
                             ExperienceMultiplier = 3f,
-                            HealthMultiplier = 2.5f
+                            HealthMultiplier = 2.5f,
+                            RootDurationPct = 100f,
+                            SilenceDurationPct = 100f,
+                            SlowDurationPct = 100f,
+                            StunDurationPct = 100f
                         },
                         new
                         {
@@ -3128,7 +3415,11 @@ namespace Avalon.Database.World.Migrations
                             DamageMultiplier = 1.7f,
                             DodgePct = 5f,
                             ExperienceMultiplier = 6f,
-                            HealthMultiplier = 4f
+                            HealthMultiplier = 4f,
+                            RootDurationPct = 50f,
+                            SilenceDurationPct = 50f,
+                            SlowDurationPct = 50f,
+                            StunDurationPct = 50f
                         },
                         new
                         {
@@ -3138,7 +3429,11 @@ namespace Avalon.Database.World.Migrations
                             DamageMultiplier = 2.2f,
                             DodgePct = 5f,
                             ExperienceMultiplier = 15f,
-                            HealthMultiplier = 8f
+                            HealthMultiplier = 8f,
+                            RootDurationPct = 50f,
+                            SilenceDurationPct = 0f,
+                            SlowDurationPct = 50f,
+                            StunDurationPct = 0f
                         });
                 });
 
@@ -3228,9 +3523,18 @@ namespace Avalon.Database.World.Migrations
                     b.Property<short>("RegenHealth")
                         .HasColumnType("smallint");
 
+                    b.Property<float?>("RootDurationPct")
+                        .HasColumnType("real");
+
                     b.Property<string>("ScriptName")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<float?>("SilenceDurationPct")
+                        .HasColumnType("real");
+
+                    b.Property<float?>("SlowDurationPct")
+                        .HasColumnType("real");
 
                     b.Property<float>("SpeedRun")
                         .HasColumnType("real");
@@ -3239,6 +3543,9 @@ namespace Avalon.Database.World.Migrations
                         .HasColumnType("real");
 
                     b.Property<float>("SpeedWalk")
+                        .HasColumnType("real");
+
+                    b.Property<float?>("StunDurationPct")
                         .HasColumnType("real");
 
                     b.Property<string>("SubName")
@@ -3257,6 +3564,14 @@ namespace Avalon.Database.World.Migrations
                             t.HasCheckConstraint("CK_CreatureTemplates_BaseAttackTime", "\"BaseAttackTime\" >= 0.5 AND \"BaseAttackTime\" < 'Infinity'");
 
                             t.HasCheckConstraint("CK_CreatureTemplates_BodyRadius_Positive", "\"BodyRadius\" > 0 AND \"BodyRadius\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CreatureTemplates_RootDurationPct", "\"RootDurationPct\" IS NULL OR (\"RootDurationPct\" >= 0 AND \"RootDurationPct\" <= 100)");
+
+                            t.HasCheckConstraint("CK_CreatureTemplates_SilenceDurationPct", "\"SilenceDurationPct\" IS NULL OR (\"SilenceDurationPct\" >= 0 AND \"SilenceDurationPct\" <= 100)");
+
+                            t.HasCheckConstraint("CK_CreatureTemplates_SlowDurationPct", "\"SlowDurationPct\" IS NULL OR (\"SlowDurationPct\" >= 0 AND \"SlowDurationPct\" <= 100)");
+
+                            t.HasCheckConstraint("CK_CreatureTemplates_StunDurationPct", "\"StunDurationPct\" IS NULL OR (\"StunDurationPct\" >= 0 AND \"StunDurationPct\" <= 100)");
                         });
 
                     b.HasData(

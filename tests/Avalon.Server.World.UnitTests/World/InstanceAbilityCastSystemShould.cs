@@ -1,5 +1,7 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Auras;
@@ -7,6 +9,7 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Scripts;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
+using Avalon.World.Creatures;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
@@ -76,7 +79,7 @@ public class InstanceAbilityCastSystemShould
 
     /// <summary>An ability whose cost, if any, is spent from <paramref name="pool" /> (#652): Mana, the default caster's.</summary>
     private static GameAbility Ability(uint cost = 0, float castTime = 0f, string script = "Recording",
-        PowerType pool = PowerType.Mana) => new()
+        PowerType pool = PowerType.Mana, AbilityFlags flags = AbilityFlags.None) => new()
         {
             AbilityId = new AbilityId(1),
             Metadata = new AbilityMetadata
@@ -87,6 +90,7 @@ public class InstanceAbilityCastSystemShould
                 CostPowerType = cost > 0 ? pool : PowerType.None,
                 CastTime = castTime,
                 Cooldown = 2f,
+                Flags = flags,
             },
             CastTimeTimer = castTime,
             CooldownTimer = 0f,
@@ -110,6 +114,69 @@ public class InstanceAbilityCastSystemShould
         character.CurrentPower = power;
         character.GodMode = true;
         return character;
+    }
+
+    /// <summary>
+    /// The cast system refuses a stunned or silenced caster itself (#770), whichever path the cast came by, so nothing
+    /// bypasses the handlers' gates: a stun refuses every cast, an item's included; a silence every one but a basic
+    /// attack (a class basic by its row's flag, a creature's own basic) and a cast an item started (an item use), on
+    /// either path. A root refuses none. A refused cast spends nothing and starts nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("spell", CrowdControl.Stun, false, false)]
+    [InlineData("basic", CrowdControl.Stun, true, false)]
+    [InlineData("item", CrowdControl.Stun, true, false)]
+    [InlineData("spell", CrowdControl.Silence, false, false)]
+    [InlineData("spell", CrowdControl.Silence, true, false)]
+    [InlineData("basic", CrowdControl.Silence, true, true)]
+    [InlineData("item", CrowdControl.Silence, false, true)]
+    [InlineData("item", CrowdControl.Silence, true, true)]
+    [InlineData("creature basic", CrowdControl.Silence, false, true)]
+    [InlineData("creature special", CrowdControl.Silence, false, false)]
+    [InlineData("spell", CrowdControl.Root, true, true)]
+    public void Refuse_a_controlled_caster_unless_its_cast_is_spared(string cast, CrowdControl control, bool queued,
+        bool taken)
+    {
+        IUnit caster;
+        IAbility ability;
+        if (cast.StartsWith("creature", StringComparison.Ordinal))
+        {
+            _scripts.GetAbilityScript(Arg.Any<string>()).Returns(typeof(RecordingAbilityScript));
+            AbilityTemplate basic = AbilityTestData.Cone(770_001);
+            AbilityTemplate special = AbilityTestData.Cone(770_002);
+            basic.AllowedClasses = special.AllowedClasses = [];
+            var boar = new Creature
+            {
+                Guid = new ObjectGuid(ObjectType.Creature, 770_901),
+                Metadata = Loot.LootTestData.BoarTemplate(null),
+                Name = "Boar",
+                Health = 100,
+                CurrentHealth = 100,
+            };
+            boar.Abilities.Load(Creatures.CreatureAbilitiesShould.Catalog(basic, special),
+                new CreatureAbilityKit(basic.Id, special.Id), NullLogger.Instance, boar.Name);
+            boar.Auras.Add(AuraTestData.HeldControl(control), DateTimeOffset.UnixEpoch);
+            caster = boar;
+            ability = boar.Abilities[cast == "creature basic" ? basic.Id : special.Id]!;
+        }
+        else
+        {
+            CharacterEntity character = GodCaster();
+            character.GodMode = false;
+            character.Auras.Add(AuraTestData.HeldControl(control), DateTimeOffset.UnixEpoch);
+            caster = character;
+            AbilityFlags flags = cast == "basic" ? AbilityFlags.Basic : AbilityFlags.None;
+            ability = Ability(castTime: queued ? 1f : 0f, flags: flags);
+        }
+
+        bool item = cast == "item";
+        bool accepted = queued
+            ? _sut.QueueAbility(caster, s_aim, ability, free: item, forItem: item)
+            : _sut.RunInstant(caster, s_aim, ability, free: item, forItem: item);
+
+        Assert.Equal(taken, accepted);
+        Assert.Equal(taken && queued, ability.Casting);
+        Assert.Equal(taken && !queued ? 1 : 0, RecordingAbilityScript.Prepared.Count);
     }
 
     [Theory]

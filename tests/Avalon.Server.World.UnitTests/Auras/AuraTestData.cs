@@ -1,5 +1,8 @@
+using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.World.Auras;
 using Avalon.World.Public.Abilities;
 
 namespace Avalon.Server.World.UnitTests.Auras;
@@ -104,6 +107,28 @@ internal static class AuraTestData
         Stacking = AuraStacking.Independent,
         MaxStacks = 1,
     };
+
+    /// <summary>
+    /// A held aura granting <paramref name="control" /> (#770), to place straight on a unit's auras: nothing ends it,
+    /// since only the aura system expires auras.
+    /// </summary>
+    public static ActiveAura HeldControl(CrowdControl control)
+    {
+        var template = new AuraTemplate
+        {
+            Id = new AuraId(907),
+            Name = "Controlled",
+            Icon = "controlled",
+            Kind = AuraKind.Harmful,
+            DurationMs = 60_000,
+            Stacking = AuraStacking.Refresh,
+            MaxStacks = 1,
+            Control = control,
+        };
+        return new ActiveAura(template, new ObjectGuid(ObjectType.Character, 907), AuraSource.None, 1,
+            new AuraSnapshot(0f, 0f, 1), AuraSchedule.Start(DateTimeOffset.UnixEpoch, template.DurationMs, 0),
+            template.DurationMs, DateTime.UnixEpoch);
+    }
 
     /// <summary><paramref name="template" /> with <paramref name="script" /> named as its ScriptName.</summary>
     public static AuraTemplate Scripted(AuraTemplate template, string script)

@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Character;
+using Avalon.World.Auras;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -25,11 +26,16 @@ public static class BankAccess
     /// For a request that touches the Bank, checked on every such request: the bank is open, and
     /// its NPC is still in the character's instance, alive, still a banker, and inside the dialogue
     /// leash. When the bank is open but any of the rest fails, the conversation is ended, as
-    /// NpcInteraction.IsWithinLeash requires of every handler acting on an open conversation.
+    /// NpcInteraction.IsWithinLeash requires of every handler acting on an open conversation. A stunned
+    /// character (#770) is refused without ending it.
     /// </summary>
     public static bool TryUse(IWorldConnection connection, CharacterEntity character, IWorld world)
     {
         if (!IsOpen(connection, character))
+            return false;
+
+        // #770: a stunned character uses no bank, and the conversation stays open; its handler answers Stunned first.
+        if (!ControlGates.CanAct(character))
             return false;
 
         ObjectGuid banker = character.OpenBankNpc!;

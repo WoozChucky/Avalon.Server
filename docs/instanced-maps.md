@@ -330,6 +330,7 @@ public enum MapTransitionResult : byte
     NotPartyLeader   = 11,  // #1104: NewParty from a member who does not lead the party
     NotInParty       = 12,  // #1104: NewParty from a character in no party
     NotInstanced     = 13,  // #1104: a choice other than Default for a town
+    Stunned          = 14,  // #770: the character is stunned (crowd control)
 }
 
 public class SMapTransitionPacket : Packet
@@ -411,6 +412,7 @@ where characters stand (`not_near_portal`).
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]
 
 1.  Guards: not connection.InGame → ignored, no reply; a dead character → ignored, no reply
+    A stunned character (#770) → send Stunned, return
     Another move under way (connection.RespawnInFlight: a scroll return, an item teleport,
        a respawn, a party return, or an earlier portal entry that has not ended) → send
        MoveInProgress, return, before anything is looked up
@@ -451,7 +453,8 @@ Steps 2 to 6 are PortalChecks.Check, which the portal's menu (CMSG_INSTANCE_LIST
                     the party and seat checks on arrival
        The arrival continuation first checks the character is still the connection's (a select
        on another connection can take it meanwhile: nothing is done, no reply), then that it is
-       still alive (one that died meanwhile is not moved: no reply), then that the
+       still alive (one that died meanwhile is not moved: no reply), then that it is not
+       stunned (#770: one stunned meanwhile → send Stunned, return), then that the
        instance is still registered; for a Default entry one released meanwhile is resolved
        again once (see Expiry Cleanup), and a second release in a row → send MapNotFound,
        return; a chosen instance released meanwhile → send InstanceUnavailable, return, never

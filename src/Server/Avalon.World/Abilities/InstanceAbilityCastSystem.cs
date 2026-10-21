@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Domain.World;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Auras;
@@ -29,9 +30,11 @@ public interface IAbilityCastSystem
     /// The script is built now, with this aim and the caster's position now as its origin, and fired once the
     /// cast time has run out. Any unit may cast (#163); a creature's casts cost nothing.
     /// A <paramref name="free" /> cast (an item's, item use) neither checks nor pays the cost. A cast taken ends its
-    /// caster's arrival protection (#1088); a refused one does not.
+    /// caster's arrival protection (#1088); a refused one does not. One <paramref name="forItem" /> was started by an
+    /// item (item use) and is marked so (<see cref="AbilityInstance.ForItem" />): a silence spares it (#770). False too
+    /// for a stunned caster, and a silenced one unless the cast is its basic attack or an item's (#770).
     /// </summary>
-    bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false);
+    bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, bool forItem = false);
 
     /// <summary>
     /// Instant-cast counterpart to <see cref="QueueAbility" />: builds the script, pays the cost, starts
@@ -41,9 +44,11 @@ public interface IAbilityCastSystem
     /// A <paramref name="free" /> cast (an item's, item use) neither checks nor pays the cost. A cast taken ends its
     /// caster's arrival protection before it fires (#1088).
     /// <paramref name="view" /> is how far its hits are rewound (#1082): a player's cast through the instance's
-    /// <c>IPlayerCastHost</c>; the default, none, for every other.
+    /// <c>IPlayerCastHost</c>; the default, none, for every other. Refused under crowd control as a queued cast is, a
+    /// <paramref name="forItem" /> cast (an item's, item use) spared by a silence (#770).
     /// </summary>
-    bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, CastView view = default);
+    bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, CastView view = default,
+        bool forItem = false);
 
     /// <summary>
     /// One tick: the dodge wait's hits that are due land, or are dodged (#1082), then the queued casts run down, fire or
@@ -66,6 +71,17 @@ public interface IAbilityCastSystem
     /// or its target is dropped too (#1082): a caster who is gone credits nothing here, a target who is gone takes nothing.
     /// </summary>
     void CancelCasts(IUnit caster);
+
+    /// <summary>
+    /// Ends the running cast bar of <paramref name="caster" /> (#770: a stun, or a silence, landed on it): each of its
+    /// queued casts still winding up resets and clears <c>Casting</c>, and its interrupt is sent; nothing fires, nothing
+    /// is refunded and no cooldown starts. With <paramref name="spareBasic" /> (a silence) its basic attack's cast goes
+    /// on, and so does a cast an item started (an item use). Unlike <see cref="CancelCasts" />, a hit it already fired
+    /// and held for the dodge wait still lands, and its running scripts (a projectile in flight) go on. Safe from inside
+    /// a cast firing this tick (a stun dealt by one): a cast that already fired is left alone, and the ones it ends leave
+    /// the queue once the tick's walk is over.
+    /// </summary>
+    void Interrupt(IUnit caster, bool spareBasic);
 
     /// <summary>
     /// Drops every active script <paramref name="caster" /> cast, a projectile in flight included, so
@@ -105,6 +121,12 @@ public class InstanceAbilityCastSystem(
     private readonly HashSet<AbilityInstance> _abilityQueue = [];
     private readonly List<AbilityInstance> _dequeued = [];
     private readonly List<AbilityInstance> _cancelled = [];
+
+    // The casts Interrupt ended (#770), kept between calls. While the queue is being advanced (a stun dealt by a cast that
+    // fires in that walk) they cannot leave it: AdvanceQueue takes them out after its walk and sends their interrupts
+    // with its own.
+    private readonly List<AbilityInstance> _controlled = [];
+    private bool _advancing;
     private readonly AbilityScriptActivator _scriptActivator = new();
     private readonly PendingHits _pendingHits = new(factory.CreateLogger<PendingHits>());
 
@@ -119,8 +141,11 @@ public class InstanceAbilityCastSystem(
     /// </summary>
     internal PendingHits PendingHits => _pendingHits;
 
-    public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false)
+    public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, bool forItem = false)
     {
+        if (RefusedForControl(caster, ability, forItem))
+            return false;
+
         bool pays = !free && !IsFree(caster);
         if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
         {
@@ -153,6 +178,7 @@ public class InstanceAbilityCastSystem(
             HastePct = haste,
             CastId = castId,
             Footprint = footprint,
+            ForItem = forItem,
         });
 
         // #521 item 1: Casting is set, and the cost paid, only once the queue has taken the cast.
@@ -171,8 +197,12 @@ public class InstanceAbilityCastSystem(
         return true;
     }
 
-    public bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, CastView view = default)
+    public bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, CastView view = default,
+        bool forItem = false)
     {
+        if (RefusedForControl(caster, ability, forItem))
+            return false;
+
         bool pays = !free && !IsFree(caster);
         if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
         {
@@ -227,9 +257,42 @@ public class InstanceAbilityCastSystem(
         _dequeued.Clear();
         _interrupts.Clear();
 
+        _advancing = true;
+        try
+        {
+            AdvanceEach(deltaTime);
+        }
+        finally
+        {
+            _advancing = false;
+        }
+
+        foreach (AbilityInstance cast in _dequeued)
+        {
+            _abilityQueue.Remove(cast);
+        }
+
+        // The casts a stun or a silence dealt in the walk ended (#770); their interrupts are already in _interrupts.
+        foreach (AbilityInstance cast in _controlled)
+        {
+            _abilityQueue.Remove(cast);
+        }
+
+        _controlled.Clear();
+    }
+
+    private void AdvanceEach(TimeSpan deltaTime)
+    {
         foreach (AbilityInstance cast in _abilityQueue)
         {
             IAbility ability = cast.Ability;
+
+            // Ended earlier in this walk by a stun or a silence a cast that fired dealt (#770): it waits to leave.
+            if (cast.Ended)
+            {
+                continue;
+            }
+
             ability.CastTimeTimer -= (float)deltaTime.TotalSeconds;
 
             // #163: a creature that died during its wind-up, or turned for home (the leash, a lost target),
@@ -283,11 +346,6 @@ public class InstanceAbilityCastSystem(
                 ? footprint
                 : null;
             Fire(cast.Caster, ability, cast.Script, cast.HastePct, cast.CastId, default, dodge);
-        }
-
-        foreach (AbilityInstance cast in _dequeued)
-        {
-            _abilityQueue.Remove(cast);
         }
     }
 
@@ -415,6 +473,57 @@ public class InstanceAbilityCastSystem(
         }
     }
 
+    public void Interrupt(IUnit caster, bool spareBasic)
+    {
+        // Collected first: nothing is removed from the queue while it is enumerated, and this may run inside
+        // AdvanceQueue's own walk of it. A cast with Casting clear already fired this tick; one Ended was ended earlier in
+        // it. A silence spares the basic attack and an item's cast (an item use).
+        int first = _controlled.Count;
+        foreach (AbilityInstance cast in _abilityQueue)
+        {
+            if (!ReferenceEquals(cast.Caster, caster) || cast.Ended || !cast.Ability.Casting
+                || spareBasic && (cast.ForItem || ControlGates.IsBasic(caster, cast.Ability)))
+            {
+                continue;
+            }
+
+            ResetCast(cast.Ability);
+            cast.Ended = true;
+            _controlled.Add(cast);
+            CombatLog.CastInterruptedByControl(_logger, cast.Ability.AbilityId, caster.Guid);
+        }
+
+        if (_advancing)
+        {
+            for (int i = first; i < _controlled.Count; i++)
+            {
+                AbilityInstance cast = _controlled[i];
+                _interrupts.Add((cast.Caster, cast.Ability, cast.CastId));
+            }
+
+            return;
+        }
+
+        try
+        {
+            for (int i = first; i < _controlled.Count; i++)
+            {
+                _abilityQueue.Remove(_controlled[i]);
+            }
+
+            // Sent once every cast is already out of the queue, each contained, so a failing send cannot leave one stuck.
+            for (int i = first; i < _controlled.Count; i++)
+            {
+                AbilityInstance cast = _controlled[i];
+                TryInterrupt(cast.Caster, cast.Ability, cast.CastId);
+            }
+        }
+        finally
+        {
+            _controlled.RemoveRange(first, _controlled.Count - first);
+        }
+    }
+
     public void CancelScriptsOf(IUnit caster)
     {
         int dropped = _activeAbilities.RemoveCastBy(caster);
@@ -509,6 +618,25 @@ public class InstanceAbilityCastSystem(
 
     /// <summary>Creatures and staff characters in god mode do not pay ability costs.</summary>
     private static bool IsFree(IUnit caster) => caster is ICreature or CharacterEntity { GodMode: true };
+
+    /// <summary>
+    /// #770, the choke point every cast passes, whoever sends it: a stunned caster casts nothing, an item's cast included;
+    /// a silenced one only its basic attack (<see cref="ControlGates.IsBasic" />) or a cast an item started
+    /// (<paramref name="forItem" />, an item use). The handlers and creature AI refuse these first; a cast refused here
+    /// spends and starts nothing. One cached field read for a caster under no crowd control.
+    /// </summary>
+    private bool RefusedForControl(IUnit caster, IAbility ability, bool forItem)
+    {
+        CrowdControl control = ControlGates.Of(caster);
+        if (control == CrowdControl.None)
+            return false;
+
+        if (ControlGates.CanCast(caster, forItem || ControlGates.IsBasic(caster, ability)))
+            return false;
+
+        CombatLog.ControlledCastRefused(_logger, control, ability.AbilityId, caster.Guid);
+        return true;
+    }
 
     /// <summary>A character is dead by its flag, a creature at 0 health.</summary>
     private static bool IsDead(IUnit caster) => caster switch

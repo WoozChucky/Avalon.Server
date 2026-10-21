@@ -27,15 +27,15 @@ variant empty
 
 variant populated
   field 1 LootGuid : ulong = 65535
-  field 2 Result : LootPickupResult = UniqueAlreadyOwned (5)
+  field 2 Result : LootPickupResult = Stunned (7)
   bytes 6
-    08 ff ff 03 10 05
+    08 ff ff 03 10 07
 
 variant maxima
   field 1 LootGuid : ulong = 18446744073709551615
-  field 2 Result : LootPickupResult = MoneyCapReached (6)
+  field 2 Result : LootPickupResult = Stunned (7)
   bytes 13
-    08 ff ff ff ff ff ff ff ff ff 01 10 06
+    08 ff ff ff ff ff ff ff ff ff 01 10 07
 
 variant minima
   field 1 LootGuid : ulong = 0
@@ -44,6 +44,6 @@ variant minima
 
 variant varint-edges
   field 1 LootGuid : ulong = 34359738367
-  field 2 Result : LootPickupResult = <not a declared member> (7)
+  field 2 Result : LootPickupResult = <not a declared member> (8)
   bytes 8
-    08 ff ff ff ff 7f 10 07
+    08 ff ff ff ff 7f 10 08

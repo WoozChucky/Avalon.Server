@@ -21,4 +21,11 @@ public class AuraEntryDto
     [ProtoMember(5)] public uint RemainingMs { get; set; }
     [ProtoMember(6)] public uint DurationMs { get; set; }
     [ProtoMember(7)] public AuraUpdateAction Action { get; set; }
+
+    /// <summary>
+    /// The crowd control the aura puts its holder in (#770), as bits: 1 stun (no moving, turning or acting), 2 root (no
+    /// moving), 4 silence (no ability but the basic attack), 8 slow (moves slower); 0 for none. Taken from the aura as
+    /// it was applied, so a client reads its holder's state from here, never from its shipped catalog.
+    /// </summary>
+    [ProtoMember(8)] public uint Control { get; set; }
 }

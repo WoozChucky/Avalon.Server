@@ -29,10 +29,10 @@ public class VendorSellHandler(ILogger<VendorSellHandler> logger, IWorld world, 
         VendorResult result;
         try
         {
-            // Alive first, so a dead character's request neither checks the leash nor ends the conversation.
-            result = character.IsDead
-                ? VendorResult.Dead
-                : economy.VendorOf(character).TrySell(
+            // Alive and free first (#770), so a dead or stunned character's request neither checks the leash nor
+            // ends the conversation.
+            result = ShopAccess.Refusal(character)
+                ?? economy.VendorOf(character).TrySell(
                     ShopAccess.TryUse(connection, character, world, out _), packet.BagSlot, packet.Count);
         }
         catch (Exception e)

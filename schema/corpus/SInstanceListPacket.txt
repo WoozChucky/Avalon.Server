@@ -33,7 +33,7 @@ variant empty
 
 variant populated
   field 1 TargetMapId : ushort = 19
-  field 2 Result : MapTransitionResult = LevelTooLow (3)
+  field 2 Result : MapTransitionResult = GenerationFailed (5)
   field 3 InParty : bool = true
   field 4 IsLeader : bool = true
   field 5 Instances : List<InstanceChoiceDto> = 2 elements
@@ -50,7 +50,7 @@ variant populated
       field 4 ExpiresInMs : uint = 65535
       field 5 IsDefault : bool = true
   bytes 70
-    08 13 10 03 18 01 20 01 2a 1c 0a 12 09 5b ad 8f
+    08 13 10 05 18 01 20 01 2a 1c 0a 12 09 5b ad 8f
     0f cb d9 9f 46 11 a1 65 70 86 77 28 95 0e 10 01
     18 01 20 07 28 01 2a 1e 0a 12 09 04 03 02 01 06
     05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 10 01 18 01
@@ -58,7 +58,7 @@ variant populated
 
 variant maxima
   field 1 TargetMapId : ushort = 65535
-  field 2 Result : MapTransitionResult = NotInstanced (13)
+  field 2 Result : MapTransitionResult = Stunned (14)
   field 3 InParty : bool = true
   field 4 IsLeader : bool = true
   field 5 Instances : List<InstanceChoiceDto> = 3 elements
@@ -81,7 +81,7 @@ variant maxima
       field 4 ExpiresInMs : uint = 4294967295
       field 5 IsDefault : bool = true
   bytes 112
-    08 ff ff 03 10 0d 18 01 20 01 2a 20 0a 12 09 ff
+    08 ff ff 03 10 0e 18 01 20 01 2a 20 0a 12 09 ff
     ff ff ff ff ff ff ff 11 ff ff ff ff ff ff ff ff
     10 01 18 01 20 ff ff ff ff 0f 28 01 2a 20 0a 12
     09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff ff
@@ -106,7 +106,7 @@ variant minima
 
 variant varint-edges
   field 1 TargetMapId : ushort = 128
-  field 2 Result : MapTransitionResult = <not a declared member> (14)
+  field 2 Result : MapTransitionResult = <not a declared member> (15)
   field 3 InParty : bool = true
   field 4 IsLeader : bool = true
   field 5 Instances : List<InstanceChoiceDto> = 2 elements
@@ -123,7 +123,7 @@ variant varint-edges
       field 4 ExpiresInMs : uint = 16383
       field 5 IsDefault : bool = true
   bytes 73
-    08 80 01 10 0e 18 01 20 01 2a 1f 0a 12 09 04 03
+    08 80 01 10 0f 18 01 20 01 2a 1f 0a 12 09 04 03
     02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 10
     02 18 01 20 80 80 80 01 28 01 2a 1d 0a 12 09 04
     03 02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10

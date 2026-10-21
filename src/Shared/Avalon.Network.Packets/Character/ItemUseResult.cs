@@ -50,4 +50,7 @@ public enum ItemUseResult : byte
 
     /// <summary>Something on the server failed; it is logged. Nothing was consumed.</summary>
     InternalError = 16,
+
+    /// <summary>The character is stunned (#770): it uses no item, gear included, until the stun ends.</summary>
+    Stunned = 17,
 }

@@ -2,11 +2,13 @@ using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.World;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
@@ -77,6 +79,43 @@ public class CastAbilityHandlerShould
         Assert.Equal(CastRejectReason.RequiresInCombat, outOfCombat.SingleRefusal().Reason);
     }
 
+    /// <summary>
+    /// A stun refuses every cast and a silence every one but the basic attack (#770), each answered with its own reason
+    /// before anything else is asked of the ability; a root refuses none.
+    /// </summary>
+    [Theory]
+    [InlineData(CrowdControl.Stun, false, CastRejectReason.Stunned)]
+    [InlineData(CrowdControl.Stun, true, CastRejectReason.Stunned)]
+    [InlineData(CrowdControl.Silence, false, CastRejectReason.Silenced)]
+    [InlineData(CrowdControl.Silence, true, null)]
+    [InlineData(CrowdControl.Root, false, null)]
+    public void Refuse_casts_under_crowd_control(CrowdControl control, bool basic, CastRejectReason? refused)
+    {
+        var f = new GodFixture(godMode: false);
+        f.Character.Auras.Add(AuraTestData.HeldControl(control), DateTimeOffset.UnixEpoch);
+        IAbility ability = f.GiveAbility(new AbilityMetadata
+        {
+            Name = "X",
+            ScriptName = "x",
+            Flags = basic ? AbilityFlags.Basic : AbilityFlags.None,
+        });
+        // Cooling down, so a cast the gate let through would be refused for that instead, and say so.
+        ability.CooldownTimer.Returns(refused is null ? 0f : 5f);
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+
+        if (refused is { } reason)
+        {
+            Assert.Equal(reason, f.SingleRefusal().Reason);
+            f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
+        }
+        else
+        {
+            Assert.Empty(f.SentPackets());
+            f.Instance.Received(1).RunInstantAbility(f.Character, Arg.Any<AbilityAim>(), ability);
+        }
+    }
+
     private sealed class GodFixture
     {
         public CharacterEntity Character { get; } = new(NullLoggerFactory.Instance,
@@ -87,9 +126,9 @@ public class CastAbilityHandlerShould
         public DateTime Now => Clock.GetUtcNow().UtcDateTime;
         private readonly CastAbilityHandler _handler;
 
-        public GodFixture()
+        public GodFixture(bool godMode = true)
         {
-            Character.GodMode = true;
+            Character.GodMode = godMode;
             Character.PowerType = PowerType.Mana;
             Character.CurrentPower = 100;
             Character.Spells.Load([]);

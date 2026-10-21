@@ -28,6 +28,8 @@ public enum MapTransitionResult : byte
     NotInParty = 12,
     /// <summary>The target map is a town, which has no instances to list or choose (#1104).</summary>
     NotInstanced = 13,
+    /// <summary>The character is stunned (#770): it enters no portal until the stun ends.</summary>
+    Stunned = 14,
 }
 
 [ProtoContract]

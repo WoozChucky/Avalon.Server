@@ -32,8 +32,8 @@ public class UnitAurasShould
         Assert.Equal((1u, 2u), (bleed.Key, burn.Key));
         Assert.Equal(2, auras.Count);
         Assert.Equal(
-            [new AuraChange(new AuraId(901), 1, s_hunter.RawValue, 1, 12000, 12000, AuraChangeKind.Applied),
-             new AuraChange(new AuraId(902), 2, s_wizard.RawValue, 1, 8000, 9000, AuraChangeKind.Applied)],
+            [new AuraChange(new AuraId(901), 1, s_hunter.RawValue, 1, 12000, 12000, AuraChangeKind.Applied, 0u),
+             new AuraChange(new AuraId(902), 2, s_wizard.RawValue, 1, 8000, 9000, AuraChangeKind.Applied, 0u)],
             auras.Changes);
     }
 
@@ -63,7 +63,7 @@ public class UnitAurasShould
         Assert.False(auras.Remove(bleed, s_t0.AddSeconds(2)));
 
         Assert.False(auras.Contains(bleed));
-        Assert.Equal(new AuraChange(new AuraId(901), 1, s_hunter.RawValue, 1, 0, 12000, AuraChangeKind.Removed),
+        Assert.Equal(new AuraChange(new AuraId(901), 1, s_hunter.RawValue, 1, 0, 12000, AuraChangeKind.Removed, 0u),
             Assert.Single(auras.Changes));
     }
 
@@ -127,12 +127,63 @@ public class UnitAurasShould
         bleed.PeriodicCarry = 0.75d;
         bleed.Schedule = bleed.Schedule.AfterTicks(2);
 
-        bleed.Renew(AuraTestData.Bleed(), s_wizard, AuraSource.None, 2, new AuraSnapshot(7f, 5f, 3), s_t0.AddSeconds(4));
+        bleed.Renew(AuraTestData.Bleed(), s_wizard, AuraSource.None, 2, new AuraSnapshot(7f, 5f, 3), 12000,
+            s_t0.AddSeconds(4));
 
         Assert.Equal(0d, bleed.PeriodicCarry);
         Assert.Equal(AuraSchedule.Start(s_t0.AddSeconds(4), 12000, 3000), bleed.Schedule);
         Assert.Equal((s_wizard, 2u, s_t0.AddSeconds(4).UtcDateTime), (bleed.CasterGuid, bleed.Stacks, bleed.AppliedAt));
     }
+
+    /// <summary>
+    /// The crowd-control cache the movement, cast and AI gates read: the union of what the held auras grant, kept
+    /// through every change, a refresh onto a reloaded template that no longer grants anything (through the aura system,
+    /// which renews the held copy before it reports the change), and select's Load. Each step reads the gates: (state,
+    /// move, turn, act, cast an ability, cast the basic attack).
+    /// </summary>
+    [Fact]
+    public void Track_crowd_control_through_add_refresh_remove_and_load()
+    {
+        var h = new AuraHarness();
+        h.Use(Controlling(912, CrowdControl.Stun), Controlling(913, CrowdControl.Root));
+        CharacterEntity unit = h.Player(13);
+        UnitAuras auras = unit.Auras;
+        Assert.Equal((CrowdControl.None, true, true, true, true, true), Gates(unit));
+
+        h.Auras.Apply(null, unit, new AuraId(912), AuraSource.None);
+        Assert.Equal((CrowdControl.Stun, false, false, false, false, false), Gates(unit));
+        h.Auras.Apply(null, unit, new AuraId(913), AuraSource.None);
+        Assert.Equal((CrowdControl.Stun | CrowdControl.Root, false, false, false, false, false), Gates(unit));
+        h.Auras.Remove(unit, new AuraId(912), AuraRemoveReason.Cancelled);
+        Assert.Equal((CrowdControl.Root, false, true, true, true, true), Gates(unit));
+
+        // A reload cleared the root's Control; the next application refreshes the held copy onto that template.
+        h.Use(Controlling(913, CrowdControl.None));
+        Assert.Equal(AuraApplyResult.Refreshed, h.Auras.Apply(null, unit, new AuraId(913), AuraSource.None));
+        Assert.Equal((CrowdControl.None, true, true, true, true, true), Gates(unit));
+
+        ActiveAura silence = Aura(Controlling(915, CrowdControl.Silence), s_hunter);
+        auras.Load([Aura(AuraTestData.Bleed(), s_hunter), silence]);
+        Assert.Equal((CrowdControl.Silence, true, true, true, false, true), Gates(unit));
+        auras.Remove(silence, s_t0);
+        Assert.Equal((CrowdControl.None, true, true, true, true, true), Gates(unit));
+    }
+
+    private static (CrowdControl, bool, bool, bool, bool, bool) Gates(CharacterEntity unit) =>
+        (ControlGates.Of(unit), ControlGates.CanMove(unit), ControlGates.CanTurn(unit), ControlGates.CanAct(unit),
+            ControlGates.CanCast(unit, basic: false), ControlGates.CanCast(unit, basic: true));
+
+    private static AuraTemplate Controlling(uint id, CrowdControl control) => new()
+    {
+        Id = new AuraId(id),
+        Name = "Controlled",
+        Icon = "controlled",
+        Kind = AuraKind.Harmful,
+        DurationMs = 3000,
+        Stacking = AuraStacking.Refresh,
+        MaxStacks = 1,
+        Control = control,
+    };
 
     /// <summary>Every change to a character's auras marks its save, so the next save rewrites them.</summary>
     [Fact]

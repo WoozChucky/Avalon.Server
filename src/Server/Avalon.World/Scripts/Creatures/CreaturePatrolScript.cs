@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
+using Avalon.World.Auras;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
@@ -27,6 +28,10 @@ namespace Avalon.World.Scripts.Creatures;
 /// moves nor advances; once it is back to <c>None</c> (home again after the leash or a lost target),
 /// the patrol picks up at the path point nearest the creature and walks on in the path's order. A
 /// corpse's patrol stops for good.
+/// </para>
+/// <para>
+/// A stunned or rooted creature (#770) takes no step: a leg in progress is stopped and asked for again once it is free,
+/// so its point is neither skipped nor counted reached. A pause runs on through it.
 /// </para>
 /// </remarks>
 public class CreaturePatrolScript : AiScript, IReturningHome
@@ -169,6 +174,21 @@ public class CreaturePatrolScript : AiScript, IReturningHome
 
             _pausing = false;
             AdvanceToNextWaypoint(waypoints.Count);
+            return;
+        }
+
+        if (!ControlGates.CanMove(Creature))
+        {
+            if (!Context.Locomotion.HasArrived(Creature))
+            {
+                Context.Locomotion.Stop(Creature);
+                _hasRequestedCurrentWaypoint = false;
+            }
+            else if (Creature.MoveState != MoveState.Idle)
+            {
+                Creature.MoveState = MoveState.Idle;
+            }
+
             return;
         }
 

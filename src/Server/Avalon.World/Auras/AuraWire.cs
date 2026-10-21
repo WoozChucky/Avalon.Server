@@ -1,3 +1,5 @@
+using Avalon.Combat;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Auras;
 
 namespace Avalon.World.Auras;
@@ -15,8 +17,22 @@ namespace Avalon.World.Auras;
 /// </remarks>
 public sealed class AuraWire
 {
+    /// <summary>
+    /// <see cref="AuraEntryDto.Control" />'s bit for a slow (#770), above the <see cref="CrowdControl" /> flags
+    /// (1 stun, 2 root, 4 silence), which it carries as they are.
+    /// </summary>
+    public const uint SlowBit = 8;
+
     private readonly List<AuraEntryDto> _entries = new(8);
     private readonly List<AuraEntryDto> _made = new(8);
+
+    /// <summary>
+    /// The crowd control <paramref name="template" /> puts its holder in, as <see cref="AuraEntryDto.Control" />
+    /// carries it: its flags, and <see cref="SlowBit" /> for a slow (a harmful aura that lowers movement speed, found
+    /// by walking its modifiers). Cached on each aura (<see cref="ActiveAura.WireControl" />): no entry works it out.
+    /// </summary>
+    public static uint ControlOf(AuraTemplate template) =>
+        (uint)template.Control | (AuraRules.IsSlow(template) ? SlowBit : 0u);
 
     /// <summary>Every aura held, with the time each has left now; no action.</summary>
     public List<AuraEntryDto> List(UnitAuras auras, DateTimeOffset now)
@@ -35,6 +51,7 @@ public sealed class AuraWire
             entry.RemainingMs = UnitAuras.RemainingMs(aura, now);
             entry.DurationMs = aura.DurationMs;
             entry.Action = default;
+            entry.Control = aura.WireControl;
         }
 
         return _entries;
@@ -55,6 +72,7 @@ public sealed class AuraWire
             entry.RemainingMs = change.RemainingMs;
             entry.DurationMs = change.DurationMs;
             entry.Action = (AuraUpdateAction)change.Kind;
+            entry.Control = change.Control;
         }
 
         return _entries;

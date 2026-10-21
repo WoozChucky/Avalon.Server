@@ -103,6 +103,7 @@ public static class AuraRestore
                 schedule, row.DurationMs, row.AppliedAt)
             {
                 PeriodicCarry = Carry(row.PeriodicCarry),
+                NextBreakRollAt = NextBreakRoll(now, row.DurationMs, row.RemainingMs),
             }));
         }
 
@@ -141,6 +142,17 @@ public static class AuraRestore
     }
 
     private static bool Readable(float value) => float.IsFinite(value) && value >= 0f;
+
+    /// <summary>
+    /// When a restored aura next rolls to break on its own (#770): on the next whole second of the time it had held when
+    /// saved (its duration less its time left), from <paramref name="now" />, so no roll it already took is owed again.
+    /// </summary>
+    private static DateTimeOffset NextBreakRoll(DateTimeOffset now, uint durationMs, uint remainingMs)
+    {
+        long step = CrowdControlRules.BreakRollInterval.Ticks;
+        long held = TimeSpan.FromMilliseconds(durationMs > remainingMs ? durationMs - remainingMs : 0u).Ticks;
+        return now + TimeSpan.FromTicks(step - held % step);
+    }
 
     /// <summary>A carried fraction is less than a whole point; anything else stored starts over at none.</summary>
     private static double Carry(double stored) => double.IsFinite(stored) && stored is >= 0d and < 1d ? stored : 0d;

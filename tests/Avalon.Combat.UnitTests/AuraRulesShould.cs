@@ -28,6 +28,20 @@ public class AuraRulesShould
     [Fact]
     public void Accept_a_valid_damage_over_time() => Assert.Null(AuraRules.Problem(Bleed()));
 
+    /// <summary>Control is flags: one aura may grant two states, each with its chances to break early.</summary>
+    [Fact]
+    public void Accept_a_harmful_crowd_control_with_its_break_chances()
+    {
+        AuraTemplate stun = Bleed();
+        stun.PeriodicKind = AuraPeriodicKind.None;
+        stun.TickIntervalMs = 0;
+        stun.Control = CrowdControl.Stun | CrowdControl.Root;
+        stun.BreakOnDamagePct = 10f;
+        stun.BreakPerSecondPct = 0.5f;
+
+        Assert.Null(AuraRules.Problem(stun));
+    }
+
     public static TheoryData<string, Action<AuraTemplate>> Refusals() => new()
     {
         { "unknown kind 0", t => t.Kind = 0 },
@@ -45,6 +59,17 @@ public class AuraRulesShould
         { "BaseDamageCoefficient -1 is not a finite value of 0 or more", t => t.BaseDamageCoefficient = -1f },
         { "a harmful aura cannot heal", t => t.PeriodicKind = AuraPeriodicKind.Heal },
         { "a helpful aura cannot deal damage", t => t.Kind = AuraKind.Helpful },
+        { "a helpful aura cannot stun, root or silence", t =>
+            {
+                t.Kind = AuraKind.Helpful;
+                t.PeriodicKind = AuraPeriodicKind.None;
+                t.Control = CrowdControl.Stun;
+            } },
+        { "unknown control 8", t => t.Control = (CrowdControl)8 },
+        { "BreakOnDamagePct -1 is not a finite percentage from 0 to 100", t => t.BreakOnDamagePct = -1f },
+        { "BreakOnDamagePct 101 is not a finite percentage from 0 to 100", t => t.BreakOnDamagePct = 101f },
+        { "BreakPerSecondPct NaN is not a finite percentage from 0 to 100", t => t.BreakPerSecondPct = float.NaN },
+        { FormattableString.Invariant($"BreakPerSecondPct {float.PositiveInfinity} is not a finite percentage from 0 to 100"), t => t.BreakPerSecondPct = float.PositiveInfinity },
         { "unknown stat 0", t => t.Modifiers.Add(new AuraStatModifier { Stat = 0, Kind = AuraModifierKind.Flat, Value = 1f }) },
         { "unknown modifier kind 0 on Armor", t => t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Value = 1f }) },
         { FormattableString.Invariant($"Armor modifier {float.PositiveInfinity} is not finite"), t => t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Flat, Value = float.PositiveInfinity }) },

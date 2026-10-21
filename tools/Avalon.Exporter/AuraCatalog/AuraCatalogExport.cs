@@ -11,9 +11,9 @@ namespace Avalon.Exporter;
 
 /// <summary>
 /// Exports the aura rows a client names and draws auras from (auras): SMSG_AURA_UPDATE and SMSG_AURA_LIST carry an aura
-/// id and its timing, and a client needs the name, icon, kind and stat modifiers to show it. Like ability-catalog it
-/// reads the World database and is reviewed as a data diff. A hand-listed row: the base, the scaling and the script are
-/// server-only balance. Enumerations are written as their numbers, listed in the $comment.
+/// id and its timing, and a client needs the name, icon, kind, crowd control, break chances and stat modifiers to show
+/// it. Like ability-catalog it reads the World database and is reviewed as a data diff. A hand-listed row: the base,
+/// the scaling and the script are server-only balance. Enumerations are written as their numbers, listed in the $comment.
 /// </summary>
 public static class AuraCatalogExport
 {
@@ -54,7 +54,12 @@ public static class AuraCatalogExport
                      "periodicKind: 0 none, 1 damage, 2 heal. stacking: 1 refresh, 2 stack (up to maxStacks), 3 one per " +
                      "caster. Modifiers: stat 1 armor, 2 attack damage, 3 ability damage, 4 crit %, 5 dodge %, 6 block %, " +
                      "7 haste %, 8 movement speed %, 9 max health, 10 max power; kind 1 flat, 2 percent; each times the " +
-                     "stacks held. durationMs and tickIntervalMs in milliseconds; 0 ticks never.",
+                     "stacks held. durationMs and tickIntervalMs in milliseconds; 0 ticks never. control: flags, 1 stun, 2 root, " +
+                     "4 silence, 0 none (a slow, a harmful aura with a negative movement speed modifier, is never a flag in " +
+                     "this file; aura entries on the wire add 8 for it); " +
+                     "breakOnDamagePct: percent chance it ends each time its holder takes damage; breakPerSecondPct: " +
+                     "percent chance it ends on its own, once per second held. The server sends the control on the wire " +
+                     "too: trust that over this file.",
             Auras: auras.OrderBy(a => a.Id.Value).Select(Row.From).ToList());
 
         return JsonSerializer.Serialize(document, s_serializerOptions) + "\n";
@@ -68,11 +73,13 @@ public static class AuraCatalogExport
 
     private sealed record Row(
         uint Id, string Name, string Icon, byte Kind, uint DurationMs, uint TickIntervalMs, byte PeriodicKind,
-        byte Stacking, uint MaxStacks, List<Modifier> Modifiers)
+        byte Stacking, uint MaxStacks, byte Control, float BreakOnDamagePct, float BreakPerSecondPct,
+        List<Modifier> Modifiers)
     {
         public static Row From(AuraTemplate t) => new(
             t.Id.Value, t.Name ?? string.Empty, t.Icon ?? string.Empty, (byte)t.Kind, t.DurationMs, t.TickIntervalMs,
-            (byte)t.PeriodicKind, (byte)t.Stacking, t.MaxStacks,
+            (byte)t.PeriodicKind, (byte)t.Stacking, t.MaxStacks, (byte)t.Control, t.BreakOnDamagePct,
+            t.BreakPerSecondPct,
             t.Modifiers.OrderBy(m => m.Stat).Select(m => new Modifier((byte)m.Stat, (byte)m.Kind, m.Value)).ToList());
     }
 }

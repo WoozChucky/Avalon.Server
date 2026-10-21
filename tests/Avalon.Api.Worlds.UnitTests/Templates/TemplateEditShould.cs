@@ -342,6 +342,13 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "aura", "icon", " ", "icon" },
         { "aura", "maxStacks", 0, "maxStacks" },
         { "aura", "durationMs", 0, "durationMs" },
+        { "aura", "control", 1, "control" },               // stun, on the helpful test ward: only a harmful aura may control
+        { "aura", "breakOnDamagePct", 101, "breakOnDamagePct" },
+        { "aura", "breakPerSecondPct", -1, "breakPerSecondPct" },
+        { "creature", "stunDurationPct", -1, "stunDurationPct" },
+        { "creature", "rootDurationPct", 101, "rootDurationPct" },
+        { "creature", "silenceDurationPct", -1, "silenceDurationPct" },
+        { "creature", "slowDurationPct", 101, "slowDurationPct" },
     };
 
     [Theory]
@@ -363,7 +370,9 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Empty(_signal.Requests);
     }
 
-    /// <summary>A seeded row the refusal applies to: one with a first stat, a weapon, a circle ability.</summary>
+    /// <summary>
+    /// A seeded row the refusal applies to: one with a first stat, a weapon, a circle ability, a helpful aura.
+    /// </summary>
     private async Task<ulong> RefusalTargetAsync(string kind, string field)
     {
         await Task.CompletedTask;
@@ -374,6 +383,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
             ("item", "damageMax1") => db.ItemTemplates.AsEnumerable().First(t => t.DamageMin1 is not null && t.DamageMax1 is not null).Id.Value,
             ("ability", "scriptName") => 200UL,
             ("ability", _) => 200UL,
+            ("aura", "control") => TestWard,
             _ => FirstId(kind),
         };
     }

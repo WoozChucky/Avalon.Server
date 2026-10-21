@@ -6,6 +6,7 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.Combat;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
@@ -31,12 +32,14 @@ internal sealed class AuraHarness
     public AuraHarness(int maxPerUnit = 32, ICombatRandom? random = null, AuraScripts? scripts = null,
         Func<IUnit, bool>? returningHome = null)
     {
+        // Game:CrowdControlDiminishWindow's default.
+        TimeSpan diminishWindow = new GameConfiguration().CrowdControlDiminishWindow;
         Encounters = new EncounterRegistry(new CombatConfig(), Time);
         Combat = new CombatService(new CombatConfig(), Encounters, outcomes: Outcomes,
             time: Time, random: random ?? ScriptedCombatRandom.Plain(1000));
         Auras = new AuraSystem(Combat, Characters, Creatures, () => _catalog,
             () => DataFails ? throw new InvalidOperationException("reference data failed") : Data, Time, maxPerUnit,
-            NullLogger.Instance, scripts, connectionOf: null, returningHome);
+            diminishWindow, NullLogger.Instance, scripts, connectionOf: null, returningHome);
     }
 
     public Dictionary<ObjectGuid, ICharacter> Characters { get; } = [];

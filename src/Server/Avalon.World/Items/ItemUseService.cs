@@ -18,8 +18,8 @@ namespace Avalon.World.Items;
 
 /// <summary>
 /// One CMSG_ITEM_USE, on the tick, answered with exactly one SMSG_ITEM_USE_RESULT: at once, or when its cast ends.
-/// In order: dead (before anything else, so no script hook, teleport or quest start ever runs for a dead user); the
-/// slot (Bag or Equipment); a worn item is taken off to the lowest free Bag slot (ItemEquip.Unequip: TargetFull when
+/// In order: dead (before anything else, so no script hook, teleport or quest start ever runs for a dead user); stunned
+/// (#770, as early, for the same reason); the slot (Bag or Equipment); a worn item is taken off to the lowest free Bag slot (ItemEquip.Unequip: TargetFull when
 /// there is none; asked before the template, so an item whose template is gone comes off too) and nothing else is asked;
 /// the template; gear is equipped (ItemEquip, then the stats refresh a drag-to-equip runs; an equip or unequip that
 /// passed its checks ends the item cast running, answered Interrupted, the doodad cast running and the arrival
@@ -70,6 +70,10 @@ public sealed class ItemUseService(
     {
         if (character.IsDead)
             return ItemUseAnswer.Of(ItemUseResult.Dead);
+
+        // #770: a stunned character uses nothing, gear included; a silence refuses no item use.
+        if (!ControlGates.CanAct(character))
+            return ItemUseAnswer.Of(ItemUseResult.Stunned);
 
         if (!SlotRef.TryParse(container, slot, out SlotRef at) || !InventoryMove.IsUsable(character, at))
             return ItemUseAnswer.Of(ItemUseResult.NotFound);

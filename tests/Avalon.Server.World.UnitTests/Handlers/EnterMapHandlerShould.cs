@@ -320,10 +320,14 @@ public class EnterMapHandlerShould
     /// <summary>
     /// The refusals log at Debug, which a world does not write as shipped, so <c>world.portal_entry.refusals</c> is what
     /// shows them: one count per refusal, under the reason of the place that refused, and none for an entry that arrives.
+    /// A character stunned while its instance is built (<paramref name="onArrival" />) is refused on arrival as at the
+    /// request (#770).
     /// </summary>
     [Theory]
     [InlineData("dead")]
     [InlineData("move_in_progress")]
+    [InlineData("stunned")]
+    [InlineData("stunned", true)]
     [InlineData("unknown_map")]
     [InlineData("no_instance")]
     [InlineData("no_portal")]
@@ -339,7 +343,7 @@ public class EnterMapHandlerShould
     [InlineData("create_not_in_party")]
     [InlineData("not_party_leader")]
     [InlineData(null)]
-    public void Count_a_refused_portal_entry_once_under_its_reason(string? reason)
+    public void Count_a_refused_portal_entry_once_under_its_reason(string? reason, bool onArrival = false)
     {
         PartyTestWorld? parties = reason is "not_in_party" or "instance_full" or "not_party_leader"
             ? new PartyTestWorld()
@@ -354,6 +358,9 @@ public class EnterMapHandlerShould
                 break;
             case "move_in_progress":
                 entry.Connection.RespawnInFlight = true;
+                break;
+            case "stunned" when !onArrival:
+                entry.Character.Auras.Add(AuraTestData.HeldControl(CrowdControl.Stun), DateTimeOffset.UnixEpoch);
                 break;
             case "unknown_map":
                 map = 99;
@@ -407,11 +414,18 @@ public class EnterMapHandlerShould
         entry.Request(map, choice);
         if (reason == "not_in_party")
             parties!.Parties.Leave(entry.Character.Guid.Id); // the party is gone before its instance is ready
+        if (onArrival) // stunned while its instance is built
+            entry.Character.Auras.Add(AuraTestData.HeldControl(CrowdControl.Stun), DateTimeOffset.UnixEpoch);
         entry.Flush();
         entry.Flush(); // an instance released before the arrival is resolved again, and refused the second time
 
         Assert.Equal(reason is null ? [] : [reason], counted.Reasons);
         Assert.Equal(reason is null, entry.Results().Contains(MapTransitionResult.Success));
+        if (reason == "stunned")
+        {
+            Assert.Equal([MapTransitionResult.Stunned], entry.Results());
+            Assert.False(entry.Connection.RespawnInFlight);
+        }
     }
 
     /// <summary>

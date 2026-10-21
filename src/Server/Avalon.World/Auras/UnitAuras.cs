@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Auras;
@@ -25,6 +26,19 @@ public sealed class UnitAuras(Action? changed = null)
 
     /// <summary>The held arrival protection copy with the latest expiry, cached for combat and AI checks.</summary>
     internal ActiveAura? HeldArrivalProtection { get; private set; }
+
+    /// <summary>
+    /// The crowd control the held auras grant together (<see cref="AuraTemplate.Control" />), cached for the movement,
+    /// cast and AI gates (<see cref="ControlGates" />), which read it with no scan.
+    /// </summary>
+    internal CrowdControl Control { get; private set; }
+
+    /// <summary>
+    /// Whether any held aura has a chance to break on damage (<see cref="AuraTemplate.BreakOnDamagePct" />), cached so
+    /// <see cref="AuraSystem.DamageTaken" />, which every damaging hit and periodic tick reports, walks no aura when none
+    /// can break.
+    /// </summary>
+    internal bool BreaksOnDamage { get; private set; }
 
     /// <summary>The auras <c>Game:MaxAurasPerUnit</c> counts: all but the held arrival protection's slot.</summary>
     internal int OrdinaryCount => Count - (HeldArrivalProtection is null ? 0 : 1);
@@ -123,6 +137,9 @@ public sealed class UnitAuras(Action? changed = null)
             _auras.Add(aura);
         }
 
+        RecomputeControl();
+        RecomputeBreaksOnDamage();
+
         HeldSince = heldSince;
         _totals = null;
         _roster?.Noted(this);
@@ -137,7 +154,8 @@ public sealed class UnitAuras(Action? changed = null)
 
     /// <summary>
     /// The character has entered its instance: the held auras' time starts again from <paramref name="now" />, each
-    /// schedule moved on by the time it waited, so it keeps all the time and ticks it had. Nothing when nothing is held.
+    /// schedule (and its next roll to break, #770) moved on by the time it waited, so it keeps all the time, ticks and
+    /// rolls it had. Nothing when nothing is held.
     /// </summary>
     public void ResumeHeld(DateTimeOffset now)
     {
@@ -150,7 +168,10 @@ public sealed class UnitAuras(Action? changed = null)
             return;
 
         foreach (ActiveAura aura in _auras)
+        {
             aura.Schedule = aura.Schedule with { ExpiresAt = aura.Schedule.ExpiresAt + waited };
+            aura.NextBreakRollAt += waited;
+        }
     }
 
     /// <summary>Forgets this tick's changes. Its roster is not told: it calls this itself, as it empties its list.</summary>
@@ -173,11 +194,39 @@ public sealed class UnitAuras(Action? changed = null)
             }
         }
 
+        // Also when the unit was already controlled: a refresh renews the held copy onto the current template first, so
+        // a reload that took the Control away arrives here as a change to an aura that no longer grants any.
+        if (aura.Template.Control != CrowdControl.None || Control != CrowdControl.None)
+            RecomputeControl();
+
+        // The same rule for the chance to break on damage: the changed aura has one, or one was held before it changed.
+        if (aura.Template.BreakOnDamagePct > 0f || BreaksOnDamage)
+            RecomputeBreaksOnDamage();
+
         uint remaining = kind == AuraChangeKind.Removed ? 0u : RemainingMs(aura, now);
-        _changes.Add(new AuraChange(aura.Id, aura.Key, aura.CasterGuid.RawValue, aura.Stacks, remaining, aura.DurationMs, kind));
+        _changes.Add(new AuraChange(aura.Id, aura.Key, aura.CasterGuid.RawValue, aura.Stacks, remaining,
+            aura.DurationMs, kind, aura.WireControl));
         _totals = null;
         _roster?.Noted(this);
         changed?.Invoke();
+    }
+
+    private void RecomputeControl()
+    {
+        CrowdControl control = CrowdControl.None;
+        foreach (ActiveAura held in _auras)
+            control |= held.Template.Control;
+
+        Control = control;
+    }
+
+    private void RecomputeBreaksOnDamage()
+    {
+        bool breaks = false;
+        foreach (ActiveAura held in _auras)
+            breaks |= held.Template.BreakOnDamagePct > 0f;
+
+        BreaksOnDamage = breaks;
     }
 
     /// <summary>Milliseconds left, rounded up, so an aura with any time left never reads 0.</summary>

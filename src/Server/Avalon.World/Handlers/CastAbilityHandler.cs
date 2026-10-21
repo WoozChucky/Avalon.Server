@@ -1,11 +1,13 @@
 using Avalon.Combat;
 using Avalon.Common.Mathematics;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.Abilities;
+using Avalon.World.Auras;
 using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Items;
@@ -46,6 +48,16 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             return;
         }
 
+        // #770: a stunned caster casts nothing, not even a basic attack, and a silenced one only its basic attack (asked
+        // below, once the ability is known). Refused here, before the cast system refuses them, which it answers
+        // InternalError. A cached field.
+        CrowdControl control = ControlGates.Of(caster);
+        if (control != CrowdControl.None && !ControlGates.CanCast(caster, basic: true))
+        {
+            Refuse(connection, packet, CastRejectReason.Stunned);
+            return;
+        }
+
         // #521 item 4: one cast at a time.
         if (caster.Spells.IsCasting)
         {
@@ -66,6 +78,13 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         {
             logger.LogInformation("Cast reject NotOwned ability={AbilityId}", packet.AbilityId);
             Refuse(connection, packet, CastRejectReason.NotOwned);
+            return;
+        }
+
+        // A silence spares the basic attack: a class basic by its row, a creature's own basic.
+        if (control != CrowdControl.None && !ControlGates.CanCast(caster, ControlGates.IsBasic(caster, ability)))
+        {
+            Refuse(connection, packet, CastRejectReason.Silenced);
             return;
         }
 

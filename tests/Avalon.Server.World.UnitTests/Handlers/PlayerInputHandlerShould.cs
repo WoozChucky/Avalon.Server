@@ -1,4 +1,6 @@
 using Avalon.Common.Mathematics;
+using Avalon.Domain.World;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
 using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Creatures;
@@ -171,6 +173,39 @@ public class PlayerInputHandlerShould
 
         conn.Received(1).Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.OutboundPacket>());
         conn.Received(1).LastInputSeq = 7u;
+    }
+
+    /// <summary>
+    /// A stunned or rooted character takes no step (#770), but its input is still taken: the sequence advances and the
+    /// ack carries the unchanged position and zero velocity, so the client reconciles without drift, and the velocity
+    /// it had stops replicating. A rooted character still turns to the input's yaw; a stunned one keeps its own.
+    /// </summary>
+    [Theory]
+    [InlineData(CrowdControl.Stun, 30)]
+    [InlineData(CrowdControl.Root, 90)]
+    public void Hold_a_stunned_or_rooted_character_in_place_and_ack_it(CrowdControl control, ushort yawAfter)
+    {
+        (PlayerInputHandler handler, IWorldConnection conn, ICharacter placeholder, IMapNavigator _) = Setup();
+        CharacterEntity character = TestCharacters.New();
+        character.InstanceId = placeholder.InstanceId;
+        var start = new Vector3(1f, 0.5f, 2f);
+        character.Position = start;
+        character.Velocity = new Vector3(5f, 0f, 0f);
+        character.Orientation = new Vector3(0f, 30f, 0f);
+        character.Auras.Add(AuraTestData.HeldControl(control), DateTimeOffset.UnixEpoch);
+        conn.Character.Returns(character);
+        var sent = new List<OutboundPacket>();
+        conn.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(call => sent.Add(call.Arg<OutboundPacket>()));
+
+        handler.Execute(conn, new CPlayerInputPacket { Seq = 7, DirX = 1, DirZ = 0, YawDeg = 90 });
+
+        Assert.Equal((start, Vector3.zero, yawAfter),
+            (character.Position, character.Velocity, (ushort)character.Orientation.y));
+        conn.Received(1).LastInputSeq = 7u;
+        SPlayerStateAckPacket ack =
+            Assert.Single(TestTown.Read<SPlayerStateAckPacket>(sent, NetworkPacketType.SMSG_PLAYER_STATE_ACK));
+        Assert.Equal((7u, start.x, start.y, start.z, 0f, 0f, yawAfter),
+            (ack.Seq, ack.X, ack.Y, ack.Z, ack.VelX, ack.VelZ, ack.YawDeg));
     }
 
     /// <summary>An input from a dead character, or one out of order (TCP keeps order, so it should never come), moves nothing and is not answered.</summary>

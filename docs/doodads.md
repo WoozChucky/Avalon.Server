@@ -128,18 +128,19 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
 
 ## Interaction and the cast bar
 
-- **Dispatch by guid type.** `InteractHandler` (`CMSG_INTERACT`) first drops a dead or missing character, and an interact whose instance is not found. A target guid of type `Doodad` then goes to `DoodadUseService.Interact`, the user being the `CharacterEntity` and the instance the `IDoodadHost`. Without the service, a doodad interact is dropped. Any other guid takes the NPC dialogue path. `DoodadUseService` is a DI singleton and runs on the tick thread only.
+- **Dispatch by guid type.** `InteractHandler` (`CMSG_INTERACT`) first drops a dead, missing or stunned (#770) character, and an interact whose instance is not found. A target guid of type `Doodad` then goes to `DoodadUseService.Interact`, the user being the `CharacterEntity` and the instance the `IDoodadHost`. Without the service, a doodad interact is dropped. Any other guid takes the NPC dialogue path. `DoodadUseService` is a DI singleton and runs on the tick thread only.
 - **The checks, in order** (`DoodadUseRefusal`). The first that fails refuses:
   1. `NoHost`: the instance is not an `IDoodadHost`.
   2. `Dead`: the user is dead.
-  3. `NotFound`: no doodad here has the guid, or the doodad is despawned.
-  4. `NotInteractive`: the template's interaction is None.
-  5. `OutOfRange`: the distance is above the template's `InteractionRange`. The check is written `!(distance <= range)`, so a position that is not a number refuses.
-  6. `NotVisible`: `DoodadVisibility.IsVisibleTo` hides the doodad from the user. It is asked afresh, the script's `CanSee` included.
-  7. `NotUsable`: the usability gate refuses.
-  8. `Spent`: a once-per-instance doodad is not ready.
-  9. `Busy`: an ability cast is running.
-  10. `ScriptRefused`: the script's `CanUse` returns a line, or throws.
+  3. `Stunned`: the user is stunned (#770; a root or a silence refuses nothing here, the range check still applies).
+  4. `NotFound`: no doodad here has the guid, or the doodad is despawned.
+  5. `NotInteractive`: the template's interaction is None.
+  6. `OutOfRange`: the distance is above the template's `InteractionRange`. The check is written `!(distance <= range)`, so a position that is not a number refuses.
+  7. `NotVisible`: `DoodadVisibility.IsVisibleTo` hides the doodad from the user. It is asked afresh, the script's `CanSee` included.
+  8. `NotUsable`: the usability gate refuses.
+  9. `Spent`: a once-per-instance doodad is not ready.
+  10. `Busy`: an ability cast is running.
+  11. `ScriptRefused`: the script's `CanUse` returns a line, or throws.
   - **Every refusal is silent.** Nothing is sent back. The refusal is one Debug line through a generated `LoggerMessage`, and it allocates nothing (`DoodadUseShould.Refuse_a_use_the_rules_forbid`).
 - **A use that passed** first ends the user's item cast and doodad cast, out loud, and its [arrival protection](auras.md#arrival-protection-1088). Then it either completes at once (`InteractionTimeMs` 0) or starts a cast bar.
 - **The cast bar** is `DoodadCasts`: one per instance, at most one cast per character, ticked right after the item cast bars. Only the active casts are visited, and a tick with none reads nothing.
@@ -152,6 +153,7 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
     - leaves the instance (`EndCastsOf`);
     - starts an ability cast that `CastAbilityHandler` accepts;
     - uses an item that passed its checks, gear included (`ItemUseService.EndForUse`);
+    - is stunned (#770: a stun landing ends it; a silence does not);
     - or uses another doodad.
   - Every broadcast and owner call is contained, so one that fails never leaves a cast stuck.
   - `DoodadUseShould.End_a_cast_when_the_user_moves_dies_leaves_or_casts` and `End_an_item_cast_when_its_user_uses_a_doodad_that_passed_its_checks` pin these.
@@ -217,7 +219,7 @@ The stock scripts are in `Avalon.World/Doodads/Scripts/`, and `StockDoodadScript
   - The drop is contained: a failure is logged, and what was stored before it stays.
 - **`ShrineDoodadScript`** is a gamble:
   - **The roll happens at use.** It draws one of the template's `AuraOutcomes` by weight, with `NextRandom(OutcomeWeightTotal)` taking the first outcome whose running weight passes the roll.
-  - It applies that aura within `AreaRadius`, with no caster and `AuraSource.None`: no scaling, no combat and no credit. Each application is contained and throttled.
+  - It applies that aura within `AreaRadius`, with no caster and `AuraSource.None`: no scaling, no combat and no credit. Each application is contained and throttled. An application the target resists whole (crowd control, #770) is not counted as applied, and no one is told "Immune", which only an ability's aura sends.
   - **The outcome is never revealed beforehand.** It does not exist until the draw, and neither the wire nor the catalog export carries the outcomes.
 - **`FountainDoodadScript`** calls `RestoreInRadius(RestorePct, RestorePct, AreaRadius)`:
   - **Restore by percentage:** each living player within the radius, measured on X/Z from the doodad, gets that share of their maximum health and of their maximum power.

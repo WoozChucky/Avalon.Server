@@ -8,6 +8,7 @@ using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.World;
+using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
@@ -815,13 +816,18 @@ public sealed class QuestService(
     /// <summary>
     /// An open conversation with <paramref name="npcGuid" /> the character may act on: alive, the NPC in its
     /// instance and alive, inside the dialogue leash. A gone or dead NPC, or one past the leash, ends the
-    /// conversation out loud, as DialogueChooseHandler does.
+    /// conversation out loud, as DialogueChooseHandler does. A stunned character (#770) is refused, the
+    /// conversation left open.
     /// </summary>
     private QuestResult Conversation(IWorldConnection connection, CharacterEntity character, ulong npcGuid, out ICreature? npc)
     {
         npc = null;
         if (character.IsDead || connection.CurrentDialogue is not { } open || open.Npc.RawValue != npcGuid)
             return QuestResult.NoConversation;
+
+        // #770: a stunned character acts on no conversation; it stays open.
+        if (!ControlGates.CanAct(character))
+            return QuestResult.Stunned;
 
         if (world.InstanceRegistry.GetInstanceById(character.InstanceId) is not { } instance
             || !instance.Creatures.TryGetValue(open.Npc, out ICreature? found)

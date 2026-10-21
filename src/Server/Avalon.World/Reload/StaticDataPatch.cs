@@ -44,8 +44,15 @@ public sealed record CreaturesPatch(
     public override string Describe()
         => $"{Templates.Count} templates, {BaseStats.Count} base stats, {Rarities.Count} rarities";
 
-    /// <summary>#627: see <see cref="CreatureTemplateRules.Validate" />.</summary>
-    public static void Validate(IEnumerable<CreatureTemplate> templates) => CreatureTemplateRules.Validate(templates);
+    /// <summary>
+    /// #627 and #770: see <see cref="CreatureTemplateRules.Validate" /> and
+    /// <see cref="CreatureTemplateRules.ValidateRarities" />.
+    /// </summary>
+    public static void Validate(IEnumerable<CreatureTemplate> templates, IEnumerable<CreatureRarityModifier> rarities)
+    {
+        CreatureTemplateRules.Validate(templates);
+        CreatureTemplateRules.ValidateRarities(rarities);
+    }
 }
 
 /// <summary>

@@ -39,23 +39,23 @@ variant populated
   field 2 Target : ulong = 65535
   field 3 CurrentHealth : uint = 65535
   field 4 Damage : uint = 1000000
-  field 5 Result : HitResult = Dodged (2)
+  field 5 Result : HitResult = Crit (1)
   field 6 AuraId : uint? = 7
   bytes 20
     08 c0 84 3d 10 ff ff 03 18 ff ff 03 20 c0 84 3d
-    28 02 30 07
+    28 01 30 07
 
 variant maxima
   field 1 Attacker : ulong = 18446744073709551615
   field 2 Target : ulong = 18446744073709551615
   field 3 CurrentHealth : uint = 4294967295
   field 4 Damage : uint = 4294967295
-  field 5 Result : HitResult = Blocked (4)
+  field 5 Result : HitResult = Immune (8)
   field 6 AuraId : uint? = 4294967295
   bytes 42
     08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
     ff ff ff ff ff 01 18 ff ff ff ff 0f 20 ff ff ff
-    ff 0f 28 04 30 ff ff ff ff 0f
+    ff 0f 28 08 30 ff ff ff ff 0f
 
 variant minima
   field 1 Attacker : ulong = 0
@@ -72,8 +72,8 @@ variant varint-edges
   field 2 Target : ulong = 127
   field 3 CurrentHealth : uint = 127
   field 4 Damage : uint = 127
-  field 5 Result : HitResult = Crit, Blocked (5)
+  field 5 Result : HitResult = Crit, Immune (9)
   field 6 AuraId : uint? = 128
   bytes 17
-    08 ff ff ff ff 7f 10 7f 18 7f 20 7f 28 05 30 80
+    08 ff ff ff ff 7f 10 7f 18 7f 20 7f 28 09 30 80
     01

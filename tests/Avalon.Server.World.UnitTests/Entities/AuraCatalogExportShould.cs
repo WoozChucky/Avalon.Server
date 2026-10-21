@@ -8,8 +8,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Avalon.Server.World.UnitTests.Entities;
 
 /// <summary>
-/// The aura catalog a client names and draws auras from: what each one is called, its icon, kind, timing, stacking and
-/// stat modifiers. Rendering is pure and tested here; reading the rows is EF and is not.
+/// The aura catalog a client names and draws auras from: what each one is called, its icon, kind, timing, stacking,
+/// crowd control and its break chances, and stat modifiers. Rendering is pure and tested here; reading the rows is EF
+/// and is not.
 /// </summary>
 public class AuraCatalogExportShould
 {
@@ -38,7 +39,8 @@ public class AuraCatalogExportShould
     [Fact]
     public void Leave_the_server_only_balance_out() =>
         Assert.Equal(
-            ["id", "name", "icon", "kind", "durationMs", "tickIntervalMs", "periodicKind", "stacking", "maxStacks", "modifiers"],
+            ["id", "name", "icon", "kind", "durationMs", "tickIntervalMs", "periodicKind", "stacking", "maxStacks", "control",
+                "breakOnDamagePct", "breakPerSecondPct", "modifiers"],
             Rows(AuraCatalogExport.Render([AuraTestData.Bleed()]))[0].EnumerateObject().Select(p => p.Name));
 
     [Fact]

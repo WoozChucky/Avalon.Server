@@ -127,6 +127,7 @@ message AuraEntryDto {
    uint32 RemainingMs = 5;
    uint32 DurationMs = 6;
    AuraUpdateAction Action = 7;
+   uint32 Control = 8;
 }
 enum AuraUpdateAction {
    AuraUpdateAction_Unknown = 0;
@@ -339,6 +340,8 @@ enum CastRejectReason {
    CastRejectReason_NoAimPoint = 12;
    CastRejectReason_AlreadyCasting = 13;
    CastRejectReason_WrongPowerType = 14;
+   CastRejectReason_Stunned = 15;
+   CastRejectReason_Silenced = 16;
 }
 enum CharacterClass {
    CharacterClass_None = 0;
@@ -429,6 +432,7 @@ enum HitResult {
    HitResult_Crit = 1;
    HitResult_Dodged = 2;
    HitResult_Blocked = 4;
+   HitResult_Immune = 8;
 }
 message IgnoredCharacterDto {
    uint32 CharacterId = 1;
@@ -469,6 +473,7 @@ enum ItemRequestResult {
    ItemRequestResult_BankClosed = 10;
    ItemRequestResult_Dead = 11;
    ItemRequestResult_Blocked = 12;
+   ItemRequestResult_Stunned = 13;
 }
 message ItemSlotDto {
    InventoryType Container = 1;
@@ -497,6 +502,7 @@ enum ItemUseResult {
    ItemUseResult_Interrupted = 14;
    ItemUseResult_Refused = 15;
    ItemUseResult_InternalError = 16;
+   ItemUseResult_Stunned = 17;
 }
 message LootDropDto {
    uint64 LootGuid = 1;
@@ -515,6 +521,7 @@ enum LootPickupResult {
    LootPickupResult_InventoryFull = 4;
    LootPickupResult_UniqueAlreadyOwned = 5;
    LootPickupResult_MoneyCapReached = 6;
+   LootPickupResult_Stunned = 7;
 }
 enum MFAOperationResult {
    MFAOperationResult_Success = 0;
@@ -550,6 +557,7 @@ enum MapTransitionResult {
    MapTransitionResult_NotPartyLeader = 11;
    MapTransitionResult_NotInParty = 12;
    MapTransitionResult_NotInstanced = 13;
+   MapTransitionResult_Stunned = 14;
 }
 enum MoveState {
    MoveState_Idle = 0;
@@ -840,6 +848,7 @@ enum QuestResult {
    QuestResult_TooFar = 8;
    QuestResult_NoConversation = 9;
    QuestResult_Error = 10;
+   QuestResult_Stunned = 11;
 }
 message QuestRewardItemDto {
    uint64 ItemTemplateId = 1;
@@ -1321,6 +1330,7 @@ enum VendorResult {
    VendorResult_MoneyCapReached = 10;
    VendorResult_Dead = 11;
    VendorResult_Damaged = 12;
+   VendorResult_Stunned = 13;
 }
 enum WorldHandshakeRefusal {
    WorldHandshakeRefusal_None = 0;

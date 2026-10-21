@@ -99,6 +99,7 @@ public static class TemplateValidation
         Defined(e, "periodicKind", r.PeriodicKind);
         Defined(e, "scalingStat", r.ScalingStat);
         Defined(e, "stacking", r.Stacking);
+        Flags(e, "control", r.Control);
         foreach (AuraStatModifierDto m in r.Modifiers ?? [])
         {
             Defined(e, "modifiers", m.Stat);
@@ -163,9 +164,7 @@ public static class TemplateValidation
         }
         catch (InvalidDataException ex)
         {
-            errors.Add(ex.Message.Contains(nameof(CreatureTemplate.BaseAttackTime), StringComparison.Ordinal)
-                ? "baseAttackTime"
-                : "template", $"The world would refuse this creature: {ex.Message}");
+            errors.Add(CreatureField(ex.Message), $"The world would refuse this creature: {ex.Message}");
         }
 
         // CK_CreatureTemplates_BodyRadius_Positive.
@@ -210,12 +209,26 @@ public static class TemplateValidation
         _ => "template",
     };
 
+    private static string CreatureField(string problem) => problem switch
+    {
+        _ when problem.Contains(nameof(CreatureTemplate.BaseAttackTime), StringComparison.Ordinal) => "baseAttackTime",
+        _ when problem.Contains(nameof(CreatureTemplate.StunDurationPct), StringComparison.Ordinal) => "stunDurationPct",
+        _ when problem.Contains(nameof(CreatureTemplate.RootDurationPct), StringComparison.Ordinal) => "rootDurationPct",
+        _ when problem.Contains(nameof(CreatureTemplate.SilenceDurationPct), StringComparison.Ordinal) => "silenceDurationPct",
+        _ when problem.Contains(nameof(CreatureTemplate.SlowDurationPct), StringComparison.Ordinal) => "slowDurationPct",
+        _ => "template",
+    };
+
     private static string AuraField(string problem) => problem switch
     {
         _ when problem.StartsWith("unknown kind", StringComparison.Ordinal) => "kind",
         _ when problem.StartsWith("unknown periodic kind", StringComparison.Ordinal) => "periodicKind",
         _ when problem.StartsWith("unknown stacking", StringComparison.Ordinal) => "stacking",
         _ when problem.StartsWith("unknown scaling stat", StringComparison.Ordinal) => "scalingStat",
+        _ when problem.StartsWith("unknown control", StringComparison.Ordinal) => "control",
+        _ when problem.Contains("cannot stun, root or silence", StringComparison.Ordinal) => "control",
+        _ when problem.StartsWith("BreakOnDamagePct", StringComparison.Ordinal) => "breakOnDamagePct",
+        _ when problem.StartsWith("BreakPerSecondPct", StringComparison.Ordinal) => "breakPerSecondPct",
         _ when problem.StartsWith("TickIntervalMs", StringComparison.Ordinal) => "tickIntervalMs",
         _ when problem.Contains("TickIntervalMs above 0", StringComparison.Ordinal) => "tickIntervalMs",
         _ when problem.StartsWith("DurationMs", StringComparison.Ordinal) => "durationMs",

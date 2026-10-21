@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Avalon.Configuration;
 using Avalon.Database.World;
 using Avalon.Domain.World;
+using Avalon.World.Public.Abilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -65,7 +66,8 @@ public static class AbilityCatalogExport
                      "affects: 0 hostile (damaged), 1 ally (healed). Distances in metres, arcDegrees the full arc " +
                      "of a cone, projectileSpeed in metres per second, castTimeMs and cooldownMs in milliseconds " +
                      "before haste. The basic of a creature waits its swing interval rather than its cooldownMs. " +
-                     "auraId: the aura each unit the ability affects receives (see aura-catalog), or null.",
+                     "auraId: the aura each unit the ability affects receives (see aura-catalog), or null. " +
+                     "basic: true for the basic attack of a class, the one ability a silence does not stop.",
             Abilities: templates.OrderBy(template => template.Id.Value).Select(Row.From).ToList());
 
         return JsonSerializer.Serialize(document, s_serializerOptions) + "\n";
@@ -90,10 +92,12 @@ public static class AbilityCatalogExport
         bool Pierce,
         uint CastTimeMs,
         uint CooldownMs,
-        uint? AuraId)
+        uint? AuraId,
+        bool Basic)
     {
         public static Row From(AbilityTemplate t) => new(
             t.Id.Value, t.Name ?? string.Empty, (byte)t.Shape, (byte)t.AimMode, (byte)t.Anchor, (byte)t.Affects,
-            t.Radius, t.Reach, t.ArcDegrees, t.ProjectileSpeed, t.Pierce, t.CastTime, t.Cooldown, t.AuraId?.Value);
+            t.Radius, t.Reach, t.ArcDegrees, t.ProjectileSpeed, t.Pierce, t.CastTime, t.Cooldown, t.AuraId?.Value,
+            (t.Flags & AbilityFlags.Basic) != 0);
     }
 }

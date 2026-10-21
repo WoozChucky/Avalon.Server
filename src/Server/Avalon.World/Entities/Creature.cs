@@ -121,6 +121,14 @@ public class Creature : ICreature
     /// <summary>The seeded swing interval, and what a creature that is not this World-side type swings at.</summary>
     public const float DefaultBaseAttackTime = 2.25f;
 
+    /// <summary>
+    /// How much of a stun, root, silence or slow lands on it (#770), fixed at spawn by <see cref="CreatureSpawner" />
+    /// from its template's overrides, else its rarity's row; the full duration for a creature built without the spawner.
+    /// World-side and init-only, for the reason its defences are: a /reload creatures reaches only creatures spawned
+    /// after it.
+    /// </summary>
+    public ControlResistance ControlResistance { get; init; } = ControlResistance.Full;
+
     /// <summary>The combat formula's HasteCap when this creature spawned (#627): the most of <see cref="HastePct" /> that counts.</summary>
     public float HasteCap { get; init; } = 50f;
 

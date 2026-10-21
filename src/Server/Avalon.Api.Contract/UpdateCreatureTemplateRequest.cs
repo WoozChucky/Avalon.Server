@@ -40,4 +40,18 @@ public sealed class UpdateCreatureTemplateRequest
 
     /// <summary>Seconds before the creature's corpse is removed.</summary>
     public int BodyRemoveTimerSecs { get; set; }
+
+    /// <summary>
+    /// Percent, 0 to 100, of a stun's duration this creature takes (#770); 0 is immune. Null uses its rarity's.
+    /// </summary>
+    public float? StunDurationPct { get; set; }
+
+    /// <summary>Percent of a root's duration, or null for its rarity's, as <see cref="StunDurationPct" />.</summary>
+    public float? RootDurationPct { get; set; }
+
+    /// <summary>Percent of a silence's duration, or null for its rarity's, as <see cref="StunDurationPct" />.</summary>
+    public float? SilenceDurationPct { get; set; }
+
+    /// <summary>Percent of a slow's duration, or null for its rarity's, as <see cref="StunDurationPct" />.</summary>
+    public float? SlowDurationPct { get; set; }
 }

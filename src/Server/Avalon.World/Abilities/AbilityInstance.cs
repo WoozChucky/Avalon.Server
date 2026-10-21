@@ -25,4 +25,16 @@ public class AbilityInstance
     /// resolved. A circle's or a cone's is the dodge wait's when it fires (#1082).
     /// </summary>
     public AbilityFootprint? Footprint { get; init; }
+
+    /// <summary>
+    /// Cast by an item (item use: <c>IItemUseHost.CastForItem</c>), never by its caster's own ability: an item use, which a
+    /// silence does not stop (#770). A stun ends it like any cast bar.
+    /// </summary>
+    public bool ForItem { get; init; }
+
+    /// <summary>
+    /// Ended by a stun or a silence while the queue was being walked (#770): it is passed over until the walk is done and
+    /// removes it. Its own mark, not its ability's <c>Casting</c>, which is not the cast system's alone to clear.
+    /// </summary>
+    internal bool Ended { get; set; }
 }

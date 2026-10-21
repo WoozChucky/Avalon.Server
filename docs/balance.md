@@ -43,7 +43,14 @@ suppresses regen or the pool cannot regenerate (full included).
 (`ConfigFileStore.Write`), and the checked-in files are in that form, so a parse and save round-trips byte for byte.
 Balance tables change only through `HasData` plus a migration (see Commands); `ModelDriftShould` fails when `HasData`
 changed without one. `balance/README.md` has the file formats and what is not modelled (everyone in melee, no
-projectile travel time, continuous combat, wind-ups always land).
+projectile travel time, continuous combat, wind-ups always land, no crowd control).
+
+**Crowd control is not modelled in fights** (owner decision, #770): nothing stuns, roots, silences, resists,
+diminishes or breaks early there. The seed's crowd-control columns are still read and validated with the world's rules
+(an aura's `Control` and break chances through `AuraRules.Problem`, the creature and rarity duration percentages through
+`CreatureTemplateRules.Validate` and `ValidateRarities`), so an override the world would refuse is refused here too,
+and the overrides reach them like any column. The four crowd-control abilities (204, 214, 224, 235) are in each class's
+kit but in no rotation in `balance/rotations.json`.
 
 ## Balance Service
 

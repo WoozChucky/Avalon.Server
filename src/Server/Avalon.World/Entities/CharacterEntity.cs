@@ -267,6 +267,12 @@ public partial class CharacterEntity : ICharacter
     /// </summary>
     public UnitAuras Auras { get; }
 
+    /// <summary>
+    /// How much of a stun, root or silence from another character still lands on this one (#770): the PvP diminishing
+    /// returns its aura system reads and records on every such application. In memory only, never saved; World-side.
+    /// </summary>
+    internal ControlDiminishing Diminishing { get; } = new();
+
     /// <summary>The container's clock, which this character's auras count their time left by when it is saved.</summary>
     public TimeProvider Clock => _time;
 

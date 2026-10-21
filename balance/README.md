@@ -88,8 +88,9 @@ saving a file unchanged changes nothing; `overrides.json` is yours to format. Sa
   does. A death ends every aura the unit holds. Movement speed modifiers change nothing (nobody moves), the cap on
   auras per unit is never reached, no aura script runs, and the server's catch-up after a stall does not arise (the
   simulator never falls behind).
-- Not modelled: movement, dodging wind-ups, potions and other consumables, groups, PvP, threat, out-of-combat health
-  regeneration and Fury decay, and the map's experience band.
+- Not modelled: crowd control (#770: stuns, roots, silences, resistance, diminishing and early breaks; the four
+  crowd-control abilities are in no rotation), movement, dodging wind-ups, potions and other consumables, groups, PvP,
+  threat, out-of-combat health regeneration and Fury decay, and the map's experience band.
 - A fight ends when the player dies, every creature dies, or at 300 s (a loss).
 
 ## Turning an override into a change

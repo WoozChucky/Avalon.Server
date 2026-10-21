@@ -28,6 +28,13 @@ public interface ICombatOutcomes
     void HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId);
 
     /// <summary>
+    /// <paramref name="target" /> resisted the crowd control of <paramref name="caster" />'s ability whole (#770): a
+    /// creature immune to it, a character at the diminishing step that refuses it, or a creature walking home. It is
+    /// sent like a dodge, with 0 and <see cref="HitResult.Immune" />, to whoever would have seen the hit land.
+    /// </summary>
+    void ControlResisted(IUnit caster, IUnit target, AbilityId? abilityId);
+
+    /// <summary>
     /// A heal restored <paramref name="restored" /> health, more than 0, to a living <paramref name="target" />
     /// (#506): sent to the healer, the target, and everyone within the interest radius of the target, marked
     /// Crit for a critical heal.
@@ -58,4 +65,10 @@ public interface ICombatOutcomes
 
     /// <summary>A unit died (auras): every death passes through the combat service, and death ends every aura.</summary>
     void UnitDied(IUnit unit);
+
+    /// <summary>
+    /// A hit or an aura's tick dealt more than 0 to <paramref name="unit" />, which is still alive (#770), reported once
+    /// per hit or tick: each aura it holds rolls its chance to break on damage.
+    /// </summary>
+    void DamageTaken(IUnit unit);
 }

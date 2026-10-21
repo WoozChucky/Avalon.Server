@@ -3,8 +3,10 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World.Creatures;
+using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
@@ -297,6 +299,100 @@ public class CreatureAbilityAiShould
 
         Assert.Equal((object)CreatureCombatScript.CombatState.None, fight.Script.State);
         Assert.All(fight.Script.Abilities.All, a => Assert.True(CreatureAbilities.IsReady(a)));
+    }
+
+    // ── crowd control ──
+
+    /// <summary>
+    /// #770: a creature put under crowd control on its way to its target, which stays out of reach for 5.5 s and then
+    /// stands beside it for 1 s. Stunned, it stands where it was, faces where it faced and casts nothing; rooted, it
+    /// stands, never gives up on the target out of reach (its stopped route reaches nothing), then turns to it and
+    /// attacks; silenced, it fights with its basic alone, though its rotation prefers a ready special. A real creature,
+    /// whose auras hold the control, over the real waypoint locomotion.
+    /// </summary>
+    [Theory]
+    [InlineData(CrowdControl.None)]
+    [InlineData(CrowdControl.Stun)]
+    [InlineData(CrowdControl.Root)]
+    [InlineData(CrowdControl.Silence)]
+    public void Obey_crowd_control_in_combat(CrowdControl control)
+    {
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
+        navigator.FindPath(default, default).ReturnsForAnyArgs(ci => new List<Vector3> { ci.ArgAt<Vector3>(1) });
+        var locomotion = new WaypointLocomotion(_ => navigator);
+        CreatureTemplate template = Loot.LootTestData.BoarTemplate(null);
+        template.SpeedRun = 4f;
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 770_1),
+            TemplateId = template.Id,
+            Metadata = template,
+            Name = "Boar",
+            Position = Vector3.zero,
+            Health = 100,
+            CurrentHealth = 100,
+        };
+        ICharacter target = Substitute.For<ICharacter>();
+        target.Guid.Returns(new ObjectGuid(ObjectType.Character, 770_2));
+        target.Position.Returns(new Vector3(8f, 0f, 0f));
+        target.IsDead.Returns(false);
+        ICombatService combat = Substitute.For<ICombatService>();
+        combat.GetEncounterFor(creature).Returns((IEncounter?)null);
+        ISimulationContext context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(combat);
+        context.Locomotion.Returns(locomotion);
+        context.MeleeSlots.Returns(new MeleeSlots(6, radius: 1.5f));
+        locomotion.Register(creature, radius: 0.5f);
+        var script = new KitCombatScript(creature, context, catalog: TestKit.Catalog(Special()),
+            kit: new CreatureAbilityKit(TestKit.BasicId, s_specialId));
+        script.Rotation = (_, distance) =>
+            script.ReadyFor(s_specialId, distance) ?? script.ReadyFor(TestKit.BasicId, distance);
+        script.OnEnteredRange(target);
+
+        Run(0.5);   // on its way
+        Vector3 at = creature.Position;
+        Assert.NotEqual(Vector3.zero, at);
+        if (control != CrowdControl.None)
+            creature.Auras.Add(AuraTestData.HeldControl(control), DateTimeOffset.UnixEpoch);
+        Vector3 facing = creature.Orientation;
+        target.Position.Returns(at + new Vector3(12f, 0f, 0f));   // out of reach
+        Run(5.5);
+        target.Position.Returns(at + new Vector3(0f, 0f, 1f));    // beside where it was put under control
+        int castsBefore = CastRig.Of(context).Casts.Count;
+        Run(1.0);
+        var casts = CastRig.Of(context).Casts.Select(c => c.Ability.AbilityId).ToList();
+
+        Assert.Equal((object)CreatureCombatScript.CombatState.Combat, script.State);
+        switch (control)
+        {
+            case CrowdControl.None:
+                Assert.NotEqual(at, creature.Position);
+                Assert.Contains(s_specialId, casts);
+                break;
+            case CrowdControl.Stun:
+                Assert.Equal(at, creature.Position);
+                Assert.Equal(facing, creature.Orientation);
+                Assert.Empty(casts);
+                break;
+            case CrowdControl.Root:
+                Assert.Equal(at, creature.Position);
+                Assert.True(creature.IsLookingAt(target.Position));
+                Assert.True(casts.Count > castsBefore);
+                break;
+            case CrowdControl.Silence:
+                Assert.NotEmpty(casts);
+                Assert.All(casts, id => Assert.Equal(TestKit.BasicId, id));
+                break;
+        }
+
+        void Run(double seconds)
+        {
+            for (int i = 0; i < (int)Math.Round(seconds * 10); i++)
+            {
+                script.Update(TimeSpan.FromSeconds(0.1));
+                locomotion.Update(TimeSpan.FromSeconds(0.1));
+            }
+        }
     }
 
     // ── the chained scripts ──

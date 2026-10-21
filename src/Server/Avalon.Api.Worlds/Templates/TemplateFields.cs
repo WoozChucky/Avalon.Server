@@ -82,6 +82,10 @@ internal static class TemplateFields
         C("rangeAttackTime", e => e.RangeAttackTime, (e, r) => e.RangeAttackTime = r.RangeAttackTime),
         C("experience", e => e.Experience, (e, r) => e.Experience = r.Experience),
         C("bodyRemoveTimerSecs", e => e.BodyRemoveTimerSecs, (e, r) => e.BodyRemoveTimerSecs = r.BodyRemoveTimerSecs),
+        C("stunDurationPct", e => e.StunDurationPct, (e, r) => e.StunDurationPct = r.StunDurationPct),
+        C("rootDurationPct", e => e.RootDurationPct, (e, r) => e.RootDurationPct = r.RootDurationPct),
+        C("silenceDurationPct", e => e.SilenceDurationPct, (e, r) => e.SilenceDurationPct = r.SilenceDurationPct),
+        C("slowDurationPct", e => e.SlowDurationPct, (e, r) => e.SlowDurationPct = r.SlowDurationPct),
     ];
 
     public static readonly IReadOnlyList<TemplateField<ItemTemplate, UpdateItemTemplateRequest>> Item =
@@ -146,6 +150,9 @@ internal static class TemplateFields
         U("baseDamageCoefficient", e => e.BaseDamageCoefficient, (e, r) => e.BaseDamageCoefficient = r.BaseDamageCoefficient),
         U("stacking", e => e.Stacking, (e, r) => e.Stacking = Conv(r.Stacking, e.Stacking)),
         U("maxStacks", e => e.MaxStacks, (e, r) => e.MaxStacks = r.MaxStacks),
+        U("control", e => e.Control, (e, r) => e.Control = Conv(r.Control, e.Control)),
+        U("breakOnDamagePct", e => e.BreakOnDamagePct, (e, r) => e.BreakOnDamagePct = r.BreakOnDamagePct),
+        U("breakPerSecondPct", e => e.BreakPerSecondPct, (e, r) => e.BreakPerSecondPct = r.BreakPerSecondPct),
         U("scriptName", e => e.ScriptName, (e, r) => e.ScriptName = NullIfBlank(r.ScriptName)),
         U("modifiers", e => ModifierText(e.Modifiers), (e, r) => MergeModifiers(e, r.Modifiers ?? [])),
     ];

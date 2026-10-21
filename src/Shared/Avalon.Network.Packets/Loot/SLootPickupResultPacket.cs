@@ -25,6 +25,9 @@ public enum LootPickupResult : byte
 
     /// <summary>The pile would take the picker's balance past GameConfiguration.MaxMoney.</summary>
     MoneyCapReached = 6,
+
+    /// <summary>The picker is stunned (#770): it picks nothing up until the stun ends.</summary>
+    Stunned = 7,
 }
 
 /// <summary>The answer to one CLootPickupPacket, sent to the picker only.</summary>
