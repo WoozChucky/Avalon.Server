@@ -236,10 +236,19 @@ public class WorldDbContext : DbContext
 
     /// <summary>
     /// What each rarity tier multiplies a creature's base stats by. A table rather than a switch so a
-    /// tier is retuned as data alongside the base stats themselves.
+    /// tier is retuned as data alongside the base stats themselves. The crowd-control duration percentages
+    /// (#770) are 0 (immune) to 100 (the full duration), as CreatureTemplateRules.ValidateRarities refuses
+    /// anything else.
     /// </summary>
     private static void Configure(EntityTypeBuilder<CreatureRarityModifier> builder)
     {
+        builder.ToTable("CreatureRarityModifiers", t =>
+        {
+            t.HasCheckConstraint("CK_CreatureRarityModifiers_StunDurationPct", Percentage("StunDurationPct"));
+            t.HasCheckConstraint("CK_CreatureRarityModifiers_RootDurationPct", Percentage("RootDurationPct"));
+            t.HasCheckConstraint("CK_CreatureRarityModifiers_SilenceDurationPct", Percentage("SilenceDurationPct"));
+            t.HasCheckConstraint("CK_CreatureRarityModifiers_SlowDurationPct", Percentage("SlowDurationPct"));
+        });
         builder.HasKey(b => b.Rarity);
 
         builder.HasData(
@@ -951,6 +960,17 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint(
                 "CK_CreatureTemplates_BaseAttackTime",
                 "\"BaseAttackTime\" >= 0.5 AND \"BaseAttackTime\" < 'Infinity'");
+
+            // #770: a crowd-control duration override is null (the rarity's) or a percentage, as
+            // CreatureTemplateRules.Validate refuses anything else.
+            foreach (string column in new[]
+                     {
+                         "StunDurationPct", "RootDurationPct", "SilenceDurationPct", "SlowDurationPct",
+                     })
+            {
+                t.HasCheckConstraint($"CK_CreatureTemplates_{column}",
+                    $"\"{column}\" IS NULL OR ({Percentage(column)})");
+            }
         });
         builder.Property(b => b.Id)
             .HasConversion(
@@ -3181,7 +3201,7 @@ public class WorldDbContext : DbContext
     /// Auras: timed effects abilities, items and scripts put on units. Reference data; the world's AuraCatalog validates
     /// it on load and on /reload auras. The checks mirror AuraRules.Problem, so a row the world would refuse never
     /// reaches it. Kind 1 Helpful, 2 Harmful; PeriodicKind 0 None, 1 Damage, 2 Heal; Stacking 1 Refresh, 2 Stack,
-    /// 3 Independent.
+    /// 3 Independent. Control is flags (#770), so 0 (none) is allowed: 1 Stun, 2 Root, 4 Silence, any of them together.
     /// </summary>
     private static void Configure(EntityTypeBuilder<AuraTemplate> builder)
     {
@@ -3202,6 +3222,11 @@ public class WorldDbContext : DbContext
             // A harmful aura never heals and a helpful one never deals damage.
             t.HasCheckConstraint("CK_AuraTemplates_PeriodicFitsKind",
                 "(\"Kind\" = 2 OR \"PeriodicKind\" <> 1) AND (\"Kind\" = 1 OR \"PeriodicKind\" <> 2)");
+            t.HasCheckConstraint("CK_AuraTemplates_Control", "\"Control\" BETWEEN 0 AND 7");
+            // Only a harmful aura stuns, roots or silences.
+            t.HasCheckConstraint("CK_AuraTemplates_ControlIsHarmful", "\"Control\" = 0 OR \"Kind\" = 2");
+            t.HasCheckConstraint("CK_AuraTemplates_BreakOnDamagePct", Percentage("BreakOnDamagePct"));
+            t.HasCheckConstraint("CK_AuraTemplates_BreakPerSecondPct", Percentage("BreakPerSecondPct"));
         });
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id)

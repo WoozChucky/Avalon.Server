@@ -90,9 +90,9 @@ public class StaticData(
             {
                 IReadOnlyCollection<CreatureTemplate> templates =
                     (await creatureTemplateRepository.FindAllAsync(false, ct)).AsReadOnly();
-                CreaturesPatch.Validate(templates);
                 IReadOnlyCollection<CreatureBaseStat> baseStats = await creatureBaseStatRepository.GetAllAsync(ct);
                 IReadOnlyCollection<CreatureRarityModifier> rarities = await creatureRarityModifierRepository.GetAllAsync(ct);
+                CreaturesPatch.Validate(templates, rarities);
 
                 // Built from the collections just read, never from the ones currently applied —
                 // capturing the applied ones is exactly the trap this work removes.

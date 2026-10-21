@@ -51,6 +51,18 @@ public class AuraTemplate : IDbEntity<AuraId>
     /// <summary>The most stacks a Stack aura reaches; 1 for every other.</summary>
     public uint MaxStacks { get; set; } = 1;
 
+    /// <summary>The states it puts its holder in; None for most auras. Only a Harmful aura may grant any.</summary>
+    public CrowdControl Control { get; set; }
+
+    /// <summary>
+    /// Percent, 0 to 100: the chance it ends each time its holder takes damage (a hit, or a tick that dealt more than
+    /// 0).
+    /// </summary>
+    public float BreakOnDamagePct { get; set; }
+
+    /// <summary>Percent, 0 to 100: the chance it ends on its own, rolled once for every second it is held.</summary>
+    public float BreakPerSecondPct { get; set; }
+
     /// <summary>The AuraScript run for it, by class name, or null.</summary>
     public string? ScriptName { get; set; }
 

@@ -93,6 +93,7 @@ public sealed class BalanceData
         (CombatFormula formula, IReadOnlyDictionary<CharacterClass, ClassStatFactors> factors) =
             CombatDataRules.Build(tables.CombatFormulas, tables.ClassStatFactors);
         CreatureTemplateRules.Validate(tables.CreatureTemplates);
+        CreatureTemplateRules.ValidateRarities(tables.CreatureRarityModifiers);
         var creatureStats = new CreatureStatDeriver(tables.CreatureBaseStats, tables.CreatureRarityModifiers,
             NullLoggerFactory.Instance);
 

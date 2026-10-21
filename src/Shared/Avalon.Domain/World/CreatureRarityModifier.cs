@@ -20,4 +20,19 @@ public class CreatureRarityModifier
 
     /// <summary>Chance to block a hit, in percentage points (#506).</summary>
     public float BlockPct { get; set; }
+
+    /// <summary>
+    /// Percent, 0 to 100, of a stun's duration the tier takes (#770): 0 is immune, 100 the full duration. A missing
+    /// tier is unscaled, so the default is the full duration.
+    /// </summary>
+    public float StunDurationPct { get; set; } = 100f;
+
+    /// <summary>Percent, 0 to 100, of a root's duration the tier takes, as <see cref="StunDurationPct" />.</summary>
+    public float RootDurationPct { get; set; } = 100f;
+
+    /// <summary>Percent, 0 to 100, of a silence's duration the tier takes, as <see cref="StunDurationPct" />.</summary>
+    public float SilenceDurationPct { get; set; } = 100f;
+
+    /// <summary>Percent, 0 to 100, of a slow's duration the tier takes, as <see cref="StunDurationPct" />.</summary>
+    public float SlowDurationPct { get; set; } = 100f;
 }

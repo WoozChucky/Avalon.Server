@@ -7,6 +7,8 @@ namespace Avalon.Combat;
 /// <summary>The aura rules the world server and the balance simulator share. Pure.</summary>
 public static class AuraRules
 {
+    private const CrowdControl KnownControl = CrowdControl.Stun | CrowdControl.Root | CrowdControl.Silence;
+
     /// <summary>
     /// Why a row cannot load, or null when it can, its numbers written in the invariant culture. A script name is
     /// checked by the world, which knows them.
@@ -17,6 +19,7 @@ public static class AuraRules
         if (!Enum.IsDefined(t.PeriodicKind)) return $"unknown periodic kind {(int)t.PeriodicKind}";
         if (!Enum.IsDefined(t.Stacking)) return $"unknown stacking {(int)t.Stacking}";
         if (!Enum.IsDefined(t.ScalingStat)) return $"unknown scaling stat {(int)t.ScalingStat}";
+        if ((t.Control & ~KnownControl) != 0) return $"unknown control {(int)t.Control}";
         if (t.DurationMs == 0) return "DurationMs must be above 0";
         if (t.PeriodicKind != AuraPeriodicKind.None && t.TickIntervalMs == 0)
             return "a periodic aura needs a TickIntervalMs above 0";
@@ -34,8 +37,19 @@ public static class AuraRules
                 return FormattableString.Invariant($"{name} {value} is not a finite value of 0 or more");
         }
 
+        foreach ((string name, float value) in new[]
+                 {
+                     ("BreakOnDamagePct", t.BreakOnDamagePct), ("BreakPerSecondPct", t.BreakPerSecondPct),
+                 })
+        {
+            if (!float.IsFinite(value) || value < 0f || value > 100f)
+                return FormattableString.Invariant($"{name} {value} is not a finite percentage from 0 to 100");
+        }
+
         if (t.Kind == AuraKind.Harmful && t.PeriodicKind == AuraPeriodicKind.Heal) return "a harmful aura cannot heal";
         if (t.Kind == AuraKind.Helpful && t.PeriodicKind == AuraPeriodicKind.Damage) return "a helpful aura cannot deal damage";
+        if (t.Kind == AuraKind.Helpful && t.Control != CrowdControl.None)
+            return "a helpful aura cannot stun, root or silence";
 
         var seen = new HashSet<AuraStat>();
         foreach (AuraStatModifier m in t.Modifiers)
@@ -49,6 +63,22 @@ public static class AuraRules
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// A slow: a Harmful aura with a negative MovementSpeed modifier (#770). Slow is derived, never a Control bit, so
+    /// an existing slowing debuff joins crowd control with no data change. Reads <see cref="AuraTemplate.Modifiers" />.
+    /// </summary>
+    public static bool IsSlow(AuraTemplate t)
+    {
+        if (t.Kind != AuraKind.Harmful) return false;
+
+        foreach (AuraStatModifier m in t.Modifiers)
+        {
+            if (m.Stat == AuraStat.MovementSpeed && m.Value < 0f) return true;
+        }
+
+        return false;
     }
 
     /// <summary>

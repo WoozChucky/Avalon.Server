@@ -102,6 +102,37 @@ public class StaticDataRulesShould
         Assert.Equal(0.5f, CreatureTemplateRules.MinBaseAttackTime);
     }
 
+    /// <summary>
+    /// A crowd-control duration percentage scales a creature's CC; 0 is immune, 100 the full duration, and nothing else
+    /// is a percentage. A creature's override may also be null (the rarity's value).
+    /// </summary>
+    public static TheoryData<string, Action> CrowdControlPercentages() => new()
+    {
+        { "CreatureTemplate 7: StunDurationPct must be between 0 and 100, not -1",
+            () => CreatureTemplateRules.Validate([new CreatureTemplate { Id = 7UL, StunDurationPct = -1f }]) },
+        { "CreatureTemplate 7: SlowDurationPct must be between 0 and 100, not NaN",
+            () => CreatureTemplateRules.Validate([new CreatureTemplate { Id = 7UL, SlowDurationPct = float.NaN }]) },
+        { "CreatureRarityModifier Boss: RootDurationPct must be between 0 and 100, not 101",
+            () => CreatureTemplateRules.ValidateRarities([new CreatureRarityModifier { Rarity = CreatureRarity.Boss, RootDurationPct = 101f }]) },
+        { "CreatureRarityModifier Rare: SilenceDurationPct must be between 0 and 100, not -1",
+            () => CreatureTemplateRules.ValidateRarities([new CreatureRarityModifier { Rarity = CreatureRarity.Rare, SilenceDurationPct = -1f }]) },
+    };
+
+    [Theory]
+    [MemberData(nameof(CrowdControlPercentages))]
+    public void Refuse_a_crowd_control_percentage_outside_0_to_100(string reason, Action validate) =>
+        Assert.Equal(reason, Assert.Throws<InvalidDataException>(validate).Message);
+
+    [Fact]
+    public void Accept_crowd_control_percentages_from_0_to_100_and_a_null_override()
+    {
+        CreatureTemplateRules.Validate([new CreatureTemplate { Id = 7UL, StunDurationPct = 0f, RootDurationPct = 100f }]);
+        CreatureTemplateRules.ValidateRarities([new CreatureRarityModifier
+        {
+            Rarity = CreatureRarity.Boss, StunDurationPct = 0f, RootDurationPct = 50f, SilenceDurationPct = 0f, SlowDurationPct = 100f,
+        }]);
+    }
+
     [Fact]
     public void Give_a_warrior_fury() =>
         Assert.Equal(Avalon.Network.Packets.State.PowerType.Fury, ClassPowerType.Of(CharacterClass.Warrior));
