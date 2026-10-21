@@ -64,7 +64,7 @@ public class QuestResetScheduleShould
         Assert.True(clock.AvailableAgain(QuestRepeat.Repeatable, boundary));
     }
 
-    // Each row changes one setting from the defaults; the inclusive upper edges are accepted, which the defaults are too.
+    // Each row changes one setting from the defaults; the inclusive upper edges (and so the defaults) are accepted.
     [Theory]
     [InlineData("DailyResetTime", "-00:00:01", false)]
     [InlineData("DailyResetTime", "1.00:00:00", false)]

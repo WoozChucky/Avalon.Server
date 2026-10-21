@@ -93,8 +93,9 @@ singletons as in every host. Only their context factories differ in the API, whi
   **Release order, #710.** `TrackRepeatedQuestCompletions` adds `LastCompletedAt` and `CompletionCount` to a world's
   `CharacterCompletedQuests`, and the API maps both (a character's quest log carries them). The columns are additive,
   so the worlds go first: each migrates its Character database at its next start (start any stopped world once, so
-  it migrates too), and only then is an API release with the change cut. An older API reading a migrated world ignores the new columns; an API with the change reading a
-  world that has not migrated fails that world's character quest log, the only API read of the table.
+  it migrates too), and only then is an API release with the change cut. An older API reading a migrated world
+  ignores the new columns; an API with the change reading a world that has not migrated fails that world's character
+  quest log, the only API read of the table.
 
 ## How a request reaches its world
 

@@ -68,8 +68,8 @@ public sealed class QuestResetClock
     public bool Advance() => Advance(_time.GetUtcNow().UtcDateTime);
 
     /// <summary>
-    /// Moves every boundary <paramref name="utcNow" />, a UTC moment, has passed and raises the generation once, however
-    /// many it passed. True when it raised the generation. Before the next boundary it costs one comparison.
+    /// Moves every boundary <paramref name="utcNow" />, a UTC moment, has passed and raises the generation once,
+    /// however many it passed. True when it raised the generation. Before the next boundary it costs one comparison.
     /// </summary>
     public bool Advance(DateTime utcNow)
     {

@@ -11,11 +11,13 @@ namespace Avalon.World.Quests;
 /// </summary>
 public static class QuestResetSchedule
 {
-    /// <summary>The latest boundary of <paramref name="repeat" /> at or before <paramref name="utcNow" />, a UTC moment.</summary>
+    /// <summary>
+    /// The latest boundary of <paramref name="repeat" /> at or before <paramref name="utcNow" />, a UTC moment.
+    /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="repeat" /> has no boundary (Once or Repeatable).</exception>
     public static DateTime LastBoundary(QuestRepeat repeat, DateTime utcNow, QuestResetConfiguration options)
     {
-        Debug.Assert(utcNow.Kind != DateTimeKind.Local, "Quest reset boundaries are worked out on UTC, never local time.");
+        Debug.Assert(utcNow.Kind != DateTimeKind.Local, "Quest reset boundaries are on UTC, never local time.");
         DateTime today = utcNow.Date + options.DailyResetTime;
         DateTime daily = utcNow >= today ? today : today.AddDays(-1);  // the latest reset-time moment <= now
         switch (repeat)
@@ -35,14 +37,14 @@ public static class QuestResetSchedule
     }
 
     /// <summary>
-    /// The first daily boundary after <paramref name="utcNow" />, a UTC moment. Every weekly and monthly boundary is also
-    /// a daily one, so it is the next boundary of any frequency, and the only one the reset clock needs.
+    /// The first daily boundary after <paramref name="utcNow" />, a UTC moment. Every weekly and monthly boundary is
+    /// also a daily one, so it is the next boundary of any frequency, and the only one the reset clock needs.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="repeat" /> is not Daily.</exception>
     public static DateTime NextBoundary(QuestRepeat repeat, DateTime utcNow, QuestResetConfiguration options)
     {
         if (repeat != QuestRepeat.Daily)
-            throw new ArgumentOutOfRangeException(nameof(repeat), repeat, "Only the next daily boundary is worked out.");
+            throw new ArgumentOutOfRangeException(nameof(repeat), repeat, "Only the daily boundary comes next.");
 
         return LastBoundary(QuestRepeat.Daily, utcNow, options).AddDays(1);
     }

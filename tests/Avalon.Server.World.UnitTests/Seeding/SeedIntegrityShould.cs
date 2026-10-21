@@ -1307,7 +1307,8 @@ public class SeedIntegrityShould
 
         // Every text the quest names resolves in the base wording and in ptPT.
         AssertTextsResolveInBothLocales(context,
-            [quest.TitleTextId.Value, quest.DescriptionTextId.Value, quest.CompletionTextId.Value, cull.DescriptionTextId.Value]);
+            [quest.TitleTextId.Value, quest.DescriptionTextId.Value, quest.CompletionTextId.Value,
+             cull.DescriptionTextId.Value]);
     }
 
     private static void AssertTextsResolveInBothLocales(WorldDbContext context, int[] ids)
