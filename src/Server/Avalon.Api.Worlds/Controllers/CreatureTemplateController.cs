@@ -134,5 +134,9 @@ public class CreatureTemplateController : BaseController
         RangeAttackTime = t.RangeAttackTime,
         Experience = t.Experience,
         BodyRemoveTimerSecs = t.BodyRemoveTimerSecs,
+        StunDurationPct = t.StunDurationPct,
+        RootDurationPct = t.RootDurationPct,
+        SilenceDurationPct = t.SilenceDurationPct,
+        SlowDurationPct = t.SlowDurationPct,
     };
 }

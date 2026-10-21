@@ -30,6 +30,15 @@ public sealed class UpdateAuraTemplateRequest
     public AuraStacking Stacking { get; set; }
     public uint MaxStacks { get; set; }
 
+    /// <summary>The states it puts its holder in (#770); only a Harmful aura may grant any.</summary>
+    public CrowdControl Control { get; set; }
+
+    /// <summary>Percent, 0 to 100: the chance it ends each time its holder takes damage.</summary>
+    public float BreakOnDamagePct { get; set; }
+
+    /// <summary>Percent, 0 to 100: the chance it ends on its own, rolled once for every second it is held.</summary>
+    public float BreakPerSecondPct { get; set; }
+
     /// <summary>The aura script, by class name; blank or null for none.</summary>
     public string? ScriptName { get; set; }
 
