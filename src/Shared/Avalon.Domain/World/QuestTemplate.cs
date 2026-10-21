@@ -12,10 +12,12 @@ public class QuestTemplate
 {
     public QuestTemplateId Id { get; set; } = default!;
 
-    // Kept, unread in v1 (#710 repeatables and dailies will read the repeat pair).
+    // Kept, unread.
     public QuestEnvironmentType Environment { get; set; }
     public QuestType Type { get; set; }
     public QuestRarity Rarity { get; set; }
+
+    // Read as one repeat kind (#710): not repeatable is once; a null or None frequency is again at once.
     public bool IsRepeatable { get; set; }
     public QuestRepeatFrequency? RepeatFrequency { get; set; }
 
