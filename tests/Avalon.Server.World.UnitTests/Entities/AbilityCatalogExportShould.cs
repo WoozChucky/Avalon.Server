@@ -77,8 +77,18 @@ public class AbilityCatalogExportShould
 
         Assert.Equal(
             ["id", "name", "shape", "aimMode", "anchor", "affects", "radius", "reach", "arcDegrees", "projectileSpeed",
-             "pierce", "castTimeMs", "cooldownMs", "auraId"],
+             "pierce", "castTimeMs", "cooldownMs", "auraId", "basic"],
             bite.EnumerateObject().Select(p => p.Name));
+    }
+
+    /// <summary>#770: the class basics, the one ability a silence does not stop, so a client need not list their ids.</summary>
+    [Fact]
+    public void Mark_the_class_basic_attacks()
+    {
+        List<JsonElement> rows = Rows(AbilityCatalogExport.Render(Seeded()));
+
+        Assert.Equal([200L, 210L, 220L, 230L],
+            rows.Where(r => r.GetProperty("basic").GetBoolean()).Select(r => r.GetProperty("id").GetInt64()));
     }
 
     [Fact]

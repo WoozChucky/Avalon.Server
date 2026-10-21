@@ -42,7 +42,7 @@ dotnet run --project tools/Avalon.Exporter -- all --out /tmp  # somewhere other 
 | `navmesh` | `schema/vectors/navmesh-v1.txt` | the DotRecast bake and movement queries from the real generator |
 | `item-schema` | `schema/items/item-schema-v1.json` | `ItemTemplate` and its eight enumerations |
 | `item-catalog` | `schema/items/item-catalog-v1.json` | the item template rows — **needs a World database** |
-| `ability-catalog` | `schema/abilities/ability-catalog-v1.json` | every ability row a client names and draws, creatures' included (#163) — **needs a World database** |
+| `ability-catalog` | `schema/abilities/ability-catalog-v1.json` | every ability row a client names and draws, creatures' included (#163), with its `auraId` and `basic` (a class's basic attack, which a silence does not stop, #770) — **needs a World database** |
 | `aura-catalog` | `schema/auras/aura-catalog-v1.json` | every aura's name, icon, kind, timing, stacking, crowd control (`control` flags) and break chances, and stat modifiers — **needs a World database** |
 | `doodad-catalog` | `schema/doodads/doodad-catalog-v1.json` | every doodad's model kit and key, clips, interaction time and range, solidity and spent look, nothing of what a use does (no gates, loot, gold, restore, radius or aura outcomes) — **needs a World database** |
 | `map-catalog` | `schema/maps/map-catalog-v1.json` | every creature display id each map can show (placed creatures plus its spawn table), for client preloading — **needs a World database** |

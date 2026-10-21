@@ -23,7 +23,8 @@ enumeration written as a number and listed in its `$comment` (`kind` 1 helpful, 
 3 ability damage, 4 crit %, 5 dodge %, 6 block %, 7 haste %, 8 movement speed %, 9 max health, 10 max power;
 modifier `kind` 1 flat, 2 percent). The catalog's `control` is for tooltips only: a unit's crowd control is read from
 each aura entry's `Control` (section 10), which also carries the slow and stays right after a live edit. In
-`schema/abilities/ability-catalog-v1.json`, an ability's `auraId` names the aura it applies, or is `null`.
+`schema/abilities/ability-catalog-v1.json`, an ability's `auraId` names the aura it applies, or is `null`, and
+`basic` marks a class's basic attack, which a silence does not stop (section 10).
 
 ## 2. Opcodes
 
@@ -221,7 +222,7 @@ holds (the union of their bits), never from the catalog:
 |---|---|---|
 | 1 | Stun | move, turn, cast (its basic attack included), use an item or a doodad, put gear on or off, touch the Bank, pick up loot, talk to an NPC or act on an open conversation, enter a portal. It can still cancel its own helpful auras, move items within its Bag and chat. |
 | 2 | Root | move. It still turns, casts and acts within reach. |
-| 4 | Silence | cast any ability but its class's basic attack (200 Cleave, 210 Arcane Bolt, 220 Quick Shot, 230 Smite). It still moves and uses items (an item that casts included) and doodads. |
+| 4 | Silence | cast any ability but its class's basic attack, the abilities whose `basic` is true in `schema/abilities/ability-catalog-v1.json`. It still moves and uses items (an item that casts included) and doodads. |
 | 8 | Slow | move at full speed. The slowed speed already reaches the client (section 6); the bit is for display. |
 
 - **Movement.** While the own character holds a stun or a root, stop predicting movement locally. The server takes
