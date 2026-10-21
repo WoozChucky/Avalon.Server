@@ -66,6 +66,22 @@
       "auraId": 1
     },
     {
+      "id": 204,
+      "name": "Shield Bash",
+      "shape": 1,
+      "aimMode": 0,
+      "anchor": 0,
+      "affects": 0,
+      "radius": 0,
+      "reach": 2.5,
+      "arcDegrees": 90,
+      "projectileSpeed": 0,
+      "pierce": false,
+      "castTimeMs": 0,
+      "cooldownMs": 15000,
+      "auraId": 12
+    },
+    {
       "id": 210,
       "name": "Arcane Bolt",
       "shape": 2,
@@ -130,6 +146,22 @@
       "auraId": 2
     },
     {
+      "id": 214,
+      "name": "Frost Bind",
+      "shape": 0,
+      "aimMode": 1,
+      "anchor": 1,
+      "affects": 0,
+      "radius": 3,
+      "reach": 18,
+      "arcDegrees": 0,
+      "projectileSpeed": 0,
+      "pierce": false,
+      "castTimeMs": 0,
+      "cooldownMs": 20000,
+      "auraId": 14
+    },
+    {
       "id": 220,
       "name": "Quick Shot",
       "shape": 2,
@@ -192,6 +224,22 @@
       "castTimeMs": 0,
       "cooldownMs": 8000,
       "auraId": 3
+    },
+    {
+      "id": 224,
+      "name": "Binding Shot",
+      "shape": 2,
+      "aimMode": 1,
+      "anchor": 0,
+      "affects": 0,
+      "radius": 0,
+      "reach": 25,
+      "arcDegrees": 0,
+      "projectileSpeed": 28,
+      "pierce": false,
+      "castTimeMs": 0,
+      "cooldownMs": 15000,
+      "auraId": 13
     },
     {
       "id": 230,
@@ -272,6 +320,22 @@
       "castTimeMs": 0,
       "cooldownMs": 20000,
       "auraId": 5
+    },
+    {
+      "id": 235,
+      "name": "Hush",
+      "shape": 2,
+      "aimMode": 1,
+      "anchor": 0,
+      "affects": 0,
+      "radius": 0,
+      "reach": 18,
+      "arcDegrees": 0,
+      "projectileSpeed": 20,
+      "pierce": false,
+      "castTimeMs": 0,
+      "cooldownMs": 20000,
+      "auraId": 15
     },
     {
       "id": 300,

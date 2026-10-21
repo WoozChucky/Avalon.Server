@@ -178,6 +178,54 @@
       "stacking": 1,
       "maxStacks": 1,
       "modifiers": []
+    },
+    {
+      "id": 12,
+      "name": "Stunned",
+      "icon": "stunned",
+      "kind": 2,
+      "durationMs": 1500,
+      "tickIntervalMs": 0,
+      "periodicKind": 0,
+      "stacking": 1,
+      "maxStacks": 1,
+      "modifiers": []
+    },
+    {
+      "id": 13,
+      "name": "Bound",
+      "icon": "bound",
+      "kind": 2,
+      "durationMs": 3000,
+      "tickIntervalMs": 0,
+      "periodicKind": 0,
+      "stacking": 1,
+      "maxStacks": 1,
+      "modifiers": []
+    },
+    {
+      "id": 14,
+      "name": "Frozen",
+      "icon": "frozen",
+      "kind": 2,
+      "durationMs": 2500,
+      "tickIntervalMs": 0,
+      "periodicKind": 0,
+      "stacking": 1,
+      "maxStacks": 1,
+      "modifiers": []
+    },
+    {
+      "id": 15,
+      "name": "Silenced",
+      "icon": "silenced",
+      "kind": 2,
+      "durationMs": 3000,
+      "tickIntervalMs": 0,
+      "periodicKind": 0,
+      "stacking": 1,
+      "maxStacks": 1,
+      "modifiers": []
     }
   ]
 }
