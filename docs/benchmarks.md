@@ -29,27 +29,41 @@ protection: `ScenarioWorld` adds its characters through `instance.AddCharacter`,
 not cover the buff's apply, hold and removal; the two benchmarks above cover its checks.
 Run with `--filter "*ArrivalProtectionBenchmarks*" "*ArrivalTargetSelectionBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1`.
 
-`CrowdControlBenchmarks` measures the crowd-control gates on the hot paths (#770): player input and the creature
+`CrowdControlBenchmarks` measures the crowd-control work on the hot paths (#770): player input and the creature
 patrol ask `ControlGates.CanMove`, the cast handler and the cast system `ControlGates.CanCast`, and the creature
-combat AI reads `ControlGates.Of`, the same cached field both wrap. It times `CanMove` and `CanCast` (not the basic
-attack) on a character holding no aura, one holding Renew (an aura that controls nothing) and one stunned (Stunned,
-aura 12, applied by nobody through an instance's aura system backed by loaded seed data). Each is one read of the
-state the unit's auras cache (`UnitAuras.Control`), never a look at its auras or the clock, so every row is expected
-at about the cost of a field read and 0 B. Numbers: not yet run (the controller's run fills this in).
+combat AI reads `ControlGates.Of`, the same cached field both wrap; every damaging hit and periodic tick reports
+`AuraSystem.DamageTaken`, which rolls each held aura's chance to break on damage. It times `CanMove`, `CanCast` (not the
+basic attack) and `DamageTaken` on a character holding no aura, one holding Renew (an aura that controls nothing and
+cannot break) and one stunned (Stunned, aura 12, 10 % to break on damage), each applied by nobody through an aura system
+built over loaded seed data. The gates are one read of the state the unit's auras cache (`UnitAuras.Control`), never a
+look at its auras or the clock. `DamageTaken` returns at a cached flag (`UnitAuras.BreaksOnDamage`) unless an aura held
+can break; the stunned row draws its 10 % on every call. Its combat service runs on `CombatRandom.Steady`, whose every
+roll comes up just under 1, so the stun never breaks and every iteration measures the same stunned unit with nothing
+re-applied between them (the cleanup fails the run if the stun is gone). On 2026-10-21, Windows 11, i9-12900K,
+.NET 10.0.13, Release, in-process, `DOTNET_TieredCompilation=0`, affinity 1, three warmups and five measured iterations,
+one run before the `BreaksOnDamage` flag (`DamageTaken` walked every held aura) and one after:
 
-| Operation | Mean | Allocated |
-|---|---:|---:|
-| `CanMove`, no aura (baseline) | | |
-| `CanMove`, a non-controlling aura | | |
-| `CanMove`, stunned | | |
-| `CanCast`, no aura | | |
-| `CanCast`, a non-controlling aura | | |
-| `CanCast`, stunned | | |
+| Operation | Before: mean | After: mean | Allocated |
+|---|---:|---:|---:|
+| `CanMove`, no aura (baseline) | 1.92 ns | 2.00 ns | 0 B |
+| `CanMove`, a non-controlling aura | 1.90 ns | 2.25 ns | 0 B |
+| `CanMove`, stunned | 2.18 ns | 1.99 ns | 0 B |
+| `CanCast`, no aura | 2.20 ns | 2.25 ns | 0 B |
+| `CanCast`, a non-controlling aura | 2.46 ns | 2.23 ns | 0 B |
+| `CanCast`, stunned | 2.25 ns | 2.46 ns | 0 B |
+| `DamageTaken`, no aura | 2.68 ns | 2.61 ns | 0 B |
+| `DamageTaken`, an aura that cannot break | 7.20 ns | 2.66 ns | 0 B |
+| `DamageTaken`, stunned (one roll, never breaking) | 8.48 ns | 8.49 ns | 0 B |
 
-Both Debug and Release `ScenarioAllocationsShould` pass on the crowd-control branch with the baseline unchanged
-(committed `66b158d6a`). No scenario applies crowd control, so the gate covers the gates' no-aura path on every input,
-cast and creature tick, not a controlled unit; the benchmark above covers that.
-Run with `--filter "*CrowdControlBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1`.
+The gate rows move within a few tenths of a nanosecond between runs with no change to them: noise at the cost of a
+field read. The flag takes a hit on a unit whose auras cannot break from a walk of them to the no-aura cost; a unit
+holding a breakable aura still pays the walk and one draw per such aura. A run with tiered compilation on measured the
+first two rows at about 17 ns (most likely code not yet past tier 0 after three warmups), so these runs turn it off, as the arrival
+benchmarks do. Both Debug and Release `ScenarioAllocationsShould` pass on the crowd-control branch with the baseline
+unchanged (committed `66b158d6a`). No scenario applies crowd control, so the gate covers the gates' no-aura path on
+every input, cast and creature tick, not a controlled unit; the benchmark above covers that.
+Run with `--filter "*CrowdControlBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1` and
+`DOTNET_TieredCompilation=0` in the environment.
 
 Whole-tick numbers (tick-thread allocations per tick, tick times and GC for fixed world scenarios) come from the
 scenario runner instead, and the allocations are gated in CI: see [Scenario baseline](#scenario-baseline) at the end.
@@ -82,7 +96,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ActiveSc
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InventoryFlush*" "*ItemRequest*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ArrivalBenchmarks*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScanBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8
-dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CrowdControlBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5
+DOTNET_TieredCompilation=0 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CrowdControlBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SocialEventBenchmarks*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InterestVisibilityBenchmarks*" "*SpatialIndexBenchmarks*" --job short
 
