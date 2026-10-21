@@ -5,8 +5,8 @@ namespace Avalon.Api.Contract;
 /// <summary>
 /// A quest as its world's data defines it (#714): who gives it and takes it back, its stages and objectives, what it
 /// pays and which creatures drop its quest items. Each text is the base-locale (enUS) wording beside its text id;
-/// a text id with no row reads as an empty string. The template's Environment, Type, Rarity, IsRepeatable and
-/// RepeatFrequency are left out: the server does not read them in v1 (repeatables are #710).
+/// a text id with no row reads as an empty string. The template's Environment, Type and Rarity are left out: the server
+/// does not read them.
 /// </summary>
 public sealed class QuestTemplateDto
 {
@@ -43,6 +43,15 @@ public sealed class QuestTemplateDto
 
     /// <summary>Copper.</summary>
     public ulong RewardMoney { get; set; }
+
+    /// <summary>Whether the quest can be done again after it is turned in (#710).</summary>
+    public bool IsRepeatable { get; set; }
+
+    /// <summary>
+    /// How often a repeatable quest comes back (#710), as the template stores it: null for a stored null, None or
+    /// unknown value. A repeatable quest with no frequency can be done again at once.
+    /// </summary>
+    public QuestRepeatFrequency? RepeatFrequency { get; set; }
 
     /// <summary>In order, from 0.</summary>
     public IList<QuestStageTemplateDto> Stages { get; set; } = [];

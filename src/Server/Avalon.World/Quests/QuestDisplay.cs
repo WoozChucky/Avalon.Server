@@ -30,6 +30,7 @@ public static class QuestDisplay
             Money = quest.RewardMoney,
             Items = quest.ItemRewards.Select(r => new QuestRewardItemDto { ItemTemplateId = r.ItemTemplateId.Value, Count = r.Count }).ToList(),
         },
+        Repeat = RepeatKindOf(quest.Repeat),
     };
 
     /// <summary>The wire's name for a stored type. Explicit, never a cast.</summary>
@@ -41,5 +42,16 @@ public static class QuestDisplay
         QuestObjectiveType.Scripted => QuestObjectiveKind.Scripted,
         QuestObjectiveType.UseDoodad => QuestObjectiveKind.UseDoodad,
         _ => QuestObjectiveKind.Unknown,
+    };
+
+    /// <summary>The wire's name for how a quest comes back (#710). Explicit, never a cast.</summary>
+    public static QuestRepeatKind RepeatKindOf(QuestRepeat repeat) => repeat switch
+    {
+        QuestRepeat.Once => QuestRepeatKind.Once,
+        QuestRepeat.Repeatable => QuestRepeatKind.Repeatable,
+        QuestRepeat.Daily => QuestRepeatKind.Daily,
+        QuestRepeat.Weekly => QuestRepeatKind.Weekly,
+        QuestRepeat.Monthly => QuestRepeatKind.Monthly,
+        _ => QuestRepeatKind.Unknown,
     };
 }

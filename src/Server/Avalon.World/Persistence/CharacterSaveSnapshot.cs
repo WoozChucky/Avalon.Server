@@ -104,7 +104,9 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
             List<CharacterCompletedQuest> completed = [];
             foreach (uint questId in questMarks.Keys.Order())
             {
-                // Memory is authoritative: whatever the quest is now is what the rows become.
+                // Memory is authoritative: whatever the quest is now is what the rows become. A quest held again
+                // after a turn-in (a repeatable, #710) has both an active row and a completion row, so the two are
+                // written independently.
                 rewrite.Add(questId);
                 if (character.Quests.Get(questId) is { } quest)
                 {
@@ -119,9 +121,17 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
                     objectives.AddRange(quest.Progress.Select(p => new CharacterQuestObjective
                     { CharacterId = row.Id, QuestId = questId, ObjectiveId = p.Key, Progress = p.Value }));
                 }
-                else if (character.Quests.CompletedAt(questId) is { } at)
+
+                if (character.Quests.Completion(questId) is { } done)
                 {
-                    completed.Add(new CharacterCompletedQuest { CharacterId = row.Id, QuestId = questId, CompletedAt = at });
+                    completed.Add(new CharacterCompletedQuest
+                    {
+                        CharacterId = row.Id,
+                        QuestId = questId,
+                        CompletedAt = done.FirstCompletedAt,
+                        LastCompletedAt = done.LastCompletedAt,
+                        CompletionCount = done.Count,
+                    });
                 }
             }
 

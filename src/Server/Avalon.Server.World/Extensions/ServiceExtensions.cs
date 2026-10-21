@@ -90,6 +90,8 @@ public static class ServiceExtensions
             .ValidateOnStart();
         // #1002: a tick CPU this machine cannot give the tick stops the start.
         services.AddSingleton<IValidateOptions<GameConfiguration>>(new TickThreadCpuValidation(LinuxCpuAffinity.Instance));
+        // #710: a quest reset setting out of range stops the start.
+        services.AddSingleton<IValidateOptions<GameConfiguration>>(new QuestResetValidation());
 
         // The send threads and the session layer (#875): Network:SendThreads, MaxPendingBytes, MaxWriteStall,
         // PacketEncryption. And the receive queue's depth cap (#927): MaxReceiveQueueDepth.
@@ -186,6 +188,9 @@ public static class ServiceExtensions
         services.AddSingleton<IScriptHotReloader, ScriptHotReloader>();
         services.AddSingleton<IScriptDatabase, ScriptDatabase>();
 
+        // The daily, weekly and monthly quest reset clock (#710), advanced once per tick.
+        services.AddSingleton(sp => new QuestResetClock(
+            sp.GetRequiredService<IOptions<GameConfiguration>>().Value.QuestResets, sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton<QuestService>();
 
         // Vendor quest gates (#432), met over each character's quest log (#433).
@@ -204,9 +209,11 @@ public static class ServiceExtensions
         services.AddSingleton<AuraScripts>();
 
         // Doodads: their scripts, built once per type, and who may see and use each one, asked by every instance's view
-        // decisions (with the scripts, so a CanSee is never silently skipped).
+        // decisions (with the scripts, so a CanSee is never silently skipped, and the reset clock, so a gate on a
+        // repeatable quest follows its availability).
         services.AddSingleton<DoodadScripts>();
-        services.AddSingleton(sp => new DoodadVisibility(sp.GetRequiredService<DoodadScripts>()));
+        services.AddSingleton(sp => new DoodadVisibility(
+            sp.GetRequiredService<DoodadScripts>(), sp.GetRequiredService<QuestResetClock>()));
 
         // Doodad use: the interact handler hands it a doodad's CMSG_INTERACT, and every instance's doodad casts and
         // respawns answer to it (MapInstance reads it with GetService).

@@ -33,7 +33,7 @@ public interface IDoodadViewContext
     /// <summary>Whether the viewer holds the quest: accepted and not turned in.</summary>
     bool ViewerHolds(uint questId);
 
-    /// <summary>Whether the viewer turned the quest in.</summary>
+    /// <summary>Whether the viewer turned the quest in, in the current period for a repeatable quest.</summary>
     bool ViewerCompleted(uint questId);
 
     /// <summary>Whether the viewer is on the objective: the OnObjective rule of <see cref="DoodadGates" />.</summary>

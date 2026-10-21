@@ -29,6 +29,8 @@ public static class QuestMapping
         ScriptName = q.ScriptName,
         RewardExperience = q.RewardExperience,
         RewardMoney = q.RewardMoney,
+        IsRepeatable = q.IsRepeatable,
+        RepeatFrequency = Frequency(q.RepeatFrequency),
         Stages = q.Stages.OrderBy(s => s.Sequence).Select(s => new QuestStageTemplateDto
         {
             Sequence = s.Sequence,
@@ -60,6 +62,16 @@ public static class QuestMapping
             })
             .ToList(),
     };
+
+    /// <summary>The stored frequency as the contract names it; a stored None or an unknown value reads as null.</summary>
+    private static Avalon.Api.Contract.QuestRepeatFrequency? Frequency(Avalon.World.Public.Enums.QuestRepeatFrequency? stored) =>
+        stored switch
+        {
+            Avalon.World.Public.Enums.QuestRepeatFrequency.Daily => Avalon.Api.Contract.QuestRepeatFrequency.Daily,
+            Avalon.World.Public.Enums.QuestRepeatFrequency.Weekly => Avalon.Api.Contract.QuestRepeatFrequency.Weekly,
+            Avalon.World.Public.Enums.QuestRepeatFrequency.Monthly => Avalon.Api.Contract.QuestRepeatFrequency.Monthly,
+            _ => null,
+        };
 
     private static string Text(IReadOnlyDictionary<int, string> texts, int id) =>
         texts.TryGetValue(id, out string? text) ? text : "";

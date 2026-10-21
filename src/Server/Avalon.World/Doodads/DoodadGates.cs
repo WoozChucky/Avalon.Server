@@ -12,12 +12,16 @@ public static class DoodadGates
 {
     /// <summary>
     /// Whether <paramref name="gate" /> lets the owner of <paramref name="log" /> through; no gate lets everyone through.
-    /// NotStarted: the quest is neither held nor turned in. OnObjective: the quest is held, not yet ready to turn in, its
-    /// current stage holds the objective, and the objective's count is below the catalog's. Completed: turned in.
-    /// NotCompleted: not turned in. A quest the catalog no longer has, and a condition this build does not know, let no
-    /// one through on OnObjective or on the unknown condition.
+    /// NotStarted: the quest is neither held nor completed. OnObjective: the quest is held, not yet ready to turn in, its
+    /// current stage holds the objective, and the objective's count is below the catalog's. Completed: completed.
+    /// NotCompleted: not completed. "Completed" follows availability (#710): with <paramref name="resets" />, it is
+    /// <see cref="QuestResetClock.CompletedThisPeriod" />, so a repeatable quest that may be done again reads as not
+    /// completed (a plain repeatable at once, a daily, weekly or monthly one after its next reset) and its doodads come
+    /// back; without one (a visibility built without the clock, as in a test that places no repeatable) it is "turned
+    /// in at all". A quest the catalog no longer has, and a condition this build does not know, let no one through on
+    /// OnObjective or on the unknown condition.
     /// </summary>
-    public static bool Allows(in DoodadGate? gate, QuestLog log, QuestCatalog quests)
+    public static bool Allows(in DoodadGate? gate, QuestLog log, QuestCatalog quests, QuestResetClock? resets)
     {
         if (gate is not { } rule)
             return true;
@@ -25,13 +29,20 @@ public static class DoodadGates
         uint questId = rule.QuestId;
         return rule.Condition switch
         {
-            DoodadGateCondition.NotStarted => !log.IsActive(questId) && !log.IsCompleted(questId),
+            DoodadGateCondition.NotStarted => !log.IsActive(questId) && !Completed(log, quests, questId, resets),
             DoodadGateCondition.OnObjective => OnObjective(log, quests, questId, rule.ObjectiveId),
-            DoodadGateCondition.Completed => log.IsCompleted(questId),
-            DoodadGateCondition.NotCompleted => !log.IsCompleted(questId),
+            DoodadGateCondition.Completed => Completed(log, quests, questId, resets),
+            DoodadGateCondition.NotCompleted => !Completed(log, quests, questId, resets),
             _ => false,
         };
     }
+
+    /// <summary>
+    /// What a gate means by completed: in the current period of the quest's repeat kind when there is a reset clock,
+    /// else turned in at all. A script's view context asks it too.
+    /// </summary>
+    internal static bool Completed(QuestLog log, QuestCatalog quests, uint questId, QuestResetClock? resets) =>
+        resets?.CompletedThisPeriod(log, quests, questId) ?? log.IsCompleted(questId);
 
     /// <summary>
     /// The OnObjective rule: the quest held, not ready to turn in, its current stage holding the objective, and the

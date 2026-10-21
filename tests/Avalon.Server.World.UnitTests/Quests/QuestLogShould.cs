@@ -23,7 +23,7 @@ public class QuestLogShould
         c.Quests.Load(new Avalon.Database.Character.Repositories.CharacterQuestRows(
             [new CharacterQuest { CharacterId = 1, QuestId = 5, State = CharacterQuestState.Active, Stage = 1, AcceptedAt = s_now }],
             [new CharacterQuestObjective { CharacterId = 1, QuestId = 5, ObjectiveId = 51, Progress = 3 }],
-            [new CharacterCompletedQuest { CharacterId = 1, QuestId = 4, CompletedAt = s_now }]));
+            [new CharacterCompletedQuest { CharacterId = 1, QuestId = 4, CompletedAt = s_now, LastCompletedAt = s_now, CompletionCount = 1 }]));
 
         Assert.Equal(1, c.Quests.ActiveCount);
         Assert.Equal(3u, c.Quests.Get(5)!.ProgressOf(51));
@@ -45,15 +45,16 @@ public class QuestLogShould
         Assert.Empty(c.Quests.ClientChanges);
     }
 
-    /// <summary>The saved row keeps the first completion time (an insert that skips an existing row), so memory does too.</summary>
+    /// <summary>#710: the first time stays, the last time and the count follow every turn-in.</summary>
     [Fact]
-    public void Keep_the_first_completion_time()
+    public void Keep_the_first_completion_time_and_count_every_turn_in()
     {
         CharacterEntity c = Character();
         c.Quests.Complete(5, s_now);
 
         c.Quests.Complete(5, s_now.AddHours(1));
 
+        Assert.Equal(new QuestCompletion(5, s_now, s_now.AddHours(1), 2), c.Quests.Completion(5));
         Assert.Equal(s_now, c.Quests.CompletedAt(5));
     }
 }

@@ -255,6 +255,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ThrottledErrorLog _memberStatusErrors;
     private readonly QuestService? _quests;
     private readonly ThrottledErrorLog _questFlushErrors;
+    private readonly ThrottledErrorLog _questResetErrors;
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IScriptManager _scriptManager;
     private readonly Stopwatch _serverTimer = new();
@@ -360,6 +361,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _quests = serviceProvider.GetService<QuestService>();
         _questFlushErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The quest flush");
+        _questResetErrors = new ThrottledErrorLog(_logger,
+            serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The quest reset check");
         _world = world;
         // Optional, like the clock: the tests that build a WorldServer from a bare provider have none.
         _tickThreadGuard = serviceProvider.GetService<TickThreadGuard>();
@@ -863,6 +866,18 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // log and markers out), and the flush per connection: one character's throw costs nobody else.
         if (_quests is not null)
         {
+            // The daily, weekly and monthly quest reset (#710), once per tick before any flush: one comparison against
+            // the next boundary until one passes; then each flush below sees the new generation and settles its
+            // character. Contained like the flushes: a throw costs this tick's reset check, not the tick.
+            try
+            {
+                _quests.Resets.Advance(now.UtcNow);
+            }
+            catch (Exception e)
+            {
+                _questResetErrors.Failed(e);
+            }
+
             for (int i = 0; i < conns.Length; i++)
             {
                 try

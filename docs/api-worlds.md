@@ -90,6 +90,17 @@ singletons as in every host. Only their context factories differ in the API, whi
   this change straight away; and start any stopped world once, so it migrates too. To roll a world back to a build
   without the change, first run `dotnet ef database update SeedCrowdControl` against that world's World database.
   No world or API does that by itself.
+  **Release order, #710.** `TrackRepeatedQuestCompletions` adds `LastCompletedAt` and `CompletionCount` to a world's
+  `CharacterCompletedQuests`, and the API maps both (a character's quest log carries them). The columns are additive,
+  so the worlds go first: each migrates its Character database at its next start (start any stopped world once, so
+  it migrates too), and only then is an API release with the change cut. An older API reading a migrated world
+  ignores the new columns; an API with the change reading a world that has not migrated fails that world's character
+  quest log, the only API read of the table. The migration drops the columns' defaults after filling the stored rows,
+  so a world build without the change, which writes neither column, fails every save that turns a quest in (the
+  insert breaks the NOT NULL constraint and the save's transaction rolls back whole). To roll a world back to a build
+  without the change, first run `dotnet ef database update GrantCrowdControlAbilities` against that world's Character
+  database; that drops both columns, and with them each completion's count and last turn-in (its first turn-in,
+  `CompletedAt`, stays). No world or API does that by itself.
 
 ## How a request reaches its world
 

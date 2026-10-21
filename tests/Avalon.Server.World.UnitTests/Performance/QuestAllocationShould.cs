@@ -8,6 +8,7 @@ using Avalon.Server.World.UnitTests.Quests;
 using Avalon.World.Entities;
 using Avalon.World.Loot;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 using Avalon.World.Testing;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
@@ -28,13 +29,16 @@ public class QuestAllocationShould
 {
     private const int Rounds = 100;
     private const uint Wolves = 7701, WolvesKill = 77011, Gather = 7702, GatherTusk = 77021, Errand = 7703, ErrandTalk = 77031;
+    private const uint Chore = 7704;
 
-    // Held together: a kill quest for wolves, a collect quest whose item boars drop, and a conversation.
+    // Held together: a kill quest for wolves, a collect quest whose item boars drop, and a conversation. And a daily
+    // (#710) the tests above never hold, for the reset.
     private static List<QuestTemplate> Quests() =>
     [
         Quest(Wolves).WithStage(0, Kill(WolvesKill, Wolf, 1_000_000)),
         Quest(Gather).WithStage(0, Collect(GatherTusk, Tusk, 2, (Boar, 60f))),
         Quest(Errand).WithStage(0, Talk(ErrandTalk, TalkTarget)),
+        Quest(Chore).WithStage(0, Kill(77041, Boar, 1)).Repeating(QuestRepeatFrequency.Daily),
     ];
 
     [Fact]
@@ -103,6 +107,26 @@ public class QuestAllocationShould
 
         Assert.Equal(carried, flushed);
         Assert.Equal(2 * 4 * Rounds, connection.Sent);
+    }
+
+    /// <summary>#710: the per-tick reset check and settling a reset for a character allocate nothing.</summary>
+    [Fact]
+    public async Task Look_for_a_reset_and_settle_one_allocating_nothing()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync(Quests());
+        QuestService quests = w.QuietQuests();
+        CharacterEntity character = TestCharacters.New();
+        DateTime start = w.Clock.GetUtcNow().UtcDateTime, day = start;
+        character.Quests.Complete(Chore, start);
+        int gates = character.Quests.GateVersion;
+
+        long idle = Quiet(() => quests.Resets.Advance(start));               // before the next boundary
+        long crossed = Quiet(() => { day = day.AddDays(1); quests.Resets.Advance(day); quests.ApplyResets(character); });
+
+        Assert.Multiple(() => Assert.Equal(0, idle), () => Assert.Equal(0, crossed));
+        // Quiet runs its round Rounds times to warm up and Rounds times measured, each a day later: every crossing
+        // reached the character.
+        Assert.Equal(gates + 2 * Rounds, character.Quests.GateVersion);
     }
 
     /// <summary>A character holding the three quests, with one tusk of the two in its Bag, counted and with nothing owed.</summary>

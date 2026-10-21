@@ -10,10 +10,14 @@ namespace Avalon.World.Quests;
 /// per connection, after both passes and <b>before</b> InventoryUpdateFlusher, which clears the slot changes this reads.
 /// Each step is contained on its own (final review M2): one that throws is logged at Error, throttled per step
 /// (<see cref="QuestService.FlushStepFailed" />), and the steps after it still run, so a recount that throws on every
-/// tick does not hold back the character's log, updates, lines or markers.
+/// tick does not hold back the character's log, updates, lines or markers. The reset generation (#710) is an outside
+/// input looked at like the catalog's: a daily, weekly or monthly reset that passed since the session last looked runs
+/// <see cref="QuestService.ApplyResets" /> first, so the markers and doodad gates of a character it affects are worked
+/// out again on the tick it passed, without a relog.
 /// </summary>
 public static class QuestFlusher
 {
+    public const string ResetStep = "Quest flush: reset passed";
     public const string ReloadStep = "Quest flush: settle after a reload";
     public const string RecountStep = "Quest flush: collect recount";
     public const string EnterInstanceStep = "Quest flush: enter-instance hooks";
@@ -27,18 +31,20 @@ public static class QuestFlusher
 
         // Nothing any step below reads changed since the last flush that left nothing over (#977): every connection
         // is flushed every tick, and almost every tick changes no one's quests. The character's own inputs mark the log
-        // (QuestLog.FlushOwed); the catalog, which a reload swaps for everyone at once, and the Bag's changes, which the
-        // inventory keeps, are looked at here.
+        // (QuestLog.FlushOwed); the catalog, which a reload swaps for everyone at once, the reset generation, which a
+        // daily, weekly or monthly reset raises for everyone at once (#710), and the Bag's changes, which the inventory
+        // keeps, are looked at here.
         QuestLog log = character.Quests;
         QuestCatalog catalog = quests.Catalog;
+        bool resetPassed = log.ResetGeneration != quests.Resets.Generation;
         bool bagTouched = TouchedTheBag(character.ClientChanges);
-        if (!log.FlushOwed && !bagTouched && ReferenceEquals(log.SettledCatalog, catalog)
+        if (!log.FlushOwed && !resetPassed && !bagTouched && ReferenceEquals(log.SettledCatalog, catalog)
             && ReferenceEquals(log.MarkersCatalog, catalog))
         {
             return;
         }
 
-        FlushSteps(connection, character, quests, bagTouched);
+        FlushSteps(connection, character, quests, resetPassed, bagTouched);
 
         // Kept for the next tick while a step still has something to do: the hooks and the markers wait for a live
         // instance (a character between instances), and a step that threw left its changes or lines unsent.
@@ -46,8 +52,22 @@ public static class QuestFlusher
     }
 
     private static void FlushSteps(IWorldConnection connection, CharacterEntity character, QuestService quests,
-        bool bagTouched)
+        bool resetPassed, bool bagTouched)
     {
+        // A reset since the session last looked (#710): a character holding a completion it made available again gets
+        // its markers and doodad gates worked out again; anyone else only notes the generation.
+        if (resetPassed)
+        {
+            try
+            {
+                quests.ApplyResets(character);
+            }
+            catch (Exception e)
+            {
+                quests.FlushStepFailed(ResetStep, e);
+            }
+        }
+
         // A /reload quests since the last flush (#738): every held quest is settled once against the new catalog.
         try
         {

@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.World.Public.Enums;
 using Avalon.World.Scripts;
 
 namespace Avalon.Server.World.UnitTests.Quests;
@@ -101,6 +102,14 @@ internal static class QuestTestData
     public static QuestTemplate Paying(this QuestTemplate quest, ulong item, uint count)
     {
         quest.ItemRewards.Add(new QuestItemReward { QuestId = quest.Id, ItemTemplateId = item, Count = count });
+        return quest;
+    }
+
+    /// <summary>Makes the quest repeatable (or not) with the frequency given (#710).</summary>
+    public static QuestTemplate Repeating(this QuestTemplate quest, QuestRepeatFrequency? frequency, bool repeatable = true)
+    {
+        quest.IsRepeatable = repeatable;
+        quest.RepeatFrequency = frequency;
         return quest;
     }
 

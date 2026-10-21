@@ -33,9 +33,9 @@ variant populated
 
 variant maxima
   field 1 CreatureGuid : ulong = 18446744073709551615
-  field 2 Marker : QuestMarker = ReadyToTurnIn (3)
+  field 2 Marker : QuestMarker = RepeatableReadyToTurnIn (5)
   bytes 13
-    08 ff ff ff ff ff ff ff ff ff 01 10 03
+    08 ff ff ff ff ff ff ff ff ff 01 10 05
 
 variant minima
   field 1 CreatureGuid : ulong = 0
@@ -44,6 +44,6 @@ variant minima
 
 variant varint-edges
   field 1 CreatureGuid : ulong = 268435455
-  field 2 Marker : QuestMarker = <not a declared member> (4)
+  field 2 Marker : QuestMarker = <not a declared member> (6)
   bytes 7
-    08 ff ff ff 7f 10 04
+    08 ff ff ff 7f 10 06

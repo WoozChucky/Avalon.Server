@@ -95,6 +95,7 @@ language:
 | 2 `Text` | string | The description; in a `TurnIn` offer, the completion text (what the NPC says when it is handed in). |
 | 3 `Stages` | repeated `QuestStageDto` | Every stage, in order. |
 | 4 `Rewards` | `QuestRewardsDto` | What a turn-in pays. |
+| 5 `Repeat` | `QuestRepeatKind` | How the quest comes back once turned in (#710). |
 
 `QuestStageDto`: 1 `Sequence` (int, from 0), 2 `Text` (the stage's line, empty when it has none),
 3 `Objectives` (repeated `QuestObjectiveDto`).
@@ -109,6 +110,11 @@ language:
 
 A quest's stages run in order: all of a stage's objectives (at most 4) complete it and the next stage starts;
 after the last, the quest is ready to turn in.
+
+`QuestRepeatKind` (#710, append-only): `Once` 1 (never offered again), `Repeatable` 2 (offered again as soon as
+it is turned in), `Daily` 3, `Weekly` 4 and `Monthly` 5 (offered again after the next daily, weekly or monthly
+reset, fixed UTC times the world sets). A client labels a quest "Daily" and so on from this field alone, without a
+quest catalog. `Unknown` 0 is never sent for a catalogued quest.
 
 ## 4. Answers
 
@@ -169,7 +175,8 @@ followed by no progress lines for them.
 ## 6. Updates
 
 After the log, each change to a quest arrives as one `SMSG_QUEST_UPDATE`, **at most one per quest per tick**,
-sent at the end of the tick in quest id order:
+except a turn-in followed by a new accept, which sends `Completed` then `Accepted` (see below); they are sent at the
+end of the tick in quest id order:
 
 | `Kind` | When | What it carries |
 |---|---|---|
@@ -184,6 +191,11 @@ ignores a `Removed` for a quest it never had. A quest accepted and turned in in 
 `Completed` only; a client just adds the id to the completed set. A quest abandoned and accepted again in the
 same tick arrives as `Accepted` only, for a quest the client still holds: a client replaces that entry with the
 one the update carries (the new accept's stage and counts).
+
+**A repeatable turned in and accepted again in the same tick** (#710) arrives as two updates for that quest, one
+right after the other: `Completed`, then `Accepted` with the new accept's display, stage and counts. A client handles
+each as usual: it drops the entry and adds the id to the completed set, then adds the new entry. If that new accept is
+abandoned or turned in again within the same tick, only the `Completed` arrives.
 
 **After a reload of the quest data.** When the server's quest data is reloaded with a lower count or an objective
 removed, every held quest is settled once at the end of the next tick: a count above its new target comes down to it,
@@ -207,12 +219,17 @@ client replaces what it held.
 | Value | Name | Meaning |
 |---|---|---|
 | 1 | `None` | Nothing to show. |
-| 2 | `Available` | It offers a quest the character may accept (a full log still shows `Available`). |
-| 3 | `ReadyToTurnIn` | It takes back a quest the character holds ready to turn in. Outranks `Available`. |
+| 2 | `Available` | It offers a one-time quest (`Once`) the character may accept (a full log still shows `Available`). |
+| 3 | `ReadyToTurnIn` | It takes back a one-time quest the character holds ready to turn in. |
+| 4 | `RepeatableAvailable` | It offers a repeatable quest (any `QuestRepeatKind` but `Once`) the character may accept. Drawn blue by the client. |
+| 5 | `RepeatableReadyToTurnIn` | It takes back a repeatable quest the character holds ready to turn in. Drawn blue by the client. |
+
+When an NPC qualifies for several, the highest wins: `ReadyToTurnIn` > `RepeatableReadyToTurnIn` > `Available` >
+`RepeatableAvailable` > `None` (a turn-in before an offer, a one-time quest before a repeatable one within each).
 
 It is worked out again on entering the world, on entering another instance, and when an accept, a quest
-becoming ready to turn in or no longer ready, a turn-in, an abandon, a level-up or a reload of the quest data may
-have changed it (progress that leaves a quest's state as it is changes no marker), and it is **sent only when
+becoming ready to turn in or no longer ready, a turn-in, an abandon, a level-up, a reload of the quest data or a daily, weekly or monthly
+reset may have changed it (progress that leaves a quest's state as it is changes no marker), and it is **sent only when
 the list differs from the last one sent**, across instances too. So an arrival whose list equals the last one
 sends nothing: two instances in a row with no quest NPC (both empty lists), or a transfer back into the same
 town instance (where every creature is removed and added again through `SMSG_WORLD_STATE_REMOVE` and fresh
@@ -223,6 +240,11 @@ there is no interest radius, so a marker may name a creature the client has not 
 apply it when the creature appears. The list is worked out from the creatures present when one of those
 inputs changes; a quest NPC spawned or removed later is not reflected until the next change (the seeded quest
 NPCs are town NPCs, which stand for good).
+
+At a daily, weekly or monthly reset, a character in the world holding a completion of a quest of a frequency that
+rolled gets its markers worked out again on that tick, so the blue `RepeatableAvailable` comes back without a relog
+(and is sent only if the list changed). A character with no such completion is sent nothing. An NPC conversation
+already open at the reset is not refreshed: its quest options show the quest once it is opened again.
 
 ## 8. Quest items
 
@@ -274,3 +296,9 @@ A second chain runs beside it, from quest 4 (no prerequisite):
 | 6 What the Husks Carry | Innkeeper → Marta Ledgerwell | level 4, quest 5 | kill 8 Husks of the Wold and collect 3 Ledger Pages (item 61; 35 % from Husks of the Wold) | 500 experience, 300 copper, 2 Greater Health Potions (item 56) |
 | 7 Heartwood | Borin Stoutbeard → Borin | level 5, quest 6 | collect the Tuskroot Heartwood (item 62; always from Old Tuskroot) | 700 experience, 400 copper, the Heartwood Band (item 64, a ring) |
 | 8 Mother of Thorns | Uriel → Uriel | level 7, quest 7 | stage 0: speak with Garrick Emberforge; stage 1: kill 2 Bramblemaw Alphas and collect the Bramble Heart (item 63; always from Mother Bramble) | 1500 experience, 1000 copper, the Thornheart Signet (item 65, a ring) |
+
+One daily (#710), offered again after each daily reset (repeat kind `Daily`, the blue markers):
+
+| Quest | Giver → ender | Needs | Asks | Pays |
+|---|---|---|---|---|
+| 10 Boar Cull | Hilde Brassbuckle → Hilde | level 8 | kill 15 Thornback Boars | 800 experience, 500 copper |

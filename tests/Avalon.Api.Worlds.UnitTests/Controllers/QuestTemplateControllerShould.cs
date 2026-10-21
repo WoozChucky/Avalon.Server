@@ -46,6 +46,8 @@ public class QuestTemplateControllerShould
         ScriptName = "AlphaHowlScript",
         RewardExperience = 600,
         RewardMoney = 400,
+        IsRepeatable = true,
+        RepeatFrequency = Avalon.World.Public.Enums.QuestRepeatFrequency.Weekly,
         Stages =
         [
             new QuestStage { QuestId = 3, Sequence = 1, DescriptionTextId = 41 },
@@ -106,6 +108,8 @@ public class QuestTemplateControllerShould
         Assert.Equal(2u, dto.RequiredQuestId);
         Assert.Equal("AlphaHowlScript", dto.ScriptName);
         Assert.Equal((600u, 400ul), (dto.RewardExperience, dto.RewardMoney));
+        Assert.Equal((true, (Avalon.Api.Contract.QuestRepeatFrequency?)Avalon.Api.Contract.QuestRepeatFrequency.Weekly),
+            (dto.IsRepeatable, dto.RepeatFrequency));
 
         Assert.Equal([0, 1], dto.Stages.Select(s => s.Sequence));
         Assert.Equal(((string?)null, (int?)null), (dto.Stages[0].Text, dto.Stages[0].TextId));
@@ -137,11 +141,14 @@ public class QuestTemplateControllerShould
         quest.ClassRequirement = null;
         quest.RequiredQuestId = null;
         quest.ScriptName = null;
+        quest.IsRepeatable = true;
+        quest.RepeatFrequency = Avalon.World.Public.Enums.QuestRepeatFrequency.None;
         _quests.FindByIdAsync(Arg.Any<QuestTemplateId>(), Arg.Any<CancellationToken>()).Returns(quest);
 
         QuestTemplateDto dto = await GetOk(3);
 
         Assert.Equal(((CharacterClass?)null, (uint?)null, (string?)null), (dto.ClassRequirement, dto.RequiredQuestId, dto.ScriptName));
+        Assert.Null(dto.RepeatFrequency);
     }
 
     [Fact]

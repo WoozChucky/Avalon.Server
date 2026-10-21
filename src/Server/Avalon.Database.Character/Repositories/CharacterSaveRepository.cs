@@ -4,13 +4,15 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Avalon.Database.Character.Repositories;
 
 /// <summary>
 /// A character's quest rows to write (#433). Every quest in <paramref name="Rewrite" /> has its active row and
 /// objective rows deleted, and then <paramref name="Active" /> and <paramref name="Objectives" /> are inserted
-/// (only quests still active are there); <paramref name="Completed" /> rows are inserted when missing. Idempotent.
+/// (only quests still active are there); <paramref name="Completed" /> rows are inserted when missing, else their last
+/// turn-in time and count are updated (#710), by column. Idempotent: the values written are absolute, never increments.
 /// </summary>
 public sealed record CharacterQuestWrite(
     IReadOnlyList<uint> Rewrite,
@@ -181,8 +183,20 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
                                 .Select(c => c.QuestId)
                                 .ToListAsync(token))
                             .ToHashSet();
-                        foreach (CharacterCompletedQuest completed in write.Completed.Where(c => !stored.Contains(c.QuestId)))
-                            context.TrackForInsert(completed);
+                        foreach (CharacterCompletedQuest completed in write.Completed)
+                        {
+                            if (!stored.Contains(completed.QuestId))
+                            {
+                                context.TrackForInsert(completed);
+                                continue;
+                            }
+
+                            // Written by column, never whole: the first turn-in time stays as stored. Raw Attach, not
+                            // TrackForUpdate, which marks every column; the row has no navigation to drag a graph in.
+                            EntityEntry<CharacterCompletedQuest> entry = context.CharacterCompletedQuests.Attach(completed);
+                            entry.Property(c => c.LastCompletedAt).IsModified = true;
+                            entry.Property(c => c.CompletionCount).IsModified = true;
+                        }
                     }
                 }
 

@@ -32,7 +32,8 @@ namespace Avalon.World.Quests;
 /// Everything a quest does at run time (#433): availability, the dialogue options and offers, accept, progress
 /// (kills, talk, collect, doodad uses, scripts), stages, turn-in and abandon. A DI singleton, World-side, and <b>tick thread
 /// only</b>: every caller (the quest handlers, InteractHandler, DialogueChooseHandler, MapInstance.CreatureKilled,
-/// DoodadUseService, QuestFlusher) runs on the tick. No timers and no awaits; the clock is read only to stamp accept and completion.
+/// DoodadUseService, QuestFlusher) runs on the tick. No timers and no awaits; the clock is read only to stamp accept and completion
+/// (and to build the service's own reset clock when the container hands it none).
 /// It changes a character only through its QuestLog, its IInventoryService and its IWallet.
 /// </summary>
 public sealed class QuestService(
@@ -42,7 +43,8 @@ public sealed class QuestService(
     ILootRandom random,
     TimeProvider time,
     ILogger<QuestService> logger,
-    PartyService? parties = null)
+    PartyService? parties = null,
+    QuestResetClock? resets = null)
 {
     // The quests whose Settle loop is running, so a stage-start hook that advances an objective of the same quest
     // (Task 7's collect recount, Task 9's scripts) does not settle it from inside its own loop. Per quest, never
@@ -82,11 +84,21 @@ public sealed class QuestService(
     // closure and a delegate per call, and the markers ask once per quest of each quest NPC.
     private Func<QuestView, CharacterEntity, bool>? _scriptAllows;
 
+    // The world's reset clock (#710): the DI singleton WorldServer advances, or, for a service built without one (a
+    // test), one of its own over the service's clock, built on first use.
+    private QuestResetClock? _resets = resets;
+
     /// <summary>The generation of quests this tick reads. One reference per call site.</summary>
     public QuestCatalog Catalog => world.Data.Quests;
 
+    /// <summary>
+    /// The daily, weekly and monthly reset clock availability, markers and doodad gates read (#710): the container's,
+    /// or, without one, the service's own over its TimeProvider. Tick thread only.
+    /// </summary>
+    public QuestResetClock Resets => _resets ??= new QuestResetClock(world.Configuration.QuestResets, time);
+
     public QuestResult Availability(CharacterEntity character, QuestView quest) =>
-        QuestAvailability.Check(quest, character, world.Configuration.MaxActiveQuests, _scriptAllows ??= ScriptAllows);
+        QuestAvailability.Check(quest, character, world.Configuration.MaxActiveQuests, Resets, _scriptAllows ??= ScriptAllows);
 
     public static QuestStageView? CurrentStage(QuestView quest, ActiveQuest active) =>
         active.Stage >= 0 && active.Stage < quest.Stages.Count ? quest.Stages[active.Stage] : null;
@@ -1091,8 +1103,9 @@ public sealed class QuestService(
 
     /// <summary>
     /// What the client is owed this tick (#433): the whole log the first time (which carries every change already, so
-    /// the pending updates are dropped), otherwise one SMSG_QUEST_UPDATE per changed quest in id order; then the
-    /// milestone lines on the system channel. Clears what it sent.
+    /// the pending updates are dropped), otherwise one SMSG_QUEST_UPDATE per changed quest in id order (two, Completed
+    /// then Accepted, for a repeatable turned in and accepted again, #710); then the milestone lines on the system
+    /// channel. Clears what it sent.
     /// </summary>
     public void FlushClient(IWorldConnection connection, CharacterEntity character)
     {
@@ -1109,18 +1122,16 @@ public sealed class QuestService(
             for (int i = 0; i < owed.Count; i++)
             {
                 (uint questId, QuestClientChange change) = owed[i];
-                OutboundPacket? update = null;
-                try
+                if (change == QuestClientChange.CompletedThenAccepted)
                 {
-                    update = UpdatePacket(connection, character, questId, change);
+                    // A repeatable turned in and accepted again this tick (#710): the client hears both, in that order.
+                    SendUpdate(connection, character, questId, QuestClientChange.Completed);
+                    SendUpdate(connection, character, questId, QuestClientChange.Accepted);
                 }
-                catch (Exception e)
+                else
                 {
-                    LogClientBuildFailure(e, character, questId, "update");
+                    SendUpdate(connection, character, questId, change);
                 }
-
-                if (update is not null)
-                    connection.Send(update.Value);
             }
         }
 
@@ -1133,6 +1144,23 @@ public sealed class QuestService(
         }
 
         log.ClearClientChanges();
+    }
+
+    /// <summary>One SMSG_QUEST_UPDATE; a quest whose update cannot be built is logged and left out.</summary>
+    private void SendUpdate(IWorldConnection connection, CharacterEntity character, uint questId, QuestClientChange change)
+    {
+        OutboundPacket? update = null;
+        try
+        {
+            update = UpdatePacket(connection, character, questId, change);
+        }
+        catch (Exception e)
+        {
+            LogClientBuildFailure(e, character, questId, "update");
+        }
+
+        if (update is not null)
+            connection.Send(update.Value);
     }
 
     private OutboundPacket LogPacket(IWorldConnection connection, CharacterEntity character)
@@ -1173,6 +1201,8 @@ public sealed class QuestService(
 
     private OutboundPacket? UpdatePacket(IWorldConnection connection, CharacterEntity character, uint questId, QuestClientChange change)
     {
+        // The flush splits CompletedThenAccepted into its two updates; here it would read as Progress.
+        Debug.Assert(change != QuestClientChange.CompletedThenAccepted);
         var update = new SQuestUpdatePacket { QuestId = questId };
         switch (change)
         {
@@ -1332,23 +1362,46 @@ public sealed class QuestService(
         return _markerDtos;
     }
 
-    /// <summary>A ready turn-in outranks an available quest; a quest refused only by a full log still shows as available.</summary>
+    /// <summary>
+    /// What <paramref name="npc" /> shows over its head for the character, highest first (#710): a once-only quest ready
+    /// to turn in (<see cref="QuestMarker.ReadyToTurnIn" />), a repeatable one ready to turn in
+    /// (<see cref="QuestMarker.RepeatableReadyToTurnIn" />), a once-only quest it offers (<see cref="QuestMarker.Available" />),
+    /// a repeatable one it offers (<see cref="QuestMarker.RepeatableAvailable" />), else <see cref="QuestMarker.None" />. A
+    /// turn-in before an offer, and a story quest before a repeatable one within each. A quest refused only by a full log
+    /// still shows as offered. Repeatable means any repeat kind but Once. Indexed walks over the catalog's lists: a
+    /// <c>foreach</c> through the interface would allocate an enumerator per list, for every quest NPC each time the
+    /// markers are worked out again (a reset does that for many characters on one tick).
+    /// </summary>
     public QuestMarker MarkerFor(CharacterEntity character, CreatureTemplateId npc)
     {
         QuestCatalog catalog = Catalog;
-        foreach (QuestView quest in catalog.EndedBy(npc))
+        bool repeatable = false;
+        IReadOnlyList<QuestView> ended = catalog.EndedBy(npc);
+        for (int i = 0; i < ended.Count; i++)
         {
-            if (character.Quests.Get(quest.Id) is { State: CharacterQuestState.ReadyToTurnIn })
+            QuestView quest = ended[i];
+            if (character.Quests.Get(quest.Id) is not { State: CharacterQuestState.ReadyToTurnIn })
+                continue;
+            if (quest.Repeat == QuestRepeat.Once)
                 return QuestMarker.ReadyToTurnIn;
+            repeatable = true;
         }
 
-        foreach (QuestView quest in catalog.GivenBy(npc))
+        if (repeatable)
+            return QuestMarker.RepeatableReadyToTurnIn;
+
+        IReadOnlyList<QuestView> given = catalog.GivenBy(npc);
+        for (int i = 0; i < given.Count; i++)
         {
-            if (Availability(character, quest) is QuestResult.Ok or QuestResult.LogFull)
+            QuestView quest = given[i];
+            if (Availability(character, quest) is not (QuestResult.Ok or QuestResult.LogFull))
+                continue;
+            if (quest.Repeat == QuestRepeat.Once)
                 return QuestMarker.Available;
+            repeatable = true;
         }
 
-        return QuestMarker.None;
+        return repeatable ? QuestMarker.RepeatableAvailable : QuestMarker.None;
     }
 
     /// <summary>
@@ -1373,6 +1426,37 @@ public sealed class QuestService(
                 logger.LogError(e, "Re-sending NPC {Npc}'s root after quest {QuestId} changed for character {CharacterId} failed; " +
                                    "the request still succeeded. {Suppressed} earlier failures for this quest were not logged",
                     npc.Metadata.Id.Value, questId, character.Guid.Id, suppressed);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A daily, weekly or monthly reset passed since this session last looked (#710, <see cref="QuestResetClock.Generation" />
+    /// against <see cref="QuestLog.ResetGeneration" />): when the character holds a completion of a quest whose frequency
+    /// rolled meanwhile, its markers and doodad gates are worked out again (<see cref="QuestLog.ResetPassed" />); anyone
+    /// else is left alone. At most once per character per reset; a new session (generation 0) in a world that has passed
+    /// a reset looks once, at its first flush. QuestFlusher's first step. Tick thread only; walks the completions with
+    /// the dictionary's struct enumerator, so it allocates nothing.
+    /// </summary>
+    public void ApplyResets(CharacterEntity character)
+    {
+        QuestLog log = character.Quests;
+        QuestResetClock resets = Resets;
+        int seen = log.ResetGeneration;
+        if (seen == resets.Generation)
+            return;
+
+        // First, so a throw below is not tried again on every tick.
+        log.ResetGeneration = resets.Generation;
+        QuestCatalog catalog = Catalog;
+        foreach (QuestCompletion done in log.Completions)
+        {
+            if (catalog.TryGet(done.QuestId, out QuestView? quest)
+                && quest.Repeat is QuestRepeat.Daily or QuestRepeat.Weekly or QuestRepeat.Monthly
+                && resets.RolledAt(quest.Repeat) > seen)
+            {
+                log.ResetPassed();
+                return;
             }
         }
     }

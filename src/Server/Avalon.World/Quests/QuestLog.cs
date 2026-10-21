@@ -5,13 +5,19 @@ using Avalon.World.Persistence;
 
 namespace Avalon.World.Quests;
 
-/// <summary>What the client must hear about a quest at the end of the tick. At most one per quest per tick.</summary>
+/// <summary>
+/// What the client must hear about a quest at the end of the tick. At most one per quest per tick, except a turn-in
+/// followed by a new accept. World-side only: never on the wire.
+/// </summary>
 public enum QuestClientChange : byte
 {
     Progress = 1,
     Accepted = 2,
     Removed = 3,
     Completed = 4,
+
+    /// <summary>A repeatable turned in and accepted again in the same tick (#710): sent as Completed, then Accepted.</summary>
+    CompletedThenAccepted = 5,
 }
 
 /// <summary>One active quest of one character. Changed only through its <see cref="QuestLog" />.</summary>
@@ -43,8 +49,14 @@ public sealed class ActiveQuest(uint questId, DateTime acceptedAt)
 }
 
 /// <summary>
-/// One character's quests (#433): the active ones, with their stage and objective counts, and the ids it has turned
-/// in. World-side and tick-thread only, like the inventory. Every change marks the save
+/// A quest one character has turned in (#710): its first and most recent turn-ins and how many there were. A
+/// repeatable keeps one record and counts.
+/// </summary>
+public readonly record struct QuestCompletion(uint QuestId, DateTime FirstCompletedAt, DateTime LastCompletedAt, uint Count);
+
+/// <summary>
+/// One character's quests (#433): the active ones, with their stage and objective counts, and the ones it has turned
+/// in (<see cref="QuestCompletion" />). World-side and tick-thread only, like the inventory. Every change marks the save
 /// (<see cref="SaveStateTracker.QuestChanged" />) and what the client must hear; <see cref="Load" /> marks neither.
 /// It knows nothing about the catalog: QuestService decides what a change means and caps every count. The
 /// mutators are public only because the tests cannot see internals; QuestService is their one caller.
@@ -52,7 +64,7 @@ public sealed class ActiveQuest(uint questId, DateTime acceptedAt)
 public sealed class QuestLog(SaveStateTracker save)
 {
     private readonly Dictionary<uint, ActiveQuest> _active = [];
-    private readonly Dictionary<uint, DateTime> _completed = [];
+    private readonly Dictionary<uint, QuestCompletion> _completed = [];
     private readonly Dictionary<uint, QuestClientChange> _client = [];
     private readonly List<string> _lines = [];
 
@@ -71,7 +83,14 @@ public sealed class QuestLog(SaveStateTracker save)
     /// </summary>
     public Dictionary<uint, ActiveQuest>.ValueCollection Active => _active.Values;
 
+    /// <summary>The ids of the quests turned in at least once.</summary>
     public IReadOnlyCollection<uint> Completed => _completed.Keys;
+
+    /// <summary>
+    /// The quests turned in at least once. The dictionary's own collection, so a <c>foreach</c> over it uses its struct
+    /// enumerator and allocates nothing.
+    /// </summary>
+    public Dictionary<uint, QuestCompletion>.ValueCollection Completions => _completed.Values;
 
     public int ActiveCount => _active.Count;
 
@@ -136,7 +155,13 @@ public sealed class QuestLog(SaveStateTracker save)
 
     public bool IsCompleted(uint questId) => _completed.ContainsKey(questId);
 
-    public DateTime? CompletedAt(uint questId) => _completed.TryGetValue(questId, out DateTime at) ? at : null;
+    /// <summary>When the quest was first turned in, or null if it never was.</summary>
+    public DateTime? CompletedAt(uint questId) =>
+        _completed.TryGetValue(questId, out QuestCompletion done) ? done.FirstCompletedAt : null;
+
+    /// <summary>The quest's completion record, or null if it was never turned in.</summary>
+    public QuestCompletion? Completion(uint questId) =>
+        _completed.TryGetValue(questId, out QuestCompletion done) ? done : null;
 
     /// <summary>The quests whose client update is owed, and which update. QuestFlusher sends and clears them.</summary>
     public IReadOnlyDictionary<uint, QuestClientChange> ClientChanges => _client;
@@ -204,6 +229,13 @@ public sealed class QuestLog(SaveStateTracker save)
     public Guid? ScriptsInstance { get; set; }
 
     /// <summary>
+    /// The reset generation (<see cref="QuestResetClock.Generation" />) this session last looked at (#710), set by
+    /// <see cref="QuestService.ApplyResets" />. 0 for a new session, so in a world that has passed a reset its first flush
+    /// looks once. Never saved.
+    /// </summary>
+    public int ResetGeneration { get; set; }
+
+    /// <summary>
     /// Whether the next quest flush has anything of this character's to do (#977). Set by everything that changes what
     /// the flush sends or settles from the character: every change to the log (<see cref="Start" />,
     /// <see cref="SetProgress" />, <see cref="SetStage" />, <see cref="SetState" />, <see cref="Remove" />,
@@ -211,8 +243,9 @@ public sealed class QuestLog(SaveStateTracker save)
     /// and level (the hooks' and the markers' inputs; <c>CharacterEntity</c>'s setters mark them as they change, so an
     /// instance or a level written to the row directly is not seen). Set to begin with, so a new session's first flush
     /// sends the log. Cleared by QuestFlusher once a flush leaves nothing for a later one. What a flush reads from
-    /// elsewhere it checks itself: the catalog's generation (a /reload quests, one for every character) and the Bag's
-    /// slot changes (the inventory's). Never saved.
+    /// elsewhere it checks itself: the catalog's generation (a /reload quests, one for every character), the Bag's
+    /// slot changes (the inventory's) and the reset generation (<see cref="ResetGeneration" />, #710: a daily, weekly or
+    /// monthly reset, one for every character). Never saved.
     /// </summary>
     public bool FlushOwed { get; internal set; } = true;
 
@@ -236,7 +269,7 @@ public sealed class QuestLog(SaveStateTracker save)
         }
 
         foreach (CharacterCompletedQuest row in rows.Completed)
-            _completed[row.QuestId] = row.CompletedAt;
+            _completed[row.QuestId] = new QuestCompletion(row.QuestId, row.CompletedAt, row.LastCompletedAt, row.CompletionCount);
 
         HeldVersion++;
         MarkerVersion++;
@@ -298,17 +331,32 @@ public sealed class QuestLog(SaveStateTracker save)
     }
 
     /// <summary>
-    /// A turn-in: the quest leaves the active set and joins the completed one. A quest already completed keeps its
-    /// first completion time, as the saved row does.
+    /// A turn-in: the quest leaves the active set and its completion record is written. A first turn-in records
+    /// <paramref name="now" /> as both its first and last time with a count of 1; a later one (a repeatable, #710) keeps
+    /// the first time, moves the last time to <paramref name="now" /> and adds one to the count, as the saved row does.
     /// </summary>
     public void Complete(uint questId, DateTime now)
     {
         _active.Remove(questId);
-        _completed.TryAdd(questId, now);
+        _completed[questId] = _completed.TryGetValue(questId, out QuestCompletion done)
+            ? done with { LastCompletedAt = now, Count = done.Count + 1 }
+            : new QuestCompletion(questId, now, now, 1);
         HeldVersion++;
         MarkerVersion++;
         GateVersion++;
         Changed(questId, QuestClientChange.Completed);
+    }
+
+    /// <summary>
+    /// A reset made one of this character's repeatable completions available again (#710): its markers and doodad gates
+    /// are worked out again. Called only by <see cref="QuestService.ApplyResets" />. Marks no quest changed: nothing is
+    /// saved or sent for it but what the markers and the doodad views find.
+    /// </summary>
+    public void ResetPassed()
+    {
+        MarkerVersion++;
+        GateVersion++;
+        FlushOwed = true;
     }
 
     public void Say(string line)
@@ -325,12 +373,26 @@ public sealed class QuestLog(SaveStateTracker save)
 
     private void Changed(uint questId, QuestClientChange change)
     {
-        // An accept stays an accept for the rest of its tick: the client needs its display data.
-        if (!(change == QuestClientChange.Progress && _client.TryGetValue(questId, out QuestClientChange owed)
-              && owed == QuestClientChange.Accepted))
+        // An accept stays an accept for the rest of its tick: the client needs its display data. A turn-in followed by
+        // a new accept (a repeatable, #710) owes both, in that order; abandoning or turning in that new accept within
+        // the tick leaves only the turn-in to tell.
+        QuestClientChange next = change;
+        if (_client.TryGetValue(questId, out QuestClientChange owed))
         {
-            _client[questId] = change;
+            next = (owed, change) switch
+            {
+                (QuestClientChange.Accepted, QuestClientChange.Progress) => QuestClientChange.Accepted,
+                (QuestClientChange.Completed or QuestClientChange.CompletedThenAccepted, QuestClientChange.Accepted) =>
+                    QuestClientChange.CompletedThenAccepted,
+                (QuestClientChange.CompletedThenAccepted, QuestClientChange.Progress) =>
+                    QuestClientChange.CompletedThenAccepted,
+                // Abandoned or turned in again.
+                (QuestClientChange.CompletedThenAccepted, _) => QuestClientChange.Completed,
+                _ => change,
+            };
         }
+
+        _client[questId] = next;
 
         save.QuestChanged(questId);
         FlushOwed = true;

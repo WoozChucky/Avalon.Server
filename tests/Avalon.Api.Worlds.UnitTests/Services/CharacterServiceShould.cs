@@ -316,7 +316,7 @@ public class CharacterServiceShould
                 new CharacterQuestObjective { CharacterId = id, QuestId = 3, ObjectiveId = 301, Progress = 3 },
                 new CharacterQuestObjective { CharacterId = id, QuestId = 2, ObjectiveId = 201, Progress = 4 },
             ],
-            [new CharacterCompletedQuest { CharacterId = id, QuestId = 1, CompletedAt = completed }]));
+            [new CharacterCompletedQuest { CharacterId = id, QuestId = 1, CompletedAt = completed, LastCompletedAt = completed.AddDays(2), CompletionCount = 3 }]));
 
         CharacterQuestLogDto log = await QuestService(quests).GetQuestLogAsync(id);
 
@@ -329,7 +329,7 @@ public class CharacterServiceShould
         Assert.Equal((Avalon.Api.Contract.CharacterQuestState.Active, 1, accepted), (active.State, active.Stage, active.AcceptedAt));
         Assert.Equal([(301u, 3u), (302u, 2u)], active.Objectives.Select(o => (o.ObjectiveId, o.Progress)));
         CharacterCompletedQuestDto done = Assert.Single(log.Completed);
-        Assert.Equal((1u, completed), (done.QuestId, done.CompletedAt));
+        Assert.Equal((1u, completed, completed.AddDays(2), 3u), (done.QuestId, done.CompletedAt, done.LastCompletedAt, done.CompletionCount));
     }
 
     [Fact]

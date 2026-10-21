@@ -7,6 +7,7 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Quests;
 using NSubstitute;
@@ -17,7 +18,8 @@ namespace Avalon.Server.World.UnitTests.Quests;
 
 /// <summary>
 /// QuestFlusher (#433): the whole log once, when the character first flushes; then at most one update per quest
-/// per tick, display data only on an accept; the milestone lines on the system channel.
+/// per tick (but a turn-in and a new accept of a repeatable in one tick, #710, which send Completed then Accepted),
+/// display data only on an accept; the milestone lines on the system channel.
 /// </summary>
 public class QuestFlusherShould
 {
@@ -97,7 +99,8 @@ public class QuestFlusherShould
         c.Character.Quests.Load(new Avalon.Database.Character.Repositories.CharacterQuestRows(
             [new CharacterQuest { CharacterId = c.Id, QuestId = Tusks, State = CharacterQuestState.Active, Stage = 0, AcceptedAt = DateTime.UnixEpoch }],
             [],
-            [new CharacterCompletedQuest { CharacterId = c.Id, QuestId = Hunt, CompletedAt = DateTime.UnixEpoch }]));
+            [new CharacterCompletedQuest { CharacterId = c.Id, QuestId = Hunt, CompletedAt = DateTime.UnixEpoch,
+                LastCompletedAt = DateTime.UnixEpoch, CompletionCount = 1 }]));
         Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(c.Character).TryAdd(new ItemTemplateId(Tusk), 2));
         InventoryUpdateFlusher.Flush(c.Connection);   // the bag came with the load, not with this tick
         c.Clear();
@@ -189,6 +192,49 @@ public class QuestFlusherShould
         Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, Hunt, giver.Guid.RawValue));
         Tick(w, c);
         Assert.Equal(QuestUpdateKind.Completed, Assert.Single(Updates(c)).Kind);
+    }
+
+    /// <summary>
+    /// #710: a repeatable turned in and accepted again in one tick: the client hears both, in that order. Abandoning or
+    /// turning in that new accept within the tick leaves only the turn-in to tell.
+    /// </summary>
+    [Theory]
+    [InlineData("none", new[] { QuestUpdateKind.Completed, QuestUpdateKind.Accepted })]
+    [InlineData("abandon", new[] { QuestUpdateKind.Completed })]
+    [InlineData("turn in again", new[] { QuestUpdateKind.Completed })]
+    public async Task Send_Completed_then_Accepted_for_a_turn_in_and_a_new_accept_in_one_tick(string then,
+        QuestUpdateKind[] expected)
+    {
+        const uint Again = 7811;
+        QuestTestWorld w = await QuestTestWorld.CreateAsync([.. Chain(),
+            Quest(Again).Repeating(QuestRepeatFrequency.None).WithStage(0, Kill(78111, Boar, 1))]);
+        QuestClient c = w.Join();
+        w.Accept(c, Again);
+        w.Quests.AddProgress(c.Character, Again, 78111, 1);
+        Tick(w, c);
+        c.Clear();
+
+        Creature giver = w.Place(Giver);
+        w.Talk(c, giver);
+        Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, Again, giver.Guid.RawValue));
+        Assert.Equal(QuestResult.Ok, w.Quests.Accept(c.Connection, c.Character, Again, giver.Guid.RawValue));
+        switch (then)
+        {
+            case "abandon":
+                Assert.Equal(QuestResult.Ok, w.Quests.Abandon(c.Character, Again));
+                break;
+            case "turn in again":
+                w.Quests.AddProgress(c.Character, Again, 78111, 1);
+                Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, Again, giver.Guid.RawValue));
+                break;
+        }
+
+        Tick(w, c);
+
+        List<SQuestUpdatePacket> updates = Updates(c);
+        Assert.Equal(expected.Select(kind => (Again, kind)), updates.Select(u => (u.QuestId, u.Kind)));
+        if (expected.Length == 2)
+            Assert.Equal(QuestRepeatKind.Repeatable, updates[1].Display!.Repeat);
     }
 
     [Fact]

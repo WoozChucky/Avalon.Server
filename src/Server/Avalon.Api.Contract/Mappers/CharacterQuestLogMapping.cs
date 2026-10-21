@@ -20,7 +20,13 @@ public static class CharacterQuestLogMapping
                     .ToList(),
             }).ToList(),
             Completed = rows.Completed.OrderBy(c => c.QuestId)
-            .Select(c => new CharacterCompletedQuestDto { QuestId = c.QuestId, CompletedAt = c.CompletedAt })
+            .Select(c => new CharacterCompletedQuestDto
+            {
+                QuestId = c.QuestId,
+                CompletedAt = c.CompletedAt,
+                LastCompletedAt = c.LastCompletedAt,
+                CompletionCount = c.CompletionCount,
+            })
             .ToList(),
         };
 }

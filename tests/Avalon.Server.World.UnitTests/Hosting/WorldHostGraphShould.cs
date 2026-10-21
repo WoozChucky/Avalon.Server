@@ -104,6 +104,9 @@ public class WorldHostGraphShould
             Assert.IsType<QuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
             // #433. MapInstance and WorldServer read it with GetService, so only this proves production registers it.
             Assert.NotNull(host.Services.GetRequiredService<QuestService>());
+            // #710. QuestService takes the reset clock optionally and would otherwise build its own: WorldServer advances the
+            // service's, so the doodad gates, which read the container's, would never see a reset pass.
+            Assert.Same(host.Services.GetRequiredService<QuestResetClock>(), host.Services.GetRequiredService<QuestService>().Resets);
 
             // The chunk layout packet (#883). MapInstance requires the chunk library as it is built, to name its
             // layout's chunks; without the registration no instance could be built at all.
