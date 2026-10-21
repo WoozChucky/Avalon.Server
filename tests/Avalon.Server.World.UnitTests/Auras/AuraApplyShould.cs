@@ -178,6 +178,47 @@ public class AuraApplyShould
         Assert.Equal(AuraApplyResult.Stacked, h.Auras.Apply(warrior, boar, new AuraId(901), AuraSource.None));
     }
 
+    /// <summary>
+    /// A duration given (a GameMaster's /aura) is placed exactly: on a creature immune to the stun, and on a character
+    /// past its diminishing step, a refresh shortening what is held included; and it records no step, so the next stun
+    /// without one lands at half, as the second.
+    /// </summary>
+    [Fact]
+    public void Place_exactly_the_duration_given_past_resistance_and_diminishing()
+    {
+        AuraTemplate stun = AuraTestData.Stunned();
+        _h.Use(stun);
+        CharacterEntity warrior = _h.Player(909_130);
+        CharacterEntity target = _h.Player(909_131);
+        var boss = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 909_930),
+            Level = 1,
+            Health = 1000,
+            CurrentHealth = 1000,
+            BaseMaxHealth = 1000,
+            Speed = 4f,
+            ControlResistance = new ControlResistance(0f, 100f, 100f, 100f),
+        };
+        _h.Creatures[boss.Guid] = boss;
+        _h.Auras.Roster.Join(boss);
+
+        Assert.Equal(AuraApplyResult.Resisted, _h.Auras.Apply(warrior, boss, stun, AuraSource.None));
+        Assert.Equal(AuraApplyResult.Applied, _h.Auras.Apply(warrior, boss, stun, AuraSource.None, durationMs: 4000));
+        Assert.Equal(4000u, Assert.Single(boss.Auras.All).DurationMs);
+
+        Assert.Equal(AuraApplyResult.Applied, _h.Auras.Apply(warrior, target, stun, AuraSource.None));
+        Assert.Equal(AuraApplyResult.Refreshed, _h.Auras.Apply(warrior, target, stun, AuraSource.None, durationMs: 400));
+        ActiveAura held = Assert.Single(target.Auras.All);
+        Assert.Equal((400u, 400u), (held.DurationMs, UnitAuras.RemainingMs(held, _h.Time.GetUtcNow())));
+
+        _h.Advance(TimeSpan.FromSeconds(1));
+        _h.Auras.Update();
+        Assert.Empty(target.Auras.All);
+        Assert.Equal(AuraApplyResult.Applied, _h.Auras.Apply(warrior, target, stun, AuraSource.None));
+        Assert.Equal(750u, Assert.Single(target.Auras.All).DurationMs);
+    }
+
     [Fact]
     public void Refuse_an_aura_on_the_dead_and_a_harmful_one_on_a_target_that_ignores_hits()
     {

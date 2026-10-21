@@ -108,6 +108,19 @@ internal static class AuraTestData
         MaxStacks = 1,
     };
 
+    /// <summary>A 1.5 s stun (#770), as the seeded Stunned row: crowd control that resistance and diminishing scale.</summary>
+    public static AuraTemplate Stunned(uint id = 920) => new()
+    {
+        Id = new AuraId(id),
+        Name = "Stunned",
+        Icon = "stunned",
+        Kind = AuraKind.Harmful,
+        DurationMs = 1500,
+        Stacking = AuraStacking.Refresh,
+        MaxStacks = 1,
+        Control = CrowdControl.Stun,
+    };
+
     /// <summary>
     /// A held aura granting <paramref name="control" /> (#770), to place straight on a unit's auras: nothing ends it,
     /// since only the aura system expires auras.

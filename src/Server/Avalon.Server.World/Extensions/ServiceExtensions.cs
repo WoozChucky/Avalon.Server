@@ -223,6 +223,7 @@ public static class ServiceExtensions
         services.AddSingleton<GmSpawns>();
         services.AddSingleton<ICommand, SpawnCommand>();
         services.AddSingleton<ICommand, DespawnCommand>();
+        services.AddSingleton<ICommand, AuraCommand>();
         services.AddSingleton<ICommand>(sp => new MaintenanceCommand(
             sp.GetRequiredService<IOptions<GameConfiguration>>().Value.WorldId,
             sp.GetRequiredService<IWorldMaintenanceRepository>(),

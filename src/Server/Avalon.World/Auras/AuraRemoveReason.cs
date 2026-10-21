@@ -9,7 +9,7 @@ public enum AuraRemoveReason
     /// <summary>Its unit died: death ends every aura.</summary>
     Death = 2,
 
-    /// <summary>Its owner cancelled it (helpful auras only).</summary>
+    /// <summary>Its owner cancelled it (helpful auras only), or a GameMaster's /aura clear ended it (harmful ones).</summary>
     Cancelled = 3,
 
     /// <summary>Its script ended it.</summary>
