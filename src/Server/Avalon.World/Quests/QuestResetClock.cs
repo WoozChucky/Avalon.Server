@@ -5,8 +5,8 @@ namespace Avalon.World.Quests;
 
 /// <summary>
 /// The world's quest reset clock (#710): the latest daily, weekly and monthly boundary, and a generation raised once
-/// whenever an <see cref="Advance(DateTime)" /> crosses one or more of them, however many it passed at once. Tick-thread
-/// only. The boundaries are as of the last <see cref="Advance(DateTime)" />, which WorldServer calls once per tick, so
+/// whenever an <see cref="Advance(DateTime)" /> crosses one or more of them, however many it passed at once, or finds
+/// the clock stepped back before the latest daily one. Tick-thread only. The boundaries are as of the last <see cref="Advance(DateTime)" />, which WorldServer calls once per tick, so
 /// every offer, accept, marker and gate within a tick agrees with <see cref="Generation" />.
 /// </summary>
 public sealed class QuestResetClock
@@ -32,10 +32,13 @@ public sealed class QuestResetClock
         _weekly = QuestResetSchedule.LastBoundary(QuestRepeat.Weekly, utcNow, options);
         _monthly = QuestResetSchedule.LastBoundary(QuestRepeat.Monthly, utcNow, options);
         // Every weekly and monthly boundary is also a daily one, so the next daily boundary is the next of any.
-        _next = QuestResetSchedule.NextBoundary(QuestRepeat.Daily, utcNow, options);
+        _next = QuestResetSchedule.NextDailyBoundary(utcNow, options);
     }
 
-    /// <summary>Raised once by every <see cref="Advance(DateTime)" /> that crossed a boundary; 0 until the first.</summary>
+    /// <summary>
+    /// Raised once by every <see cref="Advance(DateTime)" /> that moved a boundary, forward across one or back before the
+    /// latest daily one; 0 until the first.
+    /// </summary>
     public int Generation => _generation;
 
     /// <summary>The next boundary of any frequency: the first moment at which <see cref="Advance(DateTime)" /> moves.</summary>
@@ -52,8 +55,8 @@ public sealed class QuestResetClock
     };
 
     /// <summary>
-    /// The generation at which the boundary of <paramref name="repeat" /> last moved; 0 when it has not moved since the
-    /// clock was built.
+    /// The generation at which the boundary of <paramref name="repeat" /> last moved, forward or back; 0 when it has not
+    /// moved since the clock was built.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="repeat" /> has no boundary (Once or Repeatable).</exception>
     public int RolledAt(QuestRepeat repeat) => repeat switch
@@ -69,12 +72,16 @@ public sealed class QuestResetClock
 
     /// <summary>
     /// Moves every boundary <paramref name="utcNow" />, a UTC moment, has passed and raises the generation once,
-    /// however many it passed. True when it raised the generation. Before the next boundary it costs one comparison.
+    /// however many it passed. True when it raised the generation. Between the latest daily boundary and the next it
+    /// costs two comparisons. A clock stepped back before the latest daily boundary (a corrected host clock) takes the
+    /// boundaries back with it, so a turn-in made after the earlier boundary is not offered again while the clock is
+    /// short of the later one; that move raises the generation too, and <see cref="RolledAt" /> marks each frequency
+    /// whose boundary moved, so markers and doodad gates are worked out again exactly as at a crossing.
     /// </summary>
     public bool Advance(DateTime utcNow)
     {
         Debug.Assert(utcNow.Kind != DateTimeKind.Local, "The quest reset clock advances on UTC, never local time.");
-        if (utcNow < _next)
+        if (utcNow < _next && utcNow >= _daily)
             return false;
 
         int generation = ++_generation;
@@ -99,7 +106,7 @@ public sealed class QuestResetClock
             _monthlyRolledAt = generation;
         }
 
-        _next = QuestResetSchedule.NextBoundary(QuestRepeat.Daily, utcNow, _options);
+        _next = QuestResetSchedule.NextDailyBoundary(utcNow, _options);
         return true;
     }
 

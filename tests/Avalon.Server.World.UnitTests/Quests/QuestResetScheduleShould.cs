@@ -62,6 +62,12 @@ public class QuestResetScheduleShould
         Assert.True(clock.AvailableAgain(QuestRepeat.Daily, boundary.AddTicks(-1)));
         Assert.False(clock.AvailableAgain(QuestRepeat.Once, DateTime.MinValue));
         Assert.True(clock.AvailableAgain(QuestRepeat.Repeatable, boundary));
+
+        // A clock stepped back before the daily boundary takes the boundary back with it (a raised generation, only the
+        // daily rolled), so a turn-in after the earlier boundary is not offered again until the clock passes it anew.
+        Assert.True(clock.Advance(Utc("2026-02-10T03:00:00Z")));
+        Assert.Equal((3, 3, 2, 2, false), (clock.Generation, clock.RolledAt(QuestRepeat.Daily), clock.RolledAt(QuestRepeat.Weekly),
+            clock.RolledAt(QuestRepeat.Monthly), clock.AvailableAgain(QuestRepeat.Daily, Utc("2026-02-09T12:00:00Z"))));
     }
 
     // Each row changes one setting from the defaults; the inclusive upper edges (and so the defaults) are accepted.

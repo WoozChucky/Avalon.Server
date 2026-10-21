@@ -40,14 +40,8 @@ public static class QuestResetSchedule
     /// The first daily boundary after <paramref name="utcNow" />, a UTC moment. Every weekly and monthly boundary is
     /// also a daily one, so it is the next boundary of any frequency, and the only one the reset clock needs.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="repeat" /> is not Daily.</exception>
-    public static DateTime NextBoundary(QuestRepeat repeat, DateTime utcNow, QuestResetConfiguration options)
-    {
-        if (repeat != QuestRepeat.Daily)
-            throw new ArgumentOutOfRangeException(nameof(repeat), repeat, "Only the daily boundary comes next.");
-
-        return LastBoundary(QuestRepeat.Daily, utcNow, options).AddDays(1);
-    }
+    public static DateTime NextDailyBoundary(DateTime utcNow, QuestResetConfiguration options) =>
+        LastBoundary(QuestRepeat.Daily, utcNow, options).AddDays(1);
 
     private static DateTime Utc(DateTime value) => DateTime.SpecifyKind(value, DateTimeKind.Utc);
 }
