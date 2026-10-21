@@ -137,8 +137,10 @@ lowers the speed through the stat fold as before. A unit holding several is in e
   then every second), never at or past its end, after its ticks and before its expiry. A late pass rolls every second it
   owes, as it pays ticks; the empty-instance skip, a hold (the loading screen, a move between instances) and a restore
   at select do not: the next roll keeps its place on the whole seconds held, so no burst of owed rolls follows. Every
-  roll draws from the combat service's `ICombatRandom`, and a chance of 0 draws nothing. Any aura row may carry the two
-  chances; the seed gives them only to the crowd-control auras and the two slows.
+  roll draws from the combat service's `ICombatRandom`, and a chance of 0 draws nothing. A hit on a unit holding no aura
+  with a `BreakOnDamagePct` walks none of its auras: `UnitAuras.BreaksOnDamage` caches whether any held aura has one,
+  worked out again by the same rule as `Control` (in `Record` when the changed aura or the current state has one, and in
+  `Load`). Any aura row may carry the two chances; the seed gives them only to the crowd-control auras and the two slows.
 - **Data.** World migration `SeedCrowdControl`: the aura columns above; on `CreatureRarityModifiers` four duration
   percentages, `StunDurationPct`, `RootDurationPct`, `SilenceDurationPct` and `SlowDurationPct` (0 immune to 100 the
   full duration, default 100; seeded Normal and Elite 100 each, Rare 50 each, Boss 0 stun, 50 root, 0 silence, 50 slow);

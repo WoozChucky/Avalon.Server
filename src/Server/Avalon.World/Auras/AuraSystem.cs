@@ -534,11 +534,12 @@ public sealed class AuraSystem
     /// service through its instance: each aura it holds with a chance to break on damage rolls it once, in the order
     /// held, and each that breaks ends (Broken, its script told). Those that break are copied first and ended after the
     /// walk, so an ending (whose script may deal damage and so come back here) never changes the list under it. Draws
-    /// nothing, and allocates nothing, when no aura it holds has such a chance.
+    /// nothing, allocates nothing and walks nothing when no aura it holds has such a chance
+    /// (<see cref="UnitAuras.BreaksOnDamage" />).
     /// </summary>
     public void DamageTaken(IUnit unit)
     {
-        if (AuraHolders.Of(unit) is not { Count: > 0 } auras)
+        if (AuraHolders.Of(unit) is not { BreaksOnDamage: true } auras)
             return;
 
         List<ActiveAura>? broken = null;

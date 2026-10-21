@@ -263,7 +263,8 @@ public class CrowdControlShould
     /// something, one roll each (Bound 25 %, Stunned 10 %, Silenced 0 %, which draws nothing), and once per whole second
     /// held (Bound 0.5 %, Silenced never). A dodged hit deals nothing and so rolls nothing. The rolls keep to the whole
     /// seconds since the aura was applied: those that fell while the instance stood empty are skipped, never paid in a
-    /// burst on return, and a restored aura owes none it took before it was saved nor any for the loading screen.
+    /// burst on return, and a restored aura owes none it took before it was saved nor any for the loading screen, and
+    /// rolls on a hit as an applied one does.
     /// </summary>
     [Theory]
     [InlineData(Bound, "hit", new[] { 0.249 }, true)]
@@ -276,6 +277,7 @@ public class CrowdControlShould
     [InlineData(Silenced, "held", new double[0], false)]
     [InlineData(Bound, "paused", new[] { 0.004 }, true)]
     [InlineData(Bound, "restored", new[] { 0.004 }, true)]
+    [InlineData(Bound, "restored hit", new[] { 0.249 }, true)]
     public void Break_crowd_control_by_chance_on_damage_and_over_time(uint auraId, string how, double[] breakRolls,
         bool broken)
     {
@@ -288,7 +290,7 @@ public class CrowdControlShould
         Creature boar = AddCreature(instance, 770_905, new Vector3(0f, 0f, 2f), Loot.LootTestData.BoarTemplate(null),
             dodgePct: how == "dodge" ? 30f : 0f);
         UnitAuras holder = boar.Auras;
-        if (how != "restored")
+        if (!how.StartsWith("restored", StringComparison.Ordinal))
             Assert.Equal(AuraApplyResult.Applied, instance.Auras.Apply(hunter, boar, Recorded(auraId), AuraSource.None));
 
         switch (how)
@@ -333,6 +335,15 @@ public class CrowdControlShould
                 holder = restored.Auras;
                 Assert.Single(holder.All);
                 PassAndCount(instance, random, [(250, 1), (250, 0)]);
+                break;
+            case "restored hit":   // select's Load, not an application, is all that tells the holder it can break
+                CharacterEntity loaded = Inventory.TestCharacters.New(770_602, time: _clock);
+                loaded.Health = loaded.CurrentHealth = 500;
+                AuraRestore.Restore(loaded, [SavedHalfway(auraId)], RecorderData(auraId), 32, NullLogger.Instance);
+                Join(instance, loaded);
+                holder = loaded.Auras;
+                random.Doubles(0.99, 0.99, 0.99).Doubles(breakRolls);
+                instance.CombatService.ApplyDamage(boar, loaded, 10);
                 break;
         }
 

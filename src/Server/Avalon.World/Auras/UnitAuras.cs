@@ -33,6 +33,13 @@ public sealed class UnitAuras(Action? changed = null)
     /// </summary>
     internal CrowdControl Control { get; private set; }
 
+    /// <summary>
+    /// Whether any held aura has a chance to break on damage (<see cref="AuraTemplate.BreakOnDamagePct" />), cached so
+    /// <see cref="AuraSystem.DamageTaken" />, which every damaging hit and periodic tick reports, walks no aura when none
+    /// can break.
+    /// </summary>
+    internal bool BreaksOnDamage { get; private set; }
+
     /// <summary>The auras <c>Game:MaxAurasPerUnit</c> counts: all but the held arrival protection's slot.</summary>
     internal int OrdinaryCount => Count - (HeldArrivalProtection is null ? 0 : 1);
 
@@ -131,6 +138,7 @@ public sealed class UnitAuras(Action? changed = null)
         }
 
         RecomputeControl();
+        RecomputeBreaksOnDamage();
 
         HeldSince = heldSince;
         _totals = null;
@@ -191,6 +199,10 @@ public sealed class UnitAuras(Action? changed = null)
         if (aura.Template.Control != CrowdControl.None || Control != CrowdControl.None)
             RecomputeControl();
 
+        // The same rule for the chance to break on damage: the changed aura has one, or one was held before it changed.
+        if (aura.Template.BreakOnDamagePct > 0f || BreaksOnDamage)
+            RecomputeBreaksOnDamage();
+
         uint remaining = kind == AuraChangeKind.Removed ? 0u : RemainingMs(aura, now);
         _changes.Add(new AuraChange(aura.Id, aura.Key, aura.CasterGuid.RawValue, aura.Stacks, remaining,
             aura.DurationMs, kind, aura.WireControl));
@@ -206,6 +218,15 @@ public sealed class UnitAuras(Action? changed = null)
             control |= held.Template.Control;
 
         Control = control;
+    }
+
+    private void RecomputeBreaksOnDamage()
+    {
+        bool breaks = false;
+        foreach (ActiveAura held in _auras)
+            breaks |= held.Template.BreakOnDamagePct > 0f;
+
+        BreaksOnDamage = breaks;
     }
 
     /// <summary>Milliseconds left, rounded up, so an aura with any time left never reads 0.</summary>
