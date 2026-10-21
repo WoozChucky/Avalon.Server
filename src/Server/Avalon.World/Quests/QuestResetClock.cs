@@ -6,8 +6,9 @@ namespace Avalon.World.Quests;
 /// <summary>
 /// The world's quest reset clock (#710): the latest daily, weekly and monthly boundary, and a generation raised once
 /// whenever an <see cref="Advance(DateTime)" /> crosses one or more of them, however many it passed at once, or finds
-/// the clock stepped back before the latest daily one. Tick-thread only. The boundaries are as of the last <see cref="Advance(DateTime)" />, which WorldServer calls once per tick, so
-/// every offer, accept, marker and gate within a tick agrees with <see cref="Generation" />.
+/// the clock stepped back before the latest daily one. Tick-thread only. The boundaries are as of the last
+/// <see cref="Advance(DateTime)" />, which WorldServer calls once per tick, so every offer, accept, marker and gate
+/// within a tick agrees with <see cref="Generation" />.
 /// </summary>
 public sealed class QuestResetClock
 {
