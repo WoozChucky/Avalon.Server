@@ -123,7 +123,7 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 ### Gameplay
 - [Parties](docs/parties.md) / [protocol](docs/party-protocol.md): in-memory `PartyService` (tick thread only), party instances, leave countdown, health scaling, shared kills, loot and experience.
 - [Quests](docs/quests.md) / [protocol](docs/quest-protocol.md): `QuestCatalog` validation, `QuestService` (tick thread only), stages and objectives, quest drops, saves, quest scripts.
-- [Auras](docs/auras.md) / [protocol](docs/aura-protocol.md): `AuraSystem` per instance, snapshots, schedules anchored at expiry, stacking, saves, replication.
+- [Auras](docs/auras.md) / [protocol](docs/aura-protocol.md): `AuraSystem` per instance, snapshots, schedules anchored at expiry, stacking, saves, replication, crowd control (stun, root, silence, slow: `ControlGates`, creature resistance, PvP diminishing, early breaks).
 - [Inventory, gold, vendors and saves](docs/inventory-and-saves.md): Character DB ownership, `ICharacterSaver` (one transaction, chained per character), one world session per account, Change Character, character names, item requests, equipment, bank, vendors, stats and the character sheet.
 - [Item use](docs/item-use.md) / [protocol](docs/item-use-protocol.md): equip or run an `ItemScript` through `IItemUseContext`; cooldowns, cast bar, consumption.
 - [Doodads](docs/doodads.md): DoodadCatalog, per-viewer views and quest gates, interaction and the cast bar, DoodadScript, placement.

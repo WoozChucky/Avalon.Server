@@ -70,10 +70,11 @@ acknowledgement. A connection with no character gets no answer at all.
 | 14 | `Interrupted` | The cast ended early (section 6). Nothing was spent and no cooldown started. |
 | 15 | `Refused` | The item refused this use; `Message` says why. Show it. |
 | 16 | `InternalError` | Something failed on the server; it is logged. Nothing was consumed and no cooldown started. |
+| 17 | `Stunned` | The character is stunned (crowd control, [aura protocol](aura-protocol.md) section 10): it uses no item, gear included, until the stun ends. A silence refuses no item use. |
 
 ## 4. The checks, in order
 
-1. **Dead**: `Dead`, before anything else.
+1. **Dead**: `Dead`, before anything else; then **stunned**: `Stunned`.
 2. **The slot**: a Bag or Equipment slot in range, not reserved, that holds an item, else `NotFound`.
 3. **A worn item** (Container 0) is taken off (section 5), and nothing else below is asked: no template, cooldown or
    cast check, so an item whose template is gone can still be taken off. A take-off that passes its checks first

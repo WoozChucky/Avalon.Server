@@ -132,12 +132,13 @@ then keeps the dialogue node it had until it talks to the NPC again.
 | 8 | `TooFar` | The NPC is past the 6 m dialogue leash; the conversation was ended (`SMSG_DIALOGUE_END`). |
 | 9 | `NoConversation` | No open conversation with that NPC, the NPC is gone or dead (the conversation was ended), or the character is dead; on a turn-in, also an NPC that does not take that quest back. |
 | 10 | `Error` | The server failed while handling the request, or a reward cannot be paid (a data fault, logged). Changes a turn-in had already applied are not rolled back. |
+| 11 | `Stunned` | The character is stunned (crowd control, [aura protocol](aura-protocol.md) section 10). The conversation stays open; try again once the stun ends. |
 
 The checks run in this order, and the first failure is the answer:
-- **Accept:** `NoConversation` (dead, no open conversation, or a different NPC; then the NPC gone or dead),
-  `TooFar`, `NotAvailable` (unknown quest, or this NPC is not its giver), then availability: `NotAvailable`
+- **Accept:** `NoConversation` (dead, no open conversation, or a different NPC), `Stunned`, `NoConversation` (the
+  NPC gone or dead), `TooFar`, `NotAvailable` (unknown quest, or this NPC is not its giver), then availability: `NotAvailable`
   (completed or held, prerequisite, level, class, script), and last `LogFull`.
-- **Turn in:** `NoConversation`, `TooFar` (as for accept), `NotActive` (not held, or unknown), `NoConversation`
+- **Turn in:** `NoConversation`, `Stunned`, `TooFar` (as for accept), `NotActive` (not held, or unknown), `NoConversation`
   (this NPC is not the quest's ender), `NotReady` (not ready, or the last stage's items are not all in the
   bag as it is now), `Error` (a reward item the server can no longer pay), `BagFull`, `MoneyCap`. A refused
   turn-in takes nothing and pays nothing. (The bag is recounted first, so a quest found short goes back to

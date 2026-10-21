@@ -85,22 +85,26 @@ A client casts with `CMSG_CAST_ABILITY` (`CCastAbilityPacket { AbilityId, Ground
 silent case.
 
 1. **Dead**: the caster is dead.
-2. **AlreadyCasting**: a cast-time cast is still in progress (#521 item 4).
-3. **Gcd**: the global cooldown (`CombatConfig.GcdMs`, default 200 ms) since the last cast start has
+2. **Stunned**: the caster is stunned (#770, crowd control: see [Auras](auras.md#crowd-control-770)); a stun stops
+   the basic attack too.
+3. **AlreadyCasting**: a cast-time cast is still in progress (#521 item 4).
+4. **Gcd**: the global cooldown (`CombatConfig.GcdMs`, default 200 ms) since the last cast start has
    not run out, measured on the container's `TimeProvider` (#793); the answer carries the time left, rounded up.
-4. **NotOwned**: the caster does not hold the skill.
-5. **Cooldown**: the skill's own cooldown is running; the answer carries the time left, rounded up.
-6. **RequiresOutOfCombat** / **RequiresInCombat**: the skill's combat flags.
-7. **NoAimPoint**: a cursor skill whose `GroundPos` is missing or has a non-finite component.
-8. **The power rule** (`AbilityCost`, #521 item 2, #652): a cost above 0 is spent from the pool the
+5. **NotOwned**: the caster does not hold the skill.
+6. **Silenced**: the caster is silenced (#770) and the skill is not its class's basic attack (a row flagged
+   `AbilityFlags.Basic`: 200, 210, 220, 230).
+7. **Cooldown**: the skill's own cooldown is running; the answer carries the time left, rounded up.
+8. **RequiresOutOfCombat** / **RequiresInCombat**: the skill's combat flags.
+9. **NoAimPoint**: a cursor skill whose `GroundPos` is missing or has a non-finite component.
+10. **The power rule** (`AbilityCost`, #521 item 2, #652): a cost above 0 is spent from the pool the
    ability names (`CostPowerType`), and only a caster whose own pool is that one pays it. A caster
    whose pool is another one, or none, is **WrongPowerType**, however much it holds: a Mana ability
    given to a Warrior never spends Fury. Too little in the right pool is **NotEnoughPower**. A cost
    whose row names no pool is **InternalError**, since the player cannot fix it. A cost of 0 needs no
    pool. Fury is spent like the
    others but nothing generates it yet (#526): a Warrior enters full and does not regenerate.
-9. **The instance**: the caster's instance must exist, and the cast system must accept the cast (its
-   script found and built); otherwise **InternalError**.
+11. **The instance**: the caster's instance must exist, and the cast system must accept the cast (its
+   script found and built, and the caster's crowd control asked again, #770); otherwise **InternalError**.
 
 `TargetGuid`, a range check and a facing check no longer exist. `TargetNotFound`, `NotFacing` and
 `OutOfRange` stay in the enum (values are append-only) but are never sent.

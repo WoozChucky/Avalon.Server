@@ -25,3 +25,8 @@ time there is no address to report.
 That URL is stable, and it is what the `Avalon.Dashboard` repository's client
 generator checks itself against. A push to `main` that touches the API host or any of
 its libraries (`src/Server/Avalon.Api*/**`) republishes it, as one to the docs does.
+
+Enumerations in the document are strings, except the contract's `[Flags]` enumerations
+(`AccountAccessLevel`, `ItemTemplateFlags`, `SpellEffect` and, since #770, `CrowdControl`, an
+aura template's `control`), which are integer masks, so a combination of flags stays one typed
+integer in the schema and in the generated client.

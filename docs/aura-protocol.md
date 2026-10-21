@@ -15,13 +15,15 @@ healing (a heal-over-time aura), stat modifiers (a buff, a debuff, a slow), or b
 units; an Ally ability only helpful ones, on allies), and item scripts can put helpful auras on their user and its
 party members in the same instance.
 
-The client needs no aura data of its own beyond the catalog: names, icons, kinds, timing, stacking and stat
-modifiers come from `schema/auras/aura-catalog-v1.json`, keyed by aura id, with every enumeration written as a
-number and listed in its `$comment` (`kind` 1 helpful, 2 harmful; `periodicKind` 0 none, 1 damage, 2 heal;
-`stacking` 1 refresh, 2 stack up to `maxStacks`, 3 one per caster; modifier `stat` 1 armor, 2 attack damage,
+The client needs no aura data of its own beyond the catalog: names, icons, kinds, timing, stacking, crowd control,
+break chances and stat modifiers come from `schema/auras/aura-catalog-v1.json`, keyed by aura id, with every
+enumeration written as a number and listed in its `$comment` (`kind` 1 helpful, 2 harmful; `periodicKind` 0 none,
+1 damage, 2 heal; `stacking` 1 refresh, 2 stack up to `maxStacks`, 3 one per caster; `control` flags 1 stun, 2 root,
+4 silence, 0 none; `breakOnDamagePct` and `breakPerSecondPct` in percent; modifier `stat` 1 armor, 2 attack damage,
 3 ability damage, 4 crit %, 5 dodge %, 6 block %, 7 haste %, 8 movement speed %, 9 max health, 10 max power;
-modifier `kind` 1 flat, 2 percent). In `schema/abilities/ability-catalog-v1.json`, an ability's `auraId` names the
-aura it applies, or is `null`.
+modifier `kind` 1 flat, 2 percent). The catalog's `control` is for tooltips only: a unit's crowd control is read from
+each aura entry's `Control` (section 10), which also carries the slow and stays right after a live edit. In
+`schema/abilities/ability-catalog-v1.json`, an ability's `auraId` names the aura it applies, or is `null`.
 
 ## 2. Opcodes
 
@@ -50,6 +52,7 @@ Server to client.
 | `RemainingMs` | 5 | uint32 | Milliseconds left (section 7); 0 on a removal. |
 | `DurationMs` | 6 | uint32 | Its whole duration when last applied, for drawing a timer. |
 | `Action` | 7 | `AuraUpdateAction` | What happened (updates only; absent in a list). |
+| `Control` | 8 | uint32 | The crowd control this copy puts its holder in, as bits: 1 stun, 2 root, 4 silence, 8 slow; 0 for none (section 10). In lists and updates alike. |
 
 Enumerations (append-only; `Unknown = 0` is what a payload without the field decodes as):
 
@@ -85,7 +88,7 @@ Each entry is the copy as it stood when that change happened, so one packet can 
 copy applied and removed in the same tick, say): apply them in order.
 
 - `Applied`: add the copy under its `InstanceKey`.
-- `Refreshed` / `Stacked`: replace the copy's stacks, caster, remaining time and duration.
+- `Refreshed` / `Stacked`: replace the copy's stacks, caster, remaining time, duration and control.
 - `Removed`: drop the copy.
 
 An update for a key the client does not hold is ignored. A client that has the unit in view has been sent its
@@ -127,7 +130,8 @@ at full health). A killing tick is sent like any killing hit, before `SMSG_UNIT_
 - **A unit holds at most `Game:MaxAurasPerUnit` auras** (32 by default); past that a new aura is not applied. A copy
   the unit already holds still refreshes or stacks.
 - **A dodged hit applies no aura.** An ability that only applies an aura (no direct damage or heal) is never dodged.
-  A target that takes no hits (an invulnerable town creature, a corpse, a creature walking home) gets no harmful aura.
+  A target that takes no hits (an invulnerable town creature, a corpse, a creature walking home) gets no harmful aura;
+  crowd control that reaches a creature walking home is answered "Immune" (section 10).
 - **A harmful aura starts combat**, as a hit does: the creature engages its caster, and both are in combat.
 - **Auras survive map changes and logout.** Their time does not run while the character is offline, nor while it
   loads into the world after a login; it starts again when the character enters its instance. Across a map change (a
@@ -180,10 +184,16 @@ no answer.
 | 5 | Fortified (`fortified`) | Helpful | 30 000 ms, no ticks | | Refresh | Armor percent +20 |
 | 6 | Poison (`poison`) | Harmful | 9 000 / 3 000 ms (3 ticks) | Damage: 3 + 1.0 x one roll of the caster's base damage | Stack, up to 3 | |
 | 7 | Sundered (`sundered`) | Harmful | 10 000 ms, no ticks | | Refresh | Armor percent -25 |
+| 12 | Stunned (`stunned`) | Harmful | 1 500 ms, no ticks | | Refresh | none; stun |
+| 13 | Bound (`bound`) | Harmful | 3 000 ms, no ticks | | Refresh | none; root |
+| 14 | Frozen (`frozen`) | Harmful | 2 500 ms, no ticks | | Refresh | none; root |
+| 15 | Silenced (`silenced`) | Harmful | 3 000 ms, no ticks | | Refresh | none; silence |
 
 The periodic amount is the total per stack, split over the ticks. At level 1 (a Warrior's attack 46, a Wizard's
 ability damage 69, a Healer's 46) that is 23.5 for Bleed, 65.4 for Burn and 42.4 for Renew. Armour auras are
-percentages: they scale the armour a unit already has and do nothing to a unit with none.
+percentages: they scale the armour a unit already has and do nothing to a unit with none. Crippled (3) and Hexed (10)
+are slows. Break chances (on damage / on its own, per second): Stunned 10 % / 0.5 %, Bound and Frozen 25 % / 0.5 %,
+Silenced never, Crippled and Hexed 0 % / 0.5 %.
 
 | Ability | Who | Shape | Aim | Reach, size | Cooldown | Cost | Direct | Aura |
 |---|---|---|---|---|---|---|---|---|
@@ -194,6 +204,48 @@ percentages: they scale the armour a unit already has and do nothing to a unit w
 | 234 Fortify | Healer | Ally circle on the caster | Movement | radius 8 | 20 s | 20 Mana | none | 5 Fortified |
 | 317 Venom Spit | Blightfly Swarmling | Projectile, 14 m/s | Cursor | reach 10 | 8 s | none | Damage: natural roll x 0.6 | 6 Poison |
 | 318 Sundering Howl | Bramblemaw Alpha | Circle on the caster | Movement | radius 6 | 18 s | none | none | 7 Sundered |
+| 204 Shield Bash | Warrior | Cone | Movement | reach 2.5, arc 90 | 15 s | 15 Fury | Damage: 6 + Attack x 0.15 + weapon x 0.3 | 12 Stunned |
+| 214 Frost Bind | Wizard | Circle on the aim point | Cursor | reach 18, radius 3 | 20 s | 25 Mana | Damage: 6 + Ability x 0.1 | 14 Frozen |
+| 224 Binding Shot | Hunter | Projectile, 28 m/s | Cursor | reach 25 | 15 s | 20 Energy | Damage: 8 + Attack x 0.2 + weapon x 0.3 | 13 Bound |
+| 235 Hush | Healer | Projectile, 20 m/s | Cursor | reach 18 | 20 s | 20 Mana | Damage: 6 + Ability x 0.1 | 15 Silenced |
 
 All are instant. Every character of a class holds its class's new abilities. An Ally circle affects the caster too when
 the circle covers it.
+
+## 10. Crowd control
+
+A harmful aura can put its holder under crowd control. Read a unit's state from the `Control` of every aura entry it
+holds (the union of their bits), never from the catalog:
+
+| Bit | State | The unit cannot |
+|---|---|---|
+| 1 | Stun | move, turn, cast (its basic attack included), use an item or a doodad, put gear on or off, touch the Bank, pick up loot, talk to an NPC or act on an open conversation, enter a portal. It can still cancel its own helpful auras, move items within its Bag and chat. |
+| 2 | Root | move. It still turns, casts and acts within reach. |
+| 4 | Silence | cast any ability but its class's basic attack (200 Cleave, 210 Arcane Bolt, 220 Quick Shot, 230 Smite). It still moves and uses items (an item that casts included) and doodads. |
+| 8 | Slow | move at full speed. The slowed speed already reaches the client (section 6); the bit is for display. |
+
+- **Movement.** While the own character holds a stun or a root, stop predicting movement locally. The server takes
+  the input but makes no step: every `SPlayerStateAckPacket` carries the unchanged position and zero velocity, with
+  the input's yaw while rooted and the character's own yaw while stunned.
+- **Refusals** carry their reason: `SAbilityNotReadyPacket` `CastRejectReason` `Stunned` 15 or `Silenced` 16;
+  `ItemUseResult` `Stunned` 17; `ItemRequestResult` `Stunned` 13 (a drag or destroy touching Equipment or the Bank);
+  `VendorResult` `Stunned` 13; `QuestResult` `Stunned` 11; `LootPickupResult` `Stunned` 7; `MapTransitionResult`
+  `Stunned` 14. An open NPC conversation stays open. An interaction with an NPC or a doodad, and a dialogue choice, are
+  dropped with no answer, as their other refusals are.
+- **Interrupts.** A stun ends the unit's running cast bar, an ability's, an item's or a doodad's; a silence ends an
+  ability cast unless it is the basic attack or an item's. Each ends with the usual interrupt packet and its cast id;
+  a hit the cast already fired still lands.
+- **Immune.** Crowd control a target resists whole is not applied, and the caster and everyone who would have seen the
+  hit get a damage packet of 0 with `Result` `HitResult.Immune` (8), after the ability's own damage packet if it has
+  one: on a
+  creature whose resistance to that type is 0 (a boss is immune to stun and silence), on a character that has already
+  taken a stun, root or silence of that type three times from other characters within the diminishing window, and on a
+  creature walking home hit by an ability with no direct amount (an ability with one, as every seeded crowd-control
+  ability has, is passed over whole by such a creature: no damage, no aura, no "Immune").
+- **Shorter durations.** Resistance and diminishing shorten an aura rather than refuse it: a Rare creature takes half
+  of each, a Boss half a root or slow, and a character takes a stun, root or silence from another character at full,
+  then half, then a quarter of its duration until none of that type has landed for 6 s (`Game:CrowdControlDiminishWindow`).
+  The entry's `DurationMs` is the shortened duration, so draw the timer from the entry. A refresh never shortens what
+  is left: its `DurationMs` may then be the time left rather than the row's duration.
+- **Breaking early.** A crowd-control aura can end before its time, by chance, when its holder takes damage or once
+  per second held (the catalog's break chances). It arrives as an ordinary `Removed` entry.

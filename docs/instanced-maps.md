@@ -330,6 +330,7 @@ public enum MapTransitionResult : byte
     NotPartyLeader   = 11,  // #1104: NewParty from a member who does not lead the party
     NotInParty       = 12,  // #1104: NewParty from a character in no party
     NotInstanced     = 13,  // #1104: a choice other than Default for a town
+    Stunned          = 14,  // #770: the character is stunned (crowd control)
 }
 
 public class SMapTransitionPacket : Packet

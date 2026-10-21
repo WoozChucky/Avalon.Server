@@ -29,6 +29,27 @@ protection: `ScenarioWorld` adds its characters through `instance.AddCharacter`,
 not cover the buff's apply, hold and removal; the two benchmarks above cover its checks.
 Run with `--filter "*ArrivalProtectionBenchmarks*" "*ArrivalTargetSelectionBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1`.
 
+`CrowdControlBenchmarks` measures the crowd-control gates player input, casts and creature AI ask every tick (#770):
+`ControlGates.CanMove` and `ControlGates.CanCast` (not the basic attack) on a character holding no aura, one holding
+Renew (an aura that controls nothing) and one stunned (Stunned, aura 12, applied by nobody through an instance's aura
+system backed by loaded seed data). Each is one read of the state the unit's auras cache (`UnitAuras.Control`), never a
+look at its auras or the clock, so every row is expected at about the cost of a field read and 0 B. Numbers: not yet
+run (the controller's run fills this in).
+
+| Operation | Mean | Allocated |
+|---|---:|---:|
+| `CanMove`, no aura (baseline) | | |
+| `CanMove`, a non-controlling aura | | |
+| `CanMove`, stunned | | |
+| `CanCast`, no aura | | |
+| `CanCast`, a non-controlling aura | | |
+| `CanCast`, stunned | | |
+
+Both Debug and Release `ScenarioAllocationsShould` pass on the crowd-control branch with the baseline unchanged
+(committed `66b158d6a`). No scenario applies crowd control, so the gate covers the gates' no-aura path on every input,
+cast and creature tick, not a controlled unit; the benchmark above covers that.
+Run with `--filter "*CrowdControlBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1`.
+
 Whole-tick numbers (tick-thread allocations per tick, tick times and GC for fixed world scenarios) come from the
 scenario runner instead, and the allocations are gated in CI: see [Scenario baseline](#scenario-baseline) at the end.
 
@@ -60,6 +81,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ActiveSc
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InventoryFlush*" "*ItemRequest*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ArrivalBenchmarks*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScanBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CrowdControlBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SocialEventBenchmarks*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InterestVisibilityBenchmarks*" "*SpatialIndexBenchmarks*" --job short
 
