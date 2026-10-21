@@ -399,6 +399,8 @@ creature sets to its target's position. The arcs and projectile speeds are the v
 Which of them a creature uses, and when, is its script's rotation (`creature-system.md`).
 `SeedIntegrityShould` pins every row and each forest template's script. The client reads these rows,
 with the kit's, from `schema/abilities/ability-catalog-v1.json` (`tools/Avalon.Exporter -- ability-catalog`).
+`AbilityCatalogExportShould` fails when that file differs from the seed rendered (#1146), so a seed change needs a
+re-export.
 
 ---
 

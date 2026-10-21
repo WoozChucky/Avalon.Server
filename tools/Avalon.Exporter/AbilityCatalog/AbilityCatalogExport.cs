@@ -16,7 +16,8 @@ namespace Avalon.Exporter;
 /// (SMSG_CHARACTER_ABILITIES), and SMSG_UNIT_START_CAST, SMSG_ABILITY_FIRED and the damage packets carry
 /// nothing but an ability id. Each row is the shape and timing a client draws a cast, a wind-up telegraph or a
 /// fired shape from. Like item-catalog, it reads the World database, the same source through the same
-/// connection string, so it is reviewed as a data diff rather than held by a drift test.
+/// connection string; the committed file is pinned against the seed rendered by
+/// <c>AbilityCatalogExportShould.Match_the_committed_catalog</c> (#1146), so a seed change needs a re-export.
 /// </summary>
 /// <remarks>
 /// A hand-listed row, unlike item-catalog's whole entity: an ability row carries server-only balance

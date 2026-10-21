@@ -3,13 +3,15 @@ using Avalon.Database.World;
 using Avalon.Domain.World;
 using Avalon.Exporter;
 using Avalon.Server.World.UnitTests.Handlers;
+using Avalon.World.Testing.Scenarios;
 using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
 /// <summary>
 /// #163: the ability catalog the client names and draws abilities from, creature abilities included. Rendering
-/// is pure and tested here over the seeded rows; reading them is EF and is not.
+/// is pure and tested here over the seeded rows, and the committed file is pinned against the seed rendered (#1146);
+/// the exporter's EF read of a live World database is not tested.
 /// </summary>
 public class AbilityCatalogExportShould
 {
@@ -94,4 +96,15 @@ public class AbilityCatalogExportShould
     [Fact]
     public void Render_an_empty_catalog_as_an_empty_array() =>
         Assert.Empty(Rows(AbilityCatalogExport.Render([])));
+
+    /// <summary>The committed file is the seed rendered: a seed change without a re-export (ability-catalog) fails here.</summary>
+    [Fact]
+    public void Match_the_committed_catalog()
+    {
+        string committed = File.ReadAllText(Path.Combine(TownNavmesh.RepositoryRoot, "schema",
+            AbilityCatalogExport.DirectoryName, AbilityCatalogExport.FileName));
+
+        Assert.Equal(committed.Replace("\r\n", "\n", StringComparison.Ordinal),
+            AbilityCatalogExport.Render(Seeded()).Replace("\r\n", "\n", StringComparison.Ordinal));
+    }
 }
