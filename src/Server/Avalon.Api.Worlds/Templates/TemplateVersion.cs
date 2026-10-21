@@ -13,8 +13,8 @@ namespace Avalon.Api.Worlds.Templates;
 /// The version of a template row: a lowercase hex SHA-256 of its stored values, which a save compares to refuse a
 /// row that changed since the editor read it. "Stored" is decided by the EF model, not by the C# type, so a column
 /// added later is covered with no change here, and a computed or unmapped property (Stackable, BodyRemoveTimer) is
-/// left out. The values are the ones written to the database (so <c>AllowedClasses</c> is its CSV), as canonical
-/// JSON: properties in ordinal name order, enums as names.
+/// left out. The values are the ones written to the database (the number inside an id), as canonical JSON:
+/// properties in ordinal name order, enums (and lists of them, such as <c>AllowedClasses</c>) as names.
 /// </summary>
 public static class TemplateVersion
 {
@@ -74,8 +74,7 @@ public static class TemplateVersion
 
     private static object Stored(IProperty property, object clr)
     {
-        // The provider value (the CSV of AllowedClasses, the number inside an id); enums with no converter stay
-        // enums and serialize as names.
+        // The provider value (the number inside an id); enums with no converter stay enums and serialize as names.
         object? stored = property.GetValueConverter()?.ConvertToProvider(clr) ?? clr;
         return stored;
     }

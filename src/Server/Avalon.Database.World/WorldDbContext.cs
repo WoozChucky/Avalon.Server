@@ -1434,20 +1434,8 @@ public class WorldDbContext : DbContext
             )
             .IsRequired();
 
-        ValueConverter<List<CharacterClass>, string> characterClassConverter = new(
-            v => string.Join(',', v.Select(e => e.ToString())),
-            v => v.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(e => (CharacterClass)Enum.Parse(typeof(CharacterClass), e)).ToList());
-
-        ValueComparer<List<CharacterClass>> characterClassComparer = new(
-            (c1, c2) => c1!.SequenceEqual(c2!),
-            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
-            c => c.ToList());
-
-        builder
-            .Property(e => e.AllowedClasses)
-            .HasConversion(characterClassConverter)
-            .Metadata.SetValueComparer(characterClassComparer);
+        // AllowedClasses maps by convention to smallint[], the class numbers, as AbilityTemplates.AllowedClasses does
+        // (#921, #922): the class names never reach the database (#1142).
 
         builder.HasData(
             new ItemTemplate
@@ -2726,10 +2714,9 @@ public class WorldDbContext : DbContext
     private static void Configure(EntityTypeBuilder<CharacterClassName> builder)
     {
         builder.ToTable("CharacterClassNames");
+        // The class number (smallint), as every other class column (#921, #922, #1142).
         builder.HasKey(b => b.Class);
-        builder.Property(b => b.Class)
-            .HasConversion(new EnumToStringConverter<CharacterClass>())
-            .IsRequired();
+        builder.Property(b => b.Class).IsRequired();
         builder.Property(b => b.TextId)
             .HasConversion(v => v.Value, v => new LocalizedTextId(v))
             .IsRequired();
