@@ -53,19 +53,20 @@ public sealed class ActiveAura(
     public double PeriodicCarry { get; set; }
 
     /// <summary>
-    /// Applied again: the current template, the latest caster, a fresh snapshot and schedule and the given stacks. A
-    /// refresh is a new application in all but its key.
+    /// Applied again: the current template, the latest caster, a fresh snapshot, the given stacks, and a fresh schedule
+    /// of <paramref name="durationMs" /> from now (the template's own, or a crowd-control aura's after its resistance or
+    /// diminishing, or what it had left when that was longer). A refresh is a new application in all but its key.
     /// </summary>
     public void Renew(AuraTemplate current, ObjectGuid caster, AuraSource from, uint newStacks, AuraSnapshot newSnapshot,
-        DateTimeOffset now)
+        uint durationMs, DateTimeOffset now)
     {
         Template = current;
         CasterGuid = caster;
         Source = from;
         Stacks = newStacks;
         Snapshot = newSnapshot;
-        Schedule = AuraSchedule.Start(now, current.DurationMs, current.TickIntervalMs);
-        DurationMs = current.DurationMs;
+        Schedule = AuraSchedule.Start(now, durationMs, current.TickIntervalMs);
+        DurationMs = durationMs;
         AppliedAt = now.UtcDateTime;
         PeriodicCarry = 0d;
     }

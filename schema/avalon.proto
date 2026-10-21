@@ -429,6 +429,7 @@ enum HitResult {
    HitResult_Crit = 1;
    HitResult_Dodged = 2;
    HitResult_Blocked = 4;
+   HitResult_Immune = 8;
 }
 message IgnoredCharacterDto {
    uint32 CharacterId = 1;

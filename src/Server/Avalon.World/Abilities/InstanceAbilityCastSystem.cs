@@ -68,6 +68,16 @@ public interface IAbilityCastSystem
     void CancelCasts(IUnit caster);
 
     /// <summary>
+    /// Ends the running cast bar of <paramref name="caster" /> (#770: a stun, or a silence, landed on it): each of its
+    /// queued casts still winding up resets and clears <c>Casting</c>, and its interrupt is sent; nothing fires, nothing
+    /// is refunded and no cooldown starts. With <paramref name="spareBasic" /> (a silence) its basic attack's cast goes
+    /// on. Unlike <see cref="CancelCasts" />, a hit it already fired and held for the dodge wait still lands, and its
+    /// running scripts (a projectile in flight) go on. Safe from inside a cast firing this tick (a stun dealt by one):
+    /// a cast that already fired is left alone, and the ones it ends leave the queue once the tick's walk is over.
+    /// </summary>
+    void Interrupt(IUnit caster, bool spareBasic);
+
+    /// <summary>
     /// Drops every active script <paramref name="caster" /> cast, a projectile in flight included, so
     /// none of them hits, threatens or credits anything again (#541). A dropped projectile is no longer
     /// a world object, so every client still watching it is sent its removal on the next tick, as for
@@ -105,6 +115,12 @@ public class InstanceAbilityCastSystem(
     private readonly HashSet<AbilityInstance> _abilityQueue = [];
     private readonly List<AbilityInstance> _dequeued = [];
     private readonly List<AbilityInstance> _cancelled = [];
+
+    // The casts Interrupt ended (#770), kept between calls. While the queue is being advanced (a stun dealt by a cast that
+    // fires in that walk) they cannot leave it: AdvanceQueue takes them out after its walk and sends their interrupts
+    // with its own.
+    private readonly List<AbilityInstance> _controlled = [];
+    private bool _advancing;
     private readonly AbilityScriptActivator _scriptActivator = new();
     private readonly PendingHits _pendingHits = new(factory.CreateLogger<PendingHits>());
 
@@ -227,9 +243,42 @@ public class InstanceAbilityCastSystem(
         _dequeued.Clear();
         _interrupts.Clear();
 
+        _advancing = true;
+        try
+        {
+            AdvanceEach(deltaTime);
+        }
+        finally
+        {
+            _advancing = false;
+        }
+
+        foreach (AbilityInstance cast in _dequeued)
+        {
+            _abilityQueue.Remove(cast);
+        }
+
+        // The casts a stun or a silence dealt in the walk ended (#770); their interrupts are already in _interrupts.
+        foreach (AbilityInstance cast in _controlled)
+        {
+            _abilityQueue.Remove(cast);
+        }
+
+        _controlled.Clear();
+    }
+
+    private void AdvanceEach(TimeSpan deltaTime)
+    {
         foreach (AbilityInstance cast in _abilityQueue)
         {
             IAbility ability = cast.Ability;
+
+            // Ended earlier in this walk by a stun or a silence a cast that fired dealt (#770): it waits to leave.
+            if (!ability.Casting)
+            {
+                continue;
+            }
+
             ability.CastTimeTimer -= (float)deltaTime.TotalSeconds;
 
             // #163: a creature that died during its wind-up, or turned for home (the leash, a lost target),
@@ -283,11 +332,6 @@ public class InstanceAbilityCastSystem(
                 ? footprint
                 : null;
             Fire(cast.Caster, ability, cast.Script, cast.HastePct, cast.CastId, default, dodge);
-        }
-
-        foreach (AbilityInstance cast in _dequeued)
-        {
-            _abilityQueue.Remove(cast);
         }
     }
 
@@ -412,6 +456,55 @@ public class InstanceAbilityCastSystem(
         {
             // Emptied now: until the next leave it would hold the casts of a caster who is gone, and the caster.
             _cancelled.Clear();
+        }
+    }
+
+    public void Interrupt(IUnit caster, bool spareBasic)
+    {
+        // Collected first: nothing is removed from the queue while it is enumerated, and this may run inside
+        // AdvanceQueue's own walk of it. A cast with Casting clear already fired this tick (or was ended earlier in it).
+        int first = _controlled.Count;
+        foreach (AbilityInstance cast in _abilityQueue)
+        {
+            if (!ReferenceEquals(cast.Caster, caster) || !cast.Ability.Casting
+                || spareBasic && ControlGates.IsBasic(caster, cast.Ability))
+            {
+                continue;
+            }
+
+            ResetCast(cast.Ability);
+            _controlled.Add(cast);
+            CombatLog.CastInterruptedByControl(_logger, cast.Ability.AbilityId, caster.Guid);
+        }
+
+        if (_advancing)
+        {
+            for (int i = first; i < _controlled.Count; i++)
+            {
+                AbilityInstance cast = _controlled[i];
+                _interrupts.Add((cast.Caster, cast.Ability, cast.CastId));
+            }
+
+            return;
+        }
+
+        try
+        {
+            for (int i = first; i < _controlled.Count; i++)
+            {
+                _abilityQueue.Remove(_controlled[i]);
+            }
+
+            // Sent once every cast is already out of the queue, each contained, so a failing send cannot leave one stuck.
+            for (int i = first; i < _controlled.Count; i++)
+            {
+                AbilityInstance cast = _controlled[i];
+                TryInterrupt(cast.Caster, cast.Ability, cast.CastId);
+            }
+        }
+        finally
+        {
+            _controlled.RemoveRange(first, _controlled.Count - first);
         }
     }
 

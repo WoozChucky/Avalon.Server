@@ -50,6 +50,9 @@ internal static partial class CombatLog
     [LoggerMessage(Level = LogLevel.Debug, Message = "Cast interrupted by movement ability={AbilityId} caster={CharId}")]
     public static partial void CastInterruptedByMovement(ILogger logger, AbilityId abilityId, ObjectGuid charId);
 
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Cast interrupted by a stun or a silence ability={AbilityId} caster={CharId}")]
+    public static partial void CastInterruptedByControl(ILogger logger, AbilityId abilityId, ObjectGuid charId);
+
     [LoggerMessage(Level = LogLevel.Debug, Message = "Cast cancelled as its caster left ability={AbilityId} caster={CharId}")]
     public static partial void CastCancelledCasterLeft(ILogger logger, AbilityId abilityId, ObjectGuid charId);
 

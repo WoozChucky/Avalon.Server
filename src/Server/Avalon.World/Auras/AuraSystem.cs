@@ -8,6 +8,7 @@ using Avalon.Network.Packets.Auras;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Combat;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -33,10 +34,15 @@ public sealed class AuraSystem
     private readonly Func<StaticData> _data;
     private readonly TimeProvider _time;
     private readonly int _maxPerUnit;
+    private readonly TimeSpan _diminishWindow;
     private readonly ILogger _logger;
     private readonly AuraScripts? _scripts;
     private readonly Func<ObjectGuid, IWorldConnection?> _connectionOf;
     private readonly Func<IUnit, bool> _returningHome;
+    private readonly Action<IUnit, CrowdControl>? _controlled;
+
+    // The types a character's PvP diminishing counts (#770), walked by index; a slow never diminishes.
+    private static readonly CrowdControl[] s_diminished = [CrowdControl.Stun, CrowdControl.Root, CrowdControl.Silence];
 
     // When each refusal was last logged, by what was refused, so one that repeats every cast cannot flood the log.
     private readonly Dictionary<(string Why, uint AuraId), DateTimeOffset> _refusalsLogged = [];
@@ -65,13 +71,24 @@ public sealed class AuraSystem
     /// <param name="catalog">The current aura catalog (StaticData.Auras), read once per update and once per application.</param>
     /// <param name="data">The current reference data, for a character's stats refresh.</param>
     /// <param name="time">The instance's clock.</param>
+    /// <param name="maxAurasPerUnit">Game:MaxAurasPerUnit: the most auras one unit holds.</param>
+    /// <param name="diminishWindow">
+    /// Game:CrowdControlDiminishWindow (#770): how long after the last stun, root or silence from a character that
+    /// landed on another the next of that type still diminishes.
+    /// </param>
+    /// <param name="logger">Where refusals and failures are logged.</param>
     /// <param name="scripts">Runs the auras' scripts; none runs without it.</param>
     /// <param name="connectionOf">A character's connection in this instance, for a script's Tell; none without it.</param>
     /// <param name="returningHome">Whether a creature is walking home after a fight; the combat script's own answer by default.</param>
+    /// <param name="controlled">
+    /// Told when a stun or a silence lands on a unit (#770), with what landed, after the aura is placed: its instance
+    /// ends the unit's running cast bar. Nothing without it.
+    /// </param>
     public AuraSystem(CombatService combat, Dictionary<ObjectGuid, ICharacter> characters,
         Dictionary<ObjectGuid, ICreature> creatures, Func<AuraCatalog> catalog, Func<StaticData> data, TimeProvider time,
-        int maxAurasPerUnit, ILogger logger, AuraScripts? scripts = null,
-        Func<ObjectGuid, IWorldConnection?>? connectionOf = null, Func<IUnit, bool>? returningHome = null)
+        int maxAurasPerUnit, TimeSpan diminishWindow, ILogger logger, AuraScripts? scripts = null,
+        Func<ObjectGuid, IWorldConnection?>? connectionOf = null, Func<IUnit, bool>? returningHome = null,
+        Action<IUnit, CrowdControl>? controlled = null)
     {
         _roster = new AuraRoster(this);
         _combat = combat;
@@ -81,10 +98,12 @@ public sealed class AuraSystem
         _data = data;
         _time = time;
         _maxPerUnit = maxAurasPerUnit;
+        _diminishWindow = diminishWindow;
         _logger = logger;
         _scripts = scripts;
         _connectionOf = connectionOf ?? (static _ => null);
         _returningHome = returningHome ?? (static unit => unit is ICreature { Script: IReturningHome { IsReturningHome: true } });
+        _controlled = controlled;
     }
 
     public AuraCatalog Catalog => _catalog();
@@ -127,6 +146,15 @@ public sealed class AuraSystem
     /// snapshot comes from the caster's stats now, its base damage roll (if the row has a coefficient) drawn from the
     /// combat service's random. A harmful aura from a caster enters combat.
     /// </summary>
+    /// <remarks>
+    /// A crowd-control aura (#770: one that stuns, roots or silences, or a slow) may land for less than its row's
+    /// duration: on a creature, the share its <see cref="Creature.ControlResistance" /> takes; on a character, from
+    /// another character, the PvP diminishing step of each type it stuns, roots or silences with (full, half, quarter,
+    /// immune), the smallest winning, each type then recorded as landed. Nothing landing (a share of 0, the immune step,
+    /// or a creature walking home) is Resisted: nothing is placed and nothing recorded. Its refresh keeps the later of
+    /// the held expiry and the new one. A stun or a silence that landed then ends the target's running cast bar, through
+    /// the instance.
+    /// </remarks>
     public AuraApplyResult Apply(IUnit? caster, IUnit target, AuraTemplate template, AuraSource source)
     {
         // The fit alone: the row is in hand, and a lookup delegate over it cost every application a closure, made on
@@ -141,8 +169,18 @@ public sealed class AuraSystem
         if (AuraHolders.Of(target) is not { } auras || IsDead(target))
             return AuraApplyResult.Refused;
 
-        if (template.Kind == AuraKind.Harmful && (CombatService.IgnoresHits(target) || IsWalkingHome(target)))
-            return AuraApplyResult.Refused;
+        // A crowd-control aura (#770): one that grants a stun, root or silence, or a slow. Either is harmful.
+        bool controls = template.Control != CrowdControl.None || AuraRules.IsSlow(template);
+        if (template.Kind == AuraKind.Harmful)
+        {
+            // A creature walking home resists crowd control (its caster is told "Immune") and refuses any other harmful
+            // aura; one every hit passes over (arrival protection, invulnerable, a corpse) refuses either.
+            bool walkingHome = IsWalkingHome(target);
+            if (walkingHome && controls && target is not ICreature { Invulnerable: true })
+                return AuraApplyResult.Resisted;
+            if (walkingHome || CombatService.IgnoresHits(target))
+                return AuraApplyResult.Refused;
+        }
 
         // A copy keyed by caster only for Independent rows: Renew overwrites the caster of every other kind.
         ObjectGuid casterGuid = caster?.Guid ?? new ObjectGuid();
@@ -161,10 +199,21 @@ public sealed class AuraSystem
             return AuraApplyResult.Refused;
         }
 
+        // Past the cap, so an aura refused there is no diminishing step (#770).
+        DateTimeOffset now = _time.GetUtcNow();
+        uint durationMs = template.DurationMs;
+        if (controls)
+        {
+            durationMs = ControlledDuration(caster, target, template, now);
+            if (durationMs == 0)
+                return AuraApplyResult.Resisted;
+        }
+
         // Rolled once, here, past every refusal, so a refused aura draws nothing from the combat random.
         AuraSnapshot snapshot = AuraRules.Snapshot(template, caster is null ? default : CombatService.AttackerFor(caster),
             _combat.Random);
-        AuraApplyResult result = Place(target, auras, held, template, casterGuid, source, snapshot);
+        AuraApplyResult result = Place(target, auras, held, template, casterGuid, source, snapshot, durationMs, controls,
+            now);
 
         // A first hook (or the removal it asked for) that killed the target: death ends every aura, and a corpse enters
         // no combat.
@@ -177,23 +226,70 @@ public sealed class AuraSystem
         if (template.Kind == AuraKind.Harmful && caster is not null)
             _combat.EnterAuraCombat(caster, target);
 
+        // A stun or a silence it still holds from this aura (a first hook may have ended it) ends its running cast bar.
+        CrowdControl interrupting = template.Control & auras.Control & (CrowdControl.Stun | CrowdControl.Silence);
+        if (interrupting != CrowdControl.None)
+            _controlled?.Invoke(target, interrupting);
+
         return result;
     }
 
     /// <summary>
-    /// Renews the copy held (stacking it when its row allows) or adds a new one, refreshes the stats it modifies and runs
-    /// its script's OnStack or OnApply; a script that ended its aura from that hook has it removed at once.
+    /// How long a crowd-control aura lands for on <paramref name="target" /> (#770), 0 for not at all: a creature's
+    /// resistance share of the row's duration; a character's PvP diminishing step when <paramref name="caster" /> is a
+    /// character and the aura stuns, roots or silences (each such type recorded as landed when it lands, so its window
+    /// runs from now); the full duration otherwise (a creature's or nobody's on a character, a slow alone).
+    /// </summary>
+    private uint ControlledDuration(IUnit? caster, IUnit target, AuraTemplate template, DateTimeOffset now)
+    {
+        if (target is Creature creature)
+            return CrowdControlRules.Scale(template.DurationMs, creature.ControlResistance.PctOf(template));
+
+        if (target is not CharacterEntity character || caster is not ICharacter || template.Control == CrowdControl.None)
+            return template.DurationMs;
+
+        ControlDiminishing diminishing = character.Diminishing;
+        float pct = 100f;
+        for (int i = 0; i < s_diminished.Length; i++)
+        {
+            CrowdControl type = s_diminished[i];
+            if ((template.Control & type) != 0)
+                pct = MathF.Min(pct, CrowdControlRules.DiminishPct(diminishing.Landed(type, now, _diminishWindow)));
+        }
+
+        // The immune step lands nothing and is not recorded, so the window still runs from the last that landed.
+        uint durationMs = CrowdControlRules.Scale(template.DurationMs, pct);
+        if (durationMs == 0)
+            return 0;
+
+        for (int i = 0; i < s_diminished.Length; i++)
+        {
+            CrowdControl type = s_diminished[i];
+            if ((template.Control & type) != 0)
+                diminishing.Record(type, now);
+        }
+
+        return durationMs;
+    }
+
+    /// <summary>
+    /// Renews the copy held (stacking it when its row allows) or adds a new one, for <paramref name="durationMs" />,
+    /// refreshes the stats it modifies and runs its script's OnStack or OnApply; a script that ended its aura from that
+    /// hook has it removed at once. A crowd-control aura's refresh (<paramref name="controls" />) never shortens what the
+    /// held copy has left (#770): it keeps the later expiry.
     /// </summary>
     private AuraApplyResult Place(IUnit target, UnitAuras auras, ActiveAura? held, AuraTemplate template,
-        ObjectGuid casterGuid, AuraSource source, AuraSnapshot snapshot)
+        ObjectGuid casterGuid, AuraSource source, AuraSnapshot snapshot, uint durationMs, bool controls,
+        DateTimeOffset now)
     {
-        DateTimeOffset now = _time.GetUtcNow();
         AuraApplyResult result;
         if (held is not null)
         {
             uint stacks = AuraRules.NextStacks(template.Stacking, held.Stacks, template.MaxStacks);
             bool stacked = stacks > held.Stacks;
-            held.Renew(template, casterGuid, source, stacks, snapshot, now);
+            if (controls)
+                durationMs = Math.Max(durationMs, UnitAuras.RemainingMs(held, now));
+            held.Renew(template, casterGuid, source, stacks, snapshot, durationMs, now);
             auras.Changed(held, stacked ? AuraChangeKind.Stacked : AuraChangeKind.Refreshed, now);
             if (stacked)
             {
@@ -206,7 +302,7 @@ public sealed class AuraSystem
         else
         {
             held = new ActiveAura(template, casterGuid, source, 1, snapshot,
-                AuraSchedule.Start(now, template.DurationMs, template.TickIntervalMs), template.DurationMs, now.UtcDateTime);
+                AuraSchedule.Start(now, durationMs, template.TickIntervalMs), durationMs, now.UtcDateTime);
             auras.Add(held, now);
             RefreshStats(target, template);
             RunHook(target, held, "OnApply", static (s, c, _) => s.OnApply(c));

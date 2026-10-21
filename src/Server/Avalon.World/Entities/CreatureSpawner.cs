@@ -4,6 +4,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
+using Avalon.World.Auras;
 using Avalon.World.Dialogue;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
@@ -130,6 +131,7 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
             BlockPct = stats.BlockPct,
             BaseAttackTime = template.BaseAttackTime,
             HasteCap = formula.HasteCap,
+            ControlResistance = ControlResistance.Of(template, creatures.Rarities),
             MoveSpeedFloor = formula.MoveSpeedFloor,
             MoveSpeedCap = formula.MoveSpeedCap,
 

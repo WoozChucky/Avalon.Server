@@ -143,7 +143,8 @@ public sealed class DoodadUseContext(TimeProvider time, ILogger? logger = null) 
                 // others still get theirs. From nobody: no caster's stats, no combat, no credit.
                 try
                 {
-                    if (host.Auras.Apply(null, _targets[i], aura, AuraSource.None) != AuraApplyResult.Refused)
+                    AuraApplyResult result = host.Auras.Apply(null, _targets[i], aura, AuraSource.None);
+                    if (result is not (AuraApplyResult.Refused or AuraApplyResult.Resisted))
                         applied++;
                 }
                 catch (Exception e)

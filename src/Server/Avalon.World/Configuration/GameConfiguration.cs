@@ -268,6 +268,14 @@ public class GameConfiguration
     public int MaxAurasPerUnit { get; set; } = 32;
 
     /// <summary>
+    /// The PvP diminishing window (#770): a character's stun, root and silence from other characters step down (full,
+    /// half, quarter, then immune) until no application of that type has landed on it for this long. Above 0 and at
+    /// most 7 seconds.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00.001", "00:00:07")]
+    public TimeSpan CrowdControlDiminishWindow { get; set; } = TimeSpan.FromSeconds(6);
+
+    /// <summary>
     /// How many player chat messages one character may send in any 60 seconds (#722): plain chat, <c>/p</c> and
     /// <c>/w</c> share the one budget. Only a delivered message counts. 0 or below turns the limit off. The default
     /// is in <c>appsettings.json</c>.

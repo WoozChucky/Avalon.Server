@@ -1,4 +1,6 @@
 using Avalon.Domain.World;
+using Avalon.World.Entities;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Auras;
@@ -34,4 +36,11 @@ public static class ControlGates
         CrowdControl control = Of(unit);
         return (control & CrowdControl.Stun) == 0 && (basic || (control & CrowdControl.Silence) == 0);
     }
+
+    /// <summary>
+    /// Whether <paramref name="ability" /> is <paramref name="caster" />'s basic attack, the one a silence spares: a
+    /// class basic (<see cref="AbilityFlags.Basic" /> on its row), or a creature's own basic clone.
+    /// </summary>
+    public static bool IsBasic(IUnit caster, IAbility ability) =>
+        (ability.Metadata.Flags & AbilityFlags.Basic) != 0 || caster is Creature creature && creature.Abilities.IsBasic(ability);
 }

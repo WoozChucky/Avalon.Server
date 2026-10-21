@@ -334,8 +334,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // reaches the next application. A world built without reference data (tests) has no aura at all.
         _auras = new AuraSystem(_combatService, _characters, _creatures,
             () => world.Data?.Auras ?? AuraCatalog.Empty, () => world.Data, _time, world.Configuration.MaxAurasPerUnit,
-            loggerFactory.CreateLogger<AuraSystem>(), serviceProvider.GetService<AuraScripts>(),
-            guid => _connections.TryGetValue(guid, out IWorldConnection? connection) ? connection : null);
+            world.Configuration.CrowdControlDiminishWindow, loggerFactory.CreateLogger<AuraSystem>(),
+            serviceProvider.GetService<AuraScripts>(),
+            guid => _connections.TryGetValue(guid, out IWorldConnection? connection) ? connection : null,
+            controlled: Controlled);
         _auraPassFailures = new ThrottledErrorLog(_logger, _time, $"The aura pass of instance {InstanceId}");
         _auraApplyFailures = new ThrottledErrorLog(_logger, _time, $"An ability's aura in instance {InstanceId}");
         _auraDeathFailures = new ThrottledErrorLog(_logger, _time, $"Ending the auras of a unit on its death in instance {InstanceId}");
@@ -2772,17 +2774,27 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// packet, and to everyone who hears it, by the same radius as a hit (#532). Only for a unit in this
     /// instance, as a hit is.
     /// </summary>
-    void ICombatOutcomes.HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId)
+    void ICombatOutcomes.HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId) =>
+        SendNothingDealt(attacker, target, abilityId, HitResult.Dodged);
+
+    /// <summary>
+    /// Crowd control resisted whole (#770) is sent as a dodge is, a hit of 0, marked Immune, so a client can say so.
+    /// </summary>
+    void ICombatOutcomes.ControlResisted(IUnit caster, IUnit target, AbilityId? abilityId) =>
+        SendNothingDealt(caster, target, abilityId, HitResult.Immune);
+
+    /// <summary>A hit of 0 marked <paramref name="result" />, to whoever hears a hit on <paramref name="target" />.</summary>
+    private void SendNothingDealt(IUnit attacker, IUnit target, AbilityId? abilityId, HitResult result)
     {
         if (target is CharacterEntity character)
         {
-            ((ICombatOutcomes)this).CharacterDamaged(character, attacker, 0, abilityId, HitResult.Dodged);
+            ((ICombatOutcomes)this).CharacterDamaged(character, attacker, 0, abilityId, result);
             return;
         }
 
         if (target is ICreature && _creatures.ContainsKey(target.Guid))
         {
-            BroadcastUnitHit(attacker, target, target.CurrentHealth, 0, HitResult.Dodged);
+            BroadcastUnitHit(attacker, target, target.CurrentHealth, 0, result);
         }
     }
 
@@ -2888,7 +2900,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>
     /// The aura the ability's live row names, on <paramref name="target" />; who may receive it the shape and Hostility
     /// already decided. Contained: an application that throws (a stats refresh or a hook's removal inside it) is logged,
-    /// throttled, and costs the cast none of its other targets.
+    /// throttled, and costs the cast none of its other targets. Crowd control the target resisted whole is told as
+    /// Immune (#770).
     /// </summary>
     void IAbilityArena.ApplyAbilityAura(IUnit caster, IUnit target, IAbility ability)
     {
@@ -2901,12 +2914,38 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         try
         {
-            _auras.Apply(caster, target, aura, AuraSource.Of(ability));
+            if (_auras.Apply(caster, target, aura, AuraSource.Of(ability)) == AuraApplyResult.Resisted)
+            {
+                ((ICombatOutcomes)this).ControlResisted(caster, target, ability.AbilityId);
+            }
         }
         catch (Exception e)
         {
             _auraApplyFailures.Failed(e);
         }
+    }
+
+    /// <summary>
+    /// A stun or a silence landed on <paramref name="unit" /> (#770): its running ability cast ends, a basic attack's
+    /// spared by a silence alone; a stun also ends its item and doodad cast bars. Only the running cast bars: a hit already
+    /// fired and held for the dodge wait lands, and nothing starts a cooldown. Each interrupt is broadcast as any other.
+    /// </summary>
+    private void Controlled(IUnit unit, CrowdControl control)
+    {
+        bool stunned = (control & CrowdControl.Stun) != 0;
+        _abilityCastSystem.Interrupt(unit, spareBasic: !stunned);
+        if (!stunned || unit is not CharacterEntity)
+        {
+            return;
+        }
+
+        // Asked first: an interrupt of a character with no item cast would still build its closures.
+        if (_itemUses.IsCasting(unit.Guid))
+        {
+            _itemUses.Interrupt(unit.Guid);
+        }
+
+        _doodadCasts.Interrupt(unit.Guid);
     }
 
     void ICombatOutcomes.CreatureKilled(ICreature creature, IUnit? killer)
