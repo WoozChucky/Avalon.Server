@@ -60,7 +60,7 @@ field read. The flag takes a hit on a unit whose auras cannot break from a walk 
 holding a breakable aura still pays the walk and one draw per such aura. A run with tiered compilation on measured the
 first two rows at about 17 ns (most likely code not yet past tier 0 after three warmups), so these runs turn it off, as the arrival
 benchmarks do. Both Debug and Release `ScenarioAllocationsShould` pass on the crowd-control branch with the baseline
-unchanged (committed `66b158d6a`). No scenario applies crowd control, so the gate covers the gates' no-aura path on
+unchanged (committed `e13b38026`). No scenario applies crowd control, so the gate covers the gates' no-aura path on
 every input, cast and creature tick, not a controlled unit; the benchmark above covers that.
 Run with `--filter "*CrowdControlBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1` and
 `DOTNET_TieredCompilation=0` in the environment.

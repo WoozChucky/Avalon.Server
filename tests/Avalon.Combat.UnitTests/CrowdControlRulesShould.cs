@@ -40,12 +40,11 @@ public class CrowdControlRulesShould
         { "the fourth is refused", 0, () => CrowdControlRules.DiminishPct(3) },
     };
 
+    // @case only names each row in the test results; the theory reads the other two.
+#pragma warning disable xUnit1026
     [Theory]
     [MemberData(nameof(Cases))]
-    public void Scale_resist_and_diminish(string @case, double expected, Func<double> actual)
-    {
-        double got = actual();
-
-        Assert.True(expected == got, $"{@case}: expected {expected}, got {got}");
-    }
+    public void Scale_resist_and_diminish(string @case, double expected, Func<double> actual) =>
+        Assert.Equal(expected, actual());
+#pragma warning restore xUnit1026
 }
