@@ -24,7 +24,9 @@ These isolate checks and selection, not whole ticks or before/after throughput. 
 buff through an aura system backed by loaded seed data. The protection-only
 benchmark keeps the expiry in the future while retaining the system clock read. Both Debug and Release
 `ScenarioAllocationsShould` pass: forest-combat 15,470 B/window against 15,582 committed, town-social 728 B,
-and town-idle, town-walk, town-doodads and many-instances 0 B; no baseline changed.
+and town-idle, town-walk, town-doodads and many-instances 0 B; no baseline changed. The gate never grants arrival
+protection: `ScenarioWorld` adds its characters through `instance.AddCharacter`, not `World.SpawnInInstance`, so it does
+not cover the buff's apply, hold and removal; the two benchmarks above cover its checks.
 Run with `--filter "*ArrivalProtectionBenchmarks*" "*ArrivalTargetSelectionBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1`.
 
 Whole-tick numbers (tick-thread allocations per tick, tick times and GC for fixed world scenarios) come from the

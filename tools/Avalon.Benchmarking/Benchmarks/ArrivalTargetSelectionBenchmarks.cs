@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Benchmarking.Benchmarks;
 
-/// <summary>Real creature target selection, including the fallback past a protected top-threat player (#1088).</summary>
+/// <summary>Real creature target selection, with the fallback past a protected top-threat player (#1088).</summary>
 [MemoryDiagnoser]
 public class ArrivalTargetSelectionBenchmarks
 {

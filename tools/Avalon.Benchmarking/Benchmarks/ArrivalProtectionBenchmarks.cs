@@ -17,8 +17,8 @@ public class ArrivalProtectionBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _ordinary = new CharacterEntity { Guid = new ObjectGuid(ObjectType.Character, 1), Health = 100, CurrentHealth = 100 };
-        _protected = new CharacterEntity { Guid = new ObjectGuid(ObjectType.Character, 2), Health = 100, CurrentHealth = 100 };
+        _ordinary = Character(1);
+        _protected = Character(2);
         _world = ScenarioWorld.CreateWithReferenceData();
         ArrivalProtection.Start(_protected, _world.AddInstance().Auras);
         ActiveAura buff = _protected.Auras.All[0];
@@ -35,4 +35,7 @@ public class ArrivalProtectionBenchmarks
 
     [Benchmark]
     public bool WithBuff() => ArrivalProtection.IsProtected(_protected);
+
+    private static CharacterEntity Character(uint id) =>
+        new() { Guid = new ObjectGuid(ObjectType.Character, id), Health = 100, CurrentHealth = 100 };
 }

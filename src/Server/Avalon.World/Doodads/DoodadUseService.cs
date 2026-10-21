@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
+using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Loot;
 using Avalon.World.Public;
@@ -15,9 +16,10 @@ namespace Avalon.World.Doodads;
 /// despawned; it is scenery; it is out of the template's range (a position that is not a number is out of it); the user
 /// may not see it (its gate and its script's CanSee, asked afresh); its usability gate refuses the user; a once-per-
 /// instance doodad is not ready; the user is casting an ability; its script's CanUse refuses. Every refusal is a silent
-/// drop, a Debug line, and allocates nothing. A use that passed them ends the user's item cast and doodad cast, then
-/// completes at once (no interaction time) or starts a cast bar on the container's clock (<see cref="DoodadCasts" />),
-/// whose end runs the checks again, the ability cast aside, so the second of two casts on a spent doodad ends refused.
+/// drop, a Debug line, and allocates nothing. A use that passed them ends the user's item cast, doodad cast and arrival
+/// protection, then completes at once (no interaction time) or starts a cast bar on the container's clock
+/// (<see cref="DoodadCasts" />), whose end runs the checks again, the ability cast aside, so the second of two casts
+/// on a spent doodad ends refused.
 /// Completion runs the script's OnUse, then the framework's part: the quest credit, spending a once-per-instance doodad
 /// (Used, or Despawned with OnDespawn, by its spent look) and its respawn. A doodad that goes Despawned on the tick runs
 /// OnDespawn, whoever despawned it, the framework or a script. Every hook is contained: a throw is logged at Error, at most
@@ -69,9 +71,11 @@ public sealed partial class DoodadUseService(
             return;
         }
 
-        // A use that passed its checks ends the user's item cast and doodad cast, each out loud.
+        // A use that passed its checks ends the user's item cast and doodad cast, each out loud, and its arrival
+        // protection (#1088).
         host!.ItemUses.Interrupt(character.Guid);
         host.DoodadCasts.Interrupt(character.Guid);
+        ArrivalProtection.End(character);
 
         uint castMs = doodad!.Template.InteractionTimeMs;
         if (castMs == 0)

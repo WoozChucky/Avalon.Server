@@ -1,14 +1,17 @@
 using Avalon.Common;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Auras;
+using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 using static Avalon.Server.World.UnitTests.ItemUse.ItemUseWorld;
@@ -34,25 +37,60 @@ public class ItemUseServiceShould : IAsyncLifetime
         return (result.RequestId, result.Result);
     }
 
-    /// <summary>A use that passed its checks ends arrival protection (#1088), whatever it does; a refused one keeps it.</summary>
+    /// <summary>
+    /// A use that passed its checks ends arrival protection (#1088), whatever it does, and so does gear put on or taken
+    /// off by a drag (CMSG_ITEM_MOVE); a refused use and a drag that touches no gear keep it.
+    /// </summary>
     [Theory]
-    [InlineData(0, true)]   // a script run at once
-    [InlineData(1, true)]   // a cast bar started
-    [InlineData(2, true)]   // gear put on
-    [InlineData(3, true)]   // gear taken off
-    [InlineData(4, false)]  // refused by the script's CanUse
-    public void End_arrival_protection_only_when_an_item_use_passes_its_checks(int action, bool ends)
+    [InlineData("use a script at once", true)]
+    [InlineData("use a cast bar", true)]
+    [InlineData("use to put gear on", true)]
+    [InlineData("use to take gear off", true)]
+    [InlineData("use refused by CanUse", false)]
+    [InlineData("drag gear on", true)]
+    [InlineData("drag gear off", true)]
+    [InlineData("drag within the bag", false)]
+    public void End_arrival_protection_only_when_an_item_use_or_gear_drag_is_accepted(string row, bool ends)
     {
-        if (action == 3)
-            _w.Character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.MainHand, EquipTemplates.Longsword)]);
+        bool worn = row is "use to take gear off" or "drag gear off";
+        ItemTemplate template = row switch
+        {
+            "use a script at once" => Tonic,
+            "use a cast bar" => Scroll,
+            "use refused by CanUse" => Refuser,
+            _ => EquipTemplates.Longsword,
+        };
+        if (worn)
+            _w.Character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.MainHand, template)]);
         else
-            _w.Bag(Item(0, action switch { 0 => Tonic, 1 => Scroll, 2 => EquipTemplates.Longsword, _ => Refuser }));
+            _w.Bag(Item(0, template));
         ArrivalProtectionTestData.Apply(_w.Character);
+        SlotRef from = worn
+            ? new SlotRef(InventoryType.Equipment, EquipmentSlots.MainHand)
+            : new SlotRef(InventoryType.Bag, 0);
 
-        _w.Use(1, action == 3 ? EquipmentSlots.MainHand : (byte)0,
-            action == 3 ? InventoryType.Equipment : InventoryType.Bag);
+        if (row.StartsWith("use", StringComparison.Ordinal))
+        {
+            _w.Use(1, from.Slot, from.Container);
+        }
+        else
+        {
+            var to = new SlotRef(row == "drag gear on" ? InventoryType.Equipment : InventoryType.Bag,
+                row == "drag gear on" ? EquipmentSlots.MainHand : (byte)1);
+            var economy = new CharacterEconomy(_w.World, new ItemIdAllocator());
+            new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, _w.World, economy)
+                .Execute(_w.Client.Connection, new CItemMovePacket
+                {
+                    RequestId = 1,
+                    FromContainer = from.Container,
+                    FromSlot = from.Slot,
+                    ToContainer = to.Container,
+                    ToSlot = to.Slot,
+                });
+            Assert.True(_w.Character.Container(to.Container).TryGet(to.Slot, out _));
+        }
 
-        if (!ends)
+        if (row == "use refused by CanUse")
             Assert.Equal(ItemUseResult.Refused, Assert.Single(_w.Results()).Result);
         Assert.Equal(!ends, ArrivalProtection.IsProtected(_w.Character));
     }

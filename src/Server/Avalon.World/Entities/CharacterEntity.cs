@@ -543,8 +543,8 @@ public partial class CharacterEntity : ICharacter
             if (_spatial.Grid is { } grid)
                 grid.Moved(_spatial.Slot, value);
 
-            // Only actual horizontal movement ends arrival protection; grounding and turning do not. Ended once the move
-            // is written, so its removal hooks see where the character now stands.
+            // Only actual horizontal movement ends arrival protection; grounding and turning do not. Ended once the
+            // move is written, so its removal hooks see where the character now stands.
             if (horizontal)
                 ArrivalProtection.End(this);
         }

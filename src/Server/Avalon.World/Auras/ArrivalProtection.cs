@@ -13,7 +13,9 @@ public static class ArrivalProtection
 {
     private static readonly AuraId s_id = new(ArrivalProtectionAura.Id);
 
-    /// <summary>Whether <paramref name="auraId" /> is the arrival buff, which is never saved and holds a slot of its own.</summary>
+    /// <summary>
+    /// Whether <paramref name="auraId" /> is the arrival buff, which is never saved and holds a slot of its own.
+    /// </summary>
     public static bool Is(uint auraId) => auraId == ArrivalProtectionAura.Id;
 
     public static bool IsProtected(IUnit unit) =>

@@ -46,7 +46,9 @@ public class InstanceAbilityCastSystemShould
         _sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), _scripts, _arena);
     }
 
-    /// <summary>A cast taken ends arrival protection (#1088) before it is sent or fires; a refused one keeps it.</summary>
+    /// <summary>
+    /// A cast taken ends arrival protection (#1088) before it is sent or fires; a refused one keeps it.
+    /// </summary>
     [Theory]
     [InlineData(0f, 0u)]
     [InlineData(1f, 0u)]

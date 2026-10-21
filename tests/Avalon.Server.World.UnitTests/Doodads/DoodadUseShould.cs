@@ -8,12 +8,14 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.ItemUse;
 using Avalon.World;
 using Avalon.World.Abilities;
+using Avalon.World.Auras;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Doodads;
 using Avalon.World.Entities;
@@ -86,7 +88,13 @@ public class DoodadUseShould
             "not usable" => Template(1, castMs: 2000, usable: s_neverMet),
             _ => Template(1, castMs: 2000),
         });
-        MapInstanceClient a = f.Join(IdA, s_atA);
+        MapInstanceClient a = f.Join(IdA, row switch
+        {
+            "5.01 m away" => new Vector3(4.99f, 0f, 0f),
+            "user position NaN" => new Vector3(float.NaN, 0f, 0f),
+            _ => s_atA,
+        });
+        ArrivalProtectionTestData.Apply(a.Character);
         ObjectGuid target = row == "unknown guid" ? new ObjectGuid(ObjectType.Doodad, 999) : doodad.Guid;
         switch (row)
         {
@@ -95,12 +103,6 @@ public class DoodadUseShould
                 break;
             case "despawned":
                 SetState(doodad, WorldDoodadState.Despawned);
-                break;
-            case "5.01 m away":
-                a.Character.Position = new Vector3(4.99f, 0f, 0f);
-                break;
-            case "user position NaN":
-                a.Character.Position = new Vector3(float.NaN, 0f, 0f);
                 break;
             case "spent":
                 SetState(doodad, WorldDoodadState.Used);
@@ -122,6 +124,7 @@ public class DoodadUseShould
         Assert.Equal(before, doodad.State);
         Assert.Empty(a.Read<SUnitStartCastPacket>(NetworkPacketType.SMSG_UNIT_START_CAST));
         Assert.Empty(a.Sent);
+        Assert.True(ArrivalProtection.IsProtected(a.Character));   // a refused use keeps it (#1088)
 
         // The use service the handler hands it to refuses without allocating, once its first refusal is behind it.
         f.Service.Interact(a.Connection, a.Character, f.Instance, target);
@@ -139,9 +142,11 @@ public class DoodadUseShould
         MapInstanceClient a = f.Join(IdA, s_atA);
         MapInstanceClient b = f.Join(IdB, s_atB);
         f.Ticks(30);
+        ArrivalProtectionTestData.Apply(a.Character);
 
         f.Use(a, doodad);
 
+        Assert.False(ArrivalProtection.IsProtected(a.Character));   // an accepted use ends it (#1088)
         Assert.Equal(1, CountingDoodadScript.Uses);
         Assert.Equal(WorldDoodadState.Used, doodad.State);
         f.Ticks(6);
@@ -171,9 +176,11 @@ public class DoodadUseShould
         MapInstanceClient c = f.Join(IdC, new Vector3(10f, 0f, 3f));
         c.Character.Quests.Start(906, DateTime.UnixEpoch);
         f.Tick();
+        ArrivalProtectionTestData.Apply(a.Character);
 
         f.Use(a, doodad);
         f.Use(b, doodad);
+        Assert.False(ArrivalProtection.IsProtected(a.Character));   // so does a cast bar's start (#1088)
 
         foreach (MapInstanceClient viewer in new[] { a, b })
         {

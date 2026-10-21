@@ -19,8 +19,10 @@ act without ending it, and an aura it put on others before it arrived still tick
 The buff ends when its character changes horizontal position, when the cast system takes a cast of its (cast bar or
 instant, item casts included: `InstanceAbilityCastSystem.QueueAbility`/`RunInstant`, before the start is sent or the
 cast fires), when an item use of its passes its checks (a script use, a cast bar, an equip or unequip: `ItemUseService`,
-with the item and doodad cast interrupts), when its 60 seconds expire, or when its owner cancels it. A refused cast or
-use keeps it. Turning, idle input and pressing into a wall without moving do not end it. A portal or teleport removes
+with the item and doodad cast interrupts), when a drag of its equips or unequips gear (`ItemMoveHandler`, an accepted
+`CMSG_ITEM_MOVE` touching Equipment), when a doodad use of its passes its checks (instant or cast bar:
+`DoodadUseService.Interact`, with the same interrupts), when its 60 seconds expire, or when its owner cancels it. A
+refused cast, use, drag or interaction keeps it, and so does a drag that touches no gear. Turning, idle input and pressing into a wall without moving do not end it. A portal or teleport removes
 the old protection when leaving or repositioning and grants fresh protection on arrival.
 
 The buff is seeded with the other auras and loaded through `StaticData.Auras`. Arrival applies its ID through the

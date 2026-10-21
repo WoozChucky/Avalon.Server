@@ -157,13 +157,16 @@ public class CreatureRangeDetectorScript : AiScript
         // Don't aggro on dead characters — they're stuck in the respawn modal until they
         // click the button or force-quit, and the combat handlers already drop their
         // input/attack packets. Aggroing would just queue a kill on a corpse.
-        if (character.IsDead || ArrivalProtection.IsProtected(character)) return false;
+        if (character.IsDead) return false;
 
         if (SearchWork.Counted)
             DistanceChecks++;
         Vector3 characterPosition = character.Position;
         float distance = Vector3.Distance(Creature.Position, characterPosition);
         if (distance > _aggroRange) return false;
+
+        // Asked only in range, so a protected character out of reach costs no clock read (#1088).
+        if (ArrivalProtection.IsProtected(character)) return false;
 
         if (!Context.GetNavigatorForPosition(Creature.Position).HasVisibility(Creature.Position, characterPosition)) return false;
         State = RangeDetectionState.Detected;
