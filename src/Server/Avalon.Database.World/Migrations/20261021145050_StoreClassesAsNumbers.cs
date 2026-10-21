@@ -12,8 +12,11 @@ namespace Avalon.Database.World.Migrations
     /// <remarks>
     /// Hand-written over the generated migration, which deleted and re-seeded the rows: every row is converted in
     /// place instead, so an item template edited live (PUT) keeps its classes and a row the seed does not hold is
-    /// converted too. A name the conversion does not know fails the cast, and with it the migration, rather than being
-    /// dropped. The conversion is element by element, in order, so an item's class order is kept.
+    /// converted too. It reads the text as the old converter did (split on commas, empty entries dropped, each name
+    /// trimmed of white space, as <c>Enum.Parse</c> trims), so <c>" Warrior"</c>, <c>"Warrior,"</c> and
+    /// <c>"Warrior,,Wizard"</c> convert cleanly; a name it does not know (or a number out of range) fails the cast, and
+    /// with it the migration, rather than being dropped. The conversion is element by element, in order, so an item's
+    /// class order is kept.
     /// </remarks>
     public partial class StoreClassesAsNumbers : Migration
     {
@@ -23,14 +26,22 @@ namespace Avalon.Database.World.Migrations
             migrationBuilder.Sql(@"
 ALTER TABLE ""ItemTemplates"" ALTER COLUMN ""AllowedClasses"" TYPE smallint[] USING
     array_replace(array_replace(array_replace(array_replace(array_replace(
-        string_to_array(""AllowedClasses"", ','),
+        string_to_array(
+            btrim(
+                regexp_replace(
+                    regexp_replace(
+                        regexp_replace(""AllowedClasses"", '^[[:space:]]+|[[:space:]]+$', '', 'g'),
+                        '[[:space:]]*,[[:space:]]*', ',', 'g'),
+                    ',{2,}', ',', 'g'),
+                ','),
+            ','),
         'None', '0'), 'Warrior', '1'), 'Wizard', '2'), 'Hunter', '3'), 'Healer', '4')::smallint[];");
 
             migrationBuilder.Sql(@"
 ALTER TABLE ""CharacterClassNames"" ALTER COLUMN ""Class"" TYPE smallint USING
-    CASE ""Class""
+    CASE regexp_replace(""Class"", '^[[:space:]]+|[[:space:]]+$', '', 'g')
         WHEN 'None' THEN 0 WHEN 'Warrior' THEN 1 WHEN 'Wizard' THEN 2 WHEN 'Hunter' THEN 3 WHEN 'Healer' THEN 4
-        ELSE ""Class""::smallint
+        ELSE regexp_replace(""Class"", '^[[:space:]]+|[[:space:]]+$', '', 'g')::smallint
     END;");
         }
 
