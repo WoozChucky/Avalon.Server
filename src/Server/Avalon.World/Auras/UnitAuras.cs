@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Auras;
@@ -25,6 +26,12 @@ public sealed class UnitAuras(Action? changed = null)
 
     /// <summary>The held arrival protection copy with the latest expiry, cached for combat and AI checks.</summary>
     internal ActiveAura? HeldArrivalProtection { get; private set; }
+
+    /// <summary>
+    /// The crowd control the held auras grant together (<see cref="AuraTemplate.Control" />), cached for the movement,
+    /// cast and AI gates (<see cref="ControlGates" />), which read it with no scan.
+    /// </summary>
+    internal CrowdControl Control { get; private set; }
 
     /// <summary>The auras <c>Game:MaxAurasPerUnit</c> counts: all but the held arrival protection's slot.</summary>
     internal int OrdinaryCount => Count - (HeldArrivalProtection is null ? 0 : 1);
@@ -123,6 +130,8 @@ public sealed class UnitAuras(Action? changed = null)
             _auras.Add(aura);
         }
 
+        RecomputeControl();
+
         HeldSince = heldSince;
         _totals = null;
         _roster?.Noted(this);
@@ -173,11 +182,25 @@ public sealed class UnitAuras(Action? changed = null)
             }
         }
 
+        // Also when the unit was already controlled: a refresh renews the held copy onto the current template first, so
+        // a reload that took the Control away arrives here as a change to an aura that no longer grants any.
+        if (aura.Template.Control != CrowdControl.None || Control != CrowdControl.None)
+            RecomputeControl();
+
         uint remaining = kind == AuraChangeKind.Removed ? 0u : RemainingMs(aura, now);
         _changes.Add(new AuraChange(aura.Id, aura.Key, aura.CasterGuid.RawValue, aura.Stacks, remaining, aura.DurationMs, kind));
         _totals = null;
         _roster?.Noted(this);
         changed?.Invoke();
+    }
+
+    private void RecomputeControl()
+    {
+        CrowdControl control = CrowdControl.None;
+        foreach (ActiveAura held in _auras)
+            control |= held.Template.Control;
+
+        Control = control;
     }
 
     /// <summary>Milliseconds left, rounded up, so an aura with any time left never reads 0.</summary>

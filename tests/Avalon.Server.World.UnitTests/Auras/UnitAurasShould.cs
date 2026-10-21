@@ -134,6 +134,55 @@ public class UnitAurasShould
         Assert.Equal((s_wizard, 2u, s_t0.AddSeconds(4).UtcDateTime), (bleed.CasterGuid, bleed.Stacks, bleed.AppliedAt));
     }
 
+    /// <summary>
+    /// The crowd-control cache the movement, cast and AI gates read: the union of what the held auras grant, kept
+    /// through every change, a refresh onto a reloaded template that no longer grants anything, and select's Load.
+    /// Each step reads the gates: (state, move, turn, act, cast an ability, cast the basic attack).
+    /// </summary>
+    [Fact]
+    public void Track_crowd_control_through_add_refresh_remove_and_load()
+    {
+        CharacterEntity unit = TestCharacters.New(13);
+        UnitAuras auras = unit.Auras;
+        ActiveAura stun = Aura(Controlling(912, CrowdControl.Stun), s_hunter);
+        ActiveAura root = Aura(Controlling(913, CrowdControl.Root), s_wizard);
+        Assert.Equal((CrowdControl.None, true, true, true, true, true), Gates(unit));
+
+        auras.Add(stun, s_t0);
+        Assert.Equal((CrowdControl.Stun, false, false, false, false, false), Gates(unit));
+        auras.Add(root, s_t0);
+        Assert.Equal((CrowdControl.Stun | CrowdControl.Root, false, false, false, false, false), Gates(unit));
+        auras.Remove(stun, s_t0);
+        Assert.Equal((CrowdControl.Root, false, true, true, true, true), Gates(unit));
+
+        // A reload cleared the root's Control; the next refresh renews the held copy onto that template.
+        root.Renew(Controlling(913, CrowdControl.None), s_wizard, AuraSource.None, 1, new AuraSnapshot(5f, 0f, 1), s_t0);
+        auras.Changed(root, AuraChangeKind.Refreshed, s_t0);
+        Assert.Equal((CrowdControl.None, true, true, true, true, true), Gates(unit));
+
+        ActiveAura silence = Aura(Controlling(915, CrowdControl.Silence), s_hunter);
+        auras.Load([Aura(AuraTestData.Bleed(), s_hunter), silence]);
+        Assert.Equal((CrowdControl.Silence, true, true, true, false, true), Gates(unit));
+        auras.Remove(silence, s_t0);
+        Assert.Equal((CrowdControl.None, true, true, true, true, true), Gates(unit));
+    }
+
+    private static (CrowdControl, bool, bool, bool, bool, bool) Gates(CharacterEntity unit) =>
+        (ControlGates.Of(unit), ControlGates.CanMove(unit), ControlGates.CanTurn(unit), ControlGates.CanAct(unit),
+            ControlGates.CanCast(unit, basic: false), ControlGates.CanCast(unit, basic: true));
+
+    private static AuraTemplate Controlling(uint id, CrowdControl control) => new()
+    {
+        Id = new AuraId(id),
+        Name = "Controlled",
+        Icon = "controlled",
+        Kind = AuraKind.Harmful,
+        DurationMs = 3000,
+        Stacking = AuraStacking.Refresh,
+        MaxStacks = 1,
+        Control = control,
+    };
+
     /// <summary>Every change to a character's auras marks its save, so the next save rewrites them.</summary>
     [Fact]
     public void Mark_a_characters_save_when_its_auras_change()
