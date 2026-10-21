@@ -39,10 +39,11 @@ public class QuestCatalogExportShould
     {
         List<JsonElement> quests = SeededQuests();
 
-        Assert.Equal([1, 2, 3, 4, 5, 6, 7, 8, 9], quests.Select(q => q.GetProperty("id").GetInt32()));
+        Assert.Equal([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], quests.Select(q => q.GetProperty("id").GetInt32()));
         Assert.Equal(["Thinning the Herd", "Tusks for Borin", "The Alpha's Howl", "Wings for the Still", "Pelts Before Frost",
-                "What the Husks Carry", "Heartwood", "Mother of Thorns", "The Lost Caravan"],
+                "What the Husks Carry", "Heartwood", "Mother of Thorns", "The Lost Caravan", "Boar Cull"],
             quests.Select(q => q.GetProperty("title").GetString()));
+        Assert.Equal([1, 1, 1, 1, 1, 1, 1, 1, 1, 3], quests.Select(q => q.GetProperty("repeat").GetInt32()));
     }
 
     /// <summary>Quest 8: a talk to Garrick, then the Alphas and the Bramble Heart in one stage.</summary>
@@ -97,7 +98,7 @@ public class QuestCatalogExportShould
         JsonElement quest = SeededQuests()[0];
         JsonElement objective = quest.GetProperty("stages")[0].GetProperty("objectives")[0];
 
-        Assert.Equal(["id", "title", "stages", "rewards"], quest.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(["id", "title", "repeat", "stages", "rewards"], quest.EnumerateObject().Select(p => p.Name));
         Assert.Equal(["sequence", "objectives"], quest.GetProperty("stages")[0].EnumerateObject().Select(p => p.Name));
         Assert.Equal(["id", "type", "targetId", "count"], objective.EnumerateObject().Select(p => p.Name));
         Assert.Equal(["experience", "money", "items"], quest.GetProperty("rewards").EnumerateObject().Select(p => p.Name));

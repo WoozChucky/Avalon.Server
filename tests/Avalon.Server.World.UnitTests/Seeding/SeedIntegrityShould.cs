@@ -1240,7 +1240,7 @@ public class SeedIntegrityShould
             NullLoggerFactory.Instance, context.DoodadTemplates.AsNoTracking().ToList());
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal(9, catalog.All.Count);
+        Assert.Equal(10, catalog.All.Count);
     }
 
     /// <summary>
@@ -1283,6 +1283,32 @@ public class SeedIntegrityShould
             .. quest.Stages.Where(s => s.DescriptionTextId is not null).Select(s => s.DescriptionTextId!.Value),
             .. quest.Objectives.Select(o => o.DescriptionTextId.Value),
         ];
+        var english = context.LocalizedTexts.AsNoTracking().ToList().Select(t => t.Id.Value).ToHashSet();
+        var portuguese = context.LocalizedTextLocales.AsNoTracking().ToList()
+            .Where(t => t.Locale == AccountLocale.ptPT).Select(t => t.TextId.Value).ToHashSet();
+        Assert.All(named, id => Assert.Contains(id, english));
+        Assert.All(named, id => Assert.Contains(id, portuguese));
+    }
+
+    /// <summary>#710: Hilde's daily. Thornback Boars are levels 1-3, so a quick chore at level 8, as intended.</summary>
+    [Fact]
+    public void Seed_the_boar_cull_as_hildes_daily()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        QuestTemplate quest = SeededQuests(context).Single(q => q.Id.Value == 10);
+
+        Assert.Equal((true, (QuestRepeatFrequency?)QuestRepeatFrequency.Daily), (quest.IsRepeatable, quest.RepeatFrequency));
+        Assert.Equal((13ul, 13ul, (ushort)8), (quest.GiverCreatureId.Value, quest.EnderCreatureId.Value, quest.LevelRequirement));
+        Assert.Equal(((CharacterClass?)null, (uint?)null, (string?)null), (quest.ClassRequirement, quest.RequiredQuestId?.Value, quest.ScriptName));
+        Assert.Equal((800u, 500ul), (quest.RewardExperience, quest.RewardMoney));
+        Assert.Empty(quest.ItemRewards);
+        Assert.Equal([0], quest.Stages.Select(s => s.Sequence));
+        QuestObjective cull = Assert.Single(quest.Objectives);
+        Assert.Equal((1001u, QuestObjectiveType.Kill, 4ul, 15u), (cull.Id, cull.Type, cull.CreatureTemplateId!.Value, cull.Count));
+
+        // Every text the quest names resolves in the base wording and in ptPT.
+        int[] named = [quest.TitleTextId.Value, quest.DescriptionTextId.Value, quest.CompletionTextId.Value, cull.DescriptionTextId.Value];
         var english = context.LocalizedTexts.AsNoTracking().ToList().Select(t => t.Id.Value).ToHashSet();
         var portuguese = context.LocalizedTextLocales.AsNoTracking().ToList()
             .Where(t => t.Locale == AccountLocale.ptPT).Select(t => t.TextId.Value).ToHashSet();

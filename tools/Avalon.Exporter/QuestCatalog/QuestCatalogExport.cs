@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Avalon.Configuration;
 using Avalon.Database.World;
 using Avalon.Domain.World;
+using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -17,8 +18,8 @@ namespace Avalon.Exporter;
 /// </summary>
 /// <remarks>
 /// A hand-listed row, as in ability-catalog: the quest's script, level band and drops are server-only. Titles are
-/// the base-locale (enUS) wording. Objective types are written as their numbers, the wire's QuestObjectiveKind,
-/// listed in the $comment.
+/// the base-locale (enUS) wording. Objective types and repeat kinds are written as their numbers, the wire's
+/// QuestObjectiveKind and QuestRepeatKind, listed in the $comment.
 /// </remarks>
 public static class QuestCatalogExport
 {
@@ -70,7 +71,8 @@ public static class QuestCatalogExport
                      "title is the base-locale (enUS) wording. Stages run in order from sequence 0; every objective " +
                      "of a stage completes it. type: 1 kill, 2 collect, 3 talk, 4 scripted, 5 use doodad. targetId is a " +
                      "creature template for kill and talk, an item template for collect, a doodad template for use " +
-                     "doodad, 0 for scripted. money is copper.",
+                     "doodad, 0 for scripted. money is copper. repeat: 1 once, 2 repeatable (offered again at " +
+                     "once), 3 daily, 4 weekly, 5 monthly, the wire's QuestRepeatKind.",
             Quests: quests.OrderBy(q => q.Id.Value).Select(q => Quest.From(q, texts)).ToList());
 
         return JsonSerializer.Serialize(document, s_serializerOptions) + "\n";
@@ -80,11 +82,12 @@ public static class QuestCatalogExport
         [property: JsonPropertyName("$comment")] string Comment,
         List<Quest> Quests);
 
-    private sealed record Quest(uint Id, string Title, List<Stage> Stages, Rewards Rewards)
+    private sealed record Quest(uint Id, string Title, byte Repeat, List<Stage> Stages, Rewards Rewards)
     {
         public static Quest From(QuestTemplate q, IReadOnlyDictionary<int, string> texts) => new(
             q.Id.Value,
             texts.TryGetValue(q.TitleTextId.Value, out string? title) ? title : string.Empty,
+            RepeatKind(q),
             q.Stages.OrderBy(s => s.Sequence)
                 .Select(s => new Stage(s.Sequence, q.Objectives
                     .Where(o => o.StageSequence == s.Sequence)
@@ -98,6 +101,18 @@ public static class QuestCatalogExport
                 q.ItemRewards.OrderBy(r => r.ItemTemplateId.Value)
                     .Select(r => new RewardItem(r.ItemTemplateId.Value, r.Count))
                     .ToList()));
+
+        /// <summary>The wire's QuestRepeatKind number, as the catalog reads it; 0 (unknown) for an undefined frequency.</summary>
+        private static byte RepeatKind(QuestTemplate q) => (byte)(!q.IsRepeatable
+            ? 1
+            : q.RepeatFrequency switch
+            {
+                null or QuestRepeatFrequency.None => 2,
+                QuestRepeatFrequency.Daily => 3,
+                QuestRepeatFrequency.Weekly => 4,
+                QuestRepeatFrequency.Monthly => 5,
+                _ => 0,
+            });
     }
 
     private sealed record Stage(int Sequence, List<Objective> Objectives);

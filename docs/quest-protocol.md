@@ -296,3 +296,9 @@ A second chain runs beside it, from quest 4 (no prerequisite):
 | 6 What the Husks Carry | Innkeeper → Marta Ledgerwell | level 4, quest 5 | kill 8 Husks of the Wold and collect 3 Ledger Pages (item 61; 35 % from Husks of the Wold) | 500 experience, 300 copper, 2 Greater Health Potions (item 56) |
 | 7 Heartwood | Borin Stoutbeard → Borin | level 5, quest 6 | collect the Tuskroot Heartwood (item 62; always from Old Tuskroot) | 700 experience, 400 copper, the Heartwood Band (item 64, a ring) |
 | 8 Mother of Thorns | Uriel → Uriel | level 7, quest 7 | stage 0: speak with Garrick Emberforge; stage 1: kill 2 Bramblemaw Alphas and collect the Bramble Heart (item 63; always from Mother Bramble) | 1500 experience, 1000 copper, the Thornheart Signet (item 65, a ring) |
+
+One daily (#710), offered again after each daily reset (repeat kind `Daily`, the blue markers):
+
+| Quest | Giver → ender | Needs | Asks | Pays |
+|---|---|---|---|---|
+| 10 Boar Cull | Hilde Brassbuckle → Hilde | level 8 | kill 15 Thornback Boars | 800 experience, 500 copper |

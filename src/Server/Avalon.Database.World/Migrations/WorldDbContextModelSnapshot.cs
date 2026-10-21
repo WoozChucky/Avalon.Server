@@ -6624,6 +6624,26 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 74,
                             Text = "Tell Marta what you found."
+                        },
+                        new
+                        {
+                            Id = 75,
+                            Text = "Boar Cull"
+                        },
+                        new
+                        {
+                            Id = 76,
+                            Text = "The Thornback Boars are rooting up every path into Glimmerdell again, {name}, and every hide they tear is one I end up patching. Thin them out: fifteen will do for today. Come back tomorrow; there will be more."
+                        },
+                        new
+                        {
+                            Id = 77,
+                            Text = "Fifteen fewer tusks in the hedges. Here, for your trouble. They will be back by morning, mind. They always are."
+                        },
+                        new
+                        {
+                            Id = 78,
+                            Text = "Thornback Boars culled"
                         });
                 });
 
@@ -7087,6 +7107,30 @@ namespace Avalon.Database.World.Migrations
                             TextId = 74,
                             Locale = "ptPT",
                             Text = "Conta à Marta o que encontraste."
+                        },
+                        new
+                        {
+                            TextId = 75,
+                            Locale = "ptPT",
+                            Text = "Abate de Javalis"
+                        },
+                        new
+                        {
+                            TextId = 76,
+                            Locale = "ptPT",
+                            Text = "Os Thornback Boars voltaram a revolver todos os caminhos para Glimmerdell, {name}, e cada couro que rasgam acaba remendado por mim. Desbasta-os: quinze chegam por hoje. Volta amanhã, que haverá mais."
+                        },
+                        new
+                        {
+                            TextId = 77,
+                            Locale = "ptPT",
+                            Text = "Menos quinze presas nas sebes. Toma, pelo teu trabalho. Pela manhã estão de volta, atenção. Voltam sempre."
+                        },
+                        new
+                        {
+                            TextId = 78,
+                            Locale = "ptPT",
+                            Text = "Thornback Boars abatidos"
                         });
                 });
 
@@ -8646,6 +8690,16 @@ namespace Avalon.Database.World.Migrations
                             QuestId = 9L,
                             StageSequence = 2,
                             Type = 3
+                        },
+                        new
+                        {
+                            Id = 1001L,
+                            Count = 15L,
+                            CreatureTemplateId = 4m,
+                            DescriptionTextId = 78,
+                            QuestId = 10L,
+                            StageSequence = 0,
+                            Type = 1
                         });
                 });
 
@@ -8745,6 +8799,11 @@ namespace Avalon.Database.World.Migrations
                             QuestId = 9L,
                             Sequence = 2,
                             DescriptionTextId = 74
+                        },
+                        new
+                        {
+                            QuestId = 10L,
+                            Sequence = 0
                         });
                 });
 
@@ -8962,6 +9021,23 @@ namespace Avalon.Database.World.Migrations
                             RewardExperience = 600L,
                             RewardMoney = 350m,
                             TitleTextId = 67,
+                            Type = 0
+                        },
+                        new
+                        {
+                            Id = 10L,
+                            CompletionTextId = 77,
+                            DescriptionTextId = 76,
+                            EnderCreatureId = 13m,
+                            Environment = 0,
+                            GiverCreatureId = 13m,
+                            IsRepeatable = true,
+                            LevelRequirement = 8,
+                            Rarity = 0,
+                            RepeatFrequency = 1,
+                            RewardExperience = 800L,
+                            RewardMoney = 500m,
+                            TitleTextId = 75,
                             Type = 0
                         });
                 });

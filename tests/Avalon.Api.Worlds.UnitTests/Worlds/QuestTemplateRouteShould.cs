@@ -106,8 +106,8 @@ public sealed class QuestTemplateRouteShould : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         PagedResult<QuestTemplateDto> page = (await response.Content.ReadFromJsonAsync<PagedResult<QuestTemplateDto>>())!;
-        Assert.Equal([1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u, 9u], page.Items.Select(q => q.Id));
-        Assert.Equal(9, page.TotalCount);
+        Assert.Equal([1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u, 9u, 10u], page.Items.Select(q => q.Id));
+        Assert.Equal(10, page.TotalCount);
         Assert.Equal("Thinning the Herd", page.Items[0].Title);
     }
 

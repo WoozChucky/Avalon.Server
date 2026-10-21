@@ -801,6 +801,23 @@ public class WorldDbContext : DbContext
                 RewardExperience = 600,
                 RewardMoney = 350,
             });
+
+        // "Boar Cull" (#710): Hilde's daily. Numbers are first drafts for the balance tool.
+        builder.HasData(
+            new QuestTemplate
+            {
+                Id = 10,
+                TitleTextId = 75,
+                DescriptionTextId = 76,
+                CompletionTextId = 77,
+                GiverCreatureId = 13,
+                EnderCreatureId = 13,
+                LevelRequirement = 8,
+                IsRepeatable = true,
+                RepeatFrequency = QuestRepeatFrequency.Daily,
+                RewardExperience = 800,
+                RewardMoney = 500,
+            });
     }
 
     private static void Configure(EntityTypeBuilder<QuestStage> builder)
@@ -831,6 +848,8 @@ public class WorldDbContext : DbContext
             new QuestStage { QuestId = 9, Sequence = 0, DescriptionTextId = 72 },
             new QuestStage { QuestId = 9, Sequence = 1, DescriptionTextId = 73 },
             new QuestStage { QuestId = 9, Sequence = 2, DescriptionTextId = 74 });
+
+        builder.HasData(new QuestStage { QuestId = 10, Sequence = 0 });
     }
 
     private static void Configure(EntityTypeBuilder<QuestObjective> builder)
@@ -903,6 +922,10 @@ public class WorldDbContext : DbContext
             new QuestObjective { Id = 901, QuestId = 9, StageSequence = 0, Type = QuestObjectiveType.UseDoodad, DoodadTemplateId = 5, Count = 1, DescriptionTextId = 70 },
             new QuestObjective { Id = 902, QuestId = 9, StageSequence = 1, Type = QuestObjectiveType.UseDoodad, DoodadTemplateId = 6, Count = 1, DescriptionTextId = 71 },
             new QuestObjective { Id = 903, QuestId = 9, StageSequence = 2, Type = QuestObjectiveType.Talk, CreatureTemplateId = 11, Count = 1, DescriptionTextId = 38 });
+
+        // "Boar Cull": fifteen Thornback Boars (4).
+        builder.HasData(
+            new QuestObjective { Id = 1001, QuestId = 10, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 4, Count = 15, DescriptionTextId = 78 });
     }
 
     private static void Configure(EntityTypeBuilder<QuestItemReward> builder)
@@ -2401,6 +2424,7 @@ public class WorldDbContext : DbContext
         SeedForestStorylineTexts(builder);
         SeedForestChainTexts(builder);
         SeedLostCaravanTexts(builder);
+        SeedBoarCullTexts(builder);
     }
 
     /// <summary>The forest storyline (#433): three quests' titles, descriptions, completion lines, objectives and stages.</summary>
@@ -2478,6 +2502,16 @@ public class WorldDbContext : DbContext
             new LocalizedText { Id = 74, Text = "Tell Marta what you found." });
     }
 
+    /// <summary>Quest 10, "Boar Cull" (#710): Hilde's daily. Its title, description, completion line and objective.</summary>
+    private static void SeedBoarCullTexts(EntityTypeBuilder<LocalizedText> builder)
+    {
+        builder.HasData(
+            new LocalizedText { Id = 75, Text = "Boar Cull" },
+            new LocalizedText { Id = 76, Text = "The Thornback Boars are rooting up every path into Glimmerdell again, {name}, and every hide they tear is one I end up patching. Thin them out: fifteen will do for today. Come back tomorrow; there will be more." },
+            new LocalizedText { Id = 77, Text = "Fifteen fewer tusks in the hedges. Here, for your trouble. They will be back by morning, mind. They always are." },
+            new LocalizedText { Id = 78, Text = "Thornback Boars culled" });
+    }
+
     private static void Configure(EntityTypeBuilder<LocalizedTextLocale> builder)
     {
         builder.ToTable("LocalizedTextLocales");
@@ -2529,6 +2563,7 @@ public class WorldDbContext : DbContext
         SeedForestStorylineTranslations(builder);
         SeedForestChainTranslations(builder);
         SeedLostCaravanTranslations(builder);
+        SeedBoarCullTranslations(builder);
     }
 
     /// <summary>
@@ -2606,6 +2641,19 @@ public class WorldDbContext : DbContext
             new LocalizedTextLocale { TextId = 72, Locale = AccountLocale.ptPT, Text = "Encontra o cofre da caravana na floresta." },
             new LocalizedTextLocale { TextId = 73, Locale = AccountLocale.ptPT, Text = "Afixa o destino da caravana no quadro de avisos de Glimmerdell." },
             new LocalizedTextLocale { TextId = 74, Locale = AccountLocale.ptPT, Text = "Conta à Marta o que encontraste." });
+    }
+
+    /// <summary>
+    /// Quest 10, "Boar Cull" (#710), in ptPT. Creature names stay as their nameplates spell them, as text 26 does. A
+    /// draft: needs native-speaker review before deploying, like the rows above.
+    /// </summary>
+    private static void SeedBoarCullTranslations(EntityTypeBuilder<LocalizedTextLocale> builder)
+    {
+        builder.HasData(
+            new LocalizedTextLocale { TextId = 75, Locale = AccountLocale.ptPT, Text = "Abate de Javalis" },
+            new LocalizedTextLocale { TextId = 76, Locale = AccountLocale.ptPT, Text = "Os Thornback Boars voltaram a revolver todos os caminhos para Glimmerdell, {name}, e cada couro que rasgam acaba remendado por mim. Desbasta-os: quinze chegam por hoje. Volta amanhã, que haverá mais." },
+            new LocalizedTextLocale { TextId = 77, Locale = AccountLocale.ptPT, Text = "Menos quinze presas nas sebes. Toma, pelo teu trabalho. Pela manhã estão de volta, atenção. Voltam sempre." },
+            new LocalizedTextLocale { TextId = 78, Locale = AccountLocale.ptPT, Text = "Thornback Boars abatidos" });
     }
 
     private static void Configure(EntityTypeBuilder<DialogueNode> builder)
