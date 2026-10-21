@@ -33,10 +33,13 @@ then asks `CreatureStatDeriver.Derive` for the stats that level gives:
 5. Armour (#506) is the level's `Armor` scaled by the template's `ArmorModifier`, rounded. There is no
    rarity armour multiplier yet. The creature's crit, dodge and block chances, in percentage points,
    are its rarity row's `CritPct`, `DodgePct` and `BlockPct` (Normal 0/0/0, Elite 5/3/0, Rare 8/5/5,
-   Boss 10/5/10). `CreatureSpawner` copies all four onto the World-side `Creature`, init-only and not
-   on `ICreature`, so a `/reload creatures` reaches only creatures spawned after it. Its crowd-control
-   resistance (#770, `Creature.ControlResistance`) is fixed the same way: for each of stun, root,
-   silence and slow, the template's nullable `StunDurationPct`, `RootDurationPct`,
+   Boss 10/5/10). Each is a percentage from 0 to 100 (#1145): `CreatureTemplateRules.ValidateRarities`
+   refuses a row with one outside that range, or not finite, at world load, on `/reload creatures` and in
+   the balance simulator, and the check constraints `CK_CreatureRarityModifiers_CritPct`, `_DodgePct` and
+   `_BlockPct` refuse it in the database. `CreatureSpawner` copies all four onto the World-side
+   `Creature`, init-only and not on `ICreature`, so a `/reload creatures` reaches only creatures spawned
+   after it. Its crowd-control resistance (#770, `Creature.ControlResistance`) is fixed the same way:
+   for each of stun, root, silence and slow, the template's nullable `StunDurationPct`, `RootDurationPct`,
    `SilenceDurationPct` or `SlowDurationPct` where set, else the rarity row's (Normal and Elite 100
    each, Rare 50 each, Boss 0 stun, 50 root, 0 silence, 50 slow), else 100: the percentage of such an
    aura's duration it takes, 0 immune (see [Auras](auras.md#crowd-control-770)). No template overrides

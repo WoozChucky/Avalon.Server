@@ -128,7 +128,11 @@ public class CreatureStatDeriver
         };
     }
 
-    /// <summary>A rarity's chance as authored, or 0 when it is not a finite value of 0 or more.</summary>
+    /// <summary>
+    /// A rarity's chance as authored, or 0 when it is not a finite value of 0 or more. Only a backstop: the world load,
+    /// <c>/reload creatures</c> and the balance simulator refuse such a row (<see cref="CreatureTemplateRules.ValidateRarities" />,
+    /// #1145), but a deriver can still be built from rows nothing validated.
+    /// </summary>
     private static float Chance(float pct) => float.IsFinite(pct) && pct > 0f ? pct : 0f;
 
     private static uint Scale(uint value, float templateModifier, float rarityMultiplier)

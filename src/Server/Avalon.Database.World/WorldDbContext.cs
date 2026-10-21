@@ -237,13 +237,16 @@ public class WorldDbContext : DbContext
     /// <summary>
     /// What each rarity tier multiplies a creature's base stats by. A table rather than a switch so a
     /// tier is retuned as data alongside the base stats themselves. The crowd-control duration percentages
-    /// (#770) are 0 (immune) to 100 (the full duration), as CreatureTemplateRules.ValidateRarities refuses
-    /// anything else.
+    /// (#770) are 0 (immune) to 100 (the full duration), and the crit, dodge and block chances (#1145)
+    /// percentages from 0 to 100, as CreatureTemplateRules.ValidateRarities refuses anything else.
     /// </summary>
     private static void Configure(EntityTypeBuilder<CreatureRarityModifier> builder)
     {
         builder.ToTable("CreatureRarityModifiers", t =>
         {
+            t.HasCheckConstraint("CK_CreatureRarityModifiers_CritPct", Percentage("CritPct"));
+            t.HasCheckConstraint("CK_CreatureRarityModifiers_DodgePct", Percentage("DodgePct"));
+            t.HasCheckConstraint("CK_CreatureRarityModifiers_BlockPct", Percentage("BlockPct"));
             t.HasCheckConstraint("CK_CreatureRarityModifiers_StunDurationPct", Percentage("StunDurationPct"));
             t.HasCheckConstraint("CK_CreatureRarityModifiers_RootDurationPct", Percentage("RootDurationPct"));
             t.HasCheckConstraint("CK_CreatureRarityModifiers_SilenceDurationPct", Percentage("SilenceDurationPct"));

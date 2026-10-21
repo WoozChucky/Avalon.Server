@@ -47,9 +47,9 @@ projectile travel time, continuous combat, wind-ups always land, no crowd contro
 
 **Crowd control is not modelled in fights** (owner decision, #770): nothing stuns, roots, silences, resists,
 diminishes or breaks early there. The seed's crowd-control columns are still read and validated with the world's rules
-(an aura's `Control` and break chances through `AuraRules.Problem`, the creature and rarity duration percentages through
-`CreatureTemplateRules.Validate` and `ValidateRarities`), so an override the world would refuse is refused here too,
-and the overrides reach them like any column. The four crowd-control abilities (204, 214, 224, 235) are in each class's
+(an aura's `Control` and break chances through `AuraRules.Problem`, the creature and rarity duration percentages and
+the rarity's crit, dodge and block chances (#1145) through `CreatureTemplateRules.Validate` and `ValidateRarities`), so
+an override the world would refuse is refused here too, and the overrides reach them like any column. The four crowd-control abilities (204, 214, 224, 235) are in each class's
 kit but in no rotation in `balance/rotations.json`.
 
 ## Balance Service

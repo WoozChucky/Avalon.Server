@@ -3369,6 +3369,12 @@ namespace Avalon.Database.World.Migrations
 
                     b.ToTable("CreatureRarityModifiers", null, t =>
                         {
+                            t.HasCheckConstraint("CK_CreatureRarityModifiers_BlockPct", "\"BlockPct\" >= 0 AND \"BlockPct\" <= 100");
+
+                            t.HasCheckConstraint("CK_CreatureRarityModifiers_CritPct", "\"CritPct\" >= 0 AND \"CritPct\" <= 100");
+
+                            t.HasCheckConstraint("CK_CreatureRarityModifiers_DodgePct", "\"DodgePct\" >= 0 AND \"DodgePct\" <= 100");
+
                             t.HasCheckConstraint("CK_CreatureRarityModifiers_RootDurationPct", "\"RootDurationPct\" >= 0 AND \"RootDurationPct\" <= 100");
 
                             t.HasCheckConstraint("CK_CreatureRarityModifiers_SilenceDurationPct", "\"SilenceDurationPct\" >= 0 AND \"SilenceDurationPct\" <= 100");
