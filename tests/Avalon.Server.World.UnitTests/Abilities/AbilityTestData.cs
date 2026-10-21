@@ -66,7 +66,7 @@ internal static class AbilityTestData
         Effects = SpellEffect.Heal,
         EffectValue = 40,
         HealThreatPerHp = 0.5f,
-        AllowedClasses = [CharacterClass.Healer],
+        AllowedClasses = [CharacterClass.Cleric],
     };
 
     public static AbilityTemplate Cone(uint id, float reach = 3f, float arc = 90f,

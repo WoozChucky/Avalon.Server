@@ -403,7 +403,7 @@ public sealed class CreatureSchedulingShould
         var world = ScenarioWorld.CreateWithReferenceData(seed: 1);
         var side = new Side(world);
         FighterHandlers handlers = LoopFighter.Handlers(world);
-        CharacterClass[] classes = [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Healer];
+        CharacterClass[] classes = [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Cleric];
         int fighters = 0;
         foreach (int seed in new[] { 1, 2 })
         {

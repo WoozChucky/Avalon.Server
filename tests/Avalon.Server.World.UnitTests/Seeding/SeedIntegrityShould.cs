@@ -488,7 +488,7 @@ public class SeedIntegrityShould
 
     /// <summary>
     /// Every class's armour carries Armor, so no class is unarmoured once mitigation reads it, and in
-    /// each slot cloth (Wizard, Healer) is below leather (Hunter), which is below plate (Warrior).
+    /// each slot cloth (Wizard, Cleric) is below leather (Hunter), which is below plate (Warrior).
     /// </summary>
     [Fact]
     public void Armour_Every_Class_With_Cloth_Below_Leather_Below_Plate_In_Each_Slot()
@@ -504,11 +504,11 @@ public class SeedIntegrityShould
             uint ArmorFor(CharacterClass c) =>
                 ArmorOf(Assert.Single(pieces, p => p.SubClass == slot && p.AllowedClasses[0] == c));
 
-            uint wizard = ArmorFor(CharacterClass.Wizard), healer = ArmorFor(CharacterClass.Healer);
+            uint wizard = ArmorFor(CharacterClass.Wizard), cleric = ArmorFor(CharacterClass.Cleric);
             uint hunter = ArmorFor(CharacterClass.Hunter), warrior = ArmorFor(CharacterClass.Warrior);
 
-            Assert.True(wizard > 0 && healer > 0, $"{slot}: cloth has no Armor");
-            Assert.True(Math.Max(wizard, healer) < hunter, $"{slot}: cloth {wizard}/{healer} is not below leather {hunter}");
+            Assert.True(wizard > 0 && cleric > 0, $"{slot}: cloth has no Armor");
+            Assert.True(Math.Max(wizard, cleric) < hunter, $"{slot}: cloth {wizard}/{cleric} is not below leather {hunter}");
             Assert.True(hunter < warrior, $"{slot}: leather {hunter} is not below plate {warrior}");
         }
     }
@@ -644,7 +644,7 @@ public class SeedIntegrityShould
         [CharacterClass.Warrior] = [200, 201, 202, 203, 204],
         [CharacterClass.Wizard] = [210, 211, 212, 213, 214],
         [CharacterClass.Hunter] = [220, 221, 222, 223, 224],
-        [CharacterClass.Healer] = [230, 231, 232, 233, 234, 235],
+        [CharacterClass.Cleric] = [230, 231, 232, 233, 234, 235],
     };
 
     /// <summary>The twenty-one kit abilities and the nineteen creature abilities 300-318; none of the retired ones.</summary>
@@ -839,9 +839,9 @@ public class SeedIntegrityShould
             .Where(a => (a.Flags & AbilityFlags.Basic) != 0).Select(a => a.Id.Value).Order());
     }
 
-    /// <summary>The Healer's three ally abilities; Mending Circle the only direct heal, Renew and Fortify aura-only (auras).</summary>
+    /// <summary>The Cleric's three ally abilities; Mending Circle the only direct heal, Renew and Fortify aura-only (auras).</summary>
     [Fact]
-    public void Seed_the_healers_ally_abilities_with_mending_circle_the_only_direct_heal()
+    public void Seed_the_clerics_ally_abilities_with_mending_circle_the_only_direct_heal()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();

@@ -9,7 +9,7 @@ public static class ClassThreatModifier
         CharacterClass.Warrior => 2.0f,
         CharacterClass.Wizard => 1.1f,
         CharacterClass.Hunter => 1.0f,
-        CharacterClass.Healer => 1.0f,
+        CharacterClass.Cleric => 1.0f,
         _ => 1.0f,
     };
 }

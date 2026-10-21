@@ -9,7 +9,7 @@ public static class ClassPowerType
     public static PowerType Of(CharacterClass characterClass) => characterClass switch
     {
         CharacterClass.Warrior => PowerType.Fury,
-        CharacterClass.Wizard or CharacterClass.Healer => PowerType.Mana,
+        CharacterClass.Wizard or CharacterClass.Cleric => PowerType.Mana,
         CharacterClass.Hunter => PowerType.Energy,
         _ => PowerType.None
     };

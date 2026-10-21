@@ -18,7 +18,7 @@ public static class PowerRegen
     /// <summary>The stat a class regenerates from: Intellect for Mana users, Agility for Energy, none otherwise.</summary>
     public static uint StatOf(CharacterClass characterClass, DerivedCharacterStats stats) => characterClass switch
     {
-        CharacterClass.Wizard or CharacterClass.Healer => stats.Intellect,
+        CharacterClass.Wizard or CharacterClass.Cleric => stats.Intellect,
         CharacterClass.Hunter => stats.Agility,
         _ => 0,
     };

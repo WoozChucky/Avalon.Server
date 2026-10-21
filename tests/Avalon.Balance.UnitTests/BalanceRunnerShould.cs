@@ -61,9 +61,9 @@ public class BalanceRunnerShould
     [Fact]
     public void Plan_only_the_filtered_class_and_scenario()
     {
-        RunPlan plan = Runner().Plan(CharacterClass.Healer, "boss-1", runs: 5, seed: null);
+        RunPlan plan = Runner().Plan(CharacterClass.Cleric, "boss-1", runs: 5, seed: null);
 
-        Assert.Equal([CharacterClass.Healer], plan.Classes);
+        Assert.Equal([CharacterClass.Cleric], plan.Classes);
         Assert.Equal(["boss-1"], plan.Scenarios.Select(s => s.Id));
         Assert.Equal(5, plan.Runs);
         Assert.Equal(672, plan.Seed);

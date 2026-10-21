@@ -45,7 +45,7 @@ variant populated
     element 1
       field 1 CharacterId : uint = 42
       field 2 Name : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
-      field 3 Class : CharacterClass = Healer (4)
+      field 3 Class : CharacterClass = Cleric (4)
       field 4 Level : ushort = 7
       field 5 IsLeader : bool = true
       field 6 Online : bool = true
@@ -65,7 +65,7 @@ variant maxima
     element 0
       field 1 CharacterId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-      field 3 Class : CharacterClass = Healer (4)
+      field 3 Class : CharacterClass = Cleric (4)
       field 4 Level : ushort = 65535
       field 5 IsLeader : bool = true
       field 6 Online : bool = true
@@ -73,7 +73,7 @@ variant maxima
     element 1
       field 1 CharacterId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-      field 3 Class : CharacterClass = Healer (4)
+      field 3 Class : CharacterClass = Cleric (4)
       field 4 Level : ushort = 65535
       field 5 IsLeader : bool = true
       field 6 Online : bool = true
@@ -81,7 +81,7 @@ variant maxima
     element 2
       field 1 CharacterId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-      field 3 Class : CharacterClass = Healer (4)
+      field 3 Class : CharacterClass = Cleric (4)
       field 4 Level : ushort = 65535
       field 5 IsLeader : bool = true
       field 6 Online : bool = true

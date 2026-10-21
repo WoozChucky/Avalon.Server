@@ -39,7 +39,7 @@ public sealed class TownSocialScenario : IScenario
     public const int PartyInvitesPerMinute = 30;
 
     private static readonly CharacterClass[] s_classes =
-        [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Healer];
+        [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Cleric];
 
     // Each world's schedule, for Verify: the scenario is shared, and builds a world for every run.
     private readonly ConditionalWeakTable<ScenarioWorld, SocialSchedule> _schedules = new();

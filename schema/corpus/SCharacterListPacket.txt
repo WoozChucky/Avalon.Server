@@ -74,7 +74,7 @@ variant maxima
       field 1 CharacterId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
       field 3 Level : int = 2147483647
-      field 4 Class : CharacterClass = Healer (4)
+      field 4 Class : CharacterClass = Cleric (4)
       field 5 X : float = 3.40282347E+38 (0x7f7fffff)
       field 6 Y : float = 3.40282347E+38 (0x7f7fffff)
       field 7 Z : float = 3.40282347E+38 (0x7f7fffff)
@@ -86,7 +86,7 @@ variant maxima
       field 1 CharacterId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
       field 3 Level : int = 2147483647
-      field 4 Class : CharacterClass = Healer (4)
+      field 4 Class : CharacterClass = Cleric (4)
       field 5 X : float = 3.40282347E+38 (0x7f7fffff)
       field 6 Y : float = 3.40282347E+38 (0x7f7fffff)
       field 7 Z : float = 3.40282347E+38 (0x7f7fffff)
@@ -98,7 +98,7 @@ variant maxima
       field 1 CharacterId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
       field 3 Level : int = 2147483647
-      field 4 Class : CharacterClass = Healer (4)
+      field 4 Class : CharacterClass = Cleric (4)
       field 5 X : float = 3.40282347E+38 (0x7f7fffff)
       field 6 Y : float = 3.40282347E+38 (0x7f7fffff)
       field 7 Z : float = 3.40282347E+38 (0x7f7fffff)

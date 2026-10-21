@@ -81,7 +81,7 @@
       "when": []
     }
   ],
-  "Healer": [
+  "Cleric": [
     {
       "ability": 232,
       "when": [

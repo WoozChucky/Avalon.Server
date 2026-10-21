@@ -39,7 +39,7 @@ public class SocialEventBenchmarks
     private const int PartySize = 3;
 
     private static readonly CharacterClass[] s_classes =
-        [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Healer];
+        [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Cleric];
 
     private ScenarioWorld _world = null!;
     private PartyService _parties = null!;

@@ -13,7 +13,7 @@ public sealed record ReportContext(DateTimeOffset GeneratedAt, string Commit, in
 public static class HtmlReport
 {
     private static readonly CharacterClass[] s_classOrder =
-        [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Healer];
+        [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Cleric];
 
     private const string Css = """
         :root{color-scheme:light;--page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--ring:rgba(11,11,11,.10);

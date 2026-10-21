@@ -63,7 +63,7 @@ public class AuraScanBenchmarks
         _connections = new ScenarioConnection[Units];
         for (int i = 0; i < Units; i++)
         {
-            _characters[i] = _world.NewCharacter(CharacterClass.Healer);
+            _characters[i] = _world.NewCharacter(CharacterClass.Cleric);
             _connections[i] = _world.Join(_instance, _characters[i], new Vector3(i % 4, 0, i % 3));
         }
 

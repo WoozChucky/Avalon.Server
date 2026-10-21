@@ -111,7 +111,7 @@ public class ItemCatalogShould
     public void Render_AllowedClasses_As_Numbers_Not_Strings()
     {
         ItemTemplate template = Template(1, "x");
-        template.AllowedClasses = [CharacterClass.Warrior, CharacterClass.Healer];
+        template.AllowedClasses = [CharacterClass.Warrior, CharacterClass.Cleric];
 
         using var document = JsonDocument.Parse(ItemCatalog.Render([template]));
         JsonElement item = document.RootElement.GetProperty("items").EnumerateArray().Single();
@@ -122,7 +122,7 @@ public class ItemCatalogShould
             Assert.Equal(JsonValueKind.Number, element.ValueKind);
 
         Assert.Equal(
-            [(int)CharacterClass.Warrior, (int)CharacterClass.Healer],
+            [(int)CharacterClass.Warrior, (int)CharacterClass.Cleric],
             allowedClasses.EnumerateArray().Select(element => element.GetInt32()));
     }
 }

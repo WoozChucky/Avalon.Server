@@ -23,5 +23,5 @@ public enum CharacterClass : byte
     Warrior = 1,
     Wizard = 2,
     Hunter = 3,
-    Healer = 4,
+    Cleric = 4,
 }

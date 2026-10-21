@@ -218,14 +218,14 @@ public class PartyCommandsShould
     {
         PartyClient a = _w.Online(1, "A");
         PartyClient b = _w.Online(2, "B");
-        a.Character.Data!.Class = CharacterClass.Healer;
+        a.Character.Data!.Class = CharacterClass.Cleric;
         _w.Form(a, b);
 
         Run(new PartyChatCommand(_w.Parties, ChatLimits.Off()), a, "/p heal up");
 
-        Assert.Equal(CharacterClass.Healer,
+        Assert.Equal(CharacterClass.Cleric,
             Assert.Single(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).CharacterClass);
-        Assert.Equal(CharacterClass.Healer,
+        Assert.Equal(CharacterClass.Cleric,
             Assert.Single(a.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).CharacterClass);
     }
 }

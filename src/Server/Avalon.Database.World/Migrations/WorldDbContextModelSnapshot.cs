@@ -1896,8 +1896,8 @@ namespace Avalon.Database.World.Migrations
 
             modelBuilder.Entity("Avalon.Domain.World.CharacterClassName", b =>
                 {
-                    b.Property<string>("Class")
-                        .HasColumnType("text");
+                    b.Property<byte>("Class")
+                        .HasColumnType("smallint");
 
                     b.Property<int>("TextId")
                         .HasColumnType("integer");
@@ -1909,22 +1909,22 @@ namespace Avalon.Database.World.Migrations
                     b.HasData(
                         new
                         {
-                            Class = "Warrior",
+                            Class = (byte)1,
                             TextId = 11
                         },
                         new
                         {
-                            Class = "Wizard",
+                            Class = (byte)2,
                             TextId = 12
                         },
                         new
                         {
-                            Class = "Hunter",
+                            Class = (byte)3,
                             TextId = 13
                         },
                         new
                         {
-                            Class = "Healer",
+                            Class = (byte)4,
                             TextId = 14
                         });
                 });
@@ -4737,9 +4737,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<decimal>("Id")
                         .HasColumnType("numeric(20,0)");
 
-                    b.Property<string>("AllowedClasses")
+                    b.PrimitiveCollection<byte[]>("AllowedClasses")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("smallint[]");
 
                     b.Property<long>("BuyPrice")
                         .HasColumnType("bigint");
@@ -4879,7 +4879,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 1m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 10L,
                             Class = 0,
                             DisplayId = 1L,
@@ -4897,7 +4897,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 2m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 13L,
                             Class = 0,
                             DisplayId = 2L,
@@ -4915,7 +4915,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 3m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 100L,
                             Class = 0,
                             DisplayId = 3L,
@@ -4932,7 +4932,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 4m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 100L,
                             Class = 1,
                             DamageMax1 = 3L,
@@ -4954,7 +4954,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 5m,
-                            AllowedClasses = "Wizard",
+                            AllowedClasses = new byte[] { 2 },
                             BuyPrice = 200L,
                             Class = 1,
                             DamageMax1 = 14L,
@@ -4978,7 +4978,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 6m,
-                            AllowedClasses = "Hunter",
+                            AllowedClasses = new byte[] { 3 },
                             BuyPrice = 200L,
                             Class = 1,
                             DamageMax1 = 11L,
@@ -5002,7 +5002,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 7m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 200L,
                             Class = 1,
                             DamageMax1 = 11L,
@@ -5026,7 +5026,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 8m,
-                            AllowedClasses = "Healer",
+                            AllowedClasses = new byte[] { 4 },
                             BuyPrice = 200L,
                             Class = 1,
                             DamageMax1 = 11L,
@@ -5050,7 +5050,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 9m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 20L,
                             Class = 0,
                             DisplayId = 9L,
@@ -5064,7 +5064,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 10m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 20L,
                             Class = 0,
                             DisplayId = 10L,
@@ -5078,7 +5078,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 11m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 20L,
                             Class = 0,
                             DisplayId = 11L,
@@ -5092,7 +5092,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 12m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 12L,
@@ -5115,7 +5115,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 13m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 13L,
@@ -5138,7 +5138,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 14m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 14L,
@@ -5161,7 +5161,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 15m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 15L,
@@ -5184,7 +5184,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 16m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 16L,
@@ -5207,7 +5207,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 17m,
-                            AllowedClasses = "Wizard",
+                            AllowedClasses = new byte[] { 2 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 17L,
@@ -5228,7 +5228,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 18m,
-                            AllowedClasses = "Wizard",
+                            AllowedClasses = new byte[] { 2 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 18L,
@@ -5249,7 +5249,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 19m,
-                            AllowedClasses = "Wizard",
+                            AllowedClasses = new byte[] { 2 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 19L,
@@ -5270,7 +5270,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 20m,
-                            AllowedClasses = "Wizard",
+                            AllowedClasses = new byte[] { 2 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 20L,
@@ -5291,7 +5291,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 21m,
-                            AllowedClasses = "Wizard",
+                            AllowedClasses = new byte[] { 2 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 21L,
@@ -5312,7 +5312,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 22m,
-                            AllowedClasses = "Hunter",
+                            AllowedClasses = new byte[] { 3 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 22L,
@@ -5333,7 +5333,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 23m,
-                            AllowedClasses = "Hunter",
+                            AllowedClasses = new byte[] { 3 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 23L,
@@ -5354,7 +5354,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 24m,
-                            AllowedClasses = "Hunter",
+                            AllowedClasses = new byte[] { 3 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 24L,
@@ -5375,7 +5375,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 25m,
-                            AllowedClasses = "Hunter",
+                            AllowedClasses = new byte[] { 3 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 25L,
@@ -5396,7 +5396,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 26m,
-                            AllowedClasses = "Hunter",
+                            AllowedClasses = new byte[] { 3 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 26L,
@@ -5417,7 +5417,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 27m,
-                            AllowedClasses = "Healer",
+                            AllowedClasses = new byte[] { 4 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 27L,
@@ -5440,7 +5440,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 28m,
-                            AllowedClasses = "Healer",
+                            AllowedClasses = new byte[] { 4 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 28L,
@@ -5463,7 +5463,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 29m,
-                            AllowedClasses = "Healer",
+                            AllowedClasses = new byte[] { 4 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 29L,
@@ -5486,7 +5486,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 30m,
-                            AllowedClasses = "Healer",
+                            AllowedClasses = new byte[] { 4 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 30L,
@@ -5509,7 +5509,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 31m,
-                            AllowedClasses = "Healer",
+                            AllowedClasses = new byte[] { 4 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 31L,
@@ -5532,7 +5532,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 32m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 120L,
                             Class = 1,
                             DamageMax1 = 7L,
@@ -5556,7 +5556,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 33m,
-                            AllowedClasses = "Wizard",
+                            AllowedClasses = new byte[] { 2 },
                             BuyPrice = 120L,
                             Class = 1,
                             DamageMax1 = 7L,
@@ -5580,7 +5580,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 34m,
-                            AllowedClasses = "Hunter",
+                            AllowedClasses = new byte[] { 3 },
                             BuyPrice = 120L,
                             Class = 1,
                             DamageMax1 = 7L,
@@ -5604,7 +5604,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 35m,
-                            AllowedClasses = "Healer",
+                            AllowedClasses = new byte[] { 4 },
                             BuyPrice = 120L,
                             Class = 1,
                             DamageMax1 = 7L,
@@ -5628,7 +5628,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 36m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 60L,
                             Class = 2,
                             DisplayId = 36L,
@@ -5651,7 +5651,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 37m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 100L,
                             Class = 2,
                             DisplayId = 37L,
@@ -5674,7 +5674,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 38m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 80L,
                             Class = 2,
                             DisplayId = 38L,
@@ -5697,7 +5697,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 39m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 40L,
                             Class = 2,
                             DisplayId = 39L,
@@ -5720,7 +5720,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 40m,
-                            AllowedClasses = "Warrior",
+                            AllowedClasses = new byte[] { 1 },
                             BuyPrice = 40L,
                             Class = 2,
                             DisplayId = 40L,
@@ -5743,7 +5743,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 41m,
-                            AllowedClasses = "Wizard",
+                            AllowedClasses = new byte[] { 2 },
                             BuyPrice = 60L,
                             Class = 2,
                             DisplayId = 41L,
@@ -5764,7 +5764,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 42m,
-                            AllowedClasses = "Wizard",
+                            AllowedClasses = new byte[] { 2 },
                             BuyPrice = 100L,
                             Class = 2,
                             DisplayId = 42L,
@@ -5785,7 +5785,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 43m,
-                            AllowedClasses = "Wizard",
+                            AllowedClasses = new byte[] { 2 },
                             BuyPrice = 80L,
                             Class = 2,
                             DisplayId = 43L,
@@ -5806,7 +5806,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 44m,
-                            AllowedClasses = "Wizard",
+                            AllowedClasses = new byte[] { 2 },
                             BuyPrice = 40L,
                             Class = 2,
                             DisplayId = 44L,
@@ -5827,7 +5827,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 45m,
-                            AllowedClasses = "Wizard",
+                            AllowedClasses = new byte[] { 2 },
                             BuyPrice = 40L,
                             Class = 2,
                             DisplayId = 45L,
@@ -5848,7 +5848,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 46m,
-                            AllowedClasses = "Hunter",
+                            AllowedClasses = new byte[] { 3 },
                             BuyPrice = 60L,
                             Class = 2,
                             DisplayId = 46L,
@@ -5869,7 +5869,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 47m,
-                            AllowedClasses = "Hunter",
+                            AllowedClasses = new byte[] { 3 },
                             BuyPrice = 100L,
                             Class = 2,
                             DisplayId = 47L,
@@ -5890,7 +5890,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 48m,
-                            AllowedClasses = "Hunter",
+                            AllowedClasses = new byte[] { 3 },
                             BuyPrice = 80L,
                             Class = 2,
                             DisplayId = 48L,
@@ -5911,7 +5911,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 49m,
-                            AllowedClasses = "Hunter",
+                            AllowedClasses = new byte[] { 3 },
                             BuyPrice = 40L,
                             Class = 2,
                             DisplayId = 49L,
@@ -5932,7 +5932,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 50m,
-                            AllowedClasses = "Hunter",
+                            AllowedClasses = new byte[] { 3 },
                             BuyPrice = 40L,
                             Class = 2,
                             DisplayId = 50L,
@@ -5953,7 +5953,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 51m,
-                            AllowedClasses = "Healer",
+                            AllowedClasses = new byte[] { 4 },
                             BuyPrice = 60L,
                             Class = 2,
                             DisplayId = 51L,
@@ -5976,7 +5976,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 52m,
-                            AllowedClasses = "Healer",
+                            AllowedClasses = new byte[] { 4 },
                             BuyPrice = 100L,
                             Class = 2,
                             DisplayId = 52L,
@@ -5999,7 +5999,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 53m,
-                            AllowedClasses = "Healer",
+                            AllowedClasses = new byte[] { 4 },
                             BuyPrice = 80L,
                             Class = 2,
                             DisplayId = 53L,
@@ -6022,7 +6022,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 54m,
-                            AllowedClasses = "Healer",
+                            AllowedClasses = new byte[] { 4 },
                             BuyPrice = 40L,
                             Class = 2,
                             DisplayId = 54L,
@@ -6045,7 +6045,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 55m,
-                            AllowedClasses = "Healer",
+                            AllowedClasses = new byte[] { 4 },
                             BuyPrice = 40L,
                             Class = 2,
                             DisplayId = 55L,
@@ -6068,7 +6068,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 56m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 25L,
                             Class = 0,
                             DisplayId = 56L,
@@ -6086,7 +6086,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 57m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 57L,
@@ -6100,7 +6100,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 58m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 58L,
@@ -6121,7 +6121,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 59m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 59L,
@@ -6135,7 +6135,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 60m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 60L,
@@ -6149,7 +6149,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 61m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 61L,
@@ -6163,7 +6163,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 62m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 62L,
@@ -6177,7 +6177,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 63m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 63L,
@@ -6191,7 +6191,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 64m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 400L,
                             Class = 2,
                             DisplayId = 64L,
@@ -6212,7 +6212,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 65m,
-                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
                             BuyPrice = 800L,
                             Class = 2,
                             DisplayId = 65L,
@@ -6317,7 +6317,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 14,
-                            Text = "Healer"
+                            Text = "Cleric"
                         },
                         new
                         {
@@ -6720,7 +6720,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             TextId = 14,
                             Locale = "ptPT",
-                            Text = "Curandeir{g:o|a}"
+                            Text = "Clérig{g:o|a}"
                         },
                         new
                         {

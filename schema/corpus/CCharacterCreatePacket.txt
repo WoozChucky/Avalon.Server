@@ -38,7 +38,7 @@ variant populated
 
 variant maxima
   field 1 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-  field 2 Class : CharacterClass = Healer (4)
+  field 2 Class : CharacterClass = Cleric (4)
   field 3 Gender : CharacterGender = Female (1)
   bytes 139
     0a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce

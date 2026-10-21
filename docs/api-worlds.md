@@ -80,6 +80,16 @@ singletons as in every host. Only their context factories differ in the API, whi
   columns #745 dropped, `TemplateEditShould.Read_and_save_a_creature_in_a_world_that_still_has_the_dropped_columns`);
   a column the model maps that a world's database lacks fails every query that reads it. Keep world schema changes
   readable by the API across the releases the worlds run.
+  **Exception, #1142.** `StoreClassesAsNumbers` changes `ItemTemplates.AllowedClasses` from text (comma-joined class
+  names) to `smallint[]`, and `CharacterClassNames.Class` from text to `smallint`. An API built on either side of
+  that change cannot read the other side's `ItemTemplates`. For a world whose schema does not match the API's model,
+  every read of an item template fails: the worlds service's item-template list, get and `PUT`, the public item
+  tooltip and link preview, a character's inventory as soon as the character holds any item, and its abilities once
+  it has an item equipped (the main hand's damage range is read from the template). The order is:
+  merge it when no ramp is running; the dev worlds migrate themselves at their next start; cut an API release with
+  this change straight away; and start any stopped world once, so it migrates too. To roll a world back to a build
+  without the change, first run `dotnet ef database update SeedCrowdControl` against that world's World database.
+  No world or API does that by itself.
 
 ## How a request reaches its world
 

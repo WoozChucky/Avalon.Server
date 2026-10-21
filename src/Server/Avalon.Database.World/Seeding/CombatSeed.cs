@@ -53,7 +53,7 @@ public static class CombatSeed
         },
         new()
         {
-            Class = CharacterClass.Healer, HpPerStamina = 7, PowerPerIntellect = 12, PowerPerAgility = 0, FixedPower = null,
+            Class = CharacterClass.Cleric, HpPerStamina = 7, PowerPerIntellect = 12, PowerPerAgility = 0, FixedPower = null,
             AttackPerStrength = 0.5, AttackPerAgility = 0, AbilityPerIntellect = 2,
             BaseBlock = 0f, BaseDodge = 3.25f, BaseCrit = 1.85f,
         },

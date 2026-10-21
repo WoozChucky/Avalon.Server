@@ -34,8 +34,8 @@ public class CharacterStatsCalculatorShould
     [InlineData(CharacterClass.Wizard, 5, 205u, 565u, 10u, 93u)]
     [InlineData(CharacterClass.Hunter, 1, 178u, 68u, 45u, 10u)]
     [InlineData(CharacterClass.Hunter, 5, 282u, 114u, 59u, 10u)]
-    [InlineData(CharacterClass.Healer, 1, 158u, 296u, 10u, 46u)]
-    [InlineData(CharacterClass.Healer, 5, 258u, 472u, 10u, 62u)]
+    [InlineData(CharacterClass.Cleric, 1, 158u, 296u, 10u, 46u)]
+    [InlineData(CharacterClass.Cleric, 5, 258u, 472u, 10u, 62u)]
     [InlineData(CharacterClass.Warrior, 10, 600u, 100u, 82u, 4u)]
     [InlineData(CharacterClass.Hunter, 10, 412u, 172u, 76u, 10u)]
     public void Derive_the_seeded_numbers_for_each_class_with_no_gear(
@@ -72,7 +72,7 @@ public class CharacterStatsCalculatorShould
     [InlineData(CharacterClass.Warrior, 5.0f, 3.664f, 5.0f)]
     [InlineData(CharacterClass.Wizard, 0f, 3.25f, 1.85f)]
     [InlineData(CharacterClass.Hunter, 0f, 4.35f, 5.0f)]
-    [InlineData(CharacterClass.Healer, 0f, 3.25f, 1.85f)]
+    [InlineData(CharacterClass.Cleric, 0f, 3.25f, 1.85f)]
     public void Start_each_class_at_its_base_block_dodge_and_crit(CharacterClass @class, float block, float dodge, float crit)
     {
         DerivedCharacterStats stats = Calc(SeededRow(@class, 1), []);

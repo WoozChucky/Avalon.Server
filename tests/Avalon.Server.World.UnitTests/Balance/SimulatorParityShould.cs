@@ -522,10 +522,10 @@ public class SimulatorParityShould
     }
 
     /// <summary>
-    /// Auras: a level-3 Healer at half health casting the seeded Renew (233, an ally circle that heals nothing directly)
+    /// Auras: a level-3 Cleric at half health casting the seeded Renew (233, an ally circle that heals nothing directly)
     /// on itself through the real handler, cast system and aura system, against the simulator, health and Mana compared
     /// after every tick for 20 s: each heal tick (its crit roll and the fraction of a point carried), the refresh on each
-    /// recast, and the Mana it costs. The Healer is kept in combat every tick, as the simulator's continuous fight is.
+    /// recast, and the Mana it costs. The Cleric is kept in combat every tick, as the simulator's continuous fight is.
     /// </summary>
     [Fact]
     public async Task Heal_over_time_the_same_as_the_aura_system_tick_for_tick()
@@ -543,7 +543,7 @@ public class SimulatorParityShould
             Id = new Avalon.Common.ValueObjects.CharacterId(6760_173),
             AccountId = new Avalon.Common.ValueObjects.AccountId(1),
             Name = "Tester6760173",
-            Class = CharacterClass.Healer,
+            Class = CharacterClass.Cleric,
             Level = Level,
             CreationDate = DateTime.UtcNow,
         };
@@ -553,25 +553,25 @@ public class SimulatorParityShould
             tid => Data.Tables.ItemTemplates.FirstOrDefault(t => t.Id == tid), CurrentValues.Refill, Data.Combat.Formula));
         real.Character.Spells.Load([AbilityTestData.Game(renew)]);
 
-        var simHealer = SimPlayer.Create(Data, CharacterClass.Healer, Level, []);
-        Assert.Equal(real.Character.Health, simHealer.Health);
-        Assert.Equal(real.Character.CurrentPower, simHealer.CurrentPower);
-        real.Character.CurrentHealth = simHealer.CurrentHealth = simHealer.Health / 2;
+        var simCleric = SimPlayer.Create(Data, CharacterClass.Cleric, Level, []);
+        Assert.Equal(real.Character.Health, simCleric.Health);
+        Assert.Equal(real.Character.CurrentPower, simCleric.CurrentPower);
+        real.Character.CurrentHealth = simCleric.CurrentHealth = simCleric.Health / 2;
         SimCreature simBoar = PassiveBoar(Level);
         RealBoar(instance, 6760_973, simBoar);
         CompiledRotationEntry[] rotation = [new(233, [])];
-        var fight = new FightSimulator(Data.Combat.Formula, simHealer, [simBoar], rotation,
+        var fight = new FightSimulator(Data.Combat.Formula, simCleric, [simBoar], rotation,
             new CombatRandom(new Random(Seed)), data: Data);
         bool carried = false;
 
         Dictionary<uint, int> cast = Exchange(fight, rotation, instance, handler, real, s_pointBlank, ticks: 1200, tick =>
             {
-                Assert.True(simHealer.CurrentHealth == real.Character.CurrentHealth,
-                    $"tick {tick}: the Healer has {real.Character.CurrentHealth} health on the server, {simHealer.CurrentHealth} simulated");
-                Assert.True(simHealer.CurrentPower == real.Character.CurrentPower,
-                    $"tick {tick}: the Healer has {real.Character.CurrentPower} Mana on the server, {simHealer.CurrentPower} simulated");
-                Assert.Equal(real.Character.Auras.Count, simHealer.Auras.Count);
-                if (simHealer.Auras is [{ } simRenew])
+                Assert.True(simCleric.CurrentHealth == real.Character.CurrentHealth,
+                    $"tick {tick}: the Cleric has {real.Character.CurrentHealth} health on the server, {simCleric.CurrentHealth} simulated");
+                Assert.True(simCleric.CurrentPower == real.Character.CurrentPower,
+                    $"tick {tick}: the Cleric has {real.Character.CurrentPower} Mana on the server, {simCleric.CurrentPower} simulated");
+                Assert.Equal(real.Character.Auras.Count, simCleric.Auras.Count);
+                if (simCleric.Auras is [{ } simRenew])
                 {
                     ActiveAura realRenew = Assert.Single(real.Character.Auras.All);
                     Assert.Equal(realRenew.Schedule, simRenew.Schedule);
@@ -584,7 +584,7 @@ public class SimulatorParityShould
         Assert.True(cast[233] >= 3, $"Renew was cast {cast[233]} times");
         Assert.True(carried, "no heal tick carried a fraction of a point");
         Assert.True(fight.Result().Healing > 0, "Renew never healed");
-        Assert.True(real.Character.CurrentHealth > simHealer.Health / 2, "the Healer gained no health");
+        Assert.True(real.Character.CurrentHealth > simCleric.Health / 2, "the Cleric gained no health");
     }
 
     /// <summary>Auras: a percentage armour and a flat crit aura fold into the same derived stats on the server and in the simulator.</summary>

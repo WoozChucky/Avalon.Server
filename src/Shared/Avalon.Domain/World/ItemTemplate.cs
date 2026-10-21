@@ -32,7 +32,7 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     public ItemSlotType? Slot { get; set; }
 
     public List<CharacterClass> AllowedClasses { get; set; } =
-        [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Healer]; // Default to all classes
+        [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Cleric]; // Default to all classes
 
     public ushort? ItemPower { get; set; }
 

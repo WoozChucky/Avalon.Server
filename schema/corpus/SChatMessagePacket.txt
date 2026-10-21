@@ -63,7 +63,7 @@ variant maxima
   field 5 DateTime : DateTime = 9999-12-31T23:59:59.9999999 (Unspecified)
   field 6 Channel : ChatChannel = Whisper (3)
   field 7 TargetName : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-  field 8 CharacterClass : CharacterClass = Healer (4)
+  field 8 CharacterClass : CharacterClass = Cleric (4)
   bytes 437
     08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
     ff ff ff ff ff 01 1a 84 01 ce a9 78 ce a9 78 ce

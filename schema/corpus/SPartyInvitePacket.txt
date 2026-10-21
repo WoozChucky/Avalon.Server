@@ -41,7 +41,7 @@ variant populated
 
 variant maxima
   field 1 InviterName : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-  field 2 InviterClass : CharacterClass = Healer (4)
+  field 2 InviterClass : CharacterClass = Cleric (4)
   field 3 InviterLevel : ushort = 65535
   field 4 ExpiresInMs : uint = 4294967295
   bytes 147

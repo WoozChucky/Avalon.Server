@@ -412,7 +412,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         if (fighting == 0) return;
 
-        CharacterClass healerClass = (healer as ICharacter)?.Class ?? CharacterClass.Healer;
+        CharacterClass healerClass = (healer as ICharacter)?.Class ?? CharacterClass.Cleric;
         float perHostile = restored * healThreatPerHp * ClassThreatModifier.Get(healerClass) / fighting;
 
         if (!enc.Players.Contains(healer)) enc.AddPlayer(healer);
