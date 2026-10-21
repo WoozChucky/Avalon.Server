@@ -10,7 +10,7 @@
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.18.2" />
-    <PackageVersion Include="AWSSDK.S3" Version="4.0.104.5" />
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.104.6" />
     <PackageVersion Include="StackExchange.Redis" Version="3.4.0" />
     <PackageVersion Include="Stripe.net" Version="53.0.0" />
     <PackageVersion Include="Dapper" Version="2.1.89" />
