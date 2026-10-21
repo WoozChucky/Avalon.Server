@@ -323,13 +323,15 @@ public sealed class AuraSystem
     /// One pass, right after the instance's ability cast system: for each unit holding an aura as the pass starts
     /// (characters, then creatures, each in the order the <see cref="Roster" /> keeps), a dead unit loses them all; a creature walking home loses its harmful ones; then each aura, in the
     /// order applied, expires if its template is no longer loaded, takes every tick it is owed at the clock's now (a late
-    /// pass catches up, never more than the aura has left), ends if its script asked, and expires once its time is up,
-    /// after its last tick. A tick that kills its unit ends every aura it holds and ticks nothing more on it. After a
-    /// stall, each aura's owed ticks are paid together, aura by aura in the order they were applied, not interleaved by
-    /// their times (the balance simulator ticks every frame and never catches up, so the two agree). A tick that throws
-    /// is logged (throttled per aura) and keeps the fraction it carried; the pass goes on with the next aura and the
-    /// next unit. Anything else in a unit's pass that throws (a stats refresh as its auras end on death or the walk home)
-    /// is logged (throttled per unit) and the pass goes on with the next unit. Allocates nothing while no unit holds an aura.
+    /// pass catches up, never more than the aura has left), ends if its script asked, breaks by chance once per whole
+    /// second held when its row gives it a chance to (#770, Broken), and expires once its time is up, after its last
+    /// tick. A tick that kills its unit ends every aura it holds and ticks nothing more on it. After a stall, each
+    /// aura's owed ticks (and rolls to break) are paid together, aura by aura in the order they were applied, not
+    /// interleaved by their times (the balance simulator ticks every frame and never catches up, so the two agree). A
+    /// tick that throws is logged (throttled per aura) and keeps the fraction it carried; the pass goes on with the next
+    /// aura and the next unit. Anything else in a unit's pass that throws (a stats refresh as its auras end on death or
+    /// the walk home) is logged (throttled per unit) and the pass goes on with the next unit. Allocates nothing while no
+    /// unit holds an aura.
     /// </summary>
     public void Update()
     {
@@ -363,8 +365,9 @@ public sealed class AuraSystem
     /// After a stretch with no players, when the instance's pass did not run: no tick owed meanwhile is paid. An aura whose
     /// end has passed ends (Expired, its script told); every other one keeps its end and is left owing only the ticks at
     /// now or later, as a resumed aura is (<see cref="AuraSchedule.Resume" />: a tick that falls on now is kept), with its
-    /// carried fraction. Time is not stopped: a stretch longer than an aura's remaining time ends it. Call it before the
-    /// first pass after the stretch. Contained per unit, as the pass is.
+    /// carried fraction, and only the rolls to break on its own at now or later (#770). Time is not stopped: a stretch
+    /// longer than an aura's remaining time ends it. Call it before the first pass after the stretch. Contained per
+    /// unit, as the pass is.
     /// </summary>
     public void SkipOwed()
     {
@@ -422,6 +425,7 @@ public sealed class AuraSystem
                 {
                     TicksLeft = AuraSchedule.Resume(now, remainingMs, intervalMs, schedule.TicksLeft).TicksLeft,
                 };
+                aura.SkipBreakRollsBefore(now);
             }
         }
         finally
@@ -497,11 +501,65 @@ public sealed class AuraSystem
         if (!auras.Contains(aura))
             return true;
 
+        // An aura with no chance to break on its own (most) costs one field read here, never a look at its roll time.
         if (aura.ScriptEnded)
             Remove(unit, aura, AuraRemoveReason.Script);
+        else if (aura.Template.BreakPerSecondPct > 0f && BreaksOverTime(aura, now))
+            Remove(unit, aura, AuraRemoveReason.Broken);
         else if (aura.Schedule.Expired(now))
             Remove(unit, aura, AuraRemoveReason.Expired);
         return EndIfDead(unit);
+    }
+
+    /// <summary>
+    /// Rolls an aura's chance to break on its own (#770) once for each whole second it has been held up to
+    /// <paramref name="now" /> (a late pass rolls every second it owes), never for one at or past its end; true at the
+    /// first roll that breaks it, the rest left unrolled.
+    /// </summary>
+    private bool BreaksOverTime(ActiveAura aura, DateTimeOffset now)
+    {
+        float pct = aura.Template.BreakPerSecondPct;
+        while (aura.NextBreakRollAt <= now && aura.NextBreakRollAt < aura.Schedule.ExpiresAt)
+        {
+            aura.NextBreakRollAt += CrowdControlRules.BreakRollInterval;
+            if (CrowdControlRules.Breaks(pct, _combat.Random))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// A hit or a tick dealt more than 0 to <paramref name="unit" />, which lives on (#770), reported once by the combat
+    /// service through its instance: each aura it holds with a chance to break on damage rolls it once, in the order
+    /// held, and each that breaks ends (Broken, its script told). Those that break are copied first and ended after the
+    /// walk, so an ending (whose script may deal damage and so come back here) never changes the list under it. Draws
+    /// nothing, and allocates nothing, when no aura it holds has such a chance.
+    /// </summary>
+    public void DamageTaken(IUnit unit)
+    {
+        if (AuraHolders.Of(unit) is not { Count: > 0 } auras)
+            return;
+
+        List<ActiveAura>? broken = null;
+        try
+        {
+            IReadOnlyList<ActiveAura> all = auras.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                ActiveAura held = all[i];
+                if (CrowdControlRules.Breaks(held.Template.BreakOnDamagePct, _combat.Random))
+                    (broken ??= RentEnding()).Add(held);
+            }
+
+            if (broken is not null)
+                EndEach(unit, broken, AuraRemoveReason.Broken);
+        }
+        finally
+        {
+            if (broken is not null)
+                ReturnEnding(broken);
+        }
     }
 
     /// <summary>

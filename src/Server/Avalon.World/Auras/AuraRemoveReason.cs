@@ -17,4 +17,10 @@ public enum AuraRemoveReason
 
     /// <summary>A creature turned for home after a fight: its harmful auras end with the fight.</summary>
     Reset = 5,
+
+    /// <summary>
+    /// A crowd-control aura ended early by chance (#770): when its unit took damage, or on its own, once per second
+    /// held, by its row's break chances.
+    /// </summary>
+    Broken = 6,
 }

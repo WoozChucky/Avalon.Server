@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -11,6 +12,7 @@ using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
+using Avalon.World.Combat;
 using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
@@ -21,8 +23,10 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
+using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
 using Avalon.World.Testing.Scenarios;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -253,9 +257,107 @@ public class CrowdControlShould
         Assert.Equal((false, 1), (itemCast.Casting, Interrupts(itemUser, itemUser.Character)));
     }
 
-    private MapInstance Instance(WorldTicks? ticks = null) =>
-        TestMapInstances.BuildCasting(out _, world: NewWorld(Data), random: ScriptedCombatRandom.Plain(), time: _clock,
-            worldTicks: ticks);
+    /// <summary>
+    /// A held CC aura may end early, as Broken, by its row's chances: once per hit or tick on its holder that dealt
+    /// something, one roll each (Bound 25 %, Stunned 10 %, Silenced 0 %, which draws nothing), and once per whole second
+    /// held (Bound 0.5 %, Silenced never). A dodged hit deals nothing and so rolls nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(Bound, "hit", new[] { 0.249 }, true)]
+    [InlineData(Bound, "hit", new[] { 0.25 }, false)]
+    [InlineData(Stunned, "hit", new[] { 0.099 }, true)]
+    [InlineData(Silenced, "hit", new double[0], false)]
+    [InlineData(Bound, "tick", new[] { 0.249 }, true)]
+    [InlineData(Bound, "dodge", new double[0], false)]
+    [InlineData(Bound, "held", new[] { 0.99, 0.004 }, true)]
+    [InlineData(Silenced, "held", new double[0], false)]
+    public void Break_crowd_control_by_chance_on_damage_and_over_time(uint auraId, string how, double[] breakRolls,
+        bool broken)
+    {
+        BreakRecorder.Reasons.Clear();
+        var random = new ScriptedCombatRandom();
+        using MapInstance instance = Instance(random: random, auraScripts: RecorderScripts());
+        CharacterEntity hunter = Join(instance, 770_601).Character;
+        Creature boar = AddCreature(instance, 770_905, new Vector3(0f, 0f, 2f), Loot.LootTestData.BoarTemplate(null),
+            dodgePct: how == "dodge" ? 30f : 0f);
+        Assert.Equal(AuraApplyResult.Applied, instance.Auras.Apply(hunter, boar, Recorded(auraId), AuraSource.None));
+
+        switch (how)
+        {
+            case "hit":   // a dodge, crit and block that miss, then the breaks
+                random.Doubles(0.99, 0.99, 0.99).Doubles(breakRolls);
+                instance.CombatService.ApplyDamage(hunter, boar, 10);
+                break;
+            case "tick":   // its crit that misses, then the breaks
+                random.Doubles(0.99).Doubles(breakRolls);
+                ((CombatService)instance.CombatService).ApplyPeriodicDamage(new PeriodicHit(hunter, boar,
+                    new AuraId(2), 10f, default, AuraSource.None));
+                break;
+            case "dodge":
+                random.Doubles(0.0);
+                instance.CombatService.ApplyDamage(hunter, boar, 10);
+                break;
+            case "held":   // a roll on each whole second, however many passes run between
+                random.Doubles(breakRolls);
+                for (int ms = 250; ms <= 2000; ms += 250)
+                {
+                    _clock.Advance(TimeSpan.FromMilliseconds(250));
+                    instance.Update(TimeSpan.FromMilliseconds(250));
+                    Assert.Equal(Math.Max(0, breakRolls.Length - ms / 1000), random.DoublesLeft);
+                }
+
+                break;
+        }
+
+        Assert.Equal(0, random.DoublesLeft);
+        Assert.Equal(!broken, boar.Auras.All.Any(a => a.Id.Value == auraId));
+        AuraRemoveReason[] reasons = broken ? [AuraRemoveReason.Broken] : [];
+        Assert.Equal(reasons, BreakRecorder.Reasons);
+    }
+
+    private MapInstance Instance(WorldTicks? ticks = null, ICombatRandom? random = null,
+        AuraScripts? auraScripts = null) =>
+        TestMapInstances.BuildCasting(out _, world: NewWorld(Data), random: random ?? ScriptedCombatRandom.Plain(),
+            time: _clock, worldTicks: ticks, auraScripts: auraScripts);
+
+    /// <summary>The seeded aura <paramref name="id" /> as loaded, its script <see cref="BreakRecorder" />.</summary>
+    private static AuraTemplate Recorded(uint id)
+    {
+        Assert.True(Data.Auras.TryGet(new AuraId(id), out AuraTemplate? row));
+        return new AuraTemplate
+        {
+            Id = row.Id,
+            Name = row.Name,
+            Icon = row.Icon,
+            Kind = row.Kind,
+            DurationMs = row.DurationMs,
+            TickIntervalMs = row.TickIntervalMs,
+            PeriodicKind = row.PeriodicKind,
+            Stacking = row.Stacking,
+            MaxStacks = row.MaxStacks,
+            Control = row.Control,
+            BreakOnDamagePct = row.BreakOnDamagePct,
+            BreakPerSecondPct = row.BreakPerSecondPct,
+            Modifiers = row.Modifiers,
+            ScriptName = nameof(BreakRecorder),
+        };
+    }
+
+    private AuraScripts RecorderScripts()
+    {
+        IScriptManager scripts = Substitute.For<IScriptManager>();
+        scripts.GetAuraScript(nameof(BreakRecorder)).Returns(typeof(BreakRecorder));
+        return new AuraScripts(scripts, new ServiceCollection().BuildServiceProvider(), _clock,
+            NullLogger<AuraScripts>.Instance);
+    }
+
+    /// <summary>Records why each aura naming it ended. Only this class's tests use it, one at a time.</summary>
+    private sealed class BreakRecorder : AuraScript
+    {
+        public static readonly List<AuraRemoveReason> Reasons = [];
+
+        public override void OnRemove(IAuraContext ctx, AuraRemoveReason reason) => Reasons.Add(reason);
+    }
 
     /// <summary>
     /// Applies <paramref name="ability" />'s aura from <paramref name="from" /> and answers how long the copy of
@@ -332,7 +434,8 @@ public class CrowdControlShould
     }
 
     /// <summary>A creature as the spawner fixes it: its resistance from its template and the seeded rarity rows.</summary>
-    private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, CreatureTemplate template)
+    private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, CreatureTemplate template,
+        float dodgePct = 0f)
     {
         var creature = new Creature
         {
@@ -342,6 +445,7 @@ public class CrowdControlShould
             Level = 1,
             Health = 100,
             CurrentHealth = 100,
+            DodgePct = dodgePct,
             ControlResistance = ControlResistance.Of(template, Data.CreatureRarityModifiers),
         };
         creature.Script = new CombatResolutionShould.CountingWoundScript(creature);

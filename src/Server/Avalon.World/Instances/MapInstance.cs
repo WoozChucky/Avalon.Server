@@ -107,11 +107,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly CombatService _combatService;
     private readonly AuraSystem _auras;
 
-    // The aura pass, an ability's aura application and ending a unit's auras on its death, each logged at most once per
-    // ThrottledErrorLog.Interval when it throws, so one that throws every tick, cast or death cannot flood the log.
+    // The aura pass, an ability's aura application, ending a unit's auras on its death and breaking them on damage
+    // (#770), each logged at most once per ThrottledErrorLog.Interval when it throws, so one that throws every tick,
+    // cast, death or hit cannot flood the log.
     private readonly ThrottledErrorLog _auraPassFailures;
     private readonly ThrottledErrorLog _auraApplyFailures;
     private readonly ThrottledErrorLog _auraDeathFailures;
+    private readonly ThrottledErrorLog _auraBreakFailures;
 
     // A recipient's state broadcast that threw (#981), logged at most once per ThrottledErrorLog.Interval.
     private readonly ThrottledErrorLog _broadcastFailures;
@@ -341,6 +343,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _auraPassFailures = new ThrottledErrorLog(_logger, _time, $"The aura pass of instance {InstanceId}");
         _auraApplyFailures = new ThrottledErrorLog(_logger, _time, $"An ability's aura in instance {InstanceId}");
         _auraDeathFailures = new ThrottledErrorLog(_logger, _time, $"Ending the auras of a unit on its death in instance {InstanceId}");
+        _auraBreakFailures = new ThrottledErrorLog(_logger, _time,
+            $"Breaking the auras of a unit on damage in instance {InstanceId}");
         _broadcastFailures = new ThrottledErrorLog(_logger, _time, $"A client's state broadcast in instance {InstanceId}");
         _replicationEncoder = serviceProvider.GetService<PacketEncoder>() ?? PacketEncoder.Shared;
         _worldTicks = serviceProvider.GetService<WorldTicks>();
@@ -2888,6 +2892,22 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         catch (Exception e)
         {
             _auraDeathFailures.Failed(e);
+        }
+    }
+
+    /// <summary>
+    /// A living unit took damage (#770): its auras roll their chances to break on damage. Contained and throttled, as
+    /// death's removal is: a failure costs the break, never the hit that reported it.
+    /// </summary>
+    void ICombatOutcomes.DamageTaken(IUnit unit)
+    {
+        try
+        {
+            _auras.DamageTaken(unit);
+        }
+        catch (Exception e)
+        {
+            _auraBreakFailures.Failed(e);
         }
     }
 

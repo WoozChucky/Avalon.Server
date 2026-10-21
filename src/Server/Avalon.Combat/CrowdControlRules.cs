@@ -9,6 +9,15 @@ namespace Avalon.Combat;
 /// </summary>
 public static class CrowdControlRules
 {
+    /// <summary>How often a held aura rolls its chance to break on its own (#770): once per whole second held.</summary>
+    public static readonly TimeSpan BreakRollInterval = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Whether one roll of a break chance (#770, percentage points: an aura's break on damage, or on its own per second)
+    /// breaks the aura: a draw under <c>pct / 100</c>. A chance of 0 or less draws nothing and never breaks.
+    /// </summary>
+    public static bool Breaks(float pct, ICombatRandom rng) => pct > 0f && rng.NextDouble() < pct / 100d;
+
     /// <summary>
     /// The duration percentage a unit takes of <paramref name="t" />: the smallest among the types it grants (its
     /// Control flags, and slow when <see cref="AuraRules.IsSlow" />), each read from the matching argument; 100 when

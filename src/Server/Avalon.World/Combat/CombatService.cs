@@ -157,6 +157,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // which ability hit it, or none for a swing (#521 item 8).
         Hit(attacker, target, damage, abilityId, result);
 
+        // #770: a hit that dealt something to a unit it left alive may break the crowd control it holds, by chance.
+        if (damage > 0 && !AuraSystem.IsDead(target))
+            _outcomes?.DamageTaken(target);
+
         // #526: an ability that damaged a living unit gives its caster the ability's gain, once per unit
         // damaged, capped at the caster's maximum; after the hit, before the death detection. Only a
         // character has a pool a cast spends, so a creature attacker gains nothing.
@@ -520,6 +524,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             else if (caster is not null)
                 Attacked(creature, caster);
         }
+
+        // #770: a tick that dealt something to a unit it left alive may break the crowd control it holds, by chance.
+        if (dealt > 0 && !AuraSystem.IsDead(target))
+            _outcomes?.DamageTaken(target);
 
         if (dealt > 0 && healthBefore > 0 && hit.Source.PowerGainPerHit > 0 && caster is CharacterEntity gainer)
             gainer.GainPower(hit.Source.PowerGainPerHit);

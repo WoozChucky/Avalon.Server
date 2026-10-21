@@ -65,4 +65,10 @@ public interface ICombatOutcomes
 
     /// <summary>A unit died (auras): every death passes through the combat service, and death ends every aura.</summary>
     void UnitDied(IUnit unit);
+
+    /// <summary>
+    /// A hit or an aura's tick dealt more than 0 to <paramref name="unit" />, which is still alive (#770), reported once
+    /// per hit or tick: each aura it holds rolls its chance to break on damage.
+    /// </summary>
+    void DamageTaken(IUnit unit);
 }

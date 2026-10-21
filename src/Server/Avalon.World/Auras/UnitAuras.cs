@@ -146,7 +146,8 @@ public sealed class UnitAuras(Action? changed = null)
 
     /// <summary>
     /// The character has entered its instance: the held auras' time starts again from <paramref name="now" />, each
-    /// schedule moved on by the time it waited, so it keeps all the time and ticks it had. Nothing when nothing is held.
+    /// schedule (and its next roll to break, #770) moved on by the time it waited, so it keeps all the time, ticks and
+    /// rolls it had. Nothing when nothing is held.
     /// </summary>
     public void ResumeHeld(DateTimeOffset now)
     {
@@ -159,7 +160,10 @@ public sealed class UnitAuras(Action? changed = null)
             return;
 
         foreach (ActiveAura aura in _auras)
+        {
             aura.Schedule = aura.Schedule with { ExpiresAt = aura.Schedule.ExpiresAt + waited };
+            aura.NextBreakRollAt += waited;
+        }
     }
 
     /// <summary>Forgets this tick's changes. Its roster is not told: it calls this itself, as it empties its list.</summary>
