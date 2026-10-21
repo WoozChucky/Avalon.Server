@@ -56,4 +56,10 @@ public enum CastRejectReason : byte
     /// Points in the caster's own pool never pay for it.
     /// </summary>
     WrongPowerType = 14,
+
+    /// <summary>The caster is stunned (#770): it casts nothing, not its basic attack either, until it ends.</summary>
+    Stunned = 15,
+
+    /// <summary>The caster is silenced (#770): it casts nothing but its basic attack until the silence ends.</summary>
+    Silenced = 16,
 }

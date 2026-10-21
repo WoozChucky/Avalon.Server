@@ -43,6 +43,12 @@ public sealed class ActiveAura(
     /// <summary>When it was last applied, UTC.</summary>
     public DateTime AppliedAt { get; private set; } = appliedAt;
 
+    /// <summary>
+    /// The crowd control it puts its holder in, as the wire carries it (#770, <see cref="AuraWire.ControlOf" />):
+    /// worked out from its template here and on <see cref="Renew" />, never per packet.
+    /// </summary>
+    public uint WireControl { get; private set; } = AuraWire.ControlOf(template);
+
     /// <summary>Its script asked to end it; the aura system removes it once the hook returns.</summary>
     public bool ScriptEnded { get; set; }
 
@@ -70,6 +76,7 @@ public sealed class ActiveAura(
         uint durationMs, DateTimeOffset now)
     {
         Template = current;
+        WireControl = AuraWire.ControlOf(current);
         CasterGuid = caster;
         Source = from;
         Stacks = newStacks;

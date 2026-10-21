@@ -2,6 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
+using Avalon.World.Auras;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -32,6 +33,16 @@ public class PlayerInputHandler(
 
         // Defensive: reject duplicate / out-of-order seq. TCP guarantees order so this should never fire.
         if (packet.Seq <= connection.LastInputSeq) return;
+
+        // #770: stunned or rooted, the input is taken but no step is: its sequence advances and the ack carries the
+        // position unchanged and zero velocity, so the client reconciles without drifting and the velocity it had
+        // stops replicating. A rooted character still turns to the input's yaw; a stunned one keeps its own. Field
+        // reads only.
+        if (!ControlGates.CanMove(ch))
+        {
+            Hold(connection, ch, packet);
+            return;
+        }
 
         // Resolve the per-instance navmesh navigator. IMapNavigator is not a global DI service —
         // each MapInstance owns its own (per-region) navigators. Look up via the instance registry.
@@ -89,6 +100,25 @@ public class PlayerInputHandler(
             newPosition.x, newPosition.y, newPosition.z,
             ch.Velocity.x, ch.Velocity.z,
             packet.YawDeg,
+            PacketEncoder.Shared));
+    }
+
+    /// <summary>A held character's input (#770): no step, no velocity, its yaw only if it may turn, the ack.</summary>
+    private static void Hold(IWorldConnection connection, ICharacter ch, CPlayerInputPacket packet)
+    {
+        bool turns = ControlGates.CanTurn(ch);
+        ch.Velocity = Vector3.zero;
+        if (turns)
+            ch.Orientation = new Vector3(0f, packet.YawDeg, 0f);
+
+        connection.LastInputSeq = packet.Seq;
+
+        Vector3 at = ch.Position;
+        connection.Send(SPlayerStateAckPacket.Create(
+            packet.Seq,
+            at.x, at.y, at.z,
+            0f, 0f,
+            turns ? packet.YawDeg : (ushort)ch.Orientation.y,
             PacketEncoder.Shared));
     }
 }

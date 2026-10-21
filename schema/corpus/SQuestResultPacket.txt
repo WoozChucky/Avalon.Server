@@ -26,16 +26,16 @@ variant empty
   bytes 0
 
 variant populated
-  field 1 Result : QuestResult = LogFull (5)
+  field 1 Result : QuestResult = NoConversation (9)
   field 2 QuestId : uint = 300
   bytes 5
-    08 05 10 ac 02
+    08 09 10 ac 02
 
 variant maxima
-  field 1 Result : QuestResult = Error (10)
+  field 1 Result : QuestResult = Stunned (11)
   field 2 QuestId : uint = 4294967295
   bytes 8
-    08 0a 10 ff ff ff ff 0f
+    08 0b 10 ff ff ff ff 0f
 
 variant minima
   field 1 Result : QuestResult = Unknown (0)
@@ -43,7 +43,7 @@ variant minima
   bytes 0
 
 variant varint-edges
-  field 1 Result : QuestResult = <not a declared member> (11)
+  field 1 Result : QuestResult = <not a declared member> (12)
   field 2 QuestId : uint = 127
   bytes 4
-    08 0b 10 7f
+    08 0c 10 7f

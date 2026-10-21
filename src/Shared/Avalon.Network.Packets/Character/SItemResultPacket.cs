@@ -48,6 +48,12 @@ public enum ItemRequestResult : byte
 
     /// <summary>A two-handed weapon and the off hand would both be held.</summary>
     Blocked = 12,
+
+    /// <summary>
+    /// The character is stunned (#770): it puts no gear on or takes none off, and touches no Bank slot, until the stun
+    /// ends. Moves within the Bag are still taken.
+    /// </summary>
+    Stunned = 13,
 }
 
 /// <summary>

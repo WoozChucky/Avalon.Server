@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 using Microsoft.Extensions.Logging;
 
@@ -27,6 +28,10 @@ internal static partial class CombatLog
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "RunInstant reject {Cost} ability={AbilityId} powerType={PowerType}")]
     public static partial void InstantCastRefused(ILogger logger, CostCheck cost, AbilityId abilityId, PowerType powerType);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Cast reject {Control} ability={AbilityId} caster={Caster}")]
+    public static partial void ControlledCastRefused(ILogger logger, CrowdControl control, AbilityId abilityId,
+        ObjectGuid caster);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "QueueAbility queued ability={AbilityId} caster={CharId} castTime={CastTime}s queueSize={Size}")]
     public static partial void CastQueued(ILogger logger, AbilityId abilityId, ObjectGuid charId, float castTime, int size);

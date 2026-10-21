@@ -37,10 +37,11 @@ public class VendorBuyHandler(
         VendorResult result;
         try
         {
-            // Alive first, so a dead character's request neither checks the leash nor ends the conversation.
-            if (character.IsDead)
+            // Alive and free first (#770), so a dead or stunned character's request neither checks the leash nor
+            // ends the conversation.
+            if (ShopAccess.Refusal(character) is { } refused)
             {
-                result = VendorResult.Dead;
+                result = refused;
             }
             else
             {

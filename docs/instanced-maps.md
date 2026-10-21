@@ -411,6 +411,7 @@ where characters stand (`not_near_portal`).
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]
 
 1.  Guards: not connection.InGame → ignored, no reply; a dead character → ignored, no reply
+    A stunned character (#770) → send Stunned, return
     Another move under way (connection.RespawnInFlight: a scroll return, an item teleport,
        a respawn, a party return, or an earlier portal entry that has not ended) → send
        MoveInProgress, return, before anything is looked up

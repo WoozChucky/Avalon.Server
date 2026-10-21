@@ -69,13 +69,18 @@ public class ItemMoveHandler(ILogger<ItemMoveHandler> logger, IWorld world, ICha
             return ItemRequestResult.InvalidSlot;
 
         bool touchesBank = from.Container == InventoryType.Bank || to.Container == InventoryType.Bank;
+        bool touchesGear = from.Container == InventoryType.Equipment || to.Container == InventoryType.Equipment;
+
+        // #770: a stunned character puts no gear on or off and acts on no open bank; a move within the Bag is taken.
+        if ((touchesBank || touchesGear) && !ControlGates.CanAct(character))
+            return ItemRequestResult.Stunned;
+
         bool bankAccessible = touchesBank && BankAccess.TryUse(connection, character, world);
 
         ItemRequestResult result = economy.InventoryOf(character).TryMove(from, to, count, bankAccessible);
 
         // An accepted equip or unequip ends the character's arrival protection (#1088), as one through item use does.
-        if (result == ItemRequestResult.Ok
-            && (from.Container == InventoryType.Equipment || to.Container == InventoryType.Equipment))
+        if (result == ItemRequestResult.Ok && touchesGear)
         {
             CharacterStatsRefresh.AfterGearChange(character, world.Data, logger);
             ArrivalProtection.End(character);

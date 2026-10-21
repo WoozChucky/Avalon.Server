@@ -36,6 +36,7 @@ variant populated
       field 5 RemainingMs : uint = 300
       field 6 DurationMs : uint = 4000000000
       field 7 Action : AuraUpdateAction = Removed (4)
+      field 8 Control : uint = 1000000
     element 1
       field 1 AuraId : uint = 65535
       field 2 InstanceKey : uint = 7
@@ -44,11 +45,13 @@ variant populated
       field 5 RemainingMs : uint = 4000000000
       field 6 DurationMs : uint = 1000000
       field 7 Action : AuraUpdateAction = Applied (1)
-  bytes 57
-    08 80 d0 ac f3 0e 12 17 08 07 10 c0 84 3d 18 07
-    20 ff ff 03 28 ac 02 30 80 d0 ac f3 0e 38 04 12
-    18 08 ff ff 03 10 07 18 c0 84 3d 20 07 28 80 d0
-    ac f3 0e 30 c0 84 3d 38 01
+      field 8 Control : uint = 4000000000
+  bytes 67
+    08 80 d0 ac f3 0e 12 1b 08 07 10 c0 84 3d 18 07
+    20 ff ff 03 28 ac 02 30 80 d0 ac f3 0e 38 04 40
+    c0 84 3d 12 1e 08 ff ff 03 10 07 18 c0 84 3d 20
+    07 28 80 d0 ac f3 0e 30 c0 84 3d 38 01 40 80 d0
+    ac f3 0e
 
 variant maxima
   field 1 UnitGuid : ulong = 18446744073709551615
@@ -61,6 +64,7 @@ variant maxima
       field 5 RemainingMs : uint = 4294967295
       field 6 DurationMs : uint = 4294967295
       field 7 Action : AuraUpdateAction = Removed (4)
+      field 8 Control : uint = 4294967295
     element 1
       field 1 AuraId : uint = 4294967295
       field 2 InstanceKey : uint = 4294967295
@@ -69,6 +73,7 @@ variant maxima
       field 5 RemainingMs : uint = 4294967295
       field 6 DurationMs : uint = 4294967295
       field 7 Action : AuraUpdateAction = Removed (4)
+      field 8 Control : uint = 4294967295
     element 2
       field 1 AuraId : uint = 4294967295
       field 2 InstanceKey : uint = 4294967295
@@ -77,17 +82,19 @@ variant maxima
       field 5 RemainingMs : uint = 4294967295
       field 6 DurationMs : uint = 4294967295
       field 7 Action : AuraUpdateAction = Removed (4)
-  bytes 146
-    08 ff ff ff ff ff ff ff ff ff 01 12 2b 08 ff ff
+      field 8 Control : uint = 4294967295
+  bytes 164
+    08 ff ff ff ff ff ff ff ff ff 01 12 31 08 ff ff
     ff ff 0f 10 ff ff ff ff 0f 18 ff ff ff ff ff ff
     ff ff ff 01 20 ff ff ff ff 0f 28 ff ff ff ff 0f
-    30 ff ff ff ff 0f 38 04 12 2b 08 ff ff ff ff 0f
-    10 ff ff ff ff 0f 18 ff ff ff ff ff ff ff ff ff
-    01 20 ff ff ff ff 0f 28 ff ff ff ff 0f 30 ff ff
-    ff ff 0f 38 04 12 2b 08 ff ff ff ff 0f 10 ff ff
-    ff ff 0f 18 ff ff ff ff ff ff ff ff ff 01 20 ff
-    ff ff ff 0f 28 ff ff ff ff 0f 30 ff ff ff ff 0f
-    38 04
+    30 ff ff ff ff 0f 38 04 40 ff ff ff ff 0f 12 31
+    08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 ff ff ff
+    ff ff ff ff ff ff 01 20 ff ff ff ff 0f 28 ff ff
+    ff ff 0f 30 ff ff ff ff 0f 38 04 40 ff ff ff ff
+    0f 12 31 08 ff ff ff ff 0f 10 ff ff ff ff 0f 18
+    ff ff ff ff ff ff ff ff ff 01 20 ff ff ff ff 0f
+    28 ff ff ff ff 0f 30 ff ff ff ff 0f 38 04 40 ff
+    ff ff ff 0f
 
 variant minima
   field 1 UnitGuid : ulong = 0
@@ -100,6 +107,7 @@ variant minima
       field 5 RemainingMs : uint = 0
       field 6 DurationMs : uint = 0
       field 7 Action : AuraUpdateAction = Unknown (0)
+      field 8 Control : uint = 0
   bytes 2
     12 00
 
@@ -114,6 +122,7 @@ variant varint-edges
       field 5 RemainingMs : uint = 268435456
       field 6 DurationMs : uint = 128
       field 7 Action : AuraUpdateAction = <not a declared member> (5)
+      field 8 Control : uint = 127
     element 1
       field 1 AuraId : uint = 127
       field 2 InstanceKey : uint = 268435455
@@ -122,8 +131,10 @@ variant varint-edges
       field 5 RemainingMs : uint = 2097151
       field 6 DurationMs : uint = 268435455
       field 7 Action : AuraUpdateAction = <not a declared member> (5)
-  bytes 64
-    08 ff ff 7f 12 1b 08 80 80 01 10 80 01 18 ff ff
+      field 8 Control : uint = 16384
+  bytes 70
+    08 ff ff 7f 12 1d 08 80 80 01 10 80 01 18 ff ff
     ff ff 7f 20 ff 7f 28 80 80 80 80 01 30 80 01 38
-    05 12 1d 08 7f 10 ff ff ff 7f 18 80 80 80 80 01
-    20 80 80 80 01 28 ff ff 7f 30 ff ff ff 7f 38 05
+    05 40 7f 12 21 08 7f 10 ff ff ff 7f 18 80 80 80
+    80 01 20 80 80 80 01 28 ff ff 7f 30 ff ff ff 7f
+    38 05 40 80 80 01

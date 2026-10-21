@@ -3,6 +3,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
+using Avalon.World.Auras;
 using Avalon.World.Dialogue;
 using Avalon.World.Doodads;
 using Avalon.World.Entities;
@@ -20,9 +21,9 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.World.Handlers;
 
 /// <summary>
-/// Opens a conversation with an NPC, or uses a doodad (by the target guid's type, through DoodadUseService). Every
-/// rejection is a silent drop: a client that asks to talk to a monster, a corpse, or something across the map gets no
-/// reply rather than an error packet.
+/// Opens a conversation with an NPC, or uses a doodad (by the target guid's type, through DoodadUseService), never for a
+/// stunned character (#770). Every rejection is a silent drop: a client that asks to talk to a monster, a corpse, or
+/// something across the map gets no reply rather than an error packet.
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_INTERACT)]
 public class InteractHandler(
@@ -50,6 +51,13 @@ public class InteractHandler(
         if (character is null || character.IsDead)
         {
             logger.LogDebug("Dropped CMSG_INTERACT from dead/missing char");
+            return;
+        }
+
+        // #770: a stunned character talks to no one and uses no doodad; a conversation already open stays open.
+        if (!ControlGates.CanAct(character))
+        {
+            logger.LogDebug("Dropped CMSG_INTERACT from stunned char");
             return;
         }
 

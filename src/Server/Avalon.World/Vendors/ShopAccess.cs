@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Avalon.Common;
+using Avalon.Network.Packets.Vendor;
+using Avalon.World.Auras;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -11,6 +13,13 @@ namespace Avalon.World.Vendors;
 /// <summary>When a character may use a shop (spec #432), mirroring BankAccess. Tick thread only.</summary>
 public static class ShopAccess
 {
+    /// <summary>
+    /// Asked of every vendor request first, before the shop: Dead for a dead character, Stunned for a stunned one
+    /// (#770), null for one that may trade. Either refusal leaves the leash unchecked and the conversation open.
+    /// </summary>
+    public static VendorResult? Refusal(CharacterEntity character) =>
+        character.IsDead ? VendorResult.Dead : ControlGates.CanAct(character) ? null : VendorResult.Stunned;
+
     /// <summary>
     /// The shop window is open: the conversation the shop was opened in is still the one open. No
     /// lookups, so the vendor pass asks it of every connection every tick.
@@ -24,7 +33,8 @@ public static class ShopAccess
     /// Checked on every vendor request. The shop is open, the instance keeps stock, and the vendor
     /// is still there, alive, still a vendor, and inside the dialogue leash. When the shop is open
     /// but any of the rest fails, the conversation is ended, as NpcInteraction.IsWithinLeash
-    /// requires of every handler acting on an open conversation. On success,
+    /// requires of every handler acting on an open conversation; a stunned character (#770) is refused
+    /// without ending it. On success,
     /// <paramref name="stock" /> is the vendor's live stock, reconciled with the current catalog.
     /// </summary>
     public static bool TryUse(
@@ -35,6 +45,10 @@ public static class ShopAccess
     {
         stock = null;
         if (!IsOpen(connection, character))
+            return false;
+
+        // #770: a stunned character trades nothing, and the conversation stays open; its handler answers Stunned first.
+        if (!ControlGates.CanAct(character))
             return false;
 
         ObjectGuid vendor = character.OpenShopNpc!;

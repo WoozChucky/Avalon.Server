@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
@@ -52,6 +53,10 @@ public class ItemDestroyHandler(ILogger<ItemDestroyHandler> logger, IWorld world
 
         if (!readable)
             return ItemRequestResult.InvalidSlot;
+
+        // #770: a stunned character takes no gear off, destroyed or not, and acts on no open bank; Bag items still go.
+        if ((slot.Container is InventoryType.Bank or InventoryType.Equipment) && !ControlGates.CanAct(character))
+            return ItemRequestResult.Stunned;
 
         bool bankAccessible = slot.Container == InventoryType.Bank && BankAccess.TryUse(connection, character, world);
 

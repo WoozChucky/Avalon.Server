@@ -37,9 +37,9 @@ variant populated
 variant maxima
   field 1 AbilityId : uint = 4294967295
   field 2 CooldownMs : uint = 4294967295
-  field 3 Reason : CastRejectReason = WrongPowerType (14)
+  field 3 Reason : CastRejectReason = Silenced (16)
   bytes 14
-    08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 0e
+    08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 10
 
 variant minima
   field 1 AbilityId : uint = 0
@@ -50,6 +50,6 @@ variant minima
 variant varint-edges
   field 1 AbilityId : uint = 268435456
   field 2 CooldownMs : uint = 128
-  field 3 Reason : CastRejectReason = <not a declared member> (15)
+  field 3 Reason : CastRejectReason = <not a declared member> (17)
   bytes 11
-    08 80 80 80 80 01 10 80 01 18 0f
+    08 80 80 80 80 01 10 80 01 18 11

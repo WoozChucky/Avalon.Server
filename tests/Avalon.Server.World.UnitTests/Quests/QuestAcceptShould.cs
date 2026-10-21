@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
 using Avalon.World.Entities;
@@ -64,16 +65,29 @@ public class QuestAcceptShould
         Assert.False(c.Character.Quests.IsActive(Hunt));
     }
 
-    [Fact]
-    public async Task Refuse_a_dead_character()
+    /// <summary>
+    /// A dead character is refused as having no conversation; a stunned one (#770) as stunned, and its conversation
+    /// stays open.
+    /// </summary>
+    [Theory]
+    [InlineData(QuestResult.NoConversation)]
+    [InlineData(QuestResult.Stunned)]
+    public async Task Refuse_a_dead_or_stunned_character(QuestResult refused)
     {
         QuestTestWorld w = await QuestTestWorld.CreateAsync();
         QuestClient c = w.Join();
         Creature giver = w.Place(Giver);
         w.Talk(c, giver);
-        c.Character.IsDead = true;
+        if (refused == QuestResult.Stunned)
+            c.Character.Auras.Add(Auras.AuraTestData.HeldControl(CrowdControl.Stun), DateTimeOffset.UnixEpoch);
+        else
+            c.Character.IsDead = true;
 
-        Assert.Equal(QuestResult.NoConversation, w.Quests.Accept(c.Connection, c.Character, Hunt, giver.Guid.RawValue));
+        Assert.Equal(refused, w.Quests.Accept(c.Connection, c.Character, Hunt, giver.Guid.RawValue));
+        Assert.Equal(refused, w.Quests.TurnIn(c.Connection, c.Character, Hunt, giver.Guid.RawValue));
+        Assert.False(c.Character.Quests.IsActive(Hunt));
+        if (refused == QuestResult.Stunned)
+            Assert.Equal(giver.Guid, c.Connection.CurrentDialogue?.Npc);
     }
 
     [Theory]

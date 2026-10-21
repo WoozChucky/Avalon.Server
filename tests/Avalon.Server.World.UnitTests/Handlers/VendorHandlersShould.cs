@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Vendors;
@@ -30,16 +31,22 @@ public class VendorHandlersShould : IAsyncLifetime
 
     private CharacterEntity Me => _w.Main.Character;
 
-    [Fact]
-    public void Answer_Dead_to_a_dead_character_without_ending_the_conversation()
+    /// <summary>A dead or stunned (#770) character trades nothing, and its shop stays open.</summary>
+    [Theory]
+    [InlineData(VendorResult.Dead)]
+    [InlineData(VendorResult.Stunned)]
+    public void Answer_Dead_or_Stunned_without_ending_the_conversation(VendorResult refused)
     {
         _w.OpenShop();
         Me.Container(InventoryType.Bag).Load([TestCharacters.Item(0, Tonic, count: 5)]);
-        Me.IsDead = true;
+        if (refused == VendorResult.Dead)
+            Me.IsDead = true;
+        else
+            Me.Auras.Add(Auras.AuraTestData.HeldControl(CrowdControl.Stun), DateTimeOffset.UnixEpoch);
 
-        Assert.Equal(VendorResult.Dead, _w.Buy(_w.Main, 1, TonicSequence));
-        Assert.Equal(VendorResult.Dead, _w.Sell(_w.Main, 2, 0));
-        Assert.Equal(VendorResult.Dead, _w.Buyback(_w.Main, 3, 0));
+        Assert.Equal(refused, _w.Buy(_w.Main, 1, TonicSequence));
+        Assert.Equal(refused, _w.Sell(_w.Main, 2, 0));
+        Assert.Equal(refused, _w.Buyback(_w.Main, 3, 0));
 
         Assert.Empty(_w.Main.Ends());
         Assert.True(ShopAccess.IsOpen(_w.Main.Connection, Me));

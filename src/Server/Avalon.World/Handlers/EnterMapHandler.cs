@@ -44,7 +44,8 @@ public partial class EnterMapHandler(
 {
     public override void Execute(IWorldConnection connection, CEnterMapPacket packet)
     {
-        // 1. Guards: the character must be in the game and alive, and no other move to a map may be under way.
+        // 1. Guards: the character must be in the game, alive and not stunned (#770), and no other move to a map may be
+        // under way.
         if (!connection.InGame)
         {
             return;
@@ -58,6 +59,14 @@ public partial class EnterMapHandler(
         }
 
         ICharacter character = connection.Character!;
+
+        // #770: a stunned character enters no portal.
+        if (!ControlGates.CanAct(character))
+        {
+            Log.Stunned(logger, character.Name);
+            Refuse(connection, MapTransitionResult.Stunned, Refusal.Stunned);
+            return;
+        }
 
         // Another move to a map is under way (a scroll return, an item teleport, a respawn or a party return): it
         // decides where the character goes, so a portal entry now is refused before anything is looked up or built.
@@ -174,6 +183,9 @@ public partial class EnterMapHandler(
 
         /// <summary>Another move, or an earlier portal entry, is under way (<c>MoveInProgress</c>).</summary>
         public const string MoveInProgress = "move_in_progress";
+
+        /// <summary>The character is stunned (<c>Stunned</c>, #770).</summary>
+        public const string Stunned = "stunned";
 
         /// <summary>No map has the id asked for (<c>MapNotFound</c>).</summary>
         public const string UnknownMap = "unknown_map";
@@ -653,6 +665,9 @@ public partial class EnterMapHandler(
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "EnterMap: {Name} is already moving to a map; refused")]
         public static partial void MoveInProgress(ILogger logger, string name);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "EnterMap: {Name} is stunned; refused")]
+        public static partial void Stunned(ILogger logger, string name);
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "EnterMap: target map {MapId} not found")]
         public static partial void MapNotFound(ILogger logger, ushort mapId);

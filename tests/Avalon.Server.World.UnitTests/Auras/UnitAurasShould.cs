@@ -32,8 +32,8 @@ public class UnitAurasShould
         Assert.Equal((1u, 2u), (bleed.Key, burn.Key));
         Assert.Equal(2, auras.Count);
         Assert.Equal(
-            [new AuraChange(new AuraId(901), 1, s_hunter.RawValue, 1, 12000, 12000, AuraChangeKind.Applied),
-             new AuraChange(new AuraId(902), 2, s_wizard.RawValue, 1, 8000, 9000, AuraChangeKind.Applied)],
+            [new AuraChange(new AuraId(901), 1, s_hunter.RawValue, 1, 12000, 12000, AuraChangeKind.Applied, 0u),
+             new AuraChange(new AuraId(902), 2, s_wizard.RawValue, 1, 8000, 9000, AuraChangeKind.Applied, 0u)],
             auras.Changes);
     }
 
@@ -63,7 +63,7 @@ public class UnitAurasShould
         Assert.False(auras.Remove(bleed, s_t0.AddSeconds(2)));
 
         Assert.False(auras.Contains(bleed));
-        Assert.Equal(new AuraChange(new AuraId(901), 1, s_hunter.RawValue, 1, 0, 12000, AuraChangeKind.Removed),
+        Assert.Equal(new AuraChange(new AuraId(901), 1, s_hunter.RawValue, 1, 0, 12000, AuraChangeKind.Removed, 0u),
             Assert.Single(auras.Changes));
     }
 

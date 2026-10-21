@@ -192,7 +192,8 @@ public sealed class UnitAuras(Action? changed = null)
             RecomputeControl();
 
         uint remaining = kind == AuraChangeKind.Removed ? 0u : RemainingMs(aura, now);
-        _changes.Add(new AuraChange(aura.Id, aura.Key, aura.CasterGuid.RawValue, aura.Stacks, remaining, aura.DurationMs, kind));
+        _changes.Add(new AuraChange(aura.Id, aura.Key, aura.CasterGuid.RawValue, aura.Stacks, remaining,
+            aura.DurationMs, kind, aura.WireControl));
         _totals = null;
         _roster?.Noted(this);
         changed?.Invoke();

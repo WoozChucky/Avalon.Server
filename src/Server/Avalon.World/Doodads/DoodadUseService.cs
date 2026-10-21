@@ -12,12 +12,12 @@ namespace Avalon.World.Doodads;
 
 /// <summary>
 /// One CMSG_INTERACT on a doodad, on the tick (InteractHandler dispatches by the target guid's type), and the end of the
-/// cast bar it may start. The checks (<see cref="Check" />), in order: the user is dead; the doodad is not here or is
-/// despawned; it is scenery; it is out of the template's range (a position that is not a number is out of it); the user
-/// may not see it (its gate and its script's CanSee, asked afresh); its usability gate refuses the user; a once-per-
-/// instance doodad is not ready; the user is casting an ability; its script's CanUse refuses. Every refusal is a silent
-/// drop, a Debug line, and allocates nothing. A use that passed them ends the user's item cast, doodad cast and arrival
-/// protection, then completes at once (no interaction time) or starts a cast bar on the container's clock
+/// cast bar it may start. The checks (<see cref="Check" />), in order: the user is dead; it is stunned (#770); the doodad
+/// is not here or is despawned; it is scenery; it is out of the template's range (a position that is not a number is out
+/// of it); the user may not see it (its gate and its script's CanSee, asked afresh); its usability gate refuses the user;
+/// a once-per-instance doodad is not ready; the user is casting an ability; its script's CanUse refuses. Every refusal
+/// is a silent drop, a Debug line, and allocates nothing. A use that passed them ends the user's item cast, doodad cast
+/// and arrival protection, then completes at once (no interaction time) or starts a cast bar on the container's clock
 /// (<see cref="DoodadCasts" />), whose end runs the checks again, the ability cast aside, so the second of two casts
 /// on a spent doodad ends refused.
 /// Completion runs the script's OnUse, then the framework's part: the quest credit, spending a once-per-instance doodad
@@ -153,6 +153,9 @@ public sealed partial class DoodadUseService(
     {
         if (character.IsDead)
             return DoodadUseRefusal.Dead;
+
+        if (!ControlGates.CanAct(character))
+            return DoodadUseRefusal.Stunned;
 
         if (doodad.State == DoodadState.Despawned
             || !host.Doodads.TryGet(doodad.Guid, out Doodad? here) || !ReferenceEquals(here, doodad))

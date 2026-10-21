@@ -324,6 +324,7 @@ public class EnterMapHandlerShould
     [Theory]
     [InlineData("dead")]
     [InlineData("move_in_progress")]
+    [InlineData("stunned")]
     [InlineData("unknown_map")]
     [InlineData("no_instance")]
     [InlineData("no_portal")]
@@ -354,6 +355,9 @@ public class EnterMapHandlerShould
                 break;
             case "move_in_progress":
                 entry.Connection.RespawnInFlight = true;
+                break;
+            case "stunned":
+                entry.Character.Auras.Add(AuraTestData.HeldControl(CrowdControl.Stun), DateTimeOffset.UnixEpoch);
                 break;
             case "unknown_map":
                 map = 99;
@@ -412,6 +416,8 @@ public class EnterMapHandlerShould
 
         Assert.Equal(reason is null ? [] : [reason], counted.Reasons);
         Assert.Equal(reason is null, entry.Results().Contains(MapTransitionResult.Success));
+        if (reason == "stunned")
+            Assert.Equal([MapTransitionResult.Stunned], entry.Results());
     }
 
     /// <summary>

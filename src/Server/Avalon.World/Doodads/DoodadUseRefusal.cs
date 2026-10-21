@@ -9,6 +9,9 @@ public enum DoodadUseRefusal : byte
     /// <summary>The user is dead.</summary>
     Dead,
 
+    /// <summary>The user is stunned (#770).</summary>
+    Stunned,
+
     /// <summary>No doodad here has the guid, or it is despawned.</summary>
     NotFound,
 

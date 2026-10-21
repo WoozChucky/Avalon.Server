@@ -15,7 +15,8 @@ public class AuraWireShould
 
     /// <summary>
     /// An entry one packet left with every member set (an update's action, say) says only what a new one would when the
-    /// next packet, a list or an update, is written from it; a member a writer does not set fails here.
+    /// next packet, a list or an update, is written from it; a member a writer does not set fails here. Each entry
+    /// carries its aura's crowd control (#770), a slow's derived bit included, in both.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -25,6 +26,11 @@ public class AuraWireShould
         var auras = new UnitAuras();
         auras.Add(Aura(AuraTestData.Bleed(), new ObjectGuid(ObjectType.Character, 7)), s_t0);
         auras.Add(Aura(AuraTestData.Burn(), new ObjectGuid(ObjectType.Character, 8)), s_t0.AddSeconds(1));
+        auras.Add(Aura(AuraTestData.Crippled(), new ObjectGuid(ObjectType.Character, 8)), s_t0.AddSeconds(1));
+        auras.Add(AuraTestData.HeldControl(CrowdControl.Root | CrowdControl.Silence), s_t0.AddSeconds(1));
+        uint[] control = [0u, 0u, 8u, 2u | 4u];
+        Assert.Equal(control, new AuraWire().List(auras, s_t0).Select(e => e.Control));
+        Assert.Equal(control, new AuraWire().Updates(auras.Changes).Select(e => e.Control));
         var reused = new AuraWire();
         foreach (AuraEntryDto entry in listAfterUpdate ? reused.Updates(auras.Changes) : reused.List(auras, s_t0))
             FillEveryMember(entry);

@@ -28,4 +28,8 @@ public enum QuestResult
     /// turn-in's reward item can no longer be paid (a data fault, logged; the turn-in changed nothing).
     /// </summary>
     Error = 10,
+    /// <summary>
+    /// The character is stunned (#770): it accepts and turns in nothing until the stun ends. The conversation stays open.
+    /// </summary>
+    Stunned = 11,
 }

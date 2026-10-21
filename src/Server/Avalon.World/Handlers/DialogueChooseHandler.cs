@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
+using Avalon.World.Auras;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
@@ -55,6 +56,13 @@ public class DialogueChooseHandler(
         if (character is null || character.IsDead)
         {
             logger.LogDebug("Dropped CMSG_DIALOGUE_CHOOSE from dead/missing char");
+            return;
+        }
+
+        // #770: a stunned character chooses nothing, and the conversation stays where it was.
+        if (!ControlGates.CanAct(character))
+        {
+            logger.LogDebug("Dropped CMSG_DIALOGUE_CHOOSE from stunned char");
             return;
         }
 

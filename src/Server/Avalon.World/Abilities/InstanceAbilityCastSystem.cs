@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Domain.World;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Auras;
@@ -30,7 +31,8 @@ public interface IAbilityCastSystem
     /// cast time has run out. Any unit may cast (#163); a creature's casts cost nothing.
     /// A <paramref name="free" /> cast (an item's, item use) neither checks nor pays the cost. A cast taken ends its
     /// caster's arrival protection (#1088); a refused one does not. One <paramref name="forItem" /> was started by an
-    /// item (item use) and is marked so (<see cref="AbilityInstance.ForItem" />): a silence spares it (#770).
+    /// item (item use) and is marked so (<see cref="AbilityInstance.ForItem" />): a silence spares it (#770). False too
+    /// for a stunned caster, and a silenced one unless the cast is its basic attack or an item's (#770).
     /// </summary>
     bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, bool forItem = false);
 
@@ -42,9 +44,11 @@ public interface IAbilityCastSystem
     /// A <paramref name="free" /> cast (an item's, item use) neither checks nor pays the cost. A cast taken ends its
     /// caster's arrival protection before it fires (#1088).
     /// <paramref name="view" /> is how far its hits are rewound (#1082): a player's cast through the instance's
-    /// <c>IPlayerCastHost</c>; the default, none, for every other.
+    /// <c>IPlayerCastHost</c>; the default, none, for every other. Refused under crowd control as a queued cast is, a
+    /// <paramref name="forItem" /> cast (an item's, item use) spared by a silence (#770).
     /// </summary>
-    bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, CastView view = default);
+    bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, CastView view = default,
+        bool forItem = false);
 
     /// <summary>
     /// One tick: the dodge wait's hits that are due land, or are dodged (#1082), then the queued casts run down, fire or
@@ -139,6 +143,9 @@ public class InstanceAbilityCastSystem(
 
     public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, bool forItem = false)
     {
+        if (RefusedForControl(caster, ability, forItem))
+            return false;
+
         bool pays = !free && !IsFree(caster);
         if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
         {
@@ -190,8 +197,12 @@ public class InstanceAbilityCastSystem(
         return true;
     }
 
-    public bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, CastView view = default)
+    public bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, CastView view = default,
+        bool forItem = false)
     {
+        if (RefusedForControl(caster, ability, forItem))
+            return false;
+
         bool pays = !free && !IsFree(caster);
         if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
         {
@@ -607,6 +618,25 @@ public class InstanceAbilityCastSystem(
 
     /// <summary>Creatures and staff characters in god mode do not pay ability costs.</summary>
     private static bool IsFree(IUnit caster) => caster is ICreature or CharacterEntity { GodMode: true };
+
+    /// <summary>
+    /// #770, the choke point every cast passes, whoever sends it: a stunned caster casts nothing, an item's cast included;
+    /// a silenced one only its basic attack (<see cref="ControlGates.IsBasic" />) or a cast an item started
+    /// (<paramref name="forItem" />, an item use). The handlers and creature AI refuse these first; a cast refused here
+    /// spends and starts nothing. One cached field read for a caster under no crowd control.
+    /// </summary>
+    private bool RefusedForControl(IUnit caster, IAbility ability, bool forItem)
+    {
+        CrowdControl control = ControlGates.Of(caster);
+        if (control == CrowdControl.None)
+            return false;
+
+        bool refused = (control & CrowdControl.Stun) != 0
+            || (control & CrowdControl.Silence) != 0 && !forItem && !ControlGates.IsBasic(caster, ability);
+        if (refused)
+            CombatLog.ControlledCastRefused(_logger, control, ability.AbilityId, caster.Guid);
+        return refused;
+    }
 
     /// <summary>A character is dead by its flag, a creature at 0 health.</summary>
     private static bool IsDead(IUnit caster) => caster switch
