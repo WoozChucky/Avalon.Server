@@ -184,6 +184,10 @@ public class CreaturePatrolScript : AiScript, IReturningHome
                 Context.Locomotion.Stop(Creature);
                 _hasRequestedCurrentWaypoint = false;
             }
+            else if (Creature.MoveState != MoveState.Idle)
+            {
+                Creature.MoveState = MoveState.Idle;
+            }
 
             return;
         }

@@ -33,11 +33,11 @@ namespace Avalon.World.Scripts.Creatures;
 /// or the cast system drops it because the creature died or turned for home), so the cast is never
 /// interrupted by its own steps and a player can step out of it.
 /// <para>
-/// Crowd control (#770), read each tick from the cache the creature's auras keep (<see cref="ControlGates" />): stunned,
-/// it stands as for a wind-up, neither turning nor attacking; rooted, it asks for no step but turns and attacks what
-/// is in reach; silenced, it casts its basic alone. Neither stun nor root counts toward giving up on a target it cannot
-/// reach; the leash and the walk home are unchanged. A slow needs nothing here: it lowers the speed the locomotion
-/// moves the creature at.
+/// Crowd control (#770), read each tick from the cache the creature's auras keep (<see cref="ControlGates" />):
+/// stunned, it stands as for a wind-up, neither turning nor attacking; rooted, it asks for no step but turns and
+/// attacks what is in reach; silenced, it casts its basic alone. Neither stun nor root counts toward giving up on a
+/// target it cannot reach; the leash and the walk home are unchanged. A slow needs nothing here: it lowers the speed
+/// the locomotion moves the creature at.
 /// </para>
 /// </remarks>
 public class CreatureCombatScript : AiScript, IReturningHome
@@ -632,13 +632,19 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
     /// <summary>
     /// Stops a walk the locomotion is still on, for a stunned or rooted creature (#770): it asks for no step, and one
-    /// already given would otherwise run on. Once: a stopped creature has arrived, so the ticks after ask nothing.
+    /// already given would otherwise run on. Once: a stopped creature has arrived, so the ticks after ask nothing. One
+    /// that had arrived still claiming to run (a route that failed after KeepStation wrote Running) is set Idle, so
+    /// it is not seen running in place.
     /// </summary>
     private void HoldStill()
     {
         if (!Context.Locomotion.HasArrived(Creature))
         {
             Context.Locomotion.Stop(Creature);
+        }
+        else if (Creature.MoveState != MoveState.Idle)
+        {
+            Creature.MoveState = MoveState.Idle;
         }
     }
 
@@ -851,7 +857,9 @@ public class CreatureCombatScript : AiScript, IReturningHome
     /// </param>
     protected virtual IAbility? ChooseAbility(IUnit target, float distance) => ReadyBasic(distance);
 
-    /// <summary>The creature's basic when it is ready and a target <paramref name="distance" /> away is in its reach.</summary>
+    /// <summary>
+    /// The creature's basic when it is ready and a target <paramref name="distance" /> away is in its reach.
+    /// </summary>
     private IAbility? ReadyBasic(float distance) =>
         _abilities.Basic is { } basic && CreatureAbilities.IsReady(basic) && InReach(basic, distance) ? basic : null;
 
@@ -890,8 +898,9 @@ public class CreatureCombatScript : AiScript, IReturningHome
     /// </summary>
     /// <param name="facing">Whether the creature already turned to the target this tick.</param>
     /// <param name="silenced">
-    /// Whether the creature is silenced (#770): its basic alone, ready and in reach, and <see cref="ChooseAbility" /> is
-    /// not asked, since a rotation that puts a ready special ahead of the basic would leave it attacking nothing.
+    /// Whether the creature is silenced (#770): its basic alone, ready and in reach, and
+    /// <see cref="ChooseAbility" /> is not asked, since a rotation that puts a ready special ahead of the basic would
+    /// leave it attacking nothing.
     /// </param>
     private bool TryAttack(IUnit target, Vector3 currentPosition, Vector3 targetPosition, bool facing, bool silenced)
     {

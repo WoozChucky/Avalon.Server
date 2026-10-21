@@ -3,8 +3,10 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.Server.World.UnitTests.Auras;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World.Creatures;
+using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
@@ -317,7 +319,7 @@ public class CreatureAbilityAiShould
     {
         IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.FindPath(default, default).ReturnsForAnyArgs(ci => new List<Vector3> { ci.ArgAt<Vector3>(1) });
-        var locomotion = new Avalon.World.Creatures.Locomotion.WaypointLocomotion(_ => navigator);
+        var locomotion = new WaypointLocomotion(_ => navigator);
         CreatureTemplate template = Loot.LootTestData.BoarTemplate(null);
         template.SpeedRun = 4f;
         var creature = new Creature
@@ -343,14 +345,15 @@ public class CreatureAbilityAiShould
         locomotion.Register(creature, radius: 0.5f);
         var script = new KitCombatScript(creature, context, catalog: TestKit.Catalog(Special()),
             kit: new CreatureAbilityKit(TestKit.BasicId, s_specialId));
-        script.Rotation = (_, distance) => script.ReadyFor(s_specialId, distance) ?? script.ReadyFor(TestKit.BasicId, distance);
+        script.Rotation = (_, distance) =>
+            script.ReadyFor(s_specialId, distance) ?? script.ReadyFor(TestKit.BasicId, distance);
         script.OnEnteredRange(target);
 
         Run(0.5);   // on its way
         Vector3 at = creature.Position;
         Assert.NotEqual(Vector3.zero, at);
         if (control != CrowdControl.None)
-            creature.Auras.Add(Controlling(control), DateTimeOffset.UnixEpoch);
+            creature.Auras.Add(AuraTestData.HeldControl(control), DateTimeOffset.UnixEpoch);
         Vector3 facing = creature.Orientation;
         target.Position.Returns(at + new Vector3(12f, 0f, 0f));   // out of reach
         Run(5.5);
@@ -390,26 +393,6 @@ public class CreatureAbilityAiShould
                 locomotion.Update(TimeSpan.FromSeconds(0.1));
             }
         }
-    }
-
-    /// <summary>A held aura granting <paramref name="control" />, for the whole test.</summary>
-    private static Avalon.World.Auras.ActiveAura Controlling(CrowdControl control)
-    {
-        var template = new AuraTemplate
-        {
-            Id = new AuraId(770),
-            Name = "Controlled",
-            Icon = "controlled",
-            Kind = AuraKind.Harmful,
-            DurationMs = 60_000,
-            Stacking = AuraStacking.Refresh,
-            MaxStacks = 1,
-            Control = control,
-        };
-        return new Avalon.World.Auras.ActiveAura(template, new ObjectGuid(ObjectType.Character, 770_2),
-            Avalon.World.Auras.AuraSource.None, 1, new Avalon.Combat.AuraSnapshot(0f, 0f, 1),
-            Avalon.Combat.AuraSchedule.Start(DateTimeOffset.UnixEpoch, template.DurationMs, template.TickIntervalMs),
-            template.DurationMs, DateTime.UnixEpoch);
     }
 
     // ── the chained scripts ──

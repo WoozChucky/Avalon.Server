@@ -1,6 +1,10 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
+using Avalon.Server.World.UnitTests.Auras;
+using Avalon.World.Auras;
+using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
@@ -46,6 +50,41 @@ public class CreaturePatrolScriptShould
         script.Update(TimeSpan.FromSeconds(0.1));
 
         locomotion.Received(1).MoveTo(creature, new Vector3(10f, 0f, 0f));
+    }
+
+    /// <summary>
+    /// #770: a creature rooted mid-leg stops there and, once free, asks for the same point again. The stop leaves
+    /// locomotion with nothing to walk, which must not count as reaching the point and skip it.
+    /// </summary>
+    [Fact]
+    public void Ask_Again_For_The_Point_A_Root_Stopped_It_Short_Of()
+    {
+        ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
+        // Nothing requested yet, then mid-leg, then stopped for good.
+        locomotion.HasArrived(Arg.Any<ICreature>()).Returns(true, false, true);
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 770_3),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            PatrolPath = [Point(10f), Point(20f)],
+            Health = 100,
+            CurrentHealth = 100,
+        };
+        ISimulationContext context = Substitute.For<ISimulationContext>();
+        context.Locomotion.Returns(locomotion);
+        var script = new KitPatrolScript(creature, context);
+        ActiveAura root = AuraTestData.HeldControl(CrowdControl.Root);
+
+        script.Update(TimeSpan.FromSeconds(0.1));   // requests the first point
+        creature.Auras.Add(root, DateTimeOffset.UnixEpoch);
+        script.Update(TimeSpan.FromSeconds(0.1));   // rooted mid-leg: stops
+        script.Update(TimeSpan.FromSeconds(0.1));   // still rooted: asks for nothing
+        creature.Auras.Remove(root, DateTimeOffset.UnixEpoch);
+        script.Update(TimeSpan.FromSeconds(0.1));   // free: the same point again
+
+        locomotion.Received(1).Stop(creature);
+        locomotion.Received(2).MoveTo(creature, new Vector3(10f, 0f, 0f));
+        locomotion.DidNotReceive().MoveTo(creature, new Vector3(20f, 0f, 0f));
     }
 
     /// <summary>
