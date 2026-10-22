@@ -4400,11 +4400,14 @@ quarter of its health, the revive broadcast). So each forest keeps three fighter
 
 **What one run does.** Every run, on every machine, fights the same fight (the layouts, placement, combat and loot
 rolls and the fighters' turns are seeded, item instance ids are handed out in order, and every timer reads the world's
-clock). Since #1113 the run's 4,200 ticks on its seeds 33, 46, 56 and 36 give 129 creatures killed (112 in the
-measured minute), 4 deaths (all 4 in the minute), 21 heals cast and landed (18), 36 quest accepts, 84 kill credits (75)
-and 24 completions (all 24 in the minute), 232 drops picked up (202), 118 bag slots destroyed (93) and no drop given
-up; 19, 34, 36 and 40 kills in the four forests, and all three members of three parties reach level 2 in the measured
-minute (at ticks 2,772, 3,332 and 3,427 of its 3,600). #1113 stopped a seed whose first layout attempt fails from
+clock). Since #1162, whose player projectiles fly at half their speed, the run's 4,200 ticks on its seeds 33, 46, 56
+and 36 give 116 creatures killed, 4 deaths, 23 heals cast and landed, 36 quest accepts, 77 kill credits and 24
+completions, 220 drops picked up, 118 bag slots destroyed and 1 drop given up (the measured minute's shares, the kills
+in each forest and the level-ups not recounted). From #1113 they gave 129 creatures killed (112 in the measured
+minute), 4 deaths (all 4 in the minute), 21 heals cast and landed (18), 36 quest accepts, 84 kill credits (75) and 24
+completions (all 24 in the minute), 232 drops picked up (202), 118 bag slots destroyed (93) and no drop given up; 19,
+34, 36 and 40 kills in the four forests, and all three members of three parties reached level 2 in the measured minute
+(at ticks 2,772, 3,332 and 3,427 of its 3,600). #1113 stopped a seed whose first layout attempt fails from
 retrying on the next seed's first attempt, which had given such a seed the next one's forest; the seeds that retry,
 15 and 46 among the four, got forests of their own (46's has 226 creatures, from 231). On 33, 46, 15 and 36 that gave
 111 killed (95 in the minute), 5 deaths, 17 heals (14), 27 accepts, 54 credits (45), 15 completions (15), 194 pickups

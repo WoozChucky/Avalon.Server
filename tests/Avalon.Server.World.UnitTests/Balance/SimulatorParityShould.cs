@@ -43,7 +43,10 @@ public class SimulatorParityShould
     private static readonly Lazy<BalanceData> s_seededData = new(() => BalanceData.From(SeedSource.Load()));
     private static BalanceData Data => s_seededData.Value;
 
-    /// <summary>Close enough to the warrior (at the origin) that Hurled Axe's first step, 18 m/s for one tick, reaches it.</summary>
+    /// <summary>
+    /// Close enough to the warrior (at the origin) that Hurled Axe hits on its first step whatever its speed (9 m/s, 0.15 m
+    /// a tick): the boar's 0.5 m body reaches the warrior's centre, where the axe starts.
+    /// </summary>
     private static readonly Vector3 s_pointBlank = new(0f, 0f, 0.5f);
 
     private static byte SlotOf(ItemTemplate item) =>
