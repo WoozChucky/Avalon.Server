@@ -62,14 +62,14 @@ player it is sent to: "this player" is the recipient, "the other player" the par
 | 2 | `NotFound` | The requested player is not online in this player's map instance; also an accept whose requester has left it. |
 | 3 | `Self` | A player cannot trade with themselves. |
 | 4 | `TooFar` | The other player is beyond 5 m for a request, or beyond 6 m for an accept. |
-| 5 | `TargetBusy` | The other player is already trading or holds an open request (sent or received); also an accept while the requester has a shop or the bank open. |
+| 5 | `TargetBusy` | The other player is already trading or holds an open request (sent or received). |
 | 6 | `Busy` | This player is already trading or holds an open request. |
 | 7 | `InCombat` | This player is in combat. |
 | 8 | `TargetInCombat` | The other player is in combat. |
 | 9 | `Dead` | This player is dead. |
 | 10 | `TargetDead` | The other player is dead. |
 | 11 | `NpcWindowOpen` | This player has a shop or the bank open. |
-| 12 | `TooFast` | Too many trade requests too quickly: `Game:TradeRequestsPerMinute` (30) in any 60 s. Nothing was looked up or sent. |
+| 12 | `TooFast` | Too many trade requests too quickly: `Game:TradeRequestsPerMinute` (30) in any 60 s. Nothing was sent to the target. |
 | 13 | `NoRequest` | An accept or decline with no open request to answer (it expired, was withdrawn, or never reached this player). |
 | 14 | `Declined` | The other player declined this player's request (unasked). |
 | 15 | `Expired` | A request ended unanswered: it ran out (30 s), or either player went offline or changed instance (unasked). |
@@ -98,6 +98,7 @@ player it is sent to: "this player" is the recipient, "the other player" the par
 | 38 | `OfferInvalid` | An offered item is no longer where it was offered or no longer tradeable, or a giver lacks the gold offered. |
 | 39 | `SaveFailed` | The trade's save was refused or failed: nothing moved (on `SMSG_TRADE_CLOSED`). |
 | 40 | `Error` | The server failed while handling the request; nothing is known to have changed. Also a trade whose save could not even start (on `SMSG_TRADE_CLOSED`). |
+| 41 | `TargetNpcWindowOpen` | An accept while the requester has a shop or the bank open: the request stays open until it closes. |
 
 `Name` on an answer: the requested player's name on the answer to `CMSG_TRADE_REQUEST` whenever that player is online
 (whatever the result); none on the answers to the other requests. On an unasked result it names the other player (see
@@ -114,8 +115,7 @@ below).
 **A request to a player who ignores you** (the ignore list, [party protocol](party-protocol.md) section 5) is answered
 `Ok` like any other, but the target is never sent `SMSG_TRADE_REQUEST` and cannot accept it. It stays open for the
 sender (a second request is `Busy`) and ends with `Expired` to the sender only, when it runs out, or when the target
-goes offline or changes instance. The refusals before it
-are checked first, exactly as for anyone.
+goes offline or changes instance. The refusals before it are checked first, exactly as for anyone.
 
 ## 3. State
 
@@ -154,7 +154,8 @@ B <- SMSG_TRADE_RESULT  { Ok }
   neither trading nor holding another request, and the target within 5 m. A refused one is answered with the reason,
   and nothing reaches the target.
 - An accept needs the same, with the two within 6 m. A refused accept is answered with the reason, from the accepter's
-  side, and **leaves the request open** until it expires, so the player can step closer, close a shop, and accept again.
+  side (the requester's shop or bank window is `TargetNpcWindowOpen`), and **leaves the request open** until it
+  expires, so the player can step closer, close a shop, and accept again.
 - A decline: `SMSG_TRADE_RESULT { Ok }` to the target, `{ Declined, Name = B }` to the sender.
 - Unanswered for 30 s: `{ Expired }` to both, each naming the other.
 
@@ -186,8 +187,9 @@ followed by `{ StaleOffer }`. Confirming again when already confirmed is `Ok` an
 ### 4.4 A completion that fails
 
 The second confirm is first shown to both as a state with both `Confirmed` set. Then the server checks the two
-players (online, alive, out of combat, no shop or bank open, within 6 m) and then the offers. A failed player check closes the trade (4.6) with that reason (`Left`, `Died`,
-`EnteredCombat`, `NpcWindowOpened`, `OutOfRange`). A failed offer check keeps the window open:
+players (online, alive, out of combat, no shop or bank open, within 6 m) and then the offers. A failed player check
+closes the trade (4.6) with that reason (`Left`, `Died`, `EnteredCombat`, `NpcWindowOpened`, `OutOfRange`). A failed
+offer check keeps the window open:
 
 ```
 B -> CMSG_TRADE_CONFIRM { Revision = 2 }
@@ -202,6 +204,11 @@ B <- SMSG_TRADE_RESULT { Ok }                        // the answer to B's confir
 
 Nothing moved; both confirmations are cleared and the revision has moved on, so the players fix the offer (free Bag
 space, a lower gold amount, a different item) and confirm again.
+
+The confirm itself is answered `Ok` whatever followed it: `Ok` means the confirm was taken, never that the trade
+completed. When a player check closes the trade, the second confirmer gets `SMSG_TRADE_CLOSED { reason }` and then
+`SMSG_TRADE_RESULT { Ok }`; likewise after `SMSG_TRADE_CLOSED { Error }` from a save that could not start. Only
+`SMSG_TRADE_CLOSED { Ok }` reports a completed trade.
 
 ### 4.5 Completing
 
