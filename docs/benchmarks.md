@@ -3913,7 +3913,8 @@ with the committed figure, in every build (Debug and Release, see below) and for
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
   `forest-combat` is the largest figure (13,649 B per window since #1165, which keeps a creature and a pair in one
-  encounter; 14,349 B from #1162, whose player projectiles fly at half their
+  encounter; 14,323 B from #1164, whose dodgeable hostile abilities changed the fight, measured at #1165 and never
+  committed; 14,349 B from #1162, whose player projectiles fly at half their
   speed, so the fight is smaller; 14,742 B from #711, whose quest accept, in the handler and in the
   fighters that stand for it, hands its state to a static lambda instead of making a closure; 14,799 B from #1157,
   whose projectile start, fired and impact broadcasts write into reusable DTOs; 15,582 B since #1113,
@@ -4475,12 +4476,15 @@ pickups in the minute). `ForestCombatScenarioShould` runs the scenario twice in 
 outcome (every count above) and the same bytes per window, and kills and deaths in it; the second run's creatures
 carry higher ids (the process-wide object id counter), which changes neither.
 
-**Gate.** Committed at **13,649 B per window** (19.0 B per player per tick, 227 B per tick) since #1165, 700 B under the
-14,349 B before it: a creature is no longer added to its attacker's first encounter when the pair already shares a later
-one (the fight never reaches the merge cap; this is the shared-pair rule below it), so no second threat list is built
-for it, and its threat stays in one place, which changes whom some creatures turn on (over the run 120 kills against
-116, 3 deaths against 4, 23 heals as before, 72 kill credits against 77, 21 completions against 24, 222 pickups
-against 220, 117 slots destroyed against 118 and 1 drop given up as before). Debug reads the same. Before it, committed
+**Gate.** Committed at **13,649 B per window** (19.0 B per player per tick, 227 B per tick) since #1165, 674 B under the
+14,323 B its base measured: a creature is no longer added to its attacker's first encounter when the pair already shares a
+later one (the fight never reaches the merge cap; this is the shared-pair rule below it), so the fight builds fewer
+threat lists, and with each creature's threat in one place some creatures turn on someone else, which makes the fight
+slightly smaller (over the run 120 kills against 125, 3 deaths against 2, 23 heals against 19, 72 kill credits against
+69, 21 completions as before, 222 pickups against 235, 117 slots destroyed against 124 and 1 drop given up against
+none). Debug reads the same. The base is #1164's fight: #1164, which lets every hostile ability be dodged, changed the
+fight to those counts and 14,323 B without regenerating the file, so the committed 14,349 B and the counts below were
+#1162's, stale from #1164 to #1165. Before it, committed
 at 14,349 B (19.9 B per player per tick, 239 B per tick) since #1162, 393 B under the
 14,742 B before it: every player projectile flies at half its speed, so a shot takes twice as long to land and the
 fight is smaller (over the run 116 kills against 129, 4 deaths as before, 23 heals against 21, 77 kill credits against
@@ -4596,6 +4600,7 @@ summary.
 | Projectile broadcasts into reusable DTOs, projectile impacts sent (#1157, PGO on) | 14,799 |
 | The quest accept without a closure (#711, PGO on) | 14,742 |
 | Player projectiles at half speed, a smaller fight (#1162, PGO on) | 14,349 |
+| Every hostile ability dodgeable (#1164, PGO on), measured at #1165, not committed | 14,323 |
 | A creature and a pair kept in one encounter (#1165, PGO on), now | 13,649 |
 | Debug, now | 13,649 |
 
@@ -4607,7 +4612,7 @@ fighters cost about as much per tick as `town-walk`'s 30 walkers (measured befor
 since #1109 the scenario's mean tick is 0.045 ms, see "The forest since #1109"): most creatures are far from any
 player, and an idle creature's AI looks for players once a second rather than every tick. The minute allocated 0.62 MB
 on the tick thread before #972, about 0.86 MB from #972, about 1.36 MB from #1109's tree walls and seed 33, and about
-0.93 MB from #1113, about 0.88 MB from #1157 and #711, about 0.86 MB from #1162, and about 0.82 MB since #1165 (13,649 B per window over the
+0.93 MB from #1113, about 0.88 MB from #1157 and #711, about 0.86 MB from #1162 and #1164, and about 0.82 MB since #1165 (13,649 B per window over the
 minute's 60 windows).
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool

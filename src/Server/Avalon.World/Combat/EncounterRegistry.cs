@@ -1,4 +1,5 @@
 using Avalon.World.Public.Combat;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Combat;
@@ -35,7 +36,7 @@ public sealed class EncounterRegistry : IEncounterRegistry
         return null;
     }
 
-    /// <summary>The first active encounter holding both units, on either side: an encounter the pair already shares (#1165).</summary>
+    /// <summary>The first active encounter holding both units, each on its own side: an encounter the pair already shares (#1165).</summary>
     internal Encounter? FindEncounterContainingBoth(IUnit first, IUnit second)
     {
         foreach (Encounter enc in _active)
@@ -57,7 +58,13 @@ public sealed class EncounterRegistry : IEncounterRegistry
         return null;
     }
 
-    private static bool Holds(Encounter enc, IUnit unit) => enc.Hostiles.Contains(unit) || enc.Players.Contains(unit);
+    /// <summary>
+    /// Whether <paramref name="enc" /> holds <paramref name="unit" /> on the side combat puts it on: a creature as a hostile,
+    /// anything else as a player, as <c>CombatService</c> adds it. A creature only on the players' side (a healer) has no
+    /// threat list there, so it does not count as held.
+    /// </summary>
+    private static bool Holds(Encounter enc, IUnit unit) =>
+        unit is ICreature ? enc.Hostiles.Contains(unit) : enc.Players.Contains(unit);
 
     public IEncounter CreateEncounter()
     {
