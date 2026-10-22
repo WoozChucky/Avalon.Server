@@ -11,6 +11,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World;
 using Avalon.Server.World.UnitTests.GameAuth;
+using Avalon.Server.World.UnitTests.Trading;
 using Avalon.World.Configuration;
 using Avalon.World.GameAuth;
 using Avalon.World.Parties;
@@ -21,6 +22,7 @@ using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Threading;
+using Avalon.World.Trading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -175,6 +177,57 @@ public class WorldServerShutdownShould : IDisposable
         await cancelled.CancelAsync();
 
         await server.Stop(cancelled.Token).WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    /// <summary>
+    /// A trade still completing at shutdown (#1175), whose paired save never answers, settles alongside the other
+    /// characters' despawn saves rather than ahead of them, and does not hold the stop: its trader's despawn save, held
+    /// by the trade, and the saver's idle task, which waits on the hold, are given up at the end of the save window.
+    /// </summary>
+    [Fact]
+    public async Task Despawn_the_others_while_a_trade_settles_and_stop_with_the_trade_unsettled()
+    {
+        var limit = TimeSpan.FromSeconds(30);
+        (TradeTestWorld trading, _, _, _, _) = TradeCompletionShould.Confirmed();
+        (TcpClient traderClient, TcpClient traderServer) = CreateLoopbackPair();
+        using (traderClient)
+        using (traderServer)
+        {
+            IWorld world = Substitute.For<IWorld>();
+            ICharacterSaver saver = Substitute.For<ICharacterSaver>();
+            saver.WhenAllIdle().Returns(new TaskCompletionSource().Task);
+            var server = new TestWorldServer(world, saver, trades: trading.Trades) { SaveDrainLimit = TimeSpan.FromSeconds(1) };
+            Avalon.World.WorldConnection other = Connect(server);
+            var trader = new Avalon.World.WorldConnection(
+                server, traderClient, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
+            server.Add(trader);
+            var otherSaved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            world.DeSpawnPlayerAsync(Arg.Any<IWorldConnection>()).Returns(call =>
+            {
+                if (!ReferenceEquals(call.Arg<IWorldConnection>(), other))
+                    return new TaskCompletionSource().Task;   // the trader's despawn save, which the trade's hold keeps
+
+                otherSaved.TrySetResult();
+                return Task.CompletedTask;
+            });
+
+            Task stopping = server.Stop();
+
+            // The settle cannot end before the trade's clock moves, so the other despawn ran while it waited.
+            await otherSaved.Task.WaitAsync(limit);
+            Assert.False(stopping.IsCompleted, "Shutdown returned before the trade's settle gave up");
+
+            using var guard = new CancellationTokenSource(limit);
+            while (!stopping.IsCompleted && !guard.IsCancellationRequested)
+            {
+                trading.Clock.Advance(TimeSpan.FromSeconds(1));
+                await Task.Delay(20);
+            }
+
+            await stopping.WaitAsync(limit);
+            Assert.Equal(TradeState.Completing, trading.Trades.TradeOf(1)!.State);   // unsettled: its holds are kept
+            Assert.Empty(trading.Saver.Released);
+        }
     }
 
     /// <summary>
@@ -480,7 +533,8 @@ public class WorldServerShutdownShould : IDisposable
     /// <summary>Reaches the two members the shutdown path needs: the connection set, and the stop itself.</summary>
     private sealed class TestWorldServer : WorldServer
     {
-        public TestWorldServer(IWorld world, ICharacterSaver? saver = null, IGameAdmissionClient? admission = null) : base(
+        public TestWorldServer(IWorld world, ICharacterSaver? saver = null, IGameAdmissionClient? admission = null,
+            TradeService? trades = null) : base(
             Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance,
             new AnyServiceProvider(admission),
@@ -490,7 +544,8 @@ public class WorldServerShutdownShould : IDisposable
             Substitute.For<IReplicatedCache>(),
             Substitute.For<IScriptHotReloader>(),
             saver ?? new CharacterSaver(Substitute.For<ICharacterSaveRepository>(), NullLogger<CharacterSaver>.Instance),
-            new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance))
+            new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System, NullLogger<PartyService>.Instance),
+            trades: trades)
         { }
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);

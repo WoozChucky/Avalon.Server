@@ -581,8 +581,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         if (_tickThread is not null && _tickThread.IsAlive)
             _tickThread.Join(TimeSpan.FromSeconds(5));
 
-        bool tradesSettled = await SettleTradesAsync(stoppingToken).ConfigureAwait(false);
-
         // Awaited, and all at once: the shutdown notice is delivered by the close, so returning
         // before they finish lets the host exit with the packets still queued.
         var closing = new List<Task>();
@@ -598,8 +596,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // rather than dropped because the process is about to exit, and it is not given a timeout
         // of its own for the same reason the close handler has none — the bound is the database's,
         // and cutting it short would discard the save this exists to make. Unless a trade is still
-        // unsettled (#1175): the despawn saves its hold keeps waiting never finish, so the wait is
-        // bounded as the wait for saves below is.
+        // unsettled (#1175): the despawn saves its hold keeps waiting never finish, so then the wait
+        // is bounded by the save window below.
         var despawning = new List<Task>();
         while (_pendingDisconnects.TryDequeue(out WorldConnection? disconnected))
         {
@@ -615,19 +613,27 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             }
         }
 
+        // The save window (#1175): SaveDrainLimit from here, once every despawn has started and so queued its save.
+        // Completing trades settle inside it, alongside the saves already writing rather than ahead of them: a trader's
+        // despawn save waits on its trade's hold, and is snapshotted at the release, once the outcome is applied; every
+        // other character's is already in its chain. Nothing settling touches is touched by the despawns from here on:
+        // what remains of each is awaiting its save and ending its session.
+        long saveWindowStart = Stopwatch.GetTimestamp();
+        var despawned = Task.WhenAll(despawning);
+        bool tradesSettled = await SettleTradesAsync(SaveDrainLimit, stoppingToken).ConfigureAwait(false);
+
         try
         {
-            var despawned = Task.WhenAll(despawning);
             if (tradesSettled)
                 await despawned.ConfigureAwait(false);
             else
-                await despawned.WaitAsync(SaveDrainLimit, stoppingToken).ConfigureAwait(false);
+                await despawned.WaitAsync(SaveWindowLeft(saveWindowStart), stoppingToken).ConfigureAwait(false);
         }
         catch (Exception e) when (!tradesSettled && e is TimeoutException or OperationCanceledException)
         {
             _logger.LogError(
-                "Shutdown stopped waiting for the despawns after {Limit} or at the host's stop timeout: a trade still " +
-                "unsettled holds its characters' despawn saves",
+                "Shutdown stopped waiting for the despawns at the end of its {Limit} save window or at the host's stop " +
+                "timeout: a trade still unsettled holds its characters' despawn saves",
                 SaveDrainLimit);
         }
         catch (Exception e)
@@ -648,8 +654,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // waiting for it, so one begun on an earlier tick can still be queued behind another save,
         // or be mid-transaction, and the host disposes the database as soon as this returns. The
         // periodic saves in flight are the same. Bounded by the host's own stop timeout and by
-        // SaveDrainLimit, because a write that never returns must not hold the process up forever.
-        await WaitForSavesAsync(stoppingToken).ConfigureAwait(false);
+        // SaveDrainLimit, because a write that never returns must not hold the process up forever; with a
+        // trade unsettled, by what is left of the save window, since its holds never drain.
+        await WaitForSavesAsync(tradesSettled ? SaveDrainLimit : SaveWindowLeft(saveWindowStart), stoppingToken)
+            .ConfigureAwait(false);
 
         // Last (#875): the send threads outlived the tick and the closes, so each close's notice went out (or its budget
         // ran out) with its owner still running, and no close is left waiting on a stopped owner. A send after the closes,
@@ -674,15 +682,23 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     /// <summary>How long the shutdown waits, in all, for the send threads to stop once everything else has (#875).</summary>
     public static readonly TimeSpan SendThreadsStopLimit = TimeSpan.FromSeconds(2);
 
+    /// <summary>What is left of the shutdown's save window, which began at <paramref name="start" />; never negative.</summary>
+    private TimeSpan SaveWindowLeft(long start)
+    {
+        TimeSpan left = SaveDrainLimit - Stopwatch.GetElapsedTime(start);
+        return left > TimeSpan.Zero ? left : TimeSpan.Zero;
+    }
+
     /// <summary>
-    /// Completing trades settle once the tick has stopped (#1175), before the closes and the despawn pass: each waits for
-    /// its paired save and record lookups, within <see cref="SaveDrainLimit" /> and the host's stop timeout, so a
-    /// despawn save the trade holds is written with the outcome applied. A trade still unsettled keeps its holds, which
-    /// <see cref="WaitForSavesAsync" /> stops waiting for at its own limit. Only once the tick thread has exited, and so
-    /// unbound its guard: one that outlived its join would still be applying completions itself.
+    /// Completing trades settle once the tick has stopped (#1175), after the closes and once every despawn has started,
+    /// so no other character's close or save waits behind them: each waits for its paired save and record lookups,
+    /// within <paramref name="limit" /> and the host's stop timeout, so a despawn save the trade holds is written with
+    /// the outcome applied. A trade still unsettled keeps its holds, and the shutdown's later waits stop at the end of
+    /// the save window. Only once the tick thread has exited, and so unbound its guard: one that outlived its join
+    /// would still be applying completions itself.
     /// </summary>
     /// <returns>Whether every completing trade settled, or there was none to settle.</returns>
-    private async Task<bool> SettleTradesAsync(CancellationToken stoppingToken)
+    private async Task<bool> SettleTradesAsync(TimeSpan limit, CancellationToken stoppingToken)
     {
         if (_trades is null)
             return true;
@@ -695,7 +711,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         try
         {
-            return await _trades.SettleAsync(SaveDrainLimit, stoppingToken).ConfigureAwait(false);
+            return await _trades.SettleAsync(limit, stoppingToken).ConfigureAwait(false);
         }
         catch (Exception e)
         {
@@ -704,7 +720,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
     }
 
-    private async Task WaitForSavesAsync(CancellationToken stoppingToken)
+    private async Task WaitForSavesAsync(TimeSpan limit, CancellationToken stoppingToken)
     {
         Task saves = _characterSaver.WhenAllIdle();
         if (saves.IsCompleted)
@@ -712,14 +728,14 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         try
         {
-            await saves.WaitAsync(SaveDrainLimit, stoppingToken).ConfigureAwait(false);
+            await saves.WaitAsync(limit, stoppingToken).ConfigureAwait(false);
         }
         catch (Exception e) when (e is TimeoutException or OperationCanceledException)
         {
             _logger.LogError(
                 "Shutdown stopped waiting for character saves still in flight after {Limit} or at the host's stop timeout; " +
                 "changes since those characters' last committed save may be lost",
-                SaveDrainLimit);
+                limit);
         }
     }
 

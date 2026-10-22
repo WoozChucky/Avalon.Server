@@ -150,7 +150,7 @@ public class TradeCompletionShould
     /// A holds the Sword at Bag 0 and 100 gold and offers both and 30 gold; B offers its Potion ×5 at Bag 0; both
     /// confirm the current revision, so the paired save is in flight.
     /// </summary>
-    private static (TradeTestWorld W, Trader A, Trader B, InventoryItem Sword, InventoryItem Potion) Confirmed()
+    internal static (TradeTestWorld W, Trader A, Trader B, InventoryItem Sword, InventoryItem Potion) Confirmed()
     {
         var w = new TradeTestWorld();
         Trader a = w.Online(1, gold: 100);
