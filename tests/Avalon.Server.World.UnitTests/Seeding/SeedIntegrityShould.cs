@@ -1446,6 +1446,17 @@ public class SeedIntegrityShould
         Assert.Equal(1u, ring.MaxStackSize);
     }
 
+    /// <summary>An item for every class lists none (#1171): a list names classes only to restrict the item to some.</summary>
+    [Fact]
+    public void Seed_no_item_that_lists_every_class()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Assert.DoesNotContain(context.ItemTemplates.AsNoTracking().ToList(),
+            i => CharacterClasses.Playable.All(i.AllowedClasses.Contains));
+    }
+
     [Fact]
     public void Gate_no_vendor_row_behind_a_quest_yet()
     {
