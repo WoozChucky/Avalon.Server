@@ -106,8 +106,8 @@ language:
 4 `Count` (how many are needed), 5 `Text` (e.g. "Thornback Boars slain").
 
 `QuestRewardsDto`: 1 `Experience`, 2 `Money` (copper), 3 `Items` (repeated `QuestRewardItemDto`:
-1 `ItemTemplateId`, 2 `Count`), every one paid, 4 `Choices` (repeated `QuestRewardItemDto`, #711), the choice set,
-of which the player picks exactly one at turn-in, by item template id; empty when the quest has none. A quest may
+1 `ItemTemplateId`, 2 `Count`; every one is paid); 4 `Choices` (repeated `QuestRewardItemDto`, #711: the choice set,
+of which the player picks exactly one at turn-in, by item template id; empty when the quest has none). A quest may
 have fixed items, a choice set, both or neither (the seeded quest 3 has both, quest 11 a choice set alone). Every
 choice is offered to every class: equipping the item afterwards checks its class and level as usual. The pick is
 sent as the item template id in `CMSG_QUEST_TURN_IN` field 3, never as a position in the list, and a turn-in of a
