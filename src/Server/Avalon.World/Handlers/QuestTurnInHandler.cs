@@ -15,5 +15,7 @@ public class QuestTurnInHandler(QuestService quests, ILogger<QuestTurnInHandler>
 {
     public override void Execute(IWorldConnection connection, CQuestTurnInPacket packet) =>
         QuestReplies.Handle(connection, logger, NetworkPacketType.CMSG_QUEST_TURN_IN, packet.QuestId,
-            character => quests.TurnIn(connection, character, packet.QuestId, packet.NpcGuid, packet.ChoiceItemTemplateId));
+            (quests, connection, packet),
+            static (character, request) => request.quests.TurnIn(request.connection, character, request.packet.QuestId,
+                request.packet.NpcGuid, request.packet.ChoiceItemTemplateId));
 }

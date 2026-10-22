@@ -32,7 +32,7 @@ namespace Avalon.World.Testing.Scenarios;
 /// each time the ability is ready; in reach but behind a trunk or a rock, it walks on.
 /// It runs from <see cref="ScenarioConnection.UpdateMap" />, inside the instance pass, where production processes a
 /// connection's queued packets. One packet of each kind per fighter, mutated each time, so the driver itself allocates
-/// nothing, but for the quest accept's closure (<see cref="AcceptQuest" />), which stands for the accept handler's own.
+/// nothing.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -374,7 +374,7 @@ public sealed class LoopFighter
     /// dialogue leash, and no forest holds a quest giver. <c>StartFromItem</c> runs the same start as an accept
     /// (availability, then stage 0, every count 0, the line, the hooks and the settle) without the conversation and
     /// without re-sending the giver's dialogue; it is answered, as the handler answers, by <see cref="QuestReplies" />
-    /// (one SMSG_QUEST_RESULT), with a closure per request as the handler's.
+    /// (one SMSG_QUEST_RESULT), the service handed through as state to a static lambda as the handler hands its own.
     /// </remarks>
     private void KeepQuest(ScenarioConnection connection)
     {
@@ -400,22 +400,12 @@ public sealed class LoopFighter
                 throw new InvalidOperationException($"{character.Name} could not abandon the kill quest");
         }
 
-        AcceptQuest(connection);
+        QuestReplies.Handle(connection, NullLogger.Instance, NetworkPacketType.CMSG_QUEST_ACCEPT,
+            ScenarioReferenceData.KillQuest, _quests,
+            static (c, quests) => quests.StartFromItem(c, ScenarioReferenceData.KillQuest));
         if (!character.Quests.IsActive(ScenarioReferenceData.KillQuest))
             throw new InvalidOperationException($"{character.Name} could not accept the kill quest");
         QuestsAccepted++;
-    }
-
-    /// <summary>
-    /// The accept, as <see cref="QuestAcceptHandler" /> shapes it: one closure over the request per accept. A method of
-    /// its own, so the closure is made only when a quest is accepted: in <see cref="KeepQuest" /> the compiler would make
-    /// it on every call, at the top of the method, before the early returns.
-    /// </summary>
-    private void AcceptQuest(ScenarioConnection connection)
-    {
-        QuestService quests = _quests;
-        QuestReplies.Handle(connection, NullLogger.Instance, NetworkPacketType.CMSG_QUEST_ACCEPT,
-            ScenarioReferenceData.KillQuest, c => quests.StartFromItem(c, ScenarioReferenceData.KillQuest));
     }
 
     /// <summary>

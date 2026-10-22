@@ -6,19 +6,21 @@ using Avalon.Network.Packets.Quest;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Quests;
 using Avalon.World.Entities;
+using Avalon.World.Handlers;
 using Avalon.World.Loot;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 using Avalon.World.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Performance;
 
 /// <summary>
 /// What the quest service does for every kill, every tick a Bag changed and every pickup allocates nothing while no
-/// quest moves, and a tick's quest updates only what they carry (#883). No scenario runs quests, so the scenario gate
-/// would see none of it come back.
+/// quest moves, nor does a quest request it refuses, and a tick's quest updates only what they carry (#883). No scenario
+/// sends those requests, so the scenario gate would see none of it come back.
 /// </summary>
 /// <remarks>
 /// The service runs over a world that is no substitute (<see cref="QuestTestWorld.QuietQuests" />): a substitute
@@ -42,7 +44,7 @@ public class QuestAllocationShould
     ];
 
     [Fact]
-    public async Task Credit_a_kill_recount_a_bag_change_and_judge_a_pickup_allocating_nothing_when_no_quest_moves()
+    public async Task Credit_a_kill_recount_a_bag_change_judge_a_pickup_and_refuse_a_request_allocating_nothing_when_no_quest_moves()
     {
         QuestTestWorld w = await QuestTestWorld.CreateAsync(Quests());
         QuestService quests = w.QuietQuests();
@@ -62,10 +64,28 @@ public class QuestAllocationShould
         long recounted = Quiet(() => quests.RecountCollect(character));
         long judged = Quiet(() => quests.MayPickUp(character, tusk));
 
+        // Requests a client can repeat for ever, through the real handlers: an accept and a turn-in with no conversation
+        // open, an abandon of a quest not held. Each is answered, so the fewest of three windows.
+        var connection = new QuietConnection(character);
+        var accept = new QuestAcceptHandler(quests, NullLogger<QuestAcceptHandler>.Instance);
+        var turnIn = new QuestTurnInHandler(quests, NullLogger<QuestTurnInHandler>.Instance);
+        var abandon = new QuestAbandonHandler(quests, NullLogger<QuestAbandonHandler>.Instance);
+        var acceptChore = new CQuestAcceptPacket { QuestId = Chore, NpcGuid = 1 };
+        var turnInWolves = new CQuestTurnInPacket { QuestId = Wolves, NpcGuid = 1, ChoiceItemTemplateId = Tusk };
+        var abandonChore = new CQuestAbandonPacket { QuestId = Chore };
+        long refused = ThreadAllocations.FewestOfThreeWindows(Rounds, () =>
+        {
+            accept.Execute(connection, acceptChore);
+            turnIn.Execute(connection, turnInWolves);
+            abandon.Execute(connection, abandonChore);
+        });
+
         Assert.Multiple(
             () => Assert.Equal(0, killed),
             () => Assert.Equal(0, recounted),
-            () => Assert.Equal(0, judged));
+            () => Assert.Equal(0, judged),
+            () => Assert.Equal(0, refused));
+        Assert.Equal(3 * 4 * Rounds, connection.Sent);
 
         // The same calls do move a quest when there is something to move, so the windows above walked the quests.
         w.Random.Value = 0;

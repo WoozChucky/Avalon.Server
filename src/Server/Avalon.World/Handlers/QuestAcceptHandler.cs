@@ -12,5 +12,7 @@ public class QuestAcceptHandler(QuestService quests, ILogger<QuestAcceptHandler>
 {
     public override void Execute(IWorldConnection connection, CQuestAcceptPacket packet) =>
         QuestReplies.Handle(connection, logger, NetworkPacketType.CMSG_QUEST_ACCEPT, packet.QuestId,
-            character => quests.Accept(connection, character, packet.QuestId, packet.NpcGuid));
+            (quests, connection, packet),
+            static (character, request) => request.quests.Accept(request.connection, character, request.packet.QuestId,
+                request.packet.NpcGuid));
 }
