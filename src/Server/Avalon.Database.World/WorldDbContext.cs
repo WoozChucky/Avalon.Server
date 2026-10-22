@@ -2709,8 +2709,8 @@ public class WorldDbContext : DbContext
     }
 
     /// <summary>
-    /// Quest 10, "Boar Cull" (#710), in ptPT. Creature names stay as their nameplates spell them, as text 26 does. A
-    /// draft: needs native-speaker review before deploying, like the rows above.
+    /// Quest 10, "Boar Cull" (#710), in ptPT. Creature names stay as their nameplates spell them, as text 26 does.
+    /// Reviewed by a native speaker.
     /// </summary>
     private static void SeedBoarCullTranslations(EntityTypeBuilder<LocalizedTextLocale> builder)
     {
@@ -2724,7 +2724,7 @@ public class WorldDbContext : DbContext
     /// <summary>
     /// Quest 11, "Earn It Fancy" (#711), in ptPT. Hilde's saying follows text 20 ("Compra-o simples, ganha-o vistoso"),
     /// and she speaks the description, so it agrees with her (feminine). Creature names stay as their nameplates spell
-    /// them. A draft: needs native-speaker review before deploying, like the rows above.
+    /// them. Reviewed by a native speaker.
     /// </summary>
     private static void SeedEarnItFancyTranslations(EntityTypeBuilder<LocalizedTextLocale> builder)
     {
