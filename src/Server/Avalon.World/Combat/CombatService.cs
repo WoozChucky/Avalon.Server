@@ -364,6 +364,14 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             if (shared is not null)
                 return shared;
 
+            // A creature already fighting elsewhere keeps its one encounter: the attacker joins that fight, which adds
+            // no hostile to it. Only a creature in no encounter at all opens a spillover.
+            if (_registry.FindEncounterContaining(target) is Encounter creatures)
+            {
+                ClassifyAndAdd(creatures, attacker);
+                return creatures;
+            }
+
             var spillover = (Encounter)_registry.CreateEncounter();
             ClassifyAndAdd(spillover, attacker);
             ClassifyAndAdd(spillover, target);

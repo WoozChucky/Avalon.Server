@@ -170,6 +170,17 @@ public class CombatServiceShould
         Assert.Equal(2, reg.Active.Count);
         Assert.Single(reg.Active, e => e.Hostiles.Contains(last));
         Assert.True(spillover.GetThreatList(last)[attacker] > firstThreat);
+
+        // A creature already fighting another player keeps its one encounter: the capped attacker joins that fight.
+        ICharacter other = StubCharacter(CharacterClass.Hunter);
+        ICreature fought = StubCreature();
+        svc.ApplyDamage(other, fought, 1, ability);
+        svc.ApplyDamage(attacker, fought, 1, ability);
+
+        Assert.Equal(3, reg.Active.Count);
+        var its = (Encounter)Assert.Single(reg.Active, e => e.Hostiles.Contains(fought));
+        Assert.Contains(attacker, its.Players);
+        Assert.True(its.GetThreatList(fought)[attacker] > 0);
     }
 
     [Fact]
