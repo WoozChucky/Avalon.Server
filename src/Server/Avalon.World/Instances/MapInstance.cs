@@ -14,6 +14,7 @@ using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
+using Avalon.Network.Packets.World;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Auras;
@@ -1101,7 +1102,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         // Heard near the caster or near where it will land (#648), so a watcher standing in the telegraph sees it.
         Vector3? centre = footprint?.Centre;
-        AbilityFootprintDto? dto = footprint?.ToDto();
         // Encoded once, for the first who hears it, and shared by everyone who does (#875).
         OutboundPacket start = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
@@ -1115,6 +1115,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             {
                 // #627: the time the cast system just set, haste included, so every cast bar ends when the cast does.
                 // #1082: the tick the cast was taken on, so a client ends it at that tick's server time plus CastTime.
+                AbilityFootprintDto? dto = footprint?.FillDto(_footprintDto, _footprintOrigin, _footprintDirection,
+                    _footprintCentre);
                 start = SUnitStartCastPacket.Create(caster.Guid, ability.CastTimeTimer,
                     ability.AbilityId.Value, castId, dto, _worldTicks?.Completed ?? 0, PacketEncoder.Shared);
             }
@@ -1128,11 +1130,48 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     // The cast whose script the cast system is firing now (#648); see IAbilityArena.CastInFlight.
     private uint _castInFlight;
 
-    uint IAbilityArena.CastInFlight { set => _castInFlight = value; }
+    uint IAbilityArena.CastInFlight { get => _castInFlight; set => _castInFlight = value; }
+
+    AbilityFootprint? IAbilityArena.FootprintInFlight { get; set; }
+
+    public void BroadcastProjectileImpact(ObjectGuid projectile, IUnit caster, IAbility ability, uint castId,
+        Vector3 position, ProjectileImpactReason reason, IUnit? target)
+    {
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket impact = default;
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, caster.Guid, target?.Guid, position, null))
+            {
+                continue;
+            }
+
+            if (impact.Payload is null)
+            {
+                _impactPosition.X = position.x;
+                _impactPosition.Y = position.y;
+                _impactPosition.Z = position.z;
+                impact = SProjectileImpactPacket.Create(projectile.RawValue, caster.Guid.RawValue,
+                    ability.AbilityId.Value, castId, _impactPosition, reason, target?.Guid.RawValue ?? 0,
+                    _worldTicks?.Completed ?? 0, PacketEncoder.Shared);
+            }
+
+            connection.Send(impact.Share());
+        }
+
+        impact.Release();
+    }
+
+    // Written into and encoded at once, so one of each serves every start, fired and impact broadcast with no
+    // allocation (#479).
+    private readonly AbilityFootprintDto _footprintDto = new();
+    private readonly Vector3Dto _footprintOrigin = new();
+    private readonly Vector3Dto _footprintDirection = new();
+    private readonly Vector3Dto _footprintCentre = new();
+    private readonly Vector3Dto _impactPosition = new();
 
     public void BroadcastAbilityFired(IUnit caster, IAbility ability, AbilityFootprint footprint)
     {
-        AbilityFootprintDto dto = footprint.ToDto();
         // Encoded once, for the first who hears it, and shared by everyone who does (#875).
         OutboundPacket fired = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
@@ -1144,6 +1183,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
             if (fired.Payload is null)
             {
+                AbilityFootprintDto dto = footprint.FillDto(_footprintDto, _footprintOrigin, _footprintDirection,
+                    _footprintCentre);
                 fired = SAbilityFiredPacket.Create(caster.Guid.RawValue, ability.AbilityId.Value, _castInFlight,
                     dto, PacketEncoder.Shared);
             }

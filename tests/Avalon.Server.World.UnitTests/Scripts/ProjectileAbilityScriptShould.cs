@@ -1,11 +1,18 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
+using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.World.Abilities;
 using Avalon.World.Entities;
+using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Units;
 using Avalon.World.Scripts.Abilities;
+using Avalon.World.Serialization;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Abilities.AbilityTestData;
 
@@ -56,6 +63,7 @@ public class ProjectileAbilityScriptShould
 
         Assert.Equal([first], arena.Damaged());
         Assert.Equal(Vector3.zero, script.Velocity);
+        Assert.Equal([(ProjectileImpactReason.Hit, (IUnit?)first)], arena.Impacts.Select(i => (i.Reason, i.Target)));
     }
 
     [Fact]
@@ -70,6 +78,9 @@ public class ProjectileAbilityScriptShould
         Run(script, s_tick);
 
         Assert.Equal([first, second], arena.Damaged());
+        Assert.Equal([(ProjectileImpactReason.Pierced, (IUnit?)first), (ProjectileImpactReason.Pierced, second),
+                (ProjectileImpactReason.Expired, null)],
+            arena.Impacts.Select(i => (i.Reason, i.Target)));
     }
 
     /// <summary>A huge but finite aim point: the projectile flies toward it and stops at Reach.</summary>
@@ -85,6 +96,7 @@ public class ProjectileAbilityScriptShould
 
         Assert.Empty(arena.Damaged());
         Assert.Equal(20f, script.Position.z, 2);
+        Assert.Equal(ProjectileImpactReason.Expired, Assert.Single(arena.Impacts).Reason);
     }
 
     [Fact]
@@ -104,6 +116,9 @@ public class ProjectileAbilityScriptShould
 
         Assert.Empty(arena.Damaged());
         Assert.Equal(6f, script.Position.z, 2);
+        (ProjectileImpactReason Reason, Vector3 Position, IUnit? Target, uint CastId) blocked = Assert.Single(arena.Impacts);
+        Assert.Equal(ProjectileImpactReason.Blocked, blocked.Reason);
+        Assert.Equal(6f, blocked.Position.z, 2);
     }
 
     /// <summary>A long tick sweeps the whole step, so nothing is tunnelled through.</summary>
@@ -202,6 +217,34 @@ public class ProjectileAbilityScriptShould
         Run(script, s_tick);
 
         Assert.Equal([enemy], arena.Damaged());
+    }
+
+    /// <summary>
+    /// A projectile is fired with its lane, as a circle or a cone is, and carries the cast that fired it through its
+    /// flight: on its add, so a client draws it as its ability, and on its impact (#479).
+    /// </summary>
+    [Fact]
+    public void Fire_its_lane_and_name_its_ability_caster_and_cast_from_add_to_impact()
+    {
+        var arena = new TestArena { CastInFlight = 7 };
+        CharacterEntity caster = arena.Player(1, 0f, 0f);
+        ICreature target = arena.Creature(0f, 5f);
+        ProjectileAbilityScript script = Launch(arena, caster, Projectile(220), new Vector3(0f, 0f, 20f));
+        arena.CastInFlight = 0;
+
+        (AbilityFootprint lane, uint firedCast) = Assert.Single(arena.FiredFootprints);
+        Assert.Equal(AbilityShape.Projectile, lane.Shape);
+        Assert.Equal(7u, firedCast);
+
+        ObjectState add = ObjectStateWriter.From((IWorldObject)script);
+        Assert.Equal(220u, add.AbilityId);
+        Assert.Equal(caster.Guid.RawValue, add.CasterGuid);
+        Assert.Equal(7u, add.CastId);
+
+        Run(script, s_tick);
+
+        Assert.Equal((ProjectileImpactReason.Hit, (IUnit?)target, 7u),
+            arena.Impacts.Select(i => (i.Reason, i.Target, i.CastId)).Single());
     }
 
     /// <summary>

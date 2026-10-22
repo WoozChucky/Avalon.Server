@@ -179,4 +179,23 @@ public class ObjectState
     ///     doodads carry this member.
     /// </remarks>
     [ProtoMember(27)] public DoodadState? DoodadState { get; set; }
+
+    /// <summary>
+    ///     The ability a projectile was fired by (#479), so a client draws it as that ability.
+    /// </summary>
+    /// <remarks>
+    ///     Only a projectile carries it, and its add always does. It never changes while the projectile flies, so an
+    ///     update leaves it out, as <see cref="CasterGuid" /> and <see cref="CastId" />. Characters, creatures, portals
+    ///     and doodads never carry these three.
+    /// </remarks>
+    [ProtoMember(28)] public uint? AbilityId { get; set; }
+
+    /// <summary>The unit that fired a projectile (#479); carried as <see cref="AbilityId" /> is.</summary>
+    [ProtoMember(29)] public ulong? CasterGuid { get; set; }
+
+    /// <summary>
+    ///     The cast that fired a projectile (#479), the id its start, fired and finish broadcasts carried; carried as
+    ///     <see cref="AbilityId" /> is.
+    /// </summary>
+    [ProtoMember(30)] public uint? CastId { get; set; }
 }

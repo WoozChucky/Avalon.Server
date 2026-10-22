@@ -1,4 +1,6 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
@@ -85,17 +87,31 @@ public interface IAbilityArena
     void BroadcastUnitStartCast(IUnit caster, IAbility ability, uint castId, AbilityFootprint? footprint);
 
     /// <summary>
-    /// Tells every client in the instance that a circle or cone fired, so it can draw it: the whole footprint
-    /// (#648), with the id of the cast firing it (<see cref="CastInFlight" />). Projectiles are world objects and
-    /// use entity replication.
+    /// Tells every client that hears it that an ability fired, so it can draw it: the whole footprint (#648), a
+    /// projectile's lane included (#479), with the id of the cast firing it (<see cref="CastInFlight" />). A
+    /// projectile's flight itself is a world object and uses entity replication.
     /// </summary>
     void BroadcastAbilityFired(IUnit caster, IAbility ability, AbilityFootprint footprint);
 
     /// <summary>
-    /// The id of the cast whose script the cast system is firing now (#648), set only for that call, 0 otherwise,
-    /// so a fired broadcast names its cast without the script knowing it.
+    /// Tells every client that hears <paramref name="position" /> that a projectile struck a unit or ended (#479),
+    /// on the tick it happened. Sent before the damage of a hit, so the damage that follows belongs to it.
     /// </summary>
-    uint CastInFlight { set; }
+    void BroadcastProjectileImpact(ObjectGuid projectile, IUnit caster, IAbility ability, uint castId,
+        Vector3 position, ProjectileImpactReason reason, IUnit? target);
+
+    /// <summary>
+    /// The id of the cast whose script the cast system is firing now (#648), set only for that call, 0 otherwise,
+    /// so a fired broadcast names its cast without the script knowing it, and a projectile keeps it for its flight
+    /// (#479).
+    /// </summary>
+    uint CastInFlight { get; set; }
+
+    /// <summary>
+    /// The footprint the cast being fired now was started with, set only for that call (#479): a queued cast's, which
+    /// its start broadcast already resolved, so its script need not resolve it again. Null for an instant cast.
+    /// </summary>
+    AbilityFootprint? FootprintInFlight { get; set; }
 
     /// <summary>The finish-cast broadcast, as <c>ISimulationContext.BroadcastFinishCast</c> (#546), with its cast id (#648).</summary>
     void BroadcastFinishCast(IUnit caster, IAbility ability, uint castId);
