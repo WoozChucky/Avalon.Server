@@ -77,7 +77,7 @@ variant populated
             field 5 Text : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
     field 4 Rewards : QuestRewardsDto
       field 1 Experience : uint = 300
-      field 2 Money : ulong = 65535
+      field 2 Gold : ulong = 4000000000
       field 3 Items : List<QuestRewardItemDto> = 2 elements
         element 0
           field 1 ItemTemplateId : ulong = 65535
@@ -93,8 +93,8 @@ variant populated
           field 1 ItemTemplateId : ulong = 7
           field 2 Count : uint = 7
     field 5 Repeat : QuestRepeatKind = Daily (3)
-  bytes 295
-    08 07 10 ac 02 18 02 22 9d 02 0a 15 65 6d 6f 6a
+  bytes 297
+    08 07 10 ac 02 18 02 22 9f 02 0a 15 65 6d 6f 6a
     69 20 f0 9f 9c 81 f0 9f 9a 80 20 61 73 74 72 61
     6c 12 0d 68 c3 a9 6c 6c 6f 20 77 c3 b6 72 6c 64
     1a 69 08 13 12 18 22 71 75 6f 74 65 64 22 20 61
@@ -109,10 +109,10 @@ variant populated
     15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20
     61 73 74 72 61 6c 1a 24 08 c0 84 3d 10 01 18 2a
     20 07 2a 18 e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae
-    e3 83 86 e3 82 ad e3 82 b9 e3 83 88 22 27 08 ac
-    02 10 ff ff 03 1a 08 08 ff ff 03 10 c0 84 3d 1a
-    04 08 07 10 07 22 08 08 ff ff 03 10 c0 84 3d 22
-    04 08 07 10 07 28 03
+    e3 83 86 e3 82 ad e3 82 b9 e3 83 88 22 29 08 ac
+    02 10 80 d0 ac f3 0e 1a 08 08 ff ff 03 10 c0 84
+    3d 1a 04 08 07 10 07 22 08 08 ff ff 03 10 c0 84
+    3d 22 04 08 07 10 07 28 03
 
 variant maxima
   field 1 QuestId : uint = 4294967295
@@ -190,7 +190,7 @@ variant maxima
             field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
     field 4 Rewards : QuestRewardsDto
       field 1 Experience : uint = 4294967295
-      field 2 Money : ulong = 18446744073709551615
+      field 2 Gold : ulong = 18446744073709551615
       field 3 Items : List<QuestRewardItemDto> = 3 elements
         element 0
           field 1 ItemTemplateId : ulong = 18446744073709551615
@@ -380,7 +380,7 @@ variant minima
             field 5 Text : string = "\0" (1 chars, 1 bytes utf-8)
     field 4 Rewards : QuestRewardsDto
       field 1 Experience : uint = 0
-      field 2 Money : ulong = 0
+      field 2 Gold : ulong = 0
       field 3 Items : List<QuestRewardItemDto> = 1 element
         element 0
           field 1 ItemTemplateId : ulong = 0
@@ -437,7 +437,7 @@ variant varint-edges
             field 5 Text : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
     field 4 Rewards : QuestRewardsDto
       field 1 Experience : uint = 16383
-      field 2 Money : ulong = 2097151
+      field 2 Gold : ulong = 268435455
       field 3 Items : List<QuestRewardItemDto> = 2 elements
         element 0
           field 1 ItemTemplateId : ulong = 2097151
@@ -453,8 +453,8 @@ variant varint-edges
           field 1 ItemTemplateId : ulong = 16384
           field 2 Count : uint = 268435455
     field 5 Repeat : QuestRepeatKind = <not a declared member> (6)
-  bytes 1195
-    08 80 01 10 ff ff ff 7f 18 03 22 9e 09 0a 81 01
+  bytes 1196
+    08 80 01 10 ff ff ff 7f 18 03 22 9f 09 0a 81 01
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
@@ -525,7 +525,7 @@ variant varint-edges
     a9 c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 22 2f 08 ff 7f 10 ff ff
-    7f 1a 07 08 ff ff 7f 10 80 01 1a 09 08 80 80 01
-    10 ff ff ff 7f 22 07 08 ff ff 7f 10 80 01 22 09
-    08 80 80 01 10 ff ff ff 7f 28 06
+    7a 7a 7a 7a 7a 7a 7a 7a 22 30 08 ff 7f 10 ff ff
+    ff 7f 1a 07 08 ff ff 7f 10 80 01 1a 09 08 80 80
+    01 10 ff ff ff 7f 22 07 08 ff ff 7f 10 80 01 22
+    09 08 80 80 01 10 ff ff ff 7f 28 06

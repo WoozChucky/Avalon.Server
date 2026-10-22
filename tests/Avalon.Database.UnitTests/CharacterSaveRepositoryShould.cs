@@ -36,13 +36,13 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     public async Task Write_the_row_and_insert_new_items_before_the_slots_that_hold_them()
     {
         CharacterRow row = await SeedCharacterAsync(1);
-        row.Money = 500;
+        row.Gold = 500;
         ItemInstance sword = Item(row.Id, count: 1);
 
         await _saves.WriteAsync([Batch(row, upsertItems: [sword], upsertSlots: [Slot(row.Id, 0, sword.Id)])]);
 
         await using CharacterDbContext read = _database.CreateDbContext();
-        Assert.Equal(500UL, (await read.Characters.AsNoTracking().SingleAsync()).Money);
+        Assert.Equal(500UL, (await read.Characters.AsNoTracking().SingleAsync()).Gold);
         Assert.Equal(sword.Id, (await read.CharacterInventory.AsNoTracking().SingleAsync()).ItemId);
         Assert.Equal(1u, (await read.ItemInstances.AsNoTracking().SingleAsync()).Count);
     }
@@ -151,7 +151,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     public async Task Commit_every_batch_or_none()
     {
         CharacterRow saved = await SeedCharacterAsync(1);
-        saved.Money = 100;
+        saved.Gold = 100;
         var neverCreated = new CharacterRow { Id = new CharacterId(99), AccountId = new AccountId(1), Name = "Ghost" };
         ItemInstance sword = Item(saved.Id, count: 1);
 
@@ -162,7 +162,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         ]));
 
         await using CharacterDbContext read = _database.CreateDbContext();
-        Assert.Equal(0UL, (await read.Characters.AsNoTracking().SingleAsync()).Money);
+        Assert.Equal(0UL, (await read.Characters.AsNoTracking().SingleAsync()).Gold);
         Assert.Empty(await read.ItemInstances.AsNoTracking().ToListAsync());
     }
 

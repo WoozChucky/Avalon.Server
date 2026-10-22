@@ -114,11 +114,11 @@ public class GameConfiguration
     public float MeleeSlotRadius { get; set; } = 1.5f;
 
     /// <summary>
-    ///     The most copper a character can hold. An addition that would pass it is refused whole,
+    ///     The most gold a character can hold. An addition that would pass it is refused whole,
     ///     rather than clamped. The default is large enough that normal play never reaches it and
     ///     well within what the database column holds.
     /// </summary>
-    public ulong MaxMoney { get; set; } = 9_999_999_999;
+    public ulong MaxGold { get; set; } = 9_999_999_999;
 
     /// <summary>
     ///     How long a drop stays reserved for the character it was allocated to before anyone in the

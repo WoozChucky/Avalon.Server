@@ -50,7 +50,7 @@ public class VendorEntryDto
 
     [ProtoMember(2)] public ulong ItemTemplateId { get; set; }
 
-    /// <summary>Copper per unit, before any item costs.</summary>
+    /// <summary>Gold per unit, before any item costs.</summary>
     [ProtoMember(3)] public ulong Price { get; set; }
 
     /// <summary>How many are left. Absent means unlimited; 0 means sold out until it restocks.</summary>
@@ -79,6 +79,6 @@ public class VendorBuybackDto
     /// <summary>The exact item sold, in the snapshot's shape. Container is 1 (Bag) and Slot is where it was sold from.</summary>
     [ProtoMember(2)] public ItemSlotDto? Item { get; set; }
 
-    /// <summary>Copper to buy it back: exactly what it sold for.</summary>
+    /// <summary>Gold to buy it back: exactly what it sold for.</summary>
     [ProtoMember(3)] public ulong Price { get; set; }
 }

@@ -18,6 +18,6 @@ public enum InventoryRemoveResult
 public enum WalletResult
 {
     Ok,
-    NotEnoughMoney,
-    MoneyCapReached,
+    NotEnoughGold,
+    GoldCapReached,
 }

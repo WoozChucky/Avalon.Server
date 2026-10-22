@@ -255,7 +255,7 @@ public class CharacterSelectHandler(
     /// One world session per account (#474). Selecting a character ends every other world session
     /// of the same account, whatever it holds: another character, this one, a select still under
     /// way, or nothing yet. Two live copies of one character would each hold their own inventory and
-    /// money, and whichever saved last would write its copy over the other's; two characters of one
+    /// gold, and whichever saved last would write its copy over the other's; two characters of one
     /// account live at once is what the owner ruled out on top of that.
     /// </summary>
     /// <remarks>
@@ -380,7 +380,7 @@ public class CharacterSelectHandler(
 
     /// <summary>
     /// A relog builds a new entity from the database, while the previous session's despawn save may
-    /// still be writing. Reading before it commits would load the inventory and money as they were
+    /// still be writing. Reading before it commits would load the inventory and gold as they were
     /// before that save, and the next save would then write the stale state back over it. Every read
     /// of the select chain follows this one, so waiting here covers all of them. The same wait covers
     /// <paramref name="kickedWork" />: the logout saves of the other characters this select kicked,
@@ -390,7 +390,7 @@ public class CharacterSelectHandler(
     /// Everything is waited on together, so each is bounded by the same <see cref="SaveWaitLimit" />.
     /// A wait that runs out reads nothing. Reading anyway would load the row and slots from before
     /// the save still running; that save would then commit, and the new session's first save (the
-    /// one marking it online at spawn) would write the stale money and slots back over it. A kicked
+    /// one marking it online at spawn) would write the stale gold and slots back over it. A kicked
     /// step that faulted has still finished, which is all that is waited for, so faults are ignored.
     /// </remarks>
     private async Task<(Character? Character, bool SaveStillRunning)> FindAfterSavesAsync(CharacterId id,
@@ -674,7 +674,7 @@ public class CharacterSelectHandler(
             .. ToDtos(InventoryType.Bag, entity[InventoryType.Bag].Items),
         ];
 
-        connection.Send(SInventorySnapshotPacket.Create(carried, character.Money, PacketEncoder.Shared));
+        connection.Send(SInventorySnapshotPacket.Create(carried, character.Gold, PacketEncoder.Shared));
 
         Step(connection, select, _databaseWork.Run(() => characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None)),
             spells => OnSpellsReceived(connection, select, entity, instance, spells));

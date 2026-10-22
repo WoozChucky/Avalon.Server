@@ -69,7 +69,7 @@ variant populated
                 field 5 Text : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
         field 4 Rewards : QuestRewardsDto
           field 1 Experience : uint = 300
-          field 2 Money : ulong = 65535
+          field 2 Gold : ulong = 4000000000
           field 3 Items : List<QuestRewardItemDto> = 2 elements
             element 0
               field 1 ItemTemplateId : ulong = 65535
@@ -134,7 +134,7 @@ variant populated
                 field 5 Text : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
         field 4 Rewards : QuestRewardsDto
           field 1 Experience : uint = 42
-          field 2 Money : ulong = 7
+          field 2 Gold : ulong = 300
           field 3 Items : List<QuestRewardItemDto> = 2 elements
             element 0
               field 1 ItemTemplateId : ulong = 65535
@@ -160,9 +160,9 @@ variant populated
   field 2 CompletedQuestIds : List<uint> = 2 elements
     element 0 = 65535
     element 1 = 19
-  bytes 650
-    0a c2 02 08 2a 10 02 18 fd ff ff ff ff ff ff ff
-    ff 01 22 9d 02 0a 15 65 6d 6f 6a 69 20 f0 9f 9c
+  bytes 653
+    0a c4 02 08 2a 10 02 18 fd ff ff ff ff ff ff ff
+    ff 01 22 9f 02 0a 15 65 6d 6f 6a 69 20 f0 9f 9c
     81 f0 9f 9a 80 20 61 73 74 72 61 6c 12 0d 68 c3
     a9 6c 6c 6f 20 77 c3 b6 72 6c 64 1a 69 08 13 12
     18 22 71 75 6f 74 65 64 22 20 61 6e 64 20 5c 62
@@ -177,31 +177,31 @@ variant populated
     69 20 f0 9f 9c 81 f0 9f 9a 80 20 61 73 74 72 61
     6c 1a 24 08 c0 84 3d 10 01 18 2a 20 07 2a 18 e6
     97 a5 e6 9c ac e8 aa 9e e3 81 ae e3 83 86 e3 82
-    ad e3 82 b9 e3 83 88 22 27 08 ac 02 10 ff ff 03
-    1a 08 08 ff ff 03 10 c0 84 3d 1a 04 08 07 10 07
-    22 08 08 ff ff 03 10 c0 84 3d 22 04 08 07 10 07
-    28 03 2a 06 08 2a 10 c0 84 3d 2a 09 08 ac 02 10
-    80 d0 ac f3 0e 0a bc 02 08 ac 02 10 01 18 e8 07
-    22 9e 02 0a 18 e6 97 a5 e6 9c ac e8 aa 9e e3 81
-    ae e3 83 86 e3 82 ad e3 82 b9 e3 83 88 12 0e 6c
-    69 6e 65 0a 62 72 65 61 6b 09 74 61 62 1a 69 08
-    13 12 18 22 71 75 6f 74 65 64 22 20 61 6e 64 20
-    5c 62 61 63 6b 73 6c 61 73 68 5c 1a 25 08 80 d0
-    ac f3 0e 10 05 18 13 20 ff ff 03 2a 15 65 6d 6f
-    6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61 73 74 72
-    61 6c 1a 24 08 c0 84 3d 10 01 18 2a 20 07 2a 18
-    e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae e3 83 86 e3
-    82 ad e3 82 b9 e3 83 88 1a 5f 08 fd ff ff ff ff
-    ff ff ff ff 01 12 05 61 6c 70 68 61 1a 25 08 80
-    d0 ac f3 0e 10 05 18 13 20 ff ff 03 2a 15 65 6d
-    6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61 73 74
-    72 61 6c 1a 24 08 c0 84 3d 10 01 18 2a 20 07 2a
-    18 e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae e3 83 86
-    e3 82 ad e3 82 b9 e3 83 88 22 24 08 2a 10 07 1a
-    08 08 ff ff 03 10 c0 84 3d 1a 04 08 07 10 07 22
-    08 08 ff ff 03 10 c0 84 3d 22 04 08 07 10 07 28
-    04 2a 06 08 2a 10 c0 84 3d 2a 09 08 ac 02 10 80
-    d0 ac f3 0e 10 ff ff 03 10 13
+    ad e3 82 b9 e3 83 88 22 29 08 ac 02 10 80 d0 ac
+    f3 0e 1a 08 08 ff ff 03 10 c0 84 3d 1a 04 08 07
+    10 07 22 08 08 ff ff 03 10 c0 84 3d 22 04 08 07
+    10 07 28 03 2a 06 08 2a 10 c0 84 3d 2a 09 08 ac
+    02 10 80 d0 ac f3 0e 0a bd 02 08 ac 02 10 01 18
+    e8 07 22 9f 02 0a 18 e6 97 a5 e6 9c ac e8 aa 9e
+    e3 81 ae e3 83 86 e3 82 ad e3 82 b9 e3 83 88 12
+    0e 6c 69 6e 65 0a 62 72 65 61 6b 09 74 61 62 1a
+    69 08 13 12 18 22 71 75 6f 74 65 64 22 20 61 6e
+    64 20 5c 62 61 63 6b 73 6c 61 73 68 5c 1a 25 08
+    80 d0 ac f3 0e 10 05 18 13 20 ff ff 03 2a 15 65
+    6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61 73
+    74 72 61 6c 1a 24 08 c0 84 3d 10 01 18 2a 20 07
+    2a 18 e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae e3 83
+    86 e3 82 ad e3 82 b9 e3 83 88 1a 5f 08 fd ff ff
+    ff ff ff ff ff ff 01 12 05 61 6c 70 68 61 1a 25
+    08 80 d0 ac f3 0e 10 05 18 13 20 ff ff 03 2a 15
+    65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61
+    73 74 72 61 6c 1a 24 08 c0 84 3d 10 01 18 2a 20
+    07 2a 18 e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae e3
+    83 86 e3 82 ad e3 82 b9 e3 83 88 22 25 08 2a 10
+    ac 02 1a 08 08 ff ff 03 10 c0 84 3d 1a 04 08 07
+    10 07 22 08 08 ff ff 03 10 c0 84 3d 22 04 08 07
+    10 07 28 04 2a 06 08 2a 10 c0 84 3d 2a 09 08 ac
+    02 10 80 d0 ac f3 0e 10 ff ff 03 10 13
 
 variant maxima
   field 1 Quests : List<QuestLogEntryDto> = 3 elements
@@ -281,7 +281,7 @@ variant maxima
                 field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
         field 4 Rewards : QuestRewardsDto
           field 1 Experience : uint = 4294967295
-          field 2 Money : ulong = 18446744073709551615
+          field 2 Gold : ulong = 18446744073709551615
           field 3 Items : List<QuestRewardItemDto> = 3 elements
             element 0
               field 1 ItemTemplateId : ulong = 18446744073709551615
@@ -389,7 +389,7 @@ variant maxima
                 field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
         field 4 Rewards : QuestRewardsDto
           field 1 Experience : uint = 4294967295
-          field 2 Money : ulong = 18446744073709551615
+          field 2 Gold : ulong = 18446744073709551615
           field 3 Items : List<QuestRewardItemDto> = 3 elements
             element 0
               field 1 ItemTemplateId : ulong = 18446744073709551615
@@ -497,7 +497,7 @@ variant maxima
                 field 5 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
         field 4 Rewards : QuestRewardsDto
           field 1 Experience : uint = 4294967295
-          field 2 Money : ulong = 18446744073709551615
+          field 2 Gold : ulong = 18446744073709551615
           field 3 Items : List<QuestRewardItemDto> = 3 elements
             element 0
               field 1 ItemTemplateId : ulong = 18446744073709551615
@@ -1002,7 +1002,7 @@ variant minima
                 field 5 Text : string = "\0" (1 chars, 1 bytes utf-8)
         field 4 Rewards : QuestRewardsDto
           field 1 Experience : uint = 0
-          field 2 Money : ulong = 0
+          field 2 Gold : ulong = 0
           field 3 Items : List<QuestRewardItemDto> = 1 element
             element 0
               field 1 ItemTemplateId : ulong = 0
@@ -1068,7 +1068,7 @@ variant varint-edges
                 field 5 Text : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
         field 4 Rewards : QuestRewardsDto
           field 1 Experience : uint = 16383
-          field 2 Money : ulong = 2097151
+          field 2 Gold : ulong = 268435455
           field 3 Items : List<QuestRewardItemDto> = 2 elements
             element 0
               field 1 ItemTemplateId : ulong = 2097151
@@ -1133,7 +1133,7 @@ variant varint-edges
                 field 5 Text : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
         field 4 Rewards : QuestRewardsDto
           field 1 Experience : uint = 2097152
-          field 2 Money : ulong = 16384
+          field 2 Gold : ulong = 2097152
           field 3 Items : List<QuestRewardItemDto> = 2 elements
             element 0
               field 1 ItemTemplateId : ulong = 2097151
@@ -1159,8 +1159,8 @@ variant varint-edges
   field 2 CompletedQuestIds : List<uint> = 2 elements
     element 0 = 268435456
     element 1 = 2097151
-  bytes 2442
-    0a be 09 08 80 80 01 10 03 18 ff ff ff 7f 22 9e
+  bytes 2444
+    0a bf 09 08 80 80 01 10 03 18 ff ff ff 7f 22 9f
     09 0a 81 01 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
     c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
@@ -1231,13 +1231,13 @@ variant varint-edges
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 22 2f 08 ff
-    7f 10 ff ff 7f 1a 07 08 ff ff 7f 10 80 01 1a 09
-    08 80 80 01 10 ff ff ff 7f 22 07 08 ff ff 7f 10
-    80 01 22 09 08 80 80 01 10 ff ff ff 7f 28 06 2a
-    07 08 80 80 80 01 10 7f 2a 07 08 ff 7f 10 80 80
-    01 0a bc 09 08 7f 10 03 18 80 01 22 a0 09 0a 80
-    01 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 22 30 08 ff
+    7f 10 ff ff ff 7f 1a 07 08 ff ff 7f 10 80 01 1a
+    09 08 80 80 01 10 ff ff ff 7f 22 07 08 ff ff 7f
+    10 80 01 22 09 08 80 80 01 10 ff ff ff 7f 28 06
+    2a 07 08 80 80 80 01 10 7f 2a 07 08 ff 7f 10 80
+    80 01 0a bd 09 08 7f 10 03 18 80 01 22 a1 09 0a
+    80 01 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
@@ -1245,51 +1245,24 @@ variant varint-edges
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
-    79 12 81 01 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 1a b0 03 08 ff ff ff 7f 12 81 01
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 1a 8f 01 08 80 80 01 10 06 18 80 80 80 80 01
-    20 7f 2a 7f 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 1a 92 01 08 7f 10 06 18 ff ff ff ff 7f
-    20 80 80 01 2a 81 01 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    79 79 12 81 01 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
-    a9 c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    a9 c3 a9 c3 a9 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 1a ae 03 08 80 80 80 80
-    01 12 7f 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 1a 8f 01 08 80 80 01 10 06 18 80 80 80 80
+    7a 7a 7a 7a 7a 7a 1a b0 03 08 ff ff ff 7f 12 81
+    01 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 1a 8f 01 08 80 80 01 10 06 18 80 80 80 80
     01 20 7f 2a 7f 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
@@ -1307,9 +1280,36 @@ variant varint-edges
     c3 a9 c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 22 31 08 80 80 80 01
-    10 80 80 01 1a 07 08 ff ff 7f 10 80 01 1a 09 08
-    80 80 01 10 ff ff ff 7f 22 07 08 ff ff 7f 10 80
-    01 22 09 08 80 80 01 10 ff ff ff 7f 28 06 2a 07
-    08 80 80 80 01 10 7f 2a 07 08 ff 7f 10 80 80 01
-    10 80 80 80 80 01 10 ff ff 7f
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 1a ae 03 08 80 80 80
+    80 01 12 7f 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 1a 8f 01 08 80 80 01 10 06 18 80 80 80
+    80 01 20 7f 2a 7f 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 1a 92 01 08 7f 10 06 18 ff ff ff
+    ff 7f 20 80 80 01 2a 81 01 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 22 32 08 80 80 80
+    01 10 80 80 80 01 1a 07 08 ff ff 7f 10 80 01 1a
+    09 08 80 80 01 10 ff ff ff 7f 22 07 08 ff ff 7f
+    10 80 01 22 09 08 80 80 01 10 ff ff ff 7f 28 06
+    2a 07 08 80 80 80 01 10 7f 2a 07 08 ff 7f 10 80
+    80 01 10 80 80 80 80 01 10 ff ff 7f

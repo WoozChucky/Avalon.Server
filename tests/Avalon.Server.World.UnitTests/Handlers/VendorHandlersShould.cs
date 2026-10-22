@@ -50,7 +50,7 @@ public class VendorHandlersShould : IAsyncLifetime
 
         Assert.Empty(_w.Main.Ends());
         Assert.True(ShopAccess.IsOpen(_w.Main.Connection, Me));
-        Assert.Equal(1000UL, Me.Data!.Money);
+        Assert.Equal(1000UL, Me.Data!.Gold);
         Assert.False(Me.ClientChanges.HasChanges);
     }
 
@@ -80,7 +80,7 @@ public class VendorHandlersShould : IAsyncLifetime
         Assert.Equal(VendorResult.NotFound, _w.Buyback(_w.Main, 4, uint.MaxValue));
 
         Assert.Equal(4, _w.Main.Results().Count);
-        Assert.Equal(1000UL, Me.Data!.Money);
+        Assert.Equal(1000UL, Me.Data!.Gold);
         Assert.False(Me.ClientChanges.HasChanges);
         Assert.False(Me.SaveState.HasChanges);
     }
@@ -89,7 +89,7 @@ public class VendorHandlersShould : IAsyncLifetime
     [Fact]
     public void Refuse_the_second_buy_of_the_last_unit_in_one_tick()
     {
-        VendorWorld.Shopper rival = _w.AddShopper(8, money: 1000);
+        VendorWorld.Shopper rival = _w.AddShopper(8, gold: 1000);
         _w.OpenShop();
         _w.OpenShop(rival);
         Assert.True(_w.Stocks.TryGet(VendorWorld.SmithGuid, out VendorStockState? stock));
@@ -100,7 +100,7 @@ public class VendorHandlersShould : IAsyncLifetime
         Assert.Equal(VendorResult.OutOfStock, _w.Buy(rival, 1, BladeSequence));
 
         Assert.Equal(0u, stock.Available(blade));
-        Assert.Equal((900UL, 1000UL), (Me.Data!.Money, rival.Character.Data!.Money));
+        Assert.Equal((900UL, 1000UL), (Me.Data!.Gold, rival.Character.Data!.Gold));
         Assert.Single(Me.Container(InventoryType.Bag).Items);
         Assert.Empty(rival.Character.Container(InventoryType.Bag).Items);
     }

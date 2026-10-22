@@ -1151,7 +1151,7 @@ public class SeedIntegrityShould
         Assert.Equal([(1ul, 1ul), (1ul, 2ul), (2ul, 2ul)], quests.Select(q => (q.GiverCreatureId.Value, q.EnderCreatureId.Value)));
         Assert.Equal(new uint?[] { null, 1, 2 }, quests.Select(q => q.RequiredQuestId?.Value));
         Assert.Equal([(ushort)1, (ushort)1, (ushort)2], quests.Select(q => q.LevelRequirement));
-        Assert.Equal([(150u, 100ul), (250u, 150ul), (600u, 400ul)], quests.Select(q => (q.RewardExperience, q.RewardMoney)));
+        Assert.Equal([(150u, 100ul), (250u, 150ul), (600u, 400ul)], quests.Select(q => (q.RewardExperience, q.RewardGold)));
         Assert.All(quests, q => Assert.Null(q.ScriptName));
         Assert.All(quests, q => Assert.Null(q.ClassRequirement));
 
@@ -1187,7 +1187,7 @@ public class SeedIntegrityShould
         Assert.Equal(new uint?[] { null, 4, 5, 6, 7 }, quests.Select(q => q.RequiredQuestId?.Value));
         Assert.Equal([(ushort)2, (ushort)3, (ushort)4, (ushort)5, (ushort)7], quests.Select(q => q.LevelRequirement));
         Assert.Equal([(300u, 200ul), (400u, 250ul), (500u, 300ul), (700u, 400ul), (1500u, 1000ul)],
-            quests.Select(q => (q.RewardExperience, q.RewardMoney)));
+            quests.Select(q => (q.RewardExperience, q.RewardGold)));
         Assert.All(quests, q => Assert.Null(q.ScriptName));
         Assert.All(quests, q => Assert.Null(q.ClassRequirement));
 

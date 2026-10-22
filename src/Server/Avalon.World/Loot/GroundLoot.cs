@@ -5,7 +5,7 @@ using Avalon.Common.ValueObjects;
 namespace Avalon.World.Loot;
 
 /// <summary>
-/// A drop lying on the ground in one instance: a stack of one item template, or a pile of copper.
+/// A drop lying on the ground in one instance: a stack of one item template, or a pile of gold.
 /// Immutable once placed.
 /// </summary>
 /// <remarks>
@@ -26,7 +26,7 @@ public sealed class GroundLoot
     /// <summary>How many of the item. 0 for a gold pile.</summary>
     public uint Count { get; init; }
 
-    /// <summary>Copper, for a gold pile. 0 for an item drop.</summary>
+    /// <summary>Gold, for a gold pile. 0 for an item drop.</summary>
     public ulong Gold { get; init; }
 
     /// <summary>Who may take it before <see cref="FreeForAllAt"/>. Null when nobody owns it.</summary>

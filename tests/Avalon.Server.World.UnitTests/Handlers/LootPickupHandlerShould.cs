@@ -93,7 +93,7 @@ public class LootPickupHandlerShould
         ((IGroundLootHost)_instance).Received(1).BroadcastLootDespawned(
             Arg.Is<IReadOnlyList<ObjectGuid>>(g => g.Single() == s_dropGuid));
         SInventoryUpdatePacket update = FlushedUpdate();
-        Assert.Equal(25UL, update.Money);
+        Assert.Equal(25UL, update.Gold);
         Assert.Empty(update.Slots ?? []);   // protobuf-net sends an empty repeated field as null
     }
 
@@ -191,6 +191,6 @@ public class LootPickupHandlerShould
         Assert.Equal((byte)0, slot.Slot);
         Assert.Equal(Potion.Id.Value, slot.Item!.ItemTemplateId);
         Assert.Equal(3u, slot.Item.Count);
-        Assert.Null(update.Money);
+        Assert.Null(update.Gold);
     }
 }

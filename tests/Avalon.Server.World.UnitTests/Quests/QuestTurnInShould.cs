@@ -17,8 +17,8 @@ using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 namespace Avalon.Server.World.UnitTests.Quests;
 
 /// <summary>
-/// Turn-in (#433) is all or nothing: every check first (ready, items held, the pick, reward templates, room, money
-/// cap), then the quest items leave, then experience, money and items are paid and the quest is completed.
+/// Turn-in (#433) is all or nothing: every check first (ready, items held, the pick, reward templates, room, gold
+/// cap), then the quest items leave, then experience, gold and items are paid and the quest is completed.
 /// </summary>
 public class QuestTurnInShould
 {
@@ -26,10 +26,10 @@ public class QuestTurnInShould
 
     /// <summary>Tusks accepted, both tusks in the bag (ready), and a conversation open with its ender.</summary>
     private static async Task<(QuestTestWorld W, QuestClient C, Creature Ender)> ReadyTusksAsync(
-        List<QuestTemplate>? quests = null, ulong money = 0, TestLog? log = null, List<CharacterLevelExperience>? levels = null)
+        List<QuestTemplate>? quests = null, ulong gold = 0, TestLog? log = null, List<CharacterLevelExperience>? levels = null)
     {
         QuestTestWorld w = await QuestTestWorld.CreateAsync(quests, log: log, levels: levels);
-        QuestClient c = w.Join(money: money);
+        QuestClient c = w.Join(gold: gold);
         QuestTestWorld.Complete(c, Hunt);
         w.Accept(c, Tusks);
         w.Economy.InventoryOf(c.Character).TryAdd(s_tuskId, 2);
@@ -52,7 +52,7 @@ public class QuestTurnInShould
     }
 
     [Fact]
-    public async Task Pay_experience_money_and_items_take_the_quest_items_and_complete()
+    public async Task Pay_experience_gold_and_items_take_the_quest_items_and_complete()
     {
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync();
 
@@ -61,7 +61,7 @@ public class QuestTurnInShould
         Assert.Equal(QuestResult.Ok, result);
         Assert.Equal(0, Held(c, Tusk));
         Assert.Equal(2, Held(c, Tonic));
-        Assert.Equal(30ul, c.Character.Data!.Money);
+        Assert.Equal(30ul, c.Character.Data!.Gold);
         Assert.Equal(50ul, c.Character.Experience);
         Assert.False(c.Character.Quests.IsActive(Tusks));
         Assert.True(c.Character.Quests.IsCompleted(Tusks));
@@ -81,9 +81,9 @@ public class QuestTurnInShould
         Assert.Equal(900ul, c.Character.RequiredExperience);
     }
 
-    /// <summary>#735: at the maximum level the reward pays no experience; money and items are paid in full.</summary>
+    /// <summary>#735: at the maximum level the reward pays no experience; gold and items are paid in full.</summary>
     [Fact]
-    public async Task Pay_money_and_items_but_no_experience_at_the_level_cap()
+    public async Task Pay_gold_and_items_but_no_experience_at_the_level_cap()
     {
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync(
             levels: [new CharacterLevelExperience { Level = 1, Experience = 400 }]);
@@ -94,7 +94,7 @@ public class QuestTurnInShould
         Assert.Equal(QuestResult.Ok, result);
         Assert.Equal((ushort)1, c.Character.Level);
         Assert.Equal(390ul, c.Character.Experience);
-        Assert.Equal(30ul, c.Character.Data!.Money);
+        Assert.Equal(30ul, c.Character.Data!.Gold);
         Assert.Equal(2, Held(c, Tonic));
         Assert.True(c.Character.Quests.IsCompleted(Tusks));
     }
@@ -109,7 +109,7 @@ public class QuestTurnInShould
 
         Assert.Equal(QuestResult.NotReady, w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));
         Assert.Equal(1, Held(c, Tusk));
-        Assert.Equal(0ul, c.Character.Data!.Money);
+        Assert.Equal(0ul, c.Character.Data!.Gold);
         Assert.True(c.Character.Quests.IsActive(Tusks));
     }
 
@@ -137,7 +137,7 @@ public class QuestTurnInShould
         Assert.Equal(2, Held(c, Tusk));
         Assert.Equal(0ul, c.Character.Experience);
         Assert.Equal((ushort)1, c.Character.Level);
-        Assert.Equal(0ul, c.Character.Data!.Money);
+        Assert.Equal(0ul, c.Character.Data!.Gold);
         Assert.True(c.Character.Quests.IsActive(Tusks));
     }
 
@@ -159,7 +159,7 @@ public class QuestTurnInShould
         Assert.Equal(2, Held(c, Tusk));
         Assert.Equal(0, Held(c, Tonic));
         Assert.Equal(0ul, c.Character.Experience);
-        Assert.Equal(0ul, c.Character.Data!.Money);
+        Assert.Equal(0ul, c.Character.Data!.Gold);
         Assert.True(c.Character.Quests.IsActive(Tusks));
         Assert.False(c.Character.Quests.IsCompleted(Tusks));
     }
@@ -185,7 +185,7 @@ public class QuestTurnInShould
         Assert.Equal(2, Held(c, Tusk));
         Assert.Equal(0, Held(c, Tonic));
         Assert.Equal(0ul, c.Character.Experience);
-        Assert.Equal(0ul, c.Character.Data!.Money);
+        Assert.Equal(0ul, c.Character.Data!.Gold);
         Assert.True(c.Character.Quests.IsActive(Tusks));
     }
 
@@ -252,7 +252,7 @@ public class QuestTurnInShould
             Assert.Equal(0, Held(c, Tusk));
             Assert.Equal(2, Held(c, Tonic));
             Assert.Equal(1, Held(c, Charm));
-            Assert.Equal(30ul, c.Character.Data!.Money);
+            Assert.Equal(30ul, c.Character.Data!.Gold);
             Assert.Equal(50ul, c.Character.Experience);
             Assert.True(c.Character.Quests.IsCompleted(Tusks));
             return;
@@ -261,7 +261,7 @@ public class QuestTurnInShould
         Assert.Equal(2, Held(c, Tusk));
         Assert.Equal(0, Held(c, Tonic));
         Assert.Equal(charmsBefore, Held(c, Charm));
-        Assert.Equal(0ul, c.Character.Data!.Money);
+        Assert.Equal(0ul, c.Character.Data!.Gold);
         Assert.Equal(0ul, c.Character.Experience);
         Assert.True(c.Character.Quests.IsActive(Tusks));
         Assert.False(c.Character.Quests.IsCompleted(Tusks));
@@ -274,11 +274,11 @@ public class QuestTurnInShould
 
     /// <summary>Review Focus 3.</summary>
     [Fact]
-    public async Task Refuse_a_turn_in_that_would_pass_the_money_cap_and_take_nothing()
+    public async Task Refuse_a_turn_in_that_would_pass_the_gold_cap_and_take_nothing()
     {
-        (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync(money: new Avalon.World.Configuration.GameConfiguration().MaxMoney - 10);
+        (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync(gold: new Avalon.World.Configuration.GameConfiguration().MaxGold - 10);
 
-        Assert.Equal(QuestResult.MoneyCap, w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));
+        Assert.Equal(QuestResult.GoldCap, w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));
         Assert.Equal(2, Held(c, Tusk));
         Assert.Equal(0ul, c.Character.Experience);
         Assert.True(c.Character.Quests.IsActive(Tusks));

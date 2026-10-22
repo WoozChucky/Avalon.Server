@@ -62,7 +62,7 @@ public class CharacterSelectHandlerShould
     private static async Task<Fixture> BuildAsync(
         IReadOnlyCollection<CharacterInventory>? inventoryRows = null,
         IReadOnlyCollection<ItemInstance>? itemInstances = null,
-        ulong money = 0,
+        ulong gold = 0,
         IReadOnlyCollection<ClassLevelStat>? classStats = null,
         IReadOnlyCollection<ItemTemplate>? itemTemplates = null,
         int storedHealth = 0,
@@ -86,7 +86,7 @@ public class CharacterSelectHandlerShould
             X = 1,
             Y = 2,
             Z = 3,
-            Money = money,
+            Gold = gold,
             Health = storedHealth,
             Power1 = storedPower,
         };
@@ -490,18 +490,18 @@ public class CharacterSelectHandlerShould
     }
 
     /// <summary>
-    /// The snapshot carries the money, and is sent for an empty inventory too: an absent packet and an empty one
+    /// The snapshot carries the gold, and is sent for an empty inventory too: an absent packet and an empty one
     /// mean different things to the client, and only the wire content distinguishes them.
     /// </summary>
     [Fact]
-    public async Task Send_the_money_in_the_snapshot_even_with_no_items()
+    public async Task Send_the_gold_in_the_snapshot_even_with_no_items()
     {
-        Fixture f = await BuildAsync(money: 123_456_789_012UL);
+        Fixture f = await BuildAsync(gold: 123_456_789_012UL);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         SInventorySnapshotPacket snapshot = DeserializeInventorySnapshot(f);
-        Assert.Equal(123_456_789_012UL, snapshot.Money);
+        Assert.Equal(123_456_789_012UL, snapshot.Gold);
         // protobuf-net writes nothing for a zero-length repeated field, so an empty array round
         // trips as null rather than []; either is "no items" on the wire.
         Assert.Empty(snapshot.Items ?? []);

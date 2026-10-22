@@ -28,7 +28,7 @@ public static class QuestMapping
         RequiredQuestId = q.RequiredQuestId?.Value,
         ScriptName = q.ScriptName,
         RewardExperience = q.RewardExperience,
-        RewardMoney = q.RewardMoney,
+        RewardGold = q.RewardGold,
         IsRepeatable = q.IsRepeatable,
         RepeatFrequency = Frequency(q.RepeatFrequency),
         Stages = q.Stages.OrderBy(s => s.Sequence).Select(s => new QuestStageTemplateDto

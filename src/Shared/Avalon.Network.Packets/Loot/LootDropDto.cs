@@ -4,7 +4,7 @@ using ProtoBuf;
 namespace Avalon.Network.Packets.Loot;
 
 /// <summary>
-/// One drop on the ground: a stack of one item template, or a pile of copper. Exactly one of
+/// One drop on the ground: a stack of one item template, or a pile of gold. Exactly one of
 /// <see cref="ItemTemplateId"/> and <see cref="Gold"/> is present.
 /// </summary>
 [ProtoContract]
@@ -25,7 +25,7 @@ public class LootDropDto
     /// <summary>How many of the item; 0 for a gold pile. Never more than the template's stack size.</summary>
     [ProtoMember(4)] public uint Count { get; set; }
 
-    /// <summary>Present for a gold pile, in copper.</summary>
+    /// <summary>Present for a gold pile: its gold.</summary>
     [ProtoMember(5)] public ulong? Gold { get; set; }
 
     /// <summary>

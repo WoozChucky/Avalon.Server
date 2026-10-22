@@ -17,12 +17,12 @@ message SInventoryUpdatePacket
 
 variant absent
   field 1 Slots : InventorySlotUpdateDto[] = null
-  field 2 Money : ulong? = null
+  field 2 Gold : ulong? = null
   bytes 0
 
 variant empty
   field 1 Slots : InventorySlotUpdateDto[] = 0 elements
-  field 2 Money : ulong? = 0
+  field 2 Gold : ulong? = 0
   bytes 2
     10 00
 
@@ -50,7 +50,7 @@ variant populated
         field 5 Count : uint = 19
         field 6 Durability : uint = 42
         field 7 Flags : uint = 42
-  field 2 Money : ulong? = 42
+  field 2 Gold : ulong? = 42
   bytes 90
     0a 2c 08 01 10 13 1a 26 08 01 10 13 18 80 d0 ac
     f3 0e 22 12 09 5b ad 8f 0f cb d9 9f 46 11 a1 65
@@ -94,7 +94,7 @@ variant maxima
         field 5 Count : uint = 4294967295
         field 6 Durability : uint = 4294967295
         field 7 Flags : uint = 4294967295
-  field 2 Money : ulong? = 18446744073709551615
+  field 2 Gold : ulong? = 18446744073709551615
   bytes 200
     0a 3d 08 02 10 ff 01 1a 36 08 02 10 ff 01 18 ff
     ff ff ff ff ff ff ff ff 01 22 12 09 ff ff ff ff
@@ -123,7 +123,7 @@ variant minima
         field 5 Count : uint = 0
         field 6 Durability : uint = 0
         field 7 Flags : uint = 0
-  field 2 Money : ulong? = 0
+  field 2 Gold : ulong? = 0
   bytes 6
     0a 02 1a 00 10 00
 
@@ -151,12 +151,12 @@ variant varint-edges
         field 5 Count : uint = 128
         field 6 Durability : uint = 268435456
         field 7 Flags : uint = 128
-  field 2 Money : ulong? = 2097152
-  bytes 103
+  field 2 Gold : ulong? = 268435456
+  bytes 104
     0a 31 08 03 10 80 01 1a 2a 08 03 10 80 01 18 80
     01 22 12 09 04 03 02 01 06 05 08 07 11 09 0a 0b
     0c 0d 0e 0f 10 28 ff ff ff 7f 30 ff ff 7f 38 ff
     ff ff 7f 0a 2d 08 03 10 7f 1a 27 08 03 10 7f 18
     ff 7f 22 12 09 04 03 02 01 06 05 08 07 11 09 0a
     0b 0c 0d 0e 0f 10 28 80 01 30 80 80 80 80 01 38
-    80 01 10 80 80 80 01
+    80 01 10 80 80 80 80 01

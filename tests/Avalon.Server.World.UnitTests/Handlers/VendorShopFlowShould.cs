@@ -39,7 +39,7 @@ public class VendorShopFlowShould : IAsyncLifetime
         // Buy: the gold and the item leave in the tick's inventory update, the new count in the list.
         Assert.Equal(VendorResult.Ok, _w.Buy(_w.Main, 1, BladeSequence));
         SInventoryUpdatePacket bought = Flush();
-        Assert.Equal(900UL, bought.Money);
+        Assert.Equal(900UL, bought.Gold);
         ItemSlotDto blade = bought.Slots.Single(s => s.Container == InventoryType.Bag && s.Slot == 0).Item!;
         Assert.Equal((Blade.Id.Value, 42u), (blade.ItemTemplateId, blade.Durability));
         _w.EndOfTick();
@@ -48,7 +48,7 @@ public class VendorShopFlowShould : IAsyncLifetime
         // Sell it back: the slot empties, and it heads the buyback list.
         Assert.Equal(VendorResult.Ok, _w.Sell(_w.Main, 2, 0));
         SInventoryUpdatePacket sold = Flush();
-        Assert.Equal(925UL, sold.Money);
+        Assert.Equal(925UL, sold.Gold);
         Assert.Null(sold.Slots.Single(s => s.Slot == 0).Item);
         _w.EndOfTick();
         VendorBuybackDto entry = Assert.Single(_w.Main.Lists()[^1].Buyback);
@@ -57,7 +57,7 @@ public class VendorShopFlowShould : IAsyncLifetime
         // Buy it back: the same instance returns, and the list empties.
         Assert.Equal(VendorResult.Ok, _w.Buyback(_w.Main, 3, 0));
         SInventoryUpdatePacket back = Flush();
-        Assert.Equal(900UL, back.Money);
+        Assert.Equal(900UL, back.Gold);
         Assert.Equal(blade.ItemInstanceId, back.Slots.Single(s => s.Slot == 0).Item!.ItemInstanceId);
         _w.EndOfTick();
         Assert.Empty(_w.Main.Lists()[^1].Buyback);
@@ -75,7 +75,7 @@ public class VendorShopFlowShould : IAsyncLifetime
         Assert.Equal(VendorResult.Ok, _w.Buy(_w.Main, 1, TonicSequence, 2));
         Assert.Equal(VendorResult.Ok, _w.Buy(_w.Main, 2, ElixirSequence));
 
-        Assert.Equal(1000UL - 20 - 30, Me.Data!.Money);
+        Assert.Equal(1000UL - 20 - 30, Me.Data!.Gold);
         InventoryItem only = Assert.Single(Me.Container(InventoryType.Bag).Items);
         Assert.Equal((Elixir.Id, 1u), (only.TemplateId, only.Count));
     }
@@ -83,7 +83,7 @@ public class VendorShopFlowShould : IAsyncLifetime
     [Fact]
     public void Reach_everyone_with_the_shop_open_when_it_restocks()
     {
-        VendorWorld.Shopper other = _w.AddShopper(8, money: 1000);
+        VendorWorld.Shopper other = _w.AddShopper(8, gold: 1000);
         _w.OpenShop();
         _w.OpenShop(other);
 

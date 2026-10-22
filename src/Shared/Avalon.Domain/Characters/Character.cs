@@ -51,8 +51,8 @@ public class Character : IDbEntity<CharacterId>
     [Required]
     public ulong Experience { get; set; } = 0;
 
-    /// <summary>The character's gold, stored in copper. Changed only through IWallet.</summary>
-    public ulong Money { get; set; }
+    /// <summary>The character's gold. Changed only through IWallet.</summary>
+    public ulong Gold { get; set; }
 
     /// <summary>Whether this character is flagged for PvP (#164). Hostile to another flagged player outside towns.</summary>
     public bool PvpEnabled { get; set; }

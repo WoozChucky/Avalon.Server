@@ -403,7 +403,7 @@ instance, alive or dead, who is in the creature's encounter or within `PartyElig
 
 ### Loot
 
-`ILootRoller` rolls the template's `LootTableId` and its `MinGold`/`MaxGold` range (copper), through
+`ILootRoller` rolls the template's `LootTableId` and its `MinGold`/`MaxGold` range, through
 its roll by table, which a used chest doodad rolls too.
 `ILootAllocator` picks an owner for each drop on its own. The only implementation,
 `PartyLootAllocator`, reserves every drop of a solo instance for its owner character, and each drop
@@ -433,7 +433,7 @@ carries the rest, as many levels as the award covers. A character can gain exper
 next both have a row (`ExperienceAward.CanGainExperience`, #735). So at the maximum level (the highest row, 15 today),
 and on a level whose next level is missing (a gap, treated exactly like the maximum), a character gains no experience
 from any source, and an award that levels a character onto such a level stops there and discards the rest, so the
-character arrives with 0. Nothing is logged for either. Copper and items are paid at the cap as anywhere else. After each level-up the stats are
+character arrives with 0. Nothing is logged for either. Gold and items are paid at the cap as anywhere else. After each level-up the stats are
 recalculated: a living character is refilled to the new maximums, and a dead one keeps its share of each pool, so it is
 not revived. A character whose current level has no row (none does today) logs a warning and is awarded nothing.
 

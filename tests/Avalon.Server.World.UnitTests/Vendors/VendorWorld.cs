@@ -32,7 +32,7 @@ namespace Avalon.Server.World.UnitTests.Vendors;
 /// Each vendor's root offers "Show me your wares." (OpenShop, back to the root) and "Farewell.".
 /// The Smith also offers an OpenShop option that ends the conversation. The instance keeps real
 /// VendorStocks behind a substituted IVendorHost. A second instance, <see cref="PlainInstanceId" />,
-/// holds the same NPCs but keeps no stock. The main shopper is character 7, with 1000 copper.
+/// holds the same NPCs but keeps no stock. The main shopper is character 7, with 1000 gold.
 /// </summary>
 internal sealed class VendorWorld
 {
@@ -174,13 +174,13 @@ internal sealed class VendorWorld
         TestTown.Stub(World, Data, (InstanceId, instance), (PlainInstanceId, plain));
         Economy = new CharacterEconomy(World, new ItemIdAllocator());
 
-        Main = AddShopper(7, money: 1000);
+        Main = AddShopper(7, gold: 1000);
     }
 
     /// <summary>A warrior at the origin of this instance, whose connection records what it is sent.</summary>
-    public Shopper AddShopper(uint id, ulong money = 0)
+    public Shopper AddShopper(uint id, ulong gold = 0)
     {
-        CharacterEntity character = TestCharacters.New(id, money);
+        CharacterEntity character = TestCharacters.New(id, gold);
         character.InstanceId = InstanceId;
         var shopper = new Shopper { Character = character, Connection = Substitute.For<IWorldConnection>() };
         TestTown.Record(shopper.Connection, character, shopper.Sent);

@@ -893,7 +893,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         stageStart = StageDone(stageStart, s_questsStage);
 
-        // Inventory and money changed anywhere in this tick, in either pass, leave as one packet per
+        // Inventory and gold changed anywhere in this tick, in either pass, leave as one packet per
         // connection with each slot at its final value (spec #459 section 3). Before the ping below,
         // which has to be the last thing enqueued ahead of the flush.
         for (int i = 0; i < conns.Length; i++)

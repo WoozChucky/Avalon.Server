@@ -64,7 +64,7 @@ public class LootPacketsShould
     [InlineData(LootPickupResult.NotYours)]
     [InlineData(LootPickupResult.InventoryFull)]
     [InlineData(LootPickupResult.UniqueAlreadyOwned)]
-    [InlineData(LootPickupResult.MoneyCapReached)]
+    [InlineData(LootPickupResult.GoldCapReached)]
     public void Carry_Every_Pickup_Result(LootPickupResult result)
     {
         OutboundPacket packet = SLootPickupResultPacket.Create(0x0600000000000009, result, PacketEncoder.Shared);

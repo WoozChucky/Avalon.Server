@@ -14,13 +14,13 @@ public interface ILootRoller
     /// <summary>
     /// Item stacks in roll order, then at most one gold pile, always last. Reads
     /// <paramref name="template"/>'s table from <paramref name="catalog"/> as it is now, so a Loot
-    /// reload applies to the next kill. It is the roll by table below, over the creature's table and copper range.
+    /// reload applies to the next kill. It is the roll by table below, over the creature's table and gold range.
     /// </summary>
     IReadOnlyList<RolledDrop> Roll(CreatureTemplate template, LootCatalog catalog, IReadOnlyCollection<ItemTemplate> items);
 
     /// <summary>
     /// Item stacks from <paramref name="table"/> (none when null) in roll order, then at most one gold pile of
-    /// <paramref name="minGold"/> to <paramref name="maxGold"/> copper, always last. Reads the table from
+    /// <paramref name="minGold"/> to <paramref name="maxGold"/> gold, always last. Reads the table from
     /// <paramref name="catalog"/> as it is now; a table it does not hold drops only gold, and sets
     /// <paramref name="tableMissing"/>, so the caller logs it under the template that named it.
     /// </summary>
@@ -64,8 +64,8 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
                 tableMissing = true;
         }
 
-        if (RollGold(minGold, maxGold) is { } copper)
-            drops.Add(RolledDrop.GoldPile(copper));
+        if (RollGold(minGold, maxGold) is { } gold)
+            drops.Add(RolledDrop.GoldPile(gold));
 
         return drops;
     }
@@ -197,7 +197,7 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
         if (max == 0)
             return null;
 
-        long copper = random.NextInt64(min, max + 1);
-        return copper > 0 ? (ulong)copper : null;
+        long gold = random.NextInt64(min, max + 1);
+        return gold > 0 ? (ulong)gold : null;
     }
 }

@@ -23,7 +23,7 @@ public sealed class VendorTrade(
     IInventoryService inventory,
     IWallet wallet,
     Func<ItemTemplateId, ItemTemplate?> findTemplate,
-    ulong maxMoney)
+    ulong maxGold)
 {
     /// <summary>Takes each cost item, then the gold, then adds the item, then takes the stock.</summary>
     public VendorResult TryBuy(
@@ -48,12 +48,12 @@ public sealed class VendorTrade(
     /// </summary>
     public VendorResult TrySell(bool shopOpen, byte bagSlot, uint? count)
     {
-        SellDecision decision = VendorRules.DecideSell(owner, shopOpen, bagSlot, count, findTemplate, maxMoney);
+        SellDecision decision = VendorRules.DecideSell(owner, shopOpen, bagSlot, count, findTemplate, maxGold);
         if (decision.Plan is not { } plan)
             return decision.Result;
 
         InventoryItem sold = inventory.TakeOut(new SlotRef(InventoryType.Bag, plan.Slot), plan.Count);
-        Expect(wallet.TryAddMoney(plan.Payment) == WalletResult.Ok, "payment");
+        Expect(wallet.TryAddGold(plan.Payment) == WalletResult.Ok, "payment");
         owner.Buyback.Push(new BuybackEntry(sold, plan.Payment));
         owner.VendorListOwed = true;
         return VendorResult.Ok;

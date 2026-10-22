@@ -16,7 +16,7 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// <summary>
 /// The tick's inventory update for one connection whose character's inventory changed (#883): <see cref="Slots" /> Bag
 /// slots, each holding an item, marked changed and sent as one <c>SInventoryUpdatePacket</c>; with no slot, a tick
-/// where only the money changed. <see cref="Queried" /> is the flush as it was, the changed slots filtered, ordered
+/// where only the gold changed. <see cref="Queried" /> is the flush as it was, the changed slots filtered, ordered
 /// and read by a query; <see cref="Flusher" /> is <c>InventoryUpdateFlusher.Flush</c>. The connection counts what it is
 /// sent and gives the payload back to the pool, so what is left is the flush, the packet's entries and the encode.
 /// </summary>
@@ -38,7 +38,7 @@ public class InventoryFlushBenchmarks
             AccountId = new AccountId(1),
             Name = "Bench",
             Class = CharacterClass.Warrior,
-            Money = 40,
+            Gold = 40,
             CreationDate = DateTime.UtcNow,
         };
         _character = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration()) { Data = row };
@@ -65,10 +65,10 @@ public class InventoryFlushBenchmarks
 
         InventoryClientChanges changes = _character.ClientChanges;
         InventorySlotUpdateDto[] slots = Query(changes, _character, BankAccess.IsOpen(_connection, _character));
-        ulong? money = changes.MoneyChanged ? _character.Data!.Money : null;
+        ulong? gold = changes.GoldChanged ? _character.Data!.Gold : null;
         changes.Clear();
 
-        _connection.Send(SInventoryUpdatePacket.Create(slots, money, PacketEncoder.Shared));
+        _connection.Send(SInventoryUpdatePacket.Create(slots, gold, PacketEncoder.Shared));
         return _connection.Sent;
     }
 
@@ -84,7 +84,7 @@ public class InventoryFlushBenchmarks
     {
         InventoryClientChanges changes = _character.ClientChanges;
         if (Slots == 0)
-            changes.RecordMoney();
+            changes.RecordGold();
 
         // Highest slot first, so the ordering has something to do.
         for (int slot = Slots - 1; slot >= 0; slot--)

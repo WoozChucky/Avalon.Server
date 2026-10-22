@@ -86,7 +86,7 @@ public class QuestCatalogExportShould
         List<JsonElement> quests = SeededQuests();
         JsonElement rewards = quests.Single(q => q.GetProperty("id").GetInt32() == 2).GetProperty("rewards");
 
-        Assert.Equal((250, 150L), (rewards.GetProperty("experience").GetInt32(), rewards.GetProperty("money").GetInt64()));
+        Assert.Equal((250, 150L), (rewards.GetProperty("experience").GetInt32(), rewards.GetProperty("gold").GetInt64()));
         Assert.Equal([(56L, 2)], rewards.GetProperty("items").EnumerateArray()
             .Select(i => (i.GetProperty("itemTemplateId").GetInt64(), i.GetProperty("count").GetInt32())));
         Assert.Empty(quests.Single(q => q.GetProperty("id").GetInt32() == 1).GetProperty("rewards").GetProperty("items").EnumerateArray());
@@ -108,7 +108,7 @@ public class QuestCatalogExportShould
         Assert.Equal(["id", "title", "repeat", "stages", "rewards"], quest.EnumerateObject().Select(p => p.Name));
         Assert.Equal(["sequence", "objectives"], quest.GetProperty("stages")[0].EnumerateObject().Select(p => p.Name));
         Assert.Equal(["id", "type", "targetId", "count"], objective.EnumerateObject().Select(p => p.Name));
-        Assert.Equal(["experience", "money", "items", "choices"], quest.GetProperty("rewards").EnumerateObject().Select(p => p.Name));
+        Assert.Equal(["experience", "gold", "items", "choices"], quest.GetProperty("rewards").EnumerateObject().Select(p => p.Name));
     }
 
     [Fact]

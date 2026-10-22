@@ -45,7 +45,7 @@ public class QuestTemplateControllerShould
         RequiredQuestId = 2,
         ScriptName = "AlphaHowlScript",
         RewardExperience = 600,
-        RewardMoney = 400,
+        RewardGold = 400,
         IsRepeatable = true,
         RepeatFrequency = Avalon.World.Public.Enums.QuestRepeatFrequency.Weekly,
         Stages =
@@ -112,7 +112,7 @@ public class QuestTemplateControllerShould
         Assert.Equal(CharacterClass.Hunter, dto.ClassRequirement);
         Assert.Equal(2u, dto.RequiredQuestId);
         Assert.Equal("AlphaHowlScript", dto.ScriptName);
-        Assert.Equal((600u, 400ul), (dto.RewardExperience, dto.RewardMoney));
+        Assert.Equal((600u, 400ul), (dto.RewardExperience, dto.RewardGold));
         Assert.Equal((true, (Avalon.Api.Contract.QuestRepeatFrequency?)Avalon.Api.Contract.QuestRepeatFrequency.Weekly),
             (dto.IsRepeatable, dto.RepeatFrequency));
 

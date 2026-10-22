@@ -8977,7 +8977,7 @@ namespace Avalon.Database.World.Migrations
                     b.Property<long>("RewardExperience")
                         .HasColumnType("bigint");
 
-                    b.Property<decimal>("RewardMoney")
+                    b.Property<decimal>("RewardGold")
                         .HasColumnType("numeric(20,0)");
 
                     b.Property<string>("ScriptName")
@@ -9013,7 +9013,7 @@ namespace Avalon.Database.World.Migrations
                             LevelRequirement = 1,
                             Rarity = 0,
                             RewardExperience = 150L,
-                            RewardMoney = 100m,
+                            RewardGold = 100m,
                             TitleTextId = 25,
                             Type = 0
                         },
@@ -9030,7 +9030,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RequiredQuestId = 1L,
                             RewardExperience = 250L,
-                            RewardMoney = 150m,
+                            RewardGold = 150m,
                             TitleTextId = 29,
                             Type = 0
                         },
@@ -9047,7 +9047,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RequiredQuestId = 2L,
                             RewardExperience = 600L,
-                            RewardMoney = 400m,
+                            RewardGold = 400m,
                             TitleTextId = 33,
                             Type = 0
                         },
@@ -9063,7 +9063,7 @@ namespace Avalon.Database.World.Migrations
                             LevelRequirement = 2,
                             Rarity = 0,
                             RewardExperience = 300L,
-                            RewardMoney = 200m,
+                            RewardGold = 200m,
                             TitleTextId = 43,
                             Type = 0
                         },
@@ -9080,7 +9080,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RequiredQuestId = 4L,
                             RewardExperience = 400L,
-                            RewardMoney = 250m,
+                            RewardGold = 250m,
                             TitleTextId = 47,
                             Type = 0
                         },
@@ -9097,7 +9097,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RequiredQuestId = 5L,
                             RewardExperience = 500L,
-                            RewardMoney = 300m,
+                            RewardGold = 300m,
                             TitleTextId = 51,
                             Type = 0
                         },
@@ -9114,7 +9114,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RequiredQuestId = 6L,
                             RewardExperience = 700L,
-                            RewardMoney = 400m,
+                            RewardGold = 400m,
                             TitleTextId = 55,
                             Type = 0
                         },
@@ -9131,7 +9131,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RequiredQuestId = 7L,
                             RewardExperience = 1500L,
-                            RewardMoney = 1000m,
+                            RewardGold = 1000m,
                             TitleTextId = 59,
                             Type = 0
                         },
@@ -9148,7 +9148,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RequiredQuestId = 6L,
                             RewardExperience = 600L,
-                            RewardMoney = 350m,
+                            RewardGold = 350m,
                             TitleTextId = 67,
                             Type = 0
                         },
@@ -9165,7 +9165,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RepeatFrequency = 1,
                             RewardExperience = 800L,
-                            RewardMoney = 500m,
+                            RewardGold = 500m,
                             TitleTextId = 75,
                             Type = 0
                         },
@@ -9182,7 +9182,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RequiredQuestId = 5L,
                             RewardExperience = 550L,
-                            RewardMoney = 325m,
+                            RewardGold = 325m,
                             TitleTextId = 79,
                             Type = 0
                         });

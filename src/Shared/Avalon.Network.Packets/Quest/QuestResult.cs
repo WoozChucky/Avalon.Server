@@ -14,8 +14,8 @@ public enum QuestResult
     LogFull = 5,
     /// <summary>The reward items would not fit in the bag, even after the quest items leave it.</summary>
     BagFull = 6,
-    /// <summary>The reward money would pass the character's gold cap.</summary>
-    MoneyCap = 7,
+    /// <summary>The reward gold would pass the character's gold cap.</summary>
+    GoldCap = 7,
     /// <summary>The NPC is past the dialogue leash; the conversation was ended.</summary>
     TooFar = 8,
     /// <summary>

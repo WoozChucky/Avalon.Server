@@ -45,9 +45,9 @@ public class InventoryAllocationShould
     [Fact]
     public void Flush_a_ticks_changes_allocating_only_the_entries_sent()
     {
-        long moneyOnly = Allocated(() =>
+        long goldOnly = Allocated(() =>
         {
-            _character.ClientChanges.RecordMoney();
+            _character.ClientChanges.RecordGold();
             InventoryUpdateFlusher.Flush(_connection);
         });
         long slots = Allocated(() =>
@@ -57,7 +57,7 @@ public class InventoryAllocationShould
             InventoryUpdateFlusher.Flush(_connection);
         });
 
-        Assert.Equal(0, moneyOnly);
+        Assert.Equal(0, goldOnly);
         Assert.Equal(Allocated(() => Entries(3)), slots);
         Assert.Equal(8 * Rounds, _connection.Sent);
     }

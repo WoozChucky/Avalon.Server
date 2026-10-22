@@ -32,7 +32,7 @@ public sealed record QuestView(
     CharacterClass? ClassRequirement,
     uint? RequiredQuestId,
     uint RewardExperience,
-    ulong RewardMoney,
+    ulong RewardGold,
     Type? ScriptType,
     IReadOnlyList<QuestStageView> Stages,
     IReadOnlyList<QuestItemRewardView> ItemRewards,
@@ -491,7 +491,7 @@ public sealed class QuestCatalog
 
     private static QuestView ToView(QuestTemplate q, Type? script) => new(
         q.Id.Value, q.TitleTextId, q.DescriptionTextId, q.CompletionTextId, q.GiverCreatureId, q.EnderCreatureId,
-        q.LevelRequirement, q.ClassRequirement, q.RequiredQuestId?.Value, q.RewardExperience, q.RewardMoney, script,
+        q.LevelRequirement, q.ClassRequirement, q.RequiredQuestId?.Value, q.RewardExperience, q.RewardGold, script,
         q.Stages.OrderBy(s => s.Sequence).Select(s => new QuestStageView(s.Sequence, s.DescriptionTextId,
             q.Objectives.Where(o => o.StageSequence == s.Sequence).OrderBy(o => o.Id)
                 .Select(o => new QuestObjectiveView(o.Id, q.Id.Value, o.StageSequence, o.Type, o.CreatureTemplateId,

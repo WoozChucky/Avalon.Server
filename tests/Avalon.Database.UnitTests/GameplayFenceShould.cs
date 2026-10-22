@@ -28,15 +28,15 @@ public sealed class GameplayFenceShould
         Assert.NotNull(await fences.AdvanceAsync(old, false, _clock.GetUtcNow().UtcDateTime.AddSeconds(45), CancellationToken.None));
         Assert.NotNull(await fences.ActivateAsync(old, _clock.GetUtcNow().UtcDateTime.AddSeconds(45), CancellationToken.None));
         var saves = new CharacterSaveRepository(new DbTransactionRunner<CharacterDbContext>(database), _clock);
-        row.Money = 25;
+        row.Gold = 25;
         await saves.WriteAsync([Batch(row, old)]);
         Assert.NotNull(await fences.AdvanceAsync(replacement, true, _clock.GetUtcNow().UtcDateTime.AddSeconds(45), CancellationToken.None));
-        row.Money = 999;
+        row.Gold = 999;
         var staleItem = new ItemInstance { Id = new ItemInstanceId(Guid.NewGuid()), TemplateId = new ItemTemplateId(1), CharacterId = row.Id, Count = 99, UpdatedAt = _clock.GetUtcNow().UtcDateTime };
         var stale = new CharacterSaveBatch(row, [staleItem], [], [new CharacterInventory { CharacterId = row.Id, Container = InventoryType.Bag, Slot = 0, ItemId = staleItem.Id }], []) { Authority = old };
         await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => saves.WriteAsync([stale]));
         await using CharacterDbContext read = database.CreateDbContext();
-        Assert.Equal(25UL, (await read.Characters.AsNoTracking().SingleAsync()).Money);
+        Assert.Equal(25UL, (await read.Characters.AsNoTracking().SingleAsync()).Gold);
         Assert.Equal(2, (await read.AccountGameplayFences.AsNoTracking().SingleAsync()).FencingToken);
         Assert.Empty(await read.ItemInstances.AsNoTracking().ToListAsync());
         Assert.Empty(await read.CharacterInventory.AsNoTracking().ToListAsync());
@@ -71,10 +71,10 @@ public sealed class GameplayFenceShould
 
         Assert.Null(await fences.AdvanceAsync(replaced, false, until, CancellationToken.None));
         Assert.Null(await fences.ActivateAsync(replaced, until, CancellationToken.None));
-        row.Money = 999;
+        row.Gold = 999;
         await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => saves.WriteAsync([Batch(row, replaced)]));
         await using CharacterDbContext read = database.CreateDbContext();
-        Assert.Equal(0UL, (await read.Characters.AsNoTracking().SingleAsync()).Money);
+        Assert.Equal(0UL, (await read.Characters.AsNoTracking().SingleAsync()).Gold);
     }
     [Fact]
     public async Task Refuse_pending_expired_missing_or_mismatched_authority_and_never_regress_a_barrier()
@@ -113,11 +113,11 @@ public sealed class GameplayFenceShould
             Assert.NotNull(await fences.ActivateAsync(authority, until, CancellationToken.None));
         }
         Assert.NotNull(await fences.AdvanceAsync(new(b.AccountId, Guid.NewGuid(), 2), true, until, CancellationToken.None));
-        first.Money = 10; second.Money = 20;
+        first.Gold = 10; second.Gold = 20;
         var saves = new CharacterSaveRepository(new DbTransactionRunner<CharacterDbContext>(database), _clock);
         await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => saves.WriteAsync([Batch(second, b), Batch(first, a)]));
         await using CharacterDbContext read = database.CreateDbContext();
-        Assert.All(await read.Characters.AsNoTracking().ToListAsync(), row => Assert.Equal(0UL, row.Money));
+        Assert.All(await read.Characters.AsNoTracking().ToListAsync(), row => Assert.Equal(0UL, row.Gold));
     }
     private static CharacterSaveBatch Batch(CharacterRow row, GameplayWriteAuthority authority) => new(row, [], [], [], []) { Authority = authority };
     private static async Task<CharacterRow> Seed(SqliteDatabase<CharacterDbContext> database, AccountId account, uint id)

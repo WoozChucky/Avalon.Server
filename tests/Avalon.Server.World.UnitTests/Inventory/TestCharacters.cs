@@ -30,7 +30,7 @@ internal static class TestCharacters
 
     public static ItemTemplate? Find(ItemTemplateId id) => s_templates.GetValueOrDefault(id);
 
-    public static CharacterEntity New(uint id = 7, ulong money = 0, TimeProvider? time = null)
+    public static CharacterEntity New(uint id = 7, ulong gold = 0, TimeProvider? time = null)
     {
         var row = new Character
         {
@@ -38,7 +38,7 @@ internal static class TestCharacters
             AccountId = new AccountId(1),
             Name = NameFor(id),
             Class = CharacterClass.Warrior,
-            Money = money,
+            Gold = gold,
             CreationDate = (time ?? TimeProvider.System).GetUtcNow().UtcDateTime,
         };
         return new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), time) { Data = row };

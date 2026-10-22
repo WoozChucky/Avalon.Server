@@ -634,7 +634,7 @@ public partial class EnterMapHandler(
         // every arrival sends (MapArrival), from the layout entries the instance was built with (#883).
         MapArrival.Send(connection, targetInstance, targetTemplate, spawn);
 
-        // 13. Persist the new map, instance and position, with any dirty inventory and money, through the one
+        // 13. Persist the new map, instance and position, with any dirty inventory and gold, through the one
         // save path (spec #459 section 1). The row's coordinates are the character's position.
         if (connection.Character is CharacterEntity { Data: { } dbCharacter } entity)
         {

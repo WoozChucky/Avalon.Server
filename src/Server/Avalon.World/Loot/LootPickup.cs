@@ -10,7 +10,7 @@ namespace Avalon.World.Loot;
 
 /// <summary>
 /// Whether a character may take a drop, and taking it. Tick thread: it changes the character's
-/// containers, money, save marks and client changes.
+/// containers, gold, save marks and client changes.
 /// </summary>
 public static class LootPickup
 {
@@ -75,10 +75,10 @@ public static class LootPickup
                     return new LootPickupOutcome(LootPickupResult.NotFound, false);
             }
         }
-        else if (economy.WalletOf(character).TryAddMoney(drop.Gold) != WalletResult.Ok)
+        else if (economy.WalletOf(character).TryAddGold(drop.Gold) != WalletResult.Ok)
         {
-            // 6. TryAddMoney refuses only past the cap.
-            return new LootPickupOutcome(LootPickupResult.MoneyCapReached, false);
+            // 6. TryAddGold refuses only past the cap.
+            return new LootPickupOutcome(LootPickupResult.GoldCapReached, false);
         }
 
         // 7. Taken.

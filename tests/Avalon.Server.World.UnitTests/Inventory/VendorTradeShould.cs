@@ -18,8 +18,8 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 /// </summary>
 public class VendorTradeShould
 {
-    private static VendorTrade Trade(CharacterEntity character, ulong maxMoney = 1_000_000) =>
-        new(character, TestCharacters.InventoryFor(character, Find), new CharacterWallet(character, maxMoney), Find, maxMoney);
+    private static VendorTrade Trade(CharacterEntity character, ulong maxGold = 1_000_000) =>
+        new(character, TestCharacters.InventoryFor(character, Find), new CharacterWallet(character, maxGold), Find, maxGold);
 
     private static InventoryItem At(CharacterEntity character, byte slot) =>
         TestCharacters.At(character, InventoryType.Bag, slot);
@@ -27,7 +27,7 @@ public class VendorTradeShould
     [Fact]
     public void Take_the_costs_the_gold_and_the_stock_and_add_the_item_on_a_buy()
     {
-        CharacterEntity character = TestCharacters.New(money: 100);
+        CharacterEntity character = TestCharacters.New(gold: 100);
         InventoryItem tonics = TestCharacters.Item(0, Tonic, count: 3);
         character.Container(InventoryType.Bag).Load([tonics]);
         VendorStockState stock = Stock();
@@ -36,18 +36,18 @@ public class VendorTradeShould
         VendorResult result = Trade(character).TryBuy(true, stock, ElixirSequence, 1, NoQuestProgress.Instance, Now);
 
         Assert.Equal(VendorResult.Ok, result);
-        Assert.Equal(70UL, character.Data!.Money);
+        Assert.Equal(70UL, character.Data!.Gold);
         Assert.Equal(1u, At(character, 0).Count);                  // two of the three Tonics were the cost
         InventoryItem bought = At(character, 1);
         Assert.Equal((Elixir.Id, 1u), (bought.TemplateId, bought.Count));
         Assert.Equal(4u, stock.Available(elixir));
         Assert.True(stock.Changed);
 
-        Assert.True(character.SaveState.MoneyDirty);
+        Assert.True(character.SaveState.GoldDirty);
         Assert.Equal(SaveState.Changed, character.SaveState.ItemState(tonics.InstanceId));
         Assert.Equal(SaveState.New, character.SaveState.ItemState(bought.InstanceId));
         Assert.Equal(SaveState.New, character.SaveState.SlotState(InventoryType.Bag, 1));
-        Assert.True(character.ClientChanges.MoneyChanged);
+        Assert.True(character.ClientChanges.GoldChanged);
         Assert.Contains((InventoryType.Bag, (byte)0), character.ClientChanges.Slots);
         Assert.Contains((InventoryType.Bag, (byte)1), character.ClientChanges.Slots);
         // A stock change reaches open shops through the stock state, not the buyer's flag.
@@ -57,14 +57,14 @@ public class VendorTradeShould
     [Fact]
     public void Change_nothing_for_a_refused_buy()
     {
-        CharacterEntity character = TestCharacters.New(money: 100);
+        CharacterEntity character = TestCharacters.New(gold: 100);
         character.Container(InventoryType.Bag).Load([TestCharacters.Item(0, Tonic, count: 1)]);
         VendorStockState stock = Stock();
 
         VendorResult result = Trade(character).TryBuy(true, stock, ElixirSequence, 1, NoQuestProgress.Instance, Now);
 
         Assert.Equal(VendorResult.MissingItems, result);
-        Assert.Equal(100UL, character.Data!.Money);
+        Assert.Equal(100UL, character.Data!.Gold);
         Assert.Equal(1u, At(character, 0).Count);
         Assert.Equal(5u, stock.Available(stock.Rows.Single(r => r.Sequence == ElixirSequence)));
         Assert.False(stock.Changed);
@@ -75,13 +75,13 @@ public class VendorTradeShould
     [Fact]
     public void Sell_a_whole_stack_into_the_buyback_list_under_its_own_id()
     {
-        CharacterEntity character = TestCharacters.New(money: 0);
+        CharacterEntity character = TestCharacters.New(gold: 0);
         InventoryItem blade = TestCharacters.Item(4, Blade, durability: 42);
         character.Container(InventoryType.Bag).Load([blade]);
 
         Assert.Equal(VendorResult.Ok, Trade(character).TrySell(true, 4, null));
 
-        Assert.Equal(25UL, character.Data!.Money);
+        Assert.Equal(25UL, character.Data!.Gold);
         Assert.False(character.Container(InventoryType.Bag).TryGet(4, out _));
         Assert.Equal(SaveState.Removed, character.SaveState.ItemState(blade.InstanceId));
         Assert.Equal(SaveState.Removed, character.SaveState.SlotState(InventoryType.Bag, 4));
@@ -89,19 +89,19 @@ public class VendorTradeShould
         Assert.Equal(blade, entry.Item);
         Assert.Equal(25UL, entry.Price);
         Assert.True(character.VendorListOwed);
-        Assert.True(character.ClientChanges.MoneyChanged);
+        Assert.True(character.ClientChanges.GoldChanged);
     }
 
     [Fact]
     public void Sell_part_of_a_stack_and_keep_a_copy_for_buyback()
     {
-        CharacterEntity character = TestCharacters.New(money: 0);
+        CharacterEntity character = TestCharacters.New(gold: 0);
         InventoryItem tonics = TestCharacters.Item(2, Tonic, count: 5);
         character.Container(InventoryType.Bag).Load([tonics]);
 
         Assert.Equal(VendorResult.Ok, Trade(character).TrySell(true, 2, 2));
 
-        Assert.Equal(8UL, character.Data!.Money);
+        Assert.Equal(8UL, character.Data!.Gold);
         Assert.Equal(tonics with { Count = 3 }, At(character, 2));
         Assert.Equal(SaveState.Changed, character.SaveState.ItemState(tonics.InstanceId));
         InventoryItem copy = Assert.Single(character.Buyback.Entries).Item;
@@ -113,7 +113,7 @@ public class VendorTradeShould
     [Fact]
     public void Buy_back_the_exact_instance_and_take_it_off_the_list()
     {
-        CharacterEntity character = TestCharacters.New(money: 30);
+        CharacterEntity character = TestCharacters.New(gold: 30);
         InventoryItem blade = TestCharacters.Item(4, Blade, durability: 42);
         character.Container(InventoryType.Bag).Load([TestCharacters.Item(0, Tonic), blade]);
         VendorTrade trade = Trade(character);
@@ -122,7 +122,7 @@ public class VendorTradeShould
 
         Assert.Equal(VendorResult.Ok, trade.TryBuyback(true, 0));
 
-        Assert.Equal(30UL, character.Data!.Money);
+        Assert.Equal(30UL, character.Data!.Gold);
         Assert.Equal(blade with { Slot = 1 }, At(character, 1));      // the lowest free slot, same id and durability
         Assert.Empty(character.Buyback.Entries);
         Assert.Equal(SaveState.New, character.SaveState.ItemState(blade.InstanceId));
@@ -133,14 +133,14 @@ public class VendorTradeShould
     [Fact]
     public void Change_nothing_for_a_refused_sale_or_buyback()
     {
-        CharacterEntity character = TestCharacters.New(money: 0);
+        CharacterEntity character = TestCharacters.New(gold: 0);
         character.Container(InventoryType.Bag).Load([TestCharacters.Item(0, Keepsake)]);
         VendorTrade trade = Trade(character);
 
         Assert.Equal(VendorResult.NotSellable, trade.TrySell(true, 0, null));
         Assert.Equal(VendorResult.NotFound, trade.TryBuyback(true, 0));
 
-        Assert.Equal(0UL, character.Data!.Money);
+        Assert.Equal(0UL, character.Data!.Gold);
         Assert.Single(character.Container(InventoryType.Bag).Items);
         Assert.Empty(character.Buyback.Entries);
         Assert.False(character.VendorListOwed);
@@ -251,7 +251,7 @@ public class VendorTradeShould
 
     private static CharacterEntity Loaded(List<InventoryItem> bag, List<InventoryItem> bank)
     {
-        CharacterEntity character = TestCharacters.New(money: 1_000_000);
+        CharacterEntity character = TestCharacters.New(gold: 1_000_000);
         character.Container(InventoryType.Bag).Load(bag);
         character.Container(InventoryType.Bank).Load(bank);
         return character;

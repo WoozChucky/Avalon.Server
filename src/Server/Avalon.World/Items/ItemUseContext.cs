@@ -82,7 +82,7 @@ public sealed class ItemUseContext(
         Consumed += count;
     }
 
-    // Inventory and money.
+    // Inventory and gold.
     public bool HasBagRoom(ItemTemplateId itemId, uint count) =>
         tools.Economy.InventoryOf(character).CanAdd(itemId, count) == InventoryAddResult.Ok;
 
@@ -92,9 +92,9 @@ public sealed class ItemUseContext(
     public bool TakeItem(ItemTemplateId itemId, uint count) =>
         tools.Economy.InventoryOf(character).TryRemove(itemId, count) == InventoryRemoveResult.Ok;
 
-    public ulong Money => tools.Economy.WalletOf(character).Balance;
-    public bool GiveMoney(ulong copper) => tools.Economy.WalletOf(character).TryAddMoney(copper) == WalletResult.Ok;
-    public bool TakeMoney(ulong copper) => tools.Economy.WalletOf(character).TrySpend(copper) == WalletResult.Ok;
+    public ulong Gold => tools.Economy.WalletOf(character).Balance;
+    public bool GiveGold(ulong gold) => tools.Economy.WalletOf(character).TryAddGold(gold) == WalletResult.Ok;
+    public bool TakeGold(ulong gold) => tools.Economy.WalletOf(character).TrySpend(gold) == WalletResult.Ok;
 
     // Health, power and damage.
     public uint RestoreHealth(uint amount) => amount == 0 ? 0u : host.RestoreHealth(character, character, amount);

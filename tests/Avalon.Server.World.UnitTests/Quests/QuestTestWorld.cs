@@ -188,9 +188,9 @@ internal sealed class QuestTestWorld
     public void Remove(ICreature creature) => _creatures.Remove(creature.Guid);
 
     /// <summary>Character <paramref name="id" /> at the origin of the instance, alive.</summary>
-    public QuestClient Join(uint id = 1, ushort level = 1, CharacterClass characterClass = CharacterClass.Warrior, ulong money = 0)
+    public QuestClient Join(uint id = 1, ushort level = 1, CharacterClass characterClass = CharacterClass.Warrior, ulong gold = 0)
     {
-        CharacterEntity character = TestCharacters.New(id, money);
+        CharacterEntity character = TestCharacters.New(id, gold);
         character.Level = level;
         character.Data!.Class = characterClass;
         character.InstanceId = Instance.InstanceId;

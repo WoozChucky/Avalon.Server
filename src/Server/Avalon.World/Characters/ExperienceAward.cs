@@ -15,7 +15,7 @@ namespace Avalon.World.Characters;
 /// character onto such a level stops there, the rest discarded, so it arrives with none. Nothing is logged for either. Each new level refreshes the stats (#434): a living character is
 /// refilled to the new maximums, a dead one keeps its share of each pool, so a level-up never revives a corpse. The
 /// party roster shows levels, so it is resent. A character whose current level has no row (none does today) is awarded
-/// nothing and a warning is logged. Copper and items never pass through here, so they are paid at the cap as anywhere
+/// nothing and a warning is logged. Gold and items never pass through here, so they are paid at the cap as anywhere
 /// else. Tick thread only.
 /// </summary>
 public static class ExperienceAward

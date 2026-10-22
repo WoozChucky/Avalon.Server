@@ -34,9 +34,9 @@ public class VendorRulesShould
 
     private static Held[] FullBag => Enumerable.Range(0, 30).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
 
-    private static CharacterEntity Arrange(IReadOnlyCollection<Held> held, ulong money, bool dead)
+    private static CharacterEntity Arrange(IReadOnlyCollection<Held> held, ulong gold, bool dead)
     {
-        CharacterEntity character = TestCharacters.New(money: money);
+        CharacterEntity character = TestCharacters.New(gold: gold);
         foreach (IGrouping<InventoryType, Held> container in held.GroupBy(h => h.At.Container))
         {
             character.Container(container.Key).Load(
@@ -52,11 +52,11 @@ public class VendorRulesShould
         + character.Container(InventoryType.Bag).Items.Count
         + character.Container(InventoryType.Bank).Items.Count;
 
-    private static void AssertUnchanged(CharacterEntity character, ulong money, int held)
+    private static void AssertUnchanged(CharacterEntity character, ulong gold, int held)
     {
         Assert.False(character.SaveState.HasChanges);
         Assert.False(character.ClientChanges.HasChanges);
-        Assert.Equal(money, character.Data!.Money);
+        Assert.Equal(gold, character.Data!.Gold);
         Assert.Equal(held, ItemsHeld(character));
     }
 
@@ -65,7 +65,7 @@ public class VendorRulesShould
     public sealed record BuyCase(
         string Name,
         Held[] Holding,
-        ulong Money,
+        ulong Gold,
         uint Sequence,
         uint? Count,
         VendorResult Expected,
@@ -147,7 +147,7 @@ public class VendorRulesShould
     public void Decide_every_buy(string name)
     {
         BuyCase row = s_buyCases.Single(c => c.Name == name);
-        CharacterEntity character = Arrange(row.Holding, row.Money, row.Dead);
+        CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead);
         VendorStockState stock = Stock();
         Sell(stock, BladeSequence, row.BladesSold);
         Sell(stock, ElixirSequence, row.ElixirsSold);
@@ -187,7 +187,7 @@ public class VendorRulesShould
             Assert.Null(decision.Plan);
         }
 
-        AssertUnchanged(character, row.Money, row.Holding.Length);
+        AssertUnchanged(character, row.Gold, row.Holding.Length);
     }
 
     [Fact]
@@ -265,8 +265,8 @@ public class VendorRulesShould
         uint? Count,
         VendorResult Expected,
         ulong Payment = 0,
-        ulong Money = 0,
-        ulong MaxMoney = 1_000_000,
+        ulong Gold = 0,
+        ulong MaxGold = 1_000_000,
         bool Shop = true,
         bool Dead = false);
 
@@ -300,10 +300,10 @@ public class VendorRulesShould
         new("Refuse a count of 0", [At(Bag(0), Tonic, 5)], 0, 0, VendorResult.InvalidCount),
         new("Refuse a count above the stack", [At(Bag(0), Tonic, 5)], 0, 6, VendorResult.InvalidCount),
 
-        // 7. The money cap.
-        new("Reach the money cap exactly", [At(Bag(0), Tonic, 5)], 0, null, VendorResult.Ok, Payment: 20, Money: 980, MaxMoney: 1000),
-        new("Refuse a sale past the money cap", [At(Bag(0), Tonic, 5)], 0, null, VendorResult.MoneyCapReached, Money: 990, MaxMoney: 1000),
-        new("Refuse any sale above a lowered cap", [At(Bag(0), Tonic, 1)], 0, null, VendorResult.MoneyCapReached, Money: 2000, MaxMoney: 1000),
+        // 7. The gold cap.
+        new("Reach the gold cap exactly", [At(Bag(0), Tonic, 5)], 0, null, VendorResult.Ok, Payment: 20, Gold: 980, MaxGold: 1000),
+        new("Refuse a sale past the gold cap", [At(Bag(0), Tonic, 5)], 0, null, VendorResult.GoldCapReached, Gold: 990, MaxGold: 1000),
+        new("Refuse any sale above a lowered cap", [At(Bag(0), Tonic, 1)], 0, null, VendorResult.GoldCapReached, Gold: 2000, MaxGold: 1000),
     ];
 
     public static IEnumerable<object[]> SellCaseNames => s_sellCases.Select(c => new object[] { c.Name });
@@ -313,9 +313,9 @@ public class VendorRulesShould
     public void Decide_every_sale(string name)
     {
         SellCase row = s_sellCases.Single(c => c.Name == name);
-        CharacterEntity character = Arrange(row.Holding, row.Money, row.Dead);
+        CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead);
 
-        SellDecision decision = VendorRules.DecideSell(character, row.Shop, row.BagSlot, row.Count, Find, row.MaxMoney);
+        SellDecision decision = VendorRules.DecideSell(character, row.Shop, row.BagSlot, row.Count, Find, row.MaxGold);
 
         Assert.Equal(row.Expected, decision.Result);
         if (row.Expected == VendorResult.Ok)
@@ -327,7 +327,7 @@ public class VendorRulesShould
             Assert.Null(decision.Plan);
         }
 
-        AssertUnchanged(character, row.Money, row.Holding.Length);
+        AssertUnchanged(character, row.Gold, row.Holding.Length);
     }
 
     // ---- Buyback --------------------------------------------------------------------------------
@@ -336,7 +336,7 @@ public class VendorRulesShould
         string Name,
         (ItemTemplate Template, uint Count, ulong Price)[] Sold,
         Held[] Holding,
-        ulong Money,
+        ulong Gold,
         uint Index,
         VendorResult Expected,
         bool Shop = true,
@@ -375,7 +375,7 @@ public class VendorRulesShould
     public void Decide_every_buyback(string name)
     {
         BuybackCase row = s_buybackCases.Single(c => c.Name == name);
-        CharacterEntity character = Arrange(row.Holding, row.Money, row.Dead);
+        CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead);
         foreach ((ItemTemplate template, uint count, ulong price) in row.Sold)
             character.Buyback.Push(new BuybackEntry(TestCharacters.Item(0, template, count), price));
 
@@ -392,7 +392,7 @@ public class VendorRulesShould
             Assert.Null(decision.Plan);
         }
 
-        AssertUnchanged(character, row.Money, row.Holding.Length);
+        AssertUnchanged(character, row.Gold, row.Holding.Length);
         Assert.Equal(row.Sold.Length, character.Buyback.Entries.Count);
     }
 
