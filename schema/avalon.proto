@@ -475,6 +475,7 @@ enum ItemRequestResult {
    ItemRequestResult_Dead = 11;
    ItemRequestResult_Blocked = 12;
    ItemRequestResult_Stunned = 13;
+   ItemRequestResult_Locked = 14;
 }
 message ItemSlotDto {
    InventoryType Container = 1;
@@ -504,6 +505,7 @@ enum ItemUseResult {
    ItemUseResult_Refused = 15;
    ItemUseResult_InternalError = 16;
    ItemUseResult_Stunned = 17;
+   ItemUseResult_Locked = 18;
 }
 message LootDropDto {
    uint64 LootGuid = 1;
@@ -1366,6 +1368,7 @@ enum VendorResult {
    VendorResult_Dead = 11;
    VendorResult_Damaged = 12;
    VendorResult_Stunned = 13;
+   VendorResult_Locked = 14;
 }
 enum WorldHandshakeRefusal {
    WorldHandshakeRefusal_None = 0;

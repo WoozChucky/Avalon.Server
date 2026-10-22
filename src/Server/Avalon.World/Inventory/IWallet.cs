@@ -5,6 +5,7 @@ public interface IWallet
 {
     ulong Balance { get; }
 
+    /// <summary>Against the balance less any gold held for a trade (#1175).</summary>
     WalletResult CanSpend(ulong gold);
 
     WalletResult TrySpend(ulong gold);

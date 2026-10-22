@@ -16,18 +16,18 @@ public interface IInventoryService
 
     /// <summary>
     /// Fills existing Bag stacks of the template up to its MaxStackSize in slot order, then the lowest
-    /// free Bag slots, one new instance per stack. Never adds to Equipment or the Bank. A count of 0
-    /// is Ok and changes nothing.
+    /// free Bag slots, one new instance per stack. Never adds to Equipment or the Bank, nor to a stack
+    /// offered in a trade (#1175). A count of 0 is Ok and changes nothing.
     /// </summary>
     InventoryAddResult TryAdd(ItemTemplateId templateId, uint count);
 
     /// <summary>
-    /// From Bag stacks of the template, highest slot first. NotFound when the Bag holds none of it,
-    /// whatever the count, including 0.
+    /// From Bag stacks of the template, highest slot first, leaving out any stack offered in a trade
+    /// (#1175). NotFound when the Bag holds none of it outside a trade, whatever the count, including 0.
     /// </summary>
     InventoryRemoveResult TryRemove(ItemTemplateId templateId, uint count);
 
-    /// <summary>From the one instance, wherever it sits.</summary>
+    /// <summary>From the one instance, wherever it sits. Locked while it is offered in a trade (#1175).</summary>
     InventoryRemoveResult TryRemove(ItemInstanceId itemInstanceId, uint count);
 
     /// <summary>

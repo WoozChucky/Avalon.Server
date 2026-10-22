@@ -473,4 +473,40 @@ public class ItemUseServiceShould : IAsyncLifetime
         Assert.Equal((40u, ItemUseResult.Interrupted), Only());
         InventoryItemAssert(2u);
     }
+
+    /// <summary>
+    /// An item offered in a trade (#1175) is neither used nor worn, and one offered while its cast bar runs ends the use
+    /// Interrupted: nothing is consumed and nothing moves.
+    /// </summary>
+    [Theory]
+    [InlineData("potion use")]
+    [InlineData("gear equip")]
+    [InlineData("locked during its cast bar")]
+    public void Answer_Locked_for_an_offered_item(string row)
+    {
+        bool midCast = row == "locked during its cast bar";
+        InventoryItem item = row switch
+        {
+            "potion use" => Item(0, Tonic, count: 5),
+            "gear equip" => Item(0, EquipTemplates.Longsword),
+            _ => Item(0, Scroll, count: 2),
+        };
+        _w.Bag(item);
+
+        if (midCast)
+        {
+            _w.Use(45, 0);
+            _w.Character.Locks.Lock(item.InstanceId);
+            _w.Tick(3.1);
+        }
+        else
+        {
+            _w.Character.Locks.Lock(item.InstanceId);
+            _w.Use(45, 0);
+        }
+
+        Assert.Equal((45u, midCast ? ItemUseResult.Interrupted : ItemUseResult.Locked), Only());
+        Assert.Equal(item, At(_w.Character, InventoryType.Bag, 0));
+        Assert.Empty(_w.Character.Container(InventoryType.Equipment).Items);
+    }
 }

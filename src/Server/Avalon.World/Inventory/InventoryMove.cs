@@ -45,7 +45,8 @@ public readonly record struct MoveDecision(ItemRequestResult Result, MovePlan Pl
 /// </summary>
 /// <remarks>
 /// The checks run in this order, and the first failure answers: the slots exist and differ and
-/// are not reserved; the Bank is accessible if either names it; the source holds an item; the
+/// are not reserved; the Bank is accessible if either names it; the source holds an item; neither
+/// the source item nor an item in the target slot is offered in a trade (#1175, Locked); the
 /// count is 1 to the stack's size; then the rule for what the target holds.
 /// An item whose template is gone (a reload removed it) is still an item: it can be moved within
 /// the Bag and the Bank, taken off, and destroyed, but never worn, and it stacks to 1.
@@ -69,6 +70,11 @@ public static class InventoryMove
 
         if (!character.Container(from.Container).TryGet(from.Slot, out InventoryItem source))
             return MoveDecision.Refused(ItemRequestResult.NotFound);
+
+        // #1175: an item offered in a trade neither leaves its slot nor takes another item in: no move, split, merge
+        // or swap touches it, from either side.
+        if (character.Locks.Any && IsLockedAt(character, to, source))
+            return MoveDecision.Refused(ItemRequestResult.Locked);
 
         uint moving = count ?? source.Count;
         if (moving == 0 || moving > source.Count)
@@ -148,6 +154,9 @@ public static class InventoryMove
         if (!character.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item))
             return ItemRequestResult.NotFound;
 
+        if (character.Locks.Any && character.Locks.IsLocked(item.InstanceId))
+            return ItemRequestResult.Locked;
+
         uint amount = count ?? item.Count;
         if (amount == 0 || amount > item.Count)
             return ItemRequestResult.InvalidCount;
@@ -158,6 +167,12 @@ public static class InventoryMove
         destroying = amount;
         return ItemRequestResult.Ok;
     }
+
+    /// <summary>The source item, or the item in the target slot, is offered in a trade.</summary>
+    private static bool IsLockedAt(CharacterEntity character, SlotRef to, InventoryItem source) =>
+        character.Locks.IsLocked(source.InstanceId)
+        || (character.Container(to.Container).TryGet(to.Slot, out InventoryItem target)
+            && character.Locks.IsLocked(target.InstanceId));
 
     /// <summary>The slot exists in its container and is not a reserved equipment slot.</summary>
     public static bool IsUsable(CharacterEntity character, SlotRef slot) =>

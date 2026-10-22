@@ -21,15 +21,15 @@ namespace Avalon.World.Items;
 /// In order: dead (before anything else, so no script hook, teleport or quest start ever runs for a dead user); stunned
 /// (#770, as early, for the same reason); the slot (Bag or Equipment); a worn item is taken off to the lowest free Bag slot (ItemEquip.Unequip: TargetFull when
 /// there is none; asked before the template, so an item whose template is gone comes off too) and nothing else is asked;
-/// the template; gear is equipped (ItemEquip, then the stats refresh a drag-to-equip runs; an equip or unequip that
-/// passed its checks ends the item cast running, answered Interrupted, the doodad cast running and the arrival
-/// protection, just before it moves anything) and nothing else is asked; otherwise a script is needed, then an ability
+/// a Bag item offered in a trade (#1175) is Locked; the template; gear is equipped (ItemEquip, then the stats refresh a
+/// drag-to-equip runs; an equip or unequip that passed its checks ends the item cast running, answered Interrupted, the
+/// doodad cast running and the arrival protection, just before it moves anything) and nothing else is asked; otherwise a script is needed, then an ability
 /// cast refuses (AlreadyCasting), then the item's and its group's cooldown, then the script found and built and the
 /// user's instance (InternalError), then the script's CanUse. A use that passed all of them ends the item cast running,
 /// which is answered Interrupted, the doodad cast running and the arrival protection, then runs OnUse at once or starts
-/// a cast bar (UseCastTimeMs) whose completion needs the same item instance still in the same Bag slot, asks CanUse
-/// again and runs OnUse. After OnUse returns: the cooldown starts and what it consumed is taken through the inventory
-/// service, so it is saved and sent like any change. Every script hook is contained: a throw is logged at Error and
+/// a cast bar (UseCastTimeMs) whose completion needs the same item instance still in the same Bag slot and not offered
+/// in a trade (else Interrupted), asks CanUse again and runs OnUse. After OnUse returns: the cooldown starts and what
+/// it consumed is taken through the inventory service, so it is saved and sent like any change. Every script hook is contained: a throw is logged at Error and
 /// answered InternalError, with nothing consumed and no cooldown. These per-request Error logs (a missing or
 /// unbuildable script type, a hook that throws) are written at most once per script and step per
 /// <see cref="ThrottledErrorLog.Interval" />, counting the ones left out. Scripts are built once per type through
@@ -91,6 +91,10 @@ public sealed class ItemUseService(
         {
             return ItemUseAnswer.Of(ItemUseResult.NotFound);
         }
+
+        // #1175: an item offered in a trade is neither used nor worn, asked before its template as a move asks it.
+        if (character.Locks.Any && character.Locks.IsLocked(item.InstanceId))
+            return ItemUseAnswer.Of(ItemUseResult.Locked);
 
         if (FindTemplate(item.TemplateId) is not { } template)
             return ItemUseAnswer.Of(ItemUseResult.NotUsable);
@@ -199,10 +203,14 @@ public sealed class ItemUseService(
         }
     }
 
-    /// <summary>The used item is still the same instance in the same Bag slot.</summary>
+    /// <summary>The used item is still the same instance in the same Bag slot, and not offered in a trade (#1175).</summary>
     private static bool StillHeld(ItemUse use) =>
         use.Character.Container(InventoryType.Bag).TryGet(use.Item.Slot, out InventoryItem now)
-        && now.InstanceId.Equals(use.Item.InstanceId);
+        && now.InstanceId.Equals(use.Item.InstanceId)
+        && !IsLocked(use.Character, now);
+
+    private static bool IsLocked(CharacterEntity character, InventoryItem item) =>
+        character.Locks.Any && character.Locks.IsLocked(item.InstanceId);
 
     private ItemUseAnswer Finish(ItemUse use)
     {
@@ -210,7 +218,8 @@ public sealed class ItemUseService(
         {
             if (use.Character.IsDead
                 || !use.Character.Container(InventoryType.Bag).TryGet(use.Item.Slot, out InventoryItem now)
-                || !now.InstanceId.Equals(use.Item.InstanceId))
+                || !now.InstanceId.Equals(use.Item.InstanceId)
+                || IsLocked(use.Character, now))
             {
                 return ItemUseAnswer.Of(ItemUseResult.Interrupted);
             }

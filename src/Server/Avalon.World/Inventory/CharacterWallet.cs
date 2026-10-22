@@ -11,8 +11,9 @@ public sealed class CharacterWallet(CharacterEntity owner, ulong maxGold) : IWal
 
     public ulong Balance => Row.Gold;
 
+    /// <summary>Only what is not held for a trade (#1175) can be spent.</summary>
     public WalletResult CanSpend(ulong gold) =>
-        gold <= Row.Gold ? WalletResult.Ok : WalletResult.NotEnoughGold;
+        gold <= Spendable ? WalletResult.Ok : WalletResult.NotEnoughGold;
 
     public WalletResult TrySpend(ulong gold)
     {
@@ -40,6 +41,8 @@ public sealed class CharacterWallet(CharacterEntity owner, ulong maxGold) : IWal
         Changed();
         return WalletResult.Ok;
     }
+
+    private ulong Spendable => owner.Locks.Any ? owner.Locks.Spendable(Row.Gold) : Row.Gold;
 
     private void Changed()
     {

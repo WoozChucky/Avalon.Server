@@ -10,7 +10,8 @@ using Avalon.World.Public.Characters;
 namespace Avalon.World.Quests;
 
 /// <summary>
-/// Whether a turn-in can go ahead, changing nothing (#433): ready; the last stage's Collect items all in the bag; the
+/// Whether a turn-in can go ahead, changing nothing (#433): ready; the last stage's Collect items all in the bag, in
+/// stacks not offered in a trade (#1175: an offered stack is not the quest's to take, so it counts for nothing); the
 /// pick one of the quest's choice set, or none for a quest without one (#711); every reward template, fixed and
 /// picked, known and not Unique; the fixed rewards and the pick fit the bag as it will be once every quest item has
 /// left it; the gold under the cap. Everything after it is ordered so nothing can refuse, as VendorRules is for a
@@ -28,7 +29,7 @@ public static class QuestTurnInRules
 
         foreach (QuestObjectiveView objective in quest.LastStage.Objectives)
         {
-            if (objective.Type == QuestObjectiveType.Collect && QuestService.HeldInBag(character, objective.ItemTemplateId!) < objective.Count)
+            if (objective.Type == QuestObjectiveType.Collect && Collectable(character, objective.ItemTemplateId!) < objective.Count)
                 return QuestResult.NotReady;
         }
 
@@ -69,8 +70,9 @@ public static class QuestTurnInRules
             .Select(o => o.ItemTemplateId!.Value)
             .ToHashSet();
         CharacterInventoryContainer bag = character.Container(InventoryType.Bag);
+        // A quest item offered in a trade stays behind (QuestService.RemoveQuestItems skips it), so it is no room.
         var bagAfter = bag.Items
-            .Where(i => !questItems.Contains(i.TemplateId.Value))
+            .Where(i => !questItems.Contains(i.TemplateId.Value) || (character.Locks.Any && character.Locks.IsLocked(i.InstanceId)))
             .ToDictionary(i => i.Slot);
         if (!Fits(bagAfter, bag.Capacity, rewards))
             return QuestResult.BagFull;
@@ -81,6 +83,12 @@ public static class QuestTurnInRules
 
         return QuestResult.Ok;
     }
+
+    /// <summary>The item in the Bag the turn-in may take: every stack but those offered in a trade (#1175).</summary>
+    private static long Collectable(CharacterEntity character, ItemTemplateId item) =>
+        character.Locks.Any
+            ? character.Locks.UnlockedCount(character.Container(InventoryType.Bag), item)
+            : QuestService.HeldInBag(character, item);
 
     /// <summary>
     /// The entry of the quest's choice set the pick names (#711); null for no pick (0) or a pick outside the set.

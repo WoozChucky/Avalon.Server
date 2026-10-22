@@ -10,7 +10,8 @@ namespace Avalon.World.Inventory;
 /// <summary>
 /// <see cref="IInventoryService" /> over one character's containers. The one writer of a
 /// character's items: every change it makes marks <see cref="CharacterEntity.SaveState" /> and
-/// <see cref="CharacterEntity.ClientChanges" />.
+/// <see cref="CharacterEntity.ClientChanges" />. A stack offered in a trade (<see cref="CharacterEntity.Locks" />, #1175)
+/// is left alone: adds never fill it, removals by template never see it, and removing it by id is Locked.
 /// </summary>
 public sealed class CharacterInventoryService(
     CharacterEntity owner,
@@ -40,7 +41,7 @@ public sealed class CharacterInventoryService(
         // which is what the lists copied before each walk used to hold (#883).
         for (byte slot = 0; slot < bag.Capacity; slot++)
         {
-            if (!bag.TryGet(slot, out InventoryItem stack) || !IsPartialStack(stack, templateId, maxStack))
+            if (!bag.TryGet(slot, out InventoryItem stack) || !IsFillable(stack, templateId, maxStack))
                 continue;
 
             uint take = Math.Min(maxStack - stack.Count, remaining);
@@ -75,7 +76,7 @@ public sealed class CharacterInventoryService(
         long held = 0;
         foreach (InventoryItem item in bag.Held)
         {
-            if (item.TemplateId != templateId)
+            if (item.TemplateId != templateId || IsLocked(item))
                 continue;
 
             found = true;
@@ -93,7 +94,7 @@ public sealed class CharacterInventoryService(
         uint remaining = count;
         for (int slot = bag.Capacity - 1; slot >= 0 && remaining > 0; slot--)
         {
-            if (!bag.TryGet((byte)slot, out InventoryItem stack) || stack.TemplateId != templateId)
+            if (!bag.TryGet((byte)slot, out InventoryItem stack) || stack.TemplateId != templateId || IsLocked(stack))
                 continue;
 
             uint take = Math.Min(stack.Count, remaining);
@@ -112,6 +113,9 @@ public sealed class CharacterInventoryService(
             {
                 if (item.InstanceId != itemInstanceId)
                     continue;
+
+                if (IsLocked(item))
+                    return InventoryRemoveResult.Locked;
 
                 if (item.Count < count)
                     return InventoryRemoveResult.NotEnough;
@@ -281,7 +285,7 @@ public sealed class CharacterInventoryService(
         long room = (long)(bag.Capacity - bag.Held.Count) * maxStack;
         foreach (InventoryItem item in bag.Held)
         {
-            if (IsPartialStack(item, templateId, maxStack))
+            if (IsFillable(item, templateId, maxStack))
                 room += maxStack - item.Count;
         }
 
@@ -303,9 +307,15 @@ public sealed class CharacterInventoryService(
         return owned;
     }
 
-    /// <summary>A stack of the item below the maximum. One already above it (a lowered template) is left alone.</summary>
-    private static bool IsPartialStack(InventoryItem item, ItemTemplateId templateId, uint maxStack) =>
-        item.TemplateId == templateId && item.Count < maxStack;
+    /// <summary>
+    /// A stack of the item below the maximum, and not offered in a trade. One already above it (a lowered template) is
+    /// left alone.
+    /// </summary>
+    private bool IsFillable(InventoryItem item, ItemTemplateId templateId, uint maxStack) =>
+        item.TemplateId == templateId && item.Count < maxStack && !IsLocked(item);
+
+    /// <summary>Offered in a trade (#1175). One bool read while nothing is.</summary>
+    private bool IsLocked(InventoryItem item) => owner.Locks.Any && owner.Locks.IsLocked(item.InstanceId);
 
     /// <summary>A MaxStackSize of 0 is read as 1: every item takes at least a slot of its own.</summary>
     private static uint MaxStack(ItemTemplate template) => InventoryMove.MaxStack(template);

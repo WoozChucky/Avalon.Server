@@ -5,6 +5,7 @@ using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
+using Avalon.World.Public.Characters;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using NSubstitute;
@@ -18,7 +19,7 @@ namespace Avalon.Server.World.UnitTests.Vendors;
 /// </summary>
 public class VendorRulesShould
 {
-    public sealed record Held(SlotRef At, ItemTemplate Template, uint Count = 1, uint Durability = 0);
+    public sealed record Held(SlotRef At, ItemTemplate Template, uint Count = 1, uint Durability = 0, bool Locked = false);
 
     private static SlotRef Bag(byte slot) => new(InventoryType.Bag, slot);
 
@@ -26,15 +27,16 @@ public class VendorRulesShould
 
     private static SlotRef Eq(byte slot) => new(InventoryType.Equipment, slot);
 
-    private static Held At(SlotRef slot, ItemTemplate template, uint count = 1, uint durability = 0) =>
-        new(slot, template, count, durability);
+    private static Held At(SlotRef slot, ItemTemplate template, uint count = 1, uint durability = 0, bool locked = false) =>
+        new(slot, template, count, durability, locked);
 
     /// <summary>Keepsakes in Bag slots 0-28: one slot, 29, is free.</summary>
     private static Held[] AllButLastSlot => Enumerable.Range(0, 29).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
 
     private static Held[] FullBag => Enumerable.Range(0, 30).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
 
-    private static CharacterEntity Arrange(IReadOnlyCollection<Held> held, ulong gold, bool dead)
+    /// <summary>A Held marked Locked is offered in a trade (#1175); <paramref name="heldGold" /> is gold offered.</summary>
+    private static CharacterEntity Arrange(IReadOnlyCollection<Held> held, ulong gold, bool dead, ulong heldGold = 0)
     {
         CharacterEntity character = TestCharacters.New(gold: gold);
         foreach (IGrouping<InventoryType, Held> container in held.GroupBy(h => h.At.Container))
@@ -43,6 +45,13 @@ public class VendorRulesShould
                 container.Select(h => TestCharacters.Item(h.At.Slot, h.Template, h.Count, h.Durability)).ToList());
         }
 
+        foreach (Held h in held.Where(h => h.Locked))
+        {
+            Assert.True(character.Container(h.At.Container).TryGet(h.At.Slot, out InventoryItem item));
+            character.Locks.Lock(item.InstanceId);
+        }
+
+        character.Locks.HeldGold = heldGold;
         character.IsDead = dead;
         return character;
     }
@@ -76,7 +85,8 @@ public class VendorRulesShould
         uint ElixirsSold = 0,
         bool QuestMet = false,
         bool TonicGone = false,
-        uint? CharmSellPrice = null);
+        uint? CharmSellPrice = null,
+        ulong HeldGold = 0);
 
     private static readonly BuyCase[] s_buyCases =
     [
@@ -114,6 +124,7 @@ public class VendorRulesShould
         new("Refuse too little gold", [], 9, TonicSequence, null, VendorResult.NotEnoughGold),
         new("Refuse gold for one but not for the count", [], 49, TonicSequence, 5, VendorResult.NotEnoughGold),
         new("Check the gold before the cost items", [], 29, ElixirSequence, null, VendorResult.NotEnoughGold),
+        new("Refuse gold held for a trade", [], 100, ElixirSequence, null, VendorResult.NotEnoughGold, HeldGold: 80),
 
         // 7. Cost items times count, from the Bag only.
         new("Buy with the cost items in the bag", [At(Bag(0), Tonic, 2)], 30, ElixirSequence, null, VendorResult.Ok, Total: 30),
@@ -147,7 +158,7 @@ public class VendorRulesShould
     public void Decide_every_buy(string name)
     {
         BuyCase row = s_buyCases.Single(c => c.Name == name);
-        CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead);
+        CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead, row.HeldGold);
         VendorStockState stock = Stock();
         Sell(stock, BladeSequence, row.BladesSold);
         Sell(stock, ElixirSequence, row.ElixirsSold);
@@ -290,6 +301,7 @@ public class VendorRulesShould
         new("Refuse a NoSell item", [At(Bag(0), Keepsake)], 0, null, VendorResult.NotSellable),
         new("Refuse an item that sells for nothing", [At(Bag(0), Trinket)], 0, null, VendorResult.NotSellable),
         new("Refuse an item whose template is gone", [At(Bag(0), EquipTemplates.Ghost)], 0, null, VendorResult.NotSellable),
+        new("Refuse a locked item", [At(Bag(0), Tonic, 5, locked: true)], 0, null, VendorResult.Locked),
 
         // 5. Not damaged.
         new("Refuse a weapon one point below full", [At(Bag(0), Blade, durability: 41)], 0, null, VendorResult.Damaged),
