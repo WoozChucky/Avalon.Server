@@ -198,9 +198,10 @@ public class AbilityAuraShould
             ActiveAuraIs(boar, aura, wizard.Character.Guid);
         else
             Assert.Equal(0, boar.Auras.Count);
-        (uint, HitResult)[] expected = sent == HitResult.None ? [] : [(0u, sent)];
+        // #1178: an evaded ability that deals no damage would have dealt no part, so it carries no type.
+        (uint, HitResult, DamageTypeMask)[] expected = sent == HitResult.None ? [] : [(0u, sent, DamageTypeMask.None)];
         Assert.Equal(expected, wizard.Read<SUnitDamagePacket>(NetworkPacketType.SMSG_CREATURE_DAMAGED)
-            .Select(p => (p.Damage, p.Result)));
+            .Select(p => (p.Damage, p.Result, p.Types)));
         Assert.NotNull(instance.CombatService.GetEncounterFor(boar));
         Assert.True(wizard.Character.IsInCombat, "the caster is not in combat");
     }

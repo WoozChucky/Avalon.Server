@@ -408,6 +408,22 @@ enum CreatureRarity {
    CreatureRarity_Rare = 2;
    CreatureRarity_Boss = 3;
 }
+enum DamageType {
+   DamageType_Physical = 0;
+   DamageType_Fire = 1;
+   DamageType_Cold = 2;
+   DamageType_Lightning = 3;
+   DamageType_Blight = 4;
+}
+enum DamageTypeMask {
+   // this is a composite/flags enumeration
+   DamageTypeMask_None = 0;
+   DamageTypeMask_Physical = 1;
+   DamageTypeMask_Fire = 2;
+   DamageTypeMask_Cold = 4;
+   DamageTypeMask_Lightning = 8;
+   DamageTypeMask_Blight = 16;
+}
 enum DialogueOptionKind {
    DialogueOptionKind_Conversation = 0;
    DialogueOptionKind_OpenBank = 1;
@@ -776,6 +792,8 @@ message ObjectState {
    optional uint32 AbilityId = 28;
    optional uint64 CasterGuid = 29;
    optional uint32 CastId = 30;
+   optional uint32 Ward = 31;
+   optional uint32 MaxWard = 32;
 }
 enum PartyExperienceMode {
    PartyExperienceMode_Unknown = 0;
@@ -1007,6 +1025,9 @@ message SCharacterDamagePacket {
    optional uint32 AbilityId = 5;
    HitResult Result = 6;
    optional uint32 AuraId = 7;
+   DamageType Type = 8;
+   DamageTypeMask Types = 9;
+   uint32 WardAbsorbed = 10;
 }
 message SCharacterDeletedPacket {
    SCharacterDeletedResult Result = 1;
@@ -1046,12 +1067,20 @@ message SCharacterStatsPacket {
    uint32 AttackDamage = 6;
    uint32 AbilityDamage = 7;
    float CritPct = 8;
-   float DodgePct = 9;
    float BlockPct = 10;
    uint32 WeaponMin = 11;
    uint32 WeaponMax = 12;
    float HastePct = 13;
    float MovementSpeed = 14;
+   uint32 Evasion = 15;
+   float EvasionPct = 16;
+   uint32 MaxWard = 17;
+   float FireResistance = 18;
+   float ColdResistance = 19;
+   float LightningResistance = 20;
+   float BlightResistance = 21;
+   reserved 9;
+   reserved "DodgePct";
 }
 message SChatMessagePacket {
    uint64 AccountId = 1;
@@ -1319,6 +1348,9 @@ message SUnitDamagePacket {
    uint32 Damage = 4;
    HitResult Result = 5;
    optional uint32 AuraId = 6;
+   DamageType Type = 7;
+   DamageTypeMask Types = 8;
+   uint32 WardAbsorbed = 9;
 }
 message SUnitDeathPacket {
    uint64 UnitGuid = 1;

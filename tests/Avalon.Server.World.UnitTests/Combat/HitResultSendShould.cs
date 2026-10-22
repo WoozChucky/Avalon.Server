@@ -49,7 +49,7 @@ public class HitResultSendShould
     }
 
     private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, uint evasion = 0,
-        float block = 0f)
+        float block = 0f, uint ward = 0)
     {
         var creature = new Creature
         {
@@ -61,6 +61,7 @@ public class HitResultSendShould
             Evasion = evasion,
             BlockPct = block,
             Level = 1,
+            BaseWard = ward,
         };
         creature.Script = new BroadcastingWoundScript(creature, instance);
         instance.AddCreature(creature);
@@ -98,6 +99,8 @@ public class HitResultSendShould
 
         SUnitDamagePacket seen = Assert.Single(UnitHits(near));
         Assert.Equal((boar.Guid.RawValue, 0u, 100u, HitResult.Dodged), (seen.Target, seen.Damage, seen.CurrentHealth, seen.Result));
+        // #1178: an evaded hit names the type and the parts it would have dealt.
+        Assert.Equal((DamageType.Physical, DamageTypeMask.Physical), (seen.Type, seen.Types));
         Assert.Single(UnitHits(attacker));
         Assert.Empty(far.Sent);
         Assert.Equal(0, ((BroadcastingWoundScript)boar.Script!).Hits);
@@ -159,6 +162,52 @@ public class HitResultSendShould
 
         instance.CombatService.ApplyDamage(gm.Character, boar, 10);
         Assert.Equal(90u, boar.CurrentHealth);
+    }
+
+    /// <summary>
+    /// #1178: a hit names its type, the types it carried and what the target's ward took of it, to its target's own
+    /// packet and to everyone who hears it. Both targets hold a ward of 10: a character's takes the cold hit's first 10, a
+    /// creature's is passed by blight, the creature script's broadcast carrying the hit's report.
+    /// </summary>
+    [Theory]
+    [InlineData(true, DamageType.Cold, 10u, 25u)]
+    [InlineData(false, DamageType.Blight, 0u, 25u)]
+    public void Carry_the_damage_type_and_the_ward_absorbed_to_everyone_who_hears_the_hit(bool characterTarget,
+        DamageType type, uint wardAbsorbed, uint hit)
+    {
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain());
+        MapInstanceClient player = At(instance, 1178_301, Vector3.zero);
+        player.Character.ApplyStats(new DerivedCharacterStats(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0,
+            Agility: 0, Intellect: 0, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 0f, AttackDamage: 0, AbilityDamage: 0,
+            MaxWard: 10), CurrentValues.Refill, TestCombat.Formula);
+        MapInstanceClient watcher = At(instance, 1178_302, new Vector3(3f, 0f, 0f));
+        Creature boar = AddCreature(instance, 1178_801, new Vector3(1f, 0f, 0f), ward: 10);
+        AbilityTemplate template = AbilityTestData.Circle(1178);
+        template.DamageType = type;
+        template.EffectValue = hit;
+
+        if (characterTarget)
+            instance.CombatService.ApplyDamage(boar, player.Character, hit, AbilityTestData.Game(template));
+        else
+            instance.CombatService.ApplyDamage(player.Character, boar, hit, AbilityTestData.Game(template));
+
+        (uint, DamageType, DamageTypeMask, uint) expected = (hit, type, DamageTypes.MaskOf(type), wardAbsorbed);
+        foreach (MapInstanceClient client in new[] { player, watcher })
+        {
+            SUnitDamagePacket seen = Assert.Single(UnitHits(client));
+            Assert.Equal(expected, (seen.Damage, seen.Type, seen.Types, seen.WardAbsorbed));
+        }
+
+        List<SCharacterDamagePacket> own = player.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED);
+        if (characterTarget)
+        {
+            SCharacterDamagePacket mine = Assert.Single(own);
+            Assert.Equal(expected, (mine.Damage, mine.Type, mine.Types, mine.WardAbsorbed));
+        }
+        else
+        {
+            Assert.Empty(own);
+        }
     }
 
     [Fact]

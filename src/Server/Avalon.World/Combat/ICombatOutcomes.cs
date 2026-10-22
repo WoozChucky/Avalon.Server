@@ -24,8 +24,10 @@ public interface ICombatOutcomes
     /// <summary>
     /// A hit of <paramref name="type" /> on a living <paramref name="target" /> was dodged (#506): it is sent like a hit,
     /// with 0 and <see cref="HitResult.Dodged" />, though nothing was dealt and the target's script is not told.
+    /// <paramref name="types" /> are the parts it would have dealt (#1178), its base parts above 0: None for an ability that
+    /// deals no damage, whose <paramref name="type" /> is still its own or its attacker's.
     /// </summary>
-    void HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId, DamageType type);
+    void HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId, DamageType type, DamageTypeMask types);
 
     /// <summary>
     /// <paramref name="target" /> resisted the crowd control of <paramref name="caster" />'s ability whole (#770): a

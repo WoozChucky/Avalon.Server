@@ -94,7 +94,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             return HitOutcome.Landed;
         }
 
-        Dodged(attacker, target, 0f, ability.AbilityId, HitResolver.TypeOf(metadata.DamageType, AttackerOf(attacker)));
+        // It would have dealt nothing, so it carried no type (#1178), though it is named by its own.
+        Dodged(attacker, target, 0f, ability.AbilityId, HitResolver.TypeOf(metadata.DamageType, AttackerOf(attacker)),
+            DamageTypeMask.None);
         return HitOutcome.Dodged;
     }
 
@@ -149,7 +151,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         if ((result & HitResult.Dodged) != 0)
         {
-            Dodged(attacker, target, baseDamage * threatMultiplier, abilityId, hit.Type);
+            Dodged(attacker, target, baseDamage * threatMultiplier, abilityId, hit.Type, hit.Types);
             return HitOutcome.Dodged;
         }
 
@@ -281,14 +283,15 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// attacked (<c>AiScript.OnAttacked</c>) so it engages. It deals nothing, so the script is not hit,
     /// nobody gains power, and nobody dies.
     /// </summary>
-    private void Dodged(IUnit attacker, IUnit target, float baseThreat, AbilityId? abilityId, DamageType type)
+    private void Dodged(IUnit attacker, IUnit target, float baseThreat, AbilityId? abilityId, DamageType type,
+        DamageTypeMask types)
     {
         Encounter enc = ResolveOrSpawn(attacker, target);
 
         // Sent like a hit, with 0, to whoever would have seen it land; a dead character is sent nothing,
         // as a hit on it would not be.
         if (target is not ICharacter { IsDead: true })
-            _outcomes?.HitDodged(attacker, target, abilityId, type);
+            _outcomes?.HitDodged(attacker, target, abilityId, type, types);
 
         if (target is ICreature creature)
         {

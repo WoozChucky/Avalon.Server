@@ -1068,9 +1068,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// the script was handed (#1178), so watchers see the whole hit; any other is None.
     /// </summary>
     public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage) =>
-        BroadcastUnitHit(attacker, target, currentHealth, damage + _hitInFlight.WardAbsorbed, _hitInFlight.Result);
+        BroadcastUnitHit(attacker, target, currentHealth, damage + _hitInFlight.WardAbsorbed, _hitInFlight);
 
-    private void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage, HitResult result)
+    /// <summary>A hit of <paramref name="damage" />, the whole hit, marked as <paramref name="report" /> says (#506, #1178).</summary>
+    private void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage, in HitReport report)
     {
         // Encoded once, for the first who hears it, and shared by everyone who does (#875).
         OutboundPacket hit = default;
@@ -1083,8 +1084,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
             if (hit.Payload is null)
             {
-                hit = SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue,
-                    currentHealth, damage, PacketEncoder.Shared, result);
+                hit = SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue, currentHealth, damage,
+                    PacketEncoder.Shared, report.Result, type: report.Type, types: report.Types,
+                    wardAbsorbed: report.WardAbsorbed);
             }
 
             connection.Send(hit.Share());
@@ -2810,22 +2812,25 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
         {
             connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, character.Guid.RawValue,
-                character.CurrentHealth, damage, abilityId?.Value, PacketEncoder.Shared, report.Result));
+                character.CurrentHealth, damage, abilityId?.Value, PacketEncoder.Shared, report.Result, type: report.Type,
+                types: report.Types, wardAbsorbed: report.WardAbsorbed));
         }
 
         if (_characters.ContainsKey(character.Guid))
         {
-            BroadcastUnitHit(attacker, character, character.CurrentHealth, damage, report.Result);
+            BroadcastUnitHit(attacker, character, character.CurrentHealth, damage, report);
         }
     }
 
     /// <summary>
     /// A dodge (#506) is sent as a hit of 0 marked Dodged: to the character dodging, as its own damage
     /// packet, and to everyone who hears it, by the same radius as a hit (#532). Only for a unit in this
-    /// instance, as a hit is.
+    /// instance, as a hit is. It names the type it would have dealt and the parts it carried (#1178), so a client can
+    /// colour the evade.
     /// </summary>
-    void ICombatOutcomes.HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId, DamageType type) =>
-        SendNothingDealt(attacker, target, abilityId, new HitReport(HitResult.Dodged, type, DamageTypes.MaskOf(type), 0u));
+    void ICombatOutcomes.HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId, DamageType type,
+        DamageTypeMask types) =>
+        SendNothingDealt(attacker, target, abilityId, new HitReport(HitResult.Dodged, type, types, 0u));
 
     /// <summary>
     /// Crowd control resisted whole (#770) is sent as a dodge is, a hit of 0, marked Immune, so a client can say so.
@@ -2844,7 +2849,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         if (target is ICreature && _creatures.ContainsKey(target.Guid))
         {
-            BroadcastUnitHit(attacker, target, target.CurrentHealth, 0, report.Result);
+            BroadcastUnitHit(attacker, target, target.CurrentHealth, 0, report);
         }
     }
 
@@ -2898,7 +2903,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (!heal && target is CharacterEntity character && _connections.TryGetValue(character.Guid, out IWorldConnection? own))
         {
             own.Send(SCharacterDamagePacket.Create(from.RawValue, character.Guid.RawValue, character.CurrentHealth, amount,
-                null, PacketEncoder.Shared, result, aura.Value));
+                null, PacketEncoder.Shared, result, aura.Value, report.Type, report.Types, report.WardAbsorbed));
         }
 
         // Encoded once, for the first who hears it, and shared by everyone who does (#875).
@@ -2916,7 +2921,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                     ? SUnitHealedPacket.Create(from.RawValue, target.Guid.RawValue, amount, target.CurrentHealth, null, result,
                         PacketEncoder.Shared, aura.Value)
                     : SUnitDamagePacket.Create(from, target.Guid.RawValue, target.CurrentHealth, amount,
-                        PacketEncoder.Shared, result, aura.Value);
+                        PacketEncoder.Shared, result, aura.Value, report.Type, report.Types, report.WardAbsorbed);
             }
 
             connection.Send(tick.Share());

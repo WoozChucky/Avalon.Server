@@ -76,7 +76,7 @@ public class CharacterSheetShould
         Assert.Equal((22u, 23u, 20u, 21u, 8u, 46u, 12u),
             (sheet.Stamina, sheet.Strength, sheet.Agility, sheet.Intellect, sheet.Armor, sheet.AttackDamage, sheet.AbilityDamage));
         // #1178: evasion 150 against an attacker of the character's level 1: 150 / (150 + 560 + 40) = 20 %.
-        Assert.Equal((5f, 20f, 3f, 3u, 7u), (sheet.CritPct, sheet.DodgePct, sheet.BlockPct, sheet.WeaponMin, sheet.WeaponMax));
+        Assert.Equal((5f, 20f, 3f, 3u, 7u), (sheet.CritPct, sheet.EvasionPct, sheet.BlockPct, sheet.WeaponMin, sheet.WeaponMax));
     }
 
     /// <summary>#627: the sheet shows the haste a cast actually uses, capped, and the speed the input step moves at.</summary>
@@ -209,8 +209,37 @@ public class CharacterSheetShould
         CharacterSheetFlusher.Flush(Recording(character, sent), s_seeded);
 
         SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
-        Assert.Equal((s_seeded.CritCap, s_seeded.EvasionCap, s_seeded.BlockCap), (sheet.CritPct, sheet.DodgePct, sheet.BlockPct));
-        Assert.Equal((50f, 30f, 50f), (sheet.CritPct, sheet.DodgePct, sheet.BlockPct));
+        Assert.Equal((s_seeded.CritCap, s_seeded.EvasionCap, s_seeded.BlockCap), (sheet.CritPct, sheet.EvasionPct, sheet.BlockPct));
+        Assert.Equal((50f, 30f, 50f), (sheet.CritPct, sheet.EvasionPct, sheet.BlockPct));
+    }
+
+    /// <summary>
+    /// #1178: the sheet shows the evasion rating with its chance against an attacker of the character's own level, the
+    /// ward's maximum, and each resistance as a hit counts it, capped at ResistanceCap and a weakness kept. The formula
+    /// pins EvasionBase 50, EvasionPerLevel 10 and ResistanceCap 75.
+    /// </summary>
+    [Fact]
+    public void Send_evasion_ward_and_effective_resistances()
+    {
+        CombatFormula formula = CombatSeed.Formula();
+        formula.EvasionBase = 50f;
+        formula.EvasionPerLevel = 10f;
+        formula.EvasionCap = 30f;
+        formula.ResistanceCap = 75f;
+        formula.ResistanceFloor = -100f;
+        CharacterEntity character = New();
+        character.Level = 5;
+        character.ApplyStats(Stats(evasion: 20) with { MaxWard = 12, Resistances = new Resistances(90f, 0f, 0f, -30f) },
+            CurrentValues.EnterWorld, formula);
+        var sent = new List<OutboundPacket>();
+
+        CharacterSheetFlusher.Flush(Recording(character, sent), formula);
+
+        SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
+        Assert.Equal((20u, 12u), (sheet.Evasion, sheet.MaxWard));
+        Assert.Equal(16.666666f, sheet.EvasionPct, precision: 4);   // 20 / (20 + 50 + 10 × 5)
+        Assert.Equal((75f, 0f, 0f, -30f),
+            (sheet.FireResistance, sheet.ColdResistance, sheet.LightningResistance, sheet.BlightResistance));
     }
 
     [Fact]

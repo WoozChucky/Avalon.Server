@@ -198,4 +198,17 @@ public class ObjectState
     ///     <see cref="AbilityId" /> is.
     /// </summary>
     [ProtoMember(30)] public uint? CastId { get; set; }
+
+    /// <summary>
+    ///     What a unit's ward holds now (#1178), the pool in front of its health. <see cref="MaxWard" /> is what a full ward
+    ///     holds.
+    /// </summary>
+    /// <remarks>
+    ///     Characters and creatures only. The two travel together: a change to either sends both, so a client always holds
+    ///     the pair its ward bar is drawn from. A unit with no ward sends 0 for both on its add.
+    /// </remarks>
+    [ProtoMember(31)] public uint? Ward { get; set; }
+
+    /// <summary>What a full ward holds (#1178); carried as <see cref="Ward" /> is.</summary>
+    [ProtoMember(32)] public uint? MaxWard { get; set; }
 }

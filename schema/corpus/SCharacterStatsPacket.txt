@@ -24,12 +24,18 @@ variant absent
   field 6 AttackDamage : uint = 0
   field 7 AbilityDamage : uint = 0
   field 8 CritPct : float = 0 (0x00000000)
-  field 9 DodgePct : float = 0 (0x00000000)
   field 10 BlockPct : float = 0 (0x00000000)
   field 11 WeaponMin : uint = 0
   field 12 WeaponMax : uint = 0
   field 13 HastePct : float = 0 (0x00000000)
   field 14 MovementSpeed : float = 0 (0x00000000)
+  field 15 Evasion : uint = 0
+  field 16 EvasionPct : float = 0 (0x00000000)
+  field 17 MaxWard : uint = 0
+  field 18 FireResistance : float = 0 (0x00000000)
+  field 19 ColdResistance : float = 0 (0x00000000)
+  field 20 LightningResistance : float = 0 (0x00000000)
+  field 21 BlightResistance : float = 0 (0x00000000)
   bytes 0
 
 variant empty
@@ -41,12 +47,18 @@ variant empty
   field 6 AttackDamage : uint = 0
   field 7 AbilityDamage : uint = 0
   field 8 CritPct : float = 0 (0x00000000)
-  field 9 DodgePct : float = 0 (0x00000000)
   field 10 BlockPct : float = 0 (0x00000000)
   field 11 WeaponMin : uint = 0
   field 12 WeaponMax : uint = 0
   field 13 HastePct : float = 0 (0x00000000)
   field 14 MovementSpeed : float = 0 (0x00000000)
+  field 15 Evasion : uint = 0
+  field 16 EvasionPct : float = 0 (0x00000000)
+  field 17 MaxWard : uint = 0
+  field 18 FireResistance : float = 0 (0x00000000)
+  field 19 ColdResistance : float = 0 (0x00000000)
+  field 20 LightningResistance : float = 0 (0x00000000)
+  field 21 BlightResistance : float = 0 (0x00000000)
   bytes 0
 
 variant populated
@@ -58,17 +70,25 @@ variant populated
   field 6 AttackDamage : uint = 300
   field 7 AbilityDamage : uint = 1000000
   field 8 CritPct : float = 0.100000001 (0x3dcccccd)
-  field 9 DodgePct : float = 1.5 (0x3fc00000)
   field 10 BlockPct : float = 1.5 (0x3fc00000)
   field 11 WeaponMin : uint = 1000000
   field 12 WeaponMax : uint = 4000000000
   field 13 HastePct : float = 1.5 (0x3fc00000)
   field 14 MovementSpeed : float = -7.50000027E-08 (0xb3a10fb0)
-  bytes 57
+  field 15 Evasion : uint = 300
+  field 16 EvasionPct : float = 3.14159274 (0x40490fdb)
+  field 17 MaxWard : uint = 65535
+  field 18 FireResistance : float = -2.25 (0xc0100000)
+  field 19 ColdResistance : float = -2.25 (0xc0100000)
+  field 20 LightningResistance : float = 1E+10 (0x501502f9)
+  field 21 BlightResistance : float = -2.25 (0xc0100000)
+  bytes 90
     08 07 10 ac 02 18 ff ff 03 20 2a 28 c0 84 3d 30
-    ac 02 38 c0 84 3d 45 cd cc cc 3d 4d 00 00 c0 3f
-    55 00 00 c0 3f 58 c0 84 3d 60 80 d0 ac f3 0e 6d
-    00 00 c0 3f 75 b0 0f a1 b3
+    ac 02 38 c0 84 3d 45 cd cc cc 3d 55 00 00 c0 3f
+    58 c0 84 3d 60 80 d0 ac f3 0e 6d 00 00 c0 3f 75
+    b0 0f a1 b3 78 ac 02 85 01 db 0f 49 40 88 01 ff
+    ff 03 95 01 00 00 10 c0 9d 01 00 00 10 c0 a5 01
+    f9 02 15 50 ad 01 00 00 10 c0
 
 variant maxima
   field 1 Stamina : uint = 4294967295
@@ -79,18 +99,27 @@ variant maxima
   field 6 AttackDamage : uint = 4294967295
   field 7 AbilityDamage : uint = 4294967295
   field 8 CritPct : float = 3.40282347E+38 (0x7f7fffff)
-  field 9 DodgePct : float = 3.40282347E+38 (0x7f7fffff)
   field 10 BlockPct : float = 3.40282347E+38 (0x7f7fffff)
   field 11 WeaponMin : uint = 4294967295
   field 12 WeaponMax : uint = 4294967295
   field 13 HastePct : float = 3.40282347E+38 (0x7f7fffff)
   field 14 MovementSpeed : float = 3.40282347E+38 (0x7f7fffff)
-  bytes 79
+  field 15 Evasion : uint = 4294967295
+  field 16 EvasionPct : float = 3.40282347E+38 (0x7f7fffff)
+  field 17 MaxWard : uint = 4294967295
+  field 18 FireResistance : float = 3.40282347E+38 (0x7f7fffff)
+  field 19 ColdResistance : float = 3.40282347E+38 (0x7f7fffff)
+  field 20 LightningResistance : float = 3.40282347E+38 (0x7f7fffff)
+  field 21 BlightResistance : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 117
     08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 ff ff ff
     ff 0f 20 ff ff ff ff 0f 28 ff ff ff ff 0f 30 ff
-    ff ff ff 0f 38 ff ff ff ff 0f 45 ff ff 7f 7f 4d
-    ff ff 7f 7f 55 ff ff 7f 7f 58 ff ff ff ff 0f 60
-    ff ff ff ff 0f 6d ff ff 7f 7f 75 ff ff 7f 7f
+    ff ff ff 0f 38 ff ff ff ff 0f 45 ff ff 7f 7f 55
+    ff ff 7f 7f 58 ff ff ff ff 0f 60 ff ff ff ff 0f
+    6d ff ff 7f 7f 75 ff ff 7f 7f 78 ff ff ff ff 0f
+    85 01 ff ff 7f 7f 88 01 ff ff ff ff 0f 95 01 ff
+    ff 7f 7f 9d 01 ff ff 7f 7f a5 01 ff ff 7f 7f ad
+    01 ff ff 7f 7f
 
 variant minima
   field 1 Stamina : uint = 0
@@ -101,15 +130,23 @@ variant minima
   field 6 AttackDamage : uint = 0
   field 7 AbilityDamage : uint = 0
   field 8 CritPct : float = -3.40282347E+38 (0xff7fffff)
-  field 9 DodgePct : float = -3.40282347E+38 (0xff7fffff)
   field 10 BlockPct : float = -3.40282347E+38 (0xff7fffff)
   field 11 WeaponMin : uint = 0
   field 12 WeaponMax : uint = 0
   field 13 HastePct : float = -3.40282347E+38 (0xff7fffff)
   field 14 MovementSpeed : float = -3.40282347E+38 (0xff7fffff)
-  bytes 25
-    45 ff ff 7f ff 4d ff ff 7f ff 55 ff ff 7f ff 6d
-    ff ff 7f ff 75 ff ff 7f ff
+  field 15 Evasion : uint = 0
+  field 16 EvasionPct : float = -3.40282347E+38 (0xff7fffff)
+  field 17 MaxWard : uint = 0
+  field 18 FireResistance : float = -3.40282347E+38 (0xff7fffff)
+  field 19 ColdResistance : float = -3.40282347E+38 (0xff7fffff)
+  field 20 LightningResistance : float = -3.40282347E+38 (0xff7fffff)
+  field 21 BlightResistance : float = -3.40282347E+38 (0xff7fffff)
+  bytes 50
+    45 ff ff 7f ff 55 ff ff 7f ff 6d ff ff 7f ff 75
+    ff ff 7f ff 85 01 ff ff 7f ff 95 01 ff ff 7f ff
+    9d 01 ff ff 7f ff a5 01 ff ff 7f ff ad 01 ff ff
+    7f ff
 
 variant varint-edges
   field 1 Stamina : uint = 2097152
@@ -120,18 +157,26 @@ variant varint-edges
   field 6 AttackDamage : uint = 2097152
   field 7 AbilityDamage : uint = 268435456
   field 8 CritPct : float = 1.17549435E-38 (0x00800000)
-  field 9 DodgePct : float = 1.17549435E-38 (0x00800000)
   field 10 BlockPct : float = 1.17549435E-38 (0x00800000)
   field 11 WeaponMin : uint = 268435455
   field 12 WeaponMax : uint = 127
   field 13 HastePct : float = 1.17549435E-38 (0x00800000)
   field 14 MovementSpeed : float = 1.17549435E-38 (0x00800000)
-  bytes 68
+  field 15 Evasion : uint = 268435456
+  field 16 EvasionPct : float = 1.17549435E-38 (0x00800000)
+  field 17 MaxWard : uint = 268435455
+  field 18 FireResistance : float = 1.17549435E-38 (0x00800000)
+  field 19 ColdResistance : float = 1.17549435E-38 (0x00800000)
+  field 20 LightningResistance : float = 1.17549435E-38 (0x00800000)
+  field 21 BlightResistance : float = 1.17549435E-38 (0x00800000)
+  bytes 105
     08 80 80 80 01 10 80 80 80 01 18 80 80 80 80 01
     20 ff 7f 28 80 80 80 80 01 30 80 80 80 01 38 80
-    80 80 80 01 45 00 00 80 00 4d 00 00 80 00 55 00
-    00 80 00 58 ff ff ff 7f 60 7f 6d 00 00 80 00 75
-    00 00 80 00
+    80 80 80 01 45 00 00 80 00 55 00 00 80 00 58 ff
+    ff ff 7f 60 7f 6d 00 00 80 00 75 00 00 80 00 78
+    80 80 80 80 01 85 01 00 00 80 00 88 01 ff ff ff
+    7f 95 01 00 00 80 00 9d 01 00 00 80 00 a5 01 00
+    00 80 00 ad 01 00 00 80 00
 
 variant float-specials
   field 1 Stamina : uint = 7
@@ -141,15 +186,23 @@ variant float-specials
   field 5 Armor : uint = 1000000
   field 6 AttackDamage : uint = 300
   field 7 AbilityDamage : uint = 1000000
-  field 8 CritPct : float = -Infinity (0xff800000)
-  field 9 DodgePct : float = -0 (0x80000000)
-  field 10 BlockPct : float = Infinity (0x7f800000)
+  field 8 CritPct : float = 1.40129846E-45 (0x00000001)
+  field 10 BlockPct : float = -Infinity (0xff800000)
   field 11 WeaponMin : uint = 1000000
   field 12 WeaponMax : uint = 4000000000
-  field 13 HastePct : float = 1.40129846E-45 (0x00000001)
-  field 14 MovementSpeed : float = 1.17549421E-38 (0x007fffff)
-  bytes 52
+  field 13 HastePct : float = NaN (0xffc00000)
+  field 14 MovementSpeed : float = Infinity (0x7f800000)
+  field 15 Evasion : uint = 300
+  field 16 EvasionPct : float = 1.17549421E-38 (0x007fffff)
+  field 17 MaxWard : uint = 65535
+  field 18 FireResistance : float = 3.40282347E+38 (0x7f7fffff)
+  field 19 ColdResistance : float = -0 (0x80000000)
+  field 20 LightningResistance : float = NaN (0x7fc00001)
+  field 21 BlightResistance : float = Infinity (0x7f800000)
+  bytes 84
     08 07 10 ac 02 18 ff ff 03 20 2a 28 c0 84 3d 30
-    ac 02 38 c0 84 3d 45 00 00 80 ff 55 00 00 80 7f
-    58 c0 84 3d 60 80 d0 ac f3 0e 6d 01 00 00 00 75
-    ff ff 7f 00
+    ac 02 38 c0 84 3d 45 01 00 00 00 55 00 00 80 ff
+    58 c0 84 3d 60 80 d0 ac f3 0e 6d 00 00 c0 ff 75
+    00 00 80 7f 78 ac 02 85 01 ff ff 7f 00 88 01 ff
+    ff 03 95 01 ff ff 7f 7f a5 01 01 00 c0 7f ad 01
+    00 00 80 7f
