@@ -63,6 +63,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("CostPowerType")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("DamageType")
+                        .HasColumnType("integer");
+
                     b.Property<long>("EffectValue")
                         .HasColumnType("bigint");
 
@@ -126,6 +129,8 @@ namespace Avalon.Database.World.Migrations
 
                             t.HasCheckConstraint("CK_AbilityTemplates_CostPowerType", "\"CostPowerType\" BETWEEN 0 AND 3 AND (\"Cost\" = 0 OR \"CostPowerType\" <> 0)");
 
+                            t.HasCheckConstraint("CK_AbilityTemplates_DamageType", "\"DamageType\" IS NULL OR \"DamageType\" BETWEEN 0 AND 4");
+
                             t.HasCheckConstraint("CK_AbilityTemplates_HealThreatPerHp_NonNegative", "\"HealThreatPerHp\" >= 0 AND \"HealThreatPerHp\" < 'Infinity'");
 
                             t.HasCheckConstraint("CK_AbilityTemplates_PowerGainPerHit_NonNegative", "\"PowerGainPerHit\" >= 0");
@@ -150,6 +155,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 800L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageType = 0,
                             EffectValue = 12L,
                             Effects = 1,
                             Flags = 4L,
@@ -182,6 +188,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 5000L,
                             Cost = 20L,
                             CostPowerType = 2,
+                            DamageType = 0,
                             EffectValue = 25L,
                             Effects = 1,
                             Flags = 0L,
@@ -214,6 +221,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 3000L,
                             Cost = 10L,
                             CostPowerType = 2,
+                            DamageType = 0,
                             EffectValue = 20L,
                             Effects = 1,
                             Flags = 0L,
@@ -246,11 +254,12 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 800L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageType = 3,
                             EffectValue = 12L,
                             Effects = 1,
                             Flags = 4L,
                             HealThreatPerHp = 0f,
-                            Name = "Arcane Bolt",
+                            Name = "Spark Bolt",
                             Pierce = false,
                             PowerGainPerHit = 0,
                             ProjectileSpeed = 11f,
@@ -278,6 +287,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 5000L,
                             Cost = 25L,
                             CostPowerType = 1,
+                            DamageType = 1,
                             EffectValue = 18L,
                             Effects = 1,
                             Flags = 0L,
@@ -310,6 +320,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 4000L,
                             Cost = 15L,
                             CostPowerType = 1,
+                            DamageType = 2,
                             EffectValue = 22L,
                             Effects = 1,
                             Flags = 0L,
@@ -342,6 +353,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 800L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageType = 0,
                             EffectValue = 12L,
                             Effects = 1,
                             Flags = 4L,
@@ -374,6 +386,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 4000L,
                             Cost = 15L,
                             CostPowerType = 3,
+                            DamageType = 0,
                             EffectValue = 25L,
                             Effects = 1,
                             Flags = 0L,
@@ -406,6 +419,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 4000L,
                             Cost = 20L,
                             CostPowerType = 3,
+                            DamageType = 0,
                             EffectValue = 22L,
                             Effects = 1,
                             Flags = 0L,
@@ -438,6 +452,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 800L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageType = 3,
                             EffectValue = 12L,
                             Effects = 1,
                             Flags = 4L,
@@ -470,6 +485,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 5000L,
                             Cost = 20L,
                             CostPowerType = 1,
+                            DamageType = 3,
                             EffectValue = 22L,
                             Effects = 1,
                             Flags = 0L,
@@ -535,6 +551,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 6000L,
                             Cost = 10L,
                             CostPowerType = 2,
+                            DamageType = 0,
                             EffectValue = 8L,
                             Effects = 1,
                             Flags = 0L,
@@ -568,6 +585,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 6000L,
                             Cost = 20L,
                             CostPowerType = 1,
+                            DamageType = 1,
                             EffectValue = 0L,
                             Effects = 8,
                             Flags = 0L,
@@ -601,6 +619,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 8000L,
                             Cost = 15L,
                             CostPowerType = 3,
+                            DamageType = 0,
                             EffectValue = 14L,
                             Effects = 1,
                             Flags = 0L,
@@ -700,6 +719,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 15000L,
                             Cost = 15L,
                             CostPowerType = 2,
+                            DamageType = 0,
                             EffectValue = 6L,
                             Effects = 1,
                             Flags = 0L,
@@ -733,6 +753,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 20000L,
                             Cost = 25L,
                             CostPowerType = 1,
+                            DamageType = 2,
                             EffectValue = 6L,
                             Effects = 1,
                             Flags = 0L,
@@ -766,6 +787,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 15000L,
                             Cost = 20L,
                             CostPowerType = 3,
+                            DamageType = 0,
                             EffectValue = 8L,
                             Effects = 1,
                             Flags = 0L,
@@ -1055,6 +1077,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 12000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageType = 4,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1215,6 +1238,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 14000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageType = 4,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1247,6 +1271,7 @@ namespace Avalon.Database.World.Migrations
                             Cooldown = 10000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageType = 4,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1449,7 +1474,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             t.HasCheckConstraint("CK_AuraStatModifiers_Kind", "\"Kind\" IN (1, 2)");
 
-                            t.HasCheckConstraint("CK_AuraStatModifiers_Stat", "\"Stat\" BETWEEN 1 AND 10");
+                            t.HasCheckConstraint("CK_AuraStatModifiers_Stat", "\"Stat\" BETWEEN 1 AND 15");
 
                             t.HasCheckConstraint("CK_AuraStatModifiers_Value", "\"Value\" > -1000000 AND \"Value\" < 'Infinity' AND (\"Kind\" = 1 OR \"Value\" > -100)");
                         });
@@ -3092,6 +3117,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("ArmorPerLevel")
                         .HasColumnType("real");
 
+                    b.Property<float>("ArmorPerStrength")
+                        .HasColumnType("real");
+
                     b.Property<float>("BlockCap")
                         .HasColumnType("real");
 
@@ -3107,6 +3135,18 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("DodgeCap")
                         .HasColumnType("real");
 
+                    b.Property<float>("EvasionBase")
+                        .HasColumnType("real");
+
+                    b.Property<float>("EvasionCap")
+                        .HasColumnType("real");
+
+                    b.Property<float>("EvasionPerAgility")
+                        .HasColumnType("real");
+
+                    b.Property<float>("EvasionPerLevel")
+                        .HasColumnType("real");
+
                     b.Property<float>("HasteCap")
                         .HasColumnType("real");
 
@@ -3114,6 +3154,15 @@ namespace Avalon.Database.World.Migrations
                         .HasColumnType("real");
 
                     b.Property<float>("MoveSpeedFloor")
+                        .HasColumnType("real");
+
+                    b.Property<float>("ResistanceCap")
+                        .HasColumnType("real");
+
+                    b.Property<float>("ResistanceFloor")
+                        .HasColumnType("real");
+
+                    b.Property<float>("WardPerIntellect")
                         .HasColumnType("real");
 
                     b.HasKey("Id");
@@ -3125,6 +3174,8 @@ namespace Avalon.Database.World.Migrations
                             t.HasCheckConstraint("CK_CombatFormula_ArmorCap", "\"ArmorCap\" >= 0 AND \"ArmorCap\" <= 1");
 
                             t.HasCheckConstraint("CK_CombatFormula_ArmorPerLevel", "\"ArmorPerLevel\" >= 0 AND \"ArmorPerLevel\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_ArmorPerStrength", "\"ArmorPerStrength\" >= 0 AND \"ArmorPerStrength\" < 'Infinity'");
 
                             t.HasCheckConstraint("CK_CombatFormula_ArmorTermsPositive", "\"ArmorBase\" + \"ArmorPerLevel\" > 0");
 
@@ -3138,13 +3189,29 @@ namespace Avalon.Database.World.Migrations
 
                             t.HasCheckConstraint("CK_CombatFormula_DodgeCap", "\"DodgeCap\" >= 0 AND \"DodgeCap\" <= 100");
 
+                            t.HasCheckConstraint("CK_CombatFormula_EvasionBase", "\"EvasionBase\" >= 0 AND \"EvasionBase\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_EvasionCap", "\"EvasionCap\" >= 0 AND \"EvasionCap\" <= 100");
+
+                            t.HasCheckConstraint("CK_CombatFormula_EvasionPerAgility", "\"EvasionPerAgility\" >= 0 AND \"EvasionPerAgility\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_EvasionPerLevel", "\"EvasionPerLevel\" >= 0 AND \"EvasionPerLevel\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_EvasionTermsPositive", "\"EvasionBase\" + \"EvasionPerLevel\" > 0");
+
                             t.HasCheckConstraint("CK_CombatFormula_HasteCap", "\"HasteCap\" >= 0 AND \"HasteCap\" < 'Infinity'");
 
                             t.HasCheckConstraint("CK_CombatFormula_MoveSpeedCap", "\"MoveSpeedCap\" > -100 AND \"MoveSpeedCap\" < 'Infinity'");
 
                             t.HasCheckConstraint("CK_CombatFormula_MoveSpeedFloor", "\"MoveSpeedFloor\" > -100 AND \"MoveSpeedFloor\" <= \"MoveSpeedCap\"");
 
+                            t.HasCheckConstraint("CK_CombatFormula_ResistanceCap", "\"ResistanceCap\" >= 0 AND \"ResistanceCap\" <= 90");
+
+                            t.HasCheckConstraint("CK_CombatFormula_ResistanceFloor", "\"ResistanceFloor\" >= -100 AND \"ResistanceFloor\" <= 0");
+
                             t.HasCheckConstraint("CK_CombatFormula_SingleRow", "\"Id\" = 1");
+
+                            t.HasCheckConstraint("CK_CombatFormula_WardPerIntellect", "\"WardPerIntellect\" >= 0 AND \"WardPerIntellect\" < 'Infinity'");
                         });
 
                     b.HasData(
@@ -3154,14 +3221,22 @@ namespace Avalon.Database.World.Migrations
                             ArmorBase = 50f,
                             ArmorCap = 0.75f,
                             ArmorPerLevel = 10f,
+                            ArmorPerStrength = 0.1f,
                             BlockCap = 50f,
                             BlockMultiplier = 0.5f,
                             CritCap = 50f,
                             CritMultiplier = 1.5f,
                             DodgeCap = 30f,
+                            EvasionBase = 560f,
+                            EvasionCap = 30f,
+                            EvasionPerAgility = 1.125f,
+                            EvasionPerLevel = 40f,
                             HasteCap = 50f,
                             MoveSpeedCap = 35f,
-                            MoveSpeedFloor = -50f
+                            MoveSpeedFloor = -50f,
+                            ResistanceCap = 75f,
+                            ResistanceFloor = -100f,
+                            WardPerIntellect = 0.25f
                         });
                 });
 
@@ -3182,10 +3257,16 @@ namespace Avalon.Database.World.Migrations
                     b.Property<long>("DamageMin")
                         .HasColumnType("bigint");
 
+                    b.Property<long>("Evasion")
+                        .HasColumnType("bigint");
+
                     b.Property<long>("Experience")
                         .HasColumnType("bigint");
 
                     b.Property<long>("Health")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Ward")
                         .HasColumnType("bigint");
 
                     b.HasKey("Level");
@@ -3199,8 +3280,10 @@ namespace Avalon.Database.World.Migrations
                             Armor = 0L,
                             DamageMax = 5L,
                             DamageMin = 3L,
+                            Evasion = 0L,
                             Experience = 15L,
-                            Health = 40L
+                            Health = 40L,
+                            Ward = 0L
                         },
                         new
                         {
@@ -3208,8 +3291,10 @@ namespace Avalon.Database.World.Migrations
                             Armor = 3L,
                             DamageMax = 7L,
                             DamageMin = 4L,
+                            Evasion = 0L,
                             Experience = 25L,
-                            Health = 52L
+                            Health = 52L,
+                            Ward = 0L
                         },
                         new
                         {
@@ -3217,8 +3302,10 @@ namespace Avalon.Database.World.Migrations
                             Armor = 7L,
                             DamageMax = 9L,
                             DamageMin = 5L,
+                            Evasion = 0L,
                             Experience = 40L,
-                            Health = 66L
+                            Health = 66L,
+                            Ward = 0L
                         },
                         new
                         {
@@ -3226,8 +3313,10 @@ namespace Avalon.Database.World.Migrations
                             Armor = 10L,
                             DamageMax = 11L,
                             DamageMin = 7L,
+                            Evasion = 0L,
                             Experience = 60L,
-                            Health = 84L
+                            Health = 84L,
+                            Ward = 0L
                         },
                         new
                         {
@@ -3235,8 +3324,10 @@ namespace Avalon.Database.World.Migrations
                             Armor = 13L,
                             DamageMax = 14L,
                             DamageMin = 9L,
+                            Evasion = 0L,
                             Experience = 85L,
-                            Health = 106L
+                            Health = 106L,
+                            Ward = 0L
                         },
                         new
                         {
@@ -3244,8 +3335,10 @@ namespace Avalon.Database.World.Migrations
                             Armor = 17L,
                             DamageMax = 17L,
                             DamageMin = 11L,
+                            Evasion = 0L,
                             Experience = 115L,
-                            Health = 133L
+                            Health = 133L,
+                            Ward = 0L
                         },
                         new
                         {
@@ -3253,8 +3346,10 @@ namespace Avalon.Database.World.Migrations
                             Armor = 20L,
                             DamageMax = 21L,
                             DamageMin = 14L,
+                            Evasion = 0L,
                             Experience = 150L,
-                            Health = 166L
+                            Health = 166L,
+                            Ward = 0L
                         },
                         new
                         {
@@ -3262,8 +3357,10 @@ namespace Avalon.Database.World.Migrations
                             Armor = 23L,
                             DamageMax = 26L,
                             DamageMin = 17L,
+                            Evasion = 0L,
                             Experience = 195L,
-                            Health = 206L
+                            Health = 206L,
+                            Ward = 0L
                         },
                         new
                         {
@@ -3271,8 +3368,10 @@ namespace Avalon.Database.World.Migrations
                             Armor = 27L,
                             DamageMax = 32L,
                             DamageMin = 21L,
+                            Evasion = 0L,
                             Experience = 250L,
-                            Health = 254L
+                            Health = 254L,
+                            Ward = 0L
                         },
                         new
                         {
@@ -3280,8 +3379,10 @@ namespace Avalon.Database.World.Migrations
                             Armor = 30L,
                             DamageMax = 39L,
                             DamageMin = 26L,
+                            Evasion = 0L,
                             Experience = 320L,
-                            Health = 312L
+                            Health = 312L,
+                            Ward = 0L
                         });
                 });
 
@@ -3344,6 +3445,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("DamageMultiplier")
                         .HasColumnType("real");
 
+                    b.Property<float>("DefenceMultiplier")
+                        .HasColumnType("real");
+
                     b.Property<float>("DodgePct")
                         .HasColumnType("real");
 
@@ -3373,6 +3477,8 @@ namespace Avalon.Database.World.Migrations
 
                             t.HasCheckConstraint("CK_CreatureRarityModifiers_CritPct", "\"CritPct\" >= 0 AND \"CritPct\" <= 100");
 
+                            t.HasCheckConstraint("CK_CreatureRarityModifiers_DefenceMultiplier", "\"DefenceMultiplier\" >= 0 AND \"DefenceMultiplier\" < 'Infinity'");
+
                             t.HasCheckConstraint("CK_CreatureRarityModifiers_DodgePct", "\"DodgePct\" >= 0 AND \"DodgePct\" <= 100");
 
                             t.HasCheckConstraint("CK_CreatureRarityModifiers_RootDurationPct", "\"RootDurationPct\" >= 0 AND \"RootDurationPct\" <= 100");
@@ -3391,6 +3497,7 @@ namespace Avalon.Database.World.Migrations
                             BlockPct = 0f,
                             CritPct = 0f,
                             DamageMultiplier = 1f,
+                            DefenceMultiplier = 1f,
                             DodgePct = 0f,
                             ExperienceMultiplier = 1f,
                             HealthMultiplier = 1f,
@@ -3405,6 +3512,7 @@ namespace Avalon.Database.World.Migrations
                             BlockPct = 0f,
                             CritPct = 5f,
                             DamageMultiplier = 1.4f,
+                            DefenceMultiplier = 1f,
                             DodgePct = 3f,
                             ExperienceMultiplier = 3f,
                             HealthMultiplier = 2.5f,
@@ -3419,6 +3527,7 @@ namespace Avalon.Database.World.Migrations
                             BlockPct = 5f,
                             CritPct = 8f,
                             DamageMultiplier = 1.7f,
+                            DefenceMultiplier = 1f,
                             DodgePct = 5f,
                             ExperienceMultiplier = 6f,
                             HealthMultiplier = 4f,
@@ -3433,6 +3542,7 @@ namespace Avalon.Database.World.Migrations
                             BlockPct = 10f,
                             CritPct = 10f,
                             DamageMultiplier = 2.2f,
+                            DefenceMultiplier = 1f,
                             DodgePct = 5f,
                             ExperienceMultiplier = 15f,
                             HealthMultiplier = 8f,
@@ -3454,14 +3564,24 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("BaseAttackTime")
                         .HasColumnType("real");
 
+                    b.Property<float>("BlightResistance")
+                        .HasColumnType("real");
+
                     b.Property<float>("BodyRadius")
                         .HasColumnType("real");
 
                     b.Property<int>("BodyRemoveTimerSecs")
                         .HasColumnType("integer");
 
+                    b.Property<float>("ColdResistance")
+                        .HasColumnType("real");
+
                     b.Property<float>("DamageModifier")
                         .HasColumnType("real");
+
+                    b.Property<short>("DamageType")
+                        .HasColumnType("smallint")
+                        .HasColumnName("DmgSchool");
 
                     b.Property<float>("DetectionRange")
                         .HasColumnType("real");
@@ -3469,8 +3589,8 @@ namespace Avalon.Database.World.Migrations
                     b.Property<long>("DisplayId")
                         .HasColumnType("bigint");
 
-                    b.Property<short>("DmgSchool")
-                        .HasColumnType("smallint");
+                    b.Property<float>("EvasionModifier")
+                        .HasColumnType("real");
 
                     b.Property<long?>("Experience")
                         .HasColumnType("bigint")
@@ -3482,6 +3602,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("Family")
                         .HasColumnType("integer");
 
+                    b.Property<float>("FireResistance")
+                        .HasColumnType("real");
+
                     b.Property<float>("HealthModifier")
                         .HasColumnType("real");
 
@@ -3491,6 +3614,9 @@ namespace Avalon.Database.World.Migrations
 
                     b.Property<bool>("Invulnerable")
                         .HasColumnType("boolean");
+
+                    b.Property<float>("LightningResistance")
+                        .HasColumnType("real");
 
                     b.Property<int?>("LootTableId")
                         .HasColumnType("integer");
@@ -3561,6 +3687,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("Type")
                         .HasColumnType("integer");
 
+                    b.Property<float>("WardModifier")
+                        .HasColumnType("real");
+
                     b.HasKey("Id");
 
                     b.HasIndex("LootTableId");
@@ -3569,7 +3698,19 @@ namespace Avalon.Database.World.Migrations
                         {
                             t.HasCheckConstraint("CK_CreatureTemplates_BaseAttackTime", "\"BaseAttackTime\" >= 0.5 AND \"BaseAttackTime\" < 'Infinity'");
 
+                            t.HasCheckConstraint("CK_CreatureTemplates_BlightResistance", "\"BlightResistance\" >= -100 AND \"BlightResistance\" <= 100");
+
                             t.HasCheckConstraint("CK_CreatureTemplates_BodyRadius_Positive", "\"BodyRadius\" > 0 AND \"BodyRadius\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CreatureTemplates_ColdResistance", "\"ColdResistance\" >= -100 AND \"ColdResistance\" <= 100");
+
+                            t.HasCheckConstraint("CK_CreatureTemplates_DamageType", "\"DmgSchool\" BETWEEN 0 AND 4");
+
+                            t.HasCheckConstraint("CK_CreatureTemplates_EvasionModifier", "\"EvasionModifier\" >= 0 AND \"EvasionModifier\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CreatureTemplates_FireResistance", "\"FireResistance\" >= -100 AND \"FireResistance\" <= 100");
+
+                            t.HasCheckConstraint("CK_CreatureTemplates_LightningResistance", "\"LightningResistance\" >= -100 AND \"LightningResistance\" <= 100");
 
                             t.HasCheckConstraint("CK_CreatureTemplates_RootDurationPct", "\"RootDurationPct\" IS NULL OR (\"RootDurationPct\" >= 0 AND \"RootDurationPct\" <= 100)");
 
@@ -3578,6 +3719,8 @@ namespace Avalon.Database.World.Migrations
                             t.HasCheckConstraint("CK_CreatureTemplates_SlowDurationPct", "\"SlowDurationPct\" IS NULL OR (\"SlowDurationPct\" >= 0 AND \"SlowDurationPct\" <= 100)");
 
                             t.HasCheckConstraint("CK_CreatureTemplates_StunDurationPct", "\"StunDurationPct\" IS NULL OR (\"StunDurationPct\" >= 0 AND \"StunDurationPct\" <= 100)");
+
+                            t.HasCheckConstraint("CK_CreatureTemplates_WardModifier", "\"WardModifier\" >= 0 AND \"WardModifier\" < 'Infinity'");
                         });
 
                     b.HasData(
@@ -3586,18 +3729,23 @@ namespace Avalon.Database.World.Migrations
                             Id = 1m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1f,
+                            DamageType = (short)0,
                             DetectionRange = 20f,
                             DisplayId = 1L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             Experience = 0L,
                             ExperienceModifier = 1f,
                             Family = 0,
+                            FireResistance = 0f,
                             HealthModifier = 1f,
                             IconName = "",
                             Invulnerable = true,
+                            LightningResistance = 0f,
                             ManaModifier = 1f,
                             MaxGold = 0,
                             MaxLevel = (short)1,
@@ -3614,25 +3762,31 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "",
-                            Type = 7
+                            Type = 7,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 2m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1f,
+                            DamageType = (short)0,
                             DetectionRange = 20f,
                             DisplayId = 2L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             Experience = 0L,
                             ExperienceModifier = 1f,
                             Family = 0,
+                            FireResistance = 0f,
                             HealthModifier = 1f,
                             IconName = "",
                             Invulnerable = true,
+                            LightningResistance = 0f,
                             ManaModifier = 1f,
                             MaxGold = 0,
                             MaxLevel = (short)1,
@@ -3649,25 +3803,31 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "",
-                            Type = 7
+                            Type = 7,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 3m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1f,
+                            DamageType = (short)0,
                             DetectionRange = 20f,
                             DisplayId = 3L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             Experience = 0L,
                             ExperienceModifier = 1f,
                             Family = 0,
+                            FireResistance = 0f,
                             HealthModifier = 1f,
                             IconName = "",
                             Invulnerable = true,
+                            LightningResistance = 0f,
                             ManaModifier = 1f,
                             MaxGold = 0,
                             MaxLevel = (short)1,
@@ -3684,24 +3844,30 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "",
-                            Type = 7
+                            Type = 7,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 4m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1f,
+                            DamageType = (short)0,
                             DetectionRange = 12f,
                             DisplayId = 8L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             ExperienceModifier = 1f,
                             Family = 5,
+                            FireResistance = 0f,
                             HealthModifier = 1.1f,
                             IconName = "",
                             Invulnerable = false,
+                            LightningResistance = 0f,
                             LootTableId = 2,
                             ManaModifier = 1f,
                             MaxGold = 8,
@@ -3719,24 +3885,30 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "gore-scarred",
-                            Type = 1
+                            Type = 1,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 5m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1.1f,
+                            DamageType = (short)0,
                             DetectionRange = 18f,
                             DisplayId = 10L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             ExperienceModifier = 1f,
                             Family = 1,
+                            FireResistance = 0f,
                             HealthModifier = 1f,
                             IconName = "",
                             Invulnerable = false,
+                            LightningResistance = 0f,
                             LootTableId = 3,
                             ManaModifier = 1f,
                             MaxGold = 10,
@@ -3754,24 +3926,30 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "lean and patient",
-                            Type = 1
+                            Type = 1,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 6m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 0.7f,
+                            DamageType = (short)4,
                             DetectionRange = 8f,
                             DisplayId = 12L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             ExperienceModifier = 1f,
                             Family = 0,
+                            FireResistance = 0f,
                             HealthModifier = 0.6f,
                             IconName = "",
                             Invulnerable = false,
+                            LightningResistance = 0f,
                             LootTableId = 4,
                             ManaModifier = 1f,
                             MaxGold = 4,
@@ -3789,24 +3967,30 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "a drone of the bloom",
-                            Type = 8
+                            Type = 8,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 7m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1f,
+                            DamageType = (short)0,
                             DetectionRange = 14f,
                             DisplayId = 13L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             ExperienceModifier = 1f,
                             Family = 0,
+                            FireResistance = 0f,
                             HealthModifier = 1.3f,
                             IconName = "",
                             Invulnerable = false,
+                            LightningResistance = 0f,
                             LootTableId = 5,
                             ManaModifier = 1f,
                             MaxGold = 14,
@@ -3824,24 +4008,30 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "what the wold leaves behind",
-                            Type = 6
+                            Type = 6,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 8m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1.1f,
+                            DamageType = (short)0,
                             DetectionRange = 22f,
                             DisplayId = 11L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             ExperienceModifier = 1f,
                             Family = 1,
+                            FireResistance = 0f,
                             HealthModifier = 1f,
                             IconName = "",
                             Invulnerable = false,
+                            LightningResistance = 0f,
                             LootTableId = 6,
                             ManaModifier = 1f,
                             MaxGold = 45,
@@ -3859,24 +4049,30 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "the pack's black heart",
-                            Type = 1
+                            Type = 1,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 9m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1.1f,
+                            DamageType = (short)0,
                             DetectionRange = 20f,
                             DisplayId = 9L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             ExperienceModifier = 1f,
                             Family = 5,
+                            FireResistance = 0f,
                             HealthModifier = 1.2f,
                             IconName = "",
                             Invulnerable = false,
+                            LightningResistance = 0f,
                             LootTableId = 7,
                             ManaModifier = 1f,
                             MaxGold = 90,
@@ -3894,24 +4090,30 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "older than the rot",
-                            Type = 1
+                            Type = 1,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 10m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1f,
+                            DamageType = (short)4,
                             DetectionRange = 26f,
                             DisplayId = 14L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             ExperienceModifier = 1f,
                             Family = 0,
+                            FireResistance = 0f,
                             HealthModifier = 1f,
                             IconName = "",
                             Invulnerable = false,
+                            LightningResistance = 0f,
                             LootTableId = 8,
                             ManaModifier = 1f,
                             MaxGold = 300,
@@ -3929,25 +4131,31 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "rooted at the heart of the wold",
-                            Type = 4
+                            Type = 4,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 11m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1f,
+                            DamageType = (short)0,
                             DetectionRange = 20f,
                             DisplayId = 4L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             Experience = 0L,
                             ExperienceModifier = 1f,
                             Family = 0,
+                            FireResistance = 0f,
                             HealthModifier = 1f,
                             IconName = "",
                             Invulnerable = true,
+                            LightningResistance = 0f,
                             ManaModifier = 1f,
                             MaxGold = 0,
                             MaxLevel = (short)1,
@@ -3964,25 +4172,31 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "Banker",
-                            Type = 7
+                            Type = 7,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 12m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1f,
+                            DamageType = (short)0,
                             DetectionRange = 20f,
                             DisplayId = 5L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             Experience = 0L,
                             ExperienceModifier = 1f,
                             Family = 0,
+                            FireResistance = 0f,
                             HealthModifier = 1f,
                             IconName = "",
                             Invulnerable = true,
+                            LightningResistance = 0f,
                             ManaModifier = 1f,
                             MaxGold = 0,
                             MaxLevel = (short)1,
@@ -3999,25 +4213,31 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "Weapons Dealer",
-                            Type = 7
+                            Type = 7,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 13m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1f,
+                            DamageType = (short)0,
                             DetectionRange = 20f,
                             DisplayId = 6L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             Experience = 0L,
                             ExperienceModifier = 1f,
                             Family = 0,
+                            FireResistance = 0f,
                             HealthModifier = 1f,
                             IconName = "",
                             Invulnerable = true,
+                            LightningResistance = 0f,
                             ManaModifier = 1f,
                             MaxGold = 0,
                             MaxLevel = (short)1,
@@ -4034,25 +4254,31 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "Armourer",
-                            Type = 7
+                            Type = 7,
+                            WardModifier = 0f
                         },
                         new
                         {
                             Id = 14m,
                             ArmorModifier = 1f,
                             BaseAttackTime = 2.25f,
+                            BlightResistance = 0f,
                             BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
+                            ColdResistance = 0f,
                             DamageModifier = 1f,
+                            DamageType = (short)0,
                             DetectionRange = 20f,
                             DisplayId = 7L,
-                            DmgSchool = (short)0,
+                            EvasionModifier = 0f,
                             Experience = 0L,
                             ExperienceModifier = 1f,
                             Family = 0,
+                            FireResistance = 0f,
                             HealthModifier = 1f,
                             IconName = "",
                             Invulnerable = true,
+                            LightningResistance = 0f,
                             ManaModifier = 1f,
                             MaxGold = 0,
                             MaxLevel = (short)1,
@@ -4069,7 +4295,8 @@ namespace Avalon.Database.World.Migrations
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "Trade Goods",
-                            Type = 7
+                            Type = 7,
+                            WardModifier = 0f
                         });
                 });
 
@@ -4790,7 +5017,16 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("Rarity")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("RequiredAgility")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RequiredIntellect")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("RequiredLevel")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RequiredStrength")
                         .HasColumnType("integer");
 
                     b.Property<long>("SellPrice")

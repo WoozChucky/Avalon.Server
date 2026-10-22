@@ -1,6 +1,8 @@
 using Avalon.Common;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.Combat.UnitTests;
@@ -35,6 +37,14 @@ public class StaticDataRulesShould
         HasteCap = 50f,
         MoveSpeedCap = 35f,
         MoveSpeedFloor = -50f,
+        EvasionBase = 560f,
+        EvasionPerLevel = 40f,
+        EvasionCap = 30f,
+        ResistanceCap = 75f,
+        ResistanceFloor = -100f,
+        ArmorPerStrength = 0.1f,
+        EvasionPerAgility = 1.125f,
+        WardPerIntellect = 0.25f,
     };
 
     private static ClassStatFactors[] Factors() => CharacterClasses.Playable
@@ -138,6 +148,68 @@ public class StaticDataRulesShould
             StunDurationPct = 0f, RootDurationPct = 50f, SilenceDurationPct = 0f, SlowDurationPct = 100f,
         }]);
     }
+
+    /// <summary>
+    /// The defence numbers (#1178): the evasion terms must not divide by zero, the resistance cap stays under the hard
+    /// ceiling of 90 and the floor between -100 and 0, a creature's resistance is a percentage either way, and its
+    /// evasion and ward modifiers and the rarity's defence multiplier are finite and 0 or more.
+    /// </summary>
+    public static TheoryData<string, Action> DefenceRows() => new()
+    {
+        { "ResistanceCap", () => BuildWith(f => f.ResistanceCap = 95f) },
+        { "EvasionBase", () => BuildWith(f => f.EvasionBase = f.EvasionPerLevel = 0f) },
+        { "ResistanceFloor", () => BuildWith(f => f.ResistanceFloor = -150f) },
+        { "FireResistance", () => CreatureTemplateRules.Validate([new CreatureTemplate { Id = 7UL, FireResistance = 150f }]) },
+        { "WardModifier", () => CreatureTemplateRules.Validate([new CreatureTemplate { Id = 7UL, WardModifier = -1f }]) },
+        { "DefenceMultiplier", () => CreatureTemplateRules.ValidateRarities([new CreatureRarityModifier { Rarity = CreatureRarity.Elite, DefenceMultiplier = float.NaN }]) },
+    };
+
+    [Theory]
+    [MemberData(nameof(DefenceRows))]
+    public void Refuse_a_defence_row_out_of_range_naming_it(string column, Action validate) =>
+        Assert.Contains(column, Assert.Throws<InvalidDataException>(validate).Message, StringComparison.Ordinal);
+
+    private static void BuildWith(Action<CombatFormula> change)
+    {
+        CombatFormula f = Formula();
+        change(f);
+        CombatDataRules.Build([f], Factors());
+    }
+
+    /// <summary>
+    /// Damage types (#1178): an Ally ability names none, a class ability that deals damage names its own (as Flame
+    /// Burst, 211, must), and so does a class ability that only applies a damaging aura (Ignite, 213, with Burn, 2).
+    /// </summary>
+    public static TheoryData<string, Func<string?>> DamageTypeMisfits() => new()
+    {
+        { "an Ally ability has no damage type", () => AbilityRules.Problem(new AbilityTemplate
+        {
+            Name = "Mending Circle", ScriptName = AbilityRules.CircleScript, Shape = AbilityShape.Circle, Radius = 4f,
+            Affects = AbilityAffects.Ally, Effects = SpellEffect.Heal, DamageType = DamageType.Fire,
+        }) },
+        { "a class ability that deals damage names its damage type", () => AbilityRules.Problem(new AbilityTemplate
+        {
+            Name = "Flame Burst", ScriptName = AbilityRules.CircleScript, Shape = AbilityShape.Circle, Radius = 3f,
+            Effects = SpellEffect.Damage, AllowedClasses = [CharacterClass.Wizard], DamageType = null,
+        }) },
+        { "a class ability that applies a damaging aura names its damage type", () => AuraRules.DamageTypeProblem(
+            new AbilityTemplate
+            {
+                Name = "Ignite", ScriptName = AbilityRules.CircleScript, Shape = AbilityShape.Circle, Radius = 3f,
+                Effects = SpellEffect.Debuff, AllowedClasses = [CharacterClass.Wizard], AuraId = new AuraId(2),
+                DamageType = null,
+            },
+            new AuraTemplate
+            {
+                Id = new AuraId(2), Name = "Burn", Kind = AuraKind.Harmful, DurationMs = 9000, TickIntervalMs = 3000,
+                PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 24f, Stacking = AuraStacking.Refresh,
+            }) },
+    };
+
+    [Theory]
+    [MemberData(nameof(DamageTypeMisfits))]
+    public void Refuse_an_ability_whose_damage_type_does_not_fit(string message, Func<string?> problem) =>
+        Assert.Equal(message, problem());
 
     [Fact]
     public void Give_a_warrior_fury() =>

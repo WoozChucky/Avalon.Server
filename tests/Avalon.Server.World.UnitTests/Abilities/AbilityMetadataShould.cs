@@ -46,6 +46,11 @@ public class AbilityMetadataShould
         Assert.NotEmpty(metadata.GetFields(Instance));
     }
 
-    /// <summary>A number, a flag, an enum or a string: a value nothing can change through a reference to it.</summary>
-    private static bool Unchanging(Type type) => type.IsPrimitive || type.IsEnum || type == typeof(string);
+    /// <summary>
+    /// A number, a flag, an enum or a string, or a nullable one of them: a value nothing can change through a reference
+    /// to it.
+    /// </summary>
+    private static bool Unchanging(Type type) => Nullable.GetUnderlyingType(type) is { } inner
+        ? Unchanging(inner)
+        : type.IsPrimitive || type.IsEnum || type == typeof(string);
 }

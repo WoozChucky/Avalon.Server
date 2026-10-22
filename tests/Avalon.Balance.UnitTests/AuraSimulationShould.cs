@@ -4,6 +4,7 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Xunit;
@@ -57,6 +58,7 @@ public class AuraSimulationShould
         BaseDamageCoefficient = 0.5f,
         AllowedClasses = [CharacterClass.Warrior],
         AuraId = new AuraId(9901),
+        DamageType = DamageType.Physical,
         ThreatMultiplier = 1f,
     };
 

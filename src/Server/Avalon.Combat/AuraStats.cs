@@ -30,7 +30,7 @@ public static class AuraStats
         AttackDamage = Apply(s.AttackDamage, t, AuraStat.AttackDamage),
         AbilityDamage = Apply(s.AbilityDamage, t, AuraStat.AbilityDamage),
         CritPct = Apply(s.CritPct, t, AuraStat.CritPct),
-        DodgePct = Apply(s.DodgePct, t, AuraStat.DodgePct),
+        DodgePct = Apply(s.DodgePct, t, AuraStat.Evasion),
         BlockPct = Apply(s.BlockPct, t, AuraStat.BlockPct),
         HastePct = Apply(s.HastePct, t, AuraStat.HastePct),
         MovementSpeedPct = Apply(s.MovementSpeedPct, t, AuraStat.MovementSpeed),
@@ -47,7 +47,7 @@ public static class AuraStats
     public static DefenderCombat Fold(in DefenderCombat d, AuraStatTotals t) => t.IsEmpty ? d : d with
     {
         Armor = Apply(d.Armor, t, AuraStat.Armor),
-        DodgePct = Apply(d.DodgePct, t, AuraStat.DodgePct),
+        DodgePct = Apply(d.DodgePct, t, AuraStat.Evasion),
         BlockPct = Apply(d.BlockPct, t, AuraStat.BlockPct),
     };
 

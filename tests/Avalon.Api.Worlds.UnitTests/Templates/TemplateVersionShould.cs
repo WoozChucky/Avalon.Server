@@ -212,7 +212,7 @@ public class TemplateVersionShould
         Modifiers =
         [
             new AuraStatModifier { AuraId = new AuraId(3), Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 10f },
-            new AuraStatModifier { AuraId = new AuraId(3), Stat = AuraStat.DodgePct, Kind = AuraModifierKind.Flat, Value = 2f },
+            new AuraStatModifier { AuraId = new AuraId(3), Stat = AuraStat.Evasion, Kind = AuraModifierKind.Flat, Value = 2f },
         ],
     };
 

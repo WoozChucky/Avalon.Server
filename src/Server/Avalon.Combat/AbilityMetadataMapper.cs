@@ -35,5 +35,6 @@ public static class AbilityMetadataMapper
         ScalingStat = template.ScalingStat,
         ScalingCoefficient = template.ScalingCoefficient,
         BaseDamageCoefficient = template.BaseDamageCoefficient,
+        DamageType = template.DamageType,
     };
 }

@@ -27,6 +27,18 @@ public static class CombatSeed
         HasteCap = 50f,
         MoveSpeedCap = 35f,
         MoveSpeedFloor = -50f,
+        // #1178: evasion has armour's shape. These constants keep each class's former base dodge as evasion from Agility
+        // against a creature of its level, at levels 1 and 10, within half a point; 1.125 is exact in binary, so a
+        // product such as 20 x 1.125 never truncates. Resistances cap at 75 % and floor at -100 %, which at most doubles
+        // an element. Strength and Intellect give a little armour and ward, for every class.
+        EvasionBase = 560f,
+        EvasionPerLevel = 40f,
+        EvasionCap = 30f,
+        ResistanceCap = 75f,
+        ResistanceFloor = -100f,
+        ArmorPerStrength = 0.1f,
+        EvasionPerAgility = 1.125f,
+        WardPerIntellect = 0.25f,
     };
 
     public static ClassStatFactors[] ClassFactors() =>

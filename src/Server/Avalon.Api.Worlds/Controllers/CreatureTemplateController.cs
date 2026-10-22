@@ -128,7 +128,7 @@ public class CreatureTemplateController : BaseController
         ArmorModifier = t.ArmorModifier,
         ExperienceModifier = t.ExperienceModifier,
         RegenHealth = t.RegenHealth,
-        DmgSchool = t.DmgSchool,
+        DamageType = (Avalon.Api.Contract.DamageType)t.DamageType,
         DamageModifier = t.DamageModifier,
         BaseAttackTime = t.BaseAttackTime,
         RangeAttackTime = t.RangeAttackTime,

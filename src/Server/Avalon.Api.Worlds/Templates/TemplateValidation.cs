@@ -31,7 +31,7 @@ public sealed class TemplateErrors
 /// afterwards. The field rules run on the request, the "world rules" on the row as it would be stored (they cover
 /// the columns an edit cannot reach too, so an already-bad row is refused rather than re-saved). Rules that the
 /// shared <c>Avalon.Combat</c> loaders own are called, not copied: <see cref="AbilityRules.Problem"/>,
-/// <see cref="AuraRules.Problem"/>, <see cref="AuraRules.LinkProblem"/> and
+/// <see cref="AuraRules.Problem"/>, <see cref="AuraRules.LinkProblem"/>, <see cref="AuraRules.DamageTypeProblem"/> and
 /// <see cref="CreatureTemplateRules.Validate"/>. The world loads items with no validation of its own and the
 /// ItemTemplates table has no check constraint, so items get sanity rules only.
 /// </summary>
@@ -121,6 +121,7 @@ public static class TemplateValidation
         Defined(e, "rarity", r.Rarity);
         Defined(e, "family", r.Family);
         Defined(e, "type", r.Type);
+        Defined(e, "damageType", r.DamageType);
         if (r.MinLevel > r.MaxLevel) e.Add("maxLevel", "Max level must not be below min level.");
         foreach ((string field, float value) in new (string, float)[]
                  {
@@ -216,6 +217,7 @@ public static class TemplateValidation
         _ when problem.Contains(nameof(CreatureTemplate.RootDurationPct), StringComparison.Ordinal) => "rootDurationPct",
         _ when problem.Contains(nameof(CreatureTemplate.SilenceDurationPct), StringComparison.Ordinal) => "silenceDurationPct",
         _ when problem.Contains(nameof(CreatureTemplate.SlowDurationPct), StringComparison.Ordinal) => "slowDurationPct",
+        _ when problem.Contains(nameof(CreatureTemplate.DamageType), StringComparison.Ordinal) => "damageType",
         _ => "template",
     };
 

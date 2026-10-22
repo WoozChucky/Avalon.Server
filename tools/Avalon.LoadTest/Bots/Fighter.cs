@@ -307,7 +307,7 @@ public sealed class Fighter
         (AbilityId, float reach) = (botIndex % 4 + 1) switch
         {
             1 => (200u, 2.5f), // Warrior, Cleave
-            2 => (210u, 20f), // Wizard, Arcane Bolt
+            2 => (210u, 20f), // Wizard, Spark Bolt
             3 => (220u, 25f), // Hunter, Quick Shot
             _ => (230u, 18f), // Cleric, Smite
         };

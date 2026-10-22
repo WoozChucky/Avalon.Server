@@ -29,7 +29,7 @@ public class ClassStatFactorsGoldenShould
         new()
         {
             Id = new ItemTemplateId(901), Name = "Golden B", Slot = ItemSlotType.Neck,
-            StatType1 = StatType.DodgePct, StatValue1 = 3, StatType2 = StatType.CritPct, StatValue2 = 4,
+            StatType1 = StatType.Evasion, StatValue1 = 3, StatType2 = StatType.CritPct, StatValue2 = 4,
             StatType3 = StatType.AttackDamage, StatValue3 = 17, StatType4 = StatType.AbilityDamage, StatValue4 = 19,
             StatType5 = StatType.Health, StatValue5 = 23, StatType6 = StatType.Power, StatValue6 = 29,
         },

@@ -39,7 +39,7 @@ namespace Avalon.World.Testing.Scenarios;
 /// It reads the forest directly rather than through the world-state packets a client decodes: the creatures are the
 /// forest's own (<see cref="FightForest" />), and the player's position, velocity, cooldown and death are its
 /// character's. Its decisions are those of the load-test fighter (<c>tools/Avalon.LoadTest</c>): the class's basic
-/// ability (Cleave 200, Arcane Bolt 210, Quick Shot 220, Smite 230: no cost, a 0.8 s cooldown), a stop a metre inside
+/// ability (Cleave 200, Spark Bolt 210, Quick Shot 220, Smite 230: no cost, a 0.8 s cooldown), a stop a metre inside
 /// the ability's reach, or a fifth of a short reach (a warrior stops at 2 m, outside the 1.5 m a creature keeps from
 /// what it fights, or it would chase it for ever), a Cursor ability aimed at the creature's position, a Movement
 /// ability along the facing, turned to the creature by the input's yaw. A cast is handled in the same map update as
@@ -274,7 +274,7 @@ public sealed class LoopFighter
     public static uint BasicAbility(CharacterClass characterClass) => characterClass switch
     {
         CharacterClass.Warrior => 200u, // Cleave: a cone, along the facing
-        CharacterClass.Wizard => 210u, // Arcane Bolt: a projectile, at the cursor
+        CharacterClass.Wizard => 210u, // Spark Bolt: a projectile, at the cursor
         CharacterClass.Hunter => 220u, // Quick Shot: a projectile, at the cursor
         CharacterClass.Cleric => 230u, // Smite: a projectile, at the cursor
         _ => throw new ArgumentOutOfRangeException(nameof(characterClass), characterClass, "No basic ability"),

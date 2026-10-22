@@ -653,14 +653,14 @@ public sealed class TemplateEditShould : IAsyncLifetime
         (JsonObject json, string version) = await ReadAsync("aura", id);
         json["modifiers"] = new JsonArray(
             new JsonObject { ["stat"] = "Armor", ["value"] = 15f, ["kind"] = "Percent" },
-            new JsonObject { ["stat"] = "DodgePct", ["value"] = 2f, ["kind"] = "Flat" });
+            new JsonObject { ["stat"] = "Evasion", ["value"] = 2f, ["kind"] = "Flat" });
 
         HttpResponseMessage response = await PutAsync(Editable, "aura", id, json, Tag(version));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         (JsonObject saved, string newVersion) = await ReadAsync("aura", id);
         Assert.NotEqual(version, newVersion);
-        Assert.Equal(["Armor:Percent:15", "DodgePct:Flat:2"], saved["modifiers"]!.AsArray()
+        Assert.Equal(["Armor:Percent:15", "Evasion:Flat:2"], saved["modifiers"]!.AsArray()
             .Select(m => $"{m!["stat"]}:{m["kind"]}:{m["value"]}"));
     }
 

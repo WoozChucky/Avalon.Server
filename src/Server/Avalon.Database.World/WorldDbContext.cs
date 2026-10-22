@@ -254,6 +254,8 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_CreatureRarityModifiers_RootDurationPct", Percentage("RootDurationPct"));
             t.HasCheckConstraint("CK_CreatureRarityModifiers_SilenceDurationPct", Percentage("SilenceDurationPct"));
             t.HasCheckConstraint("CK_CreatureRarityModifiers_SlowDurationPct", Percentage("SlowDurationPct"));
+            // #1178: scales armour, evasion and ward; 1 for every tier, so armour carries over exactly.
+            t.HasCheckConstraint("CK_CreatureRarityModifiers_DefenceMultiplier", Finite("DefenceMultiplier"));
         });
         builder.HasKey(b => b.Rarity);
 
@@ -1051,7 +1053,25 @@ public class WorldDbContext : DbContext
                 t.HasCheckConstraint($"CK_CreatureTemplates_{column}",
                     $"\"{column}\" IS NULL OR ({Percentage(column)})");
             }
+
+            // #1178: the base damage type is a DamageType (Physical 0 to Blight 4), stored in the old DmgSchool column; a
+            // resistance is a percentage either way, negative taking more; the evasion and ward modifiers are finite and
+            // 0 or more, as CreatureTemplateRules.Validate refuses anything else.
+            t.HasCheckConstraint("CK_CreatureTemplates_DamageType", "\"DmgSchool\" BETWEEN 0 AND 4");
+            foreach (string column in new[]
+                     {
+                         "FireResistance", "ColdResistance", "LightningResistance", "BlightResistance",
+                     })
+            {
+                t.HasCheckConstraint($"CK_CreatureTemplates_{column}", $"\"{column}\" >= -100 AND \"{column}\" <= 100");
+            }
+
+            t.HasCheckConstraint("CK_CreatureTemplates_EvasionModifier", Finite("EvasionModifier"));
+            t.HasCheckConstraint("CK_CreatureTemplates_WardModifier", Finite("WardModifier"));
         });
+
+        // #1178 (R9): the base damage type reuses DmgSchool, a smallint the world never read before.
+        builder.Property(b => b.DamageType).HasColumnName("DmgSchool").HasConversion<short>();
         builder.Property(b => b.Id)
             .HasConversion(
                 v => v.Value,
@@ -1080,6 +1100,9 @@ public class WorldDbContext : DbContext
         // pay out; the 20 they used to carry was left over from their stint as placeholder monsters
         // in the forest spawn table. They are interactive: talking to an NPC opens a dialogue,
         // added for issue #431.
+        //
+        // Damage types (#1178): the Blightfly Swarmling (6) and Mother Bramble (10) deal blight, every other template
+        // physical. The resistances and the evasion and ward modifiers stay 0 until the creature defences are authored.
         builder.HasData(new CreatureTemplate
         {
             Id = 1,
@@ -1109,7 +1132,7 @@ public class WorldDbContext : DbContext
             ArmorModifier = 1,
             ExperienceModifier = 1,
             RegenHealth = 1,
-            DmgSchool = 0,
+            DamageType = DamageType.Physical,
             DamageModifier = 1,
             BaseAttackTime = 2.25f,
             RangeAttackTime = 0
@@ -1142,7 +1165,7 @@ public class WorldDbContext : DbContext
             ArmorModifier = 1,
             ExperienceModifier = 1,
             RegenHealth = 1,
-            DmgSchool = 0,
+            DamageType = DamageType.Physical,
             DamageModifier = 1,
             BaseAttackTime = 2.25f,
             RangeAttackTime = 0
@@ -1175,7 +1198,7 @@ public class WorldDbContext : DbContext
             ArmorModifier = 1,
             ExperienceModifier = 1,
             RegenHealth = 1,
-            DmgSchool = 0,
+            DamageType = DamageType.Physical,
             DamageModifier = 1,
             BaseAttackTime = 2.25f,
             RangeAttackTime = 0
@@ -1209,7 +1232,7 @@ public class WorldDbContext : DbContext
             ArmorModifier = 1,
             ExperienceModifier = 1,
             RegenHealth = 1,
-            DmgSchool = 0,
+            DamageType = DamageType.Physical,
             DamageModifier = 1.0f,
             BaseAttackTime = 2.25f,
             RangeAttackTime = 0
@@ -1243,7 +1266,7 @@ public class WorldDbContext : DbContext
             ArmorModifier = 1,
             ExperienceModifier = 1,
             RegenHealth = 1,
-            DmgSchool = 0,
+            DamageType = DamageType.Physical,
             DamageModifier = 1.1f,
             BaseAttackTime = 2.25f,
             RangeAttackTime = 0
@@ -1277,7 +1300,7 @@ public class WorldDbContext : DbContext
             ArmorModifier = 1,
             ExperienceModifier = 1,
             RegenHealth = 1,
-            DmgSchool = 0,
+            DamageType = DamageType.Blight,
             DamageModifier = 0.7f,
             BaseAttackTime = 2.25f,
             RangeAttackTime = 0
@@ -1311,7 +1334,7 @@ public class WorldDbContext : DbContext
             ArmorModifier = 1,
             ExperienceModifier = 1,
             RegenHealth = 1,
-            DmgSchool = 0,
+            DamageType = DamageType.Physical,
             DamageModifier = 1.0f,
             BaseAttackTime = 2.25f,
             RangeAttackTime = 0
@@ -1345,7 +1368,7 @@ public class WorldDbContext : DbContext
             ArmorModifier = 1,
             ExperienceModifier = 1,
             RegenHealth = 1,
-            DmgSchool = 0,
+            DamageType = DamageType.Physical,
             DamageModifier = 1.1f,
             BaseAttackTime = 2.25f,
             RangeAttackTime = 0
@@ -1379,7 +1402,7 @@ public class WorldDbContext : DbContext
             ArmorModifier = 1,
             ExperienceModifier = 1,
             RegenHealth = 1,
-            DmgSchool = 0,
+            DamageType = DamageType.Physical,
             DamageModifier = 1.1f,
             BaseAttackTime = 2.25f,
             RangeAttackTime = 0
@@ -1413,7 +1436,7 @@ public class WorldDbContext : DbContext
             ArmorModifier = 1,
             ExperienceModifier = 1,
             RegenHealth = 1,
-            DmgSchool = 0,
+            DamageType = DamageType.Blight,
             DamageModifier = 1.0f,
             BaseAttackTime = 2.25f,
             RangeAttackTime = 0
@@ -1451,7 +1474,7 @@ public class WorldDbContext : DbContext
             ArmorModifier = 1,
             ExperienceModifier = 1,
             RegenHealth = 1,
-            DmgSchool = 0,
+            DamageType = DamageType.Physical,
             DamageModifier = 1,
             BaseAttackTime = 2.25f,
             RangeAttackTime = 0
@@ -1496,7 +1519,7 @@ public class WorldDbContext : DbContext
         ArmorModifier = 1,
         ExperienceModifier = 1,
         RegenHealth = 1,
-        DmgSchool = 0,
+        DamageType = DamageType.Physical,
         DamageModifier = 1,
         BaseAttackTime = 2.25f,
         RangeAttackTime = 0
@@ -3142,6 +3165,9 @@ public class WorldDbContext : DbContext
             // #652: a cost names the pool it is spent from (Mana 1, Fury 2, Energy 3); only a cost of 0 may name none.
             t.HasCheckConstraint("CK_AbilityTemplates_CostPowerType",
                 "\"CostPowerType\" BETWEEN 0 AND 3 AND (\"Cost\" = 0 OR \"CostPowerType\" <> 0)");
+            // #1178: none (the caster's base type), or a DamageType from Physical 0 to Blight 4.
+            t.HasCheckConstraint("CK_AbilityTemplates_DamageType",
+                "\"DamageType\" IS NULL OR \"DamageType\" BETWEEN 0 AND 4");
         });
         builder.Property(b => b.Id)
             .HasConversion(
@@ -3159,30 +3185,35 @@ public class WorldDbContext : DbContext
             .HasForeignKey(b => b.AuraId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Damage types (#1178): every class ability that deals damage, directly or through a damaging aura, names its
+        // type; the heals, buffs and Hush name none. The arrows are physical: Crippling Shot's conversion to cold and
+        // Binding Shot's added blight are built-in scaling that arrives later, so until then both are plain arrows. A
+        // creature ability names a type only where it differs from its creature's (Rotting Burst, Earthsplitter and
+        // Thorn Volley deal blight); every other is null and deals its creature's base type.
         // The starter kit (#164): three skills per class, one generic script per shape. The ids are new,
         // so no client that cached the retired abilities (1, 2, 100-103) confuses them. Numbers are
         // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres. Each class's free
         // 800 ms skill is its basic attack, flagged Basic (#770): the one ability a silence does not stop.
         builder.HasData(
-            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Melee, powerGainPerHit: 8, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f, flags: AbilityFlags.Basic),
-            Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, value: 25, range: SpellRange.Short, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.5f),
-            Kit(202, CharacterClass.Warrior, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 9f, cooldown: 3000, cost: 10, value: 20, range: SpellRange.Medium, scaling: ScalingStat.Attack, coefficient: 0.5f, weapon: 1.0f),
-            Kit(210, CharacterClass.Wizard, "Arcane Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 11f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.25f, flags: AbilityFlags.Basic),
-            Kit(211, CharacterClass.Wizard, "Flame Burst", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, castTime: 600, cooldown: 5000, cost: 25, value: 18, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.4f),
-            Kit(212, CharacterClass.Wizard, "Frost Fan", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 6f, arc: 60f, cooldown: 4000, cost: 15, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f),
-            Kit(220, CharacterClass.Hunter, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f, flags: AbilityFlags.Basic),
-            Kit(221, CharacterClass.Hunter, "Piercing Arrow", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 30f, speed: 12f, pierce: true, cooldown: 4000, cost: 15, value: 25, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.2f),
-            Kit(222, CharacterClass.Hunter, "Scatter Shot", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 8f, arc: 45f, cooldown: 4000, cost: 20, value: 22, range: SpellRange.Medium, scaling: ScalingStat.Attack, coefficient: 0.4f, weapon: 0.8f),
-            Kit(230, CharacterClass.Cleric, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 10f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.3f, flags: AbilityFlags.Basic),
-            Kit(231, CharacterClass.Cleric, "Radiant Pulse", AbilityShape.Circle, AbilityAimMode.Movement, radius: 4f, cooldown: 5000, cost: 20, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f),
+            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Melee, powerGainPerHit: 8, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f, flags: AbilityFlags.Basic, damageType: DamageType.Physical),
+            Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, value: 25, range: SpellRange.Short, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.5f, damageType: DamageType.Physical),
+            Kit(202, CharacterClass.Warrior, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 9f, cooldown: 3000, cost: 10, value: 20, range: SpellRange.Medium, scaling: ScalingStat.Attack, coefficient: 0.5f, weapon: 1.0f, damageType: DamageType.Physical),
+            Kit(210, CharacterClass.Wizard, "Spark Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 11f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.25f, flags: AbilityFlags.Basic, damageType: DamageType.Lightning),
+            Kit(211, CharacterClass.Wizard, "Flame Burst", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, castTime: 600, cooldown: 5000, cost: 25, value: 18, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.4f, damageType: DamageType.Fire),
+            Kit(212, CharacterClass.Wizard, "Frost Fan", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 6f, arc: 60f, cooldown: 4000, cost: 15, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f, damageType: DamageType.Cold),
+            Kit(220, CharacterClass.Hunter, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f, flags: AbilityFlags.Basic, damageType: DamageType.Physical),
+            Kit(221, CharacterClass.Hunter, "Piercing Arrow", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 30f, speed: 12f, pierce: true, cooldown: 4000, cost: 15, value: 25, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.2f, damageType: DamageType.Physical),
+            Kit(222, CharacterClass.Hunter, "Scatter Shot", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 8f, arc: 45f, cooldown: 4000, cost: 20, value: 22, range: SpellRange.Medium, scaling: ScalingStat.Attack, coefficient: 0.4f, weapon: 0.8f, damageType: DamageType.Physical),
+            Kit(230, CharacterClass.Cleric, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 10f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.3f, flags: AbilityFlags.Basic, damageType: DamageType.Lightning),
+            Kit(231, CharacterClass.Cleric, "Radiant Pulse", AbilityShape.Circle, AbilityAimMode.Movement, radius: 4f, cooldown: 5000, cost: 20, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f, damageType: DamageType.Lightning),
             Kit(232, CharacterClass.Cleric, "Mending Circle", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 8000, cost: 25, value: 40, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, coefficient: 0.6f));
 
         // Auras: one new ability per class (two for the Cleric), each applying its aura; the existing skills are
         // untouched. Ignite, Renew and Fortify deal and heal nothing directly (Effects has no Damage or Heal).
         builder.HasData(
-            Kit(203, CharacterClass.Warrior, "Rend", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 6000, cost: 10, value: 8, range: SpellRange.Melee, scaling: ScalingStat.Attack, coefficient: 0.2f, weapon: 0.5f, aura: 1),
-            Kit(213, CharacterClass.Wizard, "Ignite", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 6000, cost: 20, value: 0, range: SpellRange.Long, scaling: ScalingStat.Ability, effects: SpellEffect.Debuff, aura: 2),
-            Kit(223, CharacterClass.Hunter, "Crippling Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 8000, cost: 15, value: 14, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.35f, weapon: 0.6f, aura: 3),
+            Kit(203, CharacterClass.Warrior, "Rend", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 6000, cost: 10, value: 8, range: SpellRange.Melee, scaling: ScalingStat.Attack, coefficient: 0.2f, weapon: 0.5f, aura: 1, damageType: DamageType.Physical),
+            Kit(213, CharacterClass.Wizard, "Ignite", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 6000, cost: 20, value: 0, range: SpellRange.Long, scaling: ScalingStat.Ability, effects: SpellEffect.Debuff, aura: 2, damageType: DamageType.Fire),
+            Kit(223, CharacterClass.Hunter, "Crippling Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 8000, cost: 15, value: 14, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.35f, weapon: 0.6f, aura: 3, damageType: DamageType.Physical),
             Kit(233, CharacterClass.Cleric, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 6000, cost: 15, value: 0, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, effects: SpellEffect.Buff, aura: 4),
             Kit(234, CharacterClass.Cleric, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, radius: 8f, cooldown: 20000, cost: 20, value: 0, range: SpellRange.Short, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, effects: SpellEffect.Buff, aura: 5));
 
@@ -3191,9 +3222,9 @@ public class WorldDbContext : DbContext
         // Crippling Shot do; Hush deals nothing and is pure silence (#1164). Shapes and reach follow each class's
         // neighbouring rows; the cooldowns are the design's.
         builder.HasData(
-            Kit(204, CharacterClass.Warrior, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 15000, cost: 15, value: 6, range: SpellRange.Melee, scaling: ScalingStat.Attack, coefficient: 0.15f, weapon: 0.3f, aura: 12),
-            Kit(214, CharacterClass.Wizard, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 20000, cost: 25, value: 6, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.1f, aura: 14),
-            Kit(224, CharacterClass.Hunter, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 15000, cost: 20, value: 8, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.2f, weapon: 0.3f, aura: 13),
+            Kit(204, CharacterClass.Warrior, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 15000, cost: 15, value: 6, range: SpellRange.Melee, scaling: ScalingStat.Attack, coefficient: 0.15f, weapon: 0.3f, aura: 12, damageType: DamageType.Physical),
+            Kit(214, CharacterClass.Wizard, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 20000, cost: 25, value: 6, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.1f, aura: 14, damageType: DamageType.Cold),
+            Kit(224, CharacterClass.Hunter, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 15000, cost: 20, value: 8, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.2f, weapon: 0.3f, aura: 13, damageType: DamageType.Physical),
             Kit(235, CharacterClass.Cleric, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 17f, cooldown: 20000, cost: 20, value: 0, range: SpellRange.Long, scaling: ScalingStat.Ability, effects: SpellEffect.Debuff, aura: 15));
 
         // The forest creatures' abilities (#163), creature-only (no class), free, and dealt from each creature's
@@ -3209,13 +3240,13 @@ public class WorldDbContext : DbContext
             CreatureAbility(304, "Sting", AbilityShape.Cone, reach: 1.5f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
             CreatureAbility(305, "Blight Spit", AbilityShape.Projectile, reach: 10f, speed: 14f, cooldown: 6000, baseDamage: 1.4f),
             CreatureAbility(306, "Slam", AbilityShape.Cone, reach: 1.8f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
-            CreatureAbility(307, "Rotting Burst", AbilityShape.Circle, radius: 3f, cooldown: 12000, baseDamage: 1.5f),
+            CreatureAbility(307, "Rotting Burst", AbilityShape.Circle, radius: 3f, cooldown: 12000, baseDamage: 1.5f, damageType: DamageType.Blight),
             CreatureAbility(308, "Maul", AbilityShape.Cone, reach: 2f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
             CreatureAbility(309, "Rending Frenzy", AbilityShape.Cone, reach: 2.5f, arc: 100f, cooldown: 9000, baseDamage: 1.8f),
             CreatureAbility(310, "Howling Roar", AbilityShape.Circle, radius: 5f, castTime: 1000, cooldown: 15000, baseDamage: 2.0f),
             CreatureAbility(311, "Tusk Gore", AbilityShape.Cone, reach: 2f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
-            CreatureAbility(312, "Earthsplitter", AbilityShape.Cone, reach: 5f, arc: 60f, castTime: 1200, cooldown: 14000, baseDamage: 2.4f),
-            CreatureAbility(313, "Thorn Volley", AbilityShape.Projectile, reach: 12f, speed: 16f, pierce: true, cooldown: 10000, baseDamage: 1.6f),
+            CreatureAbility(312, "Earthsplitter", AbilityShape.Cone, reach: 5f, arc: 60f, castTime: 1200, cooldown: 14000, baseDamage: 2.4f, damageType: DamageType.Blight),
+            CreatureAbility(313, "Thorn Volley", AbilityShape.Projectile, reach: 12f, speed: 16f, pierce: true, cooldown: 10000, baseDamage: 1.6f, damageType: DamageType.Blight),
             CreatureAbility(314, "Bramble Lash", AbilityShape.Cone, reach: 2.5f, arc: 90f, cooldown: 2250, baseDamage: 1.0f),
             CreatureAbility(315, "Bramble Nova", AbilityShape.Circle, radius: 6f, castTime: 1200, cooldown: 16000, baseDamage: 2.5f),
             CreatureAbility(316, "Thornspray", AbilityShape.Cone, reach: 5f, arc: 120f, cooldown: 8000, baseDamage: 1.8f));
@@ -3233,7 +3264,7 @@ public class WorldDbContext : DbContext
     /// </summary>
     private static AbilityTemplate CreatureAbility(uint id, string name, AbilityShape shape, uint cooldown,
         float baseDamage, float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false,
-        uint castTime = 0, SpellEffect effects = SpellEffect.Damage, uint? aura = null) => new()
+        uint castTime = 0, SpellEffect effects = SpellEffect.Damage, uint? aura = null, DamageType? damageType = null) => new()
         {
             Id = id,
             Name = name,
@@ -3272,6 +3303,7 @@ public class WorldDbContext : DbContext
             ScalingCoefficient = 0f,
             BaseDamageCoefficient = baseDamage,
             AuraId = aura is { } a ? new AuraId(a) : null,
+            DamageType = damageType,
         };
 
     /// <summary>
@@ -3291,7 +3323,7 @@ public class WorldDbContext : DbContext
         float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false, uint castTime = 0,
         AbilityAffects affects = AbilityAffects.Hostile, int powerGainPerHit = 0,
         ScalingStat scaling = ScalingStat.Attack, float coefficient = 0f, float weapon = 0f, SpellEffect? effects = null,
-        uint? aura = null, AbilityFlags flags = AbilityFlags.None) => new()
+        uint? aura = null, AbilityFlags flags = AbilityFlags.None, DamageType? damageType = null) => new()
         {
             Id = id,
             Name = name,
@@ -3326,6 +3358,7 @@ public class WorldDbContext : DbContext
             ScalingCoefficient = coefficient,
             BaseDamageCoefficient = weapon,
             AuraId = aura is { } a ? new AuraId(a) : null,
+            DamageType = damageType,
         };
 
     /// <summary>
@@ -3433,7 +3466,7 @@ public class WorldDbContext : DbContext
         };
 
     /// <summary>
-    /// One stat an aura modifies, at most one row per stat. Stat 1-10 (AuraStat); Kind 1 Flat, 2 Percent. The value may be
+    /// One stat an aura modifies, at most one row per stat. Stat 1-15 (AuraStat); Kind 1 Flat, 2 Percent. The value may be
     /// negative (a debuff) but must be finite, and a percentage above -100. The lower bound is a number, not the text
     /// '-Infinity', because SQLite (the tests) sorts every number below any text; Postgres refuses -Infinity by it too.
     /// That bound, -1,000,000, is also a floor AuraRules.Problem does not have: a flat value at or below it passes the
@@ -3443,7 +3476,7 @@ public class WorldDbContext : DbContext
     {
         builder.ToTable("AuraStatModifiers", t =>
         {
-            t.HasCheckConstraint("CK_AuraStatModifiers_Stat", "\"Stat\" BETWEEN 1 AND 10");
+            t.HasCheckConstraint("CK_AuraStatModifiers_Stat", "\"Stat\" BETWEEN 1 AND 15");
             t.HasCheckConstraint("CK_AuraStatModifiers_Kind", "\"Kind\" IN (1, 2)");
             t.HasCheckConstraint("CK_AuraStatModifiers_Value",
                 "\"Value\" > -1000000 AND \"Value\" < 'Infinity' AND (\"Kind\" = 1 OR \"Value\" > -100)");
@@ -3494,6 +3527,20 @@ public class WorldDbContext : DbContext
                 "\"MoveSpeedCap\" > -100 AND \"MoveSpeedCap\" < 'Infinity'");
             t.HasCheckConstraint("CK_CombatFormula_MoveSpeedFloor",
                 "\"MoveSpeedFloor\" > -100 AND \"MoveSpeedFloor\" <= \"MoveSpeedCap\"");
+
+            // #1178: the evasion terms together above 0, as the armour terms; the evasion cap percentage points; a
+            // resistance cap under the hard ceiling of 90 and a floor from -100 to 0; the attribute conversions finite
+            // and 0 or more.
+            t.HasCheckConstraint("CK_CombatFormula_EvasionBase", Finite("EvasionBase"));
+            t.HasCheckConstraint("CK_CombatFormula_EvasionPerLevel", Finite("EvasionPerLevel"));
+            t.HasCheckConstraint("CK_CombatFormula_EvasionTermsPositive", "\"EvasionBase\" + \"EvasionPerLevel\" > 0");
+            t.HasCheckConstraint("CK_CombatFormula_EvasionCap", Percentage("EvasionCap"));
+            t.HasCheckConstraint("CK_CombatFormula_ResistanceCap", "\"ResistanceCap\" >= 0 AND \"ResistanceCap\" <= 90");
+            t.HasCheckConstraint("CK_CombatFormula_ResistanceFloor",
+                "\"ResistanceFloor\" >= -100 AND \"ResistanceFloor\" <= 0");
+            t.HasCheckConstraint("CK_CombatFormula_ArmorPerStrength", Finite("ArmorPerStrength"));
+            t.HasCheckConstraint("CK_CombatFormula_EvasionPerAgility", Finite("EvasionPerAgility"));
+            t.HasCheckConstraint("CK_CombatFormula_WardPerIntellect", Finite("WardPerIntellect"));
         });
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id).ValueGeneratedNever();

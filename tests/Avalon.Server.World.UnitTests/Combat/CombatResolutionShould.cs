@@ -118,7 +118,7 @@ public class CombatResolutionShould
         return cleave;
     }
 
-    /// <summary>Arcane Bolt's scaling on a cone (#506): 12 + 0.25 x AbilityDamage, no weapon term.</summary>
+    /// <summary>Spark Bolt's scaling on a cone (#506): 12 + 0.25 x AbilityDamage, no weapon term.</summary>
     private static AbilityTemplate ArcaneCone()
     {
         AbilityTemplate bolt = AbilityTestData.Cone(210, reach: 6f, arc: 100f);

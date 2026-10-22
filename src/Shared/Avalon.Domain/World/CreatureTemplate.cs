@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
@@ -89,9 +90,34 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
 
     public short RegenHealth { get; set; }
 
-    public short DmgSchool { get; set; }
+    /// <summary>
+    /// The type of damage the creature's basic attack deals, and its abilities that name none (#1178). Stored in the
+    /// column <c>DmgSchool</c>, which the world never read before.
+    /// </summary>
+    public DamageType DamageType { get; set; }
 
     public float DamageModifier { get; set; }
+
+    /// <summary>Percent, -100 to 100, of fire damage the creature resists (#1178); negative takes more. Not rarity-scaled.</summary>
+    public float FireResistance { get; set; }
+
+    /// <summary>Percent of cold damage the creature resists, as <see cref="FireResistance" />.</summary>
+    public float ColdResistance { get; set; }
+
+    /// <summary>Percent of lightning damage the creature resists, as <see cref="FireResistance" />.</summary>
+    public float LightningResistance { get; set; }
+
+    /// <summary>Percent of blight damage the creature resists, as <see cref="FireResistance" />.</summary>
+    public float BlightResistance { get; set; }
+
+    /// <summary>
+    /// Scales the level-derived base evasion (#1178). Finite and 0 or more; 0 gives none, unlike
+    /// <see cref="ArmorModifier" />, where 0 or less counts as 1.
+    /// </summary>
+    public float EvasionModifier { get; set; }
+
+    /// <summary>Scales the level-derived base ward, as <see cref="EvasionModifier" />.</summary>
+    public float WardModifier { get; set; }
 
     /// <summary>
     /// Seconds between the creature's swings (#627), 0.5 or more and finite (a database check and the

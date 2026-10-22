@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public.Enums;
 
@@ -77,6 +78,12 @@ public sealed class AbilityMetadata
     /// </summary>
     public float BaseDamageCoefficient { get; init; }
 
+    /// <summary>
+    /// The type of damage the ability deals (#1178), or null: the caster's base type (a creature's template's, a
+    /// character's Physical). Heals, buffs and pure control name none.
+    /// </summary>
+    public DamageType? DamageType { get; init; }
+
     public AbilityMetadata Clone() =>
         new()
         {
@@ -107,5 +114,6 @@ public sealed class AbilityMetadata
             ScalingStat = ScalingStat,
             ScalingCoefficient = ScalingCoefficient,
             BaseDamageCoefficient = BaseDamageCoefficient,
+            DamageType = DamageType,
         };
 }

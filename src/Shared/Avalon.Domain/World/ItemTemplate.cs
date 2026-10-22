@@ -46,6 +46,15 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     public ushort? RequiredLevel { get; set; }
 
+    /// <summary>The Strength a character needs to equip the item (#1178), or null for none.</summary>
+    public ushort? RequiredStrength { get; set; }
+
+    /// <summary>The Agility a character needs to equip the item, or null for none.</summary>
+    public ushort? RequiredAgility { get; set; }
+
+    /// <summary>The Intellect a character needs to equip the item, or null for none.</summary>
+    public ushort? RequiredIntellect { get; set; }
+
     public uint? DamageMin1 { get; set; }
 
     public uint? DamageMax1 { get; set; }
@@ -117,22 +126,30 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     public uint? UseValue { get; set; }
 }
 
+/// <summary>A stat an item gives: the stored numbers, so values are only ever appended.</summary>
 public enum StatType
 {
-    Stamina,
-    Strength,
-    Agility,
-    Intellect,
-    Armor,
-    BlockPct,
-    DodgePct,
-    CritPct,
-    AttackDamage,
-    AbilityDamage,
-    Health,
-    Power,
-    AttackSpeed,
-    MovementSpeed,
+    Stamina = 0,
+    Strength = 1,
+    Agility = 2,
+    Intellect = 3,
+    Armor = 4,
+    BlockPct = 5,
+
+    /// <summary>Evasion rating (#1178), formerly the dodge chance.</summary>
+    Evasion = 6,
+    CritPct = 7,
+    AttackDamage = 8,
+    AbilityDamage = 9,
+    Health = 10,
+    Power = 11,
+    AttackSpeed = 12,
+    MovementSpeed = 13,
+    Ward = 14,
+    FireResistance = 15,
+    ColdResistance = 16,
+    LightningResistance = 17,
+    BlightResistance = 18,
 }
 
 [Flags]

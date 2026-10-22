@@ -63,7 +63,7 @@ public class AuraStatsShould
         AuraStatTotals all = Of(
             (Mod(AuraStat.Armor, AuraModifierKind.Flat, 10f), 1), (Mod(AuraStat.AttackDamage, AuraModifierKind.Percent, 50f), 1),
             (Mod(AuraStat.AbilityDamage, AuraModifierKind.Flat, 1f), 1), (Mod(AuraStat.CritPct, AuraModifierKind.Flat, 2f), 1),
-            (Mod(AuraStat.DodgePct, AuraModifierKind.Flat, 3f), 1), (Mod(AuraStat.BlockPct, AuraModifierKind.Flat, 4f), 1),
+            (Mod(AuraStat.Evasion, AuraModifierKind.Flat, 3f), 1), (Mod(AuraStat.BlockPct, AuraModifierKind.Flat, 4f), 1),
             (Mod(AuraStat.HastePct, AuraModifierKind.Flat, 10f), 1), (Mod(AuraStat.MovementSpeed, AuraModifierKind.Flat, -30f), 1),
             (Mod(AuraStat.MaxHealth, AuraModifierKind.Percent, 10f), 1), (Mod(AuraStat.MaxPower, AuraModifierKind.Flat, 5f), 1));
         var stats = new DerivedCharacterStats(500, 100, 20, 20, 20, 20, 30, 5f, 3f, 5f, 46, 9, 4, 7, 3f, 0f);

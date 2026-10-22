@@ -85,6 +85,21 @@
       "nullable": true
     },
     {
+      "name": "RequiredStrength",
+      "type": "uint16",
+      "nullable": true
+    },
+    {
+      "name": "RequiredAgility",
+      "type": "uint16",
+      "nullable": true
+    },
+    {
+      "name": "RequiredIntellect",
+      "type": "uint16",
+      "nullable": true
+    },
+    {
       "name": "DamageMin1",
       "type": "uint32",
       "nullable": true
@@ -469,7 +484,7 @@
         "value": 5
       },
       {
-        "name": "DodgePct",
+        "name": "Evasion",
         "value": 6
       },
       {
@@ -499,6 +514,26 @@
       {
         "name": "MovementSpeed",
         "value": 13
+      },
+      {
+        "name": "Ward",
+        "value": 14
+      },
+      {
+        "name": "FireResistance",
+        "value": 15
+      },
+      {
+        "name": "ColdResistance",
+        "value": 16
+      },
+      {
+        "name": "LightningResistance",
+        "value": 17
+      },
+      {
+        "name": "BlightResistance",
+        "value": 18
       }
     ],
     "ItemTemplateFlags": [

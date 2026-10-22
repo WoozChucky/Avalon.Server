@@ -110,7 +110,7 @@ public static class CharacterStatsCalculator
                 case StatType.Intellect: Intellect += value; break;
                 case StatType.Armor: Armor += value; break;
                 case StatType.BlockPct: BlockPct += value; break;
-                case StatType.DodgePct: DodgePct += value; break;
+                case StatType.Evasion: DodgePct += value; break;
                 case StatType.CritPct: CritPct += value; break;
                 case StatType.AttackDamage: AttackDamage += value; break;
                 case StatType.AbilityDamage: AbilityDamage += value; break;

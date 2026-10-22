@@ -59,6 +59,16 @@ public static class AbilityRules
         if (t.Affects == AbilityAffects.Ally && (t.Flags & AbilityFlags.Unavoidable) != AbilityFlags.None)
             return "only a Hostile ability may be Unavoidable: an Ally ability is never dodged";
 
+        // #1178: an Ally ability heals or helps and deals nothing. A class ability that deals damage names its type; a
+        // creature-only one may leave it null and deal its creature's base type.
+        if (t.DamageType is { } type && !Enum.IsDefined(type)) return $"unknown damage type {(int)type}";
+        if (t.Affects == AbilityAffects.Ally && t.DamageType is not null) return "an Ally ability has no damage type";
+        if (t.Affects == AbilityAffects.Hostile && t.AllowedClasses is { Count: > 0 }
+            && (t.Effects & SpellEffect.Damage) != SpellEffect.None && t.DamageType is null)
+        {
+            return "a class ability that deals damage names its damage type";
+        }
+
         // With neither a direct amount nor an aura the ability would spend its cost and change nothing.
         if (!HasDirectEffect(t.Effects, t.Affects) && t.AuraId is null)
         {

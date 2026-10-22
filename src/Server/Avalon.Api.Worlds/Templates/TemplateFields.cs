@@ -76,7 +76,7 @@ internal static class TemplateFields
         C("armorModifier", e => e.ArmorModifier, (e, r) => e.ArmorModifier = r.ArmorModifier),
         C("experienceModifier", e => e.ExperienceModifier, (e, r) => e.ExperienceModifier = r.ExperienceModifier),
         C("regenHealth", e => e.RegenHealth, (e, r) => e.RegenHealth = r.RegenHealth),
-        C("dmgSchool", e => e.DmgSchool, (e, r) => e.DmgSchool = r.DmgSchool),
+        C("damageType", e => e.DamageType, (e, r) => e.DamageType = Conv(r.DamageType, e.DamageType)),
         C("damageModifier", e => e.DamageModifier, (e, r) => e.DamageModifier = r.DamageModifier),
         C("baseAttackTime", e => e.BaseAttackTime, (e, r) => e.BaseAttackTime = r.BaseAttackTime),
         C("rangeAttackTime", e => e.RangeAttackTime, (e, r) => e.RangeAttackTime = r.RangeAttackTime),

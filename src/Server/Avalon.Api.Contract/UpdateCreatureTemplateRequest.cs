@@ -30,7 +30,8 @@ public sealed class UpdateCreatureTemplateRequest
     public float ArmorModifier { get; set; }
     public float ExperienceModifier { get; set; }
     public short RegenHealth { get; set; }
-    public short DmgSchool { get; set; }
+    /// <summary>The type of damage the basic attack deals, and the abilities that name none (#1178).</summary>
+    public DamageType DamageType { get; set; }
     public float DamageModifier { get; set; }
     /// <summary>Seconds between the creature's swings, 0.5 or more (#627).</summary>
     public float BaseAttackTime { get; set; }

@@ -22,6 +22,12 @@ public class CreatureRarityModifier
     public float BlockPct { get; set; }
 
     /// <summary>
+    /// Scales the tier's armour, evasion and ward (#1178), finite and 0 or more. Resistances are percentages and are not
+    /// scaled.
+    /// </summary>
+    public float DefenceMultiplier { get; set; } = 1f;
+
+    /// <summary>
     /// Percent, 0 to 100, of a stun's duration the tier takes (#770): 0 is immune, 100 the full duration. A missing
     /// tier is unscaled, so the default is the full duration.
     /// </summary>

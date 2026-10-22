@@ -67,9 +67,17 @@ public sealed class AbilityCatalog
     /// <summary>Why a row cannot load, or null when it can.</summary>
     public static string? Problem(AbilityTemplate t) => AbilityRules.Problem(t);
 
-    /// <summary>Why the ability's aura link cannot load, or null; nothing to say without a catalog to check against.</summary>
-    private static string? AuraProblem(AbilityTemplate t, AuraCatalog? auras) =>
-        auras is null
-            ? null
-            : AuraRules.LinkProblem(t.Affects, t.AuraId, id => auras.TryGet(id, out AuraTemplate? aura) ? aura : null);
+    /// <summary>
+    /// Why the ability's aura link cannot load, or null: the aura must exist, fit what the ability affects, and, when it
+    /// deals damage over time, have a damage type to deal (#1178). Nothing to say without a catalog to check against.
+    /// </summary>
+    private static string? AuraProblem(AbilityTemplate t, AuraCatalog? auras)
+    {
+        if (auras is null) return null;
+
+        return AuraRules.LinkProblem(t.Affects, t.AuraId, id => auras.TryGet(id, out AuraTemplate? aura) ? aura : null)
+               ?? (t.AuraId is { } auraId && auras.TryGet(auraId, out AuraTemplate? linked)
+                   ? AuraRules.DamageTypeProblem(t, linked)
+                   : null);
+    }
 }

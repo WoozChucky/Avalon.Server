@@ -6,6 +6,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Abilities;
@@ -727,6 +728,55 @@ public class SeedIntegrityShould
         Assert.Equal(abilities, new[] { kit.Basic }.Concat(kit.Specials).Select(i => i.Value));
         Assert.Equal(1.0f, context.AbilityTemplates.AsNoTracking().AsEnumerable()
             .Single(a => a.Id == kit.Basic).BaseDamageCoefficient);
+    }
+
+    /// <summary>
+    /// #1178: every damaging kit ability names its damage type, the heals, buffs and Hush name none, and the creature
+    /// abilities name one only where it differs from their creature's base type (null inherits it). Blightfly and
+    /// Mother Bramble deal blight; every other template is physical.
+    /// </summary>
+    [Fact]
+    public void Type_every_seeded_ability_and_creature_as_the_combat_foundation_maps_them()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        var expectedAbilities = new Dictionary<uint, DamageType?>
+        {
+            [200] = DamageType.Physical,
+            [201] = DamageType.Physical,
+            [202] = DamageType.Physical,
+            [203] = DamageType.Physical,
+            [204] = DamageType.Physical,
+            [210] = DamageType.Lightning,
+            [211] = DamageType.Fire,
+            [212] = DamageType.Cold,
+            [213] = DamageType.Fire,
+            [214] = DamageType.Cold,
+            [220] = DamageType.Physical,
+            [221] = DamageType.Physical,
+            [222] = DamageType.Physical,
+            [223] = DamageType.Physical,
+            [224] = DamageType.Physical,
+            [230] = DamageType.Lightning,
+            [231] = DamageType.Lightning,
+            [232] = null,
+            [233] = null,
+            [234] = null,
+            [235] = null,
+        };
+        for (uint id = 300; id <= 318; id++)
+            expectedAbilities[id] = id is 307 or 312 or 313 ? DamageType.Blight : null;
+
+        var expectedCreatures = new Dictionary<ulong, DamageType>();
+        for (ulong id = 1; id <= 14; id++)
+            expectedCreatures[id] = id is 6 or 10 ? DamageType.Blight : DamageType.Physical;
+
+        var abilities = context.AbilityTemplates.AsNoTracking().ToList();
+        Assert.Equal(expectedAbilities, abilities.ToDictionary(a => a.Id.Value, a => a.DamageType));
+        Assert.Equal(expectedCreatures,
+            context.CreatureTemplates.AsNoTracking().AsEnumerable().ToDictionary(t => t.Id.Value, t => t.DamageType));
+        Assert.Equal("Spark Bolt", abilities.Single(a => a.Id.Value == 210).Name);
     }
 
     [Fact]

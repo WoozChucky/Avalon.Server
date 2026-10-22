@@ -163,4 +163,14 @@ public static class AuraRules
         Fits(aura.Kind, affects)
             ? null
             : $"its aura {aura.Id.Value} '{aura.Name}' is {aura.Kind}, which {(affects == AbilityAffects.Ally ? "an Ally" : "a Hostile")} ability cannot apply";
+
+    /// <summary>
+    /// Why <paramref name="ability" /> cannot apply <paramref name="aura" /> for its damage type (#1178), or null: a class
+    /// ability whose aura deals damage over time names the type the ticks deal (Ignite says Fire), as one dealing damage
+    /// directly must. A creature-only ability may leave it null, and its aura then deals the creature's base type.
+    /// </summary>
+    public static string? DamageTypeProblem(AbilityTemplate ability, AuraTemplate aura) =>
+        ability.DamageType is null && ability.AllowedClasses is { Count: > 0 } && aura.PeriodicKind == AuraPeriodicKind.Damage
+            ? "a class ability that applies a damaging aura names its damage type"
+            : null;
 }
