@@ -6,6 +6,7 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Xunit;
 using CharacterRow = Avalon.Domain.Characters.Character;
 
@@ -190,6 +191,63 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         Assert.Equal((byte)4, slot.Slot);
     }
 
+    /// <summary>
+    /// A trade is one paired save carrying its record, and its outcome is one of three (#1175): committed; refused or
+    /// failed before the commit, which propagates as it came and means nothing was written; or unknown, because the
+    /// commit itself failed or its acknowledgement was lost. Only the last throws <see cref="SaveOutcomeUnknownException" />,
+    /// and the record settles it: it exists exactly when the swap was committed.
+    /// </summary>
+    [Theory]
+    [InlineData("committed", null, true)]
+    [InlineData("acknowledgement lost", typeof(SaveOutcomeUnknownException), true)]
+    [InlineData("commit failed", typeof(SaveOutcomeUnknownException), false)]
+    [InlineData("fence refused", typeof(GameplayWriteRejectedException), false)]
+    public async Task Report_a_trade_write_as_committed_refused_or_unknown_and_find_its_record(string row, Type? thrown, bool stored)
+    {
+        var accountA = new AccountId(3);
+        var accountB = new AccountId(4);
+        var authorityA = new GameplayWriteAuthority(accountA, Guid.NewGuid(), 1);
+        var authorityB = new GameplayWriteAuthority(accountB, Guid.NewGuid(), 1);
+        CharacterRow a = await SeedCharacterAsync(7, authorityA);
+        CharacterRow b = await SeedCharacterAsync(8, authorityB);
+        ItemInstance sword = Item(a.Id, count: 1);
+        await _saves.WriteAsync([Batch(a, upsertItems: [sword], upsertSlots: [Slot(a.Id, 0, sword.Id)], authority: authorityA)]);
+        if (row == "fence refused")
+            Assert.True(await new GameplayFenceRepository(_database).EndAsync(authorityB, CancellationToken.None));
+
+        CharacterSaveBatch[] batches =
+        [
+            Batch(a, deleteItems: [sword.Id], deleteSlots: [(InventoryType.Bag, (byte)0)], authority: authorityA),
+            Batch(b, upsertItems: [Item(b.Id, count: 1, id: sword.Id)], upsertSlots: [Slot(b.Id, 3, sword.Id)], authority: authorityB),
+        ];
+        var tradeId = Guid.CreateVersion7();
+        var record = new TradeRecord
+        {
+            Id = tradeId,
+            FirstCharacterId = a.Id,
+            SecondCharacterId = b.Id,
+            FirstGold = 0,
+            SecondGold = 0,
+            CompletedAt = DateTime.UtcNow,
+            Items = [new TradeRecordItem { TradeId = tradeId, ItemInstanceId = sword.Id, GiverCharacterId = a.Id, TemplateId = sword.TemplateId, Count = 1 }],
+        };
+        var saves = new CharacterSaveRepository(new ScriptedTransactions(_database, row));
+
+        Exception? e = await Record.ExceptionAsync(() => saves.WriteTradeAsync(batches, record));
+
+        Assert.Equal(thrown, e?.GetType());
+        Assert.Equal(stored, await _saves.TradeRecordExistsAsync(record.Id, accountA, accountB));
+        // The record and the swap stand or fall together.
+        await using CharacterDbContext read = _database.CreateDbContext();
+        Assert.Equal(stored ? 8L : 7L,
+            (await read.ItemInstances.AsNoTracking().SingleAsync(i => i.Id == sword.Id)).CharacterId.Value);
+        if (stored)
+        {
+            Assert.Equal([sword.Id], await read.TradeRecordItems.AsNoTracking()
+                .Where(i => i.TradeId == record.Id).Select(i => i.ItemInstanceId).ToListAsync());
+        }
+    }
+
     [Fact]
     public async Task Insert_the_stats_row_when_there_is_none_and_update_it_when_there_is()
     {
@@ -232,12 +290,13 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         Assert.Equal((0, 7u, 4000u, 2.5f, 0.75d), (only.Slot, only.AuraId, only.RemainingMs, only.TickAmount, only.PeriodicCarry));
     }
 
-    private async Task<CharacterRow> SeedCharacterAsync(uint id)
+    private async Task<CharacterRow> SeedCharacterAsync(uint id, GameplayWriteAuthority? authority = null)
     {
+        authority ??= s_authority;
         var row = new CharacterRow
         {
             Id = new CharacterId(id),
-            AccountId = new AccountId(1),
+            AccountId = authority.AccountId,
             Name = "Saver" + (char)('a' + id),
             CreationDate = DateTime.UtcNow,
         };
@@ -245,8 +304,8 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         context.Characters.Add(row);
         await context.SaveChangesAsync();
         var fences = new GameplayFenceRepository(_database);
-        Assert.NotNull(await fences.AdvanceAsync(s_authority, false, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
-        Assert.NotNull(await fences.ActivateAsync(s_authority, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
+        Assert.NotNull(await fences.AdvanceAsync(authority, false, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
+        Assert.NotNull(await fences.ActivateAsync(authority, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
         context.Entry(row).State = EntityState.Detached;
         return row;
     }
@@ -279,6 +338,42 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         IReadOnlyList<ItemInstanceId>? deleteItems = null,
         IReadOnlyList<CharacterInventory>? upsertSlots = null,
         IReadOnlyList<(InventoryType Container, byte Slot)>? deleteSlots = null,
-        CharacterStats? stats = null) =>
-        new(row, upsertItems ?? [], deleteItems ?? [], upsertSlots ?? [], deleteSlots ?? [], stats) { Authority = s_authority };
+        CharacterStats? stats = null,
+        GameplayWriteAuthority? authority = null) =>
+        new(row, upsertItems ?? [], deleteItems ?? [], upsertSlots ?? [], deleteSlots ?? [], stats) { Authority = authority ?? s_authority };
+
+    /// <summary>
+    /// Runs the work in a real transaction over the test database, then ends it as <c>row</c> says: the commit lands
+    /// but its acknowledgement is lost, the commit fails (the transaction rolls back), or it commits.
+    /// </summary>
+    private sealed class ScriptedTransactions(IDbContextFactory<CharacterDbContext> factory, string row)
+        : IDbTransactionRunner<CharacterDbContext>
+    {
+        public Task ExecuteAsync(Func<CharacterDbContext, CancellationToken, Task> work, CancellationToken cancellationToken = default) =>
+            ExecuteAsync<object?>(async (context, token) =>
+            {
+                await work(context, token);
+                return null;
+            }, cancellationToken);
+
+        public async Task<TResult> ExecuteAsync<TResult>(Func<CharacterDbContext, CancellationToken, Task<TResult>> work,
+            CancellationToken cancellationToken = default)
+        {
+            await using CharacterDbContext context = await factory.CreateDbContextAsync(cancellationToken);
+            await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+            TResult result = await work(context, cancellationToken);
+            switch (row)
+            {
+                case "acknowledgement lost":
+                    await transaction.CommitAsync(cancellationToken);
+                    throw new TimeoutException("The commit's acknowledgement was lost.");
+                case "commit failed":
+                    await transaction.RollbackAsync(cancellationToken);
+                    throw new TimeoutException("The commit failed.");
+                default:
+                    await transaction.CommitAsync(cancellationToken);
+                    return result;
+            }
+        }
+    }
 }

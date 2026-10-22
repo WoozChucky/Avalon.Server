@@ -218,6 +218,18 @@ public class GameConfiguration
     [Range(int.MinValue, 10_000)]
     public int PartyInvitesPerMinute { get; set; }
 
+    /// <summary>Seconds a trade request stays open before it expires (#1175).</summary>
+    [Range(1, 3600)]
+    public int TradeRequestTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// How many trade requests one character may send in any 60 seconds (#1175), which limits request spam. Every
+    /// request that looks its target up counts, whatever it finds; one past the budget is answered <c>TooFast</c> and
+    /// looks nothing up. 0 or below turns the limit off. The default is in <c>appsettings.json</c>.
+    /// </summary>
+    [Range(int.MinValue, 10_000)]
+    public int TradeRequestsPerMinute { get; set; }
+
     /// <summary>Seconds a character who is no longer a member may stay in the party's instance before being moved to town.</summary>
     [Range(1, 3600)]
     public int PartyLeaveGraceSeconds { get; set; } = 60;

@@ -21,6 +21,7 @@ using Avalon.World.Parties;
 using Avalon.World.Public.Combat;
 using Avalon.World.Pvp;
 using Avalon.World.Quests;
+using Avalon.World.Trading;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -139,6 +140,18 @@ public class WorldHostGraphShould
             Assert.Same(host.Services.GetRequiredService<Avalon.World.Characters.OnlineCharacters>(),
                 host.Services.GetRequiredService<PartyService>().Online);
 
+            // Trading (#1175). World, WorldServer and the dialogue's NPC window path take it optionally and would
+            // otherwise run no hook at all, so only this proves production hands them the one singleton, over the one
+            // list of who is online.
+            ServiceDescriptor tradeService = Assert.Single(builder.Services, d => d.ServiceType == typeof(TradeService));
+            Assert.Equal(ServiceLifetime.Singleton, tradeService.Lifetime);
+            TradeService trades = host.Services.GetRequiredService<TradeService>();
+            Assert.Same(trades, CapturedOfType<TradeService>(host.Services.GetRequiredService<IWorld>()));
+            Assert.Same(trades, CapturedOfType<TradeService>(host.Services.GetRequiredService<WorldServer>()));
+            Assert.Same(trades, CapturedOfType<TradeService>(ActivatorUtilities.CreateInstance(
+                host.Services, typeof(DialogueChooseHandler))));
+            Assert.Same(host.Services.GetRequiredService<Avalon.World.Characters.OnlineCharacters>(), trades.Online);
+
             // The ignore list (#723). CharacterSelectHandler takes the repository optionally and would otherwise load
             // every character with an empty list, so only this proves production loads it.
             Assert.NotNull(host.Services.GetRequiredService<ICharacterIgnoreRepository>());
@@ -165,6 +178,7 @@ public class WorldHostGraphShould
                 host.Services.GetRequiredService<Avalon.World.Threading.TickThreadGuard>();
             Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(host.Services.GetRequiredService<IWorld>()));
             Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(host.Services.GetRequiredService<PartyService>()));
+            Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(trades));
             Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(
                 host.Services.GetRequiredService<Avalon.World.Characters.OnlineCharacters>()));
             Assert.Same(tickThread, CapturedOfType<Avalon.World.Threading.TickThreadGuard>(ActivatorUtilities.CreateInstance(

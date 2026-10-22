@@ -46,6 +46,9 @@ public enum VendorResult : byte
 
     /// <summary>The character is stunned (#770): it trades nothing until the stun ends. The shop stays open.</summary>
     Stunned = 13,
+
+    /// <summary>The item is offered in a trade (#1175), so it cannot be sold until it leaves the trade.</summary>
+    Locked = 14,
 }
 
 /// <summary>The answer to one vendor request, sent to the requester only, for every request.</summary>

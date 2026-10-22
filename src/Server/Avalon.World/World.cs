@@ -13,6 +13,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Inventory;
 using Avalon.World.Maps;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
@@ -26,6 +27,7 @@ using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Threading;
+using Avalon.World.Trading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -96,8 +98,10 @@ public class World : IWorld
     private readonly IWorldRepository _worldRepository;
     private readonly InstanceTicker _instanceTicker;
     private readonly PartyService? _parties;
+    private readonly TradeService? _trades;
     private readonly ChatRateLimiter _chatRateLimiter;
     private readonly ThrottledErrorLog _partyTickErrors;
+    private readonly ThrottledErrorLog _tradeTickErrors;
     private readonly ThrottledErrorLog _publishErrors;
     private readonly TickThreadGuard? _tick;
 
@@ -143,9 +147,11 @@ public class World : IWorld
         IQuestRepository? questRepository = null,
         TickThreadGuard? tickThread = null,
         IAuraTemplateRepository? auraTemplateRepository = null,
-        IDoodadTemplateRepository? doodadTemplateRepository = null)
+        IDoodadTemplateRepository? doodadTemplateRepository = null,
+        TradeService? trades = null)
     {
         _parties = parties;
+        _trades = trades;
         _tick = tickThread;
         _chatRateLimiter = chatRateLimiter;
         _logger = loggerFactory.CreateLogger<World>();
@@ -169,6 +175,8 @@ public class World : IWorld
             serviceProvider.GetService<TimeProvider>());
         _partyTickErrors = new ThrottledErrorLog(_logger, serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System,
             "The party tick");
+        _tradeTickErrors = new ThrottledErrorLog(_logger, serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System,
+            "The trade tick");
         _publishErrors = new ThrottledErrorLog(_logger, serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System,
             "Publishing built instances");
 
@@ -278,6 +286,18 @@ public class World : IWorld
             _logger.LogError(e, "Failed to tell the party of character {CharacterId} it changed instance",
                 connection.Character?.Guid);
         }
+
+        // The character's trade requests end and an open trade closes (#1175): the partner stayed behind. Contained on
+        // its own, as the party's is.
+        try
+        {
+            _trades?.InstanceChanged(connection);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to close the trade of character {CharacterId} as it changed instance",
+                connection.Character?.Guid);
+        }
     }
 
     public Task DeSpawnPlayerAsync(IWorldConnection connection) => LeaveWorldAsync(connection);
@@ -303,6 +323,19 @@ public class World : IWorld
 
         _logger.LogInformation("Character {CharacterName} of account {AccountId} left the world",
             character.Name, connection.AccountId?.Value);
+
+        // Trading first (#1175): its requests end and an open trade closes, while the connection still holds the character,
+        // before the party's offline below takes it off who is online (the trade service tells a stale connection's leave
+        // apart by that entry), and before the despawn save is queued, so a completing trade's outcome reaches the entity
+        // the held despawn save snapshots. Contained on its own: it must not cost the party's offline or the logout save.
+        try
+        {
+            _trades?.CharacterOffline(connection, character);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to take character {CharacterId} offline in its trade", character.Guid);
+        }
 
         // On the tick, before the connection lets go of the character. Contained: it must not cost the logout save.
         try
@@ -516,6 +549,9 @@ public class World : IWorld
         InstanceChoices = registry;
         // A disband forgets the party's instances in this registry, so no member is routed to them again.
         _parties?.AttachInstances(registry);
+        // Trades complete through the economy and judge what may be traded by the item templates (#1175). Resolved here,
+        // not injected: the economy depends on this World.
+        _trades?.Attach(_serviceProvider.GetRequiredService<ICharacterEconomy>(), Data.FindItemTemplate);
     }
 
     public void Update(TimeSpan deltaTime)
@@ -572,6 +608,9 @@ public class World : IWorld
         if (_parties is not null)
             TickParties(_parties);
 
+        if (_trades is not null)
+            TickTrades(_trades);
+
         // Each instance is contained and timed on its own (#639): one that throws is logged, and the
         // others, and the flushes after this update, still run. The registry's tick snapshot, not ActiveInstances:
         // the same array every tick until an instance is published or removed, so this allocates nothing (#851).
@@ -623,6 +662,22 @@ public class World : IWorld
         catch (Exception e)
         {
             _partyTickErrors.Failed(e);
+        }
+    }
+
+    /// <summary>
+    /// Trade requests that expired, open trades an automatic cancel closes, and what completing trades' saves learned
+    /// (#1175). Contained, as the party tick is: a throw here must not leave World.Update before the instances tick.
+    /// </summary>
+    private void TickTrades(TradeService trades)
+    {
+        try
+        {
+            trades.Tick();
+        }
+        catch (Exception e)
+        {
+            _tradeTickErrors.Failed(e);
         }
     }
 

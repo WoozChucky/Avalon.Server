@@ -1,0 +1,87 @@
+# STradeRequestPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message STradeRequestPacket
+
+variant absent
+  field 1 CharacterId : uint = 0
+  field 2 Name : string = null
+  field 3 Class : CharacterClass = None (0)
+  field 4 Level : ushort = 0
+  field 5 ExpiresInMs : uint = 0
+  bytes 0
+
+variant empty
+  field 1 CharacterId : uint = 0
+  field 2 Name : string = "" (0 chars, 0 bytes utf-8)
+  field 3 Class : CharacterClass = None (0)
+  field 4 Level : ushort = 0
+  field 5 ExpiresInMs : uint = 0
+  bytes 2
+    12 00
+
+variant populated
+  field 1 CharacterId : uint = 7
+  field 2 Name : string = "Ωμέγα ΔΕΛΤΑ" (11 chars, 21 bytes utf-8)
+  field 3 Class : CharacterClass = Wizard (2)
+  field 4 Level : ushort = 19
+  field 5 ExpiresInMs : uint = 7
+  bytes 31
+    08 07 12 15 ce a9 ce bc ce ad ce b3 ce b1 20 ce
+    94 ce 95 ce 9b ce a4 ce 91 18 02 20 13 28 07
+
+variant maxima
+  field 1 CharacterId : uint = 4294967295
+  field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  field 3 Class : CharacterClass = Cleric (4)
+  field 4 Level : ushort = 65535
+  field 5 ExpiresInMs : uint = 4294967295
+  bytes 153
+    08 ff ff ff ff 0f 12 84 01 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 18 04 20
+    ff ff 03 28 ff ff ff ff 0f
+
+variant minima
+  field 1 CharacterId : uint = 0
+  field 2 Name : string = " " (1 chars, 1 bytes utf-8)
+  field 3 Class : CharacterClass = None (0)
+  field 4 Level : ushort = 0
+  field 5 ExpiresInMs : uint = 0
+  bytes 3
+    12 01 20
+
+variant varint-edges
+  field 1 CharacterId : uint = 16384
+  field 2 Name : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
+  field 3 Class : CharacterClass = <not a declared member> (5)
+  field 4 Level : ushort = 16384
+  field 5 ExpiresInMs : uint = 127
+  bytes 144
+    08 80 80 01 12 81 01 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 18 05 20 80 80 01 28 7f

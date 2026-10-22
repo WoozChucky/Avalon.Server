@@ -54,6 +54,12 @@ public enum ItemRequestResult : byte
     /// ends. Moves within the Bag are still taken.
     /// </summary>
     Stunned = 13,
+
+    /// <summary>
+    /// The item, or the item in the target slot, is offered in a trade (#1175): it cannot be moved, split, merged into,
+    /// swapped, banked, equipped or destroyed until it leaves the trade.
+    /// </summary>
+    Locked = 14,
 }
 
 /// <summary>

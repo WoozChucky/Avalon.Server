@@ -53,4 +53,7 @@ public enum ItemUseResult : byte
 
     /// <summary>The character is stunned (#770): it uses no item, gear included, until the stun ends.</summary>
     Stunned = 17,
+
+    /// <summary>The item is offered in a trade (#1175): it is neither used nor worn until it leaves the trade.</summary>
+    Locked = 18,
 }

@@ -1087,7 +1087,10 @@ public sealed class QuestService(
         }
     }
 
-    /// <summary>Every copy of the quest's Collect items leaves the Bag and the Bank (turn-in and abandon, #433).</summary>
+    /// <summary>
+    /// Every copy of the quest's Collect items leaves the Bag and the Bank (turn-in and abandon, #433), but a stack
+    /// offered in a trade (#1175), which stays where it is.
+    /// </summary>
     private void RemoveQuestItems(CharacterEntity character, QuestView quest)
     {
         IInventoryService inventory = economy.InventoryOf(character);
@@ -1098,6 +1101,9 @@ public sealed class QuestService(
             {
                 foreach (InventoryItem stack in character.Container(container).Items.Where(i => i.TemplateId.Value == item).ToList())
                 {
+                    if (character.Locks.IsLocked(stack.InstanceId))
+                        continue;
+
                     InventoryRemoveResult removed = inventory.TryRemove(stack.InstanceId, stack.Count);
                     if (removed != InventoryRemoveResult.Ok)
                     {

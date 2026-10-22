@@ -422,6 +422,59 @@ namespace Avalon.Database.Character.Migrations
                     b.ToTable("CharacterStats");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Characters.TradeRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("FirstCharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("FirstGold")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<long>("SecondCharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("SecondGold")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirstCharacterId");
+
+                    b.HasIndex("SecondCharacterId");
+
+                    b.ToTable("TradeRecords");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItem", b =>
+                {
+                    b.Property<Guid>("TradeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ItemInstanceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Count")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("GiverCharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("TemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.HasKey("TradeId", "ItemInstanceId");
+
+                    b.HasIndex("ItemInstanceId");
+
+                    b.ToTable("TradeRecordItems");
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -545,6 +598,15 @@ namespace Avalon.Database.Character.Migrations
                     b.Navigation("Character");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItem", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.TradeRecord", null)
+                        .WithMany("Items")
+                        .HasForeignKey("TradeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
                 {
                     b.HasOne("Avalon.Domain.Characters.Character", null)
@@ -552,6 +614,11 @@ namespace Avalon.Database.Character.Migrations
                         .HasForeignKey("CharacterId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.TradeRecord", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }

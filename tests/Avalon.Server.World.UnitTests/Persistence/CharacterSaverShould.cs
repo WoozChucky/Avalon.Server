@@ -15,6 +15,7 @@ using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Trading;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -457,6 +458,135 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.Equal(kind, tags["kind"]);
     }
 
+    /// <summary>
+    /// Save first, then swap (#1175): the paired save writes both characters as they will be after the trade, with its
+    /// record, in one transaction, while memory stays as it is. A refused write leaves both rows and the record out.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Write_both_sides_of_a_trade_and_its_record_in_one_transaction_or_neither(bool refused)
+    {
+        InventoryItem sword = Item(0, Sword), potion = Item(0, Potion, count: 5);
+        CharacterEntity a = await SeedAsync(7, stored: [sword], gold: 100);
+        CharacterEntity b;
+        if (refused)
+        {
+            b = New(8);   // never stored, as Save_several_characters_in_one_transaction_or_none does
+            b.Container(InventoryType.Bag).Load([potion]);
+        }
+        else
+        {
+            b = await SeedAsync(8, stored: [potion]);
+        }
+
+        (TradePlan plan, TradeRecord record) = PlanTrade(a, sword, 40, b, potion);
+        CharacterSaver saver = Saver();
+
+        Assert.Equal(refused ? SaveOutcome.Refused : SaveOutcome.Committed,
+            await saver.SaveTrade([(_connection, a, plan.First), (_connection, b, plan.Second)], record).WaitAsync(s_limit));
+        Assert.Equal(!refused, await saver.TradeCommittedAsync(record.Id, a.Data!.AccountId, b.Data!.AccountId).WaitAsync(s_limit));
+
+        if (refused)
+        {
+            Assert.Equal(new CharacterId(7), (await StoredItemAsync(sword.InstanceId))!.CharacterId);
+            Assert.Equal(sword.InstanceId, Assert.Single(await StoredSlotsAsync(7)).ItemId);
+            Assert.Equal(100UL, (await StoredRowAsync(7)).Gold);
+        }
+        else
+        {
+            Assert.Equal(new CharacterId(8), (await StoredItemAsync(sword.InstanceId))!.CharacterId);
+            Assert.Equal(new CharacterId(7), (await StoredItemAsync(potion.InstanceId))!.CharacterId);
+            Assert.Equal((60UL, 40UL), ((await StoredRowAsync(7)).Gold, (await StoredRowAsync(8)).Gold));
+            CharacterInventory slotA = Assert.Single(await StoredSlotsAsync(7));
+            Assert.Equal((plan.First.Incoming[0].Slot, potion.InstanceId), (slotA.Slot, slotA.ItemId));
+            CharacterInventory slotB = Assert.Single(await StoredSlotsAsync(8));
+            Assert.Equal((plan.Second.Incoming[0].Slot, sword.InstanceId), (slotB.Slot, slotB.ItemId));
+        }
+
+        // Memory never changes either way: the trade applies the swap itself, once it knows the outcome.
+        Assert.Equal(sword.InstanceId, At(a, InventoryType.Bag, 0).InstanceId);
+        Assert.Equal(100UL, a.Data!.Gold);
+    }
+
+    /// <summary>
+    /// A save of a trader asked for while the paired save is in flight is held, and snapshotted only once the swap is
+    /// applied: a snapshot taken before it would write the pre-trade row back whole, gold included.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Hold_a_trader_s_other_saves_until_the_swap_is_applied(bool despawn)
+    {
+        InventoryItem sword = Item(0, Sword), potion = Item(0, Potion, count: 5);
+        CharacterEntity a = await SeedAsync(7, stored: [sword], gold: 100);
+        CharacterEntity b = await SeedAsync(8, stored: [potion]);
+        (TradePlan plan, TradeRecord record) = PlanTrade(a, sword, 40, b, potion);
+        var gated = new GatedRepository(Repository());
+        CharacterSaver saver = Saver(gated);
+        var walletA = new CharacterWallet(a, ulong.MaxValue);
+        var walletB = new CharacterWallet(b, ulong.MaxValue);
+
+        Task<SaveOutcome> pairedSave = saver.SaveTrade([(_connection, a, plan.First), (_connection, b, plan.Second)], record);
+        Assert.Equal(WalletResult.Ok, walletA.TryAddGold(5));   // loot, after the paired snapshot
+        Task<bool> held = despawn
+            ? saver.SaveOnDespawnAsync(a, prepareRow: null, CancellationToken.None)
+            : saver.Save(_connection, a);
+        Assert.False(held.IsCompleted);
+        Assert.False(saver.WhenIdle(a.Data!.Id).IsCompleted);
+
+        gated.Open();
+        Assert.Equal(SaveOutcome.Committed, await pairedSave.WaitAsync(s_limit));
+        await PumpAsync();
+
+        // The swap, as the trade applies it.
+        a.Locks.Clear();
+        b.Locks.Clear();
+        InventoryItem givenSword = InventoryFor(a).TakeOut(new SlotRef(InventoryType.Bag, 0), 1);
+        a.SaveState.ItemHandedOver(givenSword.InstanceId);
+        InventoryItem givenPotion = InventoryFor(b).TakeOut(new SlotRef(InventoryType.Bag, 0), 5);
+        b.SaveState.ItemHandedOver(givenPotion.InstanceId);
+        Assert.Equal(InventoryAddResult.Ok, InventoryFor(b).TryAddInstanceAt(givenSword, plan.Second.Incoming[0].Slot));
+        Assert.Equal(InventoryAddResult.Ok, InventoryFor(a).TryAddInstanceAt(givenPotion, plan.First.Incoming[0].Slot));
+        Assert.Equal(WalletResult.Ok, walletA.TrySpend(40));
+        Assert.Equal(WalletResult.Ok, walletB.TryAddGold(40));
+
+        saver.ReleaseHold(a.Data.Id);
+        saver.ReleaseHold(b.Data!.Id);
+
+        Assert.True(await held.WaitAsync(s_limit));
+        Assert.Equal(65UL, (await StoredRowAsync(7)).Gold);   // 100 - 40 + 5, never 105
+        Assert.Equal(new CharacterId(8), (await StoredItemAsync(sword.InstanceId))!.CharacterId);
+        CharacterInventory slotA = Assert.Single(await StoredSlotsAsync(7));   // the potion, never the sword back
+        Assert.Equal((plan.First.Incoming[0].Slot, potion.InstanceId), (slotA.Slot, slotA.ItemId));
+        if (!despawn)
+            Assert.True(await saver.Save(_connection, a).WaitAsync(s_limit));   // the giver's next save is not fenced out
+        Assert.True(await saver.Save(_connection, b).WaitAsync(s_limit));
+        await saver.WhenIdle(a.Data.Id).WaitAsync(s_limit);
+    }
+
+    /// <summary>A gives <paramref name="aItem" /> and <paramref name="aGold" />, B gives <paramref name="bItem" />.</summary>
+    private static (TradePlan Plan, TradeRecord Record) PlanTrade(
+        CharacterEntity a, InventoryItem aItem, ulong aGold, CharacterEntity b, InventoryItem bItem)
+    {
+        TradeDecision decision = TradeRules.Plan(new TradeOffer(a, [aItem], aGold), new TradeOffer(b, [bItem], 0), Find, ulong.MaxValue);
+        Assert.Equal(Avalon.Network.Packets.Trade.TradeResult.Ok, decision.Result);
+        var record = new TradeRecord
+        {
+            Id = Guid.CreateVersion7(),
+            FirstCharacterId = a.Data!.Id,
+            SecondCharacterId = b.Data!.Id,
+            FirstGold = aGold,
+            CompletedAt = DateTime.UtcNow,
+            Items =
+            [
+                new TradeRecordItem { ItemInstanceId = aItem.InstanceId, GiverCharacterId = a.Data.Id, TemplateId = aItem.TemplateId, Count = aItem.Count },
+                new TradeRecordItem { ItemInstanceId = bItem.InstanceId, GiverCharacterId = b.Data.Id, TemplateId = bItem.TemplateId, Count = bItem.Count },
+            ],
+        };
+        return (decision.Plan!, record);
+    }
+
     private CharacterSaveRepository Repository() => new(new DbTransactionRunner<CharacterDbContext>(_db));
 
     private CharacterSaver Saver(ICharacterSaveRepository? repository = null, Meter? meter = null) =>
@@ -475,10 +605,10 @@ public sealed class CharacterSaverShould : IDisposable
     }
 
     /// <summary>Stores the character and <paramref name="stored" /> in Bag slots, and loads <paramref name="held" /> (default: the same) into memory.</summary>
-    private async Task<CharacterEntity> SeedAsync(uint id, InventoryItem[]? stored = null, InventoryItem[]? held = null)
+    private async Task<CharacterEntity> SeedAsync(uint id, InventoryItem[]? stored = null, InventoryItem[]? held = null, ulong gold = 0)
     {
         stored ??= [];
-        CharacterEntity character = New(id);
+        CharacterEntity character = New(id, gold);
         CharacterId owner = character.Data!.Id;
 
         await new CharacterRepository(_db).CreateAsync(character.Data!.Copy());
@@ -539,6 +669,15 @@ public sealed class CharacterSaverShould : IDisposable
             await _gate.Task.WaitAsync(s_limit, cancellationToken);
             await inner.WriteAsync(batches, cancellationToken);
         }
+
+        public async Task WriteTradeAsync(IReadOnlyList<CharacterSaveBatch> batches, TradeRecord record, CancellationToken cancellationToken = default)
+        {
+            await _gate.Task.WaitAsync(s_limit, cancellationToken);
+            await inner.WriteTradeAsync(batches, record, cancellationToken);
+        }
+
+        public Task<bool> TradeRecordExistsAsync(Guid tradeId, AccountId first, AccountId second, CancellationToken cancellationToken = default) =>
+            inner.TradeRecordExistsAsync(tradeId, first, second, cancellationToken);
     }
 
     /// <summary>
@@ -566,5 +705,11 @@ public sealed class CharacterSaverShould : IDisposable
                 await _gate.Task.WaitAsync(s_limit, cancellationToken);
             }
         }
+
+        public Task WriteTradeAsync(IReadOnlyList<CharacterSaveBatch> batches, TradeRecord record, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<bool> TradeRecordExistsAsync(Guid tradeId, AccountId first, AccountId second, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

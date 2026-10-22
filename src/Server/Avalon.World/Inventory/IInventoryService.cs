@@ -16,18 +16,19 @@ public interface IInventoryService
 
     /// <summary>
     /// Fills existing Bag stacks of the template up to its MaxStackSize in slot order, then the lowest
-    /// free Bag slots, one new instance per stack. Never adds to Equipment or the Bank. A count of 0
-    /// is Ok and changes nothing.
+    /// free Bag slots, one new instance per stack. Never adds to Equipment or the Bank, nor to a stack
+    /// offered in a trade (#1175), nor to a Bag slot a completing trade reserved; a Unique template counts
+    /// the copies that trade is about to add. A count of 0 is Ok and changes nothing.
     /// </summary>
     InventoryAddResult TryAdd(ItemTemplateId templateId, uint count);
 
     /// <summary>
-    /// From Bag stacks of the template, highest slot first. NotFound when the Bag holds none of it,
-    /// whatever the count, including 0.
+    /// From Bag stacks of the template, highest slot first, leaving out any stack offered in a trade
+    /// (#1175). NotFound when the Bag holds none of it outside a trade, whatever the count, including 0.
     /// </summary>
     InventoryRemoveResult TryRemove(ItemTemplateId templateId, uint count);
 
-    /// <summary>From the one instance, wherever it sits.</summary>
+    /// <summary>From the one instance, wherever it sits. Locked while it is offered in a trade (#1175).</summary>
     InventoryRemoveResult TryRemove(ItemInstanceId itemInstanceId, uint count);
 
     /// <summary>
@@ -54,11 +55,21 @@ public interface IInventoryService
     /// <summary>
     /// Puts this exact instance (same id, count, durability, flags, charges) in the lowest free Bag
     /// slot. It is never merged into a stack. The item is marked New, whatever mark it had before,
-    /// so the next save upserts it. InventoryFull when no Bag slot is free. UniqueAlreadyOwned when
-    /// its template is Unique and the character would then hold more than one copy anywhere; an
-    /// instance whose template is gone is still the player's own, and is added. Throws when the
+    /// so the next save upserts it. InventoryFull when no Bag slot is free (a slot a completing trade
+    /// reserved, #1175, is not). UniqueAlreadyOwned when its template is Unique and the character would
+    /// then hold more than one copy anywhere, counting the copies a completing trade is about to add;
+    /// an instance whose template is gone is still the player's own, and is added. Throws when the
     /// instance is already held: a vendor buyback (spec #432) only ever adds one that TakeOut
     /// handed over.
     /// </summary>
     InventoryAddResult TryAddInstance(InventoryItem item);
+
+    /// <summary>
+    /// A completing trade's own add (#1175): this exact instance in exactly <paramref name="bagSlot" />,
+    /// never merged, marked New. InventoryFull when the slot is occupied; a slot the trade reserved is
+    /// not refused, since it is what the reservation was for. UniqueAlreadyOwned, and the throw for an
+    /// instance already held, as <see cref="TryAddInstance" /> answers them, counting only what the
+    /// character holds. Throws when the slot is past the Bag: the trade plans the slot first.
+    /// </summary>
+    InventoryAddResult TryAddInstanceAt(InventoryItem item, byte bagSlot);
 }

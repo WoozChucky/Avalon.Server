@@ -10,7 +10,10 @@ namespace Avalon.World.Inventory;
 /// <summary>
 /// <see cref="IInventoryService" /> over one character's containers. The one writer of a
 /// character's items: every change it makes marks <see cref="CharacterEntity.SaveState" /> and
-/// <see cref="CharacterEntity.ClientChanges" />.
+/// <see cref="CharacterEntity.ClientChanges" />. A stack offered in a trade (<see cref="CharacterEntity.Locks" />, #1175)
+/// is left alone: adds never fill it, removals by template never see it, and removing it by id is Locked. While a trade
+/// completes, every add but its own (<see cref="TryAddInstanceAt" />) treats the Bag slots it reserved as taken and
+/// counts the copies it is about to add toward Unique.
 /// </summary>
 public sealed class CharacterInventoryService(
     CharacterEntity owner,
@@ -40,7 +43,7 @@ public sealed class CharacterInventoryService(
         // which is what the lists copied before each walk used to hold (#883).
         for (byte slot = 0; slot < bag.Capacity; slot++)
         {
-            if (!bag.TryGet(slot, out InventoryItem stack) || !IsPartialStack(stack, templateId, maxStack))
+            if (!bag.TryGet(slot, out InventoryItem stack) || !IsFillable(stack, templateId, maxStack))
                 continue;
 
             uint take = Math.Min(maxStack - stack.Count, remaining);
@@ -52,7 +55,7 @@ public sealed class CharacterInventoryService(
 
         for (byte slot = 0; slot < bag.Capacity; slot++)
         {
-            if (bag.TryGet(slot, out _))
+            if (bag.TryGet(slot, out _) || owner.Locks.IsReserved(slot))
                 continue;
 
             uint take = Math.Min(maxStack, remaining);
@@ -75,7 +78,7 @@ public sealed class CharacterInventoryService(
         long held = 0;
         foreach (InventoryItem item in bag.Held)
         {
-            if (item.TemplateId != templateId)
+            if (item.TemplateId != templateId || IsLocked(item))
                 continue;
 
             found = true;
@@ -93,7 +96,7 @@ public sealed class CharacterInventoryService(
         uint remaining = count;
         for (int slot = bag.Capacity - 1; slot >= 0 && remaining > 0; slot--)
         {
-            if (!bag.TryGet((byte)slot, out InventoryItem stack) || stack.TemplateId != templateId)
+            if (!bag.TryGet((byte)slot, out InventoryItem stack) || stack.TemplateId != templateId || IsLocked(stack))
                 continue;
 
             uint take = Math.Min(stack.Count, remaining);
@@ -112,6 +115,9 @@ public sealed class CharacterInventoryService(
             {
                 if (item.InstanceId != itemInstanceId)
                     continue;
+
+                if (IsLocked(item))
+                    return InventoryRemoveResult.Locked;
 
                 if (item.Count < count)
                     return InventoryRemoveResult.NotEnough;
@@ -168,20 +174,13 @@ public sealed class CharacterInventoryService(
 
     public InventoryAddResult TryAddInstance(InventoryItem item)
     {
-        foreach (InventoryType container in s_allContainers)
-        {
-            foreach (InventoryItem held in owner.Container(container).Held)
-            {
-                if (held.InstanceId == item.InstanceId)
-                    throw new InvalidOperationException($"Item {item.InstanceId} is already held; it cannot be added twice.");
-            }
-        }
+        ThrowIfHeld(item);
 
         CharacterInventoryContainer bag = Bag;
         byte? lowestFree = null;
         for (byte free = 0; free < bag.Capacity; free++)
         {
-            if (!bag.TryGet(free, out _))
+            if (owner.Locks.IsFree(bag, free))
             {
                 lowestFree = free;
                 break;
@@ -194,16 +193,48 @@ public sealed class CharacterInventoryService(
         // Its own unique guard (#432), not only the caller's: two copies of a unique item must
         // never exist. A template that is gone cannot say it is unique, and the item is still the
         // player's own.
-        if (findTemplate(item.TemplateId) is { } template
-            && (template.Flags & ItemTemplateFlags.Unique) != 0
-            && OwnedCount(item.TemplateId) + item.Count > 1)
-        {
+        if (IsUnique(item.TemplateId) && OwnedOrIncoming(item.TemplateId) + item.Count > 1)
             return InventoryAddResult.UniqueAlreadyOwned;
-        }
 
         Create(InventoryType.Bag, item with { Slot = slot });
         return InventoryAddResult.Ok;
     }
+
+    public InventoryAddResult TryAddInstanceAt(InventoryItem item, byte bagSlot)
+    {
+        ThrowIfHeld(item);
+
+        CharacterInventoryContainer bag = Bag;
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(bagSlot, bag.Capacity);
+
+        // The trade's own add: its reservations are what it is filling, so only an occupied slot refuses, and only
+        // what the character already holds counts toward Unique.
+        if (bag.TryGet(bagSlot, out _))
+            return InventoryAddResult.InventoryFull;
+
+        if (IsUnique(item.TemplateId) && OwnedCount(item.TemplateId) + item.Count > 1)
+            return InventoryAddResult.UniqueAlreadyOwned;
+
+        Create(InventoryType.Bag, item with { Slot = bagSlot });
+        return InventoryAddResult.Ok;
+    }
+
+    /// <summary>Adding an instance the character already holds would duplicate it; callers only add one that left.</summary>
+    private void ThrowIfHeld(InventoryItem item)
+    {
+        foreach (InventoryType container in s_allContainers)
+        {
+            foreach (InventoryItem held in owner.Container(container).Held)
+            {
+                if (held.InstanceId == item.InstanceId)
+                    throw new InvalidOperationException($"Item {item.InstanceId} is already held; it cannot be added twice.");
+            }
+        }
+    }
+
+    /// <summary>A template that is gone cannot say it is unique.</summary>
+    private bool IsUnique(ItemTemplateId templateId) =>
+        findTemplate(templateId) is { } template && (template.Flags & ItemTemplateFlags.Unique) != 0;
 
     /// <summary>
     /// Applies a plan InventoryMove accepted a moment ago, on this thread, against this state, so
@@ -272,16 +303,17 @@ public sealed class CharacterInventoryService(
 
         // Unique caps ownership at one copy, anywhere the character keeps items. A mask test: HasFlag boxes both
         // of its operands in a build that does not optimise, 48 B for every add (#883).
-        if ((template.Flags & ItemTemplateFlags.Unique) != 0 && OwnedCount(templateId) + count > 1)
+        if ((template.Flags & ItemTemplateFlags.Unique) != 0 && OwnedOrIncoming(templateId) + count > 1)
             return InventoryAddResult.UniqueAlreadyOwned;
 
-        // In long: 30 slots of a uint.MaxValue stack still fit, and nothing here can wrap.
+        // In long: 30 slots of a uint.MaxValue stack still fit, and nothing here can wrap. A slot a completing trade
+        // reserved (#1175) is no room.
         uint maxStack = MaxStack(template);
         CharacterInventoryContainer bag = Bag;
-        long room = (long)(bag.Capacity - bag.Held.Count) * maxStack;
+        long room = (long)owner.Locks.FreeSlotCount(bag) * maxStack;
         foreach (InventoryItem item in bag.Held)
         {
-            if (IsPartialStack(item, templateId, maxStack))
+            if (IsFillable(item, templateId, maxStack))
                 room += maxStack - item.Count;
         }
 
@@ -303,9 +335,19 @@ public sealed class CharacterInventoryService(
         return owned;
     }
 
-    /// <summary>A stack of the item below the maximum. One already above it (a lowered template) is left alone.</summary>
-    private static bool IsPartialStack(InventoryItem item, ItemTemplateId templateId, uint maxStack) =>
-        item.TemplateId == templateId && item.Count < maxStack;
+    /// <summary>What the character holds plus what a completing trade is about to add (#1175): every add but the trade's own.</summary>
+    private long OwnedOrIncoming(ItemTemplateId templateId) =>
+        OwnedCount(templateId) + (owner.Locks.Any ? owner.Locks.IncomingCount(templateId) : 0);
+
+    /// <summary>
+    /// A stack of the item below the maximum, and not offered in a trade. One already above it (a lowered template) is
+    /// left alone.
+    /// </summary>
+    private bool IsFillable(InventoryItem item, ItemTemplateId templateId, uint maxStack) =>
+        item.TemplateId == templateId && item.Count < maxStack && !IsLocked(item);
+
+    /// <summary>Offered in a trade (#1175). One bool read while nothing is.</summary>
+    private bool IsLocked(InventoryItem item) => owner.Locks.IsLocked(item.InstanceId);
 
     /// <summary>A MaxStackSize of 0 is read as 1: every item takes at least a slot of its own.</summary>
     private static uint MaxStack(ItemTemplate template) => InventoryMove.MaxStack(template);

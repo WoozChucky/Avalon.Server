@@ -10,11 +10,12 @@ using Avalon.World.Public.Characters;
 namespace Avalon.World.Quests;
 
 /// <summary>
-/// Whether a turn-in can go ahead, changing nothing (#433): ready; the last stage's Collect items all in the bag; the
+/// Whether a turn-in can go ahead, changing nothing (#433): ready; the last stage's Collect items all in the bag, in
+/// stacks not offered in a trade (#1175: an offered stack is not the quest's to take, so it counts for nothing); the
 /// pick one of the quest's choice set, or none for a quest without one (#711); every reward template, fixed and
 /// picked, known and not Unique; the fixed rewards and the pick fit the bag as it will be once every quest item has
-/// left it; the gold under the cap. Everything after it is ordered so nothing can refuse, as VendorRules is for a
-/// trade.
+/// left it, less the slots a completing trade reserved; the gold under the cap, counting the gold that trade is about to
+/// pay. Everything after it is ordered so nothing can refuse, as VendorRules is for a trade.
 /// </summary>
 public static class QuestTurnInRules
 {
@@ -28,7 +29,7 @@ public static class QuestTurnInRules
 
         foreach (QuestObjectiveView objective in quest.LastStage.Objectives)
         {
-            if (objective.Type == QuestObjectiveType.Collect && QuestService.HeldInBag(character, objective.ItemTemplateId!) < objective.Count)
+            if (objective.Type == QuestObjectiveType.Collect && Collectable(character, objective.ItemTemplateId!) < objective.Count)
                 return QuestResult.NotReady;
         }
 
@@ -69,18 +70,28 @@ public static class QuestTurnInRules
             .Select(o => o.ItemTemplateId!.Value)
             .ToHashSet();
         CharacterInventoryContainer bag = character.Container(InventoryType.Bag);
-        var bagAfter = bag.Items
-            .Where(i => !questItems.Contains(i.TemplateId.Value))
-            .ToDictionary(i => i.Slot);
-        if (!Fits(bagAfter, bag.Capacity, rewards))
+        // A quest item offered in a trade stays behind (QuestService.RemoveQuestItems skips it), so it is no room.
+        var bagAfter = new Dictionary<byte, InventoryItem>();
+        foreach (InventoryItem item in bag.Items)
+        {
+            if (!questItems.Contains(item.TemplateId.Value) || character.Locks.IsLocked(item.InstanceId))
+                bagAfter.Add(item.Slot, item);
+        }
+        if (!Fits(bagAfter, bag.Capacity, rewards, character.Locks))
             return QuestResult.BagFull;
 
-        ulong balance = character.Data?.Gold ?? 0;
-        if (quest.RewardGold > maxGold || balance > maxGold - quest.RewardGold)
+        // IWallet.TryAddGold's rule: gold a completing trade is about to pay (#1175) counts as already in the balance.
+        if (!character.Locks.CanReceiveGold(character.Data?.Gold ?? 0, quest.RewardGold, maxGold))
             return QuestResult.GoldCap;
 
         return QuestResult.Ok;
     }
+
+    /// <summary>The item in the Bag the turn-in may take: every stack but those offered in a trade (#1175).</summary>
+    private static long Collectable(CharacterEntity character, ItemTemplateId item) =>
+        character.Locks.Any
+            ? character.Locks.UnlockedCount(character.Container(InventoryType.Bag), item)
+            : QuestService.HeldInBag(character, item);
 
     /// <summary>
     /// The entry of the quest's choice set the pick names (#711); null for no pick (0) or a pick outside the set.
@@ -103,12 +114,13 @@ public static class QuestTurnInRules
 
     /// <summary>
     /// Whether every reward fits, taken together and in order, as IInventoryService.TryAdd would place them: into
-    /// partial stacks of the template first, then one free slot per new stack.
+    /// partial stacks of the template that are not offered in a trade first, then one free slot per new stack, leaving
+    /// out the slots a completing trade reserved (#1175).
     /// </summary>
     public static bool Fits(IReadOnlyDictionary<byte, InventoryItem> bag, byte capacity,
-        IReadOnlyList<(ItemTemplate Template, uint Count)> rewards)
+        IReadOnlyList<(ItemTemplate Template, uint Count)> rewards, InventoryLocks locks)
     {
-        long free = capacity - bag.Count;
+        long free = locks.FreeSlotCount(bag, capacity);
         Dictionary<ulong, long> partialRoom = [];
 
         foreach ((ItemTemplate template, uint count) in rewards)
@@ -116,7 +128,13 @@ public static class QuestTurnInRules
             long max = InventoryMove.MaxStack(template);
             ulong id = template.Id.Value;
             if (!partialRoom.TryGetValue(id, out long room))
-                room = bag.Values.Where(i => i.TemplateId.Value == id && i.Count < max).Sum(i => max - i.Count);
+            {
+                foreach (InventoryItem item in bag.Values)
+                {
+                    if (item.TemplateId.Value == id && item.Count < max && !locks.IsLocked(item.InstanceId))
+                        room += max - item.Count;
+                }
+            }
 
             long remaining = count;
             long intoPartial = Math.Min(room, remaining);

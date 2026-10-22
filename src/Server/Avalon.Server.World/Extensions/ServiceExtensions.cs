@@ -37,6 +37,7 @@ using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Social;
 using Avalon.World.Threading;
+using Avalon.World.Trading;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -241,6 +242,8 @@ public static class ServiceExtensions
         // read by the party invite and the whisper, so the one instance must reach both.
         services.AddSingleton<OnlineCharacters>();
         services.AddSingleton<PartyService>();
+        // Face-to-face trades (#1175): World, WorldServer and the dialogue's NPC window path hold the one instance.
+        services.AddSingleton<TradeService>();
         // One chat budget per character, shared by plain chat, /p and /w (#722); World.LeaveWorldAsync forgets it.
         services.AddSingleton<ChatRateLimiter>();
         services.AddSingleton<ICommand, PvpCommand>();

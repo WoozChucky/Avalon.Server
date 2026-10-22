@@ -350,6 +350,13 @@ public partial class CharacterEntity : ICharacter
     public VendorBuyback Buyback { get; } = new();
 
     /// <summary>
+    /// The items and gold this character has offered in a face-to-face trade (#1175): locked in its Bag and held in its
+    /// balance until the trade completes or is cancelled. In memory only; not on ICharacter, so the modding API cannot
+    /// release a lock.
+    /// </summary>
+    public InventoryLocks Locks { get; } = new();
+
+    /// <summary>
     /// Item use cooldowns. World-side and never saved: a new session starts with none. Not on ICharacter,
     /// so the modding API cannot clear them.
     /// </summary>

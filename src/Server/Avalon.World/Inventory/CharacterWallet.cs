@@ -3,7 +3,10 @@ using Avalon.World.Entities;
 
 namespace Avalon.World.Inventory;
 
-/// <summary><see cref="IWallet" /> over <c>Character.Gold</c>. The one writer of a character's gold.</summary>
+/// <summary>
+/// <see cref="IWallet" /> over <c>Character.Gold</c>. The one writer of a character's gold. Gold offered in a trade
+/// (#1175) cannot be spent, and gold a completing trade is about to pay counts toward the cap.
+/// </summary>
 public sealed class CharacterWallet(CharacterEntity owner, ulong maxGold) : IWallet
 {
     private Character Row => owner.Data
@@ -11,8 +14,9 @@ public sealed class CharacterWallet(CharacterEntity owner, ulong maxGold) : IWal
 
     public ulong Balance => Row.Gold;
 
+    /// <summary>Only what is not held for a trade (#1175) can be spent.</summary>
     public WalletResult CanSpend(ulong gold) =>
-        gold <= Row.Gold ? WalletResult.Ok : WalletResult.NotEnoughGold;
+        gold <= Spendable ? WalletResult.Ok : WalletResult.NotEnoughGold;
 
     public WalletResult TrySpend(ulong gold)
     {
@@ -30,16 +34,18 @@ public sealed class CharacterWallet(CharacterEntity owner, ulong maxGold) : IWal
         if (gold == 0)
             return WalletResult.Ok;
 
-        // Written so nothing can wrap: a balance already at or above a (lowered) cap refuses every
-        // addition, and the headroom subtraction only runs when it cannot underflow.
+        // Nothing can wrap: a balance already at or above a (lowered) cap refuses every addition. Gold a
+        // completing trade is about to pay (#1175) counts as already in the balance.
         ulong balance = Row.Gold;
-        if (balance >= maxGold || gold > maxGold - balance)
+        if (!owner.Locks.CanReceiveGold(balance, gold, maxGold))
             return WalletResult.GoldCapReached;
 
         Row.Gold = balance + gold;
         Changed();
         return WalletResult.Ok;
     }
+
+    private ulong Spendable => owner.Locks.Any ? owner.Locks.Spendable(Row.Gold) : Row.Gold;
 
     private void Changed()
     {

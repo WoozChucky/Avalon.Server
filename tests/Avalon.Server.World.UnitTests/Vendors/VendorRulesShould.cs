@@ -5,6 +5,7 @@ using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
+using Avalon.World.Public.Characters;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using NSubstitute;
@@ -18,7 +19,7 @@ namespace Avalon.Server.World.UnitTests.Vendors;
 /// </summary>
 public class VendorRulesShould
 {
-    public sealed record Held(SlotRef At, ItemTemplate Template, uint Count = 1, uint Durability = 0);
+    public sealed record Held(SlotRef At, ItemTemplate Template, uint Count = 1, uint Durability = 0, bool Locked = false);
 
     private static SlotRef Bag(byte slot) => new(InventoryType.Bag, slot);
 
@@ -26,15 +27,21 @@ public class VendorRulesShould
 
     private static SlotRef Eq(byte slot) => new(InventoryType.Equipment, slot);
 
-    private static Held At(SlotRef slot, ItemTemplate template, uint count = 1, uint durability = 0) =>
-        new(slot, template, count, durability);
+    private static Held At(SlotRef slot, ItemTemplate template, uint count = 1, uint durability = 0, bool locked = false) =>
+        new(slot, template, count, durability, locked);
 
     /// <summary>Keepsakes in Bag slots 0-28: one slot, 29, is free.</summary>
     private static Held[] AllButLastSlot => Enumerable.Range(0, 29).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
 
     private static Held[] FullBag => Enumerable.Range(0, 30).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
 
-    private static CharacterEntity Arrange(IReadOnlyCollection<Held> held, ulong gold, bool dead)
+    /// <summary>
+    /// A Held marked Locked is offered in a trade (#1175); <paramref name="heldGold" /> is gold offered. A completing
+    /// trade reserves <paramref name="reserved" /> and expects <paramref name="incomingGold" /> and one
+    /// <paramref name="incoming" />.
+    /// </summary>
+    private static CharacterEntity Arrange(IReadOnlyCollection<Held> held, ulong gold, bool dead, ulong heldGold = 0,
+        byte? reserved = null, ulong incomingGold = 0, ItemTemplate? incoming = null)
     {
         CharacterEntity character = TestCharacters.New(gold: gold);
         foreach (IGrouping<InventoryType, Held> container in held.GroupBy(h => h.At.Container))
@@ -43,6 +50,18 @@ public class VendorRulesShould
                 container.Select(h => TestCharacters.Item(h.At.Slot, h.Template, h.Count, h.Durability)).ToList());
         }
 
+        foreach (Held h in held.Where(h => h.Locked))
+        {
+            Assert.True(character.Container(h.At.Container).TryGet(h.At.Slot, out InventoryItem item));
+            character.Locks.Lock(item.InstanceId);
+        }
+
+        character.Locks.HeldGold = heldGold;
+        if (reserved is { } slot)
+            character.Locks.Reserve(slot);
+        character.Locks.IncomingGold = incomingGold;
+        if (incoming is not null)
+            character.Locks.ExpectIncoming(incoming.Id, 1);
         character.IsDead = dead;
         return character;
     }
@@ -76,7 +95,10 @@ public class VendorRulesShould
         uint ElixirsSold = 0,
         bool QuestMet = false,
         bool TonicGone = false,
-        uint? CharmSellPrice = null);
+        uint? CharmSellPrice = null,
+        ulong HeldGold = 0,
+        byte? Reserved = null,
+        bool CharmIncoming = false);
 
     private static readonly BuyCase[] s_buyCases =
     [
@@ -114,6 +136,7 @@ public class VendorRulesShould
         new("Refuse too little gold", [], 9, TonicSequence, null, VendorResult.NotEnoughGold),
         new("Refuse gold for one but not for the count", [], 49, TonicSequence, 5, VendorResult.NotEnoughGold),
         new("Check the gold before the cost items", [], 29, ElixirSequence, null, VendorResult.NotEnoughGold),
+        new("Refuse gold held for a trade", [], 100, ElixirSequence, null, VendorResult.NotEnoughGold, HeldGold: 80),
 
         // 7. Cost items times count, from the Bag only.
         new("Buy with the cost items in the bag", [At(Bag(0), Tonic, 2)], 30, ElixirSequence, null, VendorResult.Ok, Total: 30),
@@ -125,13 +148,16 @@ public class VendorRulesShould
         new("Refuse a full bag", FullBag, 100, TonicSequence, null, VendorResult.InventoryFull),
         new("Fill a partial stack in an otherwise full bag", [.. AllButLastSlot, At(Bag(29), Tonic, 19)], 100, TonicSequence, 1, VendorResult.Ok, Total: 10),
         new("Refuse past a partial stack's room", [.. AllButLastSlot, At(Bag(29), Tonic, 19)], 100, TonicSequence, 2, VendorResult.InventoryFull),
+        new("Count no room in a partial stack offered in a trade", [.. AllButLastSlot, At(Bag(29), Tonic, 19, locked: true)], 100, TonicSequence, 1, VendorResult.InventoryFull),
         new("Use the slot a spent cost stack frees", [.. AllButLastSlot, At(Bag(29), Tonic, 2)], 30, ElixirSequence, null, VendorResult.Ok, Total: 30),
         new("Count no room in a cost stack that survives", [.. AllButLastSlot, At(Bag(29), Tonic, 3)], 30, ElixirSequence, null, VendorResult.InventoryFull),
+        new("Refuse when the only free slot is reserved", AllButLastSlot, 100, TonicSequence, null, VendorResult.InventoryFull, Reserved: 29),
 
         // 9. Unique.
         new("Refuse a second copy of a unique item", [At(Bag(0), Charm)], 40, CharmSequence, null, VendorResult.UniqueAlreadyOwned),
         new("Refuse a unique item already in the bank", [At(Vault(3), Charm)], 40, CharmSequence, null, VendorResult.UniqueAlreadyOwned),
         new("Check the room before the unique rule", [.. FullBag, At(Vault(3), Charm)], 40, CharmSequence, null, VendorResult.InventoryFull),
+        new("Refuse when a Unique copy is on its way in", [], 40, CharmSequence, null, VendorResult.UniqueAlreadyOwned, CharmIncoming: true),
     ];
 
     public static IEnumerable<object[]> BuyCaseNames => s_buyCases.Select(c => new object[] { c.Name });
@@ -147,7 +173,8 @@ public class VendorRulesShould
     public void Decide_every_buy(string name)
     {
         BuyCase row = s_buyCases.Single(c => c.Name == name);
-        CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead);
+        CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead, row.HeldGold, row.Reserved,
+            incoming: row.CharmIncoming ? Charm : null);
         VendorStockState stock = Stock();
         Sell(stock, BladeSequence, row.BladesSold);
         Sell(stock, ElixirSequence, row.ElixirsSold);
@@ -268,7 +295,8 @@ public class VendorRulesShould
         ulong Gold = 0,
         ulong MaxGold = 1_000_000,
         bool Shop = true,
-        bool Dead = false);
+        bool Dead = false,
+        ulong IncomingGold = 0);
 
     private static readonly SellCase[] s_sellCases =
     [
@@ -290,6 +318,7 @@ public class VendorRulesShould
         new("Refuse a NoSell item", [At(Bag(0), Keepsake)], 0, null, VendorResult.NotSellable),
         new("Refuse an item that sells for nothing", [At(Bag(0), Trinket)], 0, null, VendorResult.NotSellable),
         new("Refuse an item whose template is gone", [At(Bag(0), EquipTemplates.Ghost)], 0, null, VendorResult.NotSellable),
+        new("Refuse a locked item", [At(Bag(0), Tonic, 5, locked: true)], 0, null, VendorResult.Locked),
 
         // 5. Not damaged.
         new("Refuse a weapon one point below full", [At(Bag(0), Blade, durability: 41)], 0, null, VendorResult.Damaged),
@@ -304,6 +333,7 @@ public class VendorRulesShould
         new("Reach the gold cap exactly", [At(Bag(0), Tonic, 5)], 0, null, VendorResult.Ok, Payment: 20, Gold: 980, MaxGold: 1000),
         new("Refuse a sale past the gold cap", [At(Bag(0), Tonic, 5)], 0, null, VendorResult.GoldCapReached, Gold: 990, MaxGold: 1000),
         new("Refuse any sale above a lowered cap", [At(Bag(0), Tonic, 1)], 0, null, VendorResult.GoldCapReached, Gold: 2000, MaxGold: 1000),
+        new("Refuse when incoming gold would pass the cap", [At(Bag(0), Tonic, 5)], 0, null, VendorResult.GoldCapReached, Gold: 970, MaxGold: 1000, IncomingGold: 11),
     ];
 
     public static IEnumerable<object[]> SellCaseNames => s_sellCases.Select(c => new object[] { c.Name });
@@ -313,7 +343,7 @@ public class VendorRulesShould
     public void Decide_every_sale(string name)
     {
         SellCase row = s_sellCases.Single(c => c.Name == name);
-        CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead);
+        CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead, incomingGold: row.IncomingGold);
 
         SellDecision decision = VendorRules.DecideSell(character, row.Shop, row.BagSlot, row.Count, Find, row.MaxGold);
 
@@ -340,7 +370,8 @@ public class VendorRulesShould
         uint Index,
         VendorResult Expected,
         bool Shop = true,
-        bool Dead = false);
+        bool Dead = false,
+        byte? Reserved = null);
 
     private static readonly BuybackCase[] s_buybackCases =
     [
@@ -363,6 +394,7 @@ public class VendorRulesShould
         // 5. A free Bag slot: the exact instance is never merged into a stack.
         new("Refuse a full bag", [(Tonic, 5, 20)], FullBag, 20, 0, VendorResult.InventoryFull),
         new("Never merge into a stack with room", [(Tonic, 5, 20)], [.. AllButLastSlot, At(Bag(29), Tonic, 1)], 20, 0, VendorResult.InventoryFull),
+        new("Refuse when the only free slot is reserved", [(Tonic, 5, 20)], AllButLastSlot, 20, 0, VendorResult.InventoryFull, Reserved: 29),
 
         // Not in the spec's list (#432): re-adding a sold unique item beside a newer copy would leave two.
         new("Refuse to buy back a unique item already owned again", [(Charm, 1, 12)], [At(Bag(0), Charm)], 12, 0, VendorResult.UniqueAlreadyOwned),
@@ -375,7 +407,7 @@ public class VendorRulesShould
     public void Decide_every_buyback(string name)
     {
         BuybackCase row = s_buybackCases.Single(c => c.Name == name);
-        CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead);
+        CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead, reserved: row.Reserved);
         foreach ((ItemTemplate template, uint count, ulong price) in row.Sold)
             character.Buyback.Push(new BuybackEntry(TestCharacters.Item(0, template, count), price));
 

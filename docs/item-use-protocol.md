@@ -71,6 +71,7 @@ acknowledgement. A connection with no character gets no answer at all.
 | 15 | `Refused` | The item refused this use; `Message` says why. Show it. |
 | 16 | `InternalError` | Something failed on the server; it is logged. Nothing was consumed and no cooldown started. |
 | 17 | `Stunned` | The character is stunned (crowd control, [aura protocol](aura-protocol.md) section 10): it uses no item, gear included, until the stun ends. A silence refuses no item use. |
+| 18 | `Locked` | The item is offered in a face-to-face trade ([trade protocol](trade-protocol.md) section 6): it is neither used nor worn until it leaves the trade. A cast whose item becomes locked before the bar ends is answered `Interrupted`. |
 
 ## 4. The checks, in order
 
@@ -79,7 +80,8 @@ acknowledgement. A connection with no character gets no answer at all.
 3. **A worn item** (Container 0) is taken off (section 5), and nothing else below is asked: no template, cooldown or
    cast check, so an item whose template is gone can still be taken off. A take-off that passes its checks first
    ends a running item cast bar, which is answered `Interrupted`; a full Bag (`TargetFull`) leaves the bar running.
-4. **The template**: an item whose template is gone is `NotUsable`.
+4. **A trade, then the template**: a Bag item offered in a face-to-face trade is `Locked` (#1175); an item whose
+   template is gone is `NotUsable`.
 5. **Gear** (an item whose template `slot` is one that is worn) is equipped (section 5), and nothing else below is
    asked: no cooldown, no cast check. An equip that passes its checks first ends a running item cast bar, which is
    answered `Interrupted`; a refused equip leaves the bar running.
@@ -151,7 +153,8 @@ taking a worn item off); casting an ability the server accepts; using a doodad t
 item interrupts only once that use has passed its checks, so a click on an item on cooldown, on gear the character
 cannot wear, or on a worn item with the Bag full, leaves the bar running. Taking damage does not interrupt it. When
 the bar ends, the same item must still be in the same Bag slot: one moved out of it, or sold or destroyed whole,
-meanwhile ends it as `Interrupted` (a stack that only lost part of its count is still the same item). The item's own
+meanwhile ends it as `Interrupted` (a stack that only lost part of its count is still the same item), and so does
+an item offered in a trade meanwhile (#1175). The item's own
 check is asked again at the end and can still refuse (`Refused`). An interrupted use spends nothing and starts no
 cooldown.
 

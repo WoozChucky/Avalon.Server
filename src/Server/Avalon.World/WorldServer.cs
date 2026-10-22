@@ -32,6 +32,7 @@ using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Telemetry;
 using Avalon.World.Threading;
+using Avalon.World.Trading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -252,6 +253,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly Stopwatch _gameTime = new();
     private readonly ILogger<WorldServer> _logger;
     private readonly PartyService _parties;
+    private readonly TradeService? _trades;
     private readonly ThrottledErrorLog _memberStatusErrors;
     private readonly QuestService? _quests;
     private readonly ThrottledErrorLog _questFlushErrors;
@@ -339,7 +341,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         ICharacterSaver characterSaver,
         PartyService parties,
         IWorldEntryGate? entryGate = null,
-        WorldMaintenanceCoordinator? maintenanceCoordinator = null) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
+        WorldMaintenanceCoordinator? maintenanceCoordinator = null,
+        TradeService? trades = null) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
         hostingOptions,
         PacketDispatchTelemetry.From(DiagnosticsConfig.World.Source, DiagnosticsConfig.World.Meter,
@@ -354,6 +357,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _maintenanceCoordinator = maintenanceCoordinator;
         _maintenanceCoordinator?.SetDrainObserver(() => _pendingDisconnects.IsEmpty);
         _parties = parties;
+        _trades = trades;
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _memberStatusErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The party member status flush");
@@ -591,7 +595,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // this thread, with the tick joined: nothing else is touching the instances. It is awaited
         // rather than dropped because the process is about to exit, and it is not given a timeout
         // of its own for the same reason the close handler has none — the bound is the database's,
-        // and cutting it short would discard the save this exists to make.
+        // and cutting it short would discard the save this exists to make. Unless a trade is still
+        // unsettled (#1175): the despawn saves its hold keeps waiting never finish, so then the wait
+        // is bounded by the save window below.
         var despawning = new List<Task>();
         while (_pendingDisconnects.TryDequeue(out WorldConnection? disconnected))
         {
@@ -607,9 +613,28 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             }
         }
 
+        // The save window (#1175): SaveDrainLimit from here, once every despawn has started and so queued its save.
+        // Completing trades settle inside it, alongside the saves already writing rather than ahead of them: a trader's
+        // despawn save waits on its trade's hold, and is snapshotted at the release, once the outcome is applied; every
+        // other character's is already in its chain. Nothing settling touches is touched by the despawns from here on:
+        // what remains of each is awaiting its save and ending its session.
+        long saveWindowStart = Stopwatch.GetTimestamp();
+        var despawned = Task.WhenAll(despawning);
+        bool tradesSettled = await SettleTradesAsync(SaveDrainLimit, stoppingToken).ConfigureAwait(false);
+
         try
         {
-            await Task.WhenAll(despawning).ConfigureAwait(false);
+            if (tradesSettled)
+                await despawned.ConfigureAwait(false);
+            else
+                await despawned.WaitAsync(SaveWindowLeft(saveWindowStart), stoppingToken).ConfigureAwait(false);
+        }
+        catch (Exception e) when (!tradesSettled && e is TimeoutException or OperationCanceledException)
+        {
+            _logger.LogError(
+                "Shutdown stopped waiting for the despawns at the end of its {Limit} save window or at the host's stop " +
+                "timeout: a trade still unsettled holds its characters' despawn saves",
+                SaveDrainLimit);
         }
         catch (Exception e)
         {
@@ -629,8 +654,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // waiting for it, so one begun on an earlier tick can still be queued behind another save,
         // or be mid-transaction, and the host disposes the database as soon as this returns. The
         // periodic saves in flight are the same. Bounded by the host's own stop timeout and by
-        // SaveDrainLimit, because a write that never returns must not hold the process up forever.
-        await WaitForSavesAsync(stoppingToken).ConfigureAwait(false);
+        // SaveDrainLimit, because a write that never returns must not hold the process up forever; with a
+        // trade unsettled, by what is left of the save window, since its holds never drain.
+        await WaitForSavesAsync(tradesSettled ? SaveDrainLimit : SaveWindowLeft(saveWindowStart), stoppingToken)
+            .ConfigureAwait(false);
 
         // Last (#875): the send threads outlived the tick and the closes, so each close's notice went out (or its budget
         // ran out) with its owner still running, and no close is left waiting on a stopped owner. A send after the closes,
@@ -655,7 +682,45 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     /// <summary>How long the shutdown waits, in all, for the send threads to stop once everything else has (#875).</summary>
     public static readonly TimeSpan SendThreadsStopLimit = TimeSpan.FromSeconds(2);
 
-    private async Task WaitForSavesAsync(CancellationToken stoppingToken)
+    /// <summary>What is left of the shutdown's save window, which began at <paramref name="start" />; never negative.</summary>
+    private TimeSpan SaveWindowLeft(long start)
+    {
+        TimeSpan left = SaveDrainLimit - Stopwatch.GetElapsedTime(start);
+        return left > TimeSpan.Zero ? left : TimeSpan.Zero;
+    }
+
+    /// <summary>
+    /// Completing trades settle once the tick has stopped (#1175), after the closes and once every despawn has started,
+    /// so no other character's close or save waits behind them: each waits for its paired save and record lookups,
+    /// within <paramref name="limit" /> and the host's stop timeout, so a despawn save the trade holds is written with
+    /// the outcome applied. A trade still unsettled keeps its holds, and the shutdown's later waits stop at the end of
+    /// the save window. Only once the tick thread has exited, and so unbound its guard: one that outlived its join
+    /// would still be applying completions itself.
+    /// </summary>
+    /// <returns>Whether every completing trade settled, or there was none to settle.</returns>
+    private async Task<bool> SettleTradesAsync(TimeSpan limit, CancellationToken stoppingToken)
+    {
+        if (_trades is null)
+            return true;
+
+        if (_tickThread is { IsAlive: true })
+        {
+            _logger.LogError("The tick did not stop in time; any completing trade is left unsettled and keeps its holds");
+            return false;
+        }
+
+        try
+        {
+            return await _trades.SettleAsync(limit, stoppingToken).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Settling the completing trades at shutdown failed");
+            return false;
+        }
+    }
+
+    private async Task WaitForSavesAsync(TimeSpan limit, CancellationToken stoppingToken)
     {
         Task saves = _characterSaver.WhenAllIdle();
         if (saves.IsCompleted)
@@ -663,13 +728,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         try
         {
-            await saves.WaitAsync(SaveDrainLimit, stoppingToken).ConfigureAwait(false);
+            await saves.WaitAsync(limit, stoppingToken).ConfigureAwait(false);
         }
         catch (Exception e) when (e is TimeoutException or OperationCanceledException)
         {
             _logger.LogError(
-                "Shutdown stopped waiting for character saves still in flight after {Limit} or at the host's stop timeout; " +
-                "changes since those characters' last committed save may be lost",
+                "Shutdown stopped waiting for character saves still in flight at the end of its {Window} save window or " +
+                "at the host's stop timeout; changes since those characters' last committed save may be lost",
                 SaveDrainLimit);
         }
     }

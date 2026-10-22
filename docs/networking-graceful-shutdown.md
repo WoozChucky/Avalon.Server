@@ -125,7 +125,14 @@ OutboundPacket packet = SDisconnectPacket.Create("Server is shutting down", Disc
    passed are not sent (the one in flight is cancelled), and the end of a lease that ran out more than 5 s ago is
    skipped
    ([game server admission](steam-authentication-workloads.md#session-activation-and-durable-save-authority)).
-6. The wait for character saves still in flight (`SaveDrainLimit`, 20 s, and the host's stop timeout).
+   Once every despawn has started, so every other character's despawn save is already queued, completing trades
+   settle (`TradeService.SettleAsync`, #1175, [trading](trading.md)) inside one save window of `SaveDrainLimit` (20 s),
+   alongside those saves: each waits for its paired save and record lookups and applies the outcome, so a trader's
+   despawn save, which the trade holds, is written with it applied. A tick that outlived its join skips the settle,
+   logged at Error.
+6. The wait for character saves still in flight (`SaveDrainLimit`, 20 s, and the host's stop timeout). With a trade
+   still unsettled, the despawn wait in step 5 and this one get only what is left of the save window, since that
+   trade's held saves never finish.
 7. The send threads stop last: they outlive the tick and the closes, so each close's notice goes out (or its budget
    runs out) while its owner still runs, and no close is left waiting on a stopped owner. A send after the closes, a
    despawn's among them, is refused, since its connection is already closed. They are background threads, joined within one shared `WorldServer.SendThreadsStopLimit` (2 s); one that does not

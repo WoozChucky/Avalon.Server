@@ -51,11 +51,12 @@ public class ItemUsePacketsShould
     public void Keep_every_result_number()
     {
         Assert.Equal(
-            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
             Enum.GetValues<ItemUseResult>().Select(r => (int)r));
         Assert.Equal(0, (int)ItemUseResult.Unknown);
         Assert.Equal(16, (int)ItemUseResult.InternalError);
         Assert.Equal(17, (int)ItemUseResult.Stunned);
+        Assert.Equal(18, (int)ItemUseResult.Locked);
     }
 
     /// <summary>An item's cast bar names its item template beside the ability id, which is 0.</summary>

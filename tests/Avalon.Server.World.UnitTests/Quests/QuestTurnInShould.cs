@@ -113,6 +113,31 @@ public class QuestTurnInShould
         Assert.True(c.Character.Quests.IsActive(Tusks));
     }
 
+    /// <summary>
+    /// #1175: a Collect stack offered in a trade is not the quest's to take. The turn-in counts only the stacks left
+    /// free, answers NotReady and takes nothing; an abandon takes the free stacks and leaves the offered one.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_a_turn_in_while_a_collect_item_is_offered_in_a_trade()
+    {
+        (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync();
+        ItemTemplate tusk = TuskItem();
+        Avalon.World.Public.Characters.InventoryItem offered = TestCharacters.Item(0, tusk);
+        c.Character.Container(InventoryType.Bag).Load([offered, TestCharacters.Item(1, tusk)]);
+        c.Character.Locks.Lock(offered.InstanceId);
+
+        Assert.Equal(QuestResult.NotReady, w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));
+        Assert.Equal(2, Held(c, Tusk));
+        Assert.Equal(0, Held(c, Tonic));
+        Assert.Equal(0ul, c.Character.Data!.Gold);
+        Assert.True(c.Character.Quests.IsActive(Tusks));
+
+        Assert.Equal(QuestResult.Ok, w.Quests.Abandon(c.Character, Tusks));
+        Assert.Equal(1, Held(c, Tusk));
+        Assert.True(c.Character.Container(InventoryType.Bag).TryGet(0, out Avalon.World.Public.Characters.InventoryItem kept));
+        Assert.Equal(offered.InstanceId, kept.InstanceId);
+    }
+
     /// <summary>Review Focus 3: the slot the tusks free is room for the reward.</summary>
     [Fact]
     public async Task Count_the_slot_the_quest_items_free_as_room()

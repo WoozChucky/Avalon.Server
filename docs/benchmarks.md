@@ -1542,6 +1542,43 @@ setup checks what each event sent. Results: [a social town, quieter](#results--a
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SocialEventBenchmarks*"
 ```
 
+### Trading — `Benchmarks/TradeBenchmarks.cs` (#1175)
+
+The trade service's two costs on the world server. `Tick` is `TradeService.Tick`, which `World.Update` calls on every
+tick, with `OpenTrades` trades open and none closing: with none it reads two counts and returns; each open trade then
+costs its automatic-cancel checks (both connections still hold their characters, one instance, alive, out of combat,
+no shop or bank open, within 6 m). `OfferAndRemove` is one `CMSG_TRADE_OFFER_ITEM` and one `CMSG_TRADE_REMOVE_ITEM`
+through their handlers and `TradeReplies.Handle`, so the item goes into the trade and back out: each sends the whole
+trade to both sides and answers with one `SMSG_TRADE_RESULT`, six packets in all. It also runs at every `OpenTrades`
+(with at least the one trade it uses) to show its cost does not grow with them. The connections only count what they
+are sent and give each payload back to the pool; the characters stand side by side, so every trade stays open. Setup
+checks that the tick closed nothing and that the offer and the removal were each applied and answered once.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TradeBenchmarks*"
+```
+
+Measured once, 2026-10-22, BenchmarkDotNet 0.15.8, default job, Windows 11, i9-12900K, SDK 10.0.402 / runtime
+10.0.13, Release:
+
+| Open trades | `Tick`, mean | `Tick`, allocated | `OfferAndRemove`, mean | `OfferAndRemove`, allocated |
+|---:|---:|---:|---:|---:|
+| 0 | 0.31 ns | 0 B | 1,416 ns (median 1,180 ns, a multimodal run) | 0 B |
+| 1 | 8.72 ns | 0 B | 1,141 ns | 0 B |
+| 100 | 1,168 ns | 0 B | 1,139 ns | 0 B |
+| 900 | 44,062 ns | 0 B | 1,196 ns | 0 B |
+
+Nothing allocates. The empty tick is the two count reads every world pays; an open trade's checks cost about 9 to
+12 ns each while the trades' characters sit in the cache, and about 49 ns each at 900 trades (1,800 characters), where
+they no longer do: 44 µs, a quarter of one percent of a 60 Hz tick, for a world where 1,800 players all trade at
+once. The six packets of an offer and a removal are encoded into pooled segments, and the state packet reuses the
+service's own DTOs, so a trade request allocates nothing of its own. The two `Debug` lines on opening and closing a
+trade are generated `[LoggerMessage]` methods, which check the level before formatting, so at the world server's
+Information default they box nothing. `ScenarioWorld.Tick` runs `TradeService.Tick` where `World.Update` does (after the
+parties, before the instances), so `ScenarioAllocationsShould` covers the empty trade tick in every scenario; every
+figure stayed as committed in Debug and Release (forest-combat 13,805 B per window, town-social 728 B, the others
+0 B), and `perf/scenario-allocations.json` is not regenerated.
+
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
 Measures the production `WorldConnection` arrival, session/map filtering and handler dispatch paths. Each operation

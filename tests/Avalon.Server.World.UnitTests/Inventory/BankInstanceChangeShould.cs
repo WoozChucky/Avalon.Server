@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.World;
@@ -10,6 +11,7 @@ using Avalon.World.Inventory;
 using Avalon.World.Maps;
 using Avalon.World.Public.Instances;
 using Avalon.World.Scripts.Abstractions;
+using Avalon.World.Trading;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -101,15 +103,19 @@ public class BankInstanceChangeShould
         Assert.True(BankAccess.IsOpen(w.Connection, w.Character));
     }
 
-    private static IMapInstance Elsewhere()
+    internal static IMapInstance Elsewhere()
     {
         IMapInstance instance = Substitute.For<IMapInstance>();
         instance.InstanceId.Returns(new Guid("46300000-0000-0000-0000-000000000999"));
         return instance;
     }
 
-    /// <summary>A real World, loaded, whose registry holds no instance, so only the transfer itself is observed.</summary>
-    private static async Task<Avalon.World.World> RealWorldAsync()
+    /// <summary>
+    /// A real World, loaded, whose registry holds no instance, so only the transfer itself is observed. Given a trade
+    /// service, the world holds it, and its load attaches <paramref name="economy" /> and <paramref name="items" />.
+    /// </summary>
+    internal static async Task<Avalon.World.World> RealWorldAsync(TradeService? trades = null,
+        ICharacterEconomy? economy = null, IReadOnlyCollection<ItemTemplate>? items = null)
     {
         IWorldRepository worldRepository = Substitute.For<IWorldRepository>();
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -125,8 +131,9 @@ public class BankInstanceChangeShould
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory))
             .Returns(Substitute.For<IChunkLayoutInstanceFactory>());
+        serviceProvider.GetService(typeof(ICharacterEconomy)).Returns(economy);
 
-        TestStaticDataRepositories r = TestStaticData.Repositories();
+        TestStaticDataRepositories r = TestStaticData.Repositories(items: () => items ?? []);
         var world = new Avalon.World.World(
             NullLoggerFactory.Instance,
             Options.Create(new GameConfiguration { WorldId = new Avalon.Domain.Auth.WorldId(1) }),
@@ -138,7 +145,7 @@ public class BankInstanceChangeShould
             r.Texts,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            r.Dialogue, r.Loot, Avalon.Server.World.UnitTests.Chat.ChatLimits.Off());
+            r.Dialogue, r.Loot, Avalon.Server.World.UnitTests.Chat.ChatLimits.Off(), trades: trades);
 
         await world.LoadAsync(CancellationToken.None);
         return world;

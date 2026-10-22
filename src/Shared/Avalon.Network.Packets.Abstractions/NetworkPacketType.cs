@@ -84,6 +84,15 @@ public enum NetworkPacketType : short
     CMSG_QUEST_TURN_IN = 0x20C1,
     CMSG_QUEST_ABANDON = 0x20C2,
 
+    // Trade
+    CMSG_TRADE_REQUEST = 0x20D0,
+    CMSG_TRADE_RESPOND = 0x20D1,
+    CMSG_TRADE_OFFER_ITEM = 0x20D2,
+    CMSG_TRADE_REMOVE_ITEM = 0x20D3,
+    CMSG_TRADE_SET_GOLD = 0x20D4,
+    CMSG_TRADE_CONFIRM = 0x20D5,
+    CMSG_TRADE_CANCEL = 0x20D6,
+
     /**************************************************************************
      * Server Packets
      *************************************************************************/
@@ -188,4 +197,11 @@ public enum NetworkPacketType : short
 
     // Ignore list
     SMSG_IGNORE_LIST = 0x30D0,
+
+    // Trade
+    SMSG_TRADE_REQUEST = 0x30E0,
+    SMSG_TRADE_OPENED = 0x30E1,
+    SMSG_TRADE_STATE = 0x30E2,
+    SMSG_TRADE_CLOSED = 0x30E3,
+    SMSG_TRADE_RESULT = 0x30E4,
 }

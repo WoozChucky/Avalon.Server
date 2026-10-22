@@ -1,0 +1,68 @@
+# STradeResultPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message STradeResultPacket
+
+variant absent
+  field 1 Result : TradeResult = Unknown (0)
+  field 2 Name : string = null
+  bytes 0
+
+variant empty
+  field 1 Result : TradeResult = Unknown (0)
+  field 2 Name : string = "" (0 chars, 0 bytes utf-8)
+  bytes 2
+    12 00
+
+variant populated
+  field 1 Result : TradeResult = PartnerUniqueAlreadyOwned (37)
+  field 2 Name : string = "Ωμέγα ΔΕΛΤΑ" (11 chars, 21 bytes utf-8)
+  bytes 25
+    08 25 12 15 ce a9 ce bc ce ad ce b3 ce b1 20 ce
+    94 ce 95 ce 9b ce a4 ce 91
+
+variant maxima
+  field 1 Result : TradeResult = TargetNpcWindowOpen (41)
+  field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 137
+    08 29 12 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78
+
+variant minima
+  field 1 Result : TradeResult = Unknown (0)
+  field 2 Name : string = "\u0001" (1 chars, 1 bytes utf-8)
+  bytes 3
+    12 01 01
+
+variant varint-edges
+  field 1 Result : TradeResult = <not a declared member> (42)
+  field 2 Name : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+  bytes 133
+    08 2a 12 80 01 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79
