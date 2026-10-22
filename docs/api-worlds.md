@@ -108,8 +108,8 @@ singletons as in every host. Only their context factories differ in the API, whi
   (start any stopped world once, so it migrates too), and only then is an API release with the change cut. An older
   API reading a migrated world ignores the new table; an API with the change reading a world that has not migrated
   fails that world's quest-template list and get, and its item `PUT` flag checks, the API's reads of the table. To
-  roll a world back to a build without the change, run `dotnet ef database update SeedBoarCullDaily` against that
-  world's World database; that drops the table, and quest 11 with it. No world or API does that by itself.
+  roll a world back to a build without the change, run `dotnet ef database update RaiseHushProjectileSpeed` against
+  that world's World database; that drops the table, and quest 11 with it. No world or API does that by itself.
 
 ## How a request reaches its world
 

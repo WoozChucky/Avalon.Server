@@ -11,7 +11,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.World.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    [Migration("20261022000603_AddQuestChoiceRewards")]
+    [Migration("20261022010722_AddQuestChoiceRewards")]
     partial class AddQuestChoiceRewards
     {
         /// <inheritdoc />
@@ -809,7 +809,7 @@ namespace Avalon.Database.World.Migrations
                             Name = "Hush",
                             Pierce = false,
                             PowerGainPerHit = 0,
-                            ProjectileSpeed = 20f,
+                            ProjectileSpeed = 34f,
                             Radius = 0f,
                             Range = 20,
                             Reach = 18f,
