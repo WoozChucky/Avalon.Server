@@ -80,13 +80,13 @@ public class CreatureStatDeriverShould
     }
 
     [Fact]
-    public void Take_crit_dodge_and_block_from_the_rarity()
+    public void Take_crit_and_block_from_the_rarity_but_no_longer_its_dodge()
     {
         DerivedCreatureStats boss = NewDeriver().Derive(Template(rarity: CreatureRarity.Boss), level: 1);
         DerivedCreatureStats normal = NewDeriver().Derive(Template(), level: 1);
 
-        Assert.Equal((10f, 5f, 10f), (boss.CritPct, boss.DodgePct, boss.BlockPct));
-        Assert.Equal((0f, 0f, 0f), (normal.CritPct, normal.DodgePct, normal.BlockPct));
+        Assert.Equal((10f, 0u, 10f), (boss.CritPct, boss.Evasion, boss.BlockPct));
+        Assert.Equal((0f, 0u, 0f), (normal.CritPct, normal.Evasion, normal.BlockPct));
         Assert.Equal(0u, normal.Armor);
     }
 

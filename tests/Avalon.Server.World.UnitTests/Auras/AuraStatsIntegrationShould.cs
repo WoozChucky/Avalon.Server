@@ -67,7 +67,7 @@ public class AuraStatsIntegrationShould
         BaseMaxHealth = 100,
         Armor = 40,
         CritPct = 5f,
-        DodgePct = 2f,
+        Evasion = 2,
         BlockPct = 1f,
         DamageMin = 5,
         DamageMax = 9,
@@ -85,7 +85,7 @@ public class AuraStatsIntegrationShould
 
         AuraStatsRefresh.Apply(wolf, data: null);
 
-        Assert.Equal(new DefenderCombat(30, 2f, 1f), Internal<DefenderCombat>(wolf, "Defence"));
+        Assert.Equal(new DefenderCombat(30, 2, 1f), Internal<DefenderCombat>(wolf, "Defence"));
     }
 
     /// <summary>A creature's slow reaches the locomotion through its speed factor; the script's Speed stays the template's.</summary>

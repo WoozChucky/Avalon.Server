@@ -43,7 +43,7 @@ public class HealSendShould
     private static void GiveCrit(CharacterEntity character)
     {
         character.ApplyStats(new DerivedCharacterStats(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0,
-            Intellect: 0, Armor: 0, BlockPct: 0f, DodgePct: 0f, CritPct: 50f, AttackDamage: 0, AbilityDamage: 0),
+            Intellect: 0, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 50f, AttackDamage: 0, AbilityDamage: 0),
             CurrentValues.Refill, TestCombat.Formula);
     }
 

@@ -16,7 +16,7 @@ public class AuraStatsShould
     [Fact]
     public void Leave_stats_alone_with_no_aura()
     {
-        var stats = new DerivedCharacterStats(500, 100, 20, 20, 20, 20, 30, 5f, 3f, 5f, 46, 9, 4, 7, 3f, 0f);
+        var stats = new DerivedCharacterStats(500, 100, 20, 20, 20, 20, 30, 5f, 3, 5f, 46, 9, 4, 7, 3f, 0f);
 
         Assert.True(AuraStatTotals.Empty.IsEmpty);
         Assert.Equal(stats, AuraStats.Fold(stats, AuraStatTotals.Empty));
@@ -50,7 +50,7 @@ public class AuraStatsShould
     {
         AuraStatTotals drain = Of((Mod(AuraStat.Armor, AuraModifierKind.Flat, -100f), 1),
             (Mod(AuraStat.MaxHealth, AuraModifierKind.Flat, -1000f), 1));
-        var stats = new DerivedCharacterStats(500, 100, 20, 20, 20, 20, 30, 5f, 3f, 5f, 46, 9);
+        var stats = new DerivedCharacterStats(500, 100, 20, 20, 20, 20, 30, 5f, 3, 5f, 46, 9);
 
         DerivedCharacterStats folded = AuraStats.Fold(stats, drain);
 
@@ -66,12 +66,12 @@ public class AuraStatsShould
             (Mod(AuraStat.Evasion, AuraModifierKind.Flat, 3f), 1), (Mod(AuraStat.BlockPct, AuraModifierKind.Flat, 4f), 1),
             (Mod(AuraStat.HastePct, AuraModifierKind.Flat, 10f), 1), (Mod(AuraStat.MovementSpeed, AuraModifierKind.Flat, -30f), 1),
             (Mod(AuraStat.MaxHealth, AuraModifierKind.Percent, 10f), 1), (Mod(AuraStat.MaxPower, AuraModifierKind.Flat, 5f), 1));
-        var stats = new DerivedCharacterStats(500, 100, 20, 20, 20, 20, 30, 5f, 3f, 5f, 46, 9, 4, 7, 3f, 0f);
+        var stats = new DerivedCharacterStats(500, 100, 20, 20, 20, 20, 30, 5f, 3, 5f, 46, 9, 4, 7, 3f, 0f);
 
         DerivedCharacterStats f = AuraStats.Fold(stats, all);
 
         Assert.Equal((550u, 105u, 40u, 69u, 10u), (f.MaxHealth, f.MaxPower, f.Armor, f.AttackDamage, f.AbilityDamage));
-        Assert.Equal((7f, 6f, 9f, 13f, -30f), (f.CritPct, f.DodgePct, f.BlockPct, f.HastePct, f.MovementSpeedPct));
+        Assert.Equal((7f, 6u, 9f, 13f, -30f), (f.CritPct, f.Evasion, f.BlockPct, f.HastePct, f.MovementSpeedPct));
         Assert.Equal((20u, 4u, 7u), (f.Stamina, f.WeaponMin, f.WeaponMax));   // untouched
     }
 
@@ -81,7 +81,7 @@ public class AuraStatsShould
         AuraStatTotals sundered = Of((Mod(AuraStat.Armor, AuraModifierKind.Percent, -25f), 1),
             (Mod(AuraStat.CritPct, AuraModifierKind.Flat, 5f), 1));
 
-        Assert.Equal(new DefenderCombat(30, 2f, 1f), AuraStats.Fold(new DefenderCombat(40, 2f, 1f), sundered));
+        Assert.Equal(new DefenderCombat(30, 2, 1f), AuraStats.Fold(new DefenderCombat(40, 2, 1f), sundered));
         Assert.Equal(new AttackerCombat(3, 0, 0, 10f, 5, 9), AuraStats.Fold(new AttackerCombat(3, 0, 0, 5f, 5, 9), sundered));
     }
 

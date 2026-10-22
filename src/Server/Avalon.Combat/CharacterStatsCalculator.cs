@@ -48,7 +48,8 @@ public static class CharacterStatsCalculator
             Intellect: Clamp(intellect),
             Armor: Clamp(gear.Armor),
             BlockPct: factors.BaseBlock + gear.BlockPct,
-            DodgePct: factors.BaseDodge + gear.DodgePct,
+            // #1178: evasion is a rating, from gear; the class base dodge is no longer read.
+            Evasion: Clamp(gear.Evasion),
             CritPct: factors.BaseCrit + gear.CritPct,
             AttackDamage: Clamp(attack),
             AbilityDamage: Clamp(ability),
@@ -85,8 +86,8 @@ public static class CharacterStatsCalculator
 
     private struct GearTotals
     {
-        public long Stamina, Strength, Agility, Intellect, Armor, AttackDamage, AbilityDamage, Health, Power;
-        public float BlockPct, DodgePct, CritPct, HastePct, MovementSpeedPct;
+        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, AttackDamage, AbilityDamage, Health, Power;
+        public float BlockPct, CritPct, HastePct, MovementSpeedPct;
 
         public static GearTotals Of(IEnumerable<ItemTemplate> worn)
         {
@@ -110,7 +111,7 @@ public static class CharacterStatsCalculator
                 case StatType.Intellect: Intellect += value; break;
                 case StatType.Armor: Armor += value; break;
                 case StatType.BlockPct: BlockPct += value; break;
-                case StatType.Evasion: DodgePct += value; break;
+                case StatType.Evasion: Evasion += value; break;
                 case StatType.CritPct: CritPct += value; break;
                 case StatType.AttackDamage: AttackDamage += value; break;
                 case StatType.AbilityDamage: AbilityDamage += value; break;

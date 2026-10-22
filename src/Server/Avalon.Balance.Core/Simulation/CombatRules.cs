@@ -14,8 +14,8 @@ namespace Avalon.Balance.Core;
 public static class CombatRules
 {
     /// <summary>
-    /// An ability's hit: the base (weapon roll first), then dodge (none for an Unavoidable ability, #1164), crit, block,
-    /// armour. The draw order is HitResolver's.
+    /// An ability's hit: the base (weapon roll first), then evasion (none for an Unavoidable ability, #1164), crit, block,
+    /// armour. The draw order is HitResolver's. While the simulator is paused (#1183) every hit is one physical part.
     /// </summary>
     public static (uint Damage, HitResult Result) Damage(SimUnit attacker, SimUnit target, SimAbility ability,
         CombatFormula formula, ICombatRandom rng)
@@ -23,15 +23,18 @@ public static class CombatRules
         AbilityMetadata m = ability.Metadata;
         float baseDamage = HitResolver.AbilityBase(attacker.Attack, m.EffectValue, m.ScalingStat, m.ScalingCoefficient,
             m.BaseDamageCoefficient, rng);
-        return HitResolver.ResolveDamage(attacker.Attack, target.Defence, baseDamage, formula, rng, IsUnavoidable(m));
+        HitDamage hit = HitResolver.ResolveDamage(attacker.Attack, target.Defence,
+            DamageParts.Of(DamageType.Physical, baseDamage), formula, rng, IsUnavoidable(m));
+        return (hit.Total, hit.Result);
     }
 
     /// <summary>
     /// Whether a Hostile ability that deals no damage lands on <paramref name="target" />, as CombatService.ApplyAbilityHit
-    /// (#1164): the dodge roll alone, none for an Unavoidable ability.
+    /// (#1164): the evasion roll alone, against the <paramref name="attacker" />'s level, none for an Unavoidable ability.
     /// </summary>
-    public static bool Lands(SimUnit target, SimAbility ability, CombatFormula formula, ICombatRandom rng) =>
-        IsUnavoidable(ability.Metadata) || !HitResolver.Dodges(target.Defence, formula, rng);
+    public static bool Lands(SimUnit attacker, SimUnit target, SimAbility ability, CombatFormula formula,
+        ICombatRandom rng) =>
+        IsUnavoidable(ability.Metadata) || !HitResolver.Evades(target.Defence, attacker.Attack.Level, formula, rng);
 
     private static bool IsUnavoidable(AbilityMetadata m) => (m.Flags & AbilityFlags.Unavoidable) != AbilityFlags.None;
 

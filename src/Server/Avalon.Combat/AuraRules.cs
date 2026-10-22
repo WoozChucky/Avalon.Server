@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 
 namespace Avalon.Combat;
 
@@ -94,17 +95,19 @@ public static class AuraRules
     /// evenly over the ticks. The roll is uniform and inclusive over the caster's WeaponMin..WeaponMax (a character's
     /// main hand, a creature's natural range) and is drawn once, here, only for a tick-giving aura whose coefficient
     /// is above 0 and whose caster has a range above 0. A creature has no damage stats, so its auras scale through
-    /// the roll alone.
+    /// the roll alone. <paramref name="type" /> is the type its damage ticks deal (#1178), which the caller resolves from
+    /// the source ability and the caster (<see cref="HitResolver.TypeOf" />).
     /// </summary>
-    public static AuraSnapshot Snapshot(AuraTemplate t, in AttackerCombat caster, ICombatRandom rng)
+    public static AuraSnapshot Snapshot(AuraTemplate t, in AttackerCombat caster, DamageType type, ICombatRandom rng)
     {
+        ushort level = (ushort)Math.Min(caster.Level, ushort.MaxValue);
         int ticks = TickCount(t.DurationMs, t.TickIntervalMs);
         if (t.PeriodicKind == AuraPeriodicKind.None || ticks == 0)
-            return new AuraSnapshot(0f, caster.CritPct, (ushort)Math.Min(caster.Level, ushort.MaxValue));
+            return new AuraSnapshot(0f, caster.CritPct, level, type);
 
         float total = HitResolver.AbilityBase(caster, t.PeriodicBase, t.ScalingStat, t.ScalingCoefficient,
             t.BaseDamageCoefficient, rng);
-        return new AuraSnapshot(total / ticks, caster.CritPct, (ushort)Math.Min(caster.Level, ushort.MaxValue));
+        return new AuraSnapshot(total / ticks, caster.CritPct, level, type);
     }
 
     /// <summary>

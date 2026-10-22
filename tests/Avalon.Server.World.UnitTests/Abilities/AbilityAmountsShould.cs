@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Scripts.Abilities;
@@ -88,8 +89,8 @@ public class AbilityAmountsShould
         {
             float b = HitResolver.AbilityBase(caster, hit.EffectValue, hit.ScalingStat, hit.ScalingCoefficient,
                 hit.BaseDamageCoefficient, new ScriptedCombatRandom().Longs(roll));
-            (uint dealt, _) = HitResolver.ResolveDamage(caster, new DefenderCombat(0, 0f, 0f), b, formula,
-                new ScriptedCombatRandom().Doubles(0.99, 0.99, 0.99));
+            uint dealt = HitResolver.ResolveDamage(caster, new DefenderCombat(0, 0, 0f), DamageParts.Of(DamageType.Physical, b),
+                formula, new ScriptedCombatRandom().Doubles(0.99, 0.99, 0.99)).Total;
             Assert.Equal(expected, dealt);
 
             (uint healed, _) = HitResolver.ResolveHeal(caster, b, formula, new ScriptedCombatRandom().Doubles(0.99));

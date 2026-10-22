@@ -85,7 +85,7 @@ public class SimulatorParityShould
             DamageMax = twin.Derived.DamageMax,
             Armor = twin.Derived.Armor,
             CritPct = twin.Derived.CritPct,
-            DodgePct = twin.Derived.DodgePct,
+            Evasion = twin.Derived.Evasion,
             BlockPct = twin.Derived.BlockPct,
             BaseAttackTime = twin.Template.BaseAttackTime,
             HasteCap = Data.Combat.Formula.HasteCap,

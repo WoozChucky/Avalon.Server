@@ -1,4 +1,5 @@
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
@@ -6,8 +7,9 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.Combat;
 
 /// <summary>
-/// Stats a creature spawns with, after level, template modifiers and rarity are applied. Armour and the
-/// crit, dodge and block chances (percentage points) are what combat resolves its hits with (#506).
+/// Stats a creature spawns with, after level, template modifiers and rarity are applied. Armour, the evasion
+/// rating and the crit and block chances (percentage points) are what combat resolves its hits with (#506, #1178);
+/// DamageType is the type of a hit whose ability names none, the template's.
 /// </summary>
 public readonly record struct DerivedCreatureStats(
     ushort Level,
@@ -17,14 +19,18 @@ public readonly record struct DerivedCreatureStats(
     uint Experience,
     uint Armor = 0,
     float CritPct = 0f,
-    float DodgePct = 0f,
-    float BlockPct = 0f)
+    uint Evasion = 0,
+    float BlockPct = 0f,
+    DamageType DamageType = DamageType.Physical)
 {
-    /// <summary>What a creature with these stats attacks with (#163): no damage stats, its natural range.</summary>
-    public AttackerCombat Attacker => new(Level, 0, 0, CritPct, DamageMin, DamageMax);
+    /// <summary>
+    /// What a creature with these stats attacks with (#163): no damage stats, its natural range, its template's
+    /// damage type (#1178).
+    /// </summary>
+    public AttackerCombat Attacker => new(Level, 0, 0, CritPct, DamageMin, DamageMax, DamageType);
 
     /// <summary>What a creature with these stats defends with (#506).</summary>
-    public DefenderCombat Defence => new(Armor, DodgePct, BlockPct);
+    public DefenderCombat Defence => new(Armor, Evasion, BlockPct);
 }
 
 /// <summary>
@@ -88,8 +94,10 @@ public class CreatureStatDeriver
             experience,
             armor,
             Chance(rarity.CritPct),
-            Chance(rarity.DodgePct),
-            Chance(rarity.BlockPct));
+            // #1178: a rarity no longer gives a chance to dodge.
+            Evasion: 0,
+            BlockPct: Chance(rarity.BlockPct),
+            DamageType: template.DamageType);
     }
 
     private CreatureBaseStat ResolveBaseStat(ICreatureMetadata template, ushort level)

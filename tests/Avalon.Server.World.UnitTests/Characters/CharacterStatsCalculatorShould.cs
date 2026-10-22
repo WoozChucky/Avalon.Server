@@ -69,15 +69,16 @@ public class CharacterStatsCalculatorShould
     }
 
     [Theory]
-    [InlineData(CharacterClass.Warrior, 5.0f, 3.664f, 5.0f)]
-    [InlineData(CharacterClass.Wizard, 0f, 3.25f, 1.85f)]
-    [InlineData(CharacterClass.Hunter, 0f, 4.35f, 5.0f)]
-    [InlineData(CharacterClass.Cleric, 0f, 3.25f, 1.85f)]
-    public void Start_each_class_at_its_base_block_dodge_and_crit(CharacterClass @class, float block, float dodge, float crit)
+    [InlineData(CharacterClass.Warrior, 5.0f, 5.0f)]
+    [InlineData(CharacterClass.Wizard, 0f, 1.85f)]
+    [InlineData(CharacterClass.Hunter, 0f, 5.0f)]
+    [InlineData(CharacterClass.Cleric, 0f, 1.85f)]
+    public void Start_each_class_at_its_base_block_and_crit_with_no_class_evasion(CharacterClass @class, float block, float crit)
     {
         DerivedCharacterStats stats = Calc(SeededRow(@class, 1), []);
 
-        Assert.Equal((block, dodge, crit), (stats.BlockPct, stats.DodgePct, stats.CritPct));
+        // #1178: the class base dodge is no longer read; evasion is a rating gear gives.
+        Assert.Equal((block, 0u, crit), (stats.BlockPct, stats.Evasion, stats.CritPct));
     }
 
     [Fact]
@@ -176,7 +177,7 @@ public class CharacterStatsCalculatorShould
     public void Write_every_value_to_the_character_stats_row()
     {
         DerivedCharacterStats stats = new(MaxHealth: 260, MaxPower: 100, Stamina: 24, Strength: 25, Agility: 20,
-            Intellect: 20, Armor: 8, BlockPct: 5f, DodgePct: 3.664f, CritPct: 5f, AttackDamage: 50, AbilityDamage: 4);
+            Intellect: 20, Armor: 8, BlockPct: 5f, Evasion: 4, CritPct: 5f, AttackDamage: 50, AbilityDamage: 4);
 
         CharacterStats row = stats.ToRow(new CharacterId(7));
 

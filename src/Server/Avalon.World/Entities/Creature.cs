@@ -3,6 +3,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Auras;
@@ -106,11 +107,14 @@ public class Creature : ICreature
     /// <summary>Percentage points.</summary>
     public float CritPct { get; init; }
 
-    /// <summary>Percentage points.</summary>
-    public float DodgePct { get; init; }
+    /// <summary>The evasion rating (#1178), weighed against the attacker's level.</summary>
+    public uint Evasion { get; init; }
 
     /// <summary>Percentage points.</summary>
     public float BlockPct { get; init; }
+
+    /// <summary>The type of a hit whose ability names none (#1178): its template's.</summary>
+    public DamageType DamageType { get; init; }
 
     /// <summary>
     /// Seconds between swings with no haste (#627): the template's BaseAttackTime, fixed at spawn by
@@ -211,13 +215,14 @@ public class Creature : ICreature
     }
 
     /// <summary>
-    /// What this creature attacks with (#506): its level, its crit, and its natural damage range in place of a weapon
-    /// (#163), with its auras folded in.
+    /// What this creature attacks with (#506): its level, its crit, its natural damage range in place of a weapon
+    /// (#163) and its base damage type (#1178), with its auras folded in.
     /// </summary>
-    internal AttackerCombat Combat => AuraStats.Fold(new AttackerCombat(Level, 0, 0, CritPct, DamageMin, DamageMax), AuraTotals);
+    internal AttackerCombat Combat =>
+        AuraStats.Fold(new AttackerCombat(Level, 0, 0, CritPct, DamageMin, DamageMax, DamageType), AuraTotals);
 
     /// <summary>What this creature defends with (#506), its auras folded in.</summary>
-    internal DefenderCombat Defence => AuraStats.Fold(new DefenderCombat(Armor, DodgePct, BlockPct), AuraTotals);
+    internal DefenderCombat Defence => AuraStats.Fold(new DefenderCombat(Armor, Evasion, BlockPct), AuraTotals);
 
     /// <summary>
     /// The abilities this creature fights with (#163), loaded by its script when it attaches. World-side,

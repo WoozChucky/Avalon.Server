@@ -155,7 +155,7 @@ public sealed class BalanceRunner(BalanceData data, ScenarioFile scenarios, Rota
     {
         var player = SimPlayer.Create(data, key.Class, key.Level, worn);
         DerivedCharacterStats s = player.Stats;
-        return new PlayerSnapshot(s.MaxHealth, s.MaxPower, s.AttackDamage, s.AbilityDamage, s.Armor, s.CritPct, s.DodgePct,
+        return new PlayerSnapshot(s.MaxHealth, s.MaxPower, s.AttackDamage, s.AbilityDamage, s.Armor, s.CritPct, s.Evasion,
             s.BlockPct, player.HastePct,
             player.Abilities.Select(a =>
             {

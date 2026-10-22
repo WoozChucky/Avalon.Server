@@ -302,7 +302,7 @@ public sealed class FightSimulator
                     continue;
                 }
             }
-            else if (!CombatRules.Lands(target, ability, _formula, _rng))
+            else if (!CombatRules.Lands(player, target, ability, _formula, _rng))
             {
                 continue;
             }
@@ -347,7 +347,7 @@ public sealed class FightSimulator
                 return;
             }
         }
-        else if (!CombatRules.Lands(Player, ability, _formula, _rng))
+        else if (!CombatRules.Lands(creature, Player, ability, _formula, _rng))
         {
             return;
         }
@@ -373,7 +373,7 @@ public sealed class FightSimulator
 
         SimAura? held = target.Auras.FirstOrDefault(a => a.Template.Id.Value == aura.Id.Value
             && (!AuraRules.KeysByCaster(aura.Stacking) || ReferenceEquals(a.Caster, caster)));
-        AuraSnapshot snapshot = AuraRules.Snapshot(aura, caster.Attack, _rng);
+        AuraSnapshot snapshot = AuraRules.Snapshot(aura, caster.Attack, DamageType.Physical, _rng);
         var schedule = AuraSchedule.Start(Now, aura.DurationMs, aura.TickIntervalMs);
         uint gain = (uint)Math.Max(0, ability.Metadata.PowerGainPerHit);
 
@@ -452,7 +452,8 @@ public sealed class FightSimulator
         {
             case AuraPeriodicKind.Damage:
             {
-                (double damage, _) = HitResolver.ResolvePeriodic(aura.Snapshot.Attacker, unit.Defence, amount, _formula, _rng);
+                (double damage, _) = HitResolver.ResolvePeriodic(aura.Snapshot.Attacker, unit.Defence, DamageType.Physical,
+                    amount, _formula, _rng);
                 uint points = AuraRules.TakeTick(damage, ref carry, lastTick);
                 if (unit is SimPlayer player)
                 {

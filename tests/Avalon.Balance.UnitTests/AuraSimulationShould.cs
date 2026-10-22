@@ -245,7 +245,7 @@ public class AuraSimulationShould
         poison.DurationMs = 9000;
         var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
 
-        AuraSnapshot snapshot = AuraRules.Snapshot(poison, boar.Attack, CombatRandom.Steady);
+        AuraSnapshot snapshot = AuraRules.Snapshot(poison, boar.Attack, DamageType.Physical, CombatRandom.Steady);
 
         Assert.True(boar.Attack.WeaponMin > 0);
         Assert.Equal((3f + boar.Attack.WeaponMin) / 3f, snapshot.PerTickPerStack, precision: 4);

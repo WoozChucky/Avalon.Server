@@ -23,7 +23,8 @@ public static class CharacterSheetFlusher
         if (connection.Character is not CharacterEntity { Stats: { } stats } character)
             return;
 
-        var sheet = CharacterSheet.From(stats, formula, character.EffectiveHastePct, character.GetMovementSpeed());
+        var sheet = CharacterSheet.From(stats, character.Level, formula, character.EffectiveHastePct,
+            character.GetMovementSpeed());
         if (character.SheetSent == sheet)
             return;
 

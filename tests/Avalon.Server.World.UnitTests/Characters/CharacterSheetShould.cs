@@ -51,9 +51,9 @@ public class CharacterSheetShould
     private static List<SCharacterStatsPacket> Sheets(List<OutboundPacket> sent) =>
         TestTown.Read<SCharacterStatsPacket>(sent, NetworkPacketType.SMSG_CHARACTER_STATS);
 
-    private static DerivedCharacterStats Stats(float crit = 5f, float dodge = 4f, float block = 3f, uint strength = 23) =>
+    private static DerivedCharacterStats Stats(float crit = 5f, uint evasion = 150, float block = 3f, uint strength = 23) =>
         new(MaxHealth: 240, MaxPower: 100, Stamina: 22, Strength: strength, Agility: 20, Intellect: 21, Armor: 8,
-            BlockPct: block, DodgePct: dodge, CritPct: crit, AttackDamage: 46, AbilityDamage: 12, WeaponMin: 3, WeaponMax: 7);
+            BlockPct: block, Evasion: evasion, CritPct: crit, AttackDamage: 46, AbilityDamage: 12, WeaponMin: 3, WeaponMax: 7);
 
     [Fact]
     public void Send_one_sheet_with_the_characters_values_once_the_selected_character_is_in_the_world()
@@ -75,7 +75,8 @@ public class CharacterSheetShould
         SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
         Assert.Equal((22u, 23u, 20u, 21u, 8u, 46u, 12u),
             (sheet.Stamina, sheet.Strength, sheet.Agility, sheet.Intellect, sheet.Armor, sheet.AttackDamage, sheet.AbilityDamage));
-        Assert.Equal((5f, 4f, 3f, 3u, 7u), (sheet.CritPct, sheet.DodgePct, sheet.BlockPct, sheet.WeaponMin, sheet.WeaponMax));
+        // #1178: evasion 150 against an attacker of the character's level 1: 150 / (150 + 560 + 40) = 20 %.
+        Assert.Equal((5f, 20f, 3f, 3u, 7u), (sheet.CritPct, sheet.DodgePct, sheet.BlockPct, sheet.WeaponMin, sheet.WeaponMax));
     }
 
     /// <summary>#627: the sheet shows the haste a cast actually uses, capped, and the speed the input step moves at.</summary>
@@ -202,13 +203,13 @@ public class CharacterSheetShould
     public void Send_each_chance_clamped_to_its_cap()
     {
         CharacterEntity character = New();
-        character.ApplyStats(Stats(crit: 80f, dodge: 45f, block: 70f), CurrentValues.EnterWorld, TestCombat.Formula);
+        character.ApplyStats(Stats(crit: 80f, evasion: 10000, block: 70f), CurrentValues.EnterWorld, TestCombat.Formula);
         var sent = new List<OutboundPacket>();
 
         CharacterSheetFlusher.Flush(Recording(character, sent), s_seeded);
 
         SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
-        Assert.Equal((s_seeded.CritCap, s_seeded.DodgeCap, s_seeded.BlockCap), (sheet.CritPct, sheet.DodgePct, sheet.BlockPct));
+        Assert.Equal((s_seeded.CritCap, s_seeded.EvasionCap, s_seeded.BlockCap), (sheet.CritPct, sheet.DodgePct, sheet.BlockPct));
         Assert.Equal((50f, 30f, 50f), (sheet.CritPct, sheet.DodgePct, sheet.BlockPct));
     }
 

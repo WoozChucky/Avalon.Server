@@ -47,7 +47,7 @@ public class DodgeEngagesShould
             Name = "Wolf",
             Health = 100,
             CurrentHealth = 100,
-            DodgePct = 30f,
+            Evasion = 10000,
             Level = 1,
         };
         locomotion.When(l => l.MoveTo(creature, Arg.Any<Vector3>())).Do(ci => requested = ci.ArgAt<Vector3>(1));

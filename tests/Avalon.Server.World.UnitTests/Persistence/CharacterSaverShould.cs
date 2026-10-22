@@ -390,7 +390,7 @@ public sealed class CharacterSaverShould : IDisposable
     public async Task Insert_the_stats_row_on_the_first_save_and_update_it_on_the_next()
     {
         CharacterEntity character = await SeedAsync(7);
-        DerivedCharacterStats first = new(240, 100, 22, 23, 20, 20, 0, 5f, 3.664f, 5f, 46, 4);
+        DerivedCharacterStats first = new(240, 100, 22, 23, 20, 20, 0, 5f, 4, 5f, 46, 4);
 
         character.ApplyStats(first, CurrentValues.Refill, TestCombat.Formula);
         Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));

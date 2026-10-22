@@ -144,7 +144,7 @@ public class CombatResolutionShould
     private static ItemTemplate? Find(ItemTemplateId id) => s_templates.GetValueOrDefault(id);
 
     private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, uint health = 100,
-        uint armor = 0, float dodge = 0f, float block = 0f, ushort level = 1)
+        uint armor = 0, uint evasion = 0, float block = 0f, ushort level = 1)
     {
         var creature = new Creature
         {
@@ -154,7 +154,7 @@ public class CombatResolutionShould
             Health = health,
             CurrentHealth = health,
             Armor = armor,
-            DodgePct = dodge,
+            Evasion = evasion,
             BlockPct = block,
             Level = level,
         };
@@ -290,7 +290,7 @@ public class CombatResolutionShould
         var rng = new ScriptedCombatRandom(0.0);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, random: rng);
         MapInstanceClient warrior = Warrior(instance, 506_151, weapon: null, Cleave());
-        Creature target = AddCreature(instance, 506_951, new Vector3(0f, 0f, 2f), dodge: 30f);
+        Creature target = AddCreature(instance, 506_951, new Vector3(0f, 0f, 2f), evasion: 10000);
 
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 200 });
 
@@ -438,9 +438,9 @@ public class CombatResolutionShould
         warrior.Character.CurrentPower = 0;
         Creature[] targets =
         [
-            AddCreature(instance, 506_901_1, new Vector3(0f, 0f, 1.0f), dodge: 30f),
-            AddCreature(instance, 506_901_2, new Vector3(0f, 0f, 1.6f), dodge: 30f),
-            AddCreature(instance, 506_901_3, new Vector3(0f, 0f, 2.2f), dodge: 30f),
+            AddCreature(instance, 506_901_1, new Vector3(0f, 0f, 1.0f), evasion: 10000),
+            AddCreature(instance, 506_901_2, new Vector3(0f, 0f, 1.6f), evasion: 10000),
+            AddCreature(instance, 506_901_3, new Vector3(0f, 0f, 2.2f), evasion: 10000),
         ];
 
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 200 });

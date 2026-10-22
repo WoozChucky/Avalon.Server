@@ -48,7 +48,7 @@ public class HitResultSendShould
         }
     }
 
-    private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, float dodge = 0f,
+    private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, uint evasion = 0,
         float block = 0f)
     {
         var creature = new Creature
@@ -58,7 +58,7 @@ public class HitResultSendShould
             Position = position,
             Health = 100,
             CurrentHealth = 100,
-            DodgePct = dodge,
+            Evasion = evasion,
             BlockPct = block,
             Level = 1,
         };
@@ -79,7 +79,7 @@ public class HitResultSendShould
     /// <summary>A character that dodges, blocks and crits at 30 %, 50 % and 50 %.</summary>
     private static void GiveDefences(CharacterEntity character) =>
         character.ApplyStats(new DerivedCharacterStats(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0,
-            Intellect: 0, Armor: 0, BlockPct: 50f, DodgePct: 30f, CritPct: 50f, AttackDamage: 0, AbilityDamage: 0),
+            Intellect: 0, Armor: 0, BlockPct: 50f, Evasion: 10000, CritPct: 50f, AttackDamage: 0, AbilityDamage: 0),
             CurrentValues.Refill, TestCombat.Formula);
 
     private static List<SUnitDamagePacket> UnitHits(MapInstanceClient client) =>
@@ -92,7 +92,7 @@ public class HitResultSendShould
         MapInstanceClient attacker = At(instance, 506_301, Vector3.zero);
         MapInstanceClient near = At(instance, 506_302, new Vector3(5f, 0f, 0f));
         MapInstanceClient far = At(instance, 506_303, s_far);
-        Creature boar = AddCreature(instance, 506_801, new Vector3(1f, 0f, 0f), dodge: 30f);
+        Creature boar = AddCreature(instance, 506_801, new Vector3(1f, 0f, 0f), evasion: 10000);
 
         instance.CombatService.ApplyDamage(attacker.Character, boar, 10);
 
@@ -295,9 +295,9 @@ public class HitResultSendShould
         AbilityTemplate cleave = AbilityTestData.Cone(200, reach: 2.5f, arc: 100f);
         cleave.PowerGainPerHit = 8;
         warrior.Character.Spells.Load([AbilityTestData.Game(cleave)]);
-        AddCreature(instance, 506_861, new Vector3(0f, 0f, 1.0f), dodge: 30f);
-        AddCreature(instance, 506_862, new Vector3(0f, 0f, 1.6f), dodge: 30f);
-        AddCreature(instance, 506_863, new Vector3(0f, 0f, 2.2f), dodge: 30f);
+        AddCreature(instance, 506_861, new Vector3(0f, 0f, 1.0f), evasion: 10000);
+        AddCreature(instance, 506_862, new Vector3(0f, 0f, 1.6f), evasion: 10000);
+        AddCreature(instance, 506_863, new Vector3(0f, 0f, 2.2f), evasion: 10000);
 
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 200 });
 

@@ -254,7 +254,7 @@ public class PeriodicCombatShould
             Level = 1,
             Health = 100,
             CurrentHealth = 100,
-            DodgePct = 30f,
+            Evasion = 10000,
         };
         boar.Script = new RecordingAiScript(boar);
         var random = new ScriptedCombatRandom(0.0);

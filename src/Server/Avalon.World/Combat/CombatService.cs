@@ -70,7 +70,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     /// <summary>
     /// A Hostile ability's hit on one unit (#1164), answering how it went: only a hit that landed applies the ability's aura.
-    /// It rolls whether it lands, the target's dodge chance, unless the ability is Unavoidable; then deals its damage (its
+    /// It rolls whether it lands, the target's chance to evade, unless the ability is Unavoidable; then deals its damage (its
     /// EffectValue, scaled, as <see cref="ApplyDamage(IUnit, IUnit, uint, IAbility)" />) when its Effects has Damage. One
     /// with no damage draws that roll alone and counts as combat either way, as a dodge does, whether or not its aura then
     /// sticks: the encounter forms, a creature's script is told it was attacked, both are tagged in combat, no threat is
@@ -88,7 +88,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // The same targets ApplyDamageCore returns early for, before any draw.
         if (IgnoresHits(target)) return HitOutcome.Ignored;
-        if (unavoidable || !HitResolver.Dodges(DefenderOf(target), _formula(), _random))
+        if (unavoidable || !HitResolver.Evades(DefenderOf(target), attacker.Level, _formula(), _random))
         {
             EnterCombatForNothing(attacker, target);
             return HitOutcome.Landed;
@@ -107,7 +107,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// The ability that hit, or null for a swing: it scales the base, multiplies the threat, names the hit to
     /// the character hit, and gives its PowerGainPerHit to the caster per unit damaged (#526).
     /// </param>
-    /// <param name="unavoidable">An Unavoidable ability's hit (#1164): it draws no dodge roll.</param>
+    /// <param name="unavoidable">An Unavoidable ability's hit (#1164): it draws no evasion roll.</param>
     private HitOutcome ApplyDamageCore(IUnit attacker, IUnit target, uint damage, IAbility? ability,
         bool unavoidable = false)
     {
@@ -138,8 +138,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             ? damage
             : HitResolver.AbilityBase(attackerCombat, damage, metadata.ScalingStat, metadata.ScalingCoefficient,
                 metadata.BaseDamageCoefficient, _random);
-        (uint dealt, HitResult result) =
-            HitResolver.ResolveDamage(attackerCombat, DefenderOf(target), baseDamage, formula, _random, unavoidable);
+        // #1178: the hit's type is its ability's, else the attacker's base type.
+        var parts = DamageParts.Of(HitResolver.TypeOf(metadata?.DamageType, attackerCombat), baseDamage);
+        HitDamage hit = HitResolver.ResolveDamage(attackerCombat, DefenderOf(target), parts, formula, _random, unavoidable);
+        HitResult result = hit.Result;
 
         float threatMultiplier = metadata?.ThreatMultiplier ?? 1.0f;
         AbilityId? abilityId = ability?.AbilityId;
@@ -152,7 +154,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         }
 
         // Everything below reads the resolved damage (#506): threat, the hit, the gain and the PvP reset.
-        damage = dealt;
+        damage = hit.Total;
         // Staff testing still resolves and reports the hit, forms an encounter, and tags combat.
         // Only its health loss and effects that require positive damage are suppressed.
         if (target is CharacterEntity { GodMode: true, IsDead: false }) damage = 0;
@@ -556,8 +558,8 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     /// <summary>
     /// One damage tick of a harmful aura (auras), World-side, not on ICombatService: the snapshot's crit is rolled (the
-    /// one draw) and the target's armour taken off, never a dodge or a block. The resolved amount is added to
-    /// <paramref name="carry" /> (the aura's own) and only its whole points are dealt, the fraction kept for the next
+    /// one draw) and the target's mitigation of the snapshot's type taken off (#1178), never evaded or blocked. The
+    /// resolved amount is added to <paramref name="carry" /> (the aura's own) and only its whole points are dealt, the fraction kept for the next
     /// tick; the <paramref name="lastTick" /> rounds what is left (AuraRules.TakeTick). A tick worth less than a point
     /// deals nothing and is not reported, though it still counts as combat. A target every hit passes over
     /// (invulnerable, a corpse, a creature walking home) takes nothing, draws nothing and carries nothing. With a
@@ -576,7 +578,8 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             return 0;
 
         (double amount, HitResult result) =
-            HitResolver.ResolvePeriodic(hit.Snapshot.Attacker, DefenderOf(target), hit.BaseAmount, _formula(), _random);
+            HitResolver.ResolvePeriodic(hit.Snapshot.Attacker, DefenderOf(target), hit.Snapshot.Type, hit.BaseAmount,
+                _formula(), _random);
         uint points = AuraRules.TakeTick(amount, ref carry, lastTick);
 
         // Staff testing still resolves and reports the tick, forms an encounter, and tags combat; only its health loss

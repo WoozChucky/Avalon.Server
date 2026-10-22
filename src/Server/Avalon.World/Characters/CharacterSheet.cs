@@ -27,10 +27,15 @@ public readonly record struct CharacterSheet(
     float HastePct,
     float MovementSpeed)
 {
-    public static CharacterSheet From(in DerivedCharacterStats s, CombatFormula formula, float hastePct, float movementSpeed) => new(
+    /// <summary>
+    /// <paramref name="level" /> is the character's own: DodgePct carries the chance to evade an attacker of that level
+    /// (#1178), in percentage points.
+    /// </summary>
+    public static CharacterSheet From(in DerivedCharacterStats s, ushort level, CombatFormula formula, float hastePct,
+        float movementSpeed) => new(
         s.Stamina, s.Strength, s.Agility, s.Intellect, s.Armor, s.AttackDamage, s.AbilityDamage,
         HitResolver.EffectivePct(s.CritPct, formula.CritCap),
-        HitResolver.EffectivePct(s.DodgePct, formula.DodgeCap),
+        (float)(HitResolver.EvasionChance(s.Evasion, level, formula) * 100d),
         HitResolver.EffectivePct(s.BlockPct, formula.BlockCap),
         s.WeaponMin, s.WeaponMax, hastePct, movementSpeed);
 
