@@ -30,12 +30,12 @@ variant empty
   bytes 0
 
 variant populated
-  field 1 Type : NetworkPacketType = SMSG_PONG (12294)
+  field 1 Type : NetworkPacketType = SMSG_QUEST_UPDATE (12483)
   field 2 Flags : NetworkPacketFlags = ClearText (1)
   field 3 Protocol : NetworkProtocol = Both (3)
   field 4 Version : int = 1000
   bytes 10
-    08 86 60 10 01 18 03 20 e8 07
+    08 c3 61 10 01 18 03 20 e8 07
 
 variant maxima
   field 1 Type : NetworkPacketType = SMSG_PROJECTILE_IMPACT (12560)

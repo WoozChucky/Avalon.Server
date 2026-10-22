@@ -902,6 +902,51 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "SMSG_TRADE_REQUEST",
+      "opcode": 12512,
+      "hex": "0x30E0",
+      "message": "STradeRequestPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_TRADE_OPENED",
+      "opcode": 12513,
+      "hex": "0x30E1",
+      "message": "STradeOpenedPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_TRADE_STATE",
+      "opcode": 12514,
+      "hex": "0x30E2",
+      "message": "STradeStatePacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_TRADE_CLOSED",
+      "opcode": 12515,
+      "hex": "0x30E3",
+      "message": "STradeClosedPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_TRADE_RESULT",
+      "opcode": 12516,
+      "hex": "0x30E4",
+      "message": "STradeResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_CHARACTER_DAMAGED",
       "opcode": 12544,
       "hex": "0x3100",

@@ -1,0 +1,75 @@
+# STradeOpenedPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message STradeOpenedPacket
+
+variant absent
+  field 1 TradeId : uint = 0
+  field 2 PartnerCharacterId : uint = 0
+  field 3 PartnerName : string = null
+  bytes 0
+
+variant empty
+  field 1 TradeId : uint = 0
+  field 2 PartnerCharacterId : uint = 0
+  field 3 PartnerName : string = "" (0 chars, 0 bytes utf-8)
+  bytes 2
+    1a 00
+
+variant populated
+  field 1 TradeId : uint = 1000000
+  field 2 PartnerCharacterId : uint = 65535
+  field 3 PartnerName : string = "héllo wörld" (11 chars, 13 bytes utf-8)
+  bytes 23
+    08 c0 84 3d 10 ff ff 03 1a 0d 68 c3 a9 6c 6c 6f
+    20 77 c3 b6 72 6c 64
+
+variant maxima
+  field 1 TradeId : uint = 4294967295
+  field 2 PartnerCharacterId : uint = 4294967295
+  field 3 PartnerName : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 147
+    08 ff ff ff ff 0f 10 ff ff ff ff 0f 1a 84 01 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78
+
+variant minima
+  field 1 TradeId : uint = 0
+  field 2 PartnerCharacterId : uint = 0
+  field 3 PartnerName : string = " " (1 chars, 1 bytes utf-8)
+  bytes 3
+    1a 01 20
+
+variant varint-edges
+  field 1 TradeId : uint = 127
+  field 2 PartnerCharacterId : uint = 268435456
+  field 3 PartnerName : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
+  bytes 140
+    08 7f 10 80 80 80 80 01 1a 81 01 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a

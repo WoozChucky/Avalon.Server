@@ -687,6 +687,11 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_QUEST_UPDATE = 12483;
    NetworkPacketType_SMSG_QUEST_MARKERS = 12484;
    NetworkPacketType_SMSG_IGNORE_LIST = 12496;
+   NetworkPacketType_SMSG_TRADE_REQUEST = 12512;
+   NetworkPacketType_SMSG_TRADE_OPENED = 12513;
+   NetworkPacketType_SMSG_TRADE_STATE = 12514;
+   NetworkPacketType_SMSG_TRADE_CLOSED = 12515;
+   NetworkPacketType_SMSG_TRADE_RESULT = 12516;
    NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
    NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
    NetworkPacketType_SMSG_CREATURE_DAMAGED = 12546;
@@ -1248,6 +1253,33 @@ message SThreatListPacket {
    uint64 TargetGuid = 1;
    repeated ThreatEntry Entries = 2;
 }
+message STradeClosedPacket {
+   uint32 TradeId = 1;
+   TradeResult Result = 2;
+}
+message STradeOpenedPacket {
+   uint32 TradeId = 1;
+   uint32 PartnerCharacterId = 2;
+   optional string PartnerName = 3;
+}
+message STradeRequestPacket {
+   uint32 CharacterId = 1;
+   optional string Name = 2;
+   CharacterClass Class = 3;
+   uint32 Level = 4;
+   uint32 ExpiresInMs = 5;
+}
+message STradeResultPacket {
+   TradeResult Result = 1;
+   optional string Name = 2;
+}
+message STradeStatePacket {
+   uint32 TradeId = 1;
+   uint32 Revision = 2;
+   bool Completing = 3;
+   TradeSideDto You = 4;
+   TradeSideDto Partner = 5;
+}
 message SUnitAttackAnimationPacket {
    uint64 Attacker = 1;
    uint32 AnimationId = 2;
@@ -1326,6 +1358,60 @@ enum ServerInfoResult {
 message ThreatEntry {
    uint64 AttackerGuid = 1;
    float ThreatPercent = 2;
+}
+message TradeItemDto {
+   uint32 TradeSlot = 1;
+   uint64 ItemTemplateId = 2;
+   .bcl.Guid ItemInstanceId = 3; // default value could not be applied: 00000000-0000-0000-0000-000000000000
+   uint32 Count = 4;
+}
+enum TradeResult {
+   TradeResult_Unknown = 0;
+   TradeResult_Ok = 1;
+   TradeResult_NotFound = 2;
+   TradeResult_Self = 3;
+   TradeResult_TooFar = 4;
+   TradeResult_TargetBusy = 5;
+   TradeResult_Busy = 6;
+   TradeResult_InCombat = 7;
+   TradeResult_TargetInCombat = 8;
+   TradeResult_Dead = 9;
+   TradeResult_TargetDead = 10;
+   TradeResult_NpcWindowOpen = 11;
+   TradeResult_TooFast = 12;
+   TradeResult_NoRequest = 13;
+   TradeResult_Declined = 14;
+   TradeResult_Expired = 15;
+   TradeResult_NotTrading = 16;
+   TradeResult_InvalidSlot = 17;
+   TradeResult_ItemNotFound = 18;
+   TradeResult_NotTradeable = 19;
+   TradeResult_AlreadyOffered = 20;
+   TradeResult_TradeSlotTaken = 21;
+   TradeResult_NotEnoughGold = 22;
+   TradeResult_StaleOffer = 23;
+   TradeResult_Completing = 24;
+   TradeResult_Cancelled = 25;
+   TradeResult_CancelledByPartner = 26;
+   TradeResult_OutOfRange = 27;
+   TradeResult_EnteredCombat = 28;
+   TradeResult_Died = 29;
+   TradeResult_Left = 30;
+   TradeResult_NpcWindowOpened = 31;
+   TradeResult_BagFull = 32;
+   TradeResult_PartnerBagFull = 33;
+   TradeResult_GoldCapReached = 34;
+   TradeResult_PartnerGoldCapReached = 35;
+   TradeResult_UniqueAlreadyOwned = 36;
+   TradeResult_PartnerUniqueAlreadyOwned = 37;
+   TradeResult_OfferInvalid = 38;
+   TradeResult_SaveFailed = 39;
+   TradeResult_Error = 40;
+}
+message TradeSideDto {
+   uint64 Gold = 1;
+   bool Confirmed = 2;
+   repeated TradeItemDto Items = 3;
 }
 message Vec3 {
    float X = 1;

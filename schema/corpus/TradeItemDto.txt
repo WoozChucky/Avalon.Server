@@ -1,0 +1,65 @@
+# TradeItemDto - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message TradeItemDto
+
+variant absent
+  field 1 TradeSlot : byte = 0
+  field 2 ItemTemplateId : ulong = 0
+  field 3 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
+  field 4 Count : uint = 0
+  bytes 0
+
+variant empty
+  field 1 TradeSlot : byte = 0
+  field 2 ItemTemplateId : ulong = 0
+  field 3 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
+  field 4 Count : uint = 0
+  bytes 0
+
+variant populated
+  field 1 TradeSlot : byte = 42
+  field 2 ItemTemplateId : ulong = 4000000000
+  field 3 ItemInstanceId : Guid = 0f8fad5b-d9cb-469f-a165-70867728950e
+  field 4 Count : uint = 7
+  bytes 30
+    08 2a 10 80 d0 ac f3 0e 1a 12 09 5b ad 8f 0f cb
+    d9 9f 46 11 a1 65 70 86 77 28 95 0e 20 07
+
+variant maxima
+  field 1 TradeSlot : byte = 255
+  field 2 ItemTemplateId : ulong = 18446744073709551615
+  field 3 ItemInstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
+  field 4 Count : uint = 4294967295
+  bytes 40
+    08 ff 01 10 ff ff ff ff ff ff ff ff ff 01 1a 12
+    09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff ff
+    ff ff 20 ff ff ff ff 0f
+
+variant minima
+  field 1 TradeSlot : byte = 0
+  field 2 ItemTemplateId : ulong = 0
+  field 3 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
+  field 4 Count : uint = 0
+  bytes 0
+
+variant varint-edges
+  field 1 TradeSlot : byte = 128
+  field 2 ItemTemplateId : ulong = 16384
+  field 3 ItemInstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
+  field 4 Count : uint = 268435455
+  bytes 32
+    08 80 01 10 80 80 01 1a 12 09 04 03 02 01 06 05
+    08 07 11 09 0a 0b 0c 0d 0e 0f 10 20 ff ff ff 7f

@@ -188,4 +188,11 @@ public enum NetworkPacketType : short
 
     // Ignore list
     SMSG_IGNORE_LIST = 0x30D0,
+
+    // Trade
+    SMSG_TRADE_REQUEST = 0x30E0,
+    SMSG_TRADE_OPENED = 0x30E1,
+    SMSG_TRADE_STATE = 0x30E2,
+    SMSG_TRADE_CLOSED = 0x30E3,
+    SMSG_TRADE_RESULT = 0x30E4,
 }
