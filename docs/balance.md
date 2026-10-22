@@ -4,6 +4,11 @@ The balance simulator library and tool, and the in-cluster service that runs it 
 
 ## Balance Simulator
 
+**Paused (#1183).** The simulator is paused during the itemization and build overhaul (#1182). It keeps compiling with
+today's maths, and no new mechanic is mirrored into it. Its parity guards (`SimulatorParityShould`,
+`CreatureKitParityShould`) and the balance tests that stop holding are skipped with `BalancePause.Reason`, never
+deleted, and the API's `/balance` endpoints serve the old maths until the re-sync, see #1183.
+
 The simulator is a library with a thin tool on top. `Avalon.Balance.Core` (`src/Server/`) is the simulator, grader and
 run contract; it references `Avalon.Combat` and `Avalon.Domain` only, no `Avalon.World`, no `Avalon.Database*`, no EF,
 pinned by `BalanceCoreAssemblyShould`. `Avalon.Balance.Data` reads the seed and the files (`SeedSource`, `OverrideFiles`,

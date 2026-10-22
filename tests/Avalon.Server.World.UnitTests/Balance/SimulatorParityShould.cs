@@ -106,7 +106,7 @@ public class SimulatorParityShould
                 ?.GetValue(unit)
             ?? throw new InvalidOperationException($"{unit.GetType().Name}.{property} is not there"));
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Derive_the_same_character_stats_as_a_stats_refresh()
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _);
@@ -126,7 +126,7 @@ public class SimulatorParityShould
     /// and in DerivedCreatureStats (Attacker, Defence, which the simulator fights with). Every hostile seeded
     /// template, spawned by the real spawner at its lowest and its highest level, must fight as its twin does.
     /// </summary>
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Spawn_every_hostile_creature_with_the_combat_the_simulator_derives()
     {
         Assert.NotEmpty(Data.HostileTemplates);
@@ -150,7 +150,7 @@ public class SimulatorParityShould
         }
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Deal_the_same_cleave_damage_and_fury_hit_for_hit()
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
@@ -179,7 +179,7 @@ public class SimulatorParityShould
         }
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Take_the_same_gore_damage_and_fury_hit_for_hit()
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _, random: new CombatRandom(new Random(Seed)));
@@ -214,7 +214,7 @@ public class SimulatorParityShould
     /// projectile) hits in the cast system's script pass, and the boar stands inside its first step, so the tick it
     /// lands on is the simulator's.
     /// </summary>
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Land_cleave_and_hurled_axe_on_the_same_ticks_through_the_cast_system()
     {
         var clock = new FakeTimeProvider(s_clockStart);
@@ -248,7 +248,7 @@ public class SimulatorParityShould
     /// kept in combat every tick (MarkCombat, as each hit would); without that its combat tag would lapse 5 s after the
     /// last hit and the out-of-combat rate would apply.
     /// </summary>
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Suppress_and_resume_mana_regen_around_a_wind_up_as_a_character_entity()
     {
         const uint StartMana = 40;
@@ -348,7 +348,7 @@ public class SimulatorParityShould
     /// stall is not exercised here. Without Damage the cone deals nothing but still rolls whether it lands on the boar
     /// (#1164): a dodge draw missing on either side would move every later roll and part the bleeds.
     /// </summary>
-    [Theory]
+    [Theory(Skip = BalancePause.Reason)]
     [InlineData(SpellEffect.Damage)]
     [InlineData(SpellEffect.Debuff)]
     public async Task Bleed_the_same_as_the_aura_system_tick_for_tick(SpellEffect effects)
@@ -403,7 +403,7 @@ public class SimulatorParityShould
     /// Warrior's health and Fury compared after every tick for 10 s: the hit and its draws, the poison's roll right
     /// after them, each tick's crit roll, the Warrior's armour, the carry, and the Fury each tick's lost health gives.
     /// </summary>
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public async Task Poison_from_a_creatures_natural_damage_the_same_as_the_aura_system_tick_for_tick()
     {
         // Seed rolls the bottom of the boar's range for the poison, which a roll left out would match; this one does not.
@@ -489,7 +489,7 @@ public class SimulatorParityShould
     /// the real handler, cast system and aura system against the simulator, the boar's health and the Warrior's Fury
     /// compared after every tick for 15 s.
     /// </summary>
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public async Task Gain_the_same_fury_from_each_bleed_tick_as_the_aura_system()
     {
         const int Gain = 8;
@@ -533,7 +533,7 @@ public class SimulatorParityShould
     /// after every tick for 20 s: each heal tick (its crit roll and the fraction of a point carried), the refresh on each
     /// recast, and the Mana it costs. The Cleric is kept in combat every tick, as the simulator's continuous fight is.
     /// </summary>
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public async Task Heal_over_time_the_same_as_the_aura_system_tick_for_tick()
     {
         AbilityTemplate renew = Row(233);
@@ -594,7 +594,7 @@ public class SimulatorParityShould
     }
 
     /// <summary>Auras: a percentage armour and a flat crit aura fold into the same derived stats on the server and in the simulator.</summary>
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Fold_a_stat_aura_into_the_same_stats_as_a_stats_refresh()
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out _);
@@ -733,7 +733,7 @@ public class SimulatorParityShould
         return casts;
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Set_the_same_cooldown_when_cleave_fires()
     {
         var clock = new FakeTimeProvider(s_clockStart);
@@ -748,7 +748,7 @@ public class SimulatorParityShould
         Assert.Equal(cleave.CooldownTimer, CombatRules.CooldownAfterFire(sim, sim.Ability(200)));
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Swing_on_the_same_interval_as_a_spawned_creature()
     {
         var sim = SimCreature.Create(Data, Data.Creature(4), Level, 0);
@@ -758,7 +758,7 @@ public class SimulatorParityShould
         Assert.Equal(real.SwingInterval, CombatRules.CooldownAfterFire(sim, sim.Basic!));
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Regenerate_the_same_mana_in_combat_as_a_character_entity()
     {
         // The simulated Wizard casts Arcane Bolt (instant, free: never suppresses regen) at a boar that never swings.

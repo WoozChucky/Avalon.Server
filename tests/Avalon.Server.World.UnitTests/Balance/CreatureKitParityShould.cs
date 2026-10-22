@@ -9,7 +9,7 @@ namespace Avalon.Server.World.UnitTests.Balance;
 /// <summary>Keeps the balance tool's static creature kit table equal to the kits the world scripts declare.</summary>
 public class CreatureKitParityShould
 {
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Match_every_script_kit()
     {
         var scripts = typeof(AggroDefendScript).Assembly.GetTypes()
