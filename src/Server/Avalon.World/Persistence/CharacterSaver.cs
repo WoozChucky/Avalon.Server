@@ -136,6 +136,11 @@ public sealed class CharacterSaver(
     private static readonly KeyValuePair<string, object?> s_periodic = new("kind", "periodic");
     private static readonly KeyValuePair<string, object?> s_despawn = new("kind", "despawn");
 
+    // What a save's task carries: a trade's outcome as is; for any other save, true on a commit only (an unknown commit
+    // is false). Cached, so choosing one allocates nothing.
+    private static readonly Func<SaveOutcome, SaveOutcome> s_outcome = static outcome => outcome;
+    private static readonly Func<SaveOutcome, bool> s_committedOnly = static outcome => outcome == SaveOutcome.Committed;
+
     /// <summary>
     /// One save batch, from the moment it stops waiting behind the character's previous save until
     /// it committed or failed: the despawn row preparation and the repository write, not the queue.
@@ -164,8 +169,12 @@ public sealed class CharacterSaver(
     {
         if (characters.Count == 1)
         {
-            if (TryDefer(characters[0].Character, characters, SaveNow, out Task<bool>? held))
+            // A static lambda over a struct state: nothing is allocated unless the character is held.
+            if (TryDefer(characters[0].Character, (Saver: this, Characters: characters),
+                    static s => s.Saver.SaveNow(s.Characters), out Task<bool>? held))
+            {
                 return held;
+            }
         }
         else
         {
@@ -180,9 +189,10 @@ public sealed class CharacterSaver(
         CharacterEntity character,
         Func<Character, CancellationToken, Task>? prepareRow,
         CancellationToken cancellationToken) =>
-        TryDefer(character, (character, prepareRow, cancellationToken), DespawnNow, out Task<bool>? held)
+        TryDefer(character, (Saver: this, Character: character, PrepareRow: prepareRow, Token: cancellationToken),
+            static s => s.Saver.DespawnNow(s.Character, s.PrepareRow, s.Token), out Task<bool>? held)
             ? held
-            : DespawnNow((character, prepareRow, cancellationToken));
+            : DespawnNow(character, prepareRow, cancellationToken);
 
     public Task<SaveOutcome> SaveTrade(
         IReadOnlyList<(IWorldConnection Connection, CharacterEntity Character, TradeSidePlan Side)> sides,
@@ -203,7 +213,7 @@ public sealed class CharacterSaver(
 
         EnsureOneBatchPerCharacter(snapshots);
 
-        Task<SaveOutcome> write = Enqueue(snapshots, after => WriteAfterAsync(after, snapshots, prepareRow: null, record, despawn: false, CancellationToken.None));
+        Task<SaveOutcome> write = Enqueue(snapshots, prepareRow: null, record, despawn: false, CancellationToken.None, s_outcome);
 
         // On the same tick call as the enqueue, before anything else can ask for a save of either character.
         lock (_gate)
@@ -292,7 +302,7 @@ public sealed class CharacterSaver(
 
         EnsureOneBatchPerCharacter(snapshots);
 
-        Task<bool> write = Enqueue(snapshots, after => CommittedAfterAsync(after, snapshots, prepareRow: null, despawn: false, CancellationToken.None));
+        Task<bool> write = Enqueue(snapshots, prepareRow: null, record: null, despawn: false, CancellationToken.None, s_committedOnly);
 
         for (int i = 0; i < characters.Count; i++)
             Acknowledge(characters[i].Connection, characters[i].Character, snapshots[i].Marks, write);
@@ -301,10 +311,10 @@ public sealed class CharacterSaver(
     }
 
     private Task<bool> DespawnNow(
-        (CharacterEntity Character, Func<Character, CancellationToken, Task>? PrepareRow, CancellationToken Token) despawn)
+        CharacterEntity character, Func<Character, CancellationToken, Task>? prepareRow, CancellationToken cancellationToken)
     {
-        CharacterSaveSnapshot[] snapshots = [CharacterSaveSnapshot.Take(despawn.Character)];
-        return Enqueue(snapshots, after => CommittedAfterAsync(after, snapshots, despawn.PrepareRow, despawn: true, despawn.Token));
+        CharacterSaveSnapshot[] snapshots = [CharacterSaveSnapshot.Take(character)];
+        return Enqueue(snapshots, prepareRow, record: null, despawn: true, cancellationToken, s_committedOnly);
     }
 
     private static async Task<bool> IsCommittedAsync(Task<SaveOutcome> write) =>
@@ -370,12 +380,25 @@ public sealed class CharacterSaver(
             return;
         }
 
-        _ = CompleteAsync(save, request.Result);
+        _ = CompleteAsync(id, save, request.Result);
     }
 
-    /// <summary>The held caller's task completes with the real save's result. A save never faults.</summary>
-    private static async Task CompleteAsync(Task<bool> save, TaskCompletionSource<bool> result) =>
-        result.TrySetResult(await save.ConfigureAwait(false));
+    /// <summary>
+    /// The held caller's task completes with the real save's result. A save never faults by contract; one that did is
+    /// false, so a caller waiting on it (a held logout) is never left hanging.
+    /// </summary>
+    private async Task CompleteAsync(CharacterId id, Task<bool> save, TaskCompletionSource<bool> result)
+    {
+        try
+        {
+            result.TrySetResult(await save.ConfigureAwait(false));
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "A save of character {CharacterId} held by a trade faulted after its release", id.Value);
+            result.TrySetResult(false);
+        }
+    }
 
     private async Task<bool> LookUpTradeAsync(Guid tradeId, AccountId first, AccountId second)
     {
@@ -431,7 +454,14 @@ public sealed class CharacterSaver(
     /// latest for each of them. Choosing what to wait for and publishing the new tail happen under
     /// one lock, so two saves of one character can never both see the same predecessor.
     /// </summary>
-    private Task<T> Enqueue<T>(CharacterSaveSnapshot[] snapshots, Func<Task, Task<T>> writeAfter)
+    /// <param name="result">What the caller's task carries for an outcome: a static lambda, so it allocates nothing.</param>
+    private Task<T> Enqueue<T>(
+        CharacterSaveSnapshot[] snapshots,
+        Func<Character, CancellationToken, Task>? prepareRow,
+        TradeRecord? record,
+        bool despawn,
+        CancellationToken cancellationToken,
+        Func<SaveOutcome, T> result)
     {
         Task<T> write;
         lock (_gate)
@@ -453,7 +483,9 @@ public sealed class CharacterSaver(
             // Off the tick thread from the first line: the snapshot is all the tick owes a save. The
             // token goes to the write, not to Task.Run, so a cancelled save still comes back false
             // instead of cancelled, and whatever is queued behind it still runs.
-            write = Task.Run(() => writeAfter(after), CancellationToken.None);
+            write = Task.Run(
+                () => WriteAfterAsync(after, snapshots, prepareRow, record, despawn, cancellationToken, result),
+                CancellationToken.None);
 
             foreach (CharacterSaveSnapshot snapshot in snapshots)
                 _latest[snapshot.CharacterId] = write;
@@ -481,23 +513,14 @@ public sealed class CharacterSaver(
         }
     }
 
-    /// <summary>A save that is not a trade: anything but a commit is false, an unknown commit included.</summary>
-    private async Task<bool> CommittedAfterAsync(
-        Task previous,
-        CharacterSaveSnapshot[] snapshots,
-        Func<Character, CancellationToken, Task>? prepareRow,
-        bool despawn,
-        CancellationToken cancellationToken) =>
-        await WriteAfterAsync(previous, snapshots, prepareRow, record: null, despawn, cancellationToken).ConfigureAwait(false)
-            == SaveOutcome.Committed;
-
-    private async Task<SaveOutcome> WriteAfterAsync(
+    private async Task<T> WriteAfterAsync<T>(
         Task previous,
         CharacterSaveSnapshot[] snapshots,
         Func<Character, CancellationToken, Task>? prepareRow,
         TradeRecord? record,
         bool despawn,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<SaveOutcome, T> result)
     {
         // Only orders: a save never faults, it comes back false.
         await previous.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
@@ -520,7 +543,7 @@ public sealed class CharacterSaver(
                 await repository.WriteTradeAsync(batches, record, cancellationToken).ConfigureAwait(false);
 
             Record(started, committed: true, despawn);
-            return SaveOutcome.Committed;
+            return result(SaveOutcome.Committed);
         }
         catch (SaveOutcomeUnknownException e) when (record is not null)
         {
@@ -528,7 +551,7 @@ public sealed class CharacterSaver(
             logger.LogWarning(e,
                 "The paired save of trade {TradeId} for characters {CharacterIds} may or may not have committed; its record settles it",
                 record.Id, string.Join(", ", snapshots.Select(s => s.CharacterId.Value)));
-            return SaveOutcome.Unknown;
+            return result(SaveOutcome.Unknown);
         }
         catch (Exception e)
         {
@@ -536,7 +559,7 @@ public sealed class CharacterSaver(
             logger.LogError(e,
                 "Saving character(s) {CharacterIds} failed; their changes stay pending and the next save retries them",
                 string.Join(", ", snapshots.Select(s => s.CharacterId.Value)));
-            return SaveOutcome.Refused;
+            return result(SaveOutcome.Refused);
         }
     }
 

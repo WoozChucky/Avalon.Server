@@ -63,9 +63,9 @@ public static class TradeRules
     public static TradeDecision Plan(
         TradeOffer first, TradeOffer second, Func<ItemTemplateId, ItemTemplate?> findTemplate, ulong maxGold)
     {
-        if (!ItemsInPlace(first, findTemplate))
+        if (ItemsInPlace(first, findTemplate) is not { } firstHeld)
             return Refuse(TradeResult.OfferInvalid, 0);
-        if (!ItemsInPlace(second, findTemplate))
+        if (ItemsInPlace(second, findTemplate) is not { } secondHeld)
             return Refuse(TradeResult.OfferInvalid, 1);
 
         if (Balance(first.Character) < first.Gold)
@@ -88,9 +88,10 @@ public static class TradeRules
         if (PassesCap(second, first.Gold, maxGold))
             return Refuse(TradeResult.GoldCapReached, 1);
 
+        // From the items as held, not the copies taken at offer time, so the save and both memories name the same items.
         var plan = new TradePlan(
-            new TradeSidePlan(first.Items.ToArray(), Placed(second.Items, firstSlots), first.Gold, second.Gold),
-            new TradeSidePlan(second.Items.ToArray(), Placed(first.Items, secondSlots), second.Gold, first.Gold));
+            new TradeSidePlan(firstHeld, Placed(secondHeld, firstSlots), first.Gold, second.Gold),
+            new TradeSidePlan(secondHeld, Placed(firstHeld, secondSlots), second.Gold, first.Gold));
         return new TradeDecision(TradeResult.Ok, -1, plan);
     }
 
@@ -98,21 +99,26 @@ public static class TradeRules
 
     private static ulong Balance(CharacterEntity character) => character.Data?.Gold ?? 0;
 
-    private static bool ItemsInPlace(TradeOffer offer, Func<ItemTemplateId, ItemTemplate?> findTemplate)
+    /// <summary>The offered items as the Bag holds them now, in offer order, or null when one is not in place.</summary>
+    private static InventoryItem[]? ItemsInPlace(TradeOffer offer, Func<ItemTemplateId, ItemTemplate?> findTemplate)
     {
         CharacterInventoryContainer bag = offer.Character.Container(InventoryType.Bag);
-        foreach (InventoryItem offered in offer.Items)
+        var items = new InventoryItem[offer.Items.Count];
+        for (int i = 0; i < items.Length; i++)
         {
+            InventoryItem offered = offer.Items[i];
             if (!bag.TryGet(offered.Slot, out InventoryItem held)
                 || held.InstanceId != offered.InstanceId
                 || held.Count != offered.Count
                 || !IsTradeable(findTemplate(held.TemplateId)))
             {
-                return false;
+                return null;
             }
+
+            items[i] = held;
         }
 
-        return true;
+        return items;
     }
 
     /// <summary>The lowest <paramref name="incoming" /> slots that are empty or freed by the offer, or null when too few.</summary>

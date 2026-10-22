@@ -26,6 +26,12 @@ public class TradeServiceShould
         Assert.Equal(TradeResult.Ok, w.Trades.Request(a.Id, b.Id));
         Assert.Equal((a.Id, 30_000u), (b.Requests().Single().CharacterId, b.Requests().Single().ExpiresInMs));
 
+        // An accept refused by a condition (here the requester's shop window) leaves the request open until it expires.
+        a.Character.OpenShopNpc = s_shopkeeper;
+        Assert.Equal(TradeResult.TargetNpcWindowOpen, w.Trades.Respond(b.Id, accept: true));
+        Assert.True(w.Trades.HoldsRequest(b.Id));
+        a.Character.OpenShopNpc = null;
+
         Assert.Equal(TradeResult.Ok, w.Trades.Respond(b.Id, accept: true));
         Assert.Equal(b.Id, a.Opened().Single().PartnerCharacterId);
         Assert.Equal(a.Id, b.Opened().Single().PartnerCharacterId);

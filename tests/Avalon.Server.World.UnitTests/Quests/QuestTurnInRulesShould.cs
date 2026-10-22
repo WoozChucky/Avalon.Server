@@ -46,24 +46,23 @@ public class QuestTurnInRulesShould
         Assert.True(QuestTurnInRules.Fits(Bag(), 1, [(s_tonicItem, 4), (s_tonicItem, 6)], s_nothingLocked));
 
     /// <summary>
-    /// A trade completing for the character (#1175) has reserved a Bag slot and gold headroom: a turn-in made in that
-    /// window counts both as taken. Without the reservation, each case would be paid: one free slot for the Charm, and
-    /// 30 gold under the cap of 100.
+    /// A trade (#1175) holds part of the Bag or the gold headroom: a completing one has reserved a Bag slot and gold
+    /// headroom, and an open one has locked an offered stack. A turn-in made meanwhile counts each as taken. Without it,
+    /// each case would be paid: one free slot for the Charm, 30 gold under the cap of 100, and room for one Tonic in the
+    /// partial stack.
     /// </summary>
     [Theory]
     [InlineData("the only free slot is reserved", QuestResult.BagFull)]
     [InlineData("incoming gold would pass the cap", QuestResult.GoldCap)]
+    [InlineData("the only partial stack is offered", QuestResult.BagFull)]
     public void Count_a_completing_trade_s_reservations_as_taken(string @case, QuestResult expected)
     {
         CharacterEntity character = TestCharacters.New(7, gold: 0);
-        character.Container(InventoryType.Bag).Load(
-            Enumerable.Range(0, 29).Select(s => TestCharacters.Item((byte)s, s_charmItem)).ToList());
+        var bag = Enumerable.Range(0, 29).Select(s => TestCharacters.Item((byte)s, s_charmItem)).ToList();
         character.Quests.Load(new CharacterQuestRows(
             [new CharacterQuest { CharacterId = 7, QuestId = Tusks, State = CharacterQuestState.ReadyToTurnIn, AcceptedAt = DateTime.UnixEpoch }],
             [], []));
-        var quest = new QuestView(Tusks, TitleText, BodyText, DoneText, new CreatureTemplateId(Giver), new CreatureTemplateId(Ender),
-            1, null, null, 50, RewardGold: 30, null, [new QuestStageView(0, StageText, [])],
-            [new QuestItemRewardView(s_charmItem.Id, 1)], [], QuestRepeat.Once);
+        ItemTemplate reward = s_charmItem;
         switch (@case)
         {
             case "the only free slot is reserved":
@@ -72,9 +71,20 @@ public class QuestTurnInRulesShould
             case "incoming gold would pass the cap":
                 character.Locks.IncomingGold = 71;
                 break;
+            case "the only partial stack is offered":
+                InventoryItem offered = TestCharacters.Item(29, s_tonicItem, 5);
+                bag.Add(offered);
+                character.Locks.Lock(offered.InstanceId);
+                reward = s_tonicItem;
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(@case), @case, null);
         }
+
+        character.Container(InventoryType.Bag).Load(bag);
+        var quest = new QuestView(Tusks, TitleText, BodyText, DoneText, new CreatureTemplateId(Giver), new CreatureTemplateId(Ender),
+            1, null, null, 50, RewardGold: 30, null, [new QuestStageView(0, StageText, [])],
+            [new QuestItemRewardView(reward.Id, 1)], [], QuestRepeat.Once);
 
         QuestResult result = QuestTurnInRules.Decide(character, quest, character.Quests.Get(Tusks)!, 0,
             id => Items().SingleOrDefault(i => i.Id == id), maxGold: 100, out _);

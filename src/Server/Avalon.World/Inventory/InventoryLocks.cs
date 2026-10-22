@@ -188,11 +188,14 @@ public sealed class InventoryLocks
 
     /// <summary>
     /// Whether <paramref name="amount" /> more gold stays within <paramref name="maxGold" />, counting the gold a completing
-    /// trade is about to pay as already in the balance: IWallet.TryAddGold's rule, without wrapping. A balance (with the
-    /// incoming gold) already above a lowered cap refuses everything, and one at the cap everything but 0.
+    /// trade is about to pay as already in the balance: IWallet.TryAddGold's rule, without wrapping. 0 always fits, as
+    /// TryAddGold adds it without a check; otherwise a balance (with the incoming gold) at or above the cap refuses it.
     /// </summary>
     public bool CanReceiveGold(ulong balance, ulong amount, ulong maxGold)
     {
+        if (amount == 0)
+            return true;
+
         ulong expected = balance > ulong.MaxValue - _incomingGold ? ulong.MaxValue : balance + _incomingGold;
         return expected <= maxGold && amount <= maxGold - expected;
     }

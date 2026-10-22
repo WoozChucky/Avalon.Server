@@ -148,6 +148,7 @@ public class VendorRulesShould
         new("Refuse a full bag", FullBag, 100, TonicSequence, null, VendorResult.InventoryFull),
         new("Fill a partial stack in an otherwise full bag", [.. AllButLastSlot, At(Bag(29), Tonic, 19)], 100, TonicSequence, 1, VendorResult.Ok, Total: 10),
         new("Refuse past a partial stack's room", [.. AllButLastSlot, At(Bag(29), Tonic, 19)], 100, TonicSequence, 2, VendorResult.InventoryFull),
+        new("Count no room in a partial stack offered in a trade", [.. AllButLastSlot, At(Bag(29), Tonic, 19, locked: true)], 100, TonicSequence, 1, VendorResult.InventoryFull),
         new("Use the slot a spent cost stack frees", [.. AllButLastSlot, At(Bag(29), Tonic, 2)], 30, ElixirSequence, null, VendorResult.Ok, Total: 30),
         new("Count no room in a cost stack that survives", [.. AllButLastSlot, At(Bag(29), Tonic, 3)], 30, ElixirSequence, null, VendorResult.InventoryFull),
         new("Refuse when the only free slot is reserved", AllButLastSlot, 100, TonicSequence, null, VendorResult.InventoryFull, Reserved: 29),

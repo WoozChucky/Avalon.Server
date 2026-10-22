@@ -128,4 +128,7 @@ public enum TradeResult : byte
 
     /// <summary>The server failed while handling the request; nothing is known to have changed.</summary>
     Error = 40,
+
+    /// <summary>The other player has a shop, bank or other NPC window open: an accept is refused until it closes.</summary>
+    TargetNpcWindowOpen = 41,
 }

@@ -44,6 +44,8 @@ public sealed partial class TradeService
     /// <returns>Whether every completing trade settled: false while one keeps its holds.</returns>
     public async Task<bool> SettleAsync(TimeSpan limit, CancellationToken token)
     {
+        // Free at shutdown, where the tick has unbound the guard; it refuses a call while a tick still runs.
+        tickThread?.AssertOnTick("TradeService.SettleAsync");
         if (_completions.Count == 0)
             return true;
 
@@ -155,7 +157,18 @@ public sealed partial class TradeService
     private void AdvanceCompletions(DateTimeOffset now)
     {
         while (_completionEvents.TryDequeue(out CompletionEvent next))
-            Handle(next, now);
+        {
+            // One failure (a hold release that throws, after the trade has closed) never keeps the other completions
+            // from being applied: at shutdown that would leave every one of them unsettled, holds kept.
+            try
+            {
+                Handle(next, now);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Trade {TradeId}: applying its outcome failed", next.Completion.Trade.Id);
+            }
+        }
 
         for (int i = 0; i < _completions.Count; i++)
         {
@@ -318,7 +331,8 @@ public sealed partial class TradeService
     /// <summary>
     /// Applies the committed plan: every item out of each giver, then every item into each receiver at its planned
     /// slot, then each side's gold spent, then received. A refusal is logged at Critical; what a giver did not lose its
-    /// receiver does not gain, so memory never holds more than the database.
+    /// receiver does not gain, so memory never holds more than the database. The audit line says whether every step
+    /// applied.
     /// </summary>
     private void Swap(Trade trade, TradePlan plan)
     {
@@ -329,28 +343,43 @@ public sealed partial class TradeService
         first.Character.Locks.Clear();
         second.Character.Locks.Clear();
 
-        bool[] firstGave = TakeOut(trade, first, plan.First.Outgoing, economy);
-        bool[] secondGave = TakeOut(trade, second, plan.Second.Outgoing, economy);
+        bool clean = true;
+        bool[] firstGave = TakeOut(trade, first, plan.First.Outgoing, economy, ref clean);
+        bool[] secondGave = TakeOut(trade, second, plan.Second.Outgoing, economy, ref clean);
 
         // Each side's incoming items are the partner's outgoing ones, in the same order.
-        PutIn(trade, first, plan.First.Incoming, secondGave, economy);
-        PutIn(trade, second, plan.Second.Incoming, firstGave, economy);
+        clean &= PutIn(trade, first, plan.First.Incoming, secondGave, economy);
+        clean &= PutIn(trade, second, plan.Second.Incoming, firstGave, economy);
 
         IWallet firstWallet = economy.WalletOf(first.Character);
         IWallet secondWallet = economy.WalletOf(second.Character);
         bool firstPaid = Spend(trade, first, firstWallet, plan.First.GoldOut);
         bool secondPaid = Spend(trade, second, secondWallet, plan.Second.GoldOut);
-        Receive(trade, first, firstWallet, secondPaid ? plan.First.GoldIn : 0);
-        Receive(trade, second, secondWallet, firstPaid ? plan.Second.GoldIn : 0);
+        clean &= firstPaid & secondPaid;
+        clean &= Receive(trade, first, firstWallet, secondPaid ? plan.First.GoldIn : 0);
+        clean &= Receive(trade, second, secondWallet, firstPaid ? plan.Second.GoldIn : 0);
 
-        logger.LogInformation(
-            "Trade {TradeId} completed: character {First} gave [{FirstItems}] and {FirstGold} gold, character {Second} " +
-            "gave [{SecondItems}] and {SecondGold} gold (record {RecordId})",
-            trade.Id, first.Character.Guid.Id, Describe(plan.First.Outgoing), plan.First.GoldOut,
-            second.Character.Guid.Id, Describe(plan.Second.Outgoing), plan.Second.GoldOut, trade.RecordId);
+        if (clean)
+        {
+            logger.LogInformation(
+                "Trade {TradeId} completed: character {First} gave [{FirstItems}] and {FirstGold} gold, character " +
+                "{Second} gave [{SecondItems}] and {SecondGold} gold (record {RecordId})",
+                trade.Id, first.Character.Guid.Id, Describe(plan.First.Outgoing), plan.First.GoldOut,
+                second.Character.Guid.Id, Describe(plan.Second.Outgoing), plan.Second.GoldOut, trade.RecordId);
+        }
+        else
+        {
+            logger.LogError(
+                "Trade {TradeId} completed with errors (see the Critical lines above): the database has character " +
+                "{First} giving [{FirstItems}] and {FirstGold} gold, character {Second} giving [{SecondItems}] and " +
+                "{SecondGold} gold (record {RecordId}), and memory differs from it until their next login",
+                trade.Id, first.Character.Guid.Id, Describe(plan.First.Outgoing), plan.First.GoldOut,
+                second.Character.Guid.Id, Describe(plan.Second.Outgoing), plan.Second.GoldOut, trade.RecordId);
+        }
     }
 
-    private bool[] TakeOut(Trade trade, TradeSide giver, IReadOnlyList<InventoryItem> outgoing, ICharacterEconomy economy)
+    private bool[] TakeOut(
+        Trade trade, TradeSide giver, IReadOnlyList<InventoryItem> outgoing, ICharacterEconomy economy, ref bool clean)
     {
         IInventoryService inventory = economy.InventoryOf(giver.Character);
         CharacterInventoryContainer bag = giver.Character.Container(InventoryType.Bag);
@@ -362,10 +391,15 @@ public sealed partial class TradeService
             if (!bag.TryGet(item.Slot, out InventoryItem held) || held.InstanceId != item.InstanceId
                 || held.Count != item.Count)
             {
+                // The item stays with the giver in memory while the database gives it to the receiver, and its handover
+                // is not marked: the giver's next change to it marks an item the database no longer gives the giver,
+                // and the save fence refuses every save of the giver from then until logout.
                 logger.LogCritical(
                     "Trade {TradeId}: item {ItemId} (template {TemplateId}) is no longer at Bag slot {Slot} of character " +
-                    "{Character}; the database has the trade, and memory differs from it until the next login",
+                    "{Character}; the database has the trade, and memory differs from it until the next login. A later " +
+                    "change to that item makes the save fence refuse the character's saves until logout",
                     trade.Id, item.InstanceId.Value, item.TemplateId.Value, item.Slot, giver.Character.Guid.Id);
+                clean = false;
                 continue;
             }
 
@@ -377,10 +411,11 @@ public sealed partial class TradeService
         return gave;
     }
 
-    private void PutIn(Trade trade, TradeSide receiver, IReadOnlyList<InventoryItem> incoming, bool[] given,
+    private bool PutIn(Trade trade, TradeSide receiver, IReadOnlyList<InventoryItem> incoming, bool[] given,
         ICharacterEconomy economy)
     {
         IInventoryService inventory = economy.InventoryOf(receiver.Character);
+        bool clean = true;
         for (int i = 0; i < incoming.Count; i++)
         {
             InventoryItem item = incoming[i];
@@ -395,8 +430,11 @@ public sealed partial class TradeService
                     "character {Character} ({Result}); the database has the trade, and memory differs from it until " +
                     "the next login", trade.Id, item.InstanceId.Value, item.TemplateId.Value, item.Slot,
                     receiver.Character.Guid.Id, added);
+                clean = false;
             }
         }
+
+        return clean;
     }
 
     private bool Spend(Trade trade, TradeSide side, IWallet wallet, ulong gold)
@@ -411,15 +449,16 @@ public sealed partial class TradeService
         return false;
     }
 
-    private void Receive(Trade trade, TradeSide side, IWallet wallet, ulong gold)
+    private bool Receive(Trade trade, TradeSide side, IWallet wallet, ulong gold)
     {
         WalletResult added = wallet.TryAddGold(gold);
-        if (added != WalletResult.Ok)
-        {
-            logger.LogCritical(
-                "Trade {TradeId}: character {Character} could not receive {Gold} gold ({Result}); the database has the " +
-                "trade, and memory differs from it until the next login", trade.Id, side.Character.Guid.Id, gold, added);
-        }
+        if (added == WalletResult.Ok)
+            return true;
+
+        logger.LogCritical(
+            "Trade {TradeId}: character {Character} could not receive {Gold} gold ({Result}); the database has the " +
+            "trade, and memory differs from it until the next login", trade.Id, side.Character.Guid.Id, gold, added);
+        return false;
     }
 
     /// <summary>

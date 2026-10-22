@@ -143,7 +143,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
 
         if (!accept)
         {
-            EndRequest(request);
+            EndRequest(request, _requests.IndexOf(request));
             Tell(request.SenderId, TradeResult.Declined, request.TargetName);
             return TradeResult.Ok;
         }
@@ -167,13 +167,12 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             return TradeResult.TargetDead;
         if (sender.IsInCombat)
             return TradeResult.TargetInCombat;
-        // The wire has no value of its own for the other player's NPC window: it is busy with something else.
         if (HasNpcWindowOpen(sender))
-            return TradeResult.TargetBusy;
+            return TradeResult.TargetNpcWindowOpen;
         if (!TradeRules.WithinRange(sender.Position, target.Position, TradeRules.KeepRange))
             return TradeResult.TooFar;
 
-        EndRequest(request);
+        EndRequest(request, _requests.IndexOf(request));
         var trade = new Trade(++_lastTradeId,
             new TradeSide(senderConnection, sender), new TradeSide(targetConnection, target));
         _trades.Add(trade);
@@ -183,8 +182,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
         senderConnection.Send(STradeOpenedPacket.Create(trade.Id, targetId, target.Name, PacketEncoder.Shared));
         targetConnection.Send(STradeOpenedPacket.Create(trade.Id, request.SenderId, sender.Name, PacketEncoder.Shared));
         SendState(trade);
-        logger.LogDebug("Trade {TradeId} opened between characters {First} and {Second}",
-            trade.Id, request.SenderId, targetId);
+        LogOpened(logger, trade.Id, request.SenderId, targetId);
         return TradeResult.Ok;
     }
 
@@ -322,7 +320,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
 
             TradeResult reason = CancelReason(trade);
             if (reason != TradeResult.Ok)
-                Close(trade, reason, reason);
+                Close(trade, reason, reason, i);
         }
     }
 
@@ -447,9 +445,12 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
     /// (<see cref="TradeResult.Unknown" /> tells that side nothing). A side whose connection no longer holds its character
     /// is told nothing either.
     /// </summary>
-    private void Close(Trade trade, TradeResult toFirst, TradeResult toSecond)
+    /// <param name="index">The trade's index in the list when the caller has it (the sweep); otherwise looked up.</param>
+    private void Close(Trade trade, TradeResult toFirst, TradeResult toSecond, int index = -1)
     {
-        _trades.Remove(trade);
+        int at = index >= 0 ? index : _trades.IndexOf(trade);
+        if (at >= 0)
+            _trades.RemoveAt(at);
         _tradeOf.Remove(trade.First.Character.Guid.Id);
         _tradeOf.Remove(trade.Second.Character.Guid.Id);
         trade.First.Character.Locks.Clear();
@@ -457,8 +458,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
 
         TellClosed(trade, trade.First, toFirst);
         TellClosed(trade, trade.Second, toSecond);
-        logger.LogDebug("Trade {TradeId} closed: {First} for character {FirstId}, {Second} for character {SecondId}",
-            trade.Id, toFirst, trade.First.Character.Guid.Id, toSecond, trade.Second.Character.Guid.Id);
+        LogClosed(logger, trade.Id, toFirst, trade.First.Character.Guid.Id, toSecond, trade.Second.Character.Guid.Id);
     }
 
     private static void TellClosed(Trade trade, TradeSide side, TradeResult result)
@@ -475,7 +475,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             if (request.ExpiresAt > now)
                 continue;
 
-            EndRequest(request);
+            EndRequest(request, i);
             Tell(request.SenderId, TradeResult.Expired, request.TargetName);
             if (!request.Hidden)
                 Tell(request.TargetId, TradeResult.Expired, request.SenderName);
@@ -495,7 +495,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             if (!sent && request.TargetId != characterId)
                 continue;
 
-            EndRequest(request);
+            EndRequest(request, i);
             if (sent)
             {
                 if (!request.Hidden)
@@ -512,9 +512,10 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
         }
     }
 
-    private void EndRequest(TradeRequest request)
+    /// <param name="index">The request's index in <see cref="_requests" />.</param>
+    private void EndRequest(TradeRequest request, int index)
     {
-        _requests.Remove(request);
+        _requests.RemoveAt(index);
         _requestOf.Remove(request.SenderId);
         if (!request.Hidden)
             _requestOf.Remove(request.TargetId);
@@ -583,7 +584,30 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
         return dtos;
     }
 
-    /// <param name="Hidden">Its target ignores its sender: never sent, and indexed under its sender only.</param>
-    private sealed record TradeRequest(uint SenderId, uint TargetId, string SenderName, string TargetName,
-        DateTimeOffset ExpiresAt, bool Hidden);
+    // Debug lines through generated methods, which check the level before formatting: no boxing with Debug off.
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Trade {TradeId} opened between characters {First} and {Second}")]
+    private static partial void LogOpened(ILogger logger, uint tradeId, uint first, uint second);
+
+    [LoggerMessage(Level = LogLevel.Debug,
+        Message = "Trade {TradeId} closed: {First} for character {FirstId}, {Second} for character {SecondId}")]
+    private static partial void LogClosed(ILogger logger, uint tradeId, TradeResult first, uint firstId,
+        TradeResult second, uint secondId);
+
+    /// <summary>A request, found and removed by reference.</summary>
+    /// <param name="hidden">Its target ignores its sender: never sent, and indexed under its sender only.</param>
+    private sealed class TradeRequest(uint senderId, uint targetId, string senderName, string targetName,
+        DateTimeOffset expiresAt, bool hidden)
+    {
+        public uint SenderId { get; } = senderId;
+
+        public uint TargetId { get; } = targetId;
+
+        public string SenderName { get; } = senderName;
+
+        public string TargetName { get; } = targetName;
+
+        public DateTimeOffset ExpiresAt { get; } = expiresAt;
+
+        public bool Hidden { get; } = hidden;
+    }
 }

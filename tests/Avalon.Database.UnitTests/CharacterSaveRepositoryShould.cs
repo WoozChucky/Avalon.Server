@@ -232,16 +232,20 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             Items = [new TradeRecordItem { TradeId = tradeId, ItemInstanceId = sword.Id, GiverCharacterId = a.Id, TemplateId = sword.TemplateId, Count = 1 }],
         };
         var saves = new CharacterSaveRepository(new ScriptedTransactions(_database, row));
-        CharacterSaveRepository realSaves = _saves;
 
         Exception? e = await Record.ExceptionAsync(() => saves.WriteTradeAsync(batches, record));
 
         Assert.Equal(thrown, e?.GetType());
-        Assert.Equal(stored, await realSaves.TradeRecordExistsAsync(record.Id, accountA, accountB));
+        Assert.Equal(stored, await _saves.TradeRecordExistsAsync(record.Id, accountA, accountB));
         // The record and the swap stand or fall together.
-        Assert.Equal(stored ? 8L : 7L, StoredItem(sword).CharacterId.Value);
+        await using CharacterDbContext read = _database.CreateDbContext();
+        Assert.Equal(stored ? 8L : 7L,
+            (await read.ItemInstances.AsNoTracking().SingleAsync(i => i.Id == sword.Id)).CharacterId.Value);
         if (stored)
-            Assert.Equal([sword.Id], StoredRecordItems(record.Id).Select(i => i.ItemInstanceId));
+        {
+            Assert.Equal([sword.Id], await read.TradeRecordItems.AsNoTracking()
+                .Where(i => i.TradeId == record.Id).Select(i => i.ItemInstanceId).ToListAsync());
+        }
     }
 
     [Fact]
@@ -337,18 +341,6 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         CharacterStats? stats = null,
         GameplayWriteAuthority? authority = null) =>
         new(row, upsertItems ?? [], deleteItems ?? [], upsertSlots ?? [], deleteSlots ?? [], stats) { Authority = authority ?? s_authority };
-
-    private ItemInstance StoredItem(ItemInstance item)
-    {
-        using CharacterDbContext read = _database.CreateDbContext();
-        return read.ItemInstances.AsNoTracking().Single(i => i.Id == item.Id);
-    }
-
-    private List<TradeRecordItem> StoredRecordItems(Guid tradeId)
-    {
-        using CharacterDbContext read = _database.CreateDbContext();
-        return read.TradeRecordItems.AsNoTracking().Where(i => i.TradeId == tradeId).ToList();
-    }
 
     /// <summary>
     /// Runs the work in a real transaction over the test database, then ends it as <c>row</c> says: the commit lands

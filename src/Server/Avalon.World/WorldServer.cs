@@ -733,9 +733,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         catch (Exception e) when (e is TimeoutException or OperationCanceledException)
         {
             _logger.LogError(
-                "Shutdown stopped waiting for character saves still in flight after {Limit} or at the host's stop timeout; " +
-                "changes since those characters' last committed save may be lost",
-                limit);
+                "Shutdown stopped waiting for character saves still in flight at the end of its {Window} save window or " +
+                "at the host's stop timeout; changes since those characters' last committed save may be lost",
+                SaveDrainLimit);
         }
     }
 

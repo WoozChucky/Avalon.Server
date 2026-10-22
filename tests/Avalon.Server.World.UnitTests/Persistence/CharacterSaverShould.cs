@@ -557,6 +557,8 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.True(await held.WaitAsync(s_limit));
         Assert.Equal(65UL, (await StoredRowAsync(7)).Gold);   // 100 - 40 + 5, never 105
         Assert.Equal(new CharacterId(8), (await StoredItemAsync(sword.InstanceId))!.CharacterId);
+        CharacterInventory slotA = Assert.Single(await StoredSlotsAsync(7));   // the potion, never the sword back
+        Assert.Equal((plan.First.Incoming[0].Slot, potion.InstanceId), (slotA.Slot, slotA.ItemId));
         if (!despawn)
             Assert.True(await saver.Save(_connection, a).WaitAsync(s_limit));   // the giver's next save is not fenced out
         Assert.True(await saver.Save(_connection, b).WaitAsync(s_limit));
