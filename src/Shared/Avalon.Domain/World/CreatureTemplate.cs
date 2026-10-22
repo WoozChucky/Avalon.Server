@@ -53,13 +53,10 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     /// </summary>
     public LootTableId? LootTableId { get; set; }
 
-    /// <summary>
-    /// Copper, not gold coins, whatever the name: the smallest pile this creature drops. The wallet
-    /// counts copper.
-    /// </summary>
+    /// <summary>The smallest gold pile this creature drops.</summary>
     public int MinGold { get; set; }
 
-    /// <summary>Copper. With <see cref="MinGold"/> also 0, the creature drops no pile.</summary>
+    /// <summary>Gold. With <see cref="MinGold"/> also 0, the creature drops no pile.</summary>
     public int MaxGold { get; set; }
 
     public short MovementType { get; set; }

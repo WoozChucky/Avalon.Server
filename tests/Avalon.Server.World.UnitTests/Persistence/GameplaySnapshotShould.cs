@@ -13,11 +13,11 @@ public sealed class GameplaySnapshotShould
         CharacterEntity character = TestCharacters.New();
         var authority = new GameplayWriteAuthority(character.Data!.AccountId, Guid.NewGuid(), 7);
         character.BindGameplayAuthority(authority);
-        character.Data.Money = 25;
+        character.Data.Gold = 25;
         var snapshot = CharacterSaveSnapshot.Take(character);
-        character.Data.Money = 99;
+        character.Data.Gold = 99;
         Assert.Same(authority, snapshot.Batch.Authority);
-        Assert.Equal(25UL, snapshot.Batch.Row.Money);
+        Assert.Equal(25UL, snapshot.Batch.Row.Gold);
         Assert.Equal(7, snapshot.Batch.Authority!.FencingToken);
     }
     [Fact]

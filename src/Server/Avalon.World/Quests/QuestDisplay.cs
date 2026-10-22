@@ -12,7 +12,7 @@ public static class QuestDisplay
         var rewards = new QuestRewardsDto
         {
             Experience = quest.RewardExperience,
-            Money = quest.RewardMoney,
+            Gold = quest.RewardGold,
             Items = quest.ItemRewards.Select(r => new QuestRewardItemDto { ItemTemplateId = r.ItemTemplateId.Value, Count = r.Count }).ToList(),
         };
 

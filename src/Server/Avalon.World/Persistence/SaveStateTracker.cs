@@ -25,7 +25,7 @@ public readonly record struct SaveMark(SaveState State, long Version);
 public sealed record SaveMarks(
     IReadOnlyDictionary<ItemInstanceId, SaveMark> Items,
     IReadOnlyDictionary<(InventoryType Container, byte Slot), SaveMark> Slots,
-    long? MoneyVersion,
+    long? GoldVersion,
     long? StatsVersion = null,
     long? PvpVersion = null,
     IReadOnlyDictionary<uint, SaveMark>? Quests = null,
@@ -33,7 +33,7 @@ public sealed record SaveMarks(
     long? AurasVersion = null);
 
 /// <summary>
-/// The per-character save state of every item instance and inventory slot, and money's dirty flag.
+/// The per-character save state of every item instance and inventory slot, and gold's dirty flag.
 /// Tick thread only. An absent entry is Unchanged.
 /// </summary>
 public sealed class SaveStateTracker
@@ -43,12 +43,12 @@ public sealed class SaveStateTracker
     private readonly Dictionary<uint, SaveMark> _quests = [];
     private readonly Dictionary<uint, SaveMark> _ignores = [];
     private long _version;
-    private long _moneyVersion;
+    private long _goldVersion;
     private long _statsVersion;
     private long _pvpVersion;
     private long _aurasVersion;
 
-    public bool MoneyDirty { get; private set; }
+    public bool GoldDirty { get; private set; }
 
     /// <summary>The derived stats changed (spec #463): the next save writes the CharacterStats row.</summary>
     public bool StatsDirty { get; private set; }
@@ -59,7 +59,7 @@ public sealed class SaveStateTracker
     /// <summary>An aura was applied, refreshed, stacked or removed (auras): the next save rewrites them all.</summary>
     public bool AurasDirty { get; private set; }
 
-    public bool HasChanges => _items.Count > 0 || _slots.Count > 0 || MoneyDirty || StatsDirty || PvpDirty || _quests.Count > 0
+    public bool HasChanges => _items.Count > 0 || _slots.Count > 0 || GoldDirty || StatsDirty || PvpDirty || _quests.Count > 0
         || _ignores.Count > 0 || AurasDirty;
 
     public SaveState ItemState(ItemInstanceId id) =>
@@ -102,10 +102,10 @@ public sealed class SaveStateTracker
             _slots[(container, slot)] = new SaveMark(state, ++_version);
     }
 
-    public void MoneyChanged()
+    public void GoldChanged()
     {
-        MoneyDirty = true;
-        _moneyVersion = ++_version;
+        GoldDirty = true;
+        _goldVersion = ++_version;
     }
 
     public void StatsChanged()
@@ -139,7 +139,7 @@ public sealed class SaveStateTracker
     public SaveMarks TakeMarks() => new(
         new Dictionary<ItemInstanceId, SaveMark>(_items),
         new Dictionary<(InventoryType Container, byte Slot), SaveMark>(_slots),
-        MoneyDirty ? _moneyVersion : null,
+        GoldDirty ? _goldVersion : null,
         StatsDirty ? _statsVersion : null,
         PvpDirty ? _pvpVersion : null,
         new Dictionary<uint, SaveMark>(_quests),
@@ -164,8 +164,8 @@ public sealed class SaveStateTracker
                 _slots.Remove(key);
         }
 
-        if (marks.MoneyVersion is { } version && MoneyDirty && _moneyVersion == version)
-            MoneyDirty = false;
+        if (marks.GoldVersion is { } version && GoldDirty && _goldVersion == version)
+            GoldDirty = false;
 
         if (marks.StatsVersion is { } statsVersion && StatsDirty && _statsVersion == statsVersion)
             StatsDirty = false;

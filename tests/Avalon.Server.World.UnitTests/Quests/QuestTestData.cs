@@ -83,7 +83,7 @@ internal static class QuestTestData
             LevelRequirement = level,
             RequiredQuestId = requires is { } r ? new QuestTemplateId(r) : null,
             RewardExperience = 50,
-            RewardMoney = 30,
+            RewardGold = 30,
             ScriptName = script,
         };
 

@@ -27,7 +27,7 @@ namespace Avalon.Server.World.UnitTests.ItemUse;
 /// <summary>The toolbox over one use: every member through the service that owns the change.</summary>
 public class ItemUseContextShould
 {
-    private readonly CharacterEntity _character = New(7, money: 50);
+    private readonly CharacterEntity _character = New(7, gold: 50);
     private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
     private readonly IItemUseHost _host = Substitute.For<IItemUseHost>();
     private readonly IRespawnTargetResolver _resolver = Substitute.For<IRespawnTargetResolver>();
@@ -116,17 +116,17 @@ public class ItemUseContextShould
     }
 
     [Fact]
-    public void Give_and_take_money_through_the_wallet_and_never_past_the_cap()
+    public void Give_and_take_gold_through_the_wallet_and_never_past_the_cap()
     {
         ItemUseContext ctx = Context();
 
-        Assert.True(ctx.TakeMoney(20));
-        Assert.False(ctx.TakeMoney(1000));
-        Assert.True(ctx.GiveMoney(5));
-        Assert.Equal(35ul, ctx.Money);
-        Assert.False(ctx.GiveMoney(new GameConfiguration().MaxMoney));
-        Assert.Equal(35ul, ctx.Money);
-        Assert.True(_character.SaveState.MoneyDirty);
+        Assert.True(ctx.TakeGold(20));
+        Assert.False(ctx.TakeGold(1000));
+        Assert.True(ctx.GiveGold(5));
+        Assert.Equal(35ul, ctx.Gold);
+        Assert.False(ctx.GiveGold(new GameConfiguration().MaxGold));
+        Assert.Equal(35ul, ctx.Gold);
+        Assert.True(_character.SaveState.GoldDirty);
     }
 
     [Fact]

@@ -62,7 +62,7 @@ public class QuestPacketsShould
         Assert.Equal("2a0141", Hex(new QuestObjectiveDto { Text = "A" }));
 
         Assert.Equal("0801", Hex(new QuestRewardsDto { Experience = 1 }));
-        Assert.Equal("1002", Hex(new QuestRewardsDto { Money = 2 }));
+        Assert.Equal("1002", Hex(new QuestRewardsDto { Gold = 2 }));
         Assert.Equal("1a02" + "0805", Hex(new QuestRewardsDto { Items = [new QuestRewardItemDto { ItemTemplateId = 5 }] }));
         Assert.Equal("2202" + "0805", Hex(new QuestRewardsDto { Choices = [new QuestRewardItemDto { ItemTemplateId = 5 }] }));
         Assert.Equal("0801", Hex(new QuestRewardItemDto { ItemTemplateId = 1 }));

@@ -39,7 +39,7 @@ public class BankDialogueShould
         SInventoryUpdatePacket bank = Assert.Single(w.Read<SInventoryUpdatePacket>(NetworkPacketType.SMSG_INVENTORY_UPDATE));
         Assert.Equal(30, bank.Slots.Length);
         Assert.Equal(7u, bank.Slots.Single(s => s.Slot == 2).Item!.Count);
-        Assert.Null(bank.Money);
+        Assert.Null(bank.Gold);
         // The option leads back to the root, so the conversation, and with it the bank, stays open.
         Assert.Equal(2, w.Read<SDialogueNodePacket>(NetworkPacketType.SMSG_DIALOGUE_NODE).Count);
         Assert.Empty(w.Read<SDialogueEndPacket>(NetworkPacketType.SMSG_DIALOGUE_END));

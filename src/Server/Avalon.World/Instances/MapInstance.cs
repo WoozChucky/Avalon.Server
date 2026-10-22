@@ -1331,7 +1331,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// A doodad's drops, on a kill's rules: its template's table and copper range rolled now, against the Loot and Items
+    /// A doodad's drops, on a kill's rules: its template's table and gold range rolled now, against the Loot and Items
     /// areas as they are, each drop allocated on its own among the user and the members of its party in this instance (a
     /// party member anywhere here, dead or alive; a character leaves its party, and so this, at the start of a leave
     /// countdown; a user in one makes nobody eligible, as a killer in one does), placed on the ring around the doodad and

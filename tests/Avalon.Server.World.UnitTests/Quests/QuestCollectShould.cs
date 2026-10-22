@@ -117,9 +117,9 @@ public class QuestCollectShould
         Assert.Contains((InventoryType.Bank, (byte)0), c.Character.ClientChanges.Slots);
     }
 
-    /// <summary>Review fix: a tick whose only changes were money and the Bank leaves every Collect count alone.</summary>
+    /// <summary>Review fix: a tick whose only changes were gold and the Bank leaves every Collect count alone.</summary>
     [Fact]
-    public async Task Recount_nothing_when_only_money_or_the_bank_changed()
+    public async Task Recount_nothing_when_only_gold_or_the_bank_changed()
     {
         (QuestTestWorld w, QuestClient c) = await WithTusksReadyToAcceptAsync();
         w.Accept(c, Tusks);
@@ -128,10 +128,10 @@ public class QuestCollectShould
         c.Character.Container(InventoryType.Bank).Load([TestCharacters.Item(0, TuskItem(), 1)]);
         c.Character.ClientChanges.Clear();
 
-        Assert.Equal(WalletResult.Ok, w.Economy.WalletOf(c.Character).TryAddMoney(5));
+        Assert.Equal(WalletResult.Ok, w.Economy.WalletOf(c.Character).TryAddGold(5));
         Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
             w.Economy.InventoryOf(c.Character).TryDestroy(new SlotRef(InventoryType.Bank, 0), 1, bankAccessible: true));
-        Assert.True(c.Character.ClientChanges.MoneyChanged);
+        Assert.True(c.Character.ClientChanges.GoldChanged);
         Assert.DoesNotContain(c.Character.ClientChanges.Slots, s => s.Container == InventoryType.Bag);
         Flush(w, c);
 
@@ -160,7 +160,7 @@ public class QuestCollectShould
         sellable.SellPrice = 5;
         c.Character.Container(InventoryType.Bag).Load([TestCharacters.Item(0, sellable, 1)]);
 
-        SellDecision decision = VendorRules.DecideSell(c.Character, shopOpen: true, bagSlot: 0, count: 1, _ => sellable, maxMoney: 1_000_000);
+        SellDecision decision = VendorRules.DecideSell(c.Character, shopOpen: true, bagSlot: 0, count: 1, _ => sellable, maxGold: 1_000_000);
 
         Assert.Equal(VendorResult.NotSellable, decision.Result);
     }

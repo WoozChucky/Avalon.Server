@@ -23,8 +23,8 @@ public enum LootPickupResult : byte
     /// <summary>A unique item the picker already has one of.</summary>
     UniqueAlreadyOwned = 5,
 
-    /// <summary>The pile would take the picker's balance past GameConfiguration.MaxMoney.</summary>
-    MoneyCapReached = 6,
+    /// <summary>The pile would take the picker's balance past GameConfiguration.MaxGold.</summary>
+    GoldCapReached = 6,
 
     /// <summary>The picker is stunned (#770): it picks nothing up until the stun ends.</summary>
     Stunned = 7,

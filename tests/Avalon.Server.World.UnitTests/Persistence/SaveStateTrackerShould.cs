@@ -5,7 +5,7 @@ using Avalon.World.Persistence;
 namespace Avalon.Server.World.UnitTests.Persistence;
 
 /// <summary>
-/// New, changed and removed state, for items and for the slots that place them, plus money's
+/// New, changed and removed state, for items and for the slots that place them, plus gold's
 /// dirty flag. What a save writes is decided here, and what it clears.
 /// </summary>
 public class SaveStateTrackerShould

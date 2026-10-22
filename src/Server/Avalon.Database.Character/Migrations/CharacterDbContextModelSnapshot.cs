@@ -79,6 +79,9 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<byte>("Gender")
                         .HasColumnType("smallint");
 
+                    b.Property<decimal>("Gold")
+                        .HasColumnType("numeric(20,0)");
+
                     b.Property<int>("Health")
                         .HasColumnType("integer");
 
@@ -102,9 +105,6 @@ namespace Avalon.Database.Character.Migrations
 
                     b.Property<int>("Map")
                         .HasColumnType("integer");
-
-                    b.Property<decimal>("Money")
-                        .HasColumnType("numeric(20,0)");
 
                     b.Property<string>("Name")
                         .IsRequired()

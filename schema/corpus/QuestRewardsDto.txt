@@ -17,21 +17,21 @@ message QuestRewardsDto
 
 variant absent
   field 1 Experience : uint = 0
-  field 2 Money : ulong = 0
+  field 2 Gold : ulong = 0
   field 3 Items : List<QuestRewardItemDto> = null
   field 4 Choices : List<QuestRewardItemDto> = null
   bytes 0
 
 variant empty
   field 1 Experience : uint = 0
-  field 2 Money : ulong = 0
+  field 2 Gold : ulong = 0
   field 3 Items : List<QuestRewardItemDto> = 0 elements
   field 4 Choices : List<QuestRewardItemDto> = 0 elements
   bytes 0
 
 variant populated
   field 1 Experience : uint = 300
-  field 2 Money : ulong = 65535
+  field 2 Gold : ulong = 4000000000
   field 3 Items : List<QuestRewardItemDto> = 2 elements
     element 0
       field 1 ItemTemplateId : ulong = 65535
@@ -46,14 +46,14 @@ variant populated
     element 1
       field 1 ItemTemplateId : ulong = 7
       field 2 Count : uint = 7
-  bytes 39
-    08 ac 02 10 ff ff 03 1a 08 08 ff ff 03 10 c0 84
-    3d 1a 04 08 07 10 07 22 08 08 ff ff 03 10 c0 84
-    3d 22 04 08 07 10 07
+  bytes 41
+    08 ac 02 10 80 d0 ac f3 0e 1a 08 08 ff ff 03 10
+    c0 84 3d 1a 04 08 07 10 07 22 08 08 ff ff 03 10
+    c0 84 3d 22 04 08 07 10 07
 
 variant maxima
   field 1 Experience : uint = 4294967295
-  field 2 Money : ulong = 18446744073709551615
+  field 2 Gold : ulong = 18446744073709551615
   field 3 Items : List<QuestRewardItemDto> = 3 elements
     element 0
       field 1 ItemTemplateId : ulong = 18446744073709551615
@@ -87,7 +87,7 @@ variant maxima
 
 variant minima
   field 1 Experience : uint = 0
-  field 2 Money : ulong = 0
+  field 2 Gold : ulong = 0
   field 3 Items : List<QuestRewardItemDto> = 1 element
     element 0
       field 1 ItemTemplateId : ulong = 0
@@ -101,7 +101,7 @@ variant minima
 
 variant varint-edges
   field 1 Experience : uint = 16383
-  field 2 Money : ulong = 2097151
+  field 2 Gold : ulong = 268435455
   field 3 Items : List<QuestRewardItemDto> = 2 elements
     element 0
       field 1 ItemTemplateId : ulong = 2097151
@@ -116,7 +116,7 @@ variant varint-edges
     element 1
       field 1 ItemTemplateId : ulong = 16384
       field 2 Count : uint = 268435455
-  bytes 47
-    08 ff 7f 10 ff ff 7f 1a 07 08 ff ff 7f 10 80 01
-    1a 09 08 80 80 01 10 ff ff ff 7f 22 07 08 ff ff
-    7f 10 80 01 22 09 08 80 80 01 10 ff ff ff 7f
+  bytes 48
+    08 ff 7f 10 ff ff ff 7f 1a 07 08 ff ff 7f 10 80
+    01 1a 09 08 80 80 01 10 ff ff ff 7f 22 07 08 ff
+    ff 7f 10 80 01 22 09 08 80 80 01 10 ff ff ff 7f

@@ -30,7 +30,7 @@ public class VendorStock
     /// <summary>Seconds from the first sale below MaxStock to the refill. Set exactly when MaxStock is.</summary>
     public uint? RestockSeconds { get; set; }
 
-    /// <summary>Copper per unit. Null means the item's BuyPrice.</summary>
+    /// <summary>Gold per unit. Null means the item's BuyPrice.</summary>
     public uint? PriceOverride { get; set; }
 
     /// <summary>A QuestTemplate id, met when QuestProgress says so (#433). No foreign key.</summary>

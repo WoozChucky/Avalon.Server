@@ -26,7 +26,7 @@ public sealed class CharacterConsolidationShould
                 AccountId = id <= 8 ? _source : _target,
                 Name = "Transfer" + (char)('a' + id),
                 CreationDate = _clock.GetUtcNow().UtcDateTime,
-                Money = id
+                Gold = id
             });
         }
 
@@ -78,14 +78,14 @@ public sealed class CharacterConsolidationShould
         Assert.True(await repository.PrepareAsync(_operation, _source, _target, CancellationToken.None));
         Assert.Equal("WAITING_FOR_SESSION", (await repository.TransferAsync(_operation, _source, _target, CancellationToken.None)).Error);
         CharacterRow row = (await new CharacterRepository(database).FindByIdAsync(new CharacterId(1)))!;
-        row.Money = 77;
+        row.Gold = 77;
         var saves = new CharacterSaveRepository(new DbTransactionRunner<CharacterDbContext>(database), _clock);
         var batch = new CharacterSaveBatch(row, [], [], [], []) { Authority = old };
         await saves.WriteAsync([batch]);
         Assert.True(await fences.EndAsync(old, CancellationToken.None));
         Assert.Null((await repository.TransferAsync(_operation, _source, _target, CancellationToken.None)).Error);
         await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => saves.WriteAsync([batch]));
-        Assert.Equal(77UL, (await new CharacterRepository(database).FindByIdAsync(row.Id))!.Money);
+        Assert.Equal(77UL, (await new CharacterRepository(database).FindByIdAsync(row.Id))!.Gold);
     }
     [Fact]
     public async Task Block_unfenced_character_mutations_during_consolidation_and_stale_ownership_updates_after_transfer()
@@ -108,7 +108,7 @@ public sealed class CharacterConsolidationShould
         }
         Assert.Null((await repository.TransferAsync(_operation, _source, _target, CancellationToken.None)).Error);
         Assert.True(await repository.ReleaseTargetAsync(_operation, _source, _target, CancellationToken.None));
-        old.Money = 999;
+        old.Gold = 999;
         await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => characters.UpdateAsync(old));
         Assert.Equal(_target, (await characters.FindByIdAsync(old.Id))!.AccountId);
     }

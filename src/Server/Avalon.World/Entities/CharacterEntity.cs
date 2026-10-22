@@ -241,7 +241,7 @@ public partial class CharacterEntity : ICharacter
     /// </summary>
     internal (ICharacterEconomy? Economy, IInventoryService? Service) EconomyInventory { get; set; }
 
-    /// <summary>Slots and money the client must be told about at the end of this tick.</summary>
+    /// <summary>Slots and gold the client must be told about at the end of this tick.</summary>
     public InventoryClientChanges ClientChanges { get; } = new();
 
     public ICharacterAbilities Spells { get; }

@@ -141,7 +141,7 @@ public class VendorPacketsShould
     [InlineData(VendorResult.InventoryFull, 7)]
     [InlineData(VendorResult.UniqueAlreadyOwned, 8)]
     [InlineData(VendorResult.NotSellable, 9)]
-    [InlineData(VendorResult.MoneyCapReached, 10)]
+    [InlineData(VendorResult.GoldCapReached, 10)]
     [InlineData(VendorResult.Dead, 11)]
     [InlineData(VendorResult.Damaged, 12)]
     public void Number_Every_Result_As_The_Spec_Lists_It(VendorResult result, byte value)

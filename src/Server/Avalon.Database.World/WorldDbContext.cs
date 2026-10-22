@@ -691,7 +691,7 @@ public class WorldDbContext : DbContext
                 EnderCreatureId = 1,
                 LevelRequirement = 1,
                 RewardExperience = 150,
-                RewardMoney = 100,
+                RewardGold = 100,
             },
             new QuestTemplate
             {
@@ -704,7 +704,7 @@ public class WorldDbContext : DbContext
                 LevelRequirement = 1,
                 RequiredQuestId = 1,
                 RewardExperience = 250,
-                RewardMoney = 150,
+                RewardGold = 150,
             },
             new QuestTemplate
             {
@@ -717,7 +717,7 @@ public class WorldDbContext : DbContext
                 LevelRequirement = 2,
                 RequiredQuestId = 2,
                 RewardExperience = 600,
-                RewardMoney = 400,
+                RewardGold = 400,
             });
 
         // The second chain (forest content pass): 4 → 5 → 6 → 7 → 8, beside 1 → 2 → 3. Numbers are first drafts for
@@ -733,7 +733,7 @@ public class WorldDbContext : DbContext
                 EnderCreatureId = 14,
                 LevelRequirement = 2,
                 RewardExperience = 300,
-                RewardMoney = 200,
+                RewardGold = 200,
             },
             new QuestTemplate
             {
@@ -746,7 +746,7 @@ public class WorldDbContext : DbContext
                 LevelRequirement = 3,
                 RequiredQuestId = 4,
                 RewardExperience = 400,
-                RewardMoney = 250,
+                RewardGold = 250,
             },
             new QuestTemplate
             {
@@ -759,7 +759,7 @@ public class WorldDbContext : DbContext
                 LevelRequirement = 4,
                 RequiredQuestId = 5,
                 RewardExperience = 500,
-                RewardMoney = 300,
+                RewardGold = 300,
             },
             new QuestTemplate
             {
@@ -772,7 +772,7 @@ public class WorldDbContext : DbContext
                 LevelRequirement = 5,
                 RequiredQuestId = 6,
                 RewardExperience = 700,
-                RewardMoney = 400,
+                RewardGold = 400,
             },
             new QuestTemplate
             {
@@ -785,7 +785,7 @@ public class WorldDbContext : DbContext
                 LevelRequirement = 7,
                 RequiredQuestId = 7,
                 RewardExperience = 1500,
-                RewardMoney = 1000,
+                RewardGold = 1000,
             });
 
         // "The Lost Caravan" (doodads S3): Marta's sequel to quest 6, the strongbox, the notice board, then Marta again.
@@ -802,7 +802,7 @@ public class WorldDbContext : DbContext
                 LevelRequirement = 4,
                 RequiredQuestId = 6,
                 RewardExperience = 600,
-                RewardMoney = 350,
+                RewardGold = 350,
             });
 
         // "Boar Cull" (#710): Hilde's daily. Numbers are first drafts for the balance tool.
@@ -819,7 +819,7 @@ public class WorldDbContext : DbContext
                 IsRepeatable = true,
                 RepeatFrequency = QuestRepeatFrequency.Daily,
                 RewardExperience = 800,
-                RewardMoney = 500,
+                RewardGold = 500,
             });
 
         // "Earn It Fancy" (#711): Hilde's sequel to quest 5, paid in a chest piece of the player's choosing (its
@@ -836,7 +836,7 @@ public class WorldDbContext : DbContext
                 LevelRequirement = 4,
                 RequiredQuestId = 5,
                 RewardExperience = 550,
-                RewardMoney = 325,
+                RewardGold = 325,
             });
     }
 

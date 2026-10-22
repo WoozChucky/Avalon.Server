@@ -48,15 +48,15 @@ public interface IItemUseContext
     /// <summary>Marks <paramref name="count" /> of the used stack spent; taken once OnUse returns. Throws for 0 or past the stack.</summary>
     void Consume(uint count = 1);
 
-    // Inventory and money.
+    // Inventory and gold.
     bool HasBagRoom(ItemTemplateId item, uint count);
     bool GiveItem(ItemTemplateId item, uint count);
     bool TakeItem(ItemTemplateId item, uint count);
-    ulong Money { get; }
+    ulong Gold { get; }
 
-    /// <summary>False, changing nothing, past Game:MaxMoney.</summary>
-    bool GiveMoney(ulong copper);
-    bool TakeMoney(ulong copper);
+    /// <summary>False, changing nothing, past Game:MaxGold.</summary>
+    bool GiveGold(ulong gold);
+    bool TakeGold(ulong gold);
 
     // Health, power and damage.
 

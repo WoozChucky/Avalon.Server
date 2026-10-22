@@ -24,16 +24,16 @@ public class SInventorySnapshotPacket : Packet
     [ProtoMember(1)] public ItemSlotDto[] Items { get; set; }
 
     /// <summary>
-    /// The character's gold in copper (Character.Money). The next free field, so a client that
+    /// The character's gold (Character.Gold). The next free field, so a client that
     /// predates it reads the rest of the packet unchanged.
     /// </summary>
-    [ProtoMember(2)] public ulong Money { get; set; }
+    [ProtoMember(2)] public ulong Gold { get; set; }
 
-    public static OutboundPacket Create(ItemSlotDto[] items, ulong money, PacketEncoder encoder)
+    public static OutboundPacket Create(ItemSlotDto[] items, ulong gold, PacketEncoder encoder)
     {
         SInventorySnapshotPacket message = PacketEncoder.Scratch<SInventorySnapshotPacket>();
         message.Items = items;
-        message.Money = money;
+        message.Gold = gold;
         return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 }

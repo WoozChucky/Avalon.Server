@@ -25,13 +25,13 @@ public class LootPickupShould
 
     private readonly GroundLootStore _store = new();
     private readonly CharacterEntity _picker = New(id: 7);
-    private ulong _maxMoney = 1_000;
+    private ulong _maxGold = 1_000;
 
     private ICharacterEconomy Economy()
     {
         ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
         economy.InventoryOf(Arg.Any<CharacterEntity>()).Returns(ci => InventoryFor(ci.Arg<CharacterEntity>()));
-        economy.WalletOf(Arg.Any<CharacterEntity>()).Returns(ci => new CharacterWallet(ci.Arg<CharacterEntity>(), _maxMoney));
+        economy.WalletOf(Arg.Any<CharacterEntity>()).Returns(ci => new CharacterWallet(ci.Arg<CharacterEntity>(), _maxGold));
         return economy;
     }
 
@@ -74,9 +74,9 @@ public class LootPickupShould
         Assert.Equal(LootPickupResult.Ok, PickUp().Result);
 
         Assert.Equal(0, _store.Count);
-        Assert.Equal(25UL, _picker.Data!.Money);
-        Assert.True(_picker.SaveState.MoneyDirty);
-        Assert.True(_picker.ClientChanges.MoneyChanged);
+        Assert.Equal(25UL, _picker.Data!.Gold);
+        Assert.True(_picker.SaveState.GoldDirty);
+        Assert.True(_picker.ClientChanges.GoldChanged);
     }
 
     /// <summary>A drop is looked up only in the character's own instance, and nowhere when it has none.</summary>
@@ -121,7 +121,7 @@ public class LootPickupShould
     [Theory]
     [InlineData(LootPickupResult.InventoryFull)]
     [InlineData(LootPickupResult.UniqueAlreadyOwned)]
-    [InlineData(LootPickupResult.MoneyCapReached)]
+    [InlineData(LootPickupResult.GoldCapReached)]
     public void Answer_A_Refusal_And_Leave_The_Drop(LootPickupResult refusal)
     {
         switch (refusal)
@@ -135,14 +135,14 @@ public class LootPickupShould
                 Drop(item: Relic.Id);
                 break;
             default:
-                _maxMoney = 10;
+                _maxGold = 10;
                 Drop(gold: 25);
                 break;
         }
 
         Assert.Equal(new LootPickupOutcome(refusal, Removed: false), PickUp());
         Assert.Equal(1, _store.Count);
-        Assert.Equal(0UL, _picker.Data!.Money);
+        Assert.Equal(0UL, _picker.Data!.Gold);
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class LootPickupShould
 
         Assert.Equal(new LootPickupOutcome(LootPickupResult.TooFar, Removed: false), PickUp());
         Assert.Equal(1, _store.Count);
-        Assert.Equal(0UL, _picker.Data!.Money);
+        Assert.Equal(0UL, _picker.Data!.Gold);
     }
 
     [Fact]

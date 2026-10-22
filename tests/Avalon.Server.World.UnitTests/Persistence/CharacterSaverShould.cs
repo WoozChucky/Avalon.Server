@@ -57,13 +57,13 @@ public sealed class CharacterSaverShould : IDisposable
         CharacterEntity character = await SeedAsync(7, stored: [potion, sword], held: [potion, sword with { Durability = 99 }]);
 
         InventoryFor(character).TryAdd(Potion.Id, 3);
-        new CharacterWallet(character, ulong.MaxValue).TryAddMoney(250);
+        new CharacterWallet(character, ulong.MaxValue).TryAddGold(250);
         Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
         await PumpAsync();
 
         Assert.Equal(8u, (await StoredItemAsync(potion.InstanceId))!.Count);
         Assert.Equal(50u, (await StoredItemAsync(sword.InstanceId))!.Durability);   // Unchanged: not written
-        Assert.Equal(250UL, (await StoredRowAsync(7)).Money);
+        Assert.Equal(250UL, (await StoredRowAsync(7)).Gold);
     }
 
     [Fact]
@@ -110,23 +110,23 @@ public sealed class CharacterSaverShould : IDisposable
         var wallet = new CharacterWallet(character, ulong.MaxValue);
 
         InventoryFor(character).TryAdd(Potion.Id, 3);   // 8, in the snapshot
-        wallet.TryAddMoney(10);                         // 10, in the snapshot
+        wallet.TryAddGold(10);                         // 10, in the snapshot
         Task<bool> first = saver.Save(_connection, character);
         InventoryFor(character).TryAdd(Potion.Id, 2);   // 10, after the snapshot
-        wallet.TryAddMoney(5);                          // 15, after the snapshot
+        wallet.TryAddGold(5);                          // 15, after the snapshot
         gated.Open();
         Assert.True(await first.WaitAsync(s_limit));
         await PumpAsync();
 
         Assert.Equal(8u, (await StoredItemAsync(potion.InstanceId))!.Count);
-        Assert.Equal(10UL, (await StoredRowAsync(7)).Money);
+        Assert.Equal(10UL, (await StoredRowAsync(7)).Gold);
         Assert.Equal(SaveState.Changed, character.SaveState.ItemState(potion.InstanceId));
-        Assert.True(character.SaveState.MoneyDirty);
+        Assert.True(character.SaveState.GoldDirty);
 
         Assert.True(await saver.Save(_connection, character).WaitAsync(s_limit));
         await PumpAsync();
         Assert.Equal(10u, (await StoredItemAsync(potion.InstanceId))!.Count);
-        Assert.Equal(15UL, (await StoredRowAsync(7)).Money);
+        Assert.Equal(15UL, (await StoredRowAsync(7)).Gold);
         Assert.False(character.SaveState.HasChanges);
     }
 
@@ -268,15 +268,15 @@ public sealed class CharacterSaverShould : IDisposable
     {
         CharacterEntity saved = await SeedAsync(7);
         CharacterEntity neverStored = New(8);
-        new CharacterWallet(saved, ulong.MaxValue).TryAddMoney(100);
+        new CharacterWallet(saved, ulong.MaxValue).TryAddGold(100);
         InventoryFor(saved).TryAdd(Potion.Id, 1);
 
         Assert.False(await Saver().Save([(_connection, saved), (_connection, neverStored)]).WaitAsync(s_limit));
         await PumpAsync();
 
-        Assert.Equal(0UL, (await StoredRowAsync(7)).Money);
+        Assert.Equal(0UL, (await StoredRowAsync(7)).Gold);
         Assert.Empty(await StoredSlotsAsync(7));
-        Assert.True(saved.SaveState.MoneyDirty);
+        Assert.True(saved.SaveState.GoldDirty);
     }
 
     /// <summary>

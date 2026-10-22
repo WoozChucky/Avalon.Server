@@ -36,7 +36,7 @@ public readonly record struct BuybackDecision(VendorResult Result, BuybackPlan? 
 public static class VendorRules
 {
     /// <summary>
-    /// Copper per unit: the row's override, or the item's BuyPrice, and never less than the item's
+    /// Gold per unit: the row's override, or the item's BuyPrice, and never less than the item's
     /// SellPrice. VendorCatalog refuses a row priced below SellPrice, but a later /reload items can
     /// raise a SellPrice without a vendor reload, so the floor is enforced here too: buying an item
     /// must never cost less than selling it back pays (#432).
@@ -131,7 +131,7 @@ public static class VendorRules
 
     /// <summary>
     /// Sell: alive; shop open; a Bag slot; an item there of a sellable template; not damaged; the
-    /// count; the money cap. Only the Bag is ever named, so nothing is sold from Equipment or the Bank.
+    /// count; the gold cap. Only the Bag is ever named, so nothing is sold from Equipment or the Bank.
     /// </summary>
     public static SellDecision DecideSell(
         CharacterEntity character,
@@ -139,7 +139,7 @@ public static class VendorRules
         byte bagSlot,
         uint? count,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
-        ulong maxMoney)
+        ulong maxGold)
     {
         if (character.IsDead)
             return new SellDecision(VendorResult.Dead, null);
@@ -166,11 +166,11 @@ public static class VendorRules
         if (selling == 0 || selling > item.Count)
             return new SellDecision(VendorResult.InvalidCount, null);
 
-        // Written as CharacterWallet.TryAddMoney refuses, so the apply cannot disagree.
+        // Written as CharacterWallet.TryAddGold refuses, so the apply cannot disagree.
         ulong payment = (ulong)template.SellPrice * selling;
         ulong balance = Balance(character);
-        if (balance >= maxMoney || payment > maxMoney - balance)
-            return new SellDecision(VendorResult.MoneyCapReached, null);
+        if (balance >= maxGold || payment > maxGold - balance)
+            return new SellDecision(VendorResult.GoldCapReached, null);
 
         return new SellDecision(VendorResult.Ok, new SellPlan((byte)bagSlot, selling, payment));
     }
@@ -217,7 +217,7 @@ public static class VendorRules
         return new BuybackDecision(VendorResult.Ok, new BuybackPlan(index, entry));
     }
 
-    private static ulong Balance(CharacterEntity character) => character.Data?.Money ?? 0;
+    private static ulong Balance(CharacterEntity character) => character.Data?.Gold ?? 0;
 
     private static long HeldIn(CharacterEntity character, InventoryType container, ItemTemplateId templateId) =>
         character.Container(container).Items.Where(i => i.TemplateId == templateId).Sum(i => (long)i.Count);

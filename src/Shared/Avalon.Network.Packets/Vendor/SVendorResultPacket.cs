@@ -37,7 +37,7 @@ public enum VendorResult : byte
     NotSellable = 9,
 
     /// <summary>The sale would take the balance past the configured maximum.</summary>
-    MoneyCapReached = 10,
+    GoldCapReached = 10,
 
     Dead = 11,
 

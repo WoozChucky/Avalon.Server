@@ -27,7 +27,7 @@ public interface IDoodadHost : IItemUseHost
     void DoodadChanged(Doodad doodad);
 
     /// <summary>
-    /// Rolls <paramref name="doodad" />'s loot table and copper range and drops them on the ring around it, as a kill
+    /// Rolls <paramref name="doodad" />'s loot table and gold range and drops them on the ring around it, as a kill
     /// drops: allocated by the instance's loot allocator among <paramref name="user" /> and the members of its party in
     /// this instance (nobody, as for a kill, when the user is in a party leave countdown), stored, and told to every
     /// connection here in one shared loot packet. Contained: a failure is logged and drops what was stored before it.

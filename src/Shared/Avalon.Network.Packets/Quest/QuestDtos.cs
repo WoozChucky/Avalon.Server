@@ -68,12 +68,12 @@ public class QuestRewardItemDto
     [ProtoMember(2)] public uint Count { get; set; }
 }
 
-/// <summary>Money is copper.</summary>
+/// <summary>A quest's rewards: experience, gold, the fixed items and the choice set.</summary>
 [ProtoContract]
 public class QuestRewardsDto
 {
     [ProtoMember(1)] public uint Experience { get; set; }
-    [ProtoMember(2)] public ulong Money { get; set; }
+    [ProtoMember(2)] public ulong Gold { get; set; }
     [ProtoMember(3)] public List<QuestRewardItemDto> Items { get; set; } = [];
 
     /// <summary>Pick exactly one at turn-in (#711); empty when the quest has none.</summary>

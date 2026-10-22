@@ -51,20 +51,20 @@ public class InventoryUpdateFlusherShould
         Assert.Equal((byte)0, slot.Slot);
         Assert.Equal(5u, slot.Item!.Count);
         Assert.Equal(Potion.Id.Value, slot.Item.ItemTemplateId);
-        Assert.Null(update.Money);
+        Assert.Null(update.Gold);
     }
 
     [Fact]
-    public void Include_money_only_when_it_changed()
+    public void Include_gold_only_when_it_changed()
     {
-        CharacterEntity character = New(money: 40);
+        CharacterEntity character = New(gold: 40);
         IWorldConnection connection = ConnectionFor(character);
 
-        new CharacterWallet(character, ulong.MaxValue).TryAddMoney(2);
+        new CharacterWallet(character, ulong.MaxValue).TryAddGold(2);
         InventoryUpdateFlusher.Flush(connection);
 
         SInventoryUpdatePacket update = Read(Assert.Single(_sent));
-        Assert.Equal(42UL, update.Money);
+        Assert.Equal(42UL, update.Gold);
         Assert.Empty(update.Slots ?? []);   // protobuf-net sends an empty repeated field as null
     }
 
@@ -72,13 +72,13 @@ public class InventoryUpdateFlusherShould
     [Fact]
     public void Send_a_balance_spent_to_zero_as_present()
     {
-        CharacterEntity character = New(money: 40);
+        CharacterEntity character = New(gold: 40);
         IWorldConnection connection = ConnectionFor(character);
 
         new CharacterWallet(character, ulong.MaxValue).TrySpend(40);
         InventoryUpdateFlusher.Flush(connection);
 
-        Assert.Equal(0UL, Read(Assert.Single(_sent)).Money);
+        Assert.Equal(0UL, Read(Assert.Single(_sent)).Gold);
     }
 
     [Fact]

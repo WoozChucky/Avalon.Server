@@ -388,7 +388,7 @@ public class MapInstanceLootShould
 
     /// <summary>
     /// #735: a killer at the maximum level (here the only level with a row, 1) gains no experience from the kill, but
-    /// the kill still takes effect and drops its sword and its copper pile.
+    /// the kill still takes effect and drops its sword and its gold pile.
     /// </summary>
     [Fact]
     public async Task Still_drop_a_kills_loot_for_a_killer_at_the_level_cap()

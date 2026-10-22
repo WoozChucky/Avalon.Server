@@ -45,7 +45,7 @@ using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 namespace Avalon.Server.World.UnitTests.Characters;
 
 /// <summary>
-/// One character, one live copy. Two copies of a character each hold their own inventory and money
+/// One character, one live copy. Two copies of a character each hold their own inventory and gold
 /// in memory, and whichever saves last writes its copy over the other: an item sold by one comes
 /// back through the other, and once items can change hands the same thing duplicates them. The
 /// world server knows which connection still holds each character in memory and must wait for

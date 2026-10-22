@@ -17,7 +17,7 @@ public sealed class PublicItemDto
     /// <summary>Empty when every class may use it.</summary>
     public List<CharacterClass> AllowedClasses { get; set; } = [];
     public uint MaxStackSize { get; set; }
-    /// <summary>In copper.</summary>
+    /// <summary>Gold.</summary>
     public uint SellPrice { get; set; }
     public bool CannotBeSold { get; set; }
     public ItemAttunement Attunes { get; set; }

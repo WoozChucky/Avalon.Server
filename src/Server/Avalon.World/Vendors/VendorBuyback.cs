@@ -5,7 +5,7 @@ namespace Avalon.World.Vendors;
 
 /// <summary>
 /// One sale that can be undone: the exact instance sold (same id, count, durability, flags,
-/// charges), and the copper it sold for, which is the price to buy it back.
+/// charges), and the gold it sold for, which is the price to buy it back.
 /// </summary>
 public sealed record BuybackEntry(InventoryItem Item, ulong Price);
 

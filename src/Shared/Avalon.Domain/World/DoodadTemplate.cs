@@ -115,7 +115,7 @@ public class DoodadTemplate : IDbEntity<DoodadTemplateId>
     /// <summary>What it drops on use, or null.</summary>
     public LootTableId? LootTableId { get; set; }
 
-    /// <summary>Copper dropped on use, rolled from MinGold to MaxGold; both 0 drops none.</summary>
+    /// <summary>Gold dropped on use, rolled from MinGold to MaxGold; both 0 drops none.</summary>
     public int MinGold { get; set; }
 
     public int MaxGold { get; set; }

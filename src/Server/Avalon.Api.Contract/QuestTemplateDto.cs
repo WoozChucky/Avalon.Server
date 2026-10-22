@@ -41,8 +41,8 @@ public sealed class QuestTemplateDto
 
     public uint RewardExperience { get; set; }
 
-    /// <summary>Copper.</summary>
-    public ulong RewardMoney { get; set; }
+    /// <summary>Gold.</summary>
+    public ulong RewardGold { get; set; }
 
     /// <summary>Whether the quest can be done again after it is turned in (#710).</summary>
     public bool IsRepeatable { get; set; }

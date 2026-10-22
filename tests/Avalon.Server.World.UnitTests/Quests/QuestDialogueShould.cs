@@ -89,7 +89,7 @@ public class QuestDialogueShould
         QuestObjectiveDto objective = Assert.Single(Assert.Single(offer.Quest.Stages).Objectives);
         Assert.Equal((HuntKill, QuestObjectiveKind.Kill, Boar, 2u, "Things done"),
             (objective.ObjectiveId, objective.Kind, objective.TargetId, objective.Count, objective.Text));
-        Assert.Equal((50u, 30ul), (offer.Quest.Rewards!.Experience, offer.Quest.Rewards.Money));
+        Assert.Equal((50u, 30ul), (offer.Quest.Rewards!.Experience, offer.Quest.Rewards.Gold));
         Assert.Equal([(Charm, 1u), (Blade, 1u)], offer.Quest.Rewards.Choices.Select(r => (r.ItemTemplateId, r.Count)));
         Assert.Empty(offer.Quest.Rewards.Items);
         Assert.Equal((giver.Guid, new Avalon.Common.ValueObjects.DialogueNodeId(QuestTestWorld.GiverRoot)), c.Connection.CurrentDialogue);

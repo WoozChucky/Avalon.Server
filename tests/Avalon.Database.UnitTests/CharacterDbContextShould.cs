@@ -22,23 +22,23 @@ namespace Avalon.Database.UnitTests;
 public class CharacterDbContextShould
 {
     [Fact]
-    public async Task Round_trip_a_characters_money()
+    public async Task Round_trip_a_characters_gold()
     {
         using var database = SqliteDatabase.Characters();
         await using (CharacterDbContext write = database.CreateDbContext())
         {
-            write.Characters.Add(NewCharacter(money: 12_345_678_901UL));
+            write.Characters.Add(NewCharacter(gold: 12_345_678_901UL));
             await write.SaveChangesAsync();
         }
 
         await using CharacterDbContext read = database.CreateDbContext();
-        Assert.Equal(12_345_678_901UL, (await read.Characters.AsNoTracking().SingleAsync()).Money);
+        Assert.Equal(12_345_678_901UL, (await read.Characters.AsNoTracking().SingleAsync()).Gold);
     }
 
     [Fact]
-    public async Task Start_a_character_with_no_money()
+    public async Task Start_a_character_with_no_gold()
     {
-        Assert.Equal(0UL, new CharacterRow().Money);
+        Assert.Equal(0UL, new CharacterRow().Gold);
 
         using var database = SqliteDatabase.Characters();
         await using (CharacterDbContext write = database.CreateDbContext())
@@ -48,7 +48,7 @@ public class CharacterDbContextShould
         }
 
         await using CharacterDbContext read = database.CreateDbContext();
-        Assert.Equal(0UL, (await read.Characters.AsNoTracking().SingleAsync()).Money);
+        Assert.Equal(0UL, (await read.Characters.AsNoTracking().SingleAsync()).Gold);
     }
 
     [Fact]
@@ -262,12 +262,12 @@ public class CharacterDbContextShould
         return database;
     }
 
-    private static CharacterRow NewCharacter(ulong money = 0) => new()
+    private static CharacterRow NewCharacter(ulong gold = 0) => new()
     {
         AccountId = new AccountId(1),
         Name = "Probe",
         Class = CharacterClass.Warrior,
-        Money = money,
+        Gold = gold,
         CreationDate = DateTime.UtcNow,
     };
 }

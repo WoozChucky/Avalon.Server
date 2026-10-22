@@ -135,7 +135,7 @@ public class DeSpawnDuringReadinessBarrierShould
     /// <summary>
     /// Finding the respawn town reads the World database, and the save writes the Character
     /// database. A World database failure must cost the town move, not the save: the character's
-    /// items, money and offline flag still commit, at town 1's default spawn.
+    /// items, gold and offline flag still commit, at town 1's default spawn.
     /// </summary>
     [Fact]
     public async Task Still_save_a_dead_logout_when_the_respawn_town_cannot_be_found()
@@ -156,7 +156,7 @@ public class DeSpawnDuringReadinessBarrierShould
         Assert.Equal(Avalon.Server.World.UnitTests.Inventory.TestCharacters.Potion.Id,
             Assert.Single(batch.UpsertItems).TemplateId);
         Assert.Single(batch.UpsertSlots);
-        Assert.Equal(500UL, batch.Row.Money);
+        Assert.Equal(500UL, batch.Row.Gold);
         Assert.False(batch.Row.Online);
         Assert.Equal(100, batch.Row.Health);
         Assert.Equal((ushort)1, batch.Row.Map);
@@ -170,7 +170,7 @@ public class DeSpawnDuringReadinessBarrierShould
         CharacterSaveBatch batch = await DeadLogoutWithBrokenTownLookupAsync([]);
 
         Assert.Single(batch.UpsertItems);
-        Assert.Equal(500UL, batch.Row.Money);
+        Assert.Equal(500UL, batch.Row.Gold);
         Assert.False(batch.Row.Online);
         Assert.Equal((ushort)2, batch.Row.Map);
         Assert.Equal((5f, 6f, 7f), (batch.Row.X, batch.Row.Y, batch.Row.Z));
@@ -202,7 +202,7 @@ public class DeSpawnDuringReadinessBarrierShould
             Map = 2,
             Health = 100,
             Online = true,
-            Money = 500,
+            Gold = 500,
         };
         var entity = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration())
         {

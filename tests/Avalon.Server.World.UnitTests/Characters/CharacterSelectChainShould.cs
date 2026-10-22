@@ -304,7 +304,7 @@ public class CharacterSelectChainShould : IDisposable
 
     /// <summary>
     /// A relog must not read the character before the previous session's despawn save commits, or
-    /// the new session loads the inventory and money as they were before that save.
+    /// the new session loads the inventory and gold as they were before that save.
     /// </summary>
     [Fact]
     public async Task Read_the_character_only_once_its_despawn_save_has_committed()
@@ -346,7 +346,7 @@ public class CharacterSelectChainShould : IDisposable
     /// <summary>
     /// A save that never finishes must not strand the select, and must not be read around either:
     /// the row and slots it reads would be the ones from before that save, the save would then
-    /// commit, and the new session's first save would write the stale money and slots back over it.
+    /// commit, and the new session's first save would write the stale gold and slots back over it.
     /// Past the limit the select fails without reading anything, and the client can try again.
     /// </summary>
     [Fact]

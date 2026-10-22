@@ -492,7 +492,7 @@ public class World : IWorld
         ulong played = (ulong)(entity.Clock.GetUtcNow().UtcDateTime - entity.EnteredWorld).TotalSeconds;
         dbCharacter.LevelTime += played;
         dbCharacter.TotalTime += played;
-        // Memory is authoritative (spec #459 D3): the row, the money and every dirty item and slot
+        // Memory is authoritative (spec #459 D3): the row, the gold and every dirty item and slot
         // go in one transaction, queued behind any save of this character still in flight.
         return characterSaver.SaveOnDespawnAsync(entity, prepareRow, CancellationToken.None);
     }
@@ -666,7 +666,7 @@ public class World : IWorld
     /// <remarks>
     /// Never throws for a failed lookup. The lookup reads the World database and the save writes the
     /// Character database; a throw here would fail the whole save and lose the character's items,
-    /// money and offline flag with it. On failure the row goes to town 1's default spawn, or, when
+    /// gold and offline flag with it. On failure the row goes to town 1's default spawn, or, when
     /// town 1 is not a known template either, stays at the map and position it died at. A cancelled
     /// save still cancels.
     /// </remarks>

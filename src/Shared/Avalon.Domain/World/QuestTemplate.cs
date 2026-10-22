@@ -42,8 +42,8 @@ public class QuestTemplate
     /// <summary>Personal: no party split, no level gap, no map band.</summary>
     public uint RewardExperience { get; set; }
 
-    /// <summary>Copper.</summary>
-    public ulong RewardMoney { get; set; }
+    /// <summary>Gold.</summary>
+    public ulong RewardGold { get; set; }
 
     /// <summary>A QuestScript type name, or null for a quest that is data only.</summary>
     public string? ScriptName { get; set; }

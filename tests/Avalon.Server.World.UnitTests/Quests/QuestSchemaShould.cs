@@ -29,7 +29,7 @@ public sealed class QuestSchemaShould : IDisposable
         EnderCreatureId = 1,
         LevelRequirement = 1,
         RewardExperience = 10,
-        RewardMoney = 5,
+        RewardGold = 5,
         Stages = [new QuestStage { QuestId = id, Sequence = 0 }],
     };
 

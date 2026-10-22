@@ -275,8 +275,8 @@ public sealed class QuestService(
     /// <summary>
     /// CMSG_QUEST_TURN_IN (#433), all or nothing: an open conversation with the quest's ender inside the leash, the
     /// quest held, the bag recounted as it is now, then QuestTurnInRules (ready, the pick, the reward templates, the
-    /// bag, the money). Only then do the quest items leave, and experience (personal: no party split, no level gap, no
-    /// map band), money and items, the fixed ones and the one picked from the choice set (#711; 0 is no pick), are paid.
+    /// bag, the gold). Only then do the quest items leave, and experience (personal: no party split, no level gap, no
+    /// map band), gold and items, the fixed ones and the one picked from the choice set (#711; 0 is no pick), are paid.
     /// </summary>
     public QuestResult TurnIn(IWorldConnection connection, CharacterEntity character, uint questId, ulong npcGuid,
         ulong choiceItemTemplateId = 0)
@@ -298,7 +298,7 @@ public sealed class QuestService(
         Recount(character, quest, active);
 
         QuestResult decision = QuestTurnInRules.Decide(character, quest, active, choiceItemTemplateId, FindTemplate,
-            world.Configuration.MaxMoney, out IReadOnlyList<(ItemTemplate Template, uint Count)> rewards);
+            world.Configuration.MaxGold, out IReadOnlyList<(ItemTemplate Template, uint Count)> rewards);
         if (decision == QuestResult.Error)
             LogUnpayableRewards(quest, choiceItemTemplateId);
         if (decision != QuestResult.Ok)
@@ -307,8 +307,8 @@ public sealed class QuestService(
         RemoveQuestItems(character, quest);
         ExperienceAward.Grant(character, quest.RewardExperience, world.Data, parties, logger);
 
-        if (quest.RewardMoney > 0 && economy.WalletOf(character).TryAddMoney(quest.RewardMoney) != WalletResult.Ok)
-            logger.LogError("Quest {QuestId} money was refused after its checks passed for character {CharacterId}", questId, character.Guid.Id);
+        if (quest.RewardGold > 0 && economy.WalletOf(character).TryAddGold(quest.RewardGold) != WalletResult.Ok)
+            logger.LogError("Quest {QuestId} gold was refused after its checks passed for character {CharacterId}", questId, character.Guid.Id);
 
         IInventoryService inventory = economy.InventoryOf(character);
         foreach ((ItemTemplate template, uint count) in rewards)

@@ -31,13 +31,13 @@ public static class InventoryUpdateFlusher
         // that Bank slots never reach a client without an open bank still holds.
         InventorySlotUpdateDto[] slots = SlotsToSend(changes, character, BankAccess.IsOpen(connection, character));
 
-        ulong? money = changes.MoneyChanged ? row.Money : null;
+        ulong? gold = changes.GoldChanged ? row.Gold : null;
         changes.Clear();
 
-        if (slots.Length == 0 && money is null)
+        if (slots.Length == 0 && gold is null)
             return;
 
-        connection.Send(SInventoryUpdatePacket.Create(slots, money, PacketEncoder.Shared));
+        connection.Send(SInventoryUpdatePacket.Create(slots, gold, PacketEncoder.Shared));
     }
 
     /// <summary>

@@ -61,7 +61,7 @@ public interface ICharacterSaver
 }
 
 /// <summary>
-/// The one path a character's inventory, money and row reach the database. Saves are chained per
+/// The one path a character's inventory, gold and row reach the database. Saves are chained per
 /// <see cref="CharacterId" />, not per entity: a relog builds a new entity for the same character,
 /// and its saves must still queue behind the old entity's despawn save.
 /// </summary>

@@ -42,7 +42,7 @@ public sealed class VendorSaveRoundTripShould : IDisposable
     /// <summary>A character whose row and items are already in the database, loaded as select would.</summary>
     private async Task<CharacterEntity> LoadedWithAsync(params InventoryItem[] items)
     {
-        CharacterEntity character = TestCharacters.New(id: 1, money: 100);
+        CharacterEntity character = TestCharacters.New(id: 1, gold: 100);
         await using (CharacterDbContext context = _database.CreateDbContext())
         {
             context.Characters.Add(character.Data!);
@@ -173,7 +173,7 @@ public sealed class VendorSaveRoundTripShould : IDisposable
         // The slot row survived, still naming the same instance.
         Assert.Equal(blade.InstanceId, Assert.Single(await SlotsAsync()).ItemId);
         Assert.Equal(42u, Assert.Single(await ItemsAsync()).Durability);
-        Assert.Equal(100UL, character.Data!.Money);
+        Assert.Equal(100UL, character.Data!.Gold);
     }
 
     [Fact]

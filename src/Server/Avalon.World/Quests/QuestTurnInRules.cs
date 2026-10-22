@@ -13,13 +13,13 @@ namespace Avalon.World.Quests;
 /// Whether a turn-in can go ahead, changing nothing (#433): ready; the last stage's Collect items all in the bag; the
 /// pick one of the quest's choice set, or none for a quest without one (#711); every reward template, fixed and
 /// picked, known and not Unique; the fixed rewards and the pick fit the bag as it will be once every quest item has
-/// left it; the money under the cap. Everything after it is ordered so nothing can refuse, as VendorRules is for a
+/// left it; the gold under the cap. Everything after it is ordered so nothing can refuse, as VendorRules is for a
 /// trade.
 /// </summary>
 public static class QuestTurnInRules
 {
     public static QuestResult Decide(CharacterEntity character, QuestView quest, ActiveQuest active, ulong choiceItemTemplateId,
-        Func<ItemTemplateId, ItemTemplate?> findTemplate, ulong maxMoney, out IReadOnlyList<(ItemTemplate Template, uint Count)> rewards)
+        Func<ItemTemplateId, ItemTemplate?> findTemplate, ulong maxGold, out IReadOnlyList<(ItemTemplate Template, uint Count)> rewards)
     {
         List<(ItemTemplate Template, uint Count)> paid = [];
         rewards = paid;
@@ -75,9 +75,9 @@ public static class QuestTurnInRules
         if (!Fits(bagAfter, bag.Capacity, rewards))
             return QuestResult.BagFull;
 
-        ulong balance = character.Data?.Money ?? 0;
-        if (quest.RewardMoney > maxMoney || balance > maxMoney - quest.RewardMoney)
-            return QuestResult.MoneyCap;
+        ulong balance = character.Data?.Gold ?? 0;
+        if (quest.RewardGold > maxGold || balance > maxGold - quest.RewardGold)
+            return QuestResult.GoldCap;
 
         return QuestResult.Ok;
     }
