@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Combat;
 
 namespace Avalon.Domain.World;
 
@@ -132,14 +133,6 @@ public enum StatType
     Power,
     AttackSpeed,
     MovementSpeed,
-}
-
-public enum DamageType
-{
-    Physical,
-    Poison,
-    Fire,
-    Lightning,
 }
 
 [Flags]

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 using Avalon.Exporter;
 
 namespace Avalon.Server.World.UnitTests.Entities;

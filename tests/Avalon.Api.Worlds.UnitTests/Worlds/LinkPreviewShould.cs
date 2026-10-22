@@ -17,6 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
+using DamageType = Avalon.Network.Packets.Combat.DamageType;
 using ItemRarity = Avalon.Domain.World.ItemRarity;
 using ItemSlotType = Avalon.Domain.World.ItemSlotType;
 using ItemSubClass = Avalon.Domain.World.ItemSubClass;
@@ -111,7 +112,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
             DamageType1 = DamageType.Lightning,
             DamageMin2 = 100000,
             DamageMax2 = 200000,
-            DamageType2 = DamageType.Poison,
+            DamageType2 = DamageType.Blight,
         });
 
         _abilities.FindByIdAsync(new AbilityId(210), Arg.Any<bool>(), Arg.Any<CancellationToken>())

@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Avalon.Common;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 
 namespace Avalon.Exporter;
 

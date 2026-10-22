@@ -427,16 +427,20 @@
         "value": 0
       },
       {
-        "name": "Poison",
+        "name": "Fire",
         "value": 1
       },
       {
-        "name": "Fire",
+        "name": "Cold",
         "value": 2
       },
       {
         "name": "Lightning",
         "value": 3
+      },
+      {
+        "name": "Blight",
+        "value": 4
       }
     ],
     "StatType": [

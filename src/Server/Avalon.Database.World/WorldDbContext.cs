@@ -5,6 +5,7 @@ using Avalon.Configuration;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;

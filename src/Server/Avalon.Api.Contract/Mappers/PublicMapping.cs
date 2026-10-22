@@ -54,7 +54,7 @@ public static class PublicMapping
 
     private static IEnumerable<PublicItemDamageDto> DamageOf(ItemTemplate t)
     {
-        foreach ((uint? min, uint? max, Avalon.Domain.World.DamageType? type) in new[]
+        foreach ((uint? min, uint? max, Avalon.Network.Packets.Combat.DamageType? type) in new[]
                  {
                      (t.DamageMin1, t.DamageMax1, t.DamageType1),
                      (t.DamageMin2, t.DamageMax2, t.DamageType2),
