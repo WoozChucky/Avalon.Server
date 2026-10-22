@@ -17,8 +17,8 @@ using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 namespace Avalon.Server.World.UnitTests.Quests;
 
 /// <summary>
-/// Turn-in (#433) is all or nothing: every check first (ready, items held, room, money cap), then the quest items
-/// leave, then experience, money and items are paid and the quest is completed.
+/// Turn-in (#433) is all or nothing: every check first (ready, items held, the pick, reward templates, room, money
+/// cap), then the quest items leave, then experience, money and items are paid and the quest is completed.
 /// </summary>
 public class QuestTurnInShould
 {
@@ -189,16 +189,28 @@ public class QuestTurnInShould
         Assert.True(c.Character.Quests.IsActive(Tusks));
     }
 
-    public static TheoryData<string, bool, ulong, bool, bool, QuestResult> Picks => new()
+    /// <summary>The room the bag has once the tusks leave it.</summary>
+    public enum BagRoom
     {
-        // case, offers a choice set, pick, bag filled, pick made Unique by a reload, answer
-        { "a pick from the set", true, Charm, false, false, QuestResult.Ok },
-        { "no pick", true, 0, false, false, QuestResult.InvalidChoice },
-        { "a fixed reward as the pick", true, Tonic, false, false, QuestResult.InvalidChoice },     // Review Focus 1
-        { "a pick on a quest with no choice set", false, Charm, false, false, QuestResult.InvalidChoice },
-        { "a bad pick with a full bag", true, Tusk, true, false, QuestResult.InvalidChoice },      // Review Focus 2
-        { "room for the fixed items only", true, Charm, true, false, QuestResult.BagFull },
-        { "a pick a reload made Unique", true, Blade, false, true, QuestResult.Error },            // Review Focus 3
+        Plenty,
+
+        /// <summary>Every free slot holds a charm: the slot the tusks free holds the Tonic and nothing else.</summary>
+        FixedItemsOnly,
+
+        /// <summary>As FixedItemsOnly, but Tusks pays 11 Tonic, two stacks for the one slot the tusks free.</summary>
+        NotEvenFixedItems,
+    }
+
+    public static TheoryData<string, bool, ulong, BagRoom, bool, QuestResult> Picks => new()
+    {
+        // case, offers a choice set, pick, bag room, pick made Unique by a reload, answer
+        { "a pick from the set", true, Charm, BagRoom.Plenty, false, QuestResult.Ok },
+        { "no pick", true, 0, BagRoom.Plenty, false, QuestResult.InvalidChoice },
+        { "a fixed reward as the pick", true, Tonic, BagRoom.Plenty, false, QuestResult.InvalidChoice },             // Review Focus 1
+        { "a pick on a quest with no choice set", false, Charm, BagRoom.Plenty, false, QuestResult.InvalidChoice },
+        { "a bad pick with a full bag", true, Tusk, BagRoom.NotEvenFixedItems, false, QuestResult.InvalidChoice },   // Review Focus 2
+        { "room for the fixed items only", true, Charm, BagRoom.FixedItemsOnly, false, QuestResult.BagFull },
+        { "a pick a reload made Unique", true, Blade, BagRoom.Plenty, true, QuestResult.Error },                     // Review Focus 3
     };
 
     /// <summary>
@@ -211,15 +223,18 @@ public class QuestTurnInShould
     [MemberData(nameof(Picks))]
 #pragma warning disable xUnit1026 // the case names the row in the test output
     public async Task Pay_the_fixed_items_and_the_pick_or_refuse_and_change_nothing(string @case, bool offers, ulong pick,
-        bool fillBag, bool pickUnique, QuestResult expected)
+        BagRoom room, bool pickUnique, QuestResult expected)
 #pragma warning restore xUnit1026
     {
         var log = new TestLog();
         List<QuestTemplate> quests = Chain();
+        QuestTemplate tusks = quests.Single(q => q.Id.Value == Tusks);
         if (offers)
-            quests.Single(q => q.Id.Value == Tusks).Offering((Charm, 1), (Blade, 1));
+            tusks.Offering((Charm, 1), (Blade, 1));
+        if (room == BagRoom.NotEvenFixedItems)
+            tusks.ItemRewards[0].Count = 11;
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync(quests, log: log);
-        if (fillBag)
+        if (room != BagRoom.Plenty)
             FillBagWithCharms(c);
         if (pickUnique)
             w.Data.ItemTemplates.Single(t => t.Id.Value == Blade).Flags |= ItemTemplateFlags.Unique;
