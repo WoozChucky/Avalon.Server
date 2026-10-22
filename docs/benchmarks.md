@@ -3912,7 +3912,9 @@ with the committed figure, in every build (Debug and Release, see below) and for
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (15,582 B per window since #1113, which gave the seeds that retry their layout
+  `forest-combat` is the largest figure (15,426 B per window since #711, whose quest accept, in the handler and in the
+  fighters that stand for it, hands its state to a static lambda instead of making a closure; 15,582 B since #1113,
+  which gave the seeds that retry their layout
   forests of their own, 15 and 46 among them, and the third party seed 56 for a fight of the size before it; 22,633 B
   since #1109's tree walls along the forest pieces' closed
   sides and seed 33 for the first party, chosen for a fight with deaths in it,
@@ -3933,7 +3935,7 @@ with the committed figure, in every build (Debug and Release, see below) and for
   #980, which shared the aura updates and reused their entries,
   [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
   which gave the fight a cleric, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
-  10,357 B before), and at that size the 256 B floor decides for it too (1% is 156 B): it fails above 15,838 B, a little
+  10,357 B before), and at that size the 256 B floor decides for it too (1% is 154 B): it fails above 15,682 B, a little
   over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. Its Debug run reads the committed
   figure again since #981 (#973): from #972 it read 68 B above Release, because each item destroy in the measured
   minute paid 48 B in unoptimised code for the two boxes `Enum.HasFlag` made in `InventoryMove.DecideDestroy`.
@@ -4467,7 +4469,10 @@ pickups in the minute). `ForestCombatScenarioShould` runs the scenario twice in 
 outcome (every count above) and the same bytes per window, and kills and deaths in it; the second run's creatures
 carry higher ids (the process-wide object id counter), which changes neither.
 
-**Gate.** Committed at **15,582 B per window** (21.6 B per player per tick, 260 B per tick) since #1113 gave the
+**Gate.** Committed at **15,426 B per window** (21.4 B per player per tick, 257 B per tick) since #711, 156 B under the
+15,582 B before it: each fighter's quest accept, standing for `QuestAcceptHandler`'s, hands the quest service as state
+to a static lambda through `QuestReplies.Handle` instead of making a closure over the request. Debug reads the same.
+Before it, committed at 15,582 B (21.6 B per player per tick, 260 B per tick) since #1113 gave the
 seeds that retry their layout forests of their own and the third party seed 56 (above), 7,051 B under the 22,633 B
 before it. No allocating code changed (the generator runs when an instance is built, never on the tick): seeds 33, 47,
 16 and 36 on the new code are the old fight (old 46's retry built 47's forest, old 15's built 16's) and read 22,633 B
@@ -4565,8 +4570,10 @@ summary.
 | Debug, then | 20,578 |
 | Seed 33 for the first party, deaths in the fight again (#1109, PGO on) | 22,633 |
 | Debug, then | 22,633 |
-| Retried seeds no longer share the next seed's forest, seed 56 for the third party (#1113, PGO on), now | 15,582 |
-| Debug, now | 15,582 |
+| Retried seeds no longer share the next seed's forest, seed 56 for the third party (#1113, PGO on) | 15,582 |
+| Debug, then | 15,582 |
+| The quest accept without a closure (#711, PGO on), now | 15,426 |
+| Debug, now | 15,426 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
@@ -4576,7 +4583,7 @@ fighters cost about as much per tick as `town-walk`'s 30 walkers (measured befor
 since #1109 the scenario's mean tick is 0.045 ms, see "The forest since #1109"): most creatures are far from any
 player, and an idle creature's AI looks for players once a second rather than every tick. The minute allocated 0.62 MB
 on the tick thread before #972, about 0.86 MB from #972, about 1.36 MB from #1109's tree walls and seed 33, and about
-0.93 MB since #1113 (15,582 B per window over the minute's 60 windows).
+0.93 MB since #1113 (15,426 B per window over the minute's 60 windows since #711).
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
 holds its free segments in a stack under a lock per size class. It held them in a `ConcurrentQueue` per size: after a
