@@ -35,6 +35,7 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Avalon.World.Testing.Scenarios;
+using Avalon.World.Trading;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -600,6 +601,14 @@ public class ArrivalBenchmarks
 
         public Task<bool> SaveOnDespawnAsync(CharacterEntity character, Func<Character, CancellationToken, Task>? prepareRow,
             CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<SaveOutcome> SaveTrade(
+            IReadOnlyList<(IWorldConnection Connection, CharacterEntity Character, TradeSidePlan Side)> sides, TradeRecord record) =>
+            throw new NotSupportedException();
+
+        public Task<bool> TradeCommittedAsync(Guid tradeId, AccountId first, AccountId second) => throw new NotSupportedException();
+
+        public void ReleaseHold(CharacterId id) => throw new NotSupportedException();
     }
 
     private sealed class NoOtherSessions : IWorldServer

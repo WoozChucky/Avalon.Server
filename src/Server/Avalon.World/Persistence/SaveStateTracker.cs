@@ -83,6 +83,13 @@ public sealed class SaveStateTracker
     /// </summary>
     public void ItemRemoved(ItemInstanceId id) => _items[id] = new SaveMark(SaveState.Removed, ++_version);
 
+    /// <summary>
+    /// Forgets the item's mark (#1175). A trade calls it after taking the item out of the giver: the paired save already
+    /// deleted it from the giver and wrote it as the receiver's, and the fence would refuse any later save of the giver
+    /// that still named it.
+    /// </summary>
+    public void ItemHandedOver(ItemInstanceId id) => _items.Remove(id);
+
     public void SlotChanged(InventoryType container, byte slot, bool occupiedBefore, bool occupiedAfter)
     {
         SaveState? next = SlotState(container, slot) switch
