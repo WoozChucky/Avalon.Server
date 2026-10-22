@@ -693,9 +693,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     }
 
     /// <summary>
-    /// A harmful aura landed (auras): combat as a dodge is, with nothing dealt. The encounter forms (so the creature's
-    /// list holds the caster at the initial seed), a creature's script is told it was attacked so it engages, and both
-    /// are tagged in combat. Nothing for a target every hit passes over.
+    /// A harmful aura landed (auras): combat as a dodge is, with nothing dealt. The encounter forms (a fight newly formed
+    /// or joined holds the caster at the initial seed on the creature's list; one merged with the caster's seeds nothing,
+    /// #1168), a creature's script is told it was attacked so it engages, and both are tagged in combat. Nothing for a
+    /// target every hit passes over.
     /// </summary>
     public void EnterAuraCombat(IUnit caster, IUnit target)
     {
