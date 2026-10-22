@@ -478,7 +478,7 @@ Steps 2 to 6 are PortalChecks.Check, which the portal's menu (CMSG_INSTANCE_LIST
        sends its loot snapshot on its next tick, and the client has to know the map first
     11 and 12 are MapArrival.Send, the one place every arrival's packets are sent from (below)
 13. Save the character (ICharacterSaver.Save: the row's map, instance and the spawn of step 10
-       as its position, with any dirty inventory and money)
+       as its position, with any dirty inventory and gold)
     After an arrival by choice: InstanceChoices.MakeDefault(instance) for a private instance
        picked, NewPrivate and NewParty (never for a member's pick of a party instance); for
        NewParty, then PartyService.SendLine(party, "<leader> opened a new <map name>.",

@@ -268,7 +268,7 @@ public class SInventorySnapshotPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_INVENTORY_SNAPSHOT; // 0x3028
 
     [ProtoMember(1)] public ItemSlotDto[] Items { get; set; }
-    [ProtoMember(2)] public ulong Money { get; set; } // Character.Money, copper
+    [ProtoMember(2)] public ulong Gold { get; set; } // Character.Gold
 }
 
 [ProtoContract]
@@ -297,7 +297,7 @@ Notes for a client implementer:
 - `ItemTemplateId` resolves to a name, icon, rarity, etc. via the vendored catalog — see
   `schema/items/item-catalog-v1.json` and `schema/items/item-schema-v1.json` (`docs/tooling.md`
   documents the exporter that produces both).
-- **`Money`** is the character's gold in copper. It is field 2, added after `Items`, so an older
+- **`Gold`** is the character's gold. It is field 2, added after `Items`, so an older
   reader ignores it.
 
 ### `SInventoryUpdatePacket`
@@ -309,8 +309,8 @@ absolute, so a lost or duplicated packet cannot leave the client drifting:
 ```csharp
 public class SInventoryUpdatePacket : Packet   // SMSG_INVENTORY_UPDATE, 0x3029
 {
-    [ProtoMember(1)] public InventorySlotUpdateDto[] Slots { get; set; } // null when only money changed
-    [ProtoMember(2)] public ulong? Money { get; set; }                   // new balance; absent if unchanged
+    [ProtoMember(1)] public InventorySlotUpdateDto[] Slots { get; set; } // null when only gold changed
+    [ProtoMember(2)] public ulong? Gold { get; set; }                   // new balance; absent if unchanged
 }
 
 public class InventorySlotUpdateDto
@@ -494,8 +494,8 @@ Players already in-game receive System chat countdown warnings at enable, three 
 |--------------------------------------------------------|------|
 | Two characters same world → same `InstanceId`         | see [instanced-maps.md](instanced-maps.md) |
 | 2 equipment + 3 bag items → `SInventorySnapshotPacket` carries exactly 5, bank excluded, every field (`Container`, `Slot`, `ItemTemplateId`, `ItemInstanceId`, `Count`, `Durability`, `Flags`) asserted on at least one slot | `CharacterSelectHandlerShould.Send_Equipment_And_Bag_Items_In_The_Snapshot_But_Not_The_Bank` |
-| Empty inventory → packet still sent, carrying the character's `Money`, `Items` empty (`null` on the wire, per protobuf-net's empty-repeated-field encoding) | `CharacterSelectHandlerShould.Send_the_money_in_the_snapshot_even_with_no_items` |
-| Several changes to one slot in a tick → one `SInventoryUpdatePacket` entry at the final value; emptied slot → no `Item`; `Money` only when it changed; nothing sent when nothing changed | `InventoryUpdateFlusherShould` |
+| Empty inventory → packet still sent, carrying the character's `Gold`, `Items` empty (`null` on the wire, per protobuf-net's empty-repeated-field encoding) | `CharacterSelectHandlerShould.Send_the_gold_in_the_snapshot_even_with_no_items` |
+| Several changes to one slot in a tick → one `SInventoryUpdatePacket` entry at the final value; emptied slot → no `Item`; `Gold` only when it changed; nothing sent when nothing changed | `InventoryUpdateFlusherShould` |
 | The tick drains a character's inventory changes | `WorldServerBarrierTickShould.Send_a_characters_inventory_changes_on_the_tick_they_were_made` |
 | Equipment, bag and bank all load into their own containers via the real select chain (`Load()`, not the packet) | `CharacterSelectChainShould.Load_Equipment_Bag_And_Bank_Into_Their_Containers` |
 | Orphan row (no matching `ItemInstance`) → skipped, remaining items unaffected | `InventoryAssemblerShould.Skip_A_Row_Whose_Instance_Is_Missing` |

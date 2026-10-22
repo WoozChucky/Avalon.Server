@@ -171,7 +171,7 @@ Item scripts can do more than the seeded items do. What a client sees of each:
 - **A summoned creature** is an ordinary creature (added, updated, attacked, killed and looted as any other). If it
   is not killed it leaves view after its lifetime, 5 minutes unless the item says otherwise, on the instance's next
   tick once that time has passed; an instance nobody is in leaves it there until someone is.
-- **A heal, power, damage, experience, quest progress, money and items** arrive through the packets that carry them
+- **A heal, power, damage, experience, quest progress, gold and items** arrive through the packets that carry them
   for any other source (state replication, `SMSG_UNIT_HEALED`, the damage packets, `SMSG_QUEST_UPDATE`,
   `SMSG_INVENTORY_UPDATE`).
 - **A line** from an item is a system line, or a whisper-style line on the `Whisper` channel, to the user only.

@@ -105,7 +105,7 @@ language:
 `Kill` and `Talk`, the item template for `Collect`, the doodad template for `UseDoodad`, 0 for `Scripted`),
 4 `Count` (how many are needed), 5 `Text` (e.g. "Thornback Boars slain").
 
-`QuestRewardsDto`: 1 `Experience`, 2 `Money` (copper), 3 `Items` (repeated `QuestRewardItemDto`:
+`QuestRewardsDto`: 1 `Experience`, 2 `Gold`, 3 `Items` (repeated `QuestRewardItemDto`:
 1 `ItemTemplateId`, 2 `Count`; every one is paid); 4 `Choices` (repeated `QuestRewardItemDto`, #711: the choice set,
 of which the player picks exactly one at turn-in, by item template id; empty when the quest has none). A quest may
 have fixed items, a choice set, both or neither (the seeded quest 3 has both, quest 11 a choice set alone). Every
@@ -140,7 +140,7 @@ then keeps the dialogue node it had until it talks to the NPC again.
 | 4 | `NotReady` | The quest is not ready to turn in, or its items are no longer all in the bag. |
 | 5 | `LogFull` | The character already holds the most quests allowed (20 by default). |
 | 6 | `BagFull` | The reward items (the fixed ones and the pick) would not fit in the bag, even after the quest items leave it. |
-| 7 | `MoneyCap` | The reward money would take the character past its gold cap. |
+| 7 | `GoldCap` | The reward gold would take the character past its gold cap. |
 | 8 | `TooFar` | The NPC is past the 6 m dialogue leash; the conversation was ended (`SMSG_DIALOGUE_END`). |
 | 9 | `NoConversation` | No open conversation with that NPC, the NPC is gone or dead (the conversation was ended), or the character is dead; on a turn-in, also an NPC that does not take that quest back. |
 | 10 | `Error` | The server failed while handling the request, or a reward cannot be paid (a data fault, logged). Changes a turn-in had already applied are not rolled back. |
@@ -154,7 +154,7 @@ The checks run in this order, and the first failure is the answer:
 - **Turn in:** `NoConversation`, `Stunned`, `TooFar` (as for accept), `NotActive` (not held, or unknown),
   `NoConversation` (this NPC is not the quest's ender), `NotReady` (not ready, or the last stage's items are not
   all in the bag as it is now), `InvalidChoice` (the pick, field 3), `Error` (a reward item the server can no
-  longer pay, the pick included), `BagFull` (the fixed items plus the pick must fit), `MoneyCap`. A refused
+  longer pay, the pick included), `BagFull` (the fixed items plus the pick must fit), `GoldCap`. A refused
   turn-in takes nothing and pays nothing. (The bag is recounted first, so a quest found short goes back
   to `Active` and its `Progress` update follows.)
 - **Abandon:** `NotActive`. Abandon works anywhere, with no conversation.
@@ -291,23 +291,23 @@ The storyline "Trouble in the Forest", in the town (map 1) and the forest:
 
 | Quest | Giver → ender | Needs | Asks | Pays |
 |---|---|---|---|---|
-| 1 Thinning the Herd | Uriel → Uriel | level 1 | kill 6 Thornback Boars | 150 experience, 100 copper |
-| 2 Tusks for Borin | Uriel → Borin Stoutbeard | quest 1 | collect 4 Boar Tusks (item 57; 60 % from Thornback Boars) | 250 experience, 150 copper, 2 Greater Health Potions (item 56) |
-| 3 The Alpha's Howl | Borin → Borin | level 2, quest 2 | stage 0: kill 3 Grey Fen Wolves and 2 Husks of the Wold; stage 1: speak with Marta Ledgerwell; stage 2: kill the Bramblemaw Alpha | 600 experience, 400 copper, the Alpha's Fang Pendant (item 58, a neck piece), and a choice of one weapon: Thornwood Staff (5), Briarstring Bow (6), Bramblesteel Sword (7) or Rootknot Mace (8) |
+| 1 Thinning the Herd | Uriel → Uriel | level 1 | kill 6 Thornback Boars | 150 experience, 100 gold |
+| 2 Tusks for Borin | Uriel → Borin Stoutbeard | quest 1 | collect 4 Boar Tusks (item 57; 60 % from Thornback Boars) | 250 experience, 150 gold, 2 Greater Health Potions (item 56) |
+| 3 The Alpha's Howl | Borin → Borin | level 2, quest 2 | stage 0: kill 3 Grey Fen Wolves and 2 Husks of the Wold; stage 1: speak with Marta Ledgerwell; stage 2: kill the Bramblemaw Alpha | 600 experience, 400 gold, the Alpha's Fang Pendant (item 58, a neck piece), and a choice of one weapon: Thornwood Staff (5), Briarstring Bow (6), Bramblesteel Sword (7) or Rootknot Mace (8) |
 
 A second chain runs beside it, from quest 4 (no prerequisite):
 
 | Quest | Giver → ender | Needs | Asks | Pays |
 |---|---|---|---|---|
-| 4 Wings for the Still | Tobin Marrowfield → Tobin | level 2 | collect 6 Blightfly Wings (item 59; 50 % from Blightfly Swarmlings) | 300 experience, 200 copper, 3 Mana Potions (item 2) |
-| 5 Pelts Before Frost | Hilde Brassbuckle → Hilde | level 3, quest 4 | collect 8 Fen Wolf Pelts (item 60; 50 % from Grey Fen Wolves) | 400 experience, 250 copper |
-| 6 What the Husks Carry | Innkeeper → Marta Ledgerwell | level 4, quest 5 | kill 8 Husks of the Wold and collect 3 Ledger Pages (item 61; 35 % from Husks of the Wold) | 500 experience, 300 copper, 2 Greater Health Potions (item 56) |
-| 7 Heartwood | Borin Stoutbeard → Borin | level 5, quest 6 | collect the Tuskroot Heartwood (item 62; always from Old Tuskroot) | 700 experience, 400 copper, the Heartwood Band (item 64, a ring) |
-| 8 Mother of Thorns | Uriel → Uriel | level 7, quest 7 | stage 0: speak with Garrick Emberforge; stage 1: kill 2 Bramblemaw Alphas and collect the Bramble Heart (item 63; always from Mother Bramble) | 1500 experience, 1000 copper, the Thornheart Signet (item 65, a ring) |
-| 11 Earn It Fancy | Hilde Brassbuckle → Hilde | level 4, quest 5 | kill 6 Grey Fen Wolves and the Bramblemaw Alpha | 550 experience, 325 copper, and a choice of one chest piece (no fixed item): Barkplate Chestguard (13), Mossweave Robe (18), Fernstalker Jerkin (23) or Dewleaf Vestments (28) |
+| 4 Wings for the Still | Tobin Marrowfield → Tobin | level 2 | collect 6 Blightfly Wings (item 59; 50 % from Blightfly Swarmlings) | 300 experience, 200 gold, 3 Mana Potions (item 2) |
+| 5 Pelts Before Frost | Hilde Brassbuckle → Hilde | level 3, quest 4 | collect 8 Fen Wolf Pelts (item 60; 50 % from Grey Fen Wolves) | 400 experience, 250 gold |
+| 6 What the Husks Carry | Innkeeper → Marta Ledgerwell | level 4, quest 5 | kill 8 Husks of the Wold and collect 3 Ledger Pages (item 61; 35 % from Husks of the Wold) | 500 experience, 300 gold, 2 Greater Health Potions (item 56) |
+| 7 Heartwood | Borin Stoutbeard → Borin | level 5, quest 6 | collect the Tuskroot Heartwood (item 62; always from Old Tuskroot) | 700 experience, 400 gold, the Heartwood Band (item 64, a ring) |
+| 8 Mother of Thorns | Uriel → Uriel | level 7, quest 7 | stage 0: speak with Garrick Emberforge; stage 1: kill 2 Bramblemaw Alphas and collect the Bramble Heart (item 63; always from Mother Bramble) | 1500 experience, 1000 gold, the Thornheart Signet (item 65, a ring) |
+| 11 Earn It Fancy | Hilde Brassbuckle → Hilde | level 4, quest 5 | kill 6 Grey Fen Wolves and the Bramblemaw Alpha | 550 experience, 325 gold, and a choice of one chest piece (no fixed item): Barkplate Chestguard (13), Mossweave Robe (18), Fernstalker Jerkin (23) or Dewleaf Vestments (28) |
 
 One daily (#710), offered again after each daily reset (repeat kind `Daily`, the blue markers):
 
 | Quest | Giver → ender | Needs | Asks | Pays |
 |---|---|---|---|---|
-| 10 Boar Cull | Hilde Brassbuckle → Hilde | level 8 | kill 15 Thornback Boars | 800 experience, 500 copper |
+| 10 Boar Cull | Hilde Brassbuckle → Hilde | level 8 | kill 15 Thornback Boars | 800 experience, 500 gold |

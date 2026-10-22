@@ -338,20 +338,20 @@ three runs, and no claim is made from them beyond "not slower".
 
 **The flush.** `Queried` is the flush as it was, kept in the benchmark; `Flusher` is `InventoryUpdateFlusher.Flush`.
 One invocation marks the Bag slots changed, highest first, and flushes them to a connection that counts the packet
-and gives its payload back to the pool; with no slot, only the money changed. Both rows come from the same run, one
+and gives its payload back to the pool; with no slot, only the gold changed. Both rows come from the same run, one
 after the other, each in its own child process, so a ratio compares two processes under whatever the machine was
 doing at the time.
 
 | Changed slots | `Queried` (before), allocated | `Flusher` (after), allocated | `Queried`, mean of each run | `Flusher`, mean of each run | Ratio in each run |
 |---:|---:|---:|---:|---:|---:|
-| 0, money only | 448 B | 0 B | 334.3 / 199.0 / 199.1 ns | 208.9 / 183.1 / 137.6 ns | 0.64 / 0.94 / 0.69 |
+| 0, gold only | 448 B | 0 B | 334.3 / 199.0 / 199.1 ns | 208.9 / 183.1 / 137.6 ns | 0.64 / 0.94 / 0.69 |
 | 1 | 872 B | 120 B | 583.5 / 364.0 / 365.1 ns | 429.7 / 271.5 / 239.8 ns | 0.74 / 0.75 / 0.66 |
 | 8 | 1,600 B | 792 B | 2,217 / 1,744 / 1,370 ns | 1,809 / 1,187 / 1,272 ns | 0.82 / 0.69 / 0.94 |
 | 30 | 3,960 B | 2,904 B | 6,958 / 4,415 / 6,848 ns | 4,826 / 3,397 / 5,859 ns | 0.69 / 0.77 / 0.86 |
 
 What is left is the packet's own entries, to the byte: the array (24 B and 8 B a slot), an `InventorySlotUpdateDto`
 for each slot (32 B) and an `ItemSlotDto` for each slot holding an item (56 B). The query cost 448 B when it had
-nothing to walk, on every tick a character's money changed and no slot did, and 752 B, 808 B and 1,056 B on top of
+nothing to walk, on every tick a character's gold changed and no slot did, and 752 B, 808 B and 1,056 B on top of
 the entries at 1, 8 and 30 slots.
 
 **The quest flusher's bag check.** `QuestFlusher.TouchedTheBag` runs for every connection on every tick, to see
@@ -381,7 +381,7 @@ on entry, though only a refusal runs the query); a refusal paid those 96 B and 8
 top of its entries. What a refusal allocates now is its entries: 216 B for two slots holding items, 64 B for one
 empty slot.
 
-`InventoryAllocationShould` pins both paths in the World suite: a money-only flush and an accepted reply at 0 B, and
+`InventoryAllocationShould` pins both paths in the World suite: a gold-only flush and an accepted reply at 0 B, and
 a flush of changed slots and a refusal at exactly what building their entries costs, measured in the test rather
 than written down. It runs in the collection that runs alone in the assembly, and reads the fewest of three windows:
 a send takes its payload segment from the process's one pool, and in a whole-suite run a test sending on another
@@ -443,7 +443,7 @@ add).
   with the economy that made it): it holds the character, the lookup and the id allocator and no state of its own,
   the lookup still reads the item templates as they are at each call, and it lives and dies with the character, so
   there is nothing to clear and nothing shared between characters. The wallet and the vendor trade are still made
-  per call (the wallet carries the money cap as it is read then).
+  per call (the wallet carries the gold cap as it is read then).
 - **The inventory service.** Its add, its removal by template and its counts ran queries. The add copied the partial
   stacks, ordered by slot, into a list, and then the free slots into another, because the walk writes the Bag; both
   are walks by slot number over the Bag as it is, since a step writes only the slot it stands on and the slots still

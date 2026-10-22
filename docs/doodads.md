@@ -212,7 +212,7 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
 The stock scripts are in `Avalon.World/Doodads/Scripts/`, and `StockDoodadScriptsShould` pins them.
 
 - **`LootDoodadScript`**, the chest and the barrel, calls `DropLoot()`. That is `IDoodadHost.DropLootAt`, which follows creature drops:
-  - The template's loot table and copper range are rolled at use (`ILootRoller.Roll(table, minGold, maxGold, ...)`). A table that is missing drops only gold, with a Warning.
+  - The template's loot table and gold range are rolled at use (`ILootRoller.Roll(table, minGold, maxGold, ...)`). A table that is missing drops only gold, with a Warning.
   - **Who is eligible:** the user and every member of the user's party in this instance, by `CharacterEntity.PartyId`, dead or alive.
   - **A leave countdown leaves nobody eligible.** When the user is in one, nobody is eligible, as for a killer in one, so the drops are free for all at once.
   - Each drop is allocated by the instance's `ILootAllocator` (`PartyLootAllocator`, with the `LootGracePeriod`).
@@ -233,8 +233,8 @@ Migration `SeedForestDoodads` seeds the first doodads (`WorldDbContext`, `Config
 
 | Id | Name | Kit / model / used model | Cast | Radius | Script | What a use does | Collision |
 |---|---|---|---|---|---|---|---|
-| 1 | Forest Chest | `props-kit` / `Chest_Wood` / none (clips `Chest_Closed`, `Chest_Open`, `Chest_Opened`) | instant | 0 | `LootDoodadScript` | table 12, 50 to 150 copper | none |
-| 2 | Old Barrel | `props-kit` / `Barrel` / `avalon_barrel_broken` | instant | 0 | `LootDoodadScript` | table 13, 0 to 20 copper | none |
+| 1 | Forest Chest | `props-kit` / `Chest_Wood` / none (clips `Chest_Closed`, `Chest_Open`, `Chest_Opened`) | instant | 0 | `LootDoodadScript` | table 12, 50 to 150 gold | none |
+| 2 | Old Barrel | `props-kit` / `Barrel` / `avalon_barrel_broken` | instant | 0 | `LootDoodadScript` | table 13, 0 to 20 gold | none |
 | 3 | Wayside Shrine | `town-kit` / `avalon_shrine` / `avalon_shrine_spent` | instant | 10 m | `ShrineDoodadScript` | one of Blessed (weight 40), Emboldened (40) or Hexed (20) | box half extents 0.8 x 0.8 m (1.6 m across), 2.2 m tall |
 | 4 | Mossy Fountain | `town-kit` / `avalon_forest_fountain` / `avalon_forest_fountain_dry` | 2 s | 10 m | `FountainDoodadScript` | 50 % of health and power | box half extents 1.05 x 1.05 m (2.1 m across), 1.8 m tall |
 
@@ -257,7 +257,7 @@ Migration `SeedLostCaravan` seeds quest 9, "The Lost Caravan" ([quests](quests.m
   0. open the caravan's strongbox in the forest (objective 901, `UseDoodad` doodad 5, through a 1.5 s cast bar);
   1. pin the caravan's fate to the notice board in Glimmerdell (objective 902, `UseDoodad` doodad 6, instant);
   2. speak with Marta (objective 903, `Talk` creature 11).
-  - Its rewards are 600 experience, 350 copper and 2 Greater Health Potions (item 56).
+  - Its rewards are 600 experience, 350 gold and 2 Greater Health Potions (item 56).
   - Its texts are 67 to 74; the talk objective reuses text 38 ("Speak with Marta Ledgerwell"). The ptPT translations are a draft that needs a native speaker's review before deploying.
 - **Both doodads** are clicked and used from 5 m, by every player for themselves (`Unlimited`, so never spent), with radius 0, `ShowUsed`, no respawn, no script and no collision. A use does nothing but credit the quest, and the credit goes to the user alone (see "Completion").
 
