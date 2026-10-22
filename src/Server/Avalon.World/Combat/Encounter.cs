@@ -70,17 +70,16 @@ public sealed class Encounter : IEncounter
 
     /// <summary>
     /// Makes one fight of this and <paramref name="other" /> (#1168): every hostile of <paramref name="other" /> comes
-    /// over with its threat list as it stands, and every player with it. A newcomer is seeded as <see cref="AddHostile" />
-    /// and <see cref="AddPlayer" /> seed one: a player new to this encounter on each of its own hostiles, and each of its
-    /// own players on a hostile brought in; a player already in both keeps the threat it had on each side. The fight's
-    /// last damage is the later of the two. <paramref name="other" /> is left empty and points here (<see cref="Current" />).
-    /// Moves the lists themselves, so it allocates nothing unless a set here has to grow.
+    /// over with its threat list exactly as it stands, and every player with it. Nothing is seeded (owner decision): a
+    /// player new to this encounter holds no threat on its hostiles, nor its players on a hostile brought in, until a
+    /// hit, a heal or a taunt adds some. The fight's last damage is the later of the two. <paramref name="other" /> is
+    /// left empty and points here (<see cref="Current" />). Moves the lists themselves, so it allocates nothing unless a
+    /// set here has to grow.
     /// </summary>
     internal void Absorb(Encounter other)
     {
-        // Before the hostiles move, so a newcomer is seeded on this encounter's own hostiles alone.
         foreach (IUnit player in other._players)
-            AddPlayer(player);
+            _players.Add(player);
 
         foreach ((IUnit hostile, Dictionary<IUnit, float> list) in other._threat)
         {
@@ -95,11 +94,6 @@ public sealed class Encounter : IEncounter
                 continue;
             }
 
-            foreach (IUnit player in _players)
-            {
-                if (!other._players.Contains(player))
-                    list.TryAdd(player, _config.InitialThreatSeed);
-            }
             _hostiles.Add(hostile);
             _threat[hostile] = list;
         }

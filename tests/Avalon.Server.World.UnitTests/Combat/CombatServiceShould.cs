@@ -181,6 +181,13 @@ public class CombatServiceShould
         Assert.Equal(3, reg.Active.Count);
         Assert.Contains(next, spillover.Hostiles);
 
+        // A creature new to combat that strikes first goes the same way: never into the capped encounter.
+        ICreature striker = StubCreature();
+        svc.ApplyDamage(striker, attacker, 1);
+        Assert.Equal(3, reg.Active.Count);
+        Assert.Contains(striker, spillover.Hostiles);
+        Assert.Equal(50, capped.Hostiles.Count);
+
         // #1168: a creature already fighting another player keeps its one encounter, which the attacker's spillover,
         // the fight of the attacker's it fits beside, merges into.
         svc.ApplyDamage(attacker, fought, 1, ability);
@@ -219,37 +226,40 @@ public class CombatServiceShould
         ICreature wolf = StubCreature();
         svc.ApplyDamage(player, boar, 10, ability);
         svc.ApplyDamage(other, wolf, 10, ability);
+        for (int i = 0; i < 48; i++)
+            svc.ApplyDamage(other, StubCreature(), 10, ability);
         var older = (Encounter)Assert.Single(reg.Active, e => e.Hostiles.Contains(boar));
         var newer = (Encounter)Assert.Single(reg.Active, e => e.Hostiles.Contains(wolf));
+        Assert.Equal(49, newer.Hostiles.Count);
         float playerOnBoar = older.GetThreatList(boar)[player];
         float otherOnWolf = newer.GetThreatList(wolf)[other];
 
-        // The two fights meet and become the older one: every hostile keeps its threat list, and a newcomer is seeded.
+        // The two fights meet and become the older one, exactly at the cap (1 + 49 hostiles): every threat list moves
+        // as it stood, and nothing is seeded, so only the hit itself adds threat.
         Meet(wolf);
         Assert.Same(older, Assert.Single(reg.Active));
-        Assert.Equal(2, older.Hostiles.Count);
+        Assert.Equal(50, older.Hostiles.Count);
         Assert.Contains(wolf, older.Hostiles);
         Assert.Equal(2, older.Players.Count);
         Assert.Contains(other, older.Players);
         Assert.Equal(playerOnBoar, older.GetThreatList(boar)[player]);
-        Assert.Equal(1f, older.GetThreatList(boar)[other]);
+        Assert.False(older.GetThreatList(boar).ContainsKey(other));
         Assert.Equal(otherOnWolf, older.GetThreatList(wolf)[other]);
-        Assert.Equal(creatureStrikes ? 1f : 1f + 20f, older.GetThreatList(wolf)[player]);
+        Assert.Equal(creatureStrikes ? null : (float?)20f,
+            older.GetThreatList(wolf).TryGetValue(player, out float playerOnWolf) ? playerOnWolf : (float?)null);
 
-        // A fight the two would take past the cap (2 + 49 hostiles) is not merged: the player joins it, and is in both.
+        // A fight the merged one would take past the cap (50 + 1 hostiles) is not merged: the player joins it, and is in
+        // both.
         ICharacter third = StubCharacter(CharacterClass.Hunter);
-        ICreature packed = StubCreature();
-        svc.ApplyDamage(third, packed, 10, ability);
-        for (int i = 0; i < 48; i++)
-            svc.ApplyDamage(third, StubCreature(), 10, ability);
-        var full = (Encounter)Assert.Single(reg.Active, e => e.Hostiles.Contains(packed));
-        Assert.Equal(49, full.Hostiles.Count);
+        ICreature lone = StubCreature();
+        svc.ApplyDamage(third, lone, 10, ability);
+        var its = (Encounter)Assert.Single(reg.Active, e => e.Hostiles.Contains(lone));
 
-        Meet(packed);
+        Meet(lone);
         Assert.Equal(2, reg.Active.Count);
-        Assert.Contains(player, full.Players);
+        Assert.Single(its.Hostiles);
+        Assert.Contains(player, its.Players);
         Assert.Contains(player, older.Players);
-        Assert.Single(reg.Active, e => e.Hostiles.Contains(packed));
 
         // Leaving takes the player out of every fight it is in, and off every threat list.
         svc.DropPlayerFromEncounter(player);

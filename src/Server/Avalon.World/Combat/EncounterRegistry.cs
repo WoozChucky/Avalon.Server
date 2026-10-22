@@ -108,7 +108,7 @@ public sealed class EncounterRegistry : IEncounterRegistry
     /// anything else as a player, as <c>CombatService</c> adds it. A creature only on the players' side (a healer) has no
     /// threat list there, so it does not count as held.
     /// </summary>
-    private static bool Holds(Encounter enc, IUnit unit) =>
+    internal static bool Holds(Encounter enc, IUnit unit) =>
         unit is ICreature ? enc.Hostiles.Contains(unit) : enc.Players.Contains(unit);
 
     public IEncounter CreateEncounter()
