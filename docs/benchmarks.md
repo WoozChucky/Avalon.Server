@@ -3912,7 +3912,8 @@ with the committed figure, in every build (Debug and Release, see below) and for
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (14,742 B per window since #711, whose quest accept, in the handler and in the
+  `forest-combat` is the largest figure (14,349 B per window since #1162, whose player projectiles fly at half their
+  speed, so the fight is smaller; 14,742 B from #711, whose quest accept, in the handler and in the
   fighters that stand for it, hands its state to a static lambda instead of making a closure; 14,799 B from #1157,
   whose projectile start, fired and impact broadcasts write into reusable DTOs; 15,582 B since #1113,
   which gave the seeds that retry their layout
@@ -4470,9 +4471,16 @@ pickups in the minute). `ForestCombatScenarioShould` runs the scenario twice in 
 outcome (every count above) and the same bytes per window, and kills and deaths in it; the second run's creatures
 carry higher ids (the process-wide object id counter), which changes neither.
 
-**Gate.** Committed at **14,742 B per window** (20.5 B per player per tick, 246 B per tick) since #711, 57 B under the
-14,799 B before it: each fighter's quest accept, standing for `QuestAcceptHandler`'s, hands the quest service as state
-to a static lambda through `QuestReplies.Handle` instead of making a closure over the request. Debug reads the same.
+**Gate.** Committed at **14,349 B per window** (19.9 B per player per tick, 239 B per tick) since #1162, 393 B under the
+14,742 B before it: every player projectile flies at half its speed, so a shot takes twice as long to land and the
+fight is smaller (over the run 116 kills against 129, 4 deaths as before, 23 heals against 21, 77 kill credits against
+84, 24 completions as before, 220 pickups against 232, 118 slots destroyed as before and 1 drop given up against none).
+No allocating code changed. Debug reads the same. One paired run of the Release runner (`forest-combat`, a 15 s
+rehearsal, 3,600 measured ticks) read mean 0.047 → 0.054 ms and p99 0.141 → 0.172 ms, and the run that wrote the
+baseline 0.049 and 0.138 ms: single runs on a shared machine, no tick-time change claimed. Before it, committed at
+14,742 B (20.5 B per player per tick, 246 B per tick) since #711, 57 B under the 14,799 B before it: each fighter's
+quest accept, standing for `QuestAcceptHandler`'s, hands the quest service as state to a static lambda through
+`QuestReplies.Handle` instead of making a closure over the request. Debug reads the same.
 Before it, committed at 14,799 B (20.6 B per player per tick, 247 B per tick) since #1157, whose projectile start,
 fired and impact broadcasts write into reusable DTOs instead of a new one per packet. Before it, committed at 15,582 B
 (21.6 B per player per tick, 260 B per tick) since #1113 gave the
@@ -4576,8 +4584,9 @@ summary.
 | Retried seeds no longer share the next seed's forest, seed 56 for the third party (#1113, PGO on) | 15,582 |
 | Debug, then | 15,582 |
 | Projectile broadcasts into reusable DTOs, projectile impacts sent (#1157, PGO on) | 14,799 |
-| The quest accept without a closure (#711, PGO on), now | 14,742 |
-| Debug, now | 14,742 |
+| The quest accept without a closure (#711, PGO on) | 14,742 |
+| Player projectiles at half speed, a smaller fight (#1162, PGO on), now | 14,349 |
+| Debug, now | 14,349 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
@@ -4587,7 +4596,8 @@ fighters cost about as much per tick as `town-walk`'s 30 walkers (measured befor
 since #1109 the scenario's mean tick is 0.045 ms, see "The forest since #1109"): most creatures are far from any
 player, and an idle creature's AI looks for players once a second rather than every tick. The minute allocated 0.62 MB
 on the tick thread before #972, about 0.86 MB from #972, about 1.36 MB from #1109's tree walls and seed 33, and about
-0.93 MB from #1113, and about 0.88 MB since #1157 and #711 (14,742 B per window over the minute's 60 windows).
+0.93 MB from #1113, about 0.88 MB from #1157 and #711, and about 0.86 MB since #1162 (14,349 B per window over the
+minute's 60 windows).
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
 holds its free segments in a stack under a lock per size class. It held them in a `ConcurrentQueue` per size: after a
