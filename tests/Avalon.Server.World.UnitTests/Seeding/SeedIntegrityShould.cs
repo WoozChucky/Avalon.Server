@@ -1137,7 +1137,7 @@ public class SeedIntegrityShould
 
     private static List<QuestTemplate> SeededQuests(WorldDbContext context) => context.QuestTemplates.AsNoTracking()
         .Include(q => q.Stages).Include(q => q.Objectives).ThenInclude(o => o.Drops).Include(q => q.ItemRewards)
-        .OrderBy(q => q.Id).ToList();
+        .Include(q => q.ItemChoices).OrderBy(q => q.Id).ToList();
 
     /// <summary>The storyline (#433, spec §5): three chained quests at the town's own NPCs.</summary>
     [Fact]
@@ -1169,6 +1169,8 @@ public class SeedIntegrityShould
             [(0, QuestObjectiveType.Kill, 5ul, 3u), (0, QuestObjectiveType.Kill, 7ul, 2u), (1, QuestObjectiveType.Talk, 11ul, 1u), (2, QuestObjectiveType.Kill, 8ul, 1u)],
             quests[2].Objectives.OrderBy(o => o.Id).Select(o => (o.StageSequence, o.Type, o.CreatureTemplateId!.Value, o.Count)));
         Assert.Equal((58ul, 1u), (Assert.Single(quests[2].ItemRewards).ItemTemplateId.Value, quests[2].ItemRewards[0].Count));
+        Assert.Equal([5ul, 6ul, 7ul, 8ul], quests[2].ItemChoices.Select(c => c.ItemTemplateId.Value).Order());
+        Assert.All(quests[2].ItemChoices, c => Assert.Equal(1u, c.Count));
     }
 
     /// <summary>Forest content pass: the second chain, 4 → 5 → 6 → 7 → 8, as the spec's table gives it.</summary>
@@ -1240,7 +1242,7 @@ public class SeedIntegrityShould
             NullLoggerFactory.Instance, context.DoodadTemplates.AsNoTracking().ToList());
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal(10, catalog.All.Count);
+        Assert.Equal(11, catalog.All.Count);
     }
 
     /// <summary>
@@ -1309,6 +1311,40 @@ public class SeedIntegrityShould
         AssertTextsResolveInBothLocales(context,
             [quest.TitleTextId.Value, quest.DescriptionTextId.Value, quest.CompletionTextId.Value,
              cull.DescriptionTextId.Value]);
+    }
+
+    /// <summary>
+    /// #711: Hilde's "Earn It Fancy" after "Pelts Before Frost": the pack and its alpha, then one of four chest pieces,
+    /// one per class, and no fixed item. Pins the structure, not the seeded values.
+    /// </summary>
+    [Fact]
+    public void Seed_earn_it_fancy_as_hildes_choice_quest()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        QuestTemplate quest = SeededQuests(context).Single(q => q.Id.Value == 11);
+
+        Assert.Equal((13ul, 13ul), (quest.GiverCreatureId.Value, quest.EnderCreatureId.Value));
+        Assert.Equal(((uint?)5u, false, (CharacterClass?)null, (string?)null),
+            (quest.RequiredQuestId?.Value, quest.IsRepeatable, quest.ClassRequirement, quest.ScriptName));
+        Assert.Empty(quest.ItemRewards);
+        Assert.Equal([0], quest.Stages.Select(s => s.Sequence));
+        Assert.Equal([(1101u, QuestObjectiveType.Kill, 5ul), (1102u, QuestObjectiveType.Kill, 8ul)],
+            quest.Objectives.OrderBy(o => o.Id).Select(o => (o.Id, o.Type, o.CreatureTemplateId!.Value)));
+
+        // One chest piece per class to choose from.
+        ulong[] choices = [.. quest.ItemChoices.Select(c => c.ItemTemplateId.Value).Order()];
+        Assert.Equal([13ul, 18ul, 23ul, 28ul], choices);
+        Assert.Equal([CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Cleric],
+            context.ItemTemplates.AsNoTracking().ToList().Where(t => choices.Contains(t.Id.Value))
+                .OrderBy(t => t.Id.Value).SelectMany(t => t.AllowedClasses));
+
+        // Every text the quest names resolves in the base wording and in ptPT.
+        AssertTextsResolveInBothLocales(context,
+        [
+            quest.TitleTextId.Value, quest.DescriptionTextId.Value, quest.CompletionTextId.Value,
+            .. quest.Objectives.Select(o => o.DescriptionTextId.Value),
+        ]);
     }
 
     private static void AssertTextsResolveInBothLocales(WorldDbContext context, int[] ids)

@@ -6644,6 +6644,21 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 78,
                             Text = "Thornback Boars culled"
+                        },
+                        new
+                        {
+                            Id = 79,
+                            Text = "Earn It Fancy"
+                        },
+                        new
+                        {
+                            Id = 80,
+                            Text = "The pelts you brought me lined half the town's cloaks, {name}, and not one of them was cut for you. That wants mending. But you know my rule: buy it plain, earn it fancy. Put down six Grey Fen Wolves and the Bramblemaw Alpha that leads them, and I will fit you myself."
+                        },
+                        new
+                        {
+                            Id = 81,
+                            Text = "The pack thinned and its alpha with it. You earned it fancy, {class}. Take your pick; I made every piece on that rack to be fought in."
                         });
                 });
 
@@ -7131,6 +7146,24 @@ namespace Avalon.Database.World.Migrations
                             TextId = 78,
                             Locale = "ptPT",
                             Text = "Thornback Boars abatidos"
+                        },
+                        new
+                        {
+                            TextId = 79,
+                            Locale = "ptPT",
+                            Text = "Ganha-o Vistoso"
+                        },
+                        new
+                        {
+                            TextId = 80,
+                            Locale = "ptPT",
+                            Text = "As peles que me trouxeste forraram metade das capas da vila, {name}, e nenhuma foi talhada para ti. Isso tem de se remediar. Mas conheces a minha regra: compra-o simples, ganha-o vistoso. Abate seis Grey Fen Wolves e o Bramblemaw Alpha que os lidera, e eu própria tiro-te as medidas."
+                        },
+                        new
+                        {
+                            TextId = 81,
+                            Locale = "ptPT",
+                            Text = "A alcateia desbastada, e o alfa com ela. Ganhaste-o vistoso, {class}. Escolhe a tua peça; fiz cada uma daquelas para aguentar uma luta."
                         });
                 });
 
@@ -8369,6 +8402,56 @@ namespace Avalon.Database.World.Migrations
                         {
                             t.HasCheckConstraint("CK_QuestItemChoices_CountPositive", "\"Count\" >= 1");
                         });
+
+                    b.HasData(
+                        new
+                        {
+                            QuestId = 3L,
+                            ItemTemplateId = 5m,
+                            Count = 1L
+                        },
+                        new
+                        {
+                            QuestId = 3L,
+                            ItemTemplateId = 6m,
+                            Count = 1L
+                        },
+                        new
+                        {
+                            QuestId = 3L,
+                            ItemTemplateId = 7m,
+                            Count = 1L
+                        },
+                        new
+                        {
+                            QuestId = 3L,
+                            ItemTemplateId = 8m,
+                            Count = 1L
+                        },
+                        new
+                        {
+                            QuestId = 11L,
+                            ItemTemplateId = 13m,
+                            Count = 1L
+                        },
+                        new
+                        {
+                            QuestId = 11L,
+                            ItemTemplateId = 18m,
+                            Count = 1L
+                        },
+                        new
+                        {
+                            QuestId = 11L,
+                            ItemTemplateId = 23m,
+                            Count = 1L
+                        },
+                        new
+                        {
+                            QuestId = 11L,
+                            ItemTemplateId = 28m,
+                            Count = 1L
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.QuestItemDrop", b =>
@@ -8721,6 +8804,26 @@ namespace Avalon.Database.World.Migrations
                             QuestId = 10L,
                             StageSequence = 0,
                             Type = 1
+                        },
+                        new
+                        {
+                            Id = 1101L,
+                            Count = 6L,
+                            CreatureTemplateId = 5m,
+                            DescriptionTextId = 36,
+                            QuestId = 11L,
+                            StageSequence = 0,
+                            Type = 1
+                        },
+                        new
+                        {
+                            Id = 1102L,
+                            Count = 1L,
+                            CreatureTemplateId = 8m,
+                            DescriptionTextId = 39,
+                            QuestId = 11L,
+                            StageSequence = 0,
+                            Type = 1
                         });
                 });
 
@@ -8824,6 +8927,11 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             QuestId = 10L,
+                            Sequence = 0
+                        },
+                        new
+                        {
+                            QuestId = 11L,
                             Sequence = 0
                         });
                 });
@@ -9059,6 +9167,23 @@ namespace Avalon.Database.World.Migrations
                             RewardExperience = 800L,
                             RewardMoney = 500m,
                             TitleTextId = 75,
+                            Type = 0
+                        },
+                        new
+                        {
+                            Id = 11L,
+                            CompletionTextId = 81,
+                            DescriptionTextId = 80,
+                            EnderCreatureId = 13m,
+                            Environment = 0,
+                            GiverCreatureId = 13m,
+                            IsRepeatable = false,
+                            LevelRequirement = 4,
+                            Rarity = 0,
+                            RequiredQuestId = 5L,
+                            RewardExperience = 550L,
+                            RewardMoney = 325m,
+                            TitleTextId = 79,
                             Type = 0
                         });
                 });

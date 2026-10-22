@@ -821,6 +821,23 @@ public class WorldDbContext : DbContext
                 RewardExperience = 800,
                 RewardMoney = 500,
             });
+
+        // "Earn It Fancy" (#711): Hilde's sequel to quest 5, paid in a chest piece of the player's choosing (its
+        // QuestItemChoices). Numbers are first drafts for the balance tool.
+        builder.HasData(
+            new QuestTemplate
+            {
+                Id = 11,
+                TitleTextId = 79,
+                DescriptionTextId = 80,
+                CompletionTextId = 81,
+                GiverCreatureId = 13,
+                EnderCreatureId = 13,
+                LevelRequirement = 4,
+                RequiredQuestId = 5,
+                RewardExperience = 550,
+                RewardMoney = 325,
+            });
     }
 
     private static void Configure(EntityTypeBuilder<QuestStage> builder)
@@ -853,6 +870,7 @@ public class WorldDbContext : DbContext
             new QuestStage { QuestId = 9, Sequence = 2, DescriptionTextId = 74 });
 
         builder.HasData(new QuestStage { QuestId = 10, Sequence = 0 });
+        builder.HasData(new QuestStage { QuestId = 11, Sequence = 0 });
     }
 
     private static void Configure(EntityTypeBuilder<QuestObjective> builder)
@@ -929,6 +947,12 @@ public class WorldDbContext : DbContext
         // "Boar Cull": fifteen Thornback Boars (4).
         builder.HasData(
             new QuestObjective { Id = 1001, QuestId = 10, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 4, Count = 15, DescriptionTextId = 78 });
+
+        // "Earn It Fancy": six Grey Fen Wolves (5) and the Bramblemaw Alpha (8) in one stage, reusing quest 3's texts 36
+        // and 39.
+        builder.HasData(
+            new QuestObjective { Id = 1101, QuestId = 11, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 5, Count = 6, DescriptionTextId = 36 },
+            new QuestObjective { Id = 1102, QuestId = 11, StageSequence = 0, Type = QuestObjectiveType.Kill, CreatureTemplateId = 8, Count = 1, DescriptionTextId = 39 });
     }
 
     private static void Configure(EntityTypeBuilder<QuestItemReward> builder)
@@ -960,6 +984,20 @@ public class WorldDbContext : DbContext
         builder.Property(b => b.QuestId).HasConversion(v => v.Value, v => new QuestTemplateId(v)).IsRequired();
         builder.Property(b => b.ItemTemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
         builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(b => b.ItemTemplateId).OnDelete(DeleteBehavior.Restrict);
+
+        // "The Alpha's Howl": one forest weapon per class, beside its fixed Alpha's Fang Pendant.
+        builder.HasData(
+            new QuestItemChoice { QuestId = 3, ItemTemplateId = 5, Count = 1 },    // Thornwood Staff
+            new QuestItemChoice { QuestId = 3, ItemTemplateId = 6, Count = 1 },    // Briarstring Bow
+            new QuestItemChoice { QuestId = 3, ItemTemplateId = 7, Count = 1 },    // Bramblesteel Sword
+            new QuestItemChoice { QuestId = 3, ItemTemplateId = 8, Count = 1 });   // Rootknot Mace
+
+        // "Earn It Fancy": one forest chest piece per class, and no fixed item.
+        builder.HasData(
+            new QuestItemChoice { QuestId = 11, ItemTemplateId = 13, Count = 1 },  // Barkplate Chestguard
+            new QuestItemChoice { QuestId = 11, ItemTemplateId = 18, Count = 1 },  // Mossweave Robe
+            new QuestItemChoice { QuestId = 11, ItemTemplateId = 23, Count = 1 },  // Fernstalker Jerkin
+            new QuestItemChoice { QuestId = 11, ItemTemplateId = 28, Count = 1 }); // Dewleaf Vestments
     }
 
     private static void Configure(EntityTypeBuilder<QuestItemDrop> builder)
@@ -2438,6 +2476,7 @@ public class WorldDbContext : DbContext
         SeedForestChainTexts(builder);
         SeedLostCaravanTexts(builder);
         SeedBoarCullTexts(builder);
+        SeedEarnItFancyTexts(builder);
     }
 
     /// <summary>The forest storyline (#433): three quests' titles, descriptions, completion lines, objectives and stages.</summary>
@@ -2525,6 +2564,18 @@ public class WorldDbContext : DbContext
             new LocalizedText { Id = 78, Text = "Thornback Boars culled" });
     }
 
+    /// <summary>
+    /// Quest 11, "Earn It Fancy" (#711): Hilde's sequel to quest 5. Its title, description and completion line; its
+    /// objectives reuse texts 36 ("Grey Fen Wolves slain") and 39 ("Bramblemaw Alpha slain").
+    /// </summary>
+    private static void SeedEarnItFancyTexts(EntityTypeBuilder<LocalizedText> builder)
+    {
+        builder.HasData(
+            new LocalizedText { Id = 79, Text = "Earn It Fancy" },
+            new LocalizedText { Id = 80, Text = "The pelts you brought me lined half the town's cloaks, {name}, and not one of them was cut for you. That wants mending. But you know my rule: buy it plain, earn it fancy. Put down six Grey Fen Wolves and the Bramblemaw Alpha that leads them, and I will fit you myself." },
+            new LocalizedText { Id = 81, Text = "The pack thinned and its alpha with it. You earned it fancy, {class}. Take your pick; I made every piece on that rack to be fought in." });
+    }
+
     private static void Configure(EntityTypeBuilder<LocalizedTextLocale> builder)
     {
         builder.ToTable("LocalizedTextLocales");
@@ -2577,6 +2628,7 @@ public class WorldDbContext : DbContext
         SeedForestChainTranslations(builder);
         SeedLostCaravanTranslations(builder);
         SeedBoarCullTranslations(builder);
+        SeedEarnItFancyTranslations(builder);
     }
 
     /// <summary>
@@ -2667,6 +2719,19 @@ public class WorldDbContext : DbContext
             new LocalizedTextLocale { TextId = 76, Locale = AccountLocale.ptPT, Text = "Os Thornback Boars voltaram a revolver todos os caminhos para Glimmerdell, {name}, e cada couro que rasgam acaba remendado por mim. Desbasta-os: quinze chegam por hoje. Volta amanhã, que haverá mais." },
             new LocalizedTextLocale { TextId = 77, Locale = AccountLocale.ptPT, Text = "Menos quinze presas nas sebes. Toma, pelo teu trabalho. Pela manhã estão de volta, atenção. Voltam sempre." },
             new LocalizedTextLocale { TextId = 78, Locale = AccountLocale.ptPT, Text = "Thornback Boars abatidos" });
+    }
+
+    /// <summary>
+    /// Quest 11, "Earn It Fancy" (#711), in ptPT. Hilde's saying follows text 20 ("Compra-o simples, ganha-o vistoso"),
+    /// and she speaks the description, so it agrees with her (feminine). Creature names stay as their nameplates spell
+    /// them. A draft: needs native-speaker review before deploying, like the rows above.
+    /// </summary>
+    private static void SeedEarnItFancyTranslations(EntityTypeBuilder<LocalizedTextLocale> builder)
+    {
+        builder.HasData(
+            new LocalizedTextLocale { TextId = 79, Locale = AccountLocale.ptPT, Text = "Ganha-o Vistoso" },
+            new LocalizedTextLocale { TextId = 80, Locale = AccountLocale.ptPT, Text = "As peles que me trouxeste forraram metade das capas da vila, {name}, e nenhuma foi talhada para ti. Isso tem de se remediar. Mas conheces a minha regra: compra-o simples, ganha-o vistoso. Abate seis Grey Fen Wolves e o Bramblemaw Alpha que os lidera, e eu própria tiro-te as medidas." },
+            new LocalizedTextLocale { TextId = 81, Locale = AccountLocale.ptPT, Text = "A alcateia desbastada, e o alfa com ela. Ganhaste-o vistoso, {class}. Escolhe a tua peça; fiz cada uma daquelas para aguentar uma luta." });
     }
 
     private static void Configure(EntityTypeBuilder<DialogueNode> builder)
