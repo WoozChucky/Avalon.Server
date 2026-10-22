@@ -65,13 +65,17 @@ public class AuraStatsShould
             (Mod(AuraStat.AbilityDamage, AuraModifierKind.Flat, 1f), 1), (Mod(AuraStat.CritPct, AuraModifierKind.Flat, 2f), 1),
             (Mod(AuraStat.Evasion, AuraModifierKind.Flat, 3f), 1), (Mod(AuraStat.BlockPct, AuraModifierKind.Flat, 4f), 1),
             (Mod(AuraStat.HastePct, AuraModifierKind.Flat, 10f), 1), (Mod(AuraStat.MovementSpeed, AuraModifierKind.Flat, -30f), 1),
-            (Mod(AuraStat.MaxHealth, AuraModifierKind.Percent, 10f), 1), (Mod(AuraStat.MaxPower, AuraModifierKind.Flat, 5f), 1));
-        var stats = new DerivedCharacterStats(500, 100, 20, 20, 20, 20, 30, 5f, 3, 5f, 46, 9, 4, 7, 3f, 0f);
+            (Mod(AuraStat.MaxHealth, AuraModifierKind.Percent, 10f), 1), (Mod(AuraStat.MaxPower, AuraModifierKind.Flat, 5f), 1),
+            (Mod(AuraStat.MaxWard, AuraModifierKind.Percent, 50f), 1), (Mod(AuraStat.FireResistance, AuraModifierKind.Flat, -30f), 1));
+        var stats = new DerivedCharacterStats(500, 100, 20, 20, 20, 20, 30, 5f, 3, 5f, 46, 9, 4, 7, 3f, 0f,
+            MaxWard: 40, Resistances: new Resistances(10f, 0f, 0f, 0f));
 
         DerivedCharacterStats f = AuraStats.Fold(stats, all);
 
         Assert.Equal((550u, 105u, 40u, 69u, 10u), (f.MaxHealth, f.MaxPower, f.Armor, f.AttackDamage, f.AbilityDamage));
         Assert.Equal((7f, 6u, 9f, 13f, -30f), (f.CritPct, f.Evasion, f.BlockPct, f.HastePct, f.MovementSpeedPct));
+        // #1178: a flat -30 fire resistance on 10 is -20, a debuff below 0.
+        Assert.Equal((60u, new Resistances(-20f, 0f, 0f, 0f)), (f.MaxWard, f.Resistances));
         Assert.Equal((20u, 4u, 7u), (f.Stamina, f.WeaponMin, f.WeaponMax));   // untouched
     }
 
@@ -79,9 +83,10 @@ public class AuraStatsShould
     public void Fold_a_creatures_attack_and_defence()
     {
         AuraStatTotals sundered = Of((Mod(AuraStat.Armor, AuraModifierKind.Percent, -25f), 1),
-            (Mod(AuraStat.CritPct, AuraModifierKind.Flat, 5f), 1));
+            (Mod(AuraStat.CritPct, AuraModifierKind.Flat, 5f), 1), (Mod(AuraStat.FireResistance, AuraModifierKind.Flat, -30f), 1));
 
-        Assert.Equal(new DefenderCombat(30, 2, 1f), AuraStats.Fold(new DefenderCombat(40, 2, 1f), sundered));
+        Assert.Equal(new DefenderCombat(30, 2, 1f, new Resistances(-20f, 0f, 0f, 50f)),
+            AuraStats.Fold(new DefenderCombat(40, 2, 1f, new Resistances(10f, 0f, 0f, 50f)), sundered));
         Assert.Equal(new AttackerCombat(3, 0, 0, 10f, 5, 9), AuraStats.Fold(new AttackerCombat(3, 0, 0, 5f, 5, 9), sundered));
     }
 
@@ -94,10 +99,10 @@ public class AuraStatsShould
         var factors = new ClassStatFactors { Class = CharacterClass.Warrior, HpPerStamina = 10, FixedPower = 100, AttackPerStrength = 2 };
         var plate = new ItemTemplate { Name = "Plate", Slot = ItemSlotType.Chest, StatType1 = StatType.Armor, StatValue1 = 24 };
 
-        DerivedCharacterStats folded = CharacterStatsCalculator.Calculate(row, [plate], factors,
+        DerivedCharacterStats folded = CharacterStatsCalculator.Calculate(row, [plate], factors, new CombatFormula(),
             Of((Mod(AuraStat.Armor, AuraModifierKind.Percent, 20f), 1)));
 
         Assert.Equal(29u, folded.Armor);
-        Assert.Equal(CharacterStatsCalculator.Calculate(row, [plate], factors).AttackDamage, folded.AttackDamage);
+        Assert.Equal(CharacterStatsCalculator.Calculate(row, [plate], factors, new CombatFormula()).AttackDamage, folded.AttackDamage);
     }
 }

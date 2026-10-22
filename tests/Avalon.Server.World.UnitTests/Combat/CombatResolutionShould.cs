@@ -331,7 +331,7 @@ public class CombatResolutionShould
 
         instance.CombatService.ApplyHeal(healer.Character, ally.Character, 40, AbilityTestData.Game(mending));
 
-        // Ability damage 4: floor((40 + 0.6 x 4) x 1.5) = 63, and the armour 24 takes none of it.
+        // Ability damage 4: floor((40 + 0.6 x 4) x 1.5) = 63, and the armour (24, and 2 from Strength) takes none of it.
         Assert.Equal(10u + 63u, ally.Character.CurrentHealth);
         Assert.Equal(1, rng.DoublesDrawn);
     }
@@ -353,9 +353,9 @@ public class CombatResolutionShould
 
         instance.CombatService.ApplyDamage(boar, warrior.Character, 100);
 
-        // floor(100 x (1 - 24 / 84)) = 71 lost of 240
-        Assert.Equal(before - 71u, warrior.Character.CurrentHealth);
-        Assert.Equal(Fury.FromDamageTaken(71, before, warrior.Character.Health, 50f), warrior.Character.CurrentPower);
+        // Armour 24 and 2 from Strength (#1178): floor(100 x (1 - 26 / 86)) = 69 lost of 240
+        Assert.Equal(before - 69u, warrior.Character.CurrentHealth);
+        Assert.Equal(Fury.FromDamageTaken(69, before, warrior.Character.Health, 50f), warrior.Character.CurrentPower);
     }
 
     [Fact]

@@ -195,7 +195,7 @@ public class ItemRequestHandlersShould : IAsyncLifetime
         Assert.Equal(ItemRequestResult.Ok, Assert.Single(Results()).Result);
         Assert.Equal(260u, _w.Character.Health);
         Assert.Equal(130u, _w.Character.CurrentHealth);
-        Assert.Equal(8u, _w.Character.Stats!.Value.Armor);
+        Assert.Equal(8u + 2u, _w.Character.Stats!.Value.Armor);   // and Strength 25 x 0.1 (#1178)
     }
 
     /// <summary>Worn gear that is taken off, or destroyed, refreshes the stats back to the bare level 1 row.</summary>

@@ -8,8 +8,9 @@ namespace Avalon.Combat;
 
 /// <summary>
 /// Stats a creature spawns with, after level, template modifiers and rarity are applied. Armour, the evasion
-/// rating and the crit and block chances (percentage points) are what combat resolves its hits with (#506, #1178);
-/// DamageType is the type of a hit whose ability names none, the template's.
+/// rating, the crit and block chances (percentage points) and the resistances (percent) are what combat resolves its hits
+/// with (#506, #1178); DamageType is the type of a hit whose ability names none, the template's. Ward is the most its ward
+/// holds.
 /// </summary>
 public readonly record struct DerivedCreatureStats(
     ushort Level,
@@ -21,7 +22,9 @@ public readonly record struct DerivedCreatureStats(
     float CritPct = 0f,
     uint Evasion = 0,
     float BlockPct = 0f,
-    DamageType DamageType = DamageType.Physical)
+    DamageType DamageType = DamageType.Physical,
+    uint Ward = 0,
+    Resistances Resistances = default)
 {
     /// <summary>
     /// What a creature with these stats attacks with (#163): no damage stats, its natural range, its template's
@@ -30,7 +33,7 @@ public readonly record struct DerivedCreatureStats(
     public AttackerCombat Attacker => new(Level, 0, 0, CritPct, DamageMin, DamageMax, DamageType);
 
     /// <summary>What a creature with these stats defends with (#506).</summary>
-    public DefenderCombat Defence => new(Armor, Evasion, BlockPct);
+    public DefenderCombat Defence => new(Armor, Evasion, BlockPct, Resistances);
 }
 
 /// <summary>
@@ -72,8 +75,10 @@ public class CreatureStatDeriver
         uint damageMin = Scale(baseStat.DamageMin, template.DamageModifier, rarity.DamageMultiplier);
         uint damageMax = Scale(baseStat.DamageMax, template.DamageModifier, rarity.DamageMultiplier);
 
-        // #506: there is no rarity armour multiplier yet, so the tier scales armour by 1.
-        uint armor = Scale(baseStat.Armor, template.ArmorModifier, 1f);
+        // #1178: the tier's DefenceMultiplier scales armour, evasion and ward alike. Resistances are percentages, as authored.
+        uint armor = Scale(baseStat.Armor, template.ArmorModifier, rarity.DefenceMultiplier);
+        uint evasion = ScaleDefence(baseStat.Evasion, template.EvasionModifier, rarity.DefenceMultiplier);
+        uint ward = ScaleDefence(baseStat.Ward, template.WardModifier, rarity.DefenceMultiplier);
 
         // An authored value replaces the entire derivation, modifiers and rarity included: a written
         // number means that number. Null, not 0, is what means "derive" — see CreatureTemplate.
@@ -94,10 +99,12 @@ public class CreatureStatDeriver
             experience,
             armor,
             Chance(rarity.CritPct),
-            // #1178: a rarity no longer gives a chance to dodge.
-            Evasion: 0,
-            BlockPct: Chance(rarity.BlockPct),
-            DamageType: template.DamageType);
+            evasion,
+            Chance(rarity.BlockPct),
+            template.DamageType,
+            ward,
+            new Resistances(template.FireResistance, template.ColdResistance, template.LightningResistance,
+                template.BlightResistance));
     }
 
     private CreatureBaseStat ResolveBaseStat(ICreatureMetadata template, ushort level)
@@ -151,4 +158,11 @@ public class CreatureStatDeriver
 
         return (uint)Math.Round(value * template * rarity, MidpointRounding.AwayFromZero);
     }
+
+    /// <summary>
+    /// Evasion and ward (#1178): unlike armour's, a template modifier that is not finite or not above 0 means none, so a
+    /// creature has these defences only where its template says so. The tier's multiplier follows armour's rule.
+    /// </summary>
+    private static uint ScaleDefence(uint value, float templateModifier, float rarityMultiplier) =>
+        float.IsFinite(templateModifier) && templateModifier > 0f ? Scale(value, templateModifier, rarityMultiplier) : 0u;
 }

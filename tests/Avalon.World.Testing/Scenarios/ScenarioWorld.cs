@@ -32,6 +32,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Pvp;
 using Avalon.World.Quests;
+using Avalon.World.Reload;
 using Avalon.World.Scripts;
 using Avalon.World.Testing.Fakes;
 using Avalon.World.Trading;
@@ -482,7 +483,8 @@ public sealed class ScenarioWorld : IDisposable
                                ?? throw new InvalidOperationException($"The seed has no level 1 stats for {characterClass}");
 
         // CharacterCreateHandler's row.
-        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(level, [], data.Combat.Factors[characterClass]);
+        CombatPatch combat = data.Combat;
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(level, [], combat.Factors[characterClass], combat.Formula);
         uint id = _nextCharacter++;
         var row = new Character
         {

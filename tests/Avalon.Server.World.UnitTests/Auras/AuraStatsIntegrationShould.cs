@@ -48,13 +48,13 @@ public class AuraStatsIntegrationShould
     public void Fold_a_characters_auras_into_its_next_stats_refresh()
     {
         CharacterEntity warrior = Warrior();
-        Assert.Equal(30u, warrior.Stats!.Value.Armor);
+        Assert.Equal(30u + 2u, warrior.Stats!.Value.Armor);   // and Strength 23 x 0.1 (#1178)
 
         warrior.Auras.Add(Held(AuraTestData.Fortified()), s_t0);
         CharacterStatsRefresh.Apply(warrior, [s_warriorOne], TestCombat.Factors, id => id == s_plate.Id ? s_plate : null,
             CurrentValues.KeepShare, TestCombat.Formula);
 
-        Assert.Equal(36u, warrior.Stats!.Value.Armor);
+        Assert.Equal(38u, warrior.Stats!.Value.Armor);   // round(32 x 1.2)
         Assert.True(warrior.SaveState.StatsDirty);
     }
 

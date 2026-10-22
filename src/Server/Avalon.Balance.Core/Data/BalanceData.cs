@@ -106,7 +106,7 @@ public sealed class BalanceData
     {
         ClassLevelStat row = Tables.ClassLevelStats.FirstOrDefault(r => r.Class == characterClass && r.Level == level)
             ?? throw new InvalidDataException($"ClassLevelStat {characterClass} level {level} is not seeded");
-        return CharacterStatsCalculator.Calculate(row, worn.ToList(), Combat.Factors[characterClass], auras);
+        return CharacterStatsCalculator.Calculate(row, worn.ToList(), Combat.Factors[characterClass], Combat.Formula, auras);
     }
 
     /// <summary>The class's starting abilities (CharacterCreateInfos.StartingSpells), as the catalog holds them.</summary>

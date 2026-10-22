@@ -4,8 +4,8 @@ namespace Avalon.Combat;
 
 /// <summary>
 /// The one stats calculation (spec #463, closes #434): a class and level's seeded ClassLevelStat
-/// row, its class's ClassStatFactors row (#506, reloaded with the combat area), plus the stats of
-/// the gear worn. Pure.
+/// row, its class's ClassStatFactors row (#506, reloaded with the combat area), the combat formula's
+/// class-neutral defence conversions (#1178), plus the stats of the gear worn. Pure.
 /// </summary>
 public static class CharacterStatsCalculator
 {
@@ -13,10 +13,12 @@ public static class CharacterStatsCalculator
     /// Where a class factor is fractional, the whole sum of the factored terms is truncated to a
     /// whole number once, not each product on its own: a level-1 Hunter (Strength 21, Agility 23)
     /// attacks for <c>(long)(0.5 x 21 + 1.5 x 23) = 45</c>, where truncating each product would give 44.
+    /// Defence is the same for every class (#1178): armour, evasion and ward are gear plus Strength, Agility and Intellect
+    /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances are gear's alone.
     /// <paramref name="auras" />, when given, is folded in after gear: the result is what the character has now.
     /// </summary>
     public static DerivedCharacterStats Calculate(ClassLevelStat row, IEnumerable<ItemTemplate> worn,
-        ClassStatFactors factors, AuraStatTotals? auras = null)
+        ClassStatFactors factors, CombatFormula formula, AuraStatTotals? auras = null)
     {
         var gear = GearTotals.Of(worn);
 
@@ -33,6 +35,9 @@ public static class CharacterStatsCalculator
               + gear.Power;
         long attack = (long)(strength * factors.AttackPerStrength + agility * factors.AttackPerAgility) + gear.AttackDamage;
         long ability = (long)(intellect * factors.AbilityPerIntellect) + gear.AbilityDamage;
+        long armor = gear.Armor + (long)(strength * (double)formula.ArmorPerStrength);
+        long evasion = gear.Evasion + (long)(agility * (double)formula.EvasionPerAgility);
+        long ward = gear.Ward + (long)(intellect * (double)formula.WardPerIntellect);
 
         // #506: the main-hand weapon's first damage range, what a skill's weapon term rolls; none is 0-0.
         ItemTemplate? weapon = worn.FirstOrDefault(t => t.Slot == ItemSlotType.MainHand);
@@ -46,17 +51,20 @@ public static class CharacterStatsCalculator
             Strength: Clamp(strength),
             Agility: Clamp(agility),
             Intellect: Clamp(intellect),
-            Armor: Clamp(gear.Armor),
-            BlockPct: factors.BaseBlock + gear.BlockPct,
-            // #1178: evasion is a rating, from gear; the class base dodge is no longer read.
-            Evasion: Clamp(gear.Evasion),
+            Armor: Clamp(armor),
+            // #1178: no class base block or dodge any more.
+            BlockPct: gear.BlockPct,
+            Evasion: Clamp(evasion),
             CritPct: factors.BaseCrit + gear.CritPct,
             AttackDamage: Clamp(attack),
             AbilityDamage: Clamp(ability),
             WeaponMin: weaponMin,
             WeaponMax: weaponMax,
             HastePct: gear.HastePct,
-            MovementSpeedPct: gear.MovementSpeedPct);
+            MovementSpeedPct: gear.MovementSpeedPct,
+            MaxWard: Clamp(ward),
+            Resistances: new Resistances(gear.FireResistance, gear.ColdResistance, gear.LightningResistance,
+                gear.BlightResistance));
 
         return auras is null ? derived : AuraStats.Fold(derived, auras);
     }
@@ -86,8 +94,9 @@ public static class CharacterStatsCalculator
 
     private struct GearTotals
     {
-        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, AttackDamage, AbilityDamage, Health, Power;
+        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, AttackDamage, AbilityDamage, Health, Power;
         public float BlockPct, CritPct, HastePct, MovementSpeedPct;
+        public float FireResistance, ColdResistance, LightningResistance, BlightResistance;
 
         public static GearTotals Of(IEnumerable<ItemTemplate> worn)
         {
@@ -120,6 +129,11 @@ public static class CharacterStatsCalculator
                 // #627: both percentages, summed raw; the entity applies the combat formula's bounds.
                 case StatType.AttackSpeed: HastePct += value; break;
                 case StatType.MovementSpeed: MovementSpeedPct += value; break;
+                case StatType.Ward: Ward += value; break;
+                case StatType.FireResistance: FireResistance += value; break;
+                case StatType.ColdResistance: ColdResistance += value; break;
+                case StatType.LightningResistance: LightningResistance += value; break;
+                case StatType.BlightResistance: BlightResistance += value; break;
                 default: break;
             }
         }

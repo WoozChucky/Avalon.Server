@@ -34,6 +34,8 @@ public static class AuraStats
         BlockPct = Apply(s.BlockPct, t, AuraStat.BlockPct),
         HastePct = Apply(s.HastePct, t, AuraStat.HastePct),
         MovementSpeedPct = Apply(s.MovementSpeedPct, t, AuraStat.MovementSpeed),
+        MaxWard = Apply(s.MaxWard, t, AuraStat.MaxWard),
+        Resistances = Apply(s.Resistances, t),
     };
 
     /// <summary>A creature's attack with its auras: its damage stats and crit. Its natural damage range is unchanged.</summary>
@@ -49,7 +51,15 @@ public static class AuraStats
         Armor = Apply(d.Armor, t, AuraStat.Armor),
         Evasion = Apply(d.Evasion, t, AuraStat.Evasion),
         BlockPct = Apply(d.BlockPct, t, AuraStat.BlockPct),
+        Resistances = Apply(d.Resistances, t),
     };
+
+    /// <summary>Each resistance with its auras (#1178), a percentage stat: a negative flat aura can take it below 0.</summary>
+    private static Resistances Apply(in Resistances r, AuraStatTotals t) => new(
+        Apply(r.Fire, t, AuraStat.FireResistance),
+        Apply(r.Cold, t, AuraStat.ColdResistance),
+        Apply(r.Lightning, t, AuraStat.LightningResistance),
+        Apply(r.Blight, t, AuraStat.BlightResistance));
 
     private static double Factor(float percent) => Math.Max(0d, 1d + percent / 100d);
 }

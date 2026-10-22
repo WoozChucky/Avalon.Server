@@ -834,7 +834,7 @@ public class SeedIntegrityShould
         foreach ((CharacterClass cls, uint[] ids) in s_kit)
         {
             ClassLevelStat levelOne = levelStats.Single(s => s.Class == cls && s.Level == 1);
-            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, [], factors.Single(f => f.Class == cls)).MaxPower;
+            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, [], factors.Single(f => f.Class == cls), TestCombat.Formula).MaxPower;
 
             foreach (uint id in ids)
             {

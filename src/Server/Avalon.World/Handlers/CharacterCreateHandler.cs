@@ -11,6 +11,7 @@ using Avalon.Network.Packets.Serialization;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
+using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -42,7 +43,8 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         CharacterCreateInfo? createInfo = world.Data.CharacterCreateInfos.FirstOrDefault(c => c.Class == packet.Class);
         ClassLevelStat? level = world.Data.ClassLevelStats.FirstOrDefault(c => c.Class == packet.Class && c.Level == 1);
         if (createInfo is null || level is null) { Answer(connection, SCharacterCreateResult.InternalDatabaseError); return; }
-        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(level, [], world.Data.Combat.Factors[createInfo.Class]);
+        CombatPatch combat = world.Data.Combat;
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(level, [], combat.Factors[createInfo.Class], combat.Formula);
         var row = new Character
         {
             AccountId = authority.AccountId,

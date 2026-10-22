@@ -108,7 +108,7 @@ public class CharacterStatsRefreshShould
 
         Assert.Equal(25u, character.Stats!.Value.Strength);
         Assert.Equal(24u, character.Stats.Value.Stamina);
-        Assert.Equal(8u, character.Stats.Value.Armor);
+        Assert.Equal(8u + 2u, character.Stats.Value.Armor);   // and Strength 25 x 0.1 (#1178)
     }
 
     [Fact]
