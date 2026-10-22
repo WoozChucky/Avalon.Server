@@ -35,6 +35,20 @@ public sealed class EncounterRegistry : IEncounterRegistry
         return null;
     }
 
+    /// <summary>The first active encounter holding both units, on either side: a spillover the pair already shares (#1165).</summary>
+    internal Encounter? FindEncounterContainingBoth(IUnit first, IUnit second)
+    {
+        foreach (Encounter enc in _active)
+        {
+            if ((enc.Hostiles.Contains(first) || enc.Players.Contains(first))
+                && (enc.Hostiles.Contains(second) || enc.Players.Contains(second)))
+            {
+                return enc;
+            }
+        }
+        return null;
+    }
+
     public IEncounter CreateEncounter()
     {
         var enc = new Encounter(_config, _time);

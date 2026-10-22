@@ -137,16 +137,17 @@ public class CombatServiceShould
     }
 
     [Fact]
-    public void Should_cap_merge_at_50_hostile_participants()
+    public void Should_cap_merge_at_50_hostile_participants_and_keep_one_spillover_for_the_pair()
     {
         (CombatService? svc, EncounterRegistry? reg) = BuildService();
         ICharacter attacker = StubCharacter(CharacterClass.Warrior);
         IAbility ability = StubAbility(1.0f);
 
+        ICreature last = null!;
         for (int i = 0; i < 51; i++)
         {
-            ICreature h = StubCreature();
-            svc.ApplyDamage(attacker, h, 1, ability);
+            last = StubCreature();
+            svc.ApplyDamage(attacker, last, 1, ability);
         }
 
         // Expect 2 encounters: first capped at 50, the 51st spawns a new encounter.
@@ -157,6 +158,18 @@ public class CombatServiceShould
         Assert.True(firstCount + secondCount == 51);
         Assert.True(firstCount == 50 || secondCount == 50);
         Assert.True(firstCount == 1 || secondCount == 1);
+
+        // #1165: every further hit and pull on the 51st lands in the spillover it already shares with the attacker,
+        // with its threat, rather than opening another encounter each time.
+        var spillover = (Encounter)encounters[firstCount == 1 ? 0 : 1];
+        float firstThreat = spillover.GetThreatList(last)[attacker];
+        for (int i = 0; i < 5; i++)
+            svc.ApplyDamage(attacker, last, 1, ability);
+        svc.EnterCombat(last, attacker);
+
+        Assert.Equal(2, reg.Active.Count);
+        Assert.Single(reg.Active, e => e.Hostiles.Contains(last));
+        Assert.True(spillover.GetThreatList(last)[attacker] > firstThreat);
     }
 
     [Fact]

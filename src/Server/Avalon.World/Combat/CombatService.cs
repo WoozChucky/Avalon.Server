@@ -358,6 +358,12 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         if (wouldExceedCap)
         {
+            // A pair that already shares an encounter fights on in it (#1165): the attacker's full encounter is found
+            // first on every call, so without this each hit, dodge or aura would open another spillover for the pair.
+            Encounter? shared = _registry.FindEncounterContainingBoth(attacker, target);
+            if (shared is not null)
+                return shared;
+
             var spillover = (Encounter)_registry.CreateEncounter();
             ClassifyAndAdd(spillover, attacker);
             ClassifyAndAdd(spillover, target);
