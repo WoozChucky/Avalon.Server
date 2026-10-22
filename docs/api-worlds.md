@@ -110,6 +110,25 @@ singletons as in every host. Only their context factories differ in the API, whi
   fails that world's quest-template list and get, and its item `PUT` flag checks, the API's reads of the table. To
   roll a world back to a build without the change, run `dotnet ef database update RaiseHushProjectileSpeed` against
   that world's World database; that drops the table, and quest 11 with it. No world or API does that by itself.
+  **Exception, #1173.** Gold is the one currency: `RenameMoneyToGold` renames a world's `Characters.Money` (Character
+  database) to `Gold`, and `RenameRewardMoneyToRewardGold` renames `QuestTemplates.RewardMoney` (World database) to
+  `RewardGold`, both in place with their values kept. The API maps both columns by name, so an API built on either
+  side of the rename cannot read the other side's tables: an older API reading a migrated world fails with Postgres
+  42703 (column `Money` or `RewardMoney` does not exist), and an API with the change reading a world that has not
+  migrated fails the same way on `Gold` or `RewardGold`. For a world whose schema does not match the API's model, every
+  read of a character row fails: identity game admission naming a character (`GameServerAllocator`, its owner check),
+  the worlds service's `/world/{worldId}/character/...` routes (`CharacterService`), and the account's character list,
+  which is contained and lists that world under `UnavailableWorlds`; and every quest-template read fails, the worlds
+  service's quest-template list and get. Writes by column (`ExecuteUpdate`, as character consolidation does) and the
+  item `PUT` flag checks (`TemplateItemUsers`) name neither column and are not affected. The order is: merge it when
+  no ramp is running and after the last dev image has rolled; the dev worlds roll and migrate themselves at their next
+  start (start any stopped world once, so it migrates too); get the commit onto PTR (trigger the nightly by hand); cut
+  the release, API and world, straight away; the release-channel worlds migrate when they roll (start any stopped one
+  once); only then the Dashboard and client follow-ups. Between a world migrating and an API with the change serving
+  it, that world's reads above fail, so keep the gap short. To roll a world back to a build without the change, first
+  run `dotnet ef database update TrackRepeatedQuestCompletions` against that world's Character database and
+  `dotnet ef database update ItemsAllowEveryClassWhenEmpty` against its World database; both rename the columns back
+  with their values. No world or API does that by itself.
 
 ## How a request reaches its world
 
