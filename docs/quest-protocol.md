@@ -20,7 +20,7 @@ is answered with exactly one `SMSG_QUEST_RESULT` (section 4).
 | Opcode | Value | Packet | Fields |
 |---|---|---|---|
 | `CMSG_QUEST_ACCEPT` | `0x20C0` | `CQuestAcceptPacket` | 1 `QuestId` (uint32), 2 `NpcGuid` (uint64, raw `ObjectGuid` of the NPC the conversation is with) |
-| `CMSG_QUEST_TURN_IN` | `0x20C1` | `CQuestTurnInPacket` | 1 `QuestId` (uint32), 2 `NpcGuid` (uint64, as above) |
+| `CMSG_QUEST_TURN_IN` | `0x20C1` | `CQuestTurnInPacket` | 1 `QuestId` (uint32), 2 `NpcGuid` (uint64, as above), 3 `ChoiceItemTemplateId` (uint64, the item template picked from the quest's `Choices`, section 3; 0 = no pick) |
 | `CMSG_QUEST_ABANDON` | `0x20C2` | `CQuestAbandonPacket` | 1 `QuestId` (uint32) |
 
 Server to client.
@@ -106,7 +106,13 @@ language:
 4 `Count` (how many are needed), 5 `Text` (e.g. "Thornback Boars slain").
 
 `QuestRewardsDto`: 1 `Experience`, 2 `Money` (copper), 3 `Items` (repeated `QuestRewardItemDto`:
-1 `ItemTemplateId`, 2 `Count`). Rewards are fixed; there is no choice of reward.
+1 `ItemTemplateId`, 2 `Count`), every one paid, 4 `Choices` (repeated `QuestRewardItemDto`, #711), the choice set,
+of which the player picks exactly one at turn-in, by item template id; empty when the quest has none. A quest may
+have fixed items, a choice set, both or neither (the seeded quest 3 has both, quest 11 a choice set alone). Every
+choice is offered to every class: equipping the item afterwards checks its class and level as usual. The pick is
+sent as the item template id in `CMSG_QUEST_TURN_IN` field 3, never as a position in the list, and a turn-in of a
+quest with a choice set must carry one (section 4, `InvalidChoice`). A repeatable quest asks for a pick at every
+turn-in; the server does not remember the last one.
 
 A quest's stages run in order: all of a stage's objectives (at most 4) complete it and the next stage starts;
 after the last, the quest is ready to turn in.
@@ -133,12 +139,13 @@ then keeps the dialogue node it had until it talks to the NPC again.
 | 3 | `NotActive` | The character does not hold that quest (or the server no longer knows it). |
 | 4 | `NotReady` | The quest is not ready to turn in, or its items are no longer all in the bag. |
 | 5 | `LogFull` | The character already holds the most quests allowed (20 by default). |
-| 6 | `BagFull` | The reward items would not fit in the bag, even after the quest items leave it. |
+| 6 | `BagFull` | The reward items (the fixed ones and the pick) would not fit in the bag, even after the quest items leave it. |
 | 7 | `MoneyCap` | The reward money would take the character past its gold cap. |
 | 8 | `TooFar` | The NPC is past the 6 m dialogue leash; the conversation was ended (`SMSG_DIALOGUE_END`). |
 | 9 | `NoConversation` | No open conversation with that NPC, the NPC is gone or dead (the conversation was ended), or the character is dead; on a turn-in, also an NPC that does not take that quest back. |
 | 10 | `Error` | The server failed while handling the request, or a reward cannot be paid (a data fault, logged). Changes a turn-in had already applied are not rolled back. |
 | 11 | `Stunned` | The character is stunned (crowd control, [aura protocol](aura-protocol.md) section 10). The conversation stays open; try again once the stun ends. |
+| 12 | `InvalidChoice` | The quest has a choice set and the turn-in carried no pick or one not in it, or the quest has none and a pick was sent (#711). Nothing changed: the quest stays held, ready to turn in. |
 
 The checks run in this order, and the first failure is the answer:
 - **Accept:** `NoConversation` (dead, no open conversation, or a different NPC), `Stunned`, `NoConversation`
@@ -146,8 +153,9 @@ The checks run in this order, and the first failure is the answer:
   availability: `NotAvailable` (completed or held, prerequisite, level, class, script), and last `LogFull`.
 - **Turn in:** `NoConversation`, `Stunned`, `TooFar` (as for accept), `NotActive` (not held, or unknown),
   `NoConversation` (this NPC is not the quest's ender), `NotReady` (not ready, or the last stage's items are not
-  all in the bag as it is now), `Error` (a reward item the server can no longer pay), `BagFull`, `MoneyCap`. A
-  refused turn-in takes nothing and pays nothing. (The bag is recounted first, so a quest found short goes back
+  all in the bag as it is now), `InvalidChoice` (the pick, field 3), `Error` (a reward item the server can no
+  longer pay, the pick included), `BagFull` (the fixed items plus the pick must fit), `MoneyCap`. A refused
+  turn-in takes nothing and pays nothing. (The bag is recounted first, so a quest found short goes back
   to `Active` and its `Progress` update follows.)
 - **Abandon:** `NotActive`. Abandon works anywhere, with no conversation.
 
@@ -285,7 +293,7 @@ The storyline "Trouble in the Forest", in the town (map 1) and the forest:
 |---|---|---|---|---|
 | 1 Thinning the Herd | Uriel → Uriel | level 1 | kill 6 Thornback Boars | 150 experience, 100 copper |
 | 2 Tusks for Borin | Uriel → Borin Stoutbeard | quest 1 | collect 4 Boar Tusks (item 57; 60 % from Thornback Boars) | 250 experience, 150 copper, 2 Greater Health Potions (item 56) |
-| 3 The Alpha's Howl | Borin → Borin | level 2, quest 2 | stage 0: kill 3 Grey Fen Wolves and 2 Husks of the Wold; stage 1: speak with Marta Ledgerwell; stage 2: kill the Bramblemaw Alpha | 600 experience, 400 copper, the Alpha's Fang Pendant (item 58, a neck piece) |
+| 3 The Alpha's Howl | Borin → Borin | level 2, quest 2 | stage 0: kill 3 Grey Fen Wolves and 2 Husks of the Wold; stage 1: speak with Marta Ledgerwell; stage 2: kill the Bramblemaw Alpha | 600 experience, 400 copper, the Alpha's Fang Pendant (item 58, a neck piece), and a choice of one weapon: Thornwood Staff (5), Briarstring Bow (6), Bramblesteel Sword (7) or Rootknot Mace (8) |
 
 A second chain runs beside it, from quest 4 (no prerequisite):
 
@@ -296,6 +304,7 @@ A second chain runs beside it, from quest 4 (no prerequisite):
 | 6 What the Husks Carry | Innkeeper → Marta Ledgerwell | level 4, quest 5 | kill 8 Husks of the Wold and collect 3 Ledger Pages (item 61; 35 % from Husks of the Wold) | 500 experience, 300 copper, 2 Greater Health Potions (item 56) |
 | 7 Heartwood | Borin Stoutbeard → Borin | level 5, quest 6 | collect the Tuskroot Heartwood (item 62; always from Old Tuskroot) | 700 experience, 400 copper, the Heartwood Band (item 64, a ring) |
 | 8 Mother of Thorns | Uriel → Uriel | level 7, quest 7 | stage 0: speak with Garrick Emberforge; stage 1: kill 2 Bramblemaw Alphas and collect the Bramble Heart (item 63; always from Mother Bramble) | 1500 experience, 1000 copper, the Thornheart Signet (item 65, a ring) |
+| 11 Earn It Fancy | Hilde Brassbuckle → Hilde | level 4, quest 5 | kill 6 Grey Fen Wolves and the Bramblemaw Alpha | 550 experience, 325 copper, and a choice of one chest piece (no fixed item): Barkplate Chestguard (13), Mossweave Robe (18), Fernstalker Jerkin (23) or Dewleaf Vestments (28) |
 
 One daily (#710), offered again after each daily reset (repeat kind `Daily`, the blue markers):
 
