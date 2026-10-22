@@ -432,6 +432,15 @@ public class Creature : ICreature
             // A creature is dead at 0 health (#672), so reaching 0, or leaving it, changes its death
             // state too: marked, so the broadcast that carries the 0 carries IsDead with it.
             if ((_currentHealth == 0) != (value == 0)) _dirtyFields |= GameEntityFields.IsDead;
+
+            // #1178: death empties the ward, whatever brought the health to 0 (a hit, a tick that passed the ward, a
+            // script). The clock it empties at is moot: a corpse's ward never recharges, and a creature is never revived.
+            if (_currentHealth > 0 && value == 0 && _ward.Current > 0)
+            {
+                _ward.Empty(default);
+                _dirtyFields |= GameEntityFields.Ward;
+            }
+
             _currentHealth = value;
             _dirtyFields |= GameEntityFields.CurrentHealth;
         }

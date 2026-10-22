@@ -138,41 +138,33 @@ public class WardCombatShould
         Assert.Equal(25u, character.Ward);
     }
 
-    /// <summary>
-    /// A hit's type is its ability's, else the attacker's base type: a Fire ability on an armoured creature, and a Fire
-    /// creature's raw swing on an armoured character, both pass armour 60 that would halve a physical 20.
-    /// </summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Type_a_hit_by_its_ability_else_by_the_attackers_base_type(bool byAbility)
+    /// <summary>A hit's type is its ability's (R7): a Fire ability passes armour 60 that would halve a physical 20.</summary>
+    [Fact]
+    public void Type_an_abilitys_hit_by_the_ability()
     {
-        uint taken;
-        if (byAbility)
-        {
-            Creature boar = Boar(armor: 60);
-            var script = new HitRecordingScript(boar);
-            boar.Script = script;
-            IAbility fireball = Substitute.For<IAbility>();
-            fireball.Metadata.Returns(new AbilityMetadata { Name = "Fireball", ScriptName = "x", DamageType = DamageType.Fire });
+        Creature boar = Boar(armor: 60);
+        var script = new HitRecordingScript(boar);
+        boar.Script = script;
+        IAbility fireball = Substitute.For<IAbility>();
+        fireball.Metadata.Returns(new AbilityMetadata { Name = "Fireball", ScriptName = "x", DamageType = DamageType.Fire });
 
-            _combat.ApplyDamage(Character(maxWard: 0), boar, 20, fireball);
+        _combat.ApplyDamage(Character(maxWard: 0), boar, 20, fireball);
 
-            taken = Assert.Single(script.Hits);
-        }
-        else
-        {
-            CharacterEntity character = Character(maxWard: 0, armor: 60);
-            Creature boar = Boar(DamageType.Fire);
+        Assert.Equal([20u], script.Hits);
+    }
 
-            _combat.ApplyDamage(boar, character, 20);
+    /// <summary>A raw swing takes its creature's template type (R7): a Fire creature's 20 passes armour 60 whole.</summary>
+    [Fact]
+    public void Type_a_creatures_raw_swing_by_its_template()
+    {
+        CharacterEntity character = Character(maxWard: 0, armor: 60);
+        Creature boar = Boar(DamageType.Fire);
 
-            taken = character.Health - character.CurrentHealth;
-            _outcomes.Received(1).CharacterDamaged(character, boar, 20u, null,
-                new HitReport(HitResult.None, DamageType.Fire, DamageTypeMask.Fire, 0u));
-        }
+        _combat.ApplyDamage(boar, character, 20);
 
-        Assert.Equal(20u, taken);
+        Assert.Equal(character.Health - 20u, character.CurrentHealth);
+        _outcomes.Received(1).CharacterDamaged(character, boar, 20u, null,
+            new HitReport(HitResult.None, DamageType.Fire, DamageTypeMask.Fire, 0u));
     }
 
     /// <summary>Records the damage each hit hands the script.</summary>
