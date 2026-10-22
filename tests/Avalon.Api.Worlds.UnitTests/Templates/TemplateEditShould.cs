@@ -899,7 +899,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         return id;
     }
 
-    private void QuestOf(ulong? collects, ulong? pays)
+    private void QuestOf(ulong? collects, ulong? pays, ulong? offers = null)
     {
         Seed(db =>
         {
@@ -943,6 +943,12 @@ public sealed class TemplateEditShould : IAsyncLifetime
             {
                 quest.ItemRewards.Add(new Avalon.Domain.World.QuestItemReward
                 { QuestId = quest.Id, ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(reward), Count = 1 });
+            }
+
+            if (offers is { } choice)
+            {
+                quest.ItemChoices.Add(new Avalon.Domain.World.QuestItemChoice
+                { QuestId = quest.Id, ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(choice), Count = 1 });
             }
 
             db.QuestTemplates.Add(quest);
@@ -1006,12 +1012,14 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Contains($"objective {FixtureObjective}", message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task Refuse_making_a_quest_reward_item_unique()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Refuse_making_a_quest_reward_item_unique(bool asChoice)
     {
         ulong id = FirstId("item");
         SetItem(id, i => i.Flags = Avalon.Domain.World.ItemTemplateFlags.None);
-        QuestOf(collects: null, pays: id);
+        QuestOf(collects: null, pays: asChoice ? null : id, offers: asChoice ? id : null);
 
         JsonObject errors = await PutItemErrorsAsync(id, j => j["flags"] = 4);
 

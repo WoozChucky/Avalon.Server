@@ -52,6 +52,9 @@ public static class QuestMapping
         ItemRewards = q.ItemRewards.OrderBy(r => r.ItemTemplateId.Value)
             .Select(r => new QuestItemRewardDto { ItemTemplateId = r.ItemTemplateId.Value, Count = r.Count })
             .ToList(),
+        ItemChoices = q.ItemChoices.OrderBy(c => c.ItemTemplateId.Value)
+            .Select(c => new QuestItemRewardDto { ItemTemplateId = c.ItemTemplateId.Value, Count = c.Count })
+            .ToList(),
         ItemDrops = q.Objectives.SelectMany(o => o.Drops)
             .OrderBy(d => d.ObjectiveId).ThenBy(d => d.CreatureTemplateId.Value)
             .Select(d => new QuestItemDropDto

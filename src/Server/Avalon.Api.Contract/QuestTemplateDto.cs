@@ -59,6 +59,9 @@ public sealed class QuestTemplateDto
     /// <summary>Fixed items paid on turn-in, by item template id.</summary>
     public IList<QuestItemRewardDto> ItemRewards { get; set; } = [];
 
+    /// <summary>The set a player picks exactly one of at turn-in (#711), by item template id; empty when none.</summary>
+    public IList<QuestItemRewardDto> ItemChoices { get; set; } = [];
+
     /// <summary>Every quest-item drop of the quest's Collect objectives, by objective then creature template id.</summary>
     public IList<QuestItemDropDto> ItemDrops { get; set; } = [];
 }

@@ -55,5 +55,13 @@ public static class TemplateItemUsers
             if (problem is not null && ItemUseRules.QuestRewardProblem(before) is null)
                 errors.Add("flags", $"Quest {reward.QuestId.Value} would be refused: {problem}.");
         }
+
+        foreach (QuestItemChoice choice in await db.QuestItemChoices.AsNoTracking().Where(c => c.ItemTemplateId == id)
+                     .OrderBy(c => c.QuestId).ToListAsync(ct))
+        {
+            string? problem = ItemUseRules.QuestRewardProblem(edited);
+            if (problem is not null && ItemUseRules.QuestRewardProblem(before) is null)
+                errors.Add("flags", $"Quest {choice.QuestId.Value} would be refused: {problem}.");
+        }
     }
 }
