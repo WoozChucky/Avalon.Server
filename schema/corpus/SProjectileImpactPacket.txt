@@ -1,0 +1,128 @@
+# SProjectileImpactPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SProjectileImpactPacket
+
+variant absent
+  field 1 ProjectileGuid : ulong = 0
+  field 2 Caster : ulong = 0
+  field 3 AbilityId : uint = 0
+  field 4 CastId : uint = 0
+  field 5 Position : Vector3Dto = null
+  field 6 Reason : ProjectileImpactReason = Unknown (0)
+  field 7 Target : ulong = 0
+  field 8 WorldTick : long = 0
+  bytes 0
+
+variant empty
+  field 1 ProjectileGuid : ulong = 0
+  field 2 Caster : ulong = 0
+  field 3 AbilityId : uint = 0
+  field 4 CastId : uint = 0
+  field 5 Position : Vector3Dto
+    field 1 X : float = 0 (0x00000000)
+    field 2 Y : float = 0 (0x00000000)
+    field 3 Z : float = 0 (0x00000000)
+  field 6 Reason : ProjectileImpactReason = Unknown (0)
+  field 7 Target : ulong = 0
+  field 8 WorldTick : long = 0
+  bytes 2
+    2a 00
+
+variant populated
+  field 1 ProjectileGuid : ulong = 19
+  field 2 Caster : ulong = 65535
+  field 3 AbilityId : uint = 300
+  field 4 CastId : uint = 19
+  field 5 Position : Vector3Dto
+    field 1 X : float = -7.50000027E-08 (0xb3a10fb0)
+    field 2 Y : float = -2.25 (0xc0100000)
+    field 3 Z : float = -7.50000027E-08 (0xb3a10fb0)
+  field 6 Reason : ProjectileImpactReason = Pierced (2)
+  field 7 Target : ulong = 7
+  field 8 WorldTick : long = 11
+  bytes 34
+    08 13 10 ff ff 03 18 ac 02 20 13 2a 0f 0d b0 0f
+    a1 b3 15 00 00 10 c0 1d b0 0f a1 b3 30 02 38 07
+    40 0b
+
+variant maxima
+  field 1 ProjectileGuid : ulong = 18446744073709551615
+  field 2 Caster : ulong = 18446744073709551615
+  field 3 AbilityId : uint = 4294967295
+  field 4 CastId : uint = 4294967295
+  field 5 Position : Vector3Dto
+    field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+    field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+    field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+  field 6 Reason : ProjectileImpactReason = Blocked (4)
+  field 7 Target : ulong = 18446744073709551615
+  field 8 WorldTick : long = 9223372036854775807
+  bytes 74
+    08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
+    ff ff ff ff ff 01 18 ff ff ff ff 0f 20 ff ff ff
+    ff 0f 2a 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff
+    ff 7f 7f 30 04 38 ff ff ff ff ff ff ff ff ff 01
+    40 ff ff ff ff ff ff ff ff 7f
+
+variant minima
+  field 1 ProjectileGuid : ulong = 0
+  field 2 Caster : ulong = 0
+  field 3 AbilityId : uint = 0
+  field 4 CastId : uint = 0
+  field 5 Position : Vector3Dto
+    field 1 X : float = -3.40282347E+38 (0xff7fffff)
+    field 2 Y : float = -3.40282347E+38 (0xff7fffff)
+    field 3 Z : float = -3.40282347E+38 (0xff7fffff)
+  field 6 Reason : ProjectileImpactReason = Unknown (0)
+  field 7 Target : ulong = 0
+  field 8 WorldTick : long = -9223372036854775808
+  bytes 28
+    2a 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff ff 7f
+    ff 40 80 80 80 80 80 80 80 80 80 01
+
+variant varint-edges
+  field 1 ProjectileGuid : ulong = 2097152
+  field 2 Caster : ulong = 2097152
+  field 3 AbilityId : uint = 268435455
+  field 4 CastId : uint = 16384
+  field 5 Position : Vector3Dto
+    field 1 X : float = 1.17549435E-38 (0x00800000)
+    field 2 Y : float = 1.17549435E-38 (0x00800000)
+    field 3 Z : float = 1.17549435E-38 (0x00800000)
+  field 6 Reason : ProjectileImpactReason = <not a declared member> (5)
+  field 7 Target : ulong = 268435455
+  field 8 WorldTick : long = 16383
+  bytes 46
+    08 80 80 80 01 10 80 80 80 01 18 ff ff ff 7f 20
+    80 80 01 2a 0f 0d 00 00 80 00 15 00 00 80 00 1d
+    00 00 80 00 30 05 38 ff ff ff 7f 40 ff 7f
+
+variant float-specials
+  field 1 ProjectileGuid : ulong = 19
+  field 2 Caster : ulong = 65535
+  field 3 AbilityId : uint = 300
+  field 4 CastId : uint = 19
+  field 5 Position : Vector3Dto
+    field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+    field 2 Y : float = NaN (0xffc00000)
+    field 3 Z : float = NaN (0x7fc00001)
+  field 6 Reason : ProjectileImpactReason = Pierced (2)
+  field 7 Target : ulong = 7
+  field 8 WorldTick : long = 11
+  bytes 34
+    08 13 10 ff ff 03 18 ac 02 20 13 2a 0f 0d ff ff
+    7f 7f 15 00 00 c0 ff 1d 01 00 c0 7f 30 02 38 07
+    40 0b

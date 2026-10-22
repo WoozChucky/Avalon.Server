@@ -351,7 +351,7 @@
       "radius": 0,
       "reach": 18,
       "arcDegrees": 0,
-      "projectileSpeed": 20,
+      "projectileSpeed": 34,
       "pierce": false,
       "castTimeMs": 0,
       "cooldownMs": 20000,

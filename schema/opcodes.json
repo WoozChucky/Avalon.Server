@@ -1044,6 +1044,15 @@
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PROJECTILE_IMPACT",
+      "opcode": 12560,
+      "hex": "0x3110",
+      "message": "SProjectileImpactPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
     }
   ]
 }

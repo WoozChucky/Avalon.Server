@@ -143,6 +143,7 @@ public enum NetworkPacketType : short
     SMSG_AURA_UPDATE = 0x310D,
     SMSG_AURA_LIST = 0x310E,
     SMSG_AURA_CANCEL_RESULT = 0x310F,
+    SMSG_PROJECTILE_IMPACT = 0x3110,
 
     SMSG_PONG = 0x3006,
     SMSG_PING = 0x3007,

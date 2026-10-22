@@ -102,5 +102,8 @@ public sealed class ObjectStatePool
         state.DisplayId = null;
         state.DoodadTemplateId = null;
         state.DoodadState = null;
+        state.AbilityId = null;
+        state.CasterGuid = null;
+        state.CastId = null;
     }
 }

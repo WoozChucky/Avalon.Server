@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
+using Avalon.World.Abilities;
 using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -36,7 +37,8 @@ public static class ObjectStateWriter
 {
     /// <summary>
     /// A world object entering a client's view. Placement is all such an object has, and all
-    /// of it is sent whatever is marked changed, because the client has none of it yet.
+    /// of it is sent whatever is marked changed, because the client has none of it yet. A projectile
+    /// adds what fired it (#479), fixed for its flight.
     /// </summary>
     public static ObjectState From(IWorldObject worldObject, ObjectStatePool? pool = null)
     {
@@ -44,6 +46,13 @@ public static class ObjectStateWriter
         state.Position = Of(pool, worldObject.Position);
         state.Velocity = Of(pool, worldObject.Velocity);
         state.Orientation = worldObject.Orientation.y;
+        if (worldObject is IProjectileIdentity projectile)
+        {
+            state.AbilityId = projectile.AbilityId;
+            state.CasterGuid = projectile.CasterGuid;
+            state.CastId = projectile.CastId;
+        }
+
         return state;
     }
 

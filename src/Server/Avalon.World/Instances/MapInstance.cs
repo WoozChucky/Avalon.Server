@@ -14,6 +14,7 @@ using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
+using Avalon.Network.Packets.World;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Auras;
@@ -1128,11 +1129,50 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     // The cast whose script the cast system is firing now (#648); see IAbilityArena.CastInFlight.
     private uint _castInFlight;
 
-    uint IAbilityArena.CastInFlight { set => _castInFlight = value; }
+    uint IAbilityArena.CastInFlight { get => _castInFlight; set => _castInFlight = value; }
+
+    public void BroadcastProjectileImpact(ObjectGuid projectile, IUnit caster, IAbility ability, uint castId,
+        Vector3 position, ProjectileImpactReason reason, IUnit? target)
+    {
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket impact = default;
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            if (!Hears(guid, connection, caster.Guid, target?.Guid, position, null))
+            {
+                continue;
+            }
+
+            if (impact.Payload is null)
+            {
+                impact = SProjectileImpactPacket.Create(projectile.RawValue, caster.Guid.RawValue,
+                    ability.AbilityId.Value, castId, Set(_impactPosition, position), reason, target?.Guid.RawValue ?? 0,
+                    _worldTicks?.Completed ?? 0, PacketEncoder.Shared);
+            }
+
+            connection.Send(impact.Share());
+        }
+
+        impact.Release();
+    }
+
+    // Written into and encoded at once, so one of each serves every fired and impact broadcast with no allocation (#479).
+    private readonly AbilityFootprintDto _firedFootprint = new();
+    private readonly Vector3Dto _firedOrigin = new();
+    private readonly Vector3Dto _firedDirection = new();
+    private readonly Vector3Dto _firedCentre = new();
+    private readonly Vector3Dto _impactPosition = new();
+
+    private static Vector3Dto Set(Vector3Dto dto, Vector3 v)
+    {
+        dto.X = v.x;
+        dto.Y = v.y;
+        dto.Z = v.z;
+        return dto;
+    }
 
     public void BroadcastAbilityFired(IUnit caster, IAbility ability, AbilityFootprint footprint)
     {
-        AbilityFootprintDto dto = footprint.ToDto();
         // Encoded once, for the first who hears it, and shared by everyone who does (#875).
         OutboundPacket fired = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
@@ -1144,6 +1184,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
             if (fired.Payload is null)
             {
+                AbilityFootprintDto dto = _firedFootprint;
+                dto.Shape = footprint.Shape;
+                dto.Origin = Set(_firedOrigin, footprint.Origin);
+                dto.Direction = footprint.Direction is { } direction ? Set(_firedDirection, direction) : null;
+                dto.Centre = footprint.Centre is { } centre ? Set(_firedCentre, centre) : null;
+                dto.Radius = footprint.Radius;
+                dto.Reach = footprint.Reach;
+                dto.ArcDegrees = footprint.ArcDegrees;
                 fired = SAbilityFiredPacket.Create(caster.Guid.RawValue, ability.AbilityId.Value, _castInFlight,
                     dto, PacketEncoder.Shared);
             }

@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
@@ -75,7 +76,14 @@ internal sealed class TestArena : IAbilityArena
 
     private uint _castInFlight;
 
-    public uint CastInFlight { set => _castInFlight = value; }
+    public uint CastInFlight { get => _castInFlight; set => _castInFlight = value; }
+
+    /// <summary>Every projectile impact broadcast, in order (#479).</summary>
+    public List<(ProjectileImpactReason Reason, Vector3 Position, IUnit? Target, uint CastId)> Impacts { get; } = [];
+
+    public void BroadcastProjectileImpact(ObjectGuid projectile, IUnit caster, IAbility ability, uint castId,
+        Vector3 position, ProjectileImpactReason reason, IUnit? target) =>
+        Impacts.Add((reason, position, target, castId));
 
     /// <summary>Every start broadcast, in order, with its cast id and footprint (#648).</summary>
     public List<(IUnit Caster, IAbility Ability, uint CastId, AbilityFootprint? Footprint)> Started { get; } = [];

@@ -806,7 +806,7 @@ namespace Avalon.Database.World.Migrations
                             Name = "Hush",
                             Pierce = false,
                             PowerGainPerHit = 0,
-                            ProjectileSpeed = 20f,
+                            ProjectileSpeed = 34f,
                             Radius = 0f,
                             Range = 20,
                             Reach = 18f,
