@@ -195,7 +195,7 @@ public static class InventoryMove
         if (template.RequiredLevel is { } required && character.Level < required)
             return ItemRequestResult.LevelTooLow;
 
-        if (!template.AllowedClasses.Contains(character.Class))
+        if (!template.AllowsClass(character.Class))
             return ItemRequestResult.WrongClass;
 
         return ItemRequestResult.Ok;

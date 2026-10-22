@@ -19,6 +19,10 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     public bool Stackable => MaxStackSize > 1;
 
+    /// <summary>True when a character of this class may equip and use the item: the list is empty or names the class.</summary>
+    public bool AllowsClass(CharacterClass characterClass) =>
+        AllowedClasses.Count == 0 || AllowedClasses.Contains(characterClass);
+
     public uint MaxStackSize { get; set; }
 
     public uint DisplayId { get; set; }
@@ -31,8 +35,11 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     public ItemSlotType? Slot { get; set; }
 
-    public List<CharacterClass> AllowedClasses { get; set; } =
-        [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Cleric]; // Default to all classes
+    /// <summary>
+    /// The classes that may equip and use the item. Empty when every class may (#1171): an item lists classes only when
+    /// it is restricted to some of them. See <see cref="AllowsClass"/>.
+    /// </summary>
+    public List<CharacterClass> AllowedClasses { get; set; } = [];
 
     public ushort? ItemPower { get; set; }
 

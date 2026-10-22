@@ -1399,7 +1399,7 @@ public class SeedIntegrityShould
         Assert.Equal("Alpha's Fang Pendant", pendant.Name);
         Assert.Equal((ItemClass.Armor, ItemSubClass.Amulet, ItemSlotType.Neck, ItemRarity.Uncommon),
             (pendant.Class, pendant.SubClass, pendant.Slot, pendant.Rarity));
-        Assert.Equal(4, pendant.AllowedClasses.Count);
+        Assert.Empty(pendant.AllowedClasses);
         Assert.False(pendant.Flags.HasFlag(ItemTemplateFlags.Unique));
     }
 
@@ -1439,7 +1439,7 @@ public class SeedIntegrityShould
         Assert.Equal(name, ring.Name);
         Assert.Equal((ItemClass.Armor, ItemSubClass.Ring, ItemSlotType.Finger, rarity), (ring.Class, ring.SubClass, ring.Slot, ring.Rarity));
         Assert.Equal(level, ring.RequiredLevel);
-        Assert.Equal(4, ring.AllowedClasses.Count);
+        Assert.Empty(ring.AllowedClasses);
         Assert.Equal((StatType.Stamina, stamina), (ring.StatType1, ring.StatValue1));
         Assert.Equal((StatType.Armor, armor), (ring.StatType2, ring.StatValue2));
         Assert.False(ring.Flags.HasFlag(ItemTemplateFlags.Unique));

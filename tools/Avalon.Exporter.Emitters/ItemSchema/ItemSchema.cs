@@ -122,8 +122,8 @@ public static class ItemSchema
         ];
 
         // CharacterClass.None is no class an item can allow (it is what a chat line carries when no character sent
-        // it), so it stays out of the table: a reader that treats an item as restricted when the table holds a
-        // class its AllowedClasses lacks would otherwise restrict every item (owner decision, #922).
+        // it), so it stays out of the table, which holds exactly the classes an AllowedClasses list may name (owner
+        // decision, #922). An empty AllowedClasses allows every class (#1171).
         return vocabularies.ToDictionary(
             type => type.Name,
             type => Enum.GetNames(type)

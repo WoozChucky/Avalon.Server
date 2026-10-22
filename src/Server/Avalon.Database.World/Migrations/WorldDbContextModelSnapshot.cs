@@ -4885,7 +4885,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 1m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 10L,
                             Class = 0,
                             DisplayId = 1L,
@@ -4903,7 +4903,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 2m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 13L,
                             Class = 0,
                             DisplayId = 2L,
@@ -4921,7 +4921,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 3m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 100L,
                             Class = 0,
                             DisplayId = 3L,
@@ -5056,7 +5056,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 9m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 20L,
                             Class = 0,
                             DisplayId = 9L,
@@ -5070,7 +5070,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 10m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 20L,
                             Class = 0,
                             DisplayId = 10L,
@@ -5084,7 +5084,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 11m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 20L,
                             Class = 0,
                             DisplayId = 11L,
@@ -6074,7 +6074,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 56m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 25L,
                             Class = 0,
                             DisplayId = 56L,
@@ -6092,7 +6092,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 57m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 57L,
@@ -6106,7 +6106,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 58m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 58L,
@@ -6127,7 +6127,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 59m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 59L,
@@ -6141,7 +6141,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 60m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 60L,
@@ -6155,7 +6155,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 61m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 61L,
@@ -6169,7 +6169,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 62m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 62L,
@@ -6183,7 +6183,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 63m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 63L,
@@ -6197,7 +6197,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 64m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 400L,
                             Class = 2,
                             DisplayId = 64L,
@@ -6218,7 +6218,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 65m,
-                            AllowedClasses = new byte[] { 1, 2, 3, 4 },
+                            AllowedClasses = new byte[0],
                             BuyPrice = 800L,
                             Class = 2,
                             DisplayId = 65L,

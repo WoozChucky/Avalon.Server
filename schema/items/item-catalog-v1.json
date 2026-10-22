@@ -13,12 +13,7 @@
       "rarity": 1,
       "buyPrice": 10,
       "sellPrice": 5,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ],
+      "allowedClasses": [],
       "useScript": "RestoreHealth",
       "useCooldownMs": 30000,
       "useCooldownGroup": "potion",
@@ -36,12 +31,7 @@
       "rarity": 1,
       "buyPrice": 13,
       "sellPrice": 6,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ],
+      "allowedClasses": [],
       "useScript": "RestorePower",
       "useCooldownMs": 30000,
       "useCooldownGroup": "potion",
@@ -59,12 +49,7 @@
       "rarity": 1,
       "buyPrice": 100,
       "sellPrice": 50,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ],
+      "allowedClasses": [],
       "useScript": "TownPortalScroll",
       "useCastTimeMs": 3000,
       "useCooldownMs": 30000
@@ -209,12 +194,7 @@
       "rarity": 1,
       "buyPrice": 20,
       "sellPrice": 5,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ]
+      "allowedClasses": []
     },
     {
       "id": 10,
@@ -228,12 +208,7 @@
       "rarity": 1,
       "buyPrice": 20,
       "sellPrice": 5,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ]
+      "allowedClasses": []
     },
     {
       "id": 11,
@@ -247,12 +222,7 @@
       "rarity": 1,
       "buyPrice": 20,
       "sellPrice": 5,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ]
+      "allowedClasses": []
     },
     {
       "id": 12,
@@ -1330,12 +1300,7 @@
       "rarity": 1,
       "buyPrice": 25,
       "sellPrice": 12,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ],
+      "allowedClasses": [],
       "useScript": "RestoreHealth",
       "useCooldownMs": 30000,
       "useCooldownGroup": "potion",
@@ -1353,12 +1318,7 @@
       "rarity": 1,
       "buyPrice": 0,
       "sellPrice": 0,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ]
+      "allowedClasses": []
     },
     {
       "id": 58,
@@ -1373,12 +1333,7 @@
       "buyPrice": 200,
       "sellPrice": 50,
       "slot": 1,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ],
+      "allowedClasses": [],
       "itemPower": 3,
       "requiredLevel": 2,
       "statType1": 0,
@@ -1398,12 +1353,7 @@
       "rarity": 1,
       "buyPrice": 0,
       "sellPrice": 0,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ]
+      "allowedClasses": []
     },
     {
       "id": 60,
@@ -1417,12 +1367,7 @@
       "rarity": 1,
       "buyPrice": 0,
       "sellPrice": 0,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ]
+      "allowedClasses": []
     },
     {
       "id": 61,
@@ -1436,12 +1381,7 @@
       "rarity": 1,
       "buyPrice": 0,
       "sellPrice": 0,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ]
+      "allowedClasses": []
     },
     {
       "id": 62,
@@ -1455,12 +1395,7 @@
       "rarity": 1,
       "buyPrice": 0,
       "sellPrice": 0,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ]
+      "allowedClasses": []
     },
     {
       "id": 63,
@@ -1474,12 +1409,7 @@
       "rarity": 1,
       "buyPrice": 0,
       "sellPrice": 0,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ]
+      "allowedClasses": []
     },
     {
       "id": 64,
@@ -1494,12 +1424,7 @@
       "buyPrice": 400,
       "sellPrice": 100,
       "slot": 7,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ],
+      "allowedClasses": [],
       "itemPower": 5,
       "requiredLevel": 5,
       "statType1": 0,
@@ -1520,12 +1445,7 @@
       "buyPrice": 800,
       "sellPrice": 200,
       "slot": 7,
-      "allowedClasses": [
-        1,
-        2,
-        3,
-        4
-      ],
+      "allowedClasses": [],
       "itemPower": 7,
       "requiredLevel": 7,
       "statType1": 0,
