@@ -122,7 +122,8 @@ internal sealed record Trader(IWorldConnection Connection, CharacterEntity Chara
 
 /// <summary>
 /// The trade half of <see cref="ICharacterSaver" />, driven by the test: each paired save and each record lookup waits
-/// until the test finishes it. Every other member throws.
+/// until the test finishes it, and what waits on it runs on the test's thread inside <see cref="Finish" /> or
+/// <see cref="Answer" />, so the next Tick sees it. Every other member throws.
 /// </summary>
 internal sealed class FakeTradeSaver : ICharacterSaver
 {
@@ -148,7 +149,7 @@ internal sealed class FakeTradeSaver : ICharacterSaver
         TradeRecord record)
     {
         Trades.Add((sides[0].Side, sides[1].Side, record));
-        _save = new TaskCompletionSource<SaveOutcome>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _save = new TaskCompletionSource<SaveOutcome>();
         return _save.Task;
     }
 
@@ -159,7 +160,7 @@ internal sealed class FakeTradeSaver : ICharacterSaver
     public Task<bool> TradeCommittedAsync(Guid tradeId, AccountId first, AccountId second)
     {
         Lookups++;
-        _lookup = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _lookup = new TaskCompletionSource<bool>();
         return _lookup.Task;
     }
 

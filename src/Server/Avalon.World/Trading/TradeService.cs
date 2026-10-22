@@ -297,8 +297,9 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
     }
 
     /// <summary>
-    /// Once per tick, from World.Update. Returns at once with no request and no trade. Expires requests, then closes each
-    /// open trade with the first automatic cancel that holds, the same reason to both.
+    /// Once per tick, from World.Update. Returns at once with no request and no trade. While a trade completes, applies
+    /// what its save and record lookups learned and starts the lookups that are due (TradeService.Completion.cs). Then
+    /// expires requests, and closes each open trade with the first automatic cancel that holds, the same reason to both.
     /// </summary>
     public void Tick()
     {
@@ -306,6 +307,9 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             return;
 
         tickThread?.AssertOnTick("TradeService.Tick");
+        if (_completions.Count > 0)
+            AdvanceCompletions(time.GetUtcNow());
+
         if (_requests.Count > 0)
             ExpireRequests(time.GetUtcNow());
 
@@ -325,7 +329,9 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
     /// <summary>
     /// The character left the world (World.LeaveWorldAsync, before the connection lets go of it): every request it sent
     /// or held ends, the other side told it expired; its budget is forgotten; an open trade closes with
-    /// <see cref="TradeResult.Left" />, which only the partner hears. A stale connection's leave changes nothing.
+    /// <see cref="TradeResult.Left" />, which only the partner hears. A completing trade is not cancelled: the side is
+    /// marked offline, and the outcome is applied to its entity, which the held despawn save snapshots at the release.
+    /// A stale connection's leave changes nothing.
     /// </summary>
     public void CharacterOffline(IWorldConnection connection, ICharacter character)
     {
@@ -337,17 +343,22 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
         EndRequestsOf(id, tellSelf: false);
         _requestBudget.Forget(id);
 
-        if (_tradeOf.TryGetValue(id, out Trade? trade) && trade.State == TradeState.Open
-            && ReferenceEquals(trade.SideOf(id).Connection, connection))
+        if (!_tradeOf.TryGetValue(id, out Trade? trade) || !ReferenceEquals(trade.SideOf(id).Connection, connection))
+            return;
+
+        if (trade.State == TradeState.Completing)
         {
-            bool first = trade.First.Character.Guid.Id == id;
-            Close(trade, first ? TradeResult.Unknown : TradeResult.Left, first ? TradeResult.Left : TradeResult.Unknown);
+            trade.SideOf(id).Online = false;
+            return;
         }
+
+        bool first = trade.First.Character.Guid.Id == id;
+        Close(trade, first ? TradeResult.Unknown : TradeResult.Left, first ? TradeResult.Left : TradeResult.Unknown);
     }
 
     /// <summary>
     /// The character moved to another instance (World.TransferPlayer): its requests end, both sides told they expired, and
-    /// an open trade closes with <see cref="TradeResult.Left" /> to both.
+    /// an open trade closes with <see cref="TradeResult.Left" /> to both. A completing trade is left to its outcome.
     /// </summary>
     public void InstanceChanged(IWorldConnection connection)
     {
@@ -361,7 +372,10 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             Close(trade, TradeResult.Left, TradeResult.Left);
     }
 
-    /// <summary>The character is opening a shop or the bank (the NPC window paths): an open trade closes.</summary>
+    /// <summary>
+    /// The character is opening a shop or the bank (the NPC window paths): an open trade closes. A completing trade is
+    /// left to its outcome.
+    /// </summary>
     public void NpcWindowOpening(ICharacter character)
     {
         tickThread?.AssertOnTick("TradeService.NpcWindowOpening");
