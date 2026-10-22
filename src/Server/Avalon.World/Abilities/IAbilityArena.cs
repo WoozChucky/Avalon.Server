@@ -107,6 +107,12 @@ public interface IAbilityArena
     /// </summary>
     uint CastInFlight { get; set; }
 
+    /// <summary>
+    /// The footprint the cast being fired now was started with, set only for that call (#479): a queued cast's, which
+    /// its start broadcast already resolved, so its script need not resolve it again. Null for an instant cast.
+    /// </summary>
+    AbilityFootprint? FootprintInFlight { get; set; }
+
     /// <summary>The finish-cast broadcast, as <c>ISimulationContext.BroadcastFinishCast</c> (#546), with its cast id (#648).</summary>
     void BroadcastFinishCast(IUnit caster, IAbility ability, uint castId);
 

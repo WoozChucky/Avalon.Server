@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.World;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Maps;
@@ -53,6 +54,30 @@ public readonly record struct AbilityFootprint(
         };
 
     public AbilityFootprintDto ToDto() => AbilityFootprintDto.Create(Shape, Origin, Direction, Centre, Radius, Reach, ArcDegrees);
+
+    /// <summary>
+    /// This footprint written into DTOs the caller keeps and reuses (#479), as <see cref="ToDto" /> writes it into new
+    /// ones: a broadcast that encodes at once allocates nothing. Returns <paramref name="dto" />.
+    /// </summary>
+    public AbilityFootprintDto FillDto(AbilityFootprintDto dto, Vector3Dto origin, Vector3Dto direction, Vector3Dto centre)
+    {
+        dto.Shape = Shape;
+        dto.Origin = Set(origin, Origin);
+        dto.Direction = Direction is { } d ? Set(direction, d) : null;
+        dto.Centre = Centre is { } c ? Set(centre, c) : null;
+        dto.Radius = Radius;
+        dto.Reach = Reach;
+        dto.ArcDegrees = ArcDegrees;
+        return dto;
+
+        static Vector3Dto Set(Vector3Dto into, Vector3 v)
+        {
+            into.X = v.x;
+            into.Y = v.y;
+            into.Z = v.z;
+            return into;
+        }
+    }
 
     /// <summary>
     /// Whether a body of <paramref name="bodyRadius" /> at <paramref name="position" /> overlaps this circle or cone, by the

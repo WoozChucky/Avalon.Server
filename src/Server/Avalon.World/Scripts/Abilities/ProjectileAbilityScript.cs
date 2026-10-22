@@ -58,10 +58,14 @@ public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, Abil
         Orientation = new Vector3(0f, MathF.Atan2(_direction.x, _direction.z) * Mathf.Rad2Deg, 0f);
         Position = _ground + HeightOffset;
 
-        if (AbilityFootprint.Resolve(AbilityShape.Projectile, Ability.Metadata, Aim, _ground,
-                arena.GetNavigatorForPosition(_ground)) is { } lane)
+        // A queued cast's lane was resolved for its start broadcast; an instant's is resolved here.
+        AbilityFootprint? lane = arena.FootprintInFlight is { Shape: AbilityShape.Projectile } started
+            ? started
+            : AbilityFootprint.Resolve(AbilityShape.Projectile, Ability.Metadata, Aim, _ground,
+                arena.GetNavigatorForPosition(_ground));
+        if (lane is { } fired)
         {
-            arena.BroadcastAbilityFired(Caster, Ability, lane);
+            arena.BroadcastAbilityFired(Caster, Ability, fired);
         }
     }
 

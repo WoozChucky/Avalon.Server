@@ -78,6 +78,8 @@ internal sealed class TestArena : IAbilityArena
 
     public uint CastInFlight { get => _castInFlight; set => _castInFlight = value; }
 
+    public AbilityFootprint? FootprintInFlight { get; set; }
+
     /// <summary>Every projectile impact broadcast, in order (#479).</summary>
     public List<(ProjectileImpactReason Reason, Vector3 Position, IUnit? Target, uint CastId)> Impacts { get; } = [];
 
