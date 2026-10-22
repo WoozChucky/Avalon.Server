@@ -18,7 +18,8 @@ public class QuestCatalogExportShould
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         var quests = context.QuestTemplates.AsNoTracking()
-            .Include(q => q.Stages).Include(q => q.Objectives).Include(q => q.ItemRewards).ToList();
+            .Include(q => q.Stages).Include(q => q.Objectives).Include(q => q.ItemRewards)
+            .Include(q => q.ItemChoices).ToList();
         return (quests, context.LocalizedTexts.AsNoTracking().ToDictionary(t => t.Id.Value, t => t.Text));
     }
 
@@ -39,11 +40,11 @@ public class QuestCatalogExportShould
     {
         List<JsonElement> quests = SeededQuests();
 
-        Assert.Equal([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], quests.Select(q => q.GetProperty("id").GetInt32()));
+        Assert.Equal([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], quests.Select(q => q.GetProperty("id").GetInt32()));
         Assert.Equal(["Thinning the Herd", "Tusks for Borin", "The Alpha's Howl", "Wings for the Still", "Pelts Before Frost",
-                "What the Husks Carry", "Heartwood", "Mother of Thorns", "The Lost Caravan", "Boar Cull"],
+                "What the Husks Carry", "Heartwood", "Mother of Thorns", "The Lost Caravan", "Boar Cull", "Earn It Fancy"],
             quests.Select(q => q.GetProperty("title").GetString()));
-        Assert.Equal([1, 1, 1, 1, 1, 1, 1, 1, 1, 3], quests.Select(q => q.GetProperty("repeat").GetInt32()));
+        Assert.Equal([1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1], quests.Select(q => q.GetProperty("repeat").GetInt32()));
     }
 
     /// <summary>Quest 8: a talk to Garrick, then the Alphas and the Bramble Heart in one stage.</summary>
@@ -89,6 +90,12 @@ public class QuestCatalogExportShould
         Assert.Equal([(56L, 2)], rewards.GetProperty("items").EnumerateArray()
             .Select(i => (i.GetProperty("itemTemplateId").GetInt64(), i.GetProperty("count").GetInt32())));
         Assert.Empty(quests.Single(q => q.GetProperty("id").GetInt32() == 1).GetProperty("rewards").GetProperty("items").EnumerateArray());
+
+        // #711: the choose-one set beside the fixed items, empty on a quest without one.
+        Assert.Equal([(5L, 1), (6L, 1), (7L, 1), (8L, 1)], quests.Single(q => q.GetProperty("id").GetInt32() == 3)
+            .GetProperty("rewards").GetProperty("choices").EnumerateArray()
+            .Select(i => (i.GetProperty("itemTemplateId").GetInt64(), i.GetProperty("count").GetInt32())));
+        Assert.Empty(quests.Single(q => q.GetProperty("id").GetInt32() == 1).GetProperty("rewards").GetProperty("choices").EnumerateArray());
     }
 
     /// <summary>The script, requirements and drops are server-only; the file carries the outline and nothing else.</summary>
@@ -101,7 +108,7 @@ public class QuestCatalogExportShould
         Assert.Equal(["id", "title", "repeat", "stages", "rewards"], quest.EnumerateObject().Select(p => p.Name));
         Assert.Equal(["sequence", "objectives"], quest.GetProperty("stages")[0].EnumerateObject().Select(p => p.Name));
         Assert.Equal(["id", "type", "targetId", "count"], objective.EnumerateObject().Select(p => p.Name));
-        Assert.Equal(["experience", "money", "items"], quest.GetProperty("rewards").EnumerateObject().Select(p => p.Name));
+        Assert.Equal(["experience", "money", "items", "choices"], quest.GetProperty("rewards").EnumerateObject().Select(p => p.Name));
     }
 
     [Fact]

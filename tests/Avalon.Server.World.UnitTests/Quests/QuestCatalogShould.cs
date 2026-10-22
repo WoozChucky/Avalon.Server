@@ -30,9 +30,13 @@ public class QuestCatalogShould
     [Fact]
     public void Load_the_chain_whole()
     {
-        QuestCatalog catalog = Build(Chain());
+        List<QuestTemplate> chain = Chain();
+        chain.Single(q => q.Id.Value == Tusks).Offering((Blade, 1), (Charm, 1));
+        QuestCatalog catalog = Build(chain);
 
         Assert.Empty(catalog.Refused);
+        Assert.True(catalog.TryGet(Tusks, out QuestView? tusks));
+        Assert.Equal([Charm, Blade], tusks!.ItemChoices.Select(c => c.ItemTemplateId.Value));
         Assert.True(catalog.TryGet(Howl, out QuestView? howl));
         Assert.Equal([0, 1, 2], howl!.Stages.Select(s => s.Sequence));
         Assert.Equal([Hunt, Tusks], catalog.GivenBy(new CreatureTemplateId(Giver)).Select(q => q.Id));
@@ -71,6 +75,11 @@ public class QuestCatalogShould
         { Quest(1).WithStage(0, Collect(11, Tusk, 1)).WithStage(1, Collect(12, Tusk, 1)), "objective 12 collects item template 7101, which objective 11 already collects" },
         { Quest(1).WithStage(0, Kill(11, Boar, 1)).Repeating(QuestRepeatFrequency.Daily, repeatable: false), "repeat frequency Daily" },
         { Quest(1).WithStage(0, Kill(11, Boar, 1)).Repeating((QuestRepeatFrequency)7), "repeat frequency 7" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((999, 1), (Charm, 1)), "choice item template 999 does not exist" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((Tonic, 0), (Charm, 1)), "choice item template 7102 has count 0" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((Charm, 1)), "2-6 items, not 1" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((Tonic, 1), (Charm, 1), (Blade, 1), (7110, 1), (7111, 1), (7112, 1), (7113, 1)), "2-6 items, not 7" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Paying(Tonic, 2).Offering((Tonic, 1), (Charm, 1)), "item template 7102 is both a fixed reward and a choice" },
     };
 
     [Theory]
@@ -287,13 +296,17 @@ public class QuestCatalogShould
         AssertRefused(catalog, 3, "prerequisite quest 2");
     }
 
-    [Fact]
-    public void Refuse_a_unique_reward_item()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Refuse_a_unique_reward_item(bool asChoice)
     {
         List<ItemTemplate> items = Items();
         items.Single(i => i.Id.Value == Charm).Flags = ItemTemplateFlags.Unique;
+        QuestTemplate quest = Quest(1).WithStage(0, Kill(11, Boar, 1));
+        quest = asChoice ? quest.Offering((Charm, 1), (Tonic, 1)) : quest.Paying(Charm, 1);
 
-        AssertRefused(Build([Quest(1).WithStage(0, Kill(11, Boar, 1)).Paying(Charm, 1)], items), 1, "Unique");
+        AssertRefused(Build([quest], items), 1, "Unique");
     }
 
     [Fact]

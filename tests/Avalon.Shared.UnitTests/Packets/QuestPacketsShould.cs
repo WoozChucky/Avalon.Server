@@ -64,6 +64,7 @@ public class QuestPacketsShould
         Assert.Equal("0801", Hex(new QuestRewardsDto { Experience = 1 }));
         Assert.Equal("1002", Hex(new QuestRewardsDto { Money = 2 }));
         Assert.Equal("1a02" + "0805", Hex(new QuestRewardsDto { Items = [new QuestRewardItemDto { ItemTemplateId = 5 }] }));
+        Assert.Equal("2202" + "0805", Hex(new QuestRewardsDto { Choices = [new QuestRewardItemDto { ItemTemplateId = 5 }] }));
         Assert.Equal("0801", Hex(new QuestRewardItemDto { ItemTemplateId = 1 }));
         Assert.Equal("1002", Hex(new QuestRewardItemDto { Count = 2 }));
     }
@@ -91,6 +92,7 @@ public class QuestPacketsShould
         Assert.Equal(0, (int)QuestResult.Unknown);
         Assert.Equal(1, (int)QuestResult.Ok);
         Assert.Equal(10, (int)QuestResult.Error);
+        Assert.Equal(12, (int)QuestResult.InvalidChoice);
     }
 
     [Fact]
@@ -114,6 +116,7 @@ public class QuestPacketsShould
         Assert.Equal("1002", Hex(new CQuestAcceptPacket { NpcGuid = 2 }));
         Assert.Equal("0801", Hex(new CQuestTurnInPacket { QuestId = 1 }));
         Assert.Equal("1002", Hex(new CQuestTurnInPacket { NpcGuid = 2 }));
+        Assert.Equal("1803", Hex(new CQuestTurnInPacket { ChoiceItemTemplateId = 3 }));
         Assert.Equal("0801", Hex(new CQuestAbandonPacket { QuestId = 1 }));
     }
 

@@ -71,7 +71,7 @@ public sealed class QuestTemplateRouteShould : IAsyncLifetime
         return _host.GetAsync(path, ApiTestHost.Mint(account));
     }
 
-    /// <summary>The seeded "The Alpha's Howl": three stages, a talk objective, an item reward, English texts.</summary>
+    /// <summary>The seeded "The Alpha's Howl": three stages, a talk objective, an item reward, a choice set, English texts.</summary>
     [Fact]
     public async Task Serve_a_seeded_quest_whole_to_a_game_master()
     {
@@ -87,6 +87,7 @@ public sealed class QuestTemplateRouteShould : IAsyncLifetime
         Assert.Equal((303u, Avalon.Api.Contract.QuestObjectiveType.Talk, (ulong?)11, 1u, "Speak with Marta Ledgerwell"),
             (talk.Id, talk.Type, talk.CreatureTemplateId, talk.Count, talk.Text));
         Assert.Equal([(58ul, 1u)], quest.ItemRewards.Select(r => (r.ItemTemplateId, r.Count)));
+        Assert.Equal([(5ul, 1u), (6ul, 1u), (7ul, 1u), (8ul, 1u)], quest.ItemChoices.Select(r => (r.ItemTemplateId, r.Count)));
         Assert.Equal((600u, 400ul), (quest.RewardExperience, quest.RewardMoney));
     }
 
@@ -106,8 +107,8 @@ public sealed class QuestTemplateRouteShould : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         PagedResult<QuestTemplateDto> page = (await response.Content.ReadFromJsonAsync<PagedResult<QuestTemplateDto>>())!;
-        Assert.Equal([1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u, 9u, 10u], page.Items.Select(q => q.Id));
-        Assert.Equal(10, page.TotalCount);
+        Assert.Equal([1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u, 9u, 10u, 11u], page.Items.Select(q => q.Id));
+        Assert.Equal(11, page.TotalCount);
         Assert.Equal("Thinning the Herd", page.Items[0].Title);
     }
 

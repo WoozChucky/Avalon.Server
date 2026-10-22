@@ -16,8 +16,14 @@ public static class QuestReplies
     /// may have changed what it had already applied, as a vendor trade may); a throw from sending the answer itself
     /// is left to the caller, so nothing is answered twice.
     /// </summary>
-    public static void Handle(IWorldConnection connection, ILogger logger, NetworkPacketType request, uint questId,
-        Func<CharacterEntity, QuestResult> handle)
+    /// <remarks>
+    /// What the request needs (the quest service, the packet) is handed over as <paramref name="state" /> and back to
+    /// <paramref name="handle" />, which is written <c>static</c>, as for <c>PartyReplies.Handle</c> (#883): a lambda
+    /// that captured them cost every quest packet a closure and a delegate. A value tuple is the usual state, and is
+    /// never boxed.
+    /// </remarks>
+    public static void Handle<TState>(IWorldConnection connection, ILogger logger, NetworkPacketType request,
+        uint questId, TState state, Func<CharacterEntity, TState, QuestResult> handle)
     {
         if (connection.Character is not CharacterEntity character)
             return;
@@ -25,7 +31,7 @@ public static class QuestReplies
         QuestResult result;
         try
         {
-            result = handle(character);
+            result = handle(character, state);
         }
         catch (Exception ex)
         {

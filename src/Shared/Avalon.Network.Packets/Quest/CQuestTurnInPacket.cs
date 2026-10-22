@@ -17,4 +17,7 @@ public class CQuestTurnInPacket : Packet
 
     /// <summary>Raw ObjectGuid of the NPC the conversation is with.</summary>
     [ProtoMember(2)] public ulong NpcGuid { get; set; }
+
+    /// <summary>The item template picked from the quest's choice set (#711); 0 = no pick.</summary>
+    [ProtoMember(3)] public ulong ChoiceItemTemplateId { get; set; }
 }

@@ -101,6 +101,15 @@ singletons as in every host. Only their context factories differ in the API, whi
   without the change, first run `dotnet ef database update GrantCrowdControlAbilities` against that world's Character
   database; that drops both columns, and with them each completion's count and last turn-in (its first turn-in,
   `CompletedAt`, stays). No world or API does that by itself.
+  **Release order, #711.** `AddQuestChoiceRewards` adds the `QuestItemChoices` table to a world's World database
+  (each quest's choose-one item set, seeded on quests 3 and 11, the latter new), and the API maps it: a quest
+  template carries its `itemChoices`, and an item `PUT` that changes the flags checks the quests offering that item
+  as a choice. The table is additive, so the worlds go first: each migrates its World database at its next start
+  (start any stopped world once, so it migrates too), and only then is an API release with the change cut. An older
+  API reading a migrated world ignores the new table; an API with the change reading a world that has not migrated
+  fails that world's quest-template list and get, and its item `PUT` flag checks, the API's reads of the table. To
+  roll a world back to a build without the change, run `dotnet ef database update RaiseHushProjectileSpeed` against
+  that world's World database; that drops the table, and quest 11 with it. No world or API does that by itself.
 
 ## How a request reaches its world
 

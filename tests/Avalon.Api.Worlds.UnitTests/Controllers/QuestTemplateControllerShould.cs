@@ -86,6 +86,11 @@ public class QuestTemplateControllerShould
             new QuestItemReward { QuestId = 3, ItemTemplateId = 58, Count = 1 },
             new QuestItemReward { QuestId = 3, ItemTemplateId = 56, Count = 2 },
         ],
+        ItemChoices =
+        [
+            new QuestItemChoice { QuestId = 3, ItemTemplateId = 8, Count = 1 },
+            new QuestItemChoice { QuestId = 3, ItemTemplateId = 5, Count = 1 },
+        ],
     };
 
     private async Task<QuestTemplateDto> GetOk(uint id) =>
@@ -130,6 +135,7 @@ public class QuestTemplateControllerShould
             (scripted.Type, scripted.CreatureTemplateId, scripted.ItemTemplateId, scripted.Count));
 
         Assert.Equal([(56ul, 2u), (58ul, 1u)], dto.ItemRewards.Select(r => (r.ItemTemplateId, r.Count)));
+        Assert.Equal([(5ul, 1u), (8ul, 1u)], dto.ItemChoices.Select(r => (r.ItemTemplateId, r.Count)));
         Assert.Equal([(302u, 4ul, 60f), (302u, 7ul, 25f)],
             dto.ItemDrops.Select(d => (d.ObjectiveId, d.CreatureTemplateId, d.Chance)));
     }

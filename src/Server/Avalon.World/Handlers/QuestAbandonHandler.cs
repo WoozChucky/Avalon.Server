@@ -12,5 +12,6 @@ public class QuestAbandonHandler(QuestService quests, ILogger<QuestAbandonHandle
 {
     public override void Execute(IWorldConnection connection, CQuestAbandonPacket packet) =>
         QuestReplies.Handle(connection, logger, NetworkPacketType.CMSG_QUEST_ABANDON, packet.QuestId,
-            character => quests.Abandon(character, packet.QuestId));
+            (quests, packet),
+            static (character, request) => request.quests.Abandon(character, request.packet.QuestId));
 }

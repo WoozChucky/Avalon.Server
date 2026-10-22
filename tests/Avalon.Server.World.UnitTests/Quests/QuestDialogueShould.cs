@@ -72,7 +72,9 @@ public class QuestDialogueShould
     [Fact]
     public async Task Send_the_offer_with_resolved_text_when_a_quest_option_is_chosen()
     {
-        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        List<QuestTemplate> quests = Chain();
+        quests.Single(q => q.Id.Value == Hunt).Offering((Blade, 1), (Charm, 1));   // stored out of id order on purpose
+        QuestTestWorld w = await QuestTestWorld.CreateAsync(quests);
         QuestClient c = w.Join();
         Creature giver = w.Place(Giver);
         SDialogueNodePacket root = Interact(w, c, giver);
@@ -88,6 +90,8 @@ public class QuestDialogueShould
         Assert.Equal((HuntKill, QuestObjectiveKind.Kill, Boar, 2u, "Things done"),
             (objective.ObjectiveId, objective.Kind, objective.TargetId, objective.Count, objective.Text));
         Assert.Equal((50u, 30ul), (offer.Quest.Rewards!.Experience, offer.Quest.Rewards.Money));
+        Assert.Equal([(Charm, 1u), (Blade, 1u)], offer.Quest.Rewards.Choices.Select(r => (r.ItemTemplateId, r.Count)));
+        Assert.Empty(offer.Quest.Rewards.Items);
         Assert.Equal((giver.Guid, new Avalon.Common.ValueObjects.DialogueNodeId(QuestTestWorld.GiverRoot)), c.Connection.CurrentDialogue);
     }
 

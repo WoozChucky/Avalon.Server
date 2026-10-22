@@ -36,6 +36,7 @@ public sealed record QuestView(
     Type? ScriptType,
     IReadOnlyList<QuestStageView> Stages,
     IReadOnlyList<QuestItemRewardView> ItemRewards,
+    IReadOnlyList<QuestItemRewardView> ItemChoices,
     QuestRepeat Repeat)
 {
     public QuestStageView LastStage => Stages[^1];
@@ -56,10 +57,19 @@ public sealed record QuestRefusal(uint QuestId, string Reason)
 /// afterwards, so the tick reads it without locking. A bad quest is refused with an error naming it and every other
 /// quest still loads; a quest whose prerequisite is refused is refused too. The doodad templates it is built with are
 /// the ones a UseDoodad objective may name, read in the same prepare; none (the default) refuses every quest with one.
+/// A quest's choose-one item set (#711) is checked as its fixed rewards are, and is empty or holds
+/// <see cref="MinItemChoices" />-<see cref="MaxItemChoices" /> items, none of them also a fixed reward; a view lists it
+/// by item id, as it does the fixed rewards.
 /// </summary>
 public sealed class QuestCatalog
 {
     public const int MaxObjectivesPerStage = 4;
+
+    /// <summary>A set of one would be a fixed reward in disguise.</summary>
+    public const int MinItemChoices = 2;
+
+    /// <summary>The most a client lays out well in one offer.</summary>
+    public const int MaxItemChoices = 6;
 
     public static readonly QuestCatalog Empty = new([], [], [], [], _ => null, Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
 
@@ -333,11 +343,45 @@ public sealed class QuestCatalog
                 return rewardProblem;
         }
 
+        if (ItemChoiceProblem(quest, items) is { } choice)
+            return choice;
+
         if (quest.ScriptName is { Length: > 0 } name)
         {
             script = findScript(name);
             if (script is null)
                 return $"script {name} is not a loaded QuestScript";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A choose-one set (#711), when the quest has one: its size, then an item that is also a fixed reward (the pick
+    /// would be ambiguous to read), then each entry by item id as a fixed reward is checked.
+    /// </summary>
+    private static string? ItemChoiceProblem(QuestTemplate quest, Dictionary<ulong, ItemTemplate> items)
+    {
+        int count = quest.ItemChoices.Count;
+        if (count == 0)
+            return null;
+        if (count is < MinItemChoices or > MaxItemChoices)
+            return $"a choice set has {MinItemChoices}-{MaxItemChoices} items, not {count}";
+
+        foreach (QuestItemChoice choice in quest.ItemChoices.OrderBy(c => c.ItemTemplateId.Value))
+        {
+            if (quest.ItemRewards.Any(r => r.ItemTemplateId.Value == choice.ItemTemplateId.Value))
+                return $"item template {choice.ItemTemplateId.Value} is both a fixed reward and a choice";
+        }
+
+        foreach (QuestItemChoice choice in quest.ItemChoices.OrderBy(c => c.ItemTemplateId.Value))
+        {
+            if (!items.TryGetValue(choice.ItemTemplateId.Value, out ItemTemplate? item))
+                return $"choice item template {choice.ItemTemplateId.Value} does not exist";
+            if (choice.Count == 0)
+                return $"choice item template {choice.ItemTemplateId.Value} has count 0";
+            if (ItemUseRules.QuestRewardProblem(item) is { } rewardProblem)
+                return rewardProblem;
         }
 
         return null;
@@ -454,6 +498,7 @@ public sealed class QuestCatalog
                     o.ItemTemplateId, o.Count, o.DescriptionTextId, o.DoodadTemplateId))
                 .ToList())).ToList(),
         q.ItemRewards.OrderBy(r => r.ItemTemplateId.Value).Select(r => new QuestItemRewardView(r.ItemTemplateId, r.Count)).ToList(),
+        q.ItemChoices.OrderBy(c => c.ItemTemplateId.Value).Select(c => new QuestItemRewardView(c.ItemTemplateId, c.Count)).ToList(),
         RepeatOf(q));
 
     /// <summary>The repeat kind the catalog reads from a quest's repeat pair: Once unless repeatable; no frequency repeats at once.</summary>
