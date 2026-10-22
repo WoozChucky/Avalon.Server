@@ -10,6 +10,9 @@ public interface IWallet
 
     WalletResult TrySpend(ulong gold);
 
-    /// <summary>Refused whole, with GoldCapReached, if the balance would pass the configured maximum.</summary>
+    /// <summary>
+    /// Refused whole, with GoldCapReached, if the balance would pass the configured maximum, counting gold a
+    /// completing trade is about to pay (#1175) as already in it.
+    /// </summary>
     WalletResult TryAddGold(ulong gold);
 }

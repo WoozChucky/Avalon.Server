@@ -10,7 +10,8 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 
 /// <summary>
 /// An item offered in a trade is locked (#1175): nothing may move, split, merge into, swap with, bank, equip or destroy
-/// it, adds never fill its stack, removals by template never see it, and gold held for the trade cannot be spent.
+/// it, adds never fill its stack, removals by template never see it, and gold held for the trade cannot be spent. While
+/// the trade completes, what it will add is reserved.
 /// </summary>
 public class InventoryLocksShould
 {
@@ -70,5 +71,36 @@ public class InventoryLocksShould
         Assert.Equal(WalletResult.NotEnoughGold, wallet.CanSpend(41));
         Assert.Equal(WalletResult.Ok, wallet.TrySpend(40));
         Assert.Equal(60UL, wallet.Balance);
+    }
+
+    /// <summary>
+    /// While a trade completes, the receiver's destination slots, incoming gold and incoming Unique copies are spoken
+    /// for: every add but the trade's own treats them as taken.
+    /// </summary>
+    [Fact]
+    public void Keep_a_completing_trade_s_reservations_out_of_every_other_add()
+    {
+        CharacterEntity character = New(8, gold: 40);
+        character.Container(InventoryType.Bag).Load(Enumerable.Range(0, 28).Select(s => Item((byte)s, Sword)).ToList());
+        CharacterInventoryService inventory = TestCharacters.InventoryFor(character);
+        var wallet = new CharacterWallet(character, maxGold: 100);
+        character.Locks.Reserve(28);
+
+        Assert.Equal(InventoryAddResult.Ok, inventory.TryAdd(Potion.Id, 20));
+        Assert.Equal(Potion.Id, At(character, InventoryType.Bag, 29).TemplateId);
+        Assert.Equal(InventoryAddResult.InventoryFull, inventory.CanAdd(Potion.Id, 1));
+        Assert.Equal(InventoryAddResult.InventoryFull, inventory.TryAddInstance(Item(0, Sword)));
+        Assert.Equal(ItemRequestResult.Locked, inventory.TryMove(Bag(0), Bag(28), null, false));
+        character.Locks.ExpectIncoming(Relic.Id, 1);
+        Assert.Equal(InventoryAddResult.UniqueAlreadyOwned, inventory.TryAdd(Relic.Id, 1));
+        character.Locks.IncomingGold = 50;
+        Assert.Equal(WalletResult.GoldCapReached, wallet.TryAddGold(11));
+        Assert.Equal(WalletResult.Ok, wallet.TryAddGold(10));
+        Assert.False(character.Container(InventoryType.Bag).TryGet(28, out _));
+
+        character.Locks.Clear();
+        InventoryItem traded = Item(0, Sword);
+        Assert.Equal(InventoryAddResult.Ok, inventory.TryAddInstanceAt(traded, 28));
+        Assert.Equal(traded.InstanceId, At(character, InventoryType.Bag, 28).InstanceId);
     }
 }

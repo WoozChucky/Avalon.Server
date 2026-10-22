@@ -1101,7 +1101,7 @@ public sealed class QuestService(
             {
                 foreach (InventoryItem stack in character.Container(container).Items.Where(i => i.TemplateId.Value == item).ToList())
                 {
-                    if (character.Locks.Any && character.Locks.IsLocked(stack.InstanceId))
+                    if (character.Locks.IsLocked(stack.InstanceId))
                         continue;
 
                     InventoryRemoveResult removed = inventory.TryRemove(stack.InstanceId, stack.Count);

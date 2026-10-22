@@ -33,7 +33,8 @@ public readonly record struct BuybackDecision(VendorResult Result, BuybackPlan? 
 /// buyback list, the stock, the item templates and the quest hook, and change nothing. Each checks
 /// in the spec's order, and the first failure answers. VendorTrade applies an accepted plan. What is offered in a
 /// face-to-face trade (#1175) is out of reach: a locked item is never sold or taken as a cost, its stack is no room,
-/// and held gold pays for nothing.
+/// and held gold pays for nothing; what a completing trade is about to add (its reserved Bag slots, its gold and its
+/// copies of a Unique item) counts as already there.
 /// </summary>
 public static class VendorRules
 {
@@ -154,7 +155,7 @@ public static class VendorRules
         if (bagSlot >= bag.Capacity || !bag.TryGet((byte)bagSlot, out InventoryItem item))
             return new SellDecision(VendorResult.NotFound, null);
 
-        if (character.Locks.Any && character.Locks.IsLocked(item.InstanceId))
+        if (character.Locks.IsLocked(item.InstanceId))
             return new SellDecision(VendorResult.Locked, null);
 
         if (findTemplate(item.TemplateId) is not { } template
@@ -172,10 +173,10 @@ public static class VendorRules
         if (selling == 0 || selling > item.Count)
             return new SellDecision(VendorResult.InvalidCount, null);
 
-        // Written as CharacterWallet.TryAddGold refuses, so the apply cannot disagree.
+        // CharacterWallet.TryAddGold's own rule, so the apply cannot disagree: gold a completing trade is about to pay
+        // (#1175) counts as already in the balance.
         ulong payment = (ulong)template.SellPrice * selling;
-        ulong balance = Balance(character);
-        if (balance >= maxGold || payment > maxGold - balance)
+        if (!character.Locks.CanReceiveGold(Balance(character), payment, maxGold))
             return new SellDecision(VendorResult.GoldCapReached, null);
 
         return new SellDecision(VendorResult.Ok, new SellPlan((byte)bagSlot, selling, payment));
@@ -210,12 +211,12 @@ public static class VendorRules
         if (Spendable(character) < entry.Price)
             return new BuybackDecision(VendorResult.NotEnoughGold, null);
 
-        if (!character.Container(InventoryType.Bag).FreeSlots().Any())
+        if (character.Locks.FreeSlotCount(character.Container(InventoryType.Bag)) == 0)
             return new BuybackDecision(VendorResult.InventoryFull, null);
 
         if (findTemplate(entry.Item.TemplateId) is { } template
             && (template.Flags & ItemTemplateFlags.Unique) != 0
-            && HeldAnywhere(character, template.Id) + entry.Item.Count > 1)
+            && HeldAnywhere(character, template.Id) + Incoming(character, template.Id) + entry.Item.Count > 1)
         {
             return new BuybackDecision(VendorResult.UniqueAlreadyOwned, null);
         }
@@ -262,7 +263,7 @@ public static class VendorRules
                 if (remaining == 0)
                     break;
 
-                if (character.Locks.Any && character.Locks.IsLocked(stack.InstanceId))
+                if (character.Locks.IsLocked(stack.InstanceId))
                     continue;
 
                 uint take = Math.Min(stack.Count, remaining);
@@ -280,20 +281,25 @@ public static class VendorRules
 
     /// <summary>
     /// What TryAdd could fit: room in partial stacks of the item that are not offered in a trade, plus a full stack per
-    /// free slot.
+    /// free slot a completing trade has not reserved.
     /// </summary>
     private static long RoomFor(ItemTemplate item, Dictionary<byte, InventoryItem> bag, byte capacity, InventoryLocks locks)
     {
         uint maxStack = InventoryMove.MaxStack(item);
         long partial = bag.Values
-            .Where(i => i.TemplateId == item.Id && i.Count < maxStack && !(locks.Any && locks.IsLocked(i.InstanceId)))
+            .Where(i => i.TemplateId == item.Id && i.Count < maxStack && !locks.IsLocked(i.InstanceId))
             .Sum(i => (long)(maxStack - i.Count));
 
-        return partial + (long)(capacity - bag.Count) * maxStack;
+        return partial + (long)locks.FreeSlotCount(bag, capacity) * maxStack;
     }
 
+    /// <summary>Held once the costs are out, plus the copies a completing trade is about to add (#1175).</summary>
     private static long OwnedAfter(CharacterEntity character, ItemTemplateId templateId, Dictionary<byte, InventoryItem> bagAfter) =>
         bagAfter.Values.Where(i => i.TemplateId == templateId).Sum(i => (long)i.Count)
         + HeldIn(character, InventoryType.Equipment, templateId)
-        + HeldIn(character, InventoryType.Bank, templateId);
+        + HeldIn(character, InventoryType.Bank, templateId)
+        + Incoming(character, templateId);
+
+    private static long Incoming(CharacterEntity character, ItemTemplateId templateId) =>
+        character.Locks.Any ? character.Locks.IncomingCount(templateId) : 0;
 }

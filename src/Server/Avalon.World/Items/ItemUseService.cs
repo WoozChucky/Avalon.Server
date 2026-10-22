@@ -93,7 +93,7 @@ public sealed class ItemUseService(
         }
 
         // #1175: an item offered in a trade is neither used nor worn, asked before its template as a move asks it.
-        if (character.Locks.Any && character.Locks.IsLocked(item.InstanceId))
+        if (character.Locks.IsLocked(item.InstanceId))
             return ItemUseAnswer.Of(ItemUseResult.Locked);
 
         if (FindTemplate(item.TemplateId) is not { } template)
@@ -210,7 +210,7 @@ public sealed class ItemUseService(
         && !IsLocked(use.Character, now);
 
     private static bool IsLocked(CharacterEntity character, InventoryItem item) =>
-        character.Locks.Any && character.Locks.IsLocked(item.InstanceId);
+        character.Locks.IsLocked(item.InstanceId);
 
     private ItemUseAnswer Finish(ItemUse use)
     {

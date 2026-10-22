@@ -86,7 +86,7 @@ public static class ItemEquip
         byte equipmentSlot,
         Action? beforeApply = null)
     {
-        if (LowestFreeSlot(character.Container(InventoryType.Bag)) is not { } free)
+        if (LowestFreeSlot(character) is not { } free)
             return ItemUseResult.TargetFull;
 
         var from = new SlotRef(InventoryType.Equipment, equipmentSlot);
@@ -141,7 +141,7 @@ public static class ItemEquip
         if (wearable != ItemRequestResult.Ok)
             return Map(wearable);
 
-        if (LowestFreeSlot(bag) is not { } free)
+        if (LowestFreeSlot(character) is not { } free)
             return ItemUseResult.TargetFull;
 
         beforeApply?.Invoke();
@@ -163,12 +163,16 @@ public static class ItemEquip
         return Map(worn);
     }
 
-    /// <summary>The lowest empty slot, or null when the container is full; a plain loop, so a use allocates no iterator.</summary>
-    private static byte? LowestFreeSlot(CharacterInventoryContainer container)
+    /// <summary>
+    /// The lowest empty Bag slot a completing trade has not reserved (#1175), or null when there is none; a plain loop,
+    /// so a use allocates no iterator.
+    /// </summary>
+    private static byte? LowestFreeSlot(CharacterEntity character)
     {
-        for (byte slot = 0; slot < container.Capacity; slot++)
+        CharacterInventoryContainer bag = character.Container(InventoryType.Bag);
+        for (byte slot = 0; slot < bag.Capacity; slot++)
         {
-            if (!container.TryGet(slot, out _))
+            if (character.Locks.IsFree(bag, slot))
                 return slot;
         }
 
