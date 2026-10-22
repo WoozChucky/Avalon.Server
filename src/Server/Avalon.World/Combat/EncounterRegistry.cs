@@ -35,19 +35,29 @@ public sealed class EncounterRegistry : IEncounterRegistry
         return null;
     }
 
-    /// <summary>The first active encounter holding both units, on either side: a spillover the pair already shares (#1165).</summary>
+    /// <summary>The first active encounter holding both units, on either side: an encounter the pair already shares (#1165).</summary>
     internal Encounter? FindEncounterContainingBoth(IUnit first, IUnit second)
     {
         foreach (Encounter enc in _active)
         {
-            if ((enc.Hostiles.Contains(first) || enc.Players.Contains(first))
-                && (enc.Hostiles.Contains(second) || enc.Players.Contains(second)))
-            {
+            if (Holds(enc, first) && Holds(enc, second))
                 return enc;
-            }
         }
         return null;
     }
+
+    /// <summary>The first active encounter holding <paramref name="unit" /> with fewer than <paramref name="hostileCap" /> hostiles (#1165).</summary>
+    internal Encounter? FindEncounterWithRoom(IUnit unit, int hostileCap)
+    {
+        foreach (Encounter enc in _active)
+        {
+            if (enc.Hostiles.Count < hostileCap && Holds(enc, unit))
+                return enc;
+        }
+        return null;
+    }
+
+    private static bool Holds(Encounter enc, IUnit unit) => enc.Hostiles.Contains(unit) || enc.Players.Contains(unit);
 
     public IEncounter CreateEncounter()
     {
