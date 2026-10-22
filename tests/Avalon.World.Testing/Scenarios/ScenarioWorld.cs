@@ -22,6 +22,8 @@ using Avalon.World.Loot;
 using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Parties;
+using Avalon.World.Persistence;
+using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
@@ -32,6 +34,7 @@ using Avalon.World.Pvp;
 using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Testing.Fakes;
+using Avalon.World.Trading;
 using DotRecast.Detour;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -107,6 +110,7 @@ public sealed class ScenarioWorld : IDisposable
     private readonly DoodadPlacementService? _doodads;
     private readonly ServiceProvider _services;
     private readonly PartyService? _parties;
+    private readonly TradeService _trades;
     private readonly QuestService? _quests;
     private readonly List<MapTemplate> _templates = [];
     private readonly ScenarioInstanceFactory _factory = new();
@@ -179,6 +183,12 @@ public sealed class ScenarioWorld : IDisposable
                 new DoodadScripts(_services, Clock, new Logger<DoodadScripts>(_errorLog)), Clock, _errorLog,
                 reference.DoodadSpawns);
         }
+
+        // Every world has the trade service, as production registers it: no scenario trades, so each tick measures what
+        // its Tick costs with no request and no trade, which must be nothing. Who is online is the parties' when there
+        // are parties, as World shares it.
+        _trades = new TradeService(Options.Create(configuration), Clock, NoSaves.Instance,
+            _parties?.Online ?? new OnlineCharacters(), new Logger<TradeService>(_errorLog));
     }
 
     /// <summary>
@@ -282,7 +292,7 @@ public sealed class ScenarioWorld : IDisposable
 
     /// <summary>
     /// One world tick, in <c>World.Update</c>'s order for the registry: the builds finished since the last tick
-    /// published, the parties (in a world with reference data), then every instance through the registry's tick
+    /// published, the parties (in a world with reference data), the trades, then every instance through the registry's tick
     /// snapshot (<c>TickInstances</c>); then, as <c>WorldServer</c> runs them after the world update, the inventory,
     /// sheet and ability-amount flushers, the party members' status and the outbox stage's wake-up, followed here by the
     /// send thread's pass; then the clock moves on a tick.
@@ -315,6 +325,9 @@ public sealed class ScenarioWorld : IDisposable
             // a character to town, which a scenario cannot do.
             if (_parties is not null && _parties.Tick().Count > 0)
                 throw new NotSupportedException("A party leave countdown ran out: a scenario cannot return a character to town");
+
+            // World.TickTrades: request expiry, the automatic cancels and completions (#1175). With none, two reads.
+            _trades.Tick();
 
             _ticker.Tick(_registry.TickInstances(), delta);
             if (_failures.First is { } failure)
@@ -730,6 +743,33 @@ public sealed class ScenarioWorld : IDisposable
             connection.Dispose();
         Scheduler.RunAllPasses();
         Scheduler.Dispose();
+    }
+
+    /// <summary>The trade service's saver: no scenario trades, so it is never asked to save anything.</summary>
+    private sealed class NoSaves : ICharacterSaver
+    {
+        public static readonly NoSaves Instance = new();
+
+        public Task<bool> Save(IWorldConnection connection, CharacterEntity character) => throw new NotSupportedException();
+
+        public Task<bool> Save(IReadOnlyList<(IWorldConnection Connection, CharacterEntity Character)> characters) =>
+            throw new NotSupportedException();
+
+        public Task<bool> SaveOnDespawnAsync(CharacterEntity character, Func<Character, CancellationToken, Task>? prepareRow,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<SaveOutcome> SaveTrade(
+            IReadOnlyList<(IWorldConnection Connection, CharacterEntity Character, TradeSidePlan Side)> sides,
+            TradeRecord record) => throw new NotSupportedException();
+
+        public Task<bool> TradeCommittedAsync(Guid tradeId, AccountId first, AccountId second) =>
+            throw new NotSupportedException();
+
+        public void ReleaseHold(CharacterId id) => throw new NotSupportedException();
+
+        public Task WhenIdle(CharacterId id) => throw new NotSupportedException();
+
+        public Task WhenAllIdle() => throw new NotSupportedException();
     }
 
     /// <summary>The ticker's log: it logs only an instance's throw, and the first one is kept for <see cref="Tick()" /> to raise.</summary>

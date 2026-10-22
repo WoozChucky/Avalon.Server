@@ -71,9 +71,12 @@ public static class QuestTurnInRules
             .ToHashSet();
         CharacterInventoryContainer bag = character.Container(InventoryType.Bag);
         // A quest item offered in a trade stays behind (QuestService.RemoveQuestItems skips it), so it is no room.
-        var bagAfter = bag.Items
-            .Where(i => !questItems.Contains(i.TemplateId.Value) || character.Locks.IsLocked(i.InstanceId))
-            .ToDictionary(i => i.Slot);
+        var bagAfter = new Dictionary<byte, InventoryItem>();
+        foreach (InventoryItem item in bag.Items)
+        {
+            if (!questItems.Contains(item.TemplateId.Value) || character.Locks.IsLocked(item.InstanceId))
+                bagAfter.Add(item.Slot, item);
+        }
         if (!Fits(bagAfter, bag.Capacity, rewards, character.Locks))
             return QuestResult.BagFull;
 
@@ -126,9 +129,11 @@ public static class QuestTurnInRules
             ulong id = template.Id.Value;
             if (!partialRoom.TryGetValue(id, out long room))
             {
-                room = bag.Values
-                    .Where(i => i.TemplateId.Value == id && i.Count < max && !locks.IsLocked(i.InstanceId))
-                    .Sum(i => max - i.Count);
+                foreach (InventoryItem item in bag.Values)
+                {
+                    if (item.TemplateId.Value == id && item.Count < max && !locks.IsLocked(item.InstanceId))
+                        room += max - item.Count;
+                }
             }
 
             long remaining = count;

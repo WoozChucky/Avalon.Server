@@ -286,9 +286,12 @@ public static class VendorRules
     private static long RoomFor(ItemTemplate item, Dictionary<byte, InventoryItem> bag, byte capacity, InventoryLocks locks)
     {
         uint maxStack = InventoryMove.MaxStack(item);
-        long partial = bag.Values
-            .Where(i => i.TemplateId == item.Id && i.Count < maxStack && !locks.IsLocked(i.InstanceId))
-            .Sum(i => (long)(maxStack - i.Count));
+        long partial = 0;
+        foreach (InventoryItem held in bag.Values)
+        {
+            if (held.TemplateId == item.Id && held.Count < maxStack && !locks.IsLocked(held.InstanceId))
+                partial += maxStack - held.Count;
+        }
 
         return partial + (long)locks.FreeSlotCount(bag, capacity) * maxStack;
     }
