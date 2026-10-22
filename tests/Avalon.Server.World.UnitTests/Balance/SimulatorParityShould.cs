@@ -318,7 +318,7 @@ public class SimulatorParityShould
         MaxStacks = 3,
     };
 
-    private static AbilityTemplate TestRend(int powerGainPerHit = 0) => new()
+    private static AbilityTemplate TestRend(int powerGainPerHit = 0, SpellEffect effects = SpellEffect.Damage) => new()
     {
         Id = new Avalon.Common.ValueObjects.AbilityId(9203),
         Name = "Test Rend",
@@ -328,7 +328,7 @@ public class SimulatorParityShould
         Reach = 2.5f,
         ArcDegrees = 90f,
         Cooldown = 6000,
-        Effects = SpellEffect.Damage,
+        Effects = effects,
         EffectValue = 8,
         ScalingStat = ScalingStat.Attack,
         ScalingCoefficient = 0.2f,
@@ -345,24 +345,27 @@ public class SimulatorParityShould
     /// roll at apply, its crit roll, the boar's armour and the fraction of a point carried between ticks), its stacks
     /// and its refresh, on the same ticks. The instance's clock is moved to each tick's simulated time, as the
     /// simulator's is. The simulator never falls behind (it steps every server tick), so the server's catch-up after a
-    /// stall is not exercised here.
+    /// stall is not exercised here. Without Damage the cone deals nothing but still rolls whether it lands on the boar
+    /// (#1164): a dodge draw missing on either side would move every later roll and part the bleeds.
     /// </summary>
-    [Fact]
-    public async Task Bleed_the_same_as_the_aura_system_tick_for_tick()
+    [Theory]
+    [InlineData(SpellEffect.Damage)]
+    [InlineData(SpellEffect.Debuff)]
+    public async Task Bleed_the_same_as_the_aura_system_tick_for_tick(SpellEffect effects)
     {
         var clock = new FakeTimeProvider(s_clockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
-            abilities: () => [TestRend()], auras: () => [TestBleed()]));
+            abilities: () => [TestRend(effects: effects)], auras: () => [TestBleed()]));
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(Seed)), time: clock);
-        MapInstanceClient real = RealWarrior(instance, 6760_171, clock, TestRend());
+        MapInstanceClient real = RealWarrior(instance, 6760_171, clock, TestRend(effects: effects));
 
         SeedTables seed = SeedSource.Load();
         seed.AuraTemplates.Add(TestBleed());
-        seed.AbilityTemplates.Add(TestRend());
+        seed.AbilityTemplates.Add(TestRend(effects: effects));
         var data = BalanceData.From(seed);
         var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
-        simWarrior.Abilities.Add(new SimAbility(TestRend()));
+        simWarrior.Abilities.Add(new SimAbility(TestRend(effects: effects)));
         Assert.True(simWarrior.Attack.WeaponMax > 0, "the Warrior has no main hand to roll");
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_971, simBoar);

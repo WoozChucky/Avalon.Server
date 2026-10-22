@@ -82,7 +82,8 @@ saving a file unchanged changes nothing; `overrides.json` is yours to format. Sa
   creatures: from level 6 up they grade how the player outgrows the forest, not a fair fight.
 - **Auras** (damage and healing over time, and stat auras) are modelled through the server's rules (`AuraRules`,
   `AuraSchedule`, `AuraStats`, `HitResolver.ResolvePeriodic` and `ResolvePeriodicHeal`): an ability's aura goes on
-  every unit its hit landed on (none after a dodge, and on the caster for an Ally ability), its base damage roll drawn
+  every unit its hit landed on (none after a dodge, which an ability without damage rolls too unless it is
+  Unavoidable, and on the caster for an Ally ability), its base damage roll drawn
   right after the hit's; it ticks on the server's schedule right after the cast phase, each tick with one crit roll and
   the fraction of a point carried to the next; and it folds its modifiers into stats as `CharacterStatsCalculator`
   does. A death ends every aura the unit holds. Movement speed modifiers change nothing (nobody moves), the cap on

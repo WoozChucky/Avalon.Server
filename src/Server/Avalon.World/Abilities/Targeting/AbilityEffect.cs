@@ -8,9 +8,9 @@ using Avalon.World.Public.Units;
 namespace Avalon.World.Abilities.Targeting;
 
 /// <summary>
-/// What a skill does to a unit its shape overlaps (#164): a Hostile skill damages hostile units, an
-/// Ally skill heals allies, each only when its Effects carries that direct amount, and then applies its
-/// aura. Candidates come from IHitQuery, already alive and nearest-first.
+/// What a skill does to a unit its shape overlaps (#164): a Hostile skill rolls whether it lands on hostile units
+/// (#1164) and damages them, an Ally skill heals allies, each only when its Effects carries that direct amount, and then
+/// applies its aura. Candidates come from IHitQuery, already alive and nearest-first.
 /// </summary>
 public static class AbilityEffect
 {
@@ -20,21 +20,23 @@ public static class AbilityEffect
             : !ArrivalProtection.IsProtected(unit) && Hostility.IsHostile(caster, unit, arena.MapType);
 
     /// <summary>
-    /// What the ability does to one unit its shape affects: its direct amount when Effects has one for what it affects
-    /// (Damage on a hostile unit, Heal on an ally), then its aura (auras). A dodged hit, or one the target passed over,
-    /// applies no aura; an ability with no direct amount only applies its aura, so it is never dodged.
+    /// What the ability does to one unit its shape affects, then its aura (auras). A Hostile ability rolls whether it lands
+    /// (#1164), deals its damage when Effects has Damage, and applies its aura only when it landed: a dodged hit, or one
+    /// the target passed over, applies none, whether it deals damage or not. An Unavoidable one skips that check and
+    /// offers its aura whatever the hit did (the aura system's own refusals still apply). An Ally ability heals when
+    /// Effects has Heal, and is never dodged.
     /// </summary>
     public static void Apply(IAbilityArena arena, IUnit caster, IAbility ability, IUnit unit)
     {
         AbilityMetadata metadata = ability.Metadata;
-        bool direct = AbilityRules.HasDirectEffect(metadata.Effects, metadata.Affects);
 
         if (metadata.Affects == AbilityAffects.Ally)
         {
-            if (direct)
+            if (AbilityRules.HasDirectEffect(metadata.Effects, metadata.Affects))
                 arena.HealForAbility(caster, unit, ability);
         }
-        else if (direct && arena.DamageForAbility(caster, unit, ability) != HitOutcome.Landed)
+        else if (arena.HitForAbility(caster, unit, ability) != HitOutcome.Landed
+                 && (metadata.Flags & AbilityFlags.Unavoidable) == AbilityFlags.None)
         {
             return;
         }

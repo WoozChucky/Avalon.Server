@@ -39,7 +39,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `EffectValue` | uint | health points | The base of the damage dealt or health restored per unit affected; the scaling terms below are added to it (#506). |
 | `AllowedClasses` | list of `CharacterClass` | | The classes that may hold it. |
 | `ThreatMultiplier`, `HealThreatPerHp`, `TauntDurationMs` | float, float, uint | | Threat rules, unchanged by #164. The two floats must be finite and 0 or more (#529). |
-| `Flags` | `AbilityFlags` | | `RequiresInCombat`, `RequiresOutOfCombat`. |
+| `Flags` | `AbilityFlags` | | `RequiresInCombat`, `RequiresOutOfCombat`, `Basic` (a class's basic attack, the one ability a silence does not stop), `Unavoidable` (a Hostile ability never rolled against for a dodge, #1164). |
 | `AnimationId` | uint | | Reserved for the client's cast animation. |
 | `AimMode` | `AbilityAimMode` | | `Movement` (0): the caster's facing. `Cursor` (1): a ground point sent with the cast. |
 | `Shape` | `AbilityShape` | | `Circle` (0), `Cone` (1), `Projectile` (2). |
@@ -69,6 +69,7 @@ loads. A character holding a refused skill simply does not get it at character s
 - `Reach`, `Radius`, `ArcDegrees` and `ProjectileSpeed` are finite and 0 or more;
 - `AimMode`, `Shape`, `Anchor` and `Affects` are known values;
 - `Affects = Ally` only on a circle;
+- an Ally ability may not be `Unavoidable` (#1164: it is never dodged anyway);
 - **circle**: `Radius > 0`; on the aim point it needs `AimMode = Cursor` and `Reach > 0`; on the
   caster it needs `Reach = 0`;
 - **cone**: `Reach > 0`, and `ArcDegrees` above 0 and at most 360;
@@ -159,11 +160,19 @@ refused: its cost and cooldown are spent all the same.
   - a creature caster (#163) finds every living player hostile, whatever the map type, and no creature.
 - **Allies** are the caster itself and every player not hostile to it. A creature is never an ally, so a
   creature caster's only ally is itself.
-- **Damage**: a `Hostile` skill calls `CombatService.ApplyDamage(caster, unit, EffectValue, ability)`
-  on each hostile unit, with the usual threat, encounter, combat tag, death and invulnerable rules.
-  Each unit's hit resolves on its own (#506): `EffectValue + ScalingCoefficient x stat +
-  BaseDamageCoefficient x base damage roll`, then the unit's dodge, the caster's crit, the unit's block and
-  its armour, floored with a minimum of 1 (0 on a dodge). See "Combat reads the derived stats" in [World simulation](world-simulation.md).
+- **Damage**: a `Hostile` skill calls `CombatService.ApplyAbilityHit(caster, unit, ability)` (through
+  `IAbilityArena.HitForAbility`) on each hostile unit, with the usual threat, encounter, combat tag, death and
+  invulnerable rules. Every hostile skill rolls whether it lands on each unit (#1164), damage or not: the unit's
+  dodge chance, the dodge wait for a telegraph's players (§4), and the units every hit passes over. One whose
+  `Effects` has `Damage` then deals its amount, each unit's hit resolving on its own (#506): `EffectValue +
+  ScalingCoefficient x stat + BaseDamageCoefficient x base damage roll`, then the unit's dodge, the caster's crit,
+  the unit's block and its armour, floored with a minimum of 1 (0 on a dodge). One without `Damage` draws the dodge
+  roll alone and, landed, sends nothing but its aura; dodged or landed, it counts as combat as a dodge does (the
+  encounter, the creature engaging, both tagged), whether or not its aura then sticks. Its aura lands only where the
+  hit landed. An ability flagged `AbilityFlags.Unavoidable` is never rolled against: no dodge roll, so its damage is
+  never dodged and its aura is offered to every unit its shape affects (the aura system's own refusals, such as an
+  invulnerable creature, a corpse or a creature walking home, still apply). See
+  "Combat reads the derived stats" in [World simulation](world-simulation.md).
 - **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
   `min(Health, CurrentHealth + heal)`, the heal being the same base as damage and then a crit roll,
   never dodged, blocked or reduced by armour (#506). It never lowers health (a unit at or above its maximum
@@ -316,7 +325,8 @@ It never homes and has no target.
   shows the real deadline.
 - **Damage** arrives as the usual damage packets; `SCharacterDamagePacket.AbilityId` is filled (#521
   item 8), and both carry `Result`, a `HitResult` saying whether the hit crit, was blocked, or was
-  dodged (sent with 0 damage) (#506).
+  dodged (sent with 0 damage) (#506). A hostile ability that deals no damage sends a dodge the same way when
+  it is dodged, and nothing but its aura when it lands (#1164).
 - **Heals** that restored more than 0 health broadcast `SMSG_UNIT_HEALED` (`SUnitHealedPacket { Healer,
   Target, Amount, CurrentHealth, AbilityId?, Result }`) to the healer, the target and every client within
   the interest radius of the target (#506, #532): `Amount` is the health restored, overheal left out, and

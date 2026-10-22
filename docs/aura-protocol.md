@@ -130,9 +130,12 @@ at full health). A killing tick is sent like any killing hit, before `SMSG_UNIT_
   amounts and the stat modifiers.
 - **A unit holds at most `Game:MaxAurasPerUnit` auras** (32 by default); past that a new aura is not applied. A copy
   the unit already holds still refreshes or stacks.
-- **A dodged hit applies no aura.** An ability that only applies an aura (no direct damage or heal) is never dodged.
-  A target that takes no hits (an invulnerable town creature, a corpse, a creature walking home) gets no harmful aura;
-  crowd control that reaches a creature walking home is answered "Immune" (section 10).
+- **A dodged hit applies no aura.** Every hostile ability rolls whether it lands on each unit it affects, whether it
+  deals damage or not (#1164): a dodged one applies no aura and is sent as a dodge (a hit of 0 marked `Dodged`, naming
+  the ability), and a landed one with no damage sends only the aura, no damage number. An ability flagged
+  `Unavoidable` is never dodged (none is seeded). Heals, helpful auras and aura ticks are never dodged. A target that
+  takes no hits (an invulnerable town creature, a corpse, a creature walking home) gets no harmful aura; crowd control
+  an `Unavoidable` ability puts on a creature walking home is answered "Immune" (section 10).
 - **A harmful aura starts combat**, as a hit does: the creature engages its caster, and both are in combat.
 - **Auras survive map changes and logout.** Their time does not run while the character is offline, nor while it
   loads into the world after a login; it starts again when the character enters its instance. Across a map change (a
@@ -208,7 +211,7 @@ Silenced never, Crippled and Hexed 0 % / 0.5 %.
 | 204 Shield Bash | Warrior | Cone | Movement | reach 2.5, arc 90 | 15 s | 15 Fury | Damage: 6 + Attack x 0.15 + weapon x 0.3 | 12 Stunned |
 | 214 Frost Bind | Wizard | Circle on the aim point | Cursor | reach 18, radius 3 | 20 s | 25 Mana | Damage: 6 + Ability x 0.1 | 14 Frozen |
 | 224 Binding Shot | Hunter | Projectile, 14 m/s | Cursor | reach 25 | 15 s | 20 Energy | Damage: 8 + Attack x 0.2 + weapon x 0.3 | 13 Bound |
-| 235 Hush | Cleric | Projectile, 17 m/s | Cursor | reach 18 | 20 s | 20 Mana | Damage: 6 + Ability x 0.1 | 15 Silenced |
+| 235 Hush | Cleric | Projectile, 17 m/s | Cursor | reach 18 | 20 s | 20 Mana | none | 15 Silenced |
 
 All are instant. Every character of a class holds its class's new abilities. An Ally circle affects the caster too when
 the circle covers it.
@@ -240,8 +243,8 @@ holds (the union of their bits), never from the catalog:
   the hit get a damage packet of 0 with `Result` `HitResult.Immune` (8), after the ability's own damage packet if it
   has one: on a creature whose resistance to that type is 0 (a boss is immune to stun and silence), on a character
   that has already taken a stun, root or silence of that type three times from other characters within the
-  diminishing window, and on a creature walking home hit by an ability with no direct amount (an ability with one, as
-  every seeded crowd-control ability has, is passed over whole by such a creature: no damage, no aura, no "Immune").
+  diminishing window, and on a creature walking home hit by an `Unavoidable` ability (any other ability, as every
+  seeded crowd-control ability is, is passed over whole by such a creature: no damage, no aura, no "Immune", #1164).
 - **Shorter durations.** Resistance and diminishing shorten an aura rather than refuse it: a Rare creature takes half
   of each, a Boss half a root or slow, and a character takes a stun, root or silence from another character at full,
   then half, then a quarter of its duration until none of that type has landed for 6 s

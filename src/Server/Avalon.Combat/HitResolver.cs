@@ -20,9 +20,9 @@ public readonly record struct DefenderCombat(uint Armor, float DodgePct, float B
 /// <see cref="CombatFormula" /> the caller read once for this hit.
 /// </summary>
 /// <remarks>
-/// A damage hit draws, in this order: a dodge roll; then, when not dodged, a crit roll and a block roll.
-/// The order of the draws is part of the contract. The steps are: base, dodge (0, and nothing else is
-/// drawn), crit (× CritMultiplier), block (× BlockMultiplier), armour
+/// A damage hit draws, in this order: a dodge roll (none for an Unavoidable ability, #1164); then, when not dodged,
+/// a crit roll and a block roll. The order of the draws is part of the contract. The steps are: base, dodge (0, and
+/// nothing else is drawn), crit (× CritMultiplier), block (× BlockMultiplier), armour
 /// (× (1 − min(A / (A + ArmorBase + ArmorPerLevel × level), ArmorCap))), then floor with a minimum of 1.
 /// Each chance is clamped to its cap, and one that is not a finite value of 0 or more counts as 0.
 /// </remarks>
@@ -64,10 +64,21 @@ public static class HitResolver
     /// <summary>What <see cref="ResolveHeal" /> restores from <paramref name="baseHeal" /> without a crit (#669): the base, floored.</summary>
     public static uint NormalHeal(float baseHeal) => AbilityAmountMath.NormalHeal(baseHeal);
 
+    /// <summary>
+    /// Whether a Hostile ability is dodged by the unit it reaches (#1164): one draw against the defender's dodge chance.
+    /// A damage hit makes it first (<see cref="ResolveDamage" />); an ability that deals no damage makes it alone, and its
+    /// aura lands only when it is not dodged.
+    /// </summary>
+    public static bool Dodges(in DefenderCombat d, CombatFormula f, ICombatRandom rng) =>
+        rng.NextDouble() < Chance(d.DodgePct, f.DodgeCap);
+
+    /// <param name="unavoidable">
+    /// An Unavoidable ability's hit (#1164): no dodge roll is drawn, and the hit goes straight to its crit roll.
+    /// </param>
     public static (uint Damage, HitResult Result) ResolveDamage(in AttackerCombat a, in DefenderCombat d,
-        float baseDamage, CombatFormula f, ICombatRandom rng)
+        float baseDamage, CombatFormula f, ICombatRandom rng, bool unavoidable = false)
     {
-        if (rng.NextDouble() < Chance(d.DodgePct, f.DodgeCap))
+        if (!unavoidable && Dodges(d, f, rng))
             return (0u, HitResult.Dodged);
 
         double damage = NonNegative(baseDamage);

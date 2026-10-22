@@ -268,7 +268,8 @@ public sealed class FightSimulator
 
     /// <summary>
     /// As AbilityEffect.Apply for each unit the shape affects: the direct amount when Effects has one, then the aura. A
-    /// dodged hit applies no aura, and a hit that kills ends every aura its target held.
+    /// Hostile ability that deals no damage still rolls whether it lands (#1164); a dodged hit applies no aura, with or
+    /// without damage, unless the ability is Unavoidable; and a hit that kills ends every aura its target held.
     /// </summary>
     private void FirePlayer(SimPlayer player, SimAbility ability)
     {
@@ -300,6 +301,10 @@ public sealed class FightSimulator
                     ClearAuras(target);
                     continue;
                 }
+            }
+            else if (!CombatRules.Lands(target, ability, _formula, _rng))
+            {
+                continue;
             }
 
             ApplyAura(player, target, ability);
@@ -341,6 +346,10 @@ public sealed class FightSimulator
                 ClearAuras(Player);
                 return;
             }
+        }
+        else if (!CombatRules.Lands(Player, ability, _formula, _rng))
+        {
+            return;
         }
 
         ApplyAura(creature, Player, ability);

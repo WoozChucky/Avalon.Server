@@ -13,15 +13,27 @@ namespace Avalon.Balance.Core;
 /// </summary>
 public static class CombatRules
 {
-    /// <summary>An ability's hit: the base (weapon roll first), then dodge, crit, block, armour. The draw order is HitResolver's.</summary>
+    /// <summary>
+    /// An ability's hit: the base (weapon roll first), then dodge (none for an Unavoidable ability, #1164), crit, block,
+    /// armour. The draw order is HitResolver's.
+    /// </summary>
     public static (uint Damage, HitResult Result) Damage(SimUnit attacker, SimUnit target, SimAbility ability,
         CombatFormula formula, ICombatRandom rng)
     {
         AbilityMetadata m = ability.Metadata;
         float baseDamage = HitResolver.AbilityBase(attacker.Attack, m.EffectValue, m.ScalingStat, m.ScalingCoefficient,
             m.BaseDamageCoefficient, rng);
-        return HitResolver.ResolveDamage(attacker.Attack, target.Defence, baseDamage, formula, rng);
+        return HitResolver.ResolveDamage(attacker.Attack, target.Defence, baseDamage, formula, rng, IsUnavoidable(m));
     }
+
+    /// <summary>
+    /// Whether a Hostile ability that deals no damage lands on <paramref name="target" />, as CombatService.ApplyAbilityHit
+    /// (#1164): the dodge roll alone, none for an Unavoidable ability.
+    /// </summary>
+    public static bool Lands(SimUnit target, SimAbility ability, CombatFormula formula, ICombatRandom rng) =>
+        IsUnavoidable(ability.Metadata) || !HitResolver.Dodges(target.Defence, formula, rng);
+
+    private static bool IsUnavoidable(AbilityMetadata m) => (m.Flags & AbilityFlags.Unavoidable) != AbilityFlags.None;
 
     public static (uint Heal, HitResult Result) Heal(SimUnit healer, SimAbility ability, CombatFormula formula, ICombatRandom rng)
     {
