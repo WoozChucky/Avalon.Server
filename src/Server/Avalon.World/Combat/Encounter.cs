@@ -15,6 +15,9 @@ public sealed class Encounter : IEncounter
     // Reused every tick by Update: the attackers whose threat decayed to nothing. The tick allocates nothing.
     private readonly List<IUnit> _decayed = new();
 
+    // The encounter this one was merged into, if it was (#1168).
+    private Encounter? _mergedInto;
+
     /// <param name="time">The instance's clock, the one the rest of the world times by (#614).</param>
     public Encounter(CombatConfig config, TimeProvider? time = null)
     {
@@ -63,6 +66,60 @@ public sealed class Encounter : IEncounter
             return;
         foreach (IUnit h in _hostiles)
             _threat[h][player] = _config.InitialThreatSeed;
+    }
+
+    /// <summary>
+    /// Makes one fight of this and <paramref name="other" /> (#1168): every hostile of <paramref name="other" /> comes
+    /// over with its threat list exactly as it stands, and every player with it. Nothing is seeded (owner decision): a
+    /// player new to this encounter holds no threat on its hostiles, nor its players on a hostile brought in, until a
+    /// hit, a heal or a taunt adds some. The fight's last damage is the later of the two. <paramref name="other" /> is
+    /// left empty and points here (<see cref="Current" />). Moves the lists themselves, so it allocates nothing unless a
+    /// set here has to grow.
+    /// </summary>
+    internal void Absorb(Encounter other)
+    {
+        foreach (IUnit player in other._players)
+            _players.Add(player);
+
+        foreach ((IUnit hostile, Dictionary<IUnit, float> list) in other._threat)
+        {
+            if (_threat.TryGetValue(hostile, out Dictionary<IUnit, float>? own))
+            {
+                // A hostile in both fights, which combat no longer forms: it keeps the higher threat of each attacker.
+                foreach ((IUnit attacker, float threat) in list)
+                {
+                    if (!own.TryGetValue(attacker, out float current) || threat > current)
+                        own[attacker] = threat;
+                }
+                continue;
+            }
+
+            _hostiles.Add(hostile);
+            _threat[hostile] = list;
+        }
+
+        if (other.LastDamageTime > LastDamageTime)
+            LastDamageTime = other.LastDamageTime;
+
+        other._hostiles.Clear();
+        other._players.Clear();
+        other._threat.Clear();
+        other._mergedInto = this;
+    }
+
+    /// <summary>
+    /// The fight this encounter now is: itself, or the encounter it was merged into (#1168), followed to the end. For a
+    /// caller holding an encounter across work that may have merged it away, such as a hit's death after the hit.
+    /// </summary>
+    internal Encounter Current
+    {
+        get
+        {
+            Encounter current = this;
+            while (current._mergedInto is { } into)
+                current = into;
+            return current;
+        }
     }
 
     public void RemovePlayer(IUnit player)

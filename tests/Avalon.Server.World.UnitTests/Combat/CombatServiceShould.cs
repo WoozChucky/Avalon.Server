@@ -181,18 +181,90 @@ public class CombatServiceShould
         Assert.Equal(3, reg.Active.Count);
         Assert.Contains(next, spillover.Hostiles);
 
-        // A creature already fighting another player keeps its one encounter: the capped attacker joins that fight.
-        svc.ApplyDamage(attacker, fought, 1, ability);
+        // A creature new to combat that strikes first goes the same way: never into the capped encounter.
+        ICreature striker = StubCreature();
+        svc.ApplyDamage(striker, attacker, 1);
         Assert.Equal(3, reg.Active.Count);
+        Assert.Contains(striker, spillover.Hostiles);
+        Assert.Equal(50, capped.Hostiles.Count);
+
+        // #1168: a creature already fighting another player keeps its one encounter, which the attacker's spillover,
+        // the fight of the attacker's it fits beside, merges into.
+        svc.ApplyDamage(attacker, fought, 1, ability);
+        Assert.Equal(2, reg.Active.Count);
         var its = (Encounter)Assert.Single(reg.Active, e => e.Hostiles.Contains(fought));
+        Assert.DoesNotContain(spillover, reg.Active);
+        Assert.Contains(last, its.Hostiles);
         Assert.Contains(attacker, its.Players);
         Assert.True(its.GetThreatList(fought)[attacker] > 0);
 
         // That fight is now the first the attacker is found in, yet a hit on a creature of its capped encounter stays
         // in the capped encounter the pair shares.
         svc.ApplyDamage(attacker, first, 1, ability);
-        Assert.Equal(3, reg.Active.Count);
+        Assert.Equal(2, reg.Active.Count);
         Assert.Same(capped, Assert.Single(reg.Active, e => e.Hostiles.Contains(first)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Merge_two_fights_with_their_threat_within_the_cap_else_join_the_creatures_and_leave_every_one(
+        bool creatureStrikes)
+    {
+        // #1168, whichever of the two strikes: a hit from a player draws threat, a creature's draws none.
+        (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 1);
+        ICharacter player = StubCharacter(CharacterClass.Warrior);
+        ICharacter other = StubCharacter(CharacterClass.Hunter);
+        IAbility ability = StubAbility(1.0f);
+        void Meet(ICreature creature)
+        {
+            if (creatureStrikes) svc.ApplyDamage(creature, player, 10, ability);
+            else svc.ApplyDamage(player, creature, 10, ability);
+        }
+
+        ICreature boar = StubCreature();
+        ICreature wolf = StubCreature();
+        svc.ApplyDamage(player, boar, 10, ability);
+        svc.ApplyDamage(other, wolf, 10, ability);
+        for (int i = 0; i < 48; i++)
+            svc.ApplyDamage(other, StubCreature(), 10, ability);
+        var older = (Encounter)Assert.Single(reg.Active, e => e.Hostiles.Contains(boar));
+        var newer = (Encounter)Assert.Single(reg.Active, e => e.Hostiles.Contains(wolf));
+        Assert.Equal(49, newer.Hostiles.Count);
+        float playerOnBoar = older.GetThreatList(boar)[player];
+        float otherOnWolf = newer.GetThreatList(wolf)[other];
+
+        // The two fights meet and become the older one, exactly at the cap (1 + 49 hostiles): every threat list moves
+        // as it stood, and nothing is seeded, so only the hit itself adds threat.
+        Meet(wolf);
+        Assert.Same(older, Assert.Single(reg.Active));
+        Assert.Equal(50, older.Hostiles.Count);
+        Assert.Contains(wolf, older.Hostiles);
+        Assert.Equal(2, older.Players.Count);
+        Assert.Contains(other, older.Players);
+        Assert.Equal(playerOnBoar, older.GetThreatList(boar)[player]);
+        Assert.False(older.GetThreatList(boar).ContainsKey(other));
+        Assert.Equal(otherOnWolf, older.GetThreatList(wolf)[other]);
+        Assert.Equal(creatureStrikes ? null : (float?)20f,
+            older.GetThreatList(wolf).TryGetValue(player, out float playerOnWolf) ? playerOnWolf : (float?)null);
+
+        // A fight the merged one would take past the cap (50 + 1 hostiles) is not merged: the player joins it, and is in
+        // both.
+        ICharacter third = StubCharacter(CharacterClass.Hunter);
+        ICreature lone = StubCreature();
+        svc.ApplyDamage(third, lone, 10, ability);
+        var its = (Encounter)Assert.Single(reg.Active, e => e.Hostiles.Contains(lone));
+
+        Meet(lone);
+        Assert.Equal(2, reg.Active.Count);
+        Assert.Single(its.Hostiles);
+        Assert.Contains(player, its.Players);
+        Assert.Contains(player, older.Players);
+
+        // Leaving takes the player out of every fight it is in, and off every threat list.
+        svc.DropPlayerFromEncounter(player);
+        Assert.All(reg.Active, e => Assert.DoesNotContain(player, e.Players));
+        Assert.All(reg.Active.SelectMany(e => e.Hostiles.Select(e.GetThreatList)), t => Assert.False(t.ContainsKey(player)));
     }
 
     [Fact]

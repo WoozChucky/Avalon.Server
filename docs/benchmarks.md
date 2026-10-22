@@ -3912,8 +3912,9 @@ with the committed figure, in every build (Debug and Release, see below) and for
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (13,649 B per window since #1165, which keeps a creature and a pair in one
-  encounter; 14,323 B from #1164, whose dodgeable hostile abilities changed the fight, measured at #1165 and never
+  `forest-combat` is the largest figure (13,805 B per window since #1168, which merges two fights a character and a
+  creature bring together, moving their threat lists with nothing seeded, so the fight goes differently; 13,649 B from
+  #1165, which keeps a creature and a pair in one encounter; 14,323 B from #1164, whose dodgeable hostile abilities changed the fight, measured at #1165 and never
   committed; 14,349 B from #1162, whose player projectiles fly at half their
   speed, so the fight is smaller; 14,742 B from #711, whose quest accept, in the handler and in the
   fighters that stand for it, hands its state to a static lambda instead of making a closure; 14,799 B from #1157,
@@ -3939,7 +3940,7 @@ with the committed figure, in every build (Debug and Release, see below) and for
   #980, which shared the aura updates and reused their entries,
   [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
   which gave the fight a cleric, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
-  10,357 B before), and at that size the 256 B floor decides for it too (1% is 136 B): it fails above 13,905 B, a little
+  10,357 B before), and at that size the 256 B floor decides for it too (1% is 138 B): it fails above 14,061 B, a little
   over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. Its Debug run reads the committed
   figure again since #981 (#973): from #972 it read 68 B above Release, because each item destroy in the measured
   minute paid 48 B in unoptimised code for the two boxes `Enum.HasFlag` made in `InventoryMove.DecideDestroy`.
@@ -4476,7 +4477,15 @@ pickups in the minute). `ForestCombatScenarioShould` runs the scenario twice in 
 outcome (every count above) and the same bytes per window, and kills and deaths in it; the second run's creatures
 carry higher ids (the process-wide object id counter), which changes neither.
 
-**Gate.** Committed at **13,649 B per window** (19.0 B per player per tick, 227 B per tick) since #1165, 674 B under the
+**Gate.** Committed at **13,805 B per window** (19.2 B per player per tick, 230 B per tick) since #1168, 156 B over the
+13,649 B before it and inside the gate (which then failed above 13,905 B): two fights a character and a creature bring
+together become one encounter, every threat list moved as it stood and no threat seeded, and a creature that strikes
+first no longer takes a character's encounter past the cap. No merge falls in the measured minute (three a run, all in
+the warm-up), so none of the bytes are a merge's own: the merged threat lists change whom some creatures turn on, and
+the fight goes differently (over the run 115 kills against 120, 4 deaths against 3, 24 heals against 23, 66 kill credits
+against 72, 21 completions as before, 205 pickups against 222, 106 slots destroyed against 117 and no drop given up
+against 1). Debug reads the same. Before it, committed at 13,649 B (19.0 B per player per tick, 227 B per tick) since
+#1165, 674 B under the
 14,323 B its base measured: a creature is no longer added to its attacker's first encounter when the pair already shares a
 later one (the fight never reaches the merge cap; this is the shared-pair rule below it), so the fight builds fewer
 threat lists, and with each creature's threat in one place some creatures turn on someone else, which makes the fight
@@ -4601,8 +4610,10 @@ summary.
 | The quest accept without a closure (#711, PGO on) | 14,742 |
 | Player projectiles at half speed, a smaller fight (#1162, PGO on) | 14,349 |
 | Every hostile ability dodgeable (#1164, PGO on), measured at #1165, not committed | 14,323 |
-| A creature and a pair kept in one encounter (#1165, PGO on), now | 13,649 |
-| Debug, now | 13,649 |
+| A creature and a pair kept in one encounter (#1165, PGO on) | 13,649 |
+| Debug, then | 13,649 |
+| Two fights merged into one encounter, nothing seeded (#1168, PGO on), now | 13,805 |
+| Debug, now | 13,805 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
@@ -4612,7 +4623,7 @@ fighters cost about as much per tick as `town-walk`'s 30 walkers (measured befor
 since #1109 the scenario's mean tick is 0.045 ms, see "The forest since #1109"): most creatures are far from any
 player, and an idle creature's AI looks for players once a second rather than every tick. The minute allocated 0.62 MB
 on the tick thread before #972, about 0.86 MB from #972, about 1.36 MB from #1109's tree walls and seed 33, and about
-0.93 MB from #1113, about 0.88 MB from #1157 and #711, about 0.86 MB from #1162 and #1164, and about 0.82 MB since #1165 (13,649 B per window over the
+0.93 MB from #1113, about 0.88 MB from #1157 and #711, about 0.86 MB from #1162 and #1164, about 0.82 MB from #1165, and about 0.83 MB since #1168 (13,805 B per window over the
 minute's 60 windows).
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
