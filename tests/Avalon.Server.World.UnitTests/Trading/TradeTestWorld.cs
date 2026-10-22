@@ -11,6 +11,7 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
+using Avalon.World.Threading;
 using Avalon.World.Trading;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -33,19 +34,34 @@ internal sealed class TradeTestWorld
     public static readonly ItemTemplate Token = new()
     { Id = new ItemTemplateId(9002), Name = "Token", Class = ItemClass.Quest, MaxStackSize = 1, Flags = ItemTemplateFlags.QuestItem };
 
-    public TradeTestWorld(Action<GameConfiguration>? configure = null)
+    /// <param name="tickThread">Given, the service and who is online assert the tick thread with it.</param>
+    public TradeTestWorld(Action<GameConfiguration>? configure = null, TickThreadGuard? tickThread = null)
     {
         configure?.Invoke(Config);
-        Trades = new TradeService(Options.Create(Config), Clock, Saver, Characters, NullLogger<TradeService>.Instance);
-        Trades.Attach(new TestEconomy(Config), Find);
+        Characters = new OnlineCharacters(tickThread);
+        Economy = new TestEconomy(Config);
+        Trades = new TradeService(Options.Create(Config), Clock, Saver, Characters, NullLogger<TradeService>.Instance,
+            tickThread);
+        Trades.Attach(Economy, Find);
     }
 
     public ManualTimerClock Clock { get; } = new();
     public GameConfiguration Config { get; } = new();
     /// <summary>Who is online: <see cref="Online(uint, Vector3?, Guid?, ulong)" /> adds each character.</summary>
-    public OnlineCharacters Characters { get; } = new();
+    public OnlineCharacters Characters { get; }
     public FakeTradeSaver Saver { get; } = new();
     public TradeService Trades { get; }
+
+    /// <summary>The economy the service completes through: one inventory per character, over <see cref="Find" />.</summary>
+    public ICharacterEconomy Economy { get; }
+
+    /// <summary>
+    /// A trade service with no trade in it, for the containers that build every packet handler (the trade handlers take
+    /// it) and never trade.
+    /// </summary>
+    public static TradeService InertService() =>
+        new(Options.Create(new GameConfiguration()), TimeProvider.System, Substitute.For<ICharacterSaver>(),
+            new OnlineCharacters(), NullLogger<TradeService>.Instance);
 
     /// <summary>The economy tests' catalogue, with <see cref="Contraband" /> and <see cref="Token" />.</summary>
     public static ItemTemplate? Find(ItemTemplateId id) =>

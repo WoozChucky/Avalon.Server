@@ -32,6 +32,7 @@ using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Telemetry;
 using Avalon.World.Threading;
+using Avalon.World.Trading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -252,6 +253,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly Stopwatch _gameTime = new();
     private readonly ILogger<WorldServer> _logger;
     private readonly PartyService _parties;
+    private readonly TradeService? _trades;
     private readonly ThrottledErrorLog _memberStatusErrors;
     private readonly QuestService? _quests;
     private readonly ThrottledErrorLog _questFlushErrors;
@@ -339,7 +341,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         ICharacterSaver characterSaver,
         PartyService parties,
         IWorldEntryGate? entryGate = null,
-        WorldMaintenanceCoordinator? maintenanceCoordinator = null) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
+        WorldMaintenanceCoordinator? maintenanceCoordinator = null,
+        TradeService? trades = null) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
         hostingOptions,
         PacketDispatchTelemetry.From(DiagnosticsConfig.World.Source, DiagnosticsConfig.World.Meter,
@@ -354,6 +357,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _maintenanceCoordinator = maintenanceCoordinator;
         _maintenanceCoordinator?.SetDrainObserver(() => _pendingDisconnects.IsEmpty);
         _parties = parties;
+        _trades = trades;
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _memberStatusErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The party member status flush");
@@ -577,6 +581,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         if (_tickThread is not null && _tickThread.IsAlive)
             _tickThread.Join(TimeSpan.FromSeconds(5));
 
+        bool tradesSettled = await SettleTradesAsync(stoppingToken).ConfigureAwait(false);
+
         // Awaited, and all at once: the shutdown notice is delivered by the close, so returning
         // before they finish lets the host exit with the packets still queued.
         var closing = new List<Task>();
@@ -591,7 +597,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // this thread, with the tick joined: nothing else is touching the instances. It is awaited
         // rather than dropped because the process is about to exit, and it is not given a timeout
         // of its own for the same reason the close handler has none — the bound is the database's,
-        // and cutting it short would discard the save this exists to make.
+        // and cutting it short would discard the save this exists to make. Unless a trade is still
+        // unsettled (#1175): the despawn saves its hold keeps waiting never finish, so the wait is
+        // bounded as the wait for saves below is.
         var despawning = new List<Task>();
         while (_pendingDisconnects.TryDequeue(out WorldConnection? disconnected))
         {
@@ -609,7 +617,18 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         try
         {
-            await Task.WhenAll(despawning).ConfigureAwait(false);
+            var despawned = Task.WhenAll(despawning);
+            if (tradesSettled)
+                await despawned.ConfigureAwait(false);
+            else
+                await despawned.WaitAsync(SaveDrainLimit, stoppingToken).ConfigureAwait(false);
+        }
+        catch (Exception e) when (!tradesSettled && e is TimeoutException or OperationCanceledException)
+        {
+            _logger.LogError(
+                "Shutdown stopped waiting for the despawns after {Limit} or at the host's stop timeout: a trade still " +
+                "unsettled holds its characters' despawn saves",
+                SaveDrainLimit);
         }
         catch (Exception e)
         {
@@ -654,6 +673,36 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     /// <summary>How long the shutdown waits, in all, for the send threads to stop once everything else has (#875).</summary>
     public static readonly TimeSpan SendThreadsStopLimit = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Completing trades settle once the tick has stopped (#1175), before the closes and the despawn pass: each waits for
+    /// its paired save and record lookups, within <see cref="SaveDrainLimit" /> and the host's stop timeout, so a
+    /// despawn save the trade holds is written with the outcome applied. A trade still unsettled keeps its holds, which
+    /// <see cref="WaitForSavesAsync" /> stops waiting for at its own limit. Only once the tick thread has exited, and so
+    /// unbound its guard: one that outlived its join would still be applying completions itself.
+    /// </summary>
+    /// <returns>Whether every completing trade settled, or there was none to settle.</returns>
+    private async Task<bool> SettleTradesAsync(CancellationToken stoppingToken)
+    {
+        if (_trades is null)
+            return true;
+
+        if (_tickThread is { IsAlive: true })
+        {
+            _logger.LogError("The tick did not stop in time; any completing trade is left unsettled and keeps its holds");
+            return false;
+        }
+
+        try
+        {
+            return await _trades.SettleAsync(SaveDrainLimit, stoppingToken).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Settling the completing trades at shutdown failed");
+            return false;
+        }
+    }
 
     private async Task WaitForSavesAsync(CancellationToken stoppingToken)
     {

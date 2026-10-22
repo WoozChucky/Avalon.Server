@@ -14,6 +14,7 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Instances;
 using Avalon.World.Quests;
+using Avalon.World.Trading;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
@@ -41,7 +42,8 @@ namespace Avalon.World.Handlers;
 /// </remarks>
 [PacketHandler(NetworkPacketType.CMSG_DIALOGUE_CHOOSE)]
 public partial class DialogueChooseHandler(
-    ILogger<DialogueChooseHandler> logger, IWorld world, IQuestProgress? quests = null, QuestService? questService = null)
+    ILogger<DialogueChooseHandler> logger, IWorld world, IQuestProgress? quests = null, QuestService? questService = null,
+    TradeService? trades = null)
     : WorldPacketHandler<CDialogueChoosePacket>
 {
     private IDialogueCatalog Dialogue => world.Data.Dialogue;
@@ -185,6 +187,8 @@ public partial class DialogueChooseHandler(
                     return;
                 }
 
+                // An open trade closes before the window opens (#1175): an NPC window and a trade never overlap.
+                trades?.NpcWindowOpening(entity);
                 entity.OpenBankNpc = npc.Guid;
                 connection.Send(SInventoryUpdatePacket.Create(
                     BankAccess.Snapshot(entity), null, PacketEncoder.Shared));
@@ -205,6 +209,7 @@ public partial class DialogueChooseHandler(
 
                 // Open for as long as this conversation lasts (ShopAccess.IsOpen), and the whole
                 // list goes out now, the first time this player hears it.
+                trades?.NpcWindowOpening(shopper);
                 shopper.OpenShopNpc = npc.Guid;
                 VendorStockState stock = host.Vendors.For(npc.Guid, npc.Metadata.Id, world.Data.Vendors.RowsFor(npc.Metadata.Id));
                 VendorListBuilder.Send(connection, npc.Guid, stock, shopper, world.Data, Quests);

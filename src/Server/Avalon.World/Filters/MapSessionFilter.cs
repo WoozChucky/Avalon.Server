@@ -64,6 +64,13 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
             NetworkPacketType.CMSG_QUEST_TURN_IN => true,
             NetworkPacketType.CMSG_QUEST_ABANDON => true,
             NetworkPacketType.CMSG_INSTANCE_LIST => true,
+            NetworkPacketType.CMSG_TRADE_REQUEST => true,
+            NetworkPacketType.CMSG_TRADE_RESPOND => true,
+            NetworkPacketType.CMSG_TRADE_OFFER_ITEM => true,
+            NetworkPacketType.CMSG_TRADE_REMOVE_ITEM => true,
+            NetworkPacketType.CMSG_TRADE_SET_GOLD => true,
+            NetworkPacketType.CMSG_TRADE_CONFIRM => true,
+            NetworkPacketType.CMSG_TRADE_CANCEL => true,
             _ => false
         };
     }

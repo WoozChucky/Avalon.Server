@@ -648,6 +648,7 @@ public class WorldServerBarrierTickShould : IDisposable
         TimeProvider? clock = null) : IServiceProvider
     {
         private QuestService? _quests;
+        private Avalon.World.Trading.TradeService? _trades;
         private Avalon.World.Items.ItemUseService? _itemUses;
 
         public object? GetService(Type serviceType)
@@ -668,6 +669,10 @@ public class WorldServerBarrierTickShould : IDisposable
             // The chat handler (#722) takes the one chat limiter, a class with settings and a clock; off, as the defaults are.
             if (serviceType == typeof(Avalon.World.Chat.ChatRateLimiter))
                 return new Avalon.World.Chat.ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System);
+
+            // The trade handlers (#1175) take the one trade service.
+            if (serviceType == typeof(Avalon.World.Trading.TradeService))
+                return _trades ??= Avalon.Server.World.UnitTests.Trading.TradeTestWorld.InertService();
 
             if (serviceType == typeof(PartyService))
             {

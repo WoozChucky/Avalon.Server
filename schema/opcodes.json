@@ -398,6 +398,69 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_TRADE_REQUEST",
+      "opcode": 8400,
+      "hex": "0x20D0",
+      "message": "CTradeRequestPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_TRADE_RESPOND",
+      "opcode": 8401,
+      "hex": "0x20D1",
+      "message": "CTradeRespondPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_TRADE_OFFER_ITEM",
+      "opcode": 8402,
+      "hex": "0x20D2",
+      "message": "CTradeOfferItemPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_TRADE_REMOVE_ITEM",
+      "opcode": 8403,
+      "hex": "0x20D3",
+      "message": "CTradeRemoveItemPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_TRADE_SET_GOLD",
+      "opcode": 8404,
+      "hex": "0x20D4",
+      "message": "CTradeSetGoldPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_TRADE_CONFIRM",
+      "opcode": 8405,
+      "hex": "0x20D5",
+      "message": "CTradeConfirmPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_TRADE_CANCEL",
+      "opcode": 8406,
+      "hex": "0x20D6",
+      "message": "CTradeCancelPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_CAST_ABILITY",
       "opcode": 8449,
       "hex": "0x2101",

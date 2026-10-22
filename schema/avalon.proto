@@ -306,6 +306,27 @@ message CRespawnAtTownPacket {
 message CTargetUnitPacket {
    optional uint64 TargetGuid = 1;
 }
+message CTradeCancelPacket {
+}
+message CTradeConfirmPacket {
+   uint32 Revision = 1;
+}
+message CTradeOfferItemPacket {
+   uint32 BagSlot = 1;
+   uint32 TradeSlot = 2;
+}
+message CTradeRemoveItemPacket {
+   uint32 TradeSlot = 1;
+}
+message CTradeRequestPacket {
+   uint32 TargetCharacterId = 1;
+}
+message CTradeRespondPacket {
+   bool Accept = 1;
+}
+message CTradeSetGoldPacket {
+   uint64 Gold = 1;
+}
 message CVendorBuyPacket {
    uint32 RequestId = 1;
    uint32 Sequence = 2;
@@ -631,6 +652,13 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_QUEST_ACCEPT = 8384;
    NetworkPacketType_CMSG_QUEST_TURN_IN = 8385;
    NetworkPacketType_CMSG_QUEST_ABANDON = 8386;
+   NetworkPacketType_CMSG_TRADE_REQUEST = 8400;
+   NetworkPacketType_CMSG_TRADE_RESPOND = 8401;
+   NetworkPacketType_CMSG_TRADE_OFFER_ITEM = 8402;
+   NetworkPacketType_CMSG_TRADE_REMOVE_ITEM = 8403;
+   NetworkPacketType_CMSG_TRADE_SET_GOLD = 8404;
+   NetworkPacketType_CMSG_TRADE_CONFIRM = 8405;
+   NetworkPacketType_CMSG_TRADE_CANCEL = 8406;
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
    NetworkPacketType_CMSG_PVP_TOGGLE = 8451;

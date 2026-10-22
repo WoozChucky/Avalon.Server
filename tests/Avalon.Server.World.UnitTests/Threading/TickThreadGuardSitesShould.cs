@@ -1,5 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Trade;
+using Avalon.Server.World.UnitTests.Trading;
 using Avalon.Server.World.UnitTests.World;
 using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
@@ -14,6 +16,7 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Social;
 using Avalon.World.Threading;
+using Avalon.World.Trading;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -164,39 +167,59 @@ public class TickThreadGuardSitesShould
         call();
     }
 
-    public static TheoryData<string> PartyMutators() =>
+    public static TheoryData<string> PartyAndTradeMutators() =>
     [
-        "InstanceChanged", "CharacterOnline", "CharacterOffline", "Invite", "HideInviteFrom", "Respond", "Leave", "Kick",
-        "Promote", "SetExperienceMode", "Tick", "StartReturns", "ReturnFailed", "LevelChanged", "FlushMemberStatus",
+        "PartyService.InstanceChanged", "PartyService.CharacterOnline", "PartyService.CharacterOffline",
+        "PartyService.Invite", "PartyService.HideInviteFrom", "PartyService.Respond", "PartyService.Leave",
+        "PartyService.Kick", "PartyService.Promote", "PartyService.SetExperienceMode", "PartyService.Tick",
+        "PartyService.StartReturns", "PartyService.ReturnFailed", "PartyService.LevelChanged",
+        "PartyService.FlushMemberStatus",
+        "TradeService.Request", "TradeService.Respond", "TradeService.OfferItem", "TradeService.Cancel",
+        "TradeService.Tick", "TradeService.CharacterOffline",
     ];
 
+    /// <remarks>
+    /// The trade service holds a request from 1 to 2 throughout, made on the tick: its Tick returns before the guard
+    /// when it has neither a request nor a trade.
+    /// </remarks>
     [Theory]
-    [MemberData(nameof(PartyMutators))]
-    public void Guard_every_party_service_mutator(string mutator)
+    [MemberData(nameof(PartyAndTradeMutators))]
+    public void Guard_every_party_and_trade_service_mutator(string mutator)
     {
         var parties = new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
             NullLogger<PartyService>.Instance, new OnlineCharacters(_guard), _guard);
         IWorldConnection connection = ConnectionHolding(1);
+        var trading = new TradeTestWorld(tickThread: _guard);
+        Trader sender = trading.Online(1);
+        trading.Online(2);
+        Assert.Equal(TradeResult.Ok, trading.Trades.Request(1, 2));
+        TradeService trades = trading.Trades;
         Action call = mutator switch
         {
-            "InstanceChanged" => () => parties.InstanceChanged(connection),
-            "CharacterOnline" => () => parties.CharacterOnline(connection),
-            "CharacterOffline" => () => parties.CharacterOffline(connection, connection.Character!),
-            "Invite" => () => parties.Invite(1, "Borin"),
-            "HideInviteFrom" => () => parties.HideInviteFrom(1, 2),
-            "Respond" => () => parties.Respond(1, accept: true),
-            "Leave" => () => parties.Leave(1),
-            "Kick" => () => parties.Kick(1, 2),
-            "Promote" => () => parties.Promote(1, 2),
-            "SetExperienceMode" => () => parties.SetExperienceMode(1, Avalon.Network.Packets.Party.PartyExperienceMode.Even),
-            "Tick" => () => parties.Tick(),
-            "StartReturns" => () => parties.StartReturns([], null!),
-            "ReturnFailed" => () => parties.ReturnFailed(1, new InvalidOperationException("return failed")),
-            "LevelChanged" => () => parties.LevelChanged(connection.Character!),
-            _ => () => parties.FlushMemberStatus(),
+            "PartyService.InstanceChanged" => () => parties.InstanceChanged(connection),
+            "PartyService.CharacterOnline" => () => parties.CharacterOnline(connection),
+            "PartyService.CharacterOffline" => () => parties.CharacterOffline(connection, connection.Character!),
+            "PartyService.Invite" => () => parties.Invite(1, "Borin"),
+            "PartyService.HideInviteFrom" => () => parties.HideInviteFrom(1, 2),
+            "PartyService.Respond" => () => parties.Respond(1, accept: true),
+            "PartyService.Leave" => () => parties.Leave(1),
+            "PartyService.Kick" => () => parties.Kick(1, 2),
+            "PartyService.Promote" => () => parties.Promote(1, 2),
+            "PartyService.SetExperienceMode" => () => parties.SetExperienceMode(1, Avalon.Network.Packets.Party.PartyExperienceMode.Even),
+            "PartyService.Tick" => () => parties.Tick(),
+            "PartyService.StartReturns" => () => parties.StartReturns([], null!),
+            "PartyService.ReturnFailed" => () => parties.ReturnFailed(1, new InvalidOperationException("return failed")),
+            "PartyService.LevelChanged" => () => parties.LevelChanged(connection.Character!),
+            "PartyService.FlushMemberStatus" => () => parties.FlushMemberStatus(),
+            "TradeService.Request" => () => trades.Request(2, 1),
+            "TradeService.Respond" => () => trades.Respond(2, accept: true),
+            "TradeService.OfferItem" => () => trades.OfferItem(1, 0, 0),
+            "TradeService.Cancel" => () => trades.Cancel(1),
+            "TradeService.Tick" => () => trades.Tick(),
+            _ => () => trades.CharacterOffline(sender.Connection, sender.Character),
         };
 
-        AssertRefusedOffTick(call, $"PartyService.{mutator}");
+        AssertRefusedOffTick(call, mutator);
         call();
     }
 

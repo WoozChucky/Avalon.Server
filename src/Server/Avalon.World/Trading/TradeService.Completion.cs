@@ -41,10 +41,11 @@ public sealed partial class TradeService
     /// two characters' later saves are not written, nothing is duplicated, and the record tells an operator whether the
     /// trade happened.
     /// </summary>
-    public async Task SettleAsync(TimeSpan limit, CancellationToken token)
+    /// <returns>Whether every completing trade settled: false while one keeps its holds.</returns>
+    public async Task<bool> SettleAsync(TimeSpan limit, CancellationToken token)
     {
         if (_completions.Count == 0)
-            return;
+            return true;
 
         DateTimeOffset start = time.GetUtcNow();
         DateTimeOffset deadline = limit >= DateTimeOffset.MaxValue - start ? DateTimeOffset.MaxValue : start + limit;
@@ -53,7 +54,7 @@ public sealed partial class TradeService
             DateTimeOffset now = time.GetUtcNow();
             AdvanceCompletions(now);
             if (_completions.Count == 0)
-                return;
+                return true;
             if (now >= deadline || token.IsCancellationRequested)
                 break;
 
@@ -86,6 +87,8 @@ public sealed partial class TradeService
                 completion.Trade.Id, completion.Trade.First.Character.Guid.Id, completion.Trade.Second.Character.Guid.Id,
                 completion.Trade.RecordId);
         }
+
+        return false;
     }
 
     /// <summary>
