@@ -3185,14 +3185,15 @@ public class WorldDbContext : DbContext
             Kit(233, CharacterClass.Cleric, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 6000, cost: 15, value: 0, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, effects: SpellEffect.Buff, aura: 4),
             Kit(234, CharacterClass.Cleric, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, radius: 8f, cooldown: 20000, cost: 20, value: 0, range: SpellRange.Short, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, effects: SpellEffect.Buff, aura: 5));
 
-        // Crowd control (#770): one ability per class, each a small direct amount plus its aura, as Rend and Crippling
-        // Shot are, so a dodged or missed hit lands no control (an aura lands only on a landed hit). Shapes and reach
-        // follow each class's neighbouring rows; the cooldowns are the design's.
+        // Crowd control (#770): one ability per class, each applying its aura only where it lands (a dodged or missed one
+        // lands no control). Shield Bash, Frost Bind and Binding Shot also deal a small direct amount, as Rend and
+        // Crippling Shot do; Hush deals nothing and is pure silence (#1164). Shapes and reach follow each class's
+        // neighbouring rows; the cooldowns are the design's.
         builder.HasData(
             Kit(204, CharacterClass.Warrior, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 15000, cost: 15, value: 6, range: SpellRange.Melee, scaling: ScalingStat.Attack, coefficient: 0.15f, weapon: 0.3f, aura: 12),
             Kit(214, CharacterClass.Wizard, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 20000, cost: 25, value: 6, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.1f, aura: 14),
             Kit(224, CharacterClass.Hunter, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 15000, cost: 20, value: 8, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.2f, weapon: 0.3f, aura: 13),
-            Kit(235, CharacterClass.Cleric, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 17f, cooldown: 20000, cost: 20, value: 6, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.1f, aura: 15));
+            Kit(235, CharacterClass.Cleric, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 17f, cooldown: 20000, cost: 20, value: 0, range: SpellRange.Long, scaling: ScalingStat.Ability, effects: SpellEffect.Debuff, aura: 15));
 
         // The forest creatures' abilities (#163), creature-only (no class), free, and dealt from each creature's
         // natural damage range through BaseDamageCoefficient. Each creature's AI script declares its own ids and

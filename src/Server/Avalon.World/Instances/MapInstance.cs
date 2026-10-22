@@ -2952,8 +2952,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    HitOutcome IAbilityArena.DamageForAbility(IUnit caster, IUnit target, IAbility ability) =>
-        _combatService.ApplyDamageWithOutcome(caster, target, ability.Metadata.EffectValue, ability);
+    HitOutcome IAbilityArena.HitForAbility(IUnit caster, IUnit target, IAbility ability) =>
+        _combatService.ApplyAbilityHit(caster, target, ability);
 
     void IAbilityArena.HealForAbility(IUnit caster, IUnit target, IAbility ability) =>
         _combatService.ApplyHeal(caster, target, ability.Metadata.EffectValue, ability);

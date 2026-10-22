@@ -35,7 +35,10 @@ Creature kits (basic, specials in rotation order, ranged-only specials) are a st
 keyed by script type name; the world test `CreatureKitParityShould` keeps it equal to the scripts in `Avalon.World`.
 The small cast-system bookkeeping the simulator mirrors (the cooldown set when a cast fires, a creature's swing
 interval, a creature's level range) and the fight's event order are pinned by `SimulatorParityShould` against
-`CombatService`, the cast system and `CharacterEntity.Update`. It steps at the server's tick (1/60 s) so cooldowns,
+`CombatService`, the cast system and `CharacterEntity.Update`. Hits follow `AbilityEffect.Apply`: every Hostile
+ability rolls whether it lands, damage or not (#1164, `CombatRules.Lands` for one without `Damage`; none for an
+`Unavoidable` one), and its aura lands only where it landed, so an aura-only ability's simulated output (Ignite,
+Sundering Howl) drops with the target's dodge chance. It steps at the server's tick (1/60 s) so cooldowns,
 casts and the event order count as the server's do. Mana and Energy regenerate `stat x coefficient x dt` a tick with
 the fraction of a point carried between ticks (`PowerRegen.Amount`, the caller owning the carry), dropped while a cast
 suppresses regen or the pool cannot regenerate (full included).

@@ -23,10 +23,11 @@ public interface IAbilityArena
     ICombatService CombatService { get; }
 
     /// <summary>
-    /// An ability's direct damage on one unit (its EffectValue, scaled), through this instance's combat service,
-    /// answering how it went: only a hit that landed applies the ability's aura (auras).
+    /// A Hostile ability's hit on one unit, through this instance's combat service, answering how it went (#1164): whether
+    /// it lands (the target's dodge chance, unless the ability is Unavoidable), then its direct damage (its EffectValue,
+    /// scaled) when its Effects has Damage. Only a hit that landed applies the ability's aura.
     /// </summary>
-    HitOutcome DamageForAbility(IUnit caster, IUnit target, IAbility ability);
+    HitOutcome HitForAbility(IUnit caster, IUnit target, IAbility ability);
 
     /// <summary>An ability's direct heal on one unit, through this instance's combat service (auras).</summary>
     void HealForAbility(IUnit caster, IUnit target, IAbility ability);

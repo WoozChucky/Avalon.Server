@@ -10,6 +10,7 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -255,11 +256,11 @@ public class PeriodicCombatShould
         var dodging = new CombatService(new CombatConfig(), _registry, outcomes: _outcomes, time: _time,
             random: new ScriptedCombatRandom(0.0));
         IAbility ability = Substitute.For<Avalon.World.Public.Abilities.IAbility>();
-        ability.Metadata.Returns(new Avalon.World.Public.Abilities.AbilityMetadata { Name = "Cleave" });
+        ability.Metadata.Returns(new AbilityMetadata { Name = "Cleave", Effects = SpellEffect.Damage, EffectValue = 10 });
 
-        Assert.Equal(HitOutcome.Dodged, dodging.ApplyDamageWithOutcome(Warrior(), boar, 10, ability));
+        Assert.Equal(HitOutcome.Dodged, dodging.ApplyAbilityHit(Warrior(), boar, ability));
         boar.Invulnerable = true;
-        Assert.Equal(HitOutcome.Ignored, dodging.ApplyDamageWithOutcome(Warrior(), boar, 10, ability));
+        Assert.Equal(HitOutcome.Ignored, dodging.ApplyAbilityHit(Warrior(), boar, ability));
     }
 }
 

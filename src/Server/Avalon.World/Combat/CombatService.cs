@@ -65,11 +65,30 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// stat and weapon roll are added, then the target's defences are rolled.
     /// </summary>
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage, IAbility ability)
-        => ApplyDamageWithOutcome(attacker, target, damage, ability);
-
-    /// <summary>An ability's hit, as <see cref="ApplyDamage(IUnit, IUnit, uint, IAbility)" />, answering how it went (auras).</summary>
-    public HitOutcome ApplyDamageWithOutcome(IUnit attacker, IUnit target, uint damage, IAbility ability)
         => ApplyDamageCore(attacker, target, damage, ability);
+
+    /// <summary>
+    /// A Hostile ability's hit on one unit (#1164), answering how it went: only a hit that landed applies the ability's aura.
+    /// It rolls whether it lands, the target's dodge chance, unless the ability is Unavoidable; then deals its damage (its
+    /// EffectValue, scaled, as <see cref="ApplyDamage(IUnit, IUnit, uint, IAbility)" />) when its Effects has Damage. One
+    /// with no damage draws that roll alone: landed, it deals nothing and adds nothing (no crit, block, armour, threat or
+    /// combat entry: its aura brings the combat), and dodged, it is a dodge as a damage hit's is, sent, with combat entered
+    /// and no threat beyond the encounter's. A target every hit passes over is Ignored and draws nothing.
+    /// </summary>
+    public HitOutcome ApplyAbilityHit(IUnit attacker, IUnit target, IAbility ability)
+    {
+        AbilityMetadata metadata = ability.Metadata;
+        bool unavoidable = (metadata.Flags & AbilityFlags.Unavoidable) != AbilityFlags.None;
+        if (AbilityRules.HasDirectEffect(metadata.Effects, metadata.Affects))
+            return ApplyDamageCore(attacker, target, metadata.EffectValue, ability, unavoidable);
+
+        // The same targets ApplyDamageCore returns early for, before any draw.
+        if (IgnoresHits(target)) return HitOutcome.Ignored;
+        if (unavoidable || !HitResolver.Dodges(DefenderOf(target), _formula(), _random)) return HitOutcome.Landed;
+
+        Dodged(attacker, target, 0f, ability.AbilityId);
+        return HitOutcome.Dodged;
+    }
 
     /// <summary>A raw hit, such as a creature's swing (#506): <paramref name="damage" /> is the base the defences reduce.</summary>
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage)
@@ -80,7 +99,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// The ability that hit, or null for a swing: it scales the base, multiplies the threat, names the hit to
     /// the character hit, and gives its PowerGainPerHit to the caster per unit damaged (#526).
     /// </param>
-    private HitOutcome ApplyDamageCore(IUnit attacker, IUnit target, uint damage, IAbility? ability)
+    /// <param name="unavoidable">An Unavoidable ability's hit (#1164): it draws no dodge roll.</param>
+    private HitOutcome ApplyDamageCore(IUnit attacker, IUnit target, uint damage, IAbility? ability,
+        bool unavoidable = false)
     {
         // Arrival protection passes over the whole hit, including its rolls, threat and combat tags.
         if (ArrivalProtection.IsProtected(target)) return HitOutcome.Ignored;
@@ -110,7 +131,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             : HitResolver.AbilityBase(attackerCombat, damage, metadata.ScalingStat, metadata.ScalingCoefficient,
                 metadata.BaseDamageCoefficient, _random);
         (uint dealt, HitResult result) =
-            HitResolver.ResolveDamage(attackerCombat, DefenderOf(target), baseDamage, formula, _random);
+            HitResolver.ResolveDamage(attackerCombat, DefenderOf(target), baseDamage, formula, _random, unavoidable);
 
         float threatMultiplier = metadata?.ThreatMultiplier ?? 1.0f;
         AbilityId? abilityId = ability?.AbilityId;

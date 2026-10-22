@@ -4,6 +4,8 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Combat;
@@ -13,6 +15,7 @@ using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,7 +28,8 @@ namespace Avalon.Server.World.UnitTests.Auras;
 
 /// <summary>
 /// Abilities through the real cast handler, cast system and instance: the direct amount when Effects has it, then the
-/// aura; a dodged hit applies none; an aura-only cast is never dodged; hostility decides who receives it. Bleed and
+/// aura; a dodged hit applies none, with or without damage (#1164), unless the ability is Unavoidable; hostility decides
+/// who receives it. Bleed and
 /// Renew run the recording script, so these tests share its static log with every other test that reads it.
 /// </summary>
 [Collection(nameof(RecordingAuraScript))]
@@ -46,6 +50,15 @@ public class AbilityAuraShould
         ignite.Effects = SpellEffect.Debuff;
         ignite.EffectValue = 0;
         ignite.AuraId = new AuraId(902);
+        return ignite;
+    }
+
+    /// <summary>Ignite's shape and aura, flagged Unavoidable (#1164).</summary>
+    private static AbilityTemplate UnavoidableIgnite()
+    {
+        AbilityTemplate ignite = Ignite();
+        ignite.Id = new AbilityId(219);
+        ignite.Flags = AbilityFlags.Unavoidable;
         return ignite;
     }
 
@@ -73,7 +86,7 @@ public class AbilityAuraShould
         scripts.GetAuraScript(Arg.Any<string>()).Returns(call => AuraHarness.TestScript(call.Arg<string>()));
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             scripts: scripts,
-            abilities: () => [Rend(), Ignite(), Renew(), Volley()],
+            abilities: () => [Rend(), Ignite(), UnavoidableIgnite(), Renew(), Volley()],
             auras: () =>
             [
                 AuraTestData.Scripted(AuraTestData.Bleed(), nameof(RecordingAuraScript)), AuraTestData.Burn(),
@@ -141,18 +154,35 @@ public class AbilityAuraShould
         Assert.Equal(0, boar.Auras.Count);
     }
 
-    /// <summary>No roll is scripted: the random throws if anything is drawn, so an aura-only cast is never dodged.</summary>
-    [Fact]
-    public async Task Apply_an_aura_only_ability_without_dealing_anything_or_rolling_a_dodge()
+    /// <summary>
+    /// An ability that deals no damage rolls whether it lands, as a damage hit does (#1164): the one dodge draw (a scripted
+    /// roll under the boar's 30 % is a dodge), then only its aura. Dodged, it applies none and is sent as a dodge; landed,
+    /// it sends no damage and the boar's script is never hit. Unavoidable, it draws nothing at a 100 % dodge chance (the
+    /// random throws on a draw it was not given) and lands. Combat is entered every time.
+    /// </summary>
+    [Theory]
+    [InlineData(213u, 30f, new[] { 0.0 }, false)]
+    [InlineData(213u, 30f, new[] { 0.99 }, true)]
+    [InlineData(219u, 100f, new double[0], true)]
+    public async Task Roll_whether_an_ability_without_damage_lands_before_applying_its_aura(uint abilityId, float dodge,
+        double[] rolls, bool lands)
     {
-        (MapInstance instance, CastAbilityHandler handler) = await InstanceAsync(new ScriptedCombatRandom());
-        MapInstanceClient wizard = Caster(instance, 912_103, Ignite());
-        Creature boar = Boar(instance, 912_903, dodge: 30f);
+        var random = new ScriptedCombatRandom(rolls);
+        (MapInstance instance, CastAbilityHandler handler) = await InstanceAsync(random);
+        MapInstanceClient wizard = Caster(instance, 912_103, abilityId == 213 ? Ignite() : UnavoidableIgnite());
+        Creature boar = Boar(instance, 912_903, dodge: dodge);
 
-        handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = 213, GroundPos = s_atTheBoar });
+        handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = abilityId, GroundPos = s_atTheBoar });
 
-        Assert.Equal(100u, boar.CurrentHealth);
-        ActiveAuraIs(boar, 902, wizard.Character.Guid);
+        Assert.Equal((0, 100u, 0), (random.DoublesLeft, boar.CurrentHealth,
+            ((CombatResolutionShould.CountingWoundScript)boar.Script!).Hits));
+        if (lands)
+            ActiveAuraIs(boar, 902, wizard.Character.Guid);
+        else
+            Assert.Equal(0, boar.Auras.Count);
+        (uint, HitResult)[] sent = lands ? [] : [(0u, HitResult.Dodged)];
+        Assert.Equal(sent, wizard.Read<SUnitDamagePacket>(NetworkPacketType.SMSG_CREATURE_DAMAGED)
+            .Select(p => (p.Damage, p.Result)));
         Assert.NotNull(instance.CombatService.GetEncounterFor(boar));
     }
 

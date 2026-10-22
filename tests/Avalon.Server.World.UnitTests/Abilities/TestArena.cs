@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Combat;
@@ -48,15 +49,17 @@ internal sealed class TestArena : IAbilityArena
 
     public IMapNavigator GetNavigatorForPosition(Vector3 position) => Navigator;
 
-    /// <summary>How every damage call is answered; Landed unless a test says otherwise.</summary>
+    /// <summary>How every hostile hit is answered; Landed unless a test says otherwise.</summary>
     public HitOutcome NextOutcome { get; set; } = HitOutcome.Landed;
 
     /// <summary>Every aura application asked for, in order.</summary>
     public List<(IUnit Caster, IUnit Target, IAbility Ability)> AurasApplied { get; } = [];
 
-    public HitOutcome DamageForAbility(IUnit caster, IUnit target, IAbility ability)
+    /// <summary>Records the damage of an ability whose Effects has Damage, and answers <see cref="NextOutcome" />.</summary>
+    public HitOutcome HitForAbility(IUnit caster, IUnit target, IAbility ability)
     {
-        CombatService.ApplyDamage(caster, target, ability.Metadata.EffectValue, ability);
+        if (AbilityRules.HasDirectEffect(ability.Metadata.Effects, ability.Metadata.Affects))
+            CombatService.ApplyDamage(caster, target, ability.Metadata.EffectValue, ability);
         return NextOutcome;
     }
 

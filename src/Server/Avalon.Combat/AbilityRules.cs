@@ -1,6 +1,7 @@
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.Combat;
@@ -53,6 +54,10 @@ public static class AbilityRules
 
         if (t.Affects == AbilityAffects.Ally && t.Shape != AbilityShape.Circle)
             return "only a circle may affect allies";
+
+        // #1164: an Ally ability is never dodged, so the flag would claim what it already is.
+        if (t.Affects == AbilityAffects.Ally && (t.Flags & AbilityFlags.Unavoidable) != AbilityFlags.None)
+            return "only a Hostile ability may be Unavoidable: an Ally ability is never dodged";
 
         // With neither a direct amount nor an aura the ability would spend its cost and change nothing.
         if (!HasDirectEffect(t.Effects, t.Affects) && t.AuraId is null)

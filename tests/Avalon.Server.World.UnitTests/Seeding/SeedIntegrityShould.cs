@@ -875,7 +875,7 @@ public class SeedIntegrityShould
     [InlineData(204u, ScalingStat.Attack, 0.15f, 0.3f)]
     [InlineData(214u, ScalingStat.Ability, 0.1f, 0f)]
     [InlineData(224u, ScalingStat.Attack, 0.2f, 0.3f)]
-    [InlineData(235u, ScalingStat.Ability, 0.1f, 0f)]
+    [InlineData(235u, ScalingStat.Ability, 0f, 0f)]
     public void Seed_each_kit_abilitys_scaling(uint id, ScalingStat stat, float scaling, float weapon)
     {
         using var database = SqliteDatabase.World();
@@ -948,7 +948,7 @@ public class SeedIntegrityShould
 
     /// <summary>
     /// Auras: the aura abilities, each with its shape, timing, cost, direct amount and aura; 204-235 the crowd control
-    /// of #770, each with a small direct amount so a dodge or a miss lands no control.
+    /// of #770, which a dodge or a miss lands no control from: Hush (235) deals nothing and is pure silence (#1164).
     /// </summary>
     [Theory]
     [InlineData(203u, "Rend", AbilityShape.Cone, AbilityAimMode.Movement, 2.5f, 0f, 90f, 0f, 6000u, 10u, PowerType.Fury, SpellEffect.Damage, 8u, 1u)]
@@ -959,7 +959,7 @@ public class SeedIntegrityShould
     [InlineData(204u, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, 2.5f, 0f, 90f, 0f, 15000u, 15u, PowerType.Fury, SpellEffect.Damage, 6u, 12u)]
     [InlineData(214u, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, 18f, 3f, 0f, 0f, 20000u, 25u, PowerType.Mana, SpellEffect.Damage, 6u, 14u)]
     [InlineData(224u, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, 25f, 0f, 0f, 14f, 15000u, 20u, PowerType.Energy, SpellEffect.Damage, 8u, 13u)]
-    [InlineData(235u, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, 18f, 0f, 0f, 17f, 20000u, 20u, PowerType.Mana, SpellEffect.Damage, 6u, 15u)]
+    [InlineData(235u, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, 18f, 0f, 0f, 17f, 20000u, 20u, PowerType.Mana, SpellEffect.Debuff, 0u, 15u)]
     [InlineData(317u, "Venom Spit", AbilityShape.Projectile, AbilityAimMode.Cursor, 10f, 0f, 0f, 14f, 8000u, 0u, PowerType.None, SpellEffect.Damage, 0u, 6u)]
     [InlineData(318u, "Sundering Howl", AbilityShape.Circle, AbilityAimMode.Movement, 0f, 6f, 0f, 0f, 18000u, 0u, PowerType.None, SpellEffect.Debuff, 0u, 7u)]
     public void Seed_each_aura_ability_as_designed(uint id, string name, AbilityShape shape, AbilityAimMode aim, float reach,
