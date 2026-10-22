@@ -351,14 +351,38 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // Classify each participant by TYPE, not by ROLE — so creature-attacks-player and
         // player-attacks-creature both populate the encounter correctly.
+        bool holdsTarget = existing is not null
+                           && (target is ICreature ? existing.Hostiles.Contains(target) : existing.Players.Contains(target));
+
+        // A pair that already shares an encounter fights on in it, on every path (#1165). The attacker's first
+        // encounter holding the target too is the common case and costs no walk; otherwise the pair may share a later
+        // one (a spillover, or a creature's fight the attacker joined at the cap), and adding the target to the first
+        // would put it in two encounters.
+        if (existing is not null && !holdsTarget
+            && _registry.FindEncounterContainingBoth(attacker, target) is { } shared)
+        {
+            return shared;
+        }
+
         bool wouldExceedCap = existing is not null
                            && target is ICreature
-                           && !existing.Hostiles.Contains(target)
+                           && !holdsTarget
                            && existing.Hostiles.Count >= _config.MergeCapHostileParticipants;
 
         if (wouldExceedCap)
         {
-            var spillover = (Encounter)_registry.CreateEncounter();
+            // A creature already fighting elsewhere keeps its one encounter: a character joins that fight, which adds
+            // no hostile to it. Any other attacker would add one, so it takes the spillover below.
+            if (attacker is ICharacter && _registry.FindEncounterContaining(target) is Encounter targetEncounter)
+            {
+                ClassifyAndAdd(targetEncounter, attacker);
+                return targetEncounter;
+            }
+
+            // A spillover of the attacker's with room takes the creature before a new one is opened, so creatures
+            // pulled past the cap fill spillovers of up to the cap each rather than one encounter apiece.
+            Encounter spillover = _registry.FindEncounterWithRoom(attacker, _config.MergeCapHostileParticipants)
+                                  ?? (Encounter)_registry.CreateEncounter();
             ClassifyAndAdd(spillover, attacker);
             ClassifyAndAdd(spillover, target);
             return spillover;

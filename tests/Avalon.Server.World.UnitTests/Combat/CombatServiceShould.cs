@@ -137,26 +137,62 @@ public class CombatServiceShould
     }
 
     [Fact]
-    public void Should_cap_merge_at_50_hostile_participants()
+    public void Should_cap_merge_at_50_hostile_participants_and_never_split_a_creature_or_pair_across_encounters()
     {
-        (CombatService? svc, EncounterRegistry? reg) = BuildService();
+        // Seeded at 0, so any threat read below came from a hit.
+        (CombatService? svc, EncounterRegistry? reg) = BuildService(initialThreatSeed: 0);
         ICharacter attacker = StubCharacter(CharacterClass.Warrior);
+        ICharacter other = StubCharacter(CharacterClass.Hunter);
         IAbility ability = StubAbility(1.0f);
 
+        // The oldest encounter: another player's fight the attacker has no part in yet.
+        ICreature fought = StubCreature();
+        svc.ApplyDamage(other, fought, 1, ability);
+
+        ICreature first = null!;
+        ICreature last = null!;
         for (int i = 0; i < 51; i++)
         {
-            ICreature h = StubCreature();
-            svc.ApplyDamage(attacker, h, 1, ability);
+            last = StubCreature();
+            if (i == 0) first = last;
+            svc.ApplyDamage(attacker, last, 1, ability);
         }
 
-        // Expect 2 encounters: first capped at 50, the 51st spawns a new encounter.
-        Assert.Equal(2, reg.Active.Count);
-        var encounters = System.Linq.Enumerable.ToList(reg.Active);
-        int firstCount = encounters[0].Hostiles.Count;
-        int secondCount = encounters[1].Hostiles.Count;
-        Assert.True(firstCount + secondCount == 51);
-        Assert.True(firstCount == 50 || secondCount == 50);
-        Assert.True(firstCount == 1 || secondCount == 1);
+        // The attacker's encounter is capped at 50; the 51st opens a spillover.
+        Assert.Equal(3, reg.Active.Count);
+        var capped = (Encounter)Assert.Single(reg.Active, e => e.Hostiles.Contains(first));
+        var spillover = (Encounter)Assert.Single(reg.Active, e => e.Hostiles.Contains(last));
+        Assert.Equal(50, capped.Hostiles.Count);
+        Assert.Single(spillover.Hostiles);
+
+        // #1165: every further hit and pull on the 51st lands in the spillover it shares with the attacker, with its
+        // threat, rather than opening another encounter each time.
+        float firstThreat = spillover.GetThreatList(last)[attacker];
+        for (int i = 0; i < 5; i++)
+            svc.ApplyDamage(attacker, last, 1, ability);
+        svc.EnterCombat(last, attacker);
+        Assert.Equal(3, reg.Active.Count);
+        Assert.Single(reg.Active, e => e.Hostiles.Contains(last));
+        Assert.True(spillover.GetThreatList(last)[attacker] > firstThreat);
+
+        // A second creature past the cap goes into the spillover with room, not a new one.
+        ICreature next = StubCreature();
+        svc.ApplyDamage(attacker, next, 1, ability);
+        Assert.Equal(3, reg.Active.Count);
+        Assert.Contains(next, spillover.Hostiles);
+
+        // A creature already fighting another player keeps its one encounter: the capped attacker joins that fight.
+        svc.ApplyDamage(attacker, fought, 1, ability);
+        Assert.Equal(3, reg.Active.Count);
+        var its = (Encounter)Assert.Single(reg.Active, e => e.Hostiles.Contains(fought));
+        Assert.Contains(attacker, its.Players);
+        Assert.True(its.GetThreatList(fought)[attacker] > 0);
+
+        // That fight is now the first the attacker is found in, yet a hit on a creature of its capped encounter stays
+        // in the capped encounter the pair shares.
+        svc.ApplyDamage(attacker, first, 1, ability);
+        Assert.Equal(3, reg.Active.Count);
+        Assert.Same(capped, Assert.Single(reg.Active, e => e.Hostiles.Contains(first)));
     }
 
     [Fact]
