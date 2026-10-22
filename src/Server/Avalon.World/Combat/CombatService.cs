@@ -339,7 +339,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         bool dead = (target is ICharacter c && c.IsDead) || target.CurrentHealth == 0;
         if (!dead) return;
 
-        enc?.OnParticipantDied(target);
+        // What a hit set off before this (a crowd control it broke, a kill, through their scripts) may have dealt a
+        // further hit that merged its encounter into another (#1168), so the death goes to the fight it now is.
+        enc?.Current.OnParticipantDied(target);
         _context?.BroadcastUnitDeath(target, attacker);
         _outcomes?.UnitDied(target);
     }
@@ -354,44 +356,81 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         bool holdsTarget = existing is not null
                            && (target is ICreature ? existing.Hostiles.Contains(target) : existing.Players.Contains(target));
 
-        // A pair that already shares an encounter fights on in it, on every path (#1165). The attacker's first
-        // encounter holding the target too is the common case and costs no walk; otherwise the pair may share a later
-        // one (a spillover, or a creature's fight the attacker joined at the cap), and adding the target to the first
-        // would put it in two encounters.
-        if (existing is not null && !holdsTarget
-            && _registry.FindEncounterContainingBoth(attacker, target) is { } shared)
-        {
-            return shared;
-        }
-
-        bool wouldExceedCap = existing is not null
-                           && target is ICreature
-                           && !holdsTarget
-                           && existing.Hostiles.Count >= _config.MergeCapHostileParticipants;
-
-        if (wouldExceedCap)
-        {
-            // A creature already fighting elsewhere keeps its one encounter: a character joins that fight, which adds
-            // no hostile to it. Any other attacker would add one, so it takes the spillover below.
-            if (attacker is ICharacter && _registry.FindEncounterContaining(target) is Encounter targetEncounter)
-            {
-                ClassifyAndAdd(targetEncounter, attacker);
-                return targetEncounter;
-            }
-
-            // A spillover of the attacker's with room takes the creature before a new one is opened, so creatures
-            // pulled past the cap fill spillovers of up to the cap each rather than one encounter apiece.
-            Encounter spillover = _registry.FindEncounterWithRoom(attacker, _config.MergeCapHostileParticipants)
-                                  ?? (Encounter)_registry.CreateEncounter();
-            ClassifyAndAdd(spillover, attacker);
-            ClassifyAndAdd(spillover, target);
-            return spillover;
-        }
+        // The attacker's first encounter holding the target too is the common case, and costs no walk.
+        if (existing is not null && !holdsTarget)
+            return ResolveApart(existing, attacker, target);
 
         Encounter enc = existing ?? (Encounter)_registry.CreateEncounter();
         ClassifyAndAdd(enc, attacker);
         ClassifyAndAdd(enc, target);
         return enc;
+    }
+
+    /// <summary>
+    /// An attacker whose first encounter, <paramref name="existing" />, does not hold its target. A pair that already
+    /// shares an encounter fights on in it, on every path (#1165): it may share a later one (a spillover, or a creature's
+    /// fight the attacker joined at the cap), and adding the target to the first would put it in two. Two fights a
+    /// character and a creature bring together become one (#1168), within the merge cap; past it, a character joins the
+    /// creature's own fight. A creature new to combat goes into <paramref name="existing" />, or past the cap into a spillover.
+    /// </summary>
+    private Encounter ResolveApart(Encounter existing, IUnit attacker, IUnit target)
+    {
+        if (_registry.FindEncounterContainingBoth(attacker, target) is { } shared)
+            return shared;
+
+        int cap = _config.MergeCapHostileParticipants;
+        if (TryMerge(attacker, target, cap, out Encounter? creatureFight) is { } merged)
+            return merged;
+
+        if (target is ICreature)
+        {
+            // A creature already fighting elsewhere keeps its one encounter: a character joins that fight, which adds no
+            // hostile to it. Any other attacker would add one, so it takes the spillover below.
+            if (attacker is ICharacter && creatureFight is not null)
+            {
+                ClassifyAndAdd(creatureFight, attacker);
+                return creatureFight;
+            }
+
+            // A spillover of the attacker's with room takes the creature before a new one is opened, so creatures
+            // pulled past the cap fill spillovers of up to the cap each rather than one encounter apiece.
+            if (existing.Hostiles.Count >= cap)
+            {
+                Encounter spillover = _registry.FindEncounterWithRoom(attacker, cap)
+                                      ?? (Encounter)_registry.CreateEncounter();
+                ClassifyAndAdd(spillover, attacker);
+                ClassifyAndAdd(spillover, target);
+                return spillover;
+            }
+        }
+
+        // Otherwise the attacker's first encounter takes both: a creature new to combat, below the cap, or a character
+        // a creature strikes, in no fight that fits beside the creature's, which joins the creature's own.
+        ClassifyAndAdd(existing, attacker);
+        ClassifyAndAdd(existing, target);
+        return existing;
+    }
+
+    /// <summary>
+    /// Merges the fight a creature is in with a fight of the character it meets, whichever struck (#1168), when the two
+    /// together hold no more than <paramref name="cap" /> hostiles: the creature is in one fight, the character may be in
+    /// several, and the first of the character's that fits is merged. Answers the merged encounter, or null with
+    /// <paramref name="creatureFight" /> the creature's fight, if it has one.
+    /// </summary>
+    private Encounter? TryMerge(IUnit attacker, IUnit target, int cap, out Encounter? creatureFight)
+    {
+        creatureFight = null;
+        (IUnit creature, IUnit character) = target is ICreature ? (target, attacker) : (attacker, target);
+        if (creature is not ICreature || character is not ICharacter)
+            return null;
+
+        creatureFight = _registry.FindEncounterHolding(creature);
+        if (creatureFight is null)
+            return null;
+
+        // Never the creature's own fight: it would hold the pair, which shares no encounter.
+        Encounter? characterFight = _registry.FindEncounterWithRoom(character, cap - creatureFight.Hostiles.Count + 1);
+        return characterFight is null ? null : _registry.Merge(creatureFight, characterFight);
     }
 
     private static void ClassifyAndAdd(Encounter enc, IUnit unit)
@@ -726,12 +765,11 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     public void DropPlayerFromEncounter(IUnit player)
     {
-        // V1 invariant: a player can be in at most one encounter. Find it (if any) and prune
-        // the player from participants and from every hostile's threat list. Idempotent: if
-        // the player isn't in any encounter, this is a no-op (called from disconnect/transition
-        // exit-paths that fire whether or not the player was ever in combat).
-        var enc = _registry.FindEncounterContaining(player) as Encounter;
-        enc?.RemovePlayer(player);
+        // A player can be in several encounters (one it joined past the merge cap, #1168): prune it from the
+        // participants and every hostile's threat list of each. Idempotent: if the player isn't in any encounter,
+        // this is a no-op (called from disconnect/transition exit-paths that fire whether or not the player was
+        // ever in combat).
+        _registry.RemovePlayerEverywhere(player);
     }
 
     public void RevivePlayer(IUnit player, Vector3 position)

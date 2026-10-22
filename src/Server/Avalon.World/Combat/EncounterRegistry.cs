@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Units;
@@ -56,6 +57,50 @@ public sealed class EncounterRegistry : IEncounterRegistry
                 return enc;
         }
         return null;
+    }
+
+    /// <summary>
+    /// The first active encounter holding <paramref name="unit" /> on its own side (#1168): for a creature, the fight it is
+    /// a hostile in.
+    /// </summary>
+    internal Encounter? FindEncounterHolding(IUnit unit)
+    {
+        foreach (Encounter enc in _active)
+        {
+            if (Holds(enc, unit))
+                return enc;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Makes one fight of two active encounters (#1168): the one created first takes in the other
+    /// (<see cref="Encounter.Absorb" />), which leaves the active encounters. The older one survives, so the fight keeps
+    /// when it began and its place ahead of the encounters opened after it. Answers the survivor.
+    /// </summary>
+    internal Encounter Merge(Encounter first, Encounter second)
+    {
+        int firstAt = _active.IndexOf(first);
+        int secondAt = _active.IndexOf(second);
+        Debug.Assert(firstAt >= 0 && secondAt >= 0 && firstAt != secondAt, "Only two different active encounters merge");
+
+        (Encounter survivor, int absorbedAt) = firstAt < secondAt ? (first, secondAt) : (second, firstAt);
+        survivor.Absorb(_active[absorbedAt]);
+        _active.RemoveAt(absorbedAt);
+        return survivor;
+    }
+
+    /// <summary>
+    /// Takes <paramref name="player" /> out of every active encounter it is in, and off every threat list there (#1168). A
+    /// player can be in several: one it joined past the merge cap, and its own.
+    /// </summary>
+    internal void RemovePlayerEverywhere(IUnit player)
+    {
+        foreach (Encounter enc in _active)
+        {
+            if (enc.Players.Contains(player))
+                enc.RemovePlayer(player);
+        }
     }
 
     /// <summary>
