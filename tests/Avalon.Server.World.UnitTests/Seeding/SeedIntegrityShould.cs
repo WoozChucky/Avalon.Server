@@ -1335,6 +1335,7 @@ public class SeedIntegrityShould
         // One chest piece per class to choose from.
         ulong[] choices = [.. quest.ItemChoices.Select(c => c.ItemTemplateId.Value).Order()];
         Assert.Equal([13ul, 18ul, 23ul, 28ul], choices);
+        Assert.All(quest.ItemChoices, c => Assert.Equal(1u, c.Count));
         Assert.Equal([CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Cleric],
             context.ItemTemplates.AsNoTracking().ToList().Where(t => choices.Contains(t.Id.Value))
                 .OrderBy(t => t.Id.Value).SelectMany(t => t.AllowedClasses));

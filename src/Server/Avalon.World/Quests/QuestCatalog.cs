@@ -366,7 +366,7 @@ public sealed class QuestCatalog
         if (count == 0)
             return null;
         if (count is < MinItemChoices or > MaxItemChoices)
-            return $"it offers {count} item choices; a choice set has {MinItemChoices}-{MaxItemChoices}";
+            return $"a choice set has {MinItemChoices}-{MaxItemChoices} items, not {count}";
 
         foreach (QuestItemChoice choice in quest.ItemChoices.OrderBy(c => c.ItemTemplateId.Value))
         {

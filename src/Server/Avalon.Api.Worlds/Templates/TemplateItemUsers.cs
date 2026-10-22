@@ -48,20 +48,21 @@ public static class TemplateItemUsers
                 errors.Add("flags", $"Quest {objective.QuestId.Value} would be refused: {problem}.");
         }
 
-        foreach (QuestItemReward reward in await db.QuestItemRewards.AsNoTracking().Where(r => r.ItemTemplateId == id)
+        // A fixed reward and a choice are judged on the template alone: an edit that newly breaks neither reads no rows.
+        string? rewardProblem = ItemUseRules.QuestRewardProblem(edited);
+        if (rewardProblem is null || ItemUseRules.QuestRewardProblem(before) is not null)
+            return;
+
+        foreach (QuestItemReward row in await db.QuestItemRewards.AsNoTracking().Where(r => r.ItemTemplateId == id)
                      .OrderBy(r => r.QuestId).ToListAsync(ct))
         {
-            string? problem = ItemUseRules.QuestRewardProblem(edited);
-            if (problem is not null && ItemUseRules.QuestRewardProblem(before) is null)
-                errors.Add("flags", $"Quest {reward.QuestId.Value} would be refused: {problem}.");
+            errors.Add("flags", $"Quest {row.QuestId.Value} would be refused: {rewardProblem}.");
         }
 
-        foreach (QuestItemChoice choice in await db.QuestItemChoices.AsNoTracking().Where(c => c.ItemTemplateId == id)
+        foreach (QuestItemChoice row in await db.QuestItemChoices.AsNoTracking().Where(c => c.ItemTemplateId == id)
                      .OrderBy(c => c.QuestId).ToListAsync(ct))
         {
-            string? problem = ItemUseRules.QuestRewardProblem(edited);
-            if (problem is not null && ItemUseRules.QuestRewardProblem(before) is null)
-                errors.Add("flags", $"Quest {choice.QuestId.Value} would be refused: {problem}.");
+            errors.Add("flags", $"Quest {row.QuestId.Value} would be refused: {rewardProblem}.");
         }
     }
 }

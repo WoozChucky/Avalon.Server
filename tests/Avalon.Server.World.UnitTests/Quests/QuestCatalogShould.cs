@@ -77,8 +77,8 @@ public class QuestCatalogShould
         { Quest(1).WithStage(0, Kill(11, Boar, 1)).Repeating((QuestRepeatFrequency)7), "repeat frequency 7" },
         { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((999, 1), (Charm, 1)), "choice item template 999 does not exist" },
         { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((Tonic, 0), (Charm, 1)), "choice item template 7102 has count 0" },
-        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((Charm, 1)), "1 item choices" },
-        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((Tonic, 1), (Charm, 1), (Blade, 1), (7110, 1), (7111, 1), (7112, 1), (7113, 1)), "7 item choices" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((Charm, 1)), "2-6 items, not 1" },
+        { Quest(1).WithStage(0, Kill(11, Boar, 1)).Offering((Tonic, 1), (Charm, 1), (Blade, 1), (7110, 1), (7111, 1), (7112, 1), (7113, 1)), "2-6 items, not 7" },
         { Quest(1).WithStage(0, Kill(11, Boar, 1)).Paying(Tonic, 2).Offering((Tonic, 1), (Charm, 1)), "item template 7102 is both a fixed reward and a choice" },
     };
 
