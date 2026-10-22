@@ -1,5 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Public;
@@ -18,9 +20,11 @@ namespace Avalon.World.Scripts.Abilities;
 /// with Pierce it hits each unit once and flies on. It ends at Reach, at a wall, or on a first hit,
 /// and the instance despawns it once its final state has gone out. No target, no homing. It starts
 /// where the caster stood when the cast started (#648), the origin of the lane the start broadcast carried.
+/// It is fired as circles and cones are, with its lane, and tells how its flight met each unit and ended (#479):
+/// a hit or a pass-through before the damage it deals, then where it expired or was blocked.
 /// </summary>
 public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
-    : AbilityScript(ability, caster, aim)
+    : AbilityScript(ability, caster, aim), IProjectileIdentity
 {
     /// <summary>Where the projectile is drawn above the ground it flies along. Hit tests ignore height.</summary>
     public static readonly Vector3 HeightOffset = new(0f, 0.5f, 0f);
@@ -38,16 +42,31 @@ public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, Abil
     public override ObjectGuid Guid { get; set; }
     public override object State { get; set; } = SpellState.Executing;
 
+    public uint AbilityId => Ability.AbilityId.Value;
+    public ulong CasterGuid => Caster.Guid.RawValue;
+    public uint CastId { get; private set; }
+
     protected override bool ShouldRun() => true;
 
     public override void Prepare()
     {
         Guid = new ObjectGuid(ObjectType.SpellProjectile, IObject.GenerateId());
+        CastId = arena.CastInFlight;
         _ground = Origin;
         _direction = Aim.DirectionFrom(_ground);
         Velocity = _direction * Ability.Metadata.ProjectileSpeed;
         Orientation = new Vector3(0f, MathF.Atan2(_direction.x, _direction.z) * Mathf.Rad2Deg, 0f);
         Position = _ground + HeightOffset;
+
+        // A queued cast's lane was resolved for its start broadcast; an instant's is resolved here.
+        AbilityFootprint? lane = arena.FootprintInFlight is { Shape: AbilityShape.Projectile } started
+            ? started
+            : AbilityFootprint.Resolve(AbilityShape.Projectile, Ability.Metadata, Aim, _ground,
+                arena.GetNavigatorForPosition(_ground));
+        if (lane is { } fired)
+        {
+            arena.BroadcastAbilityFired(Caster, Ability, fired);
+        }
     }
 
     public override void Update(TimeSpan deltaTime)
@@ -77,13 +96,16 @@ public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, Abil
             }
 
             _hit.Add(unit.Guid);
+
+            // Where it met the unit: the point of its step nearest the unit's centre, where the sweep tested it
+            // (rewound for a player's projectile, #1082). Told before the damage, so the damage belongs to it.
+            Vector3 hitPoint = HitShapes.ClosestPointOnSegment(_ground, end, arena.Hits.PositionOf(unit));
+            arena.BroadcastProjectileImpact(Guid, Caster, Ability, CastId, hitPoint + HeightOffset,
+                meta.Pierce ? ProjectileImpactReason.Pierced : ProjectileImpactReason.Hit, unit);
             AbilityEffect.Apply(arena, Caster, Ability, unit);
 
             if (!meta.Pierce)
             {
-                // It stops where it met the unit: the point of its step nearest the unit's centre, where the sweep
-                // tested it (rewound for a player's projectile, #1082).
-                Vector3 hitPoint = HitShapes.ClosestPointOnSegment(_ground, end, arena.Hits.PositionOf(unit));
                 MoveTo(hitPoint, HitShapes.Distance2D(_ground, hitPoint));
                 Finish();
                 return;
@@ -94,6 +116,8 @@ public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, Abil
 
         if (blocked || _travelled >= meta.Reach - Epsilon)
         {
+            arena.BroadcastProjectileImpact(Guid, Caster, Ability, CastId, Position,
+                blocked ? ProjectileImpactReason.Blocked : ProjectileImpactReason.Expired, null);
             Finish();
         }
     }

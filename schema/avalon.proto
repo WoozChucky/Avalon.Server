@@ -701,6 +701,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_AURA_UPDATE = 12557;
    NetworkPacketType_SMSG_AURA_LIST = 12558;
    NetworkPacketType_SMSG_AURA_CANCEL_RESULT = 12559;
+   NetworkPacketType_SMSG_PROJECTILE_IMPACT = 12560;
    NetworkPacketType_ERROR = -1;
 }
 enum NetworkProtocol {
@@ -737,6 +738,9 @@ message ObjectState {
    optional uint32 DisplayId = 25;
    optional uint32 DoodadTemplateId = 26;
    optional DoodadState DoodadState = 27;
+   optional uint32 AbilityId = 28;
+   optional uint64 CasterGuid = 29;
+   optional uint32 CastId = 30;
 }
 enum PartyExperienceMode {
    PartyExperienceMode_Unknown = 0;
@@ -789,6 +793,13 @@ enum PowerType {
    PowerType_Mana = 1;
    PowerType_Fury = 2;
    PowerType_Energy = 3;
+}
+enum ProjectileImpactReason {
+   ProjectileImpactReason_Unknown = 0;
+   ProjectileImpactReason_Hit = 1;
+   ProjectileImpactReason_Pierced = 2;
+   ProjectileImpactReason_Expired = 3;
+   ProjectileImpactReason_Blocked = 4;
 }
 message QuestDisplayDto {
    optional string Title = 1;
@@ -1183,6 +1194,16 @@ message SPlayerStateAckPacket {
 message SPongPacket {
    int64 SequenceNumber = 1;
    int64 Ticks = 2;
+}
+message SProjectileImpactPacket {
+   uint64 ProjectileGuid = 1;
+   uint64 Caster = 2;
+   uint32 AbilityId = 3;
+   uint32 CastId = 4;
+   Vector3Dto Position = 5;
+   ProjectileImpactReason Reason = 6;
+   uint64 Target = 7;
+   int64 WorldTick = 8;
 }
 message SPvpStatePacket {
    bool Enabled = 1;

@@ -3192,7 +3192,7 @@ public class WorldDbContext : DbContext
             Kit(204, CharacterClass.Warrior, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 90f, cooldown: 15000, cost: 15, value: 6, range: SpellRange.Melee, scaling: ScalingStat.Attack, coefficient: 0.15f, weapon: 0.3f, aura: 12),
             Kit(214, CharacterClass.Wizard, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, cooldown: 20000, cost: 25, value: 6, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.1f, aura: 14),
             Kit(224, CharacterClass.Hunter, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 15000, cost: 20, value: 8, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.2f, weapon: 0.3f, aura: 13),
-            Kit(235, CharacterClass.Cleric, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 20000, cost: 20, value: 6, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.1f, aura: 15));
+            Kit(235, CharacterClass.Cleric, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 34f, cooldown: 20000, cost: 20, value: 6, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.1f, aura: 15));
 
         // The forest creatures' abilities (#163), creature-only (no class), free, and dealt from each creature's
         // natural damage range through BaseDamageCoefficient. Each creature's AI script declares its own ids and

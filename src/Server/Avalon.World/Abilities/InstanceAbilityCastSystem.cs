@@ -223,7 +223,7 @@ public class InstanceAbilityCastSystem(
 
         // #1088: a cast taken ends its caster's arrival protection, before it fires, so it lands as any other caster's.
         ArrivalProtection.End(caster);
-        Fire(caster, ability, script, HasteOf(caster), TakeCastId(), view, null);
+        Fire(caster, ability, script, HasteOf(caster), TakeCastId(), view, null, null);
         return true;
     }
 
@@ -345,7 +345,7 @@ public class InstanceAbilityCastSystem(
                                       && cast.Footprint is { Shape: AbilityShape.Circle or AbilityShape.Cone } footprint
                 ? footprint
                 : null;
-            Fire(cast.Caster, ability, cast.Script, cast.HastePct, cast.CastId, default, dodge);
+            Fire(cast.Caster, ability, cast.Script, cast.HastePct, cast.CastId, default, dodge, cast.Footprint);
         }
     }
 
@@ -673,7 +673,7 @@ public class InstanceAbilityCastSystem(
     /// wait out their delay; every other cast with none. It is put back after as the rewind is.
     /// </summary>
     private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct, uint castId, CastView view,
-        AbilityFootprint? dodge)
+        AbilityFootprint? dodge, AbilityFootprint? started)
     {
         if (caster is not CharacterEntity { GodMode: true })
             ability.CooldownTimer = CooldownOf(caster, ability, hastePct);
@@ -686,9 +686,11 @@ public class InstanceAbilityCastSystem(
         int outerRewind = arena.HitRewindTicks;
         IUnit? outerExempt = arena.HitRewindExempt;
         AbilityFootprint? outerDodge = arena.DodgeFootprint;
+        AbilityFootprint? outerStarted = arena.FootprintInFlight;
         try
         {
             arena.CastInFlight = castId;
+            arena.FootprintInFlight = started;
             arena.HitRewindTicks = view.HitRewindTicks;
             arena.HitRewindExempt = caster;
             arena.DodgeFootprint = dodge;
@@ -705,6 +707,7 @@ public class InstanceAbilityCastSystem(
         finally
         {
             arena.CastInFlight = 0;
+            arena.FootprintInFlight = outerStarted;
             arena.HitRewindTicks = outerRewind;
             arena.HitRewindExempt = outerExempt;
             arena.DodgeFootprint = outerDodge;
