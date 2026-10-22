@@ -1579,6 +1579,32 @@ parties, before the instances), so `ScenarioAllocationsShould` covers the empty 
 figure stayed as committed in Debug and Release (forest-combat 13,805 B per window, town-social 728 B, the others
 0 B), and `perf/scenario-allocations.json` is not regenerated.
 
+### Hit resolution — `Benchmarks/HitResolutionBenchmarks.cs` (#1178)
+
+The hit maths in `Avalon.Combat` that every damaging hit and every periodic damage tick runs, measured before the
+defence layers of #1178 change it. `ResolveCreatureHitOnArmouredCharacter` is `HitResolver.ResolveDamage` for a level-3
+creature (the seeded level-3 natural range, 5..9, no crit chance) swinging 7 at a level-3 character with armour 20,
+3.25 % dodge and no block: the dodge, crit and block draws, then armour. `ResolveDamageTick` is
+`HitResolver.ResolvePeriodic` for a 12.0 tick on the same character: the crit draw, then armour. Both run on the seeded
+formula (`CombatSeed.Formula`) and on `CombatRandom.Steady`, whose every roll comes up just under 1, so nothing procs and
+every iteration takes the same path; armour takes 20 / (20 + 50 + 10 × 3) = 20 %, and setup fails the run unless the
+swing deals 5 and the tick 9.6.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*HitResolutionBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1
+```
+
+Before (#1178), measured once, 2026-10-22, BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime
+10.0.13, Release, in-process, affinity 1, three warmups and five measured iterations:
+
+| Operation | Mean | Allocated |
+|---|---:|---:|
+| `ResolveCreatureHitOnArmouredCharacter` | 70.26 ns (± 4.36 ns) | 0 B |
+| `ResolveDamageTick` | 12.27 ns (± 0.22 ns) | 0 B |
+
+Neither allocates: both sides of a hit are value structs passed `in`, and the result is a value tuple. The hit's three
+draws and the tick's one go through the `ICombatRandom` interface.
+
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
 Measures the production `WorldConnection` arrival, session/map filtering and handler dispatch paths. Each operation
