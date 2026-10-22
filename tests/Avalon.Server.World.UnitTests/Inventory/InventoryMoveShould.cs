@@ -117,6 +117,8 @@ public class InventoryMoveShould
             ItemRequestResult.WrongClass),
         new("Wear another class's gear as that class", [At(Bag(0), Circlet)], Bag(0), Eq(EquipmentSlots.Head), null,
             ItemRequestResult.Ok, MoveKind.Move, 1, Class: CharacterClass.Wizard),
+        new("Wear gear with no class list as a Wizard", [At(Bag(0), Band)], Bag(0), Eq(EquipmentSlots.Finger1), null,
+            ItemRequestResult.Ok, MoveKind.Move, 1, Class: CharacterClass.Wizard),
         new("Refuse a split into equipment", [At(Bag(0), StackedBand, 3)], Bag(0), Eq(EquipmentSlots.Finger1), 1,
             ItemRequestResult.NotStackable),
         new("Refuse a split of an item that does not stack", [At(Bag(0), Sword, 2)], Bag(0), Bag(1), 1,

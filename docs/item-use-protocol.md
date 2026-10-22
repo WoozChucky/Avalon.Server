@@ -64,7 +64,7 @@ acknowledgement. A connection with no character gets no answer at all.
 | 8 | `NotInCombat` | Reserved: nothing sends it yet. |
 | 9 | `WrongEquipSlot` | The gear does not fit the slot it would go to. |
 | 10 | `LevelTooLow` | The gear's required level is above the character's. |
-| 11 | `WrongClass` | The gear is not for the character's class. |
+| 11 | `WrongClass` | The gear is not for the character's class: its `allowedClasses` lists classes and not this one. An empty list allows every class (#1171). |
 | 12 | `TargetFull` | No free Bag slot: for a worn item being taken off, or for the off-hand item a two-handed weapon would move out. |
 | 13 | `Blocked` | A two-handed weapon and an off-hand item would both be worn. |
 | 14 | `Interrupted` | The cast ended early (section 6). Nothing was spent and no cooldown started. |

@@ -16,6 +16,7 @@ public sealed class ItemTemplateDto
     public uint BuyPrice { get; set; }
     public uint SellPrice { get; set; }
     public ItemSlotType? Slot { get; set; }
+    /// <summary>The classes that may equip the item; empty when every class may (#1171).</summary>
     public List<CharacterClass> AllowedClasses { get; set; } = [];
     public ushort? ItemPower { get; set; }
     public ushort? RequiredLevel { get; set; }

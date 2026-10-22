@@ -8,7 +8,7 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 
 /// <summary>
 /// Equipment for the move, stats and handler tests, on top of TestCharacters' bag items. Every
-/// template not given an AllowedClasses list allows all four classes, as ItemTemplate defaults.
+/// template not given an AllowedClasses list has an empty one, which allows every class (#1171).
 /// </summary>
 internal static class EquipTemplates
 {

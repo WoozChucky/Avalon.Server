@@ -12,7 +12,7 @@ contracts so a non-.NET client can be built against it.
 | `vectors/rotation-v1.txt` | Generated. Known-answer vectors for `ChunkRotation.LocalToWorld`, which the client mirrors to place chunks. |
 | `vectors/object-guid-v1.txt` | Generated. Known-answer vectors for the `ObjectGuid` (type, id) packing the world-state stream carries. |
 | `items/item-schema-v1.json` | Generated. What an `ItemTemplate` is, and what every value of its eight enumerations means. |
-| `items/item-catalog-v1.json` | Generated **from the database**. The item template rows. See below. |
+| `items/item-catalog-v1.json` | Generated **from the database**. The item template rows; an empty `allowedClasses` means every class may equip the item (#1171). See below. |
 | `abilities/ability-catalog-v1.json` | Generated **from the database**. Every ability row, the creatures' included, as a client names and draws it (#163). See below. |
 | `auras/aura-catalog-v1.json` | Generated **from the database**. Every aura a client names and draws: its name, icon, kind, duration, tick interval, periodic kind, stacking and stat modifiers; each ability's `auraId` in the ability catalog points into it. `AuraCatalogExportShould` fails when it differs from the seed rendered. |
 | `doodads/doodad-catalog-v1.json` | Generated **from the database**. Every doodad template a client draws: its model kit and key, used model, clips, interaction, interaction time and range, whether it is solid and how it looks once spent. Nothing of what a use does (gates, loot, gold, restore, radius, aura outcomes) is in it. `DoodadCatalogExportShould` fails when it differs from the seed rendered. |

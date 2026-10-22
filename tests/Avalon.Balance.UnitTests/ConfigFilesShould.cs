@@ -52,7 +52,7 @@ public class ConfigFilesShould
         foreach (CharacterClass c in CharacterClasses.Playable)
         {
             ItemTemplate[] items = scenarios.GearFor(profile, c).Select(data.Item).ToArray();
-            Assert.All(items, i => Assert.Contains(c, i.AllowedClasses));
+            Assert.All(items, i => Assert.True(i.AllowsClass(c)));
             Assert.All(items, i => Assert.NotNull(i.Slot));
             Assert.Equal(items.Length, items.Select(i => i.Slot).Distinct().Count());
             Assert.Contains(items, i => i.Slot == ItemSlotType.MainHand);
