@@ -183,7 +183,7 @@ public class CharacterStatsCalculatorShould
         Assert.Equal(new CharacterId(7), row.CharacterId);
         Assert.Equal((260u, 100u, 0u), (row.MaxHealth, row.MaxPower1, row.MaxPower2));
         Assert.Equal((24u, 25u, 20u, 20u), (row.Stamina, row.Strength, row.Agility, row.Intellect));
-        Assert.Equal((8u, 5f, 3.664f, 5f), (row.Armor, row.BlockPct, row.DodgePct, row.CritPct));
+        Assert.Equal((8u, 5f, 5f), (row.Armor, row.BlockPct, row.CritPct));
         Assert.Equal((50u, 4u), (row.AttackDamage, row.AbilityDamage));
     }
 

@@ -214,6 +214,9 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<float>("CritPct")
                         .HasColumnType("real");
 
+                    b.Property<int>("DamageType")
+                        .HasColumnType("integer");
+
                     b.Property<long>("DurationMs")
                         .HasColumnType("bigint");
 
@@ -388,7 +391,13 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<long>("AttackDamage")
                         .HasColumnType("bigint");
 
+                    b.Property<float>("BlightResistance")
+                        .HasColumnType("real");
+
                     b.Property<float>("BlockPct")
+                        .HasColumnType("real");
+
+                    b.Property<float>("ColdResistance")
                         .HasColumnType("real");
 
                     b.Property<float>("CritPct")
@@ -397,8 +406,17 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<float>("DodgePct")
                         .HasColumnType("real");
 
+                    b.Property<long>("Evasion")
+                        .HasColumnType("bigint");
+
+                    b.Property<float>("FireResistance")
+                        .HasColumnType("real");
+
                     b.Property<long>("Intellect")
                         .HasColumnType("bigint");
+
+                    b.Property<float>("LightningResistance")
+                        .HasColumnType("real");
 
                     b.Property<long>("MaxHealth")
                         .HasColumnType("bigint");
@@ -407,6 +425,9 @@ namespace Avalon.Database.Character.Migrations
                         .HasColumnType("bigint");
 
                     b.Property<long>("MaxPower2")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("MaxWard")
                         .HasColumnType("bigint");
 
                     b.Property<long>("Stamina")

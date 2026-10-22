@@ -17,10 +17,20 @@ public sealed class CharacterStatsDto
     public uint Armor { get; set; }
     /// <summary>Chance to block, in percent (5 is 5%).</summary>
     public float BlockPct { get; set; }
-    /// <summary>Chance to dodge, in percent.</summary>
-    public float DodgePct { get; set; }
     /// <summary>Chance to land a critical hit, in percent.</summary>
     public float CritPct { get; set; }
     public uint AttackDamage { get; set; }
     public uint AbilityDamage { get; set; }
+    /// <summary>Evasion rating: the chance to evade it gives depends on the attacker's level.</summary>
+    public uint Evasion { get; set; }
+    /// <summary>The ward a full recharge reaches.</summary>
+    public uint MaxWard { get; set; }
+    /// <summary>Fire resistance, in percent, before the cap a hit applies.</summary>
+    public float FireResistance { get; set; }
+    /// <summary>Cold resistance, in percent, before the cap a hit applies.</summary>
+    public float ColdResistance { get; set; }
+    /// <summary>Lightning resistance, in percent, before the cap a hit applies.</summary>
+    public float LightningResistance { get; set; }
+    /// <summary>Blight resistance, in percent, before the cap a hit applies.</summary>
+    public float BlightResistance { get; set; }
 }

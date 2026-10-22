@@ -42,7 +42,6 @@ public readonly record struct DerivedCharacterStats(
         Intellect = Intellect,
         Armor = Armor,
         BlockPct = BlockPct,
-        DodgePct = DodgePct,
         CritPct = CritPct,
         AttackDamage = AttackDamage,
         AbilityDamage = AbilityDamage,

@@ -1,4 +1,5 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Combat;
 
 namespace Avalon.Domain.Characters;
 
@@ -39,6 +40,9 @@ public class CharacterAura
     public float CritPct { get; set; }
 
     public int CasterLevel { get; set; }
+
+    /// <summary>The type its ticks deal (#1178); a row saved before the column existed restores as Physical.</summary>
+    public DamageType DamageType { get; set; }
 
     /// <summary>
     /// The fraction of a point its ticks had earned but not yet dealt or healed, so its remaining ticks add up to what
