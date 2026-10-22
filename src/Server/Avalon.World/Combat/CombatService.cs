@@ -71,9 +71,12 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// A Hostile ability's hit on one unit (#1164), answering how it went: only a hit that landed applies the ability's aura.
     /// It rolls whether it lands, the target's dodge chance, unless the ability is Unavoidable; then deals its damage (its
     /// EffectValue, scaled, as <see cref="ApplyDamage(IUnit, IUnit, uint, IAbility)" />) when its Effects has Damage. One
-    /// with no damage draws that roll alone: landed, it deals nothing and adds nothing (no crit, block, armour, threat or
-    /// combat entry: its aura brings the combat), and dodged, it is a dodge as a damage hit's is, sent, with combat entered
-    /// and no threat beyond the encounter's. A target every hit passes over is Ignored and draws nothing.
+    /// with no damage draws that roll alone and counts as combat either way, as a dodge does, whether or not its aura then
+    /// sticks: the encounter forms, a creature's script is told it was attacked, both are tagged in combat, no threat is
+    /// added beyond the encounter's and no PvP timer restarts (a dodge restarts none either: only damage dealt does).
+    /// Landed, it deals nothing and sends nothing (no crit, block or armour), and the aura's own combat entry that follows
+    /// finds all of that already done; dodged, it is sent as a dodge. A target every hit passes over is Ignored and draws
+    /// nothing.
     /// </summary>
     public HitOutcome ApplyAbilityHit(IUnit attacker, IUnit target, IAbility ability)
     {
@@ -84,7 +87,11 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // The same targets ApplyDamageCore returns early for, before any draw.
         if (IgnoresHits(target)) return HitOutcome.Ignored;
-        if (unavoidable || !HitResolver.Dodges(DefenderOf(target), _formula(), _random)) return HitOutcome.Landed;
+        if (unavoidable || !HitResolver.Dodges(DefenderOf(target), _formula(), _random))
+        {
+            EnterCombatForNothing(attacker, target);
+            return HitOutcome.Landed;
+        }
 
         Dodged(attacker, target, 0f, ability.AbilityId);
         return HitOutcome.Dodged;
@@ -633,10 +640,21 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (IgnoresHits(target))
             return;
 
-        ResolveOrSpawn(caster, target);
+        EnterCombatForNothing(caster, target);
+    }
+
+    /// <summary>
+    /// Combat from an attack that dealt nothing and added no threat (a harmful aura, or an ability with no damage that
+    /// landed, #1164): the encounter forms, a creature's script is told it was attacked, both are tagged in combat. Done
+    /// twice for one attack (a landed hit, then its aura) it changes nothing more: the encounter already holds both, the
+    /// creature already fights the attacker, and the tags are only set again.
+    /// </summary>
+    private void EnterCombatForNothing(IUnit attacker, IUnit target)
+    {
+        ResolveOrSpawn(attacker, target);
         if (target is ICreature creature)
-            Attacked(creature, caster);
-        if (caster is ICharacter casterCharacter) casterCharacter.MarkCombat();
+            Attacked(creature, attacker);
+        if (attacker is ICharacter attackerCharacter) attackerCharacter.MarkCombat();
         if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();
     }
 

@@ -62,6 +62,15 @@ public class AbilityAuraShould
         return ignite;
     }
 
+    /// <summary>Ignite's shape with a stun for its aura and no damage (#1164).</summary>
+    private static AbilityTemplate StunningIgnite()
+    {
+        AbilityTemplate ignite = Ignite();
+        ignite.Id = new AbilityId(218);
+        ignite.AuraId = new AuraId(920);
+        return ignite;
+    }
+
     private static AbilityTemplate Renew()
     {
         AbilityTemplate renew = AbilityTestData.HealCircle(233);
@@ -86,11 +95,11 @@ public class AbilityAuraShould
         scripts.GetAuraScript(Arg.Any<string>()).Returns(call => AuraHarness.TestScript(call.Arg<string>()));
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             scripts: scripts,
-            abilities: () => [Rend(), Ignite(), UnavoidableIgnite(), Renew(), Volley()],
+            abilities: () => [Rend(), Ignite(), UnavoidableIgnite(), StunningIgnite(), Renew(), Volley()],
             auras: () =>
             [
                 AuraTestData.Scripted(AuraTestData.Bleed(), nameof(RecordingAuraScript)), AuraTestData.Burn(),
-                AuraTestData.Scripted(AuraTestData.Renew(), nameof(RecordingAuraScript)),
+                AuraTestData.Scripted(AuraTestData.Renew(), nameof(RecordingAuraScript)), AuraTestData.Stunned(),
             ]));
         var auraScripts = new AuraScripts(scripts, new ServiceCollection().BuildServiceProvider(), _clock,
             NullLogger<AuraScripts>.Instance);
@@ -109,7 +118,8 @@ public class AbilityAuraShould
         return client;
     }
 
-    private static Creature Boar(MapInstance instance, uint id, uint health = 100, float dodge = 0f)
+    private static Creature Boar(MapInstance instance, uint id, uint health = 100, float dodge = 0f,
+        float stunResistance = 100f)
     {
         var creature = new Creature
         {
@@ -120,6 +130,7 @@ public class AbilityAuraShould
             Health = health,
             CurrentHealth = health,
             DodgePct = dodge,
+            ControlResistance = ControlResistance.Full with { Stun = stunResistance },
         };
         creature.Script = new CombatResolutionShould.CountingWoundScript(creature);
         instance.AddCreature(creature);
@@ -158,32 +169,40 @@ public class AbilityAuraShould
     /// An ability that deals no damage rolls whether it lands, as a damage hit does (#1164): the one dodge draw (a scripted
     /// roll under the boar's 30 % is a dodge), then only its aura. Dodged, it applies none and is sent as a dodge; landed,
     /// it sends no damage and the boar's script is never hit. Unavoidable, it draws nothing at a 100 % dodge chance (the
-    /// random throws on a draw it was not given) and lands. Combat is entered every time.
+    /// random throws on a draw it was not given) and lands. Landed on a boar that resists stuns whole, its stun is told
+    /// as Immune and placed nothing. Combat is entered every time, by the hit itself, whether or not its aura sticks.
     /// </summary>
     [Theory]
-    [InlineData(213u, 30f, new[] { 0.0 }, false)]
-    [InlineData(213u, 30f, new[] { 0.99 }, true)]
-    [InlineData(219u, 100f, new double[0], true)]
+    [InlineData(213u, 30f, new[] { 0.0 }, 100f, 0u, HitResult.Dodged)]
+    [InlineData(213u, 30f, new[] { 0.99 }, 100f, 902u, HitResult.None)]
+    [InlineData(219u, 100f, new double[0], 100f, 902u, HitResult.None)]
+    [InlineData(218u, 30f, new[] { 0.99 }, 0f, 0u, HitResult.Immune)]
     public async Task Roll_whether_an_ability_without_damage_lands_before_applying_its_aura(uint abilityId, float dodge,
-        double[] rolls, bool lands)
+        double[] rolls, float stunResistance, uint aura, HitResult sent)
     {
         var random = new ScriptedCombatRandom(rolls);
         (MapInstance instance, CastAbilityHandler handler) = await InstanceAsync(random);
-        MapInstanceClient wizard = Caster(instance, 912_103, abilityId == 213 ? Ignite() : UnavoidableIgnite());
-        Creature boar = Boar(instance, 912_903, dodge: dodge);
+        MapInstanceClient wizard = Caster(instance, 912_103, abilityId switch
+        {
+            213 => Ignite(),
+            218 => StunningIgnite(),
+            _ => UnavoidableIgnite(),
+        });
+        Creature boar = Boar(instance, 912_903, dodge: dodge, stunResistance: stunResistance);
 
         handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = abilityId, GroundPos = s_atTheBoar });
 
         Assert.Equal((0, 100u, 0), (random.DoublesLeft, boar.CurrentHealth,
             ((CombatResolutionShould.CountingWoundScript)boar.Script!).Hits));
-        if (lands)
-            ActiveAuraIs(boar, 902, wizard.Character.Guid);
+        if (aura != 0)
+            ActiveAuraIs(boar, aura, wizard.Character.Guid);
         else
             Assert.Equal(0, boar.Auras.Count);
-        (uint, HitResult)[] sent = lands ? [] : [(0u, HitResult.Dodged)];
-        Assert.Equal(sent, wizard.Read<SUnitDamagePacket>(NetworkPacketType.SMSG_CREATURE_DAMAGED)
+        (uint, HitResult)[] expected = sent == HitResult.None ? [] : [(0u, sent)];
+        Assert.Equal(expected, wizard.Read<SUnitDamagePacket>(NetworkPacketType.SMSG_CREATURE_DAMAGED)
             .Select(p => (p.Damage, p.Result)));
         Assert.NotNull(instance.CombatService.GetEncounterFor(boar));
+        Assert.True(wizard.Character.IsInCombat, "the caster is not in combat");
     }
 
     [Fact]

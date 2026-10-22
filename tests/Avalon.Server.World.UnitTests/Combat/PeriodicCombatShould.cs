@@ -241,6 +241,10 @@ public class PeriodicCombatShould
         Assert.Equal(100u, boar.CurrentHealth);
     }
 
+    /// <summary>
+    /// Dodged by a roll under the boar's 30 %, Ignored on an invulnerable boar, and, Unavoidable (#1164), landed with no
+    /// dodge drawn though the same roll would dodge it: its two draws are the crit's and the block's.
+    /// </summary>
     [Fact]
     public void Answer_how_an_abilitys_hit_went()
     {
@@ -253,14 +257,28 @@ public class PeriodicCombatShould
             DodgePct = 30f,
         };
         boar.Script = new RecordingAiScript(boar);
+        var random = new ScriptedCombatRandom(0.0);
         var dodging = new CombatService(new CombatConfig(), _registry, outcomes: _outcomes, time: _time,
-            random: new ScriptedCombatRandom(0.0));
+            random: random);
         IAbility ability = Substitute.For<Avalon.World.Public.Abilities.IAbility>();
         ability.Metadata.Returns(new AbilityMetadata { Name = "Cleave", Effects = SpellEffect.Damage, EffectValue = 10 });
 
         Assert.Equal(HitOutcome.Dodged, dodging.ApplyAbilityHit(Warrior(), boar, ability));
         boar.Invulnerable = true;
         Assert.Equal(HitOutcome.Ignored, dodging.ApplyAbilityHit(Warrior(), boar, ability));
+
+        boar.Invulnerable = false;
+        ((RecordingAiScript)boar.Script).Attackers.Clear();
+        ability.Metadata.Returns(new AbilityMetadata
+        {
+            Name = "Cleave",
+            Effects = SpellEffect.Damage,
+            EffectValue = 10,
+            Flags = AbilityFlags.Unavoidable,
+        });
+        random.Doubles(0.0, 0.0);
+        Assert.Equal(HitOutcome.Landed, dodging.ApplyAbilityHit(Warrior(), boar, ability));
+        Assert.Equal((0, 0), (random.DoublesLeft, ((RecordingAiScript)boar.Script).Attackers.Count));
     }
 }
 

@@ -39,7 +39,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `EffectValue` | uint | health points | The base of the damage dealt or health restored per unit affected; the scaling terms below are added to it (#506). |
 | `AllowedClasses` | list of `CharacterClass` | | The classes that may hold it. |
 | `ThreatMultiplier`, `HealThreatPerHp`, `TauntDurationMs` | float, float, uint | | Threat rules, unchanged by #164. The two floats must be finite and 0 or more (#529). |
-| `Flags` | `AbilityFlags` | | `RequiresInCombat`, `RequiresOutOfCombat`. |
+| `Flags` | `AbilityFlags` | | `RequiresInCombat`, `RequiresOutOfCombat`, `Basic` (a class's basic attack, the one ability a silence does not stop), `Unavoidable` (a Hostile ability never rolled against for a dodge, #1164). |
 | `AnimationId` | uint | | Reserved for the client's cast animation. |
 | `AimMode` | `AbilityAimMode` | | `Movement` (0): the caster's facing. `Cursor` (1): a ground point sent with the cast. |
 | `Shape` | `AbilityShape` | | `Circle` (0), `Cone` (1), `Projectile` (2). |
@@ -69,6 +69,7 @@ loads. A character holding a refused skill simply does not get it at character s
 - `Reach`, `Radius`, `ArcDegrees` and `ProjectileSpeed` are finite and 0 or more;
 - `AimMode`, `Shape`, `Anchor` and `Affects` are known values;
 - `Affects = Ally` only on a circle;
+- an Ally ability may not be `Unavoidable` (#1164: it is never dodged anyway);
 - **circle**: `Radius > 0`; on the aim point it needs `AimMode = Cursor` and `Reach > 0`; on the
   caster it needs `Reach = 0`;
 - **cone**: `Reach > 0`, and `ArcDegrees` above 0 and at most 360;
@@ -166,8 +167,11 @@ refused: its cost and cooldown are spent all the same.
   `Effects` has `Damage` then deals its amount, each unit's hit resolving on its own (#506): `EffectValue +
   ScalingCoefficient x stat + BaseDamageCoefficient x base damage roll`, then the unit's dodge, the caster's crit,
   the unit's block and its armour, floored with a minimum of 1 (0 on a dodge). One without `Damage` draws the dodge
-  roll alone and, landed, deals and sends nothing but its aura. Its aura lands only where the hit landed. An ability
-  flagged `AbilityFlags.Unavoidable` draws no dodge roll and lands its aura on every unit its shape affects. See
+  roll alone and, landed, sends nothing but its aura; dodged or landed, it counts as combat as a dodge does (the
+  encounter, the creature engaging, both tagged), whether or not its aura then sticks. Its aura lands only where the
+  hit landed. An ability flagged `AbilityFlags.Unavoidable` is never rolled against: no dodge roll, so its damage is
+  never dodged and its aura is offered to every unit its shape affects (the aura system's own refusals, such as an
+  invulnerable creature, a corpse or a creature walking home, still apply). See
   "Combat reads the derived stats" in [World simulation](world-simulation.md).
 - **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
   `min(Health, CurrentHealth + heal)`, the heal being the same base as damage and then a crit roll,
