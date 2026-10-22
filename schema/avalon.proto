@@ -513,6 +513,7 @@ enum ItemRequestResult {
    ItemRequestResult_Blocked = 12;
    ItemRequestResult_Stunned = 13;
    ItemRequestResult_Locked = 14;
+   ItemRequestResult_AttributesTooLow = 15;
 }
 message ItemSlotDto {
    InventoryType Container = 1;
@@ -543,6 +544,7 @@ enum ItemUseResult {
    ItemUseResult_InternalError = 16;
    ItemUseResult_Stunned = 17;
    ItemUseResult_Locked = 18;
+   ItemUseResult_AttributesTooLow = 19;
 }
 message LootDropDto {
    uint64 LootGuid = 1;

@@ -24,6 +24,15 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     public bool AllowsClass(CharacterClass characterClass) =>
         AllowedClasses.Count == 0 || AllowedClasses.Contains(characterClass);
 
+    /// <summary>
+    /// True when every attribute requirement the item sets (#1178) is at most the matching value; an unset one asks
+    /// nothing.
+    /// </summary>
+    public bool MeetsAttributes(uint strength, uint agility, uint intellect) =>
+        (RequiredStrength is not { } str || str <= strength)
+        && (RequiredAgility is not { } agi || agi <= agility)
+        && (RequiredIntellect is not { } intl || intl <= intellect);
+
     public uint MaxStackSize { get; set; }
 
     public uint DisplayId { get; set; }

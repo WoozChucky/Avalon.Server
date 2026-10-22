@@ -118,6 +118,7 @@ public static class ItemEquip
         ItemRequestResult.Blocked => ItemUseResult.Blocked,
         ItemRequestResult.Dead => ItemUseResult.Dead,
         ItemRequestResult.Locked => ItemUseResult.Locked,
+        ItemRequestResult.AttributesTooLow => ItemUseResult.AttributesTooLow,
         _ => ItemUseResult.InternalError,
     };
 

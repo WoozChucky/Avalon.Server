@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
@@ -39,8 +40,8 @@ public readonly record struct MoveDecision(ItemRequestResult Result, MovePlan Pl
 }
 
 /// <summary>
-/// The spec #463 move rules, as a pure function: it reads the character's class, level and
-/// containers and the item templates, and changes nothing. The server derives the action from
+/// The spec #463 move rules, as a pure function: it reads the character's class, level, attributes
+/// and containers and the item templates, and changes nothing. The server derives the action from
 /// what the two slots hold and the count; it never trusts a label from the client.
 /// </summary>
 /// <remarks>
@@ -217,6 +218,12 @@ public static class InventoryMove
 
         if (!template.AllowsClass(character.Class))
             return ItemRequestResult.WrongClass;
+
+        // #1178: the attributes of the last stats refresh, gear worn and auras included, so an item this move takes off
+        // still counts; no refresh yet reads as 0s. A worn item whose requirement stops being met keeps working.
+        DerivedCharacterStats stats = character.Stats.GetValueOrDefault();
+        if (!template.MeetsAttributes(stats.Strength, stats.Agility, stats.Intellect))
+            return ItemRequestResult.AttributesTooLow;
 
         return ItemRequestResult.Ok;
     }

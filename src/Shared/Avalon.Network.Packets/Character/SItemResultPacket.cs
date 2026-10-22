@@ -60,6 +60,12 @@ public enum ItemRequestResult : byte
     /// swapped, banked, equipped or destroyed until it leaves the trade.
     /// </summary>
     Locked = 14,
+
+    /// <summary>
+    /// The character's Strength, Agility or Intellect, as its last stats refresh derived them (gear worn and auras
+    /// included), is below what the item requires (#1178). Only a move into Equipment is checked.
+    /// </summary>
+    AttributesTooLow = 15,
 }
 
 /// <summary>
