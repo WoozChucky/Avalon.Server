@@ -83,7 +83,7 @@ public class AuraStatsIntegrationShould
         sundered.Modifiers[0].Value = -25f;
         wolf.Auras.Add(Held(sundered), s_t0);
 
-        AuraStatsRefresh.Apply(wolf, data: null);
+        AuraStatsRefresh.Apply(wolf, data: null, DateTime.UnixEpoch);
 
         Assert.Equal(new DefenderCombat(30, 2, 1f), Internal<DefenderCombat>(wolf, "Defence"));
     }
@@ -94,7 +94,7 @@ public class AuraStatsIntegrationShould
     {
         Creature wolf = Wolf();
         wolf.Auras.Add(Held(AuraTestData.Crippled()), s_t0);
-        AuraStatsRefresh.Apply(wolf, data: null);
+        AuraStatsRefresh.Apply(wolf, data: null, DateTime.UnixEpoch);
 
         Assert.Equal(0.7f, wolf.SpeedFactor, precision: 4);
         Assert.Equal(2.8f, CreatureSpeed.Of(wolf), precision: 4);
@@ -102,7 +102,7 @@ public class AuraStatsIntegrationShould
 
         wolf.Auras.Add(Held(AuraTestData.Crippled(908), stacks: 1), s_t0);
         wolf.Auras.Add(Held(AuraTestData.Crippled(909), stacks: 1), s_t0);
-        AuraStatsRefresh.Apply(wolf, data: null);
+        AuraStatsRefresh.Apply(wolf, data: null, DateTime.UnixEpoch);
         Assert.Equal(0.5f, wolf.SpeedFactor, precision: 4);   // -90 points, held at the -50 floor
     }
 
@@ -115,7 +115,7 @@ public class AuraStatsIntegrationShould
         Creature wolf = Wolf();
         wolf.Position = Vector3.zero;
         wolf.Auras.Add(Held(AuraTestData.Crippled()), s_t0);
-        AuraStatsRefresh.Apply(wolf, data: null);
+        AuraStatsRefresh.Apply(wolf, data: null, DateTime.UnixEpoch);
 
         locomotion.Register(wolf, radius: 0.5f);
         locomotion.MoveTo(wolf, new Vector3(20f, 0f, 0f));
@@ -137,7 +137,7 @@ public class AuraStatsIntegrationShould
 
         wolf.Rescale(1.6);
         wolf.Auras.Add(Held(vigour), s_t0);
-        AuraStatsRefresh.Apply(wolf, data: null);
+        AuraStatsRefresh.Apply(wolf, data: null, DateTime.UnixEpoch);
 
         Assert.Equal(176u, wolf.Health);
         Assert.Equal(88u, wolf.CurrentHealth);

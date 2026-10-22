@@ -25,8 +25,12 @@ public enum GameEntityFields
     DoodadState = 1 << 17,
     CanInteract = 1 << 18,
 
+    // A unit's ward (#1178): what it holds now, and what a full one holds.
+    Ward = 1 << 19,
+    MaxWard = 1 << 20,
+
     WorldObjectUpdate = Position | Velocity | Orientation,
-    CreatureUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | PowerType,
-    CharacterUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Health | Power | PowerType | Experience | RequiredExperience | IsDead | PvpEnabled,
-    All = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Power | Health | PowerType | CreatureMetadataId | Name | Experience | RequiredExperience | IsDead | PvpEnabled
+    CreatureUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | PowerType | Ward | MaxWard,
+    CharacterUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Health | Power | PowerType | Experience | RequiredExperience | IsDead | PvpEnabled | Ward | MaxWard,
+    All = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Power | Health | PowerType | CreatureMetadataId | Name | Experience | RequiredExperience | IsDead | PvpEnabled | Ward | MaxWard
 }

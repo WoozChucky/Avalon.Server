@@ -34,10 +34,20 @@ public struct WardPool
 
     /// <summary>
     /// A new maximum from a stats change: the ward keeps its share (<see cref="CharacterStatsCalculator.KeepShare" />),
-    /// and so does what it held at the last damage, so a recharge under way carries on at the new size.
+    /// and so does what it held at the last damage, so a recharge under way carries on at the new size. A ward that had no
+    /// maximum keeps its share of none: it starts empty, and recharges once the delay has passed from
+    /// <paramref name="now" />. Only <see cref="Reset" /> fills a ward.
     /// </summary>
-    public void SetMax(uint max)
+    public void SetMax(uint max, DateTime now)
     {
+        if (_max == 0)
+        {
+            _max = max;
+            _current = 0;
+            Damaged(now);
+            return;
+        }
+
         _current = CharacterStatsCalculator.KeepShare(_current, _max, max);
         _atLastDamage = CharacterStatsCalculator.KeepShare(_atLastDamage, _max, max);
         _max = max;

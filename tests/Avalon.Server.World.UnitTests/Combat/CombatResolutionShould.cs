@@ -263,8 +263,8 @@ public class CombatResolutionShould
 
         instance.CombatService.ApplyDamage(boar, warrior.Character, 10);
 
-        // floor(10 x (1 - 24 / (24 + 50 + 10 x 3))) = floor(7.69)
-        Assert.Equal(before - 7u, warrior.Character.CurrentHealth);
+        // floor(10 x (1 - 24 / (24 + 50 + 10 x 3))) = floor(7.69), of which the ward from Intellect 20 takes 5 (#1178)
+        Assert.Equal(before - 2u, warrior.Character.CurrentHealth);
     }
 
     [Fact]
@@ -353,9 +353,10 @@ public class CombatResolutionShould
 
         instance.CombatService.ApplyDamage(boar, warrior.Character, 100);
 
-        // Armour 24 and 2 from Strength (#1178): floor(100 x (1 - 26 / 86)) = 69 lost of 240
-        Assert.Equal(before - 69u, warrior.Character.CurrentHealth);
-        Assert.Equal(Fury.FromDamageTaken(69, before, warrior.Character.Health, 50f), warrior.Character.CurrentPower);
+        // Armour 24 and 2 from Strength (#1178): floor(100 x (1 - 26 / 86)) = 69, of which the ward from Intellect 20
+        // takes 5: 64 lost of 240, and Fury from those
+        Assert.Equal(before - 64u, warrior.Character.CurrentHealth);
+        Assert.Equal(Fury.FromDamageTaken(64, before, warrior.Character.Health, 50f), warrior.Character.CurrentPower);
     }
 
     [Fact]

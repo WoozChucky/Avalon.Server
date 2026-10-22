@@ -3,6 +3,7 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Microsoft.Extensions.Logging;
@@ -99,7 +100,8 @@ public static class AuraRestore
             // No more than the template allows now: a reload may have lowered its cap.
             uint stacks = row.Stacks < 1 ? 1u : Math.Min((uint)row.Stacks, Math.Max(1u, template.MaxStacks));
             kept.Add((row, new ActiveAura(template, Caster(row.CasterGuid), source, stacks,
-                new AuraSnapshot(row.TickAmount, row.CritPct, (ushort)Math.Clamp(row.CasterLevel, 0, ushort.MaxValue)),
+                new AuraSnapshot(row.TickAmount, row.CritPct, (ushort)Math.Clamp(row.CasterLevel, 0, ushort.MaxValue),
+                    TypeOf(row.DamageType)),
                 schedule, row.DurationMs, row.AppliedAt)
             {
                 PeriodicCarry = Carry(row.PeriodicCarry),
@@ -142,6 +144,12 @@ public static class AuraRestore
     }
 
     private static bool Readable(float value) => float.IsFinite(value) && value >= 0f;
+
+    /// <summary>
+    /// The damage type its ticks deal (#1178): as saved, a row saved before the column existed reading Physical; a stored
+    /// value that is no type at all reads Physical too.
+    /// </summary>
+    private static DamageType TypeOf(DamageType saved) => Enum.IsDefined(saved) ? saved : DamageType.Physical;
 
     /// <summary>
     /// When a restored aura next rolls to break on its own (#770): on the next whole second of the time it had held when

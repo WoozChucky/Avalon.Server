@@ -61,6 +61,10 @@ public partial class CharacterEntity : ICharacter
     // dead, full, or no Stamina), so a full pool banks nothing and a fight starts the fraction over.
     private double _healthRegenCarry;
 
+    // The ward in front of health (#1178): filled on entering the world and at a level-up, its share kept by any other
+    // stats change, emptied at death. World-side and never saved, as current health is not.
+    private WardPool _ward;
+
     public CharacterEntity()
     {
         Quests = new QuestLog(SaveState);
@@ -171,6 +175,15 @@ public partial class CharacterEntity : ICharacter
             CurrentPower = maxPower;
         }
 
+        // #1178: entering the world and a level-up fill the ward; any other stats change keeps its share.
+        uint oldWard = _ward.Current;
+        uint oldMaxWard = _ward.Max;
+        if (current == CurrentValues.KeepShare)
+            _ward.SetMax(stats.MaxWard, _time.GetUtcNow().UtcDateTime);
+        else
+            _ward.Reset(stats.MaxWard);
+        MarkWard(oldWard, oldMaxWard);
+
         Stamina = stats.Stamina;
         RegenStat = PowerRegen.StatOf(Class, stats);
 
@@ -206,8 +219,59 @@ public partial class CharacterEntity : ICharacter
 
     internal AttackerCombat? AbilityAmountsSentFor { get; set; }
 
-    /// <summary>What this character defends with (#506): armour, dodge and block, from the last stats refresh.</summary>
+    /// <summary>What this character defends with (#506): armour, evasion, block and resistances, from the last stats refresh.</summary>
     internal DefenderCombat Defence => Stats is { } s ? s.Defence : default;
+
+    /// <summary>
+    /// What its ward holds now (#1178). Read-only and World-side, not on ICharacter: only the combat service takes from
+    /// it, and only its own clock refills it.
+    /// </summary>
+    public uint Ward => _ward.Current;
+
+    /// <summary>What a full ward holds (#1178): the last stats refresh's MaxWard.</summary>
+    public uint MaxWard => _ward.Max;
+
+    /// <summary>
+    /// The ward takes what it can of <paramref name="absorbable" /> (#1178), after recharging to <paramref name="now" />,
+    /// and pauses its recharge; answers what it took. A dead character's ward takes nothing.
+    /// </summary>
+    internal uint AbsorbWithWard(uint absorbable, DateTime now)
+    {
+        if (IsDead || _ward.Max == 0 || absorbable == 0)
+            return 0;
+
+        AdvanceWard(now);
+        uint taken = _ward.Absorb(absorbable, now);
+        if (taken > 0)
+            _dirtyFields |= GameEntityFields.Ward;
+        return taken;
+    }
+
+    /// <summary>Damage taken, whether the ward met it or not (#1178): the recharge pauses from <paramref name="now" />.</summary>
+    internal void WardDamaged(DateTime now)
+    {
+        if (IsDead || _ward.Max == 0)
+            return;
+
+        AdvanceWard(now);
+        _ward.Damaged(now);
+    }
+
+    /// <summary>Recharges the ward to what <paramref name="now" /> allows (#1178); <see cref="Update" /> calls it unless dead.</summary>
+    internal void AdvanceWard(DateTime now)
+    {
+        if (_ward.Advance(now, _regenConfig))
+            _dirtyFields |= GameEntityFields.Ward;
+    }
+
+    /// <summary>Marks the ward's members that changed from <paramref name="oldWard" /> and <paramref name="oldMax" />.</summary>
+    private void MarkWard(uint oldWard, uint oldMax)
+    {
+        if (_ward.Current != oldWard)
+            _dirtyFields |= GameEntityFields.Ward;
+        if (_ward.Max != oldMax)
+            _dirtyFields |= GameEntityFields.MaxWard;
+    }
 
     public bool IsInCombat =>
         _lastCombatTime != DateTime.MinValue &&
@@ -696,6 +760,9 @@ public partial class CharacterEntity : ICharacter
             _isDead = value;
             _dirtyFields |= GameEntityFields.IsDead;
 
+            // #1178: death empties the ward, which does not recharge while dead; a revive counts as the last damage.
+            uint oldWard = _ward.Current;
+
             // A corpse is at rest (#424). Input from a dead character is dropped before it can write
             // Velocity, so without this the velocity it died with would be broadcast until respawn
             // and other clients would extrapolate the corpse onwards.
@@ -705,7 +772,16 @@ public partial class CharacterEntity : ICharacter
 
                 // Death empties Fury (#526), whatever set the flag.
                 ResetFury();
+
+                _ward.Empty(_time.GetUtcNow().UtcDateTime);
             }
+            else
+            {
+                _ward.Damaged(_time.GetUtcNow().UtcDateTime);
+            }
+
+            if (_ward.Current != oldWard)
+                _dirtyFields |= GameEntityFields.Ward;
         }
     }
 
@@ -737,6 +813,10 @@ public partial class CharacterEntity : ICharacter
     public void Update(TimeSpan deltaTime)
     {
         Spells.Update(deltaTime);
+
+        // #1178: a ward with a maximum recharges by the clock; a dead character's does not.
+        if (!IsDead && _ward.Max > 0)
+            AdvanceWard(_time.GetUtcNow().UtcDateTime);
 
         // Track cast-suppression window: as long as a spell is casting, keep refreshing the timer.
         if (Spells.IsCasting)

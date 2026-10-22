@@ -7,6 +7,7 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World;
 using Avalon.World.Auras;
+using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Persistence;
@@ -228,6 +229,28 @@ public class AuraSaveShould
         Assert.Equal(marked ? 1 : 2, CharacterSaveSnapshot.Take(character).Batch.Auras!.Rows.Count);
     }
 
+    /// <summary>
+    /// A saved aura comes back dealing its damage type (#1178): a burn of a fire ability as fire, a bleed as physical, and a
+    /// row whose stored type is no type at all as physical.
+    /// </summary>
+    [Fact]
+    public async Task Restore_a_saved_aura_with_its_damage_type()
+    {
+        CharacterEntity saver = Character(913_114);
+        saver.Auras.Add(new ActiveAura(AuraTestData.Burn(), new ObjectGuid(), new AuraSource(new AbilityId(213), 1f, 0f, 0), 1,
+            new AuraSnapshot(3f, 0f, 4, DamageType.Fire), AuraSchedule.Start(s_t0, 9000, 3000), 9000, s_t0.UtcDateTime), s_t0);
+        saver.Auras.Add(Bleed(s_t0, new ObjectGuid()), s_t0);
+        CharacterAura unknown = Saved(901, 7500, 3, slot: 2);
+        unknown.DamageType = (DamageType)99;
+
+        CharacterEntity restored = Character(913_115);
+        Restore(restored, await DataAsync(AuraTestData.Burn(), AuraTestData.Bleed()),
+            [.. CharacterSaveSnapshot.Take(saver).Batch.Auras!.Rows, unknown]);
+
+        Assert.Equal([DamageType.Fire, DamageType.Physical, DamageType.Physical],
+            restored.Auras.All.Select(a => a.Snapshot.Type));
+    }
+
     [Fact]
     public async Task Bring_a_creature_caster_back_as_nobody()
     {
@@ -262,9 +285,9 @@ public class AuraSaveShould
         h.Advance(TimeSpan.FromMilliseconds(1500));
         h.Auras.Update();
 
-        h.Outcomes.Received(1).PeriodicTick(null, player, 3u, new AuraId(901), HitResult.None, false);
+        h.Outcomes.Received(1).PeriodicTick(null, player, 3u, new AuraId(901), new HitReport(HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 0u), false);
         h.Outcomes.DidNotReceive().PeriodicTick(boar, Arg.Any<Avalon.World.Public.Units.IUnit>(), Arg.Any<uint>(),
-            Arg.Any<AuraId>(), Arg.Any<HitResult>(), Arg.Any<bool>());
+            Arg.Any<AuraId>(), Arg.Any<HitReport>(), Arg.Any<bool>());
     }
 
     [Fact]

@@ -68,7 +68,7 @@ public class PeriodicCombatShould
 
         Assert.Equal(10u, dealt);
         Assert.Equal(90u, boar.CurrentHealth);
-        _outcomes.Received(1).PeriodicTick(warrior, boar, 10u, s_bleed, HitResult.None, false);
+        _outcomes.Received(1).PeriodicTick(warrior, boar, 10u, s_bleed, new HitReport(HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 0u), false);
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class PeriodicCombatShould
         Assert.Equal(450u, warrior.CurrentHealth);
         Assert.Equal(5u, warrior.CurrentPower);   // floor(50 / 500 x 50)
         Assert.True(warrior.IsInCombat);
-        _outcomes.Received(1).PeriodicTick(null, warrior, 50u, s_bleed, HitResult.None, false);
+        _outcomes.Received(1).PeriodicTick(null, warrior, 50u, s_bleed, new HitReport(HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 0u), false);
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class PeriodicCombatShould
 
         Assert.Equal(10u, restored);
         Assert.Equal(500u, target.CurrentHealth);
-        _outcomes.Received(1).PeriodicTick(healer, target, 10u, s_bleed, HitResult.None, true);
+        _outcomes.Received(1).PeriodicTick(healer, target, 10u, s_bleed, HitReport.None, true);
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public class PeriodicCombatShould
 
         Assert.Equal([0u, 1u], new[] { first, second });
         Assert.Equal(401u, target.CurrentHealth);
-        _outcomes.Received(1).PeriodicTick(null, target, 1u, s_bleed, HitResult.None, true);
+        _outcomes.Received(1).PeriodicTick(null, target, 1u, s_bleed, HitReport.None, true);
     }
 
     [Fact]

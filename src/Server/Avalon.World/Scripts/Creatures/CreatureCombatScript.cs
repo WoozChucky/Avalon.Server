@@ -981,5 +981,9 @@ public class CreatureCombatScript : AiScript, IReturningHome
         Creature.TauntedBy = null;
         Creature.TauntExpiresAt = DateTime.MinValue;
         (Context.CombatService as Avalon.World.Combat.IHostileEncounterExit)?.DropHostileFromEncounter(Creature);
+
+        // #1178: home again, its ward is full, as at its spawn.
+        if (Creature is Entities.Creature reset)
+            reset.ResetWard();
     }
 }

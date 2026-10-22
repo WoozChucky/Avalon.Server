@@ -884,7 +884,7 @@ public sealed class AuraSystem
     private void RefreshStats(IUnit unit, AuraTemplate template)
     {
         if (template.Modifiers.Count > 0)
-            AuraStatsRefresh.Apply(unit, _data());
+            AuraStatsRefresh.Apply(unit, _data(), _time.GetUtcNow().UtcDateTime);
     }
 
     /// <summary>Whether a refusal is logged now: at most once per ThrottledErrorLog.Interval for each reason and aura.</summary>

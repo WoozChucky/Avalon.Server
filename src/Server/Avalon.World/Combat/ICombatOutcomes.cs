@@ -15,17 +15,17 @@ namespace Avalon.World.Combat;
 public interface ICombatOutcomes
 {
     /// <summary>
-    /// A living character took <paramref name="damage" />: it is sent its own damage packet, naming
-    /// <paramref name="abilityId" /> (null for a swing), and everyone in the instance is sent the hit, each
-    /// marked with how the hit went (#506).
+    /// A living character took a hit of <paramref name="damage" />, the whole hit, its ward's part included (#1178): it is
+    /// sent its own damage packet, naming <paramref name="abilityId" /> (null for a swing), and everyone in the instance is
+    /// sent the hit, each marked with how the hit went (#506) in <paramref name="report" />.
     /// </summary>
-    void CharacterDamaged(CharacterEntity character, IUnit attacker, uint damage, AbilityId? abilityId, HitResult result);
+    void CharacterDamaged(CharacterEntity character, IUnit attacker, uint damage, AbilityId? abilityId, in HitReport report);
 
     /// <summary>
-    /// A hit on a living <paramref name="target" /> was dodged (#506): it is sent like a hit, with 0 and
-    /// <see cref="HitResult.Dodged" />, though nothing was dealt and the target's script is not told.
+    /// A hit of <paramref name="type" /> on a living <paramref name="target" /> was dodged (#506): it is sent like a hit,
+    /// with 0 and <see cref="HitResult.Dodged" />, though nothing was dealt and the target's script is not told.
     /// </summary>
-    void HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId);
+    void HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId, DamageType type);
 
     /// <summary>
     /// <paramref name="target" /> resisted the crowd control of <paramref name="caster" />'s ability whole (#770): a
@@ -42,11 +42,12 @@ public interface ICombatOutcomes
     void UnitHealed(IUnit healer, IUnit target, uint restored, AbilityId? abilityId, HitResult result);
 
     /// <summary>
-    /// How the hit whose creature script is running now went (#506), set by the combat service for exactly
+    /// How the hit whose creature script is running now went (#506, #1178), set by the combat service for exactly
     /// the length of that script's OnHit: the hit the script broadcasts through
-    /// <c>ISimulationContext.BroadcastUnitHit</c> is marked with it. None outside a hit.
+    /// <c>ISimulationContext.BroadcastUnitHit</c> is marked with it, and the ward's part is added back to the damage the
+    /// script was handed, so watchers see the whole hit. None outside a hit.
     /// </summary>
-    HitResult HitInFlight { set; }
+    HitReport HitInFlight { set; }
 
     /// <summary>
     /// The hit brought a living creature to 0 health: the corpse, its loot and the killer's experience. Reported before
@@ -57,11 +58,12 @@ public interface ICombatOutcomes
 
     /// <summary>
     /// An aura's tick dealt or restored <paramref name="amount" /> (auras): a character hurt is sent its own damage
-    /// packet, and everyone who hears it the hit or the heal, each naming <paramref name="aura" />. A tick worth less
-    /// than a whole point is not reported, and a heal only when it restored more than 0. <paramref name="caster" /> is
-    /// null when nobody applied it, or its caster is gone.
+    /// packet, and everyone who hears it the hit or the heal, each naming <paramref name="aura" />. A damage tick's amount
+    /// is the whole tick, its ward's part included (#1178). A tick worth less than a whole point is not reported, and a
+    /// heal only when it restored more than 0. <paramref name="caster" /> is null when nobody applied it, or its caster is
+    /// gone. A heal's <paramref name="report" /> carries no type.
     /// </summary>
-    void PeriodicTick(IUnit? caster, IUnit target, uint amount, AuraId aura, HitResult result, bool heal);
+    void PeriodicTick(IUnit? caster, IUnit target, uint amount, AuraId aura, in HitReport report, bool heal);
 
     /// <summary>A unit died (auras): every death passes through the combat service, and death ends every aura.</summary>
     void UnitDied(IUnit unit);

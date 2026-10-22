@@ -47,13 +47,14 @@ public class WardPoolShould
     [InlineData(50u, 100u, 200u, 100u)]
     [InlineData(100u, 100u, 40u, 40u)]
     [InlineData(0u, 100u, 80u, 0u)]
+    [InlineData(0u, 0u, 80u, 0u)]   // from none, a stats change gives a ward that starts empty and recharges
     public void Keep_its_share_when_its_maximum_changes(uint current, uint max, uint newMax, uint expected)
     {
         WardPool ward = default;
         ward.Reset(max);
         ward.Absorb(max - current, s_t0);
 
-        ward.SetMax(newMax);
+        ward.SetMax(newMax, s_t0);
 
         Assert.Equal((newMax, expected), (ward.Max, ward.Current));
     }

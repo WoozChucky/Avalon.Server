@@ -11,7 +11,8 @@ namespace Avalon.World.Auras;
 public static class AuraStatsRefresh
 {
     /// <param name="data">The current reference data; without it (tests) a character's stats are left as they are.</param>
-    public static void Apply(IUnit unit, StaticData? data)
+    /// <param name="now">The instance's clock: a creature's ward that gains a maximum recharges from it (#1178).</param>
+    public static void Apply(IUnit unit, StaticData? data, DateTime now)
     {
         switch (unit)
         {
@@ -19,7 +20,7 @@ public static class AuraStatsRefresh
                 CharacterStatsRefresh.Apply(character, data, CurrentValues.KeepShare);
                 break;
             case Creature creature:
-                creature.ApplyAuraStats(creature.Auras.StatTotals);
+                creature.ApplyAuraStats(creature.Auras.StatTotals, now);
                 break;
         }
     }

@@ -165,7 +165,7 @@ public class AuraTickShould
         _h.Auras.Update();
 
         Assert.Equal(406u, friend.CurrentHealth);   // 24 over 4 ticks
-        _h.Outcomes.Received(1).PeriodicTick(healer, friend, 6u, s_renew, HitResult.None, true);
+        _h.Outcomes.Received(1).PeriodicTick(healer, friend, 6u, s_renew, HitReport.None, true);
     }
 
     [Fact]
@@ -181,8 +181,8 @@ public class AuraTickShould
         _h.Advance(TimeSpan.FromSeconds(3));
         _h.Auras.Update();
 
-        _h.Outcomes.Received(1).PeriodicTick(warrior, boar, 3u, s_bleed, HitResult.None, false);
-        _h.Outcomes.Received(1).PeriodicTick(null, boar, 3u, s_bleed, HitResult.None, false);
+        _h.Outcomes.Received(1).PeriodicTick(warrior, boar, 3u, s_bleed, new HitReport(HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 0u), false);
+        _h.Outcomes.Received(1).PeriodicTick(null, boar, 3u, s_bleed, new HitReport(HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 0u), false);
     }
 
     /// <summary>The caster logged out; the last tick kills; the kill counts and nobody is credited.</summary>
@@ -231,7 +231,7 @@ public class AuraTickShould
         _h.Advance(TimeSpan.FromSeconds(3));
         _h.Auras.Update();
 
-        _h.Outcomes.Received(1).PeriodicTick(null, boar, 3u, s_bleed, HitResult.None, false);
+        _h.Outcomes.Received(1).PeriodicTick(null, boar, 3u, s_bleed, new HitReport(HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 0u), false);
     }
 
     [Fact]
@@ -334,7 +334,7 @@ public class AuraTickShould
         _h.Auras.Apply(_h.Player(910_119), thrower, new AuraId(907), AuraSource.None);
         _h.Auras.Apply(_h.Player(910_120), other, s_bleed, AuraSource.None);
         _h.Outcomes
-            .When(o => o.PeriodicTick(Arg.Any<IUnit?>(), thrower, Arg.Any<uint>(), Arg.Any<AuraId>(), Arg.Any<HitResult>(),
+            .When(o => o.PeriodicTick(Arg.Any<IUnit?>(), thrower, Arg.Any<uint>(), Arg.Any<AuraId>(), Arg.Any<HitReport>(),
                 Arg.Any<bool>()))
             .Do(_ => throw new InvalidOperationException("report failed"));
 

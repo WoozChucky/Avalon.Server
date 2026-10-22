@@ -116,6 +116,86 @@ public class Creature : ICreature
     /// <summary>The type of a hit whose ability names none (#1178): its template's.</summary>
     public DamageType DamageType { get; init; }
 
+    /// <summary>Percent per element (#1178), as its template authored them; its auras fold in on top.</summary>
+    public Resistances Resistances { get; init; }
+
+    /// <summary>
+    /// The most its ward holds before its auras (#1178), from <see cref="CreatureStatDeriver" />. Setting it at spawn fills
+    /// the ward.
+    /// </summary>
+    public uint BaseWard
+    {
+        get => _baseWard;
+        init
+        {
+            _baseWard = value;
+            _ward.Reset(value);
+        }
+    }
+
+    private readonly uint _baseWard;
+
+    /// <summary>When its ward recharges (#1178): the world's Regen settings, fixed at spawn; the defaults without the spawner.</summary>
+    internal RegenConfiguration WardRegen { get; init; } = s_defaultRegen;
+
+    private static readonly RegenConfiguration s_defaultRegen = new();
+
+    // Its ward (#1178), in front of its health: filled at spawn and at its reset at home, its share kept when an aura changes
+    // its maximum. Party scaling never touches it. World-side and never on ICreature.
+    private WardPool _ward;
+
+    /// <summary>What its ward holds now (#1178). Read-only and World-side, not on ICreature.</summary>
+    public uint Ward => _ward.Current;
+
+    /// <summary>What a full ward holds (#1178): its base with its auras folded in.</summary>
+    public uint MaxWard => _ward.Max;
+
+    /// <summary>
+    /// The ward takes what it can of <paramref name="absorbable" /> (#1178), after recharging to <paramref name="now" />,
+    /// and pauses its recharge; answers what it took.
+    /// </summary>
+    internal uint AbsorbWithWard(uint absorbable, DateTime now)
+    {
+        if (_ward.Max == 0 || absorbable == 0)
+            return 0;
+
+        AdvanceWard(now);
+        uint taken = _ward.Absorb(absorbable, now);
+        if (taken > 0)
+            _dirtyFields |= GameEntityFields.Ward;
+        return taken;
+    }
+
+    /// <summary>Damage taken, whether the ward met it or not (#1178): the recharge pauses from <paramref name="now" />.</summary>
+    internal void WardDamaged(DateTime now)
+    {
+        if (_ward.Max == 0)
+            return;
+
+        AdvanceWard(now);
+        _ward.Damaged(now);
+    }
+
+    /// <summary>
+    /// Recharges the ward to what <paramref name="now" /> allows (#1178): the instance calls it before the creature's script
+    /// runs, for a creature with a ward, and a hit before it meets the ward. A corpse's ward does not recharge.
+    /// </summary>
+    internal void AdvanceWard(DateTime now)
+    {
+        if (CurrentHealth > 0 && _ward.Advance(now, WardRegen))
+            _dirtyFields |= GameEntityFields.Ward;
+    }
+
+    /// <summary>Fills the ward (#1178): its reset at home.</summary>
+    internal void ResetWard()
+    {
+        if (_ward.Current == _ward.Max)
+            return;
+
+        _ward.Reset(_ward.Max);
+        _dirtyFields |= GameEntityFields.Ward;
+    }
+
     /// <summary>
     /// Seconds between swings with no haste (#627): the template's BaseAttackTime, fixed at spawn by
     /// <see cref="CreatureSpawner" />. The seeded 2.25 for a creature built without one.
@@ -161,14 +241,22 @@ public class Creature : ICreature
     private double _healthFactor = 1d;
 
     /// <summary>
-    /// Takes the auras' totals: its haste (from none, since nothing else sets one) and its maximum health; its attack,
-    /// defence and speed read them as they go.
+    /// Takes the auras' totals: its haste (from none, since nothing else sets one), its maximum health and its maximum ward
+    /// (#1178, keeping its share from <paramref name="now" />); its attack, defence and speed read them as they go.
     /// </summary>
-    public void ApplyAuraStats(AuraStatTotals totals)
+    public void ApplyAuraStats(AuraStatTotals totals, DateTime now)
     {
         AuraTotals = totals;
         HastePct = AuraStats.Apply(0f, totals, AuraStat.HastePct);
         RecomputeMaxHealth();
+
+        uint oldWard = _ward.Current;
+        uint oldMax = _ward.Max;
+        _ward.SetMax(AuraStats.Apply(BaseWard, totals, AuraStat.MaxWard), now);
+        if (_ward.Current != oldWard)
+            _dirtyFields |= GameEntityFields.Ward;
+        if (_ward.Max != oldMax)
+            _dirtyFields |= GameEntityFields.MaxWard;
     }
 
     /// <summary>
@@ -221,8 +309,9 @@ public class Creature : ICreature
     internal AttackerCombat Combat =>
         AuraStats.Fold(new AttackerCombat(Level, 0, 0, CritPct, DamageMin, DamageMax, DamageType), AuraTotals);
 
-    /// <summary>What this creature defends with (#506), its auras folded in.</summary>
-    internal DefenderCombat Defence => AuraStats.Fold(new DefenderCombat(Armor, Evasion, BlockPct), AuraTotals);
+    /// <summary>What this creature defends with (#506), its resistances (#1178) and its auras folded in.</summary>
+    internal DefenderCombat Defence =>
+        AuraStats.Fold(new DefenderCombat(Armor, Evasion, BlockPct, Resistances), AuraTotals);
 
     /// <summary>
     /// The abilities this creature fights with (#163), loaded by its script when it attaches. World-side,

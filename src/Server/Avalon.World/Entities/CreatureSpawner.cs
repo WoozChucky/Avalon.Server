@@ -13,6 +13,7 @@ using Avalon.World.Public.Maps;
 using Avalon.World.Public.Units;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.World.Entities;
 
@@ -28,9 +29,12 @@ public interface ICreatureSpawner
     ICreature Spawn(CreatureInfo virtualCreature, ushort level);
 }
 
-public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICreatureSpawner
+/// <param name="regen">The Regen settings a creature's ward recharges by (#1178); the defaults when omitted (tests).</param>
+public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world, IOptions<RegenConfiguration>? regen = null)
+    : ICreatureSpawner
 {
     private readonly ILogger<CreatureSpawner> _logger = loggerFactory.CreateLogger<CreatureSpawner>();
+    private readonly RegenConfiguration _regen = regen?.Value ?? new RegenConfiguration();
 
     public ICreature Spawn(CreatureInfo virtualCreature) => Place(Spawn(virtualCreature.PrototypeIndex, level: null), virtualCreature);
 
@@ -130,6 +134,9 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
             Evasion = stats.Evasion,
             BlockPct = stats.BlockPct,
             DamageType = stats.DamageType,
+            Resistances = stats.Resistances,
+            BaseWard = stats.Ward,   // fills the ward (#1178)
+            WardRegen = _regen,
             BaseAttackTime = template.BaseAttackTime,
             HasteCap = formula.HasteCap,
             ControlResistance = ControlResistance.Of(template, creatures.Rarities),

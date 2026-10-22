@@ -78,6 +78,9 @@ internal sealed class CreatureScheduler
 
     private TimeSpan _clock;
 
+    // The instance's time on this step (#1178), which a ward recharges by.
+    private DateTime _stepTime;
+
     private SearchCohort[] _cohorts = new SearchCohort[CohortCapacity];
     private int[] _freeCohorts = new int[CohortCapacity];
     private int _freeCohortCount;
@@ -199,10 +202,12 @@ internal sealed class CreatureScheduler
     /// <summary>
     /// The instance's creature step (#979): the clock is the instance's creature clock with this tick's delta in it.
     /// Every cohort's timer and the timed waits first, then each creature that runs, in the instance's order.
+    /// <paramref name="now" /> is the instance's time, which a creature's ward recharges by as it runs (#1178).
     /// </summary>
-    public void Step(TimeSpan deltaTime, TimeSpan clock)
+    public void Step(TimeSpan deltaTime, TimeSpan clock, DateTime now)
     {
         _clock = clock;
+        _stepTime = now;
         if (_rosterStale)
             ReadRoster();
 
@@ -264,6 +269,10 @@ internal sealed class CreatureScheduler
             if (SkipsSearch(scheduled, deltaTime))
                 return;
         }
+
+        // #1178: a creature's ward recharges as it runs, only for one that has a ward.
+        if (scheduled.MaxWard > 0)
+            scheduled.AdvanceWard(_stepTime);
 
         script.Update(deltaTime);
 

@@ -1064,10 +1064,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Sends a hit to everyone who hears it (#532). A creature script's broadcast, made during the hit's
-    /// OnHit, is marked with how the hit went (#506); any other is None.
+    /// OnHit, is marked with how the hit went (#506), and the part the creature's ward took is added back to the damage
+    /// the script was handed (#1178), so watchers see the whole hit; any other is None.
     /// </summary>
     public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage) =>
-        BroadcastUnitHit(attacker, target, currentHealth, damage, _hitInFlight);
+        BroadcastUnitHit(attacker, target, currentHealth, damage + _hitInFlight.WardAbsorbed, _hitInFlight.Result);
 
     private void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage, HitResult result)
     {
@@ -1092,11 +1093,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         hit.Release();
     }
 
-    // How the hit whose creature script is running now went (#506); see ICombatOutcomes.HitInFlight.
+    // How the hit whose creature script is running now went (#506, #1178); see ICombatOutcomes.HitInFlight.
     // Tick thread only, like every hit.
-    private HitResult _hitInFlight;
+    private HitReport _hitInFlight;
 
-    HitResult ICombatOutcomes.HitInFlight { set => _hitInFlight = value; }
+    HitReport ICombatOutcomes.HitInFlight { set => _hitInFlight = value; }
 
     public void BroadcastUnitStartCast(IUnit caster, IAbility ability, uint castId, AbilityFootprint? footprint)
     {
@@ -1891,12 +1892,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _creatureClock += deltaTime;
         if (_scheduleCreatures)
         {
-            _scheduler.Step(deltaTime, _creatureClock);
+            _scheduler.Step(deltaTime, _creatureClock, _time.GetUtcNow().UtcDateTime);
             return;
         }
 
+        DateTime now = _time.GetUtcNow().UtcDateTime;
         foreach (ICreature creature in _creatures.Values)
         {
+            // #1178: a creature's ward recharges as it runs, only for one that has a ward.
+            if (creature is Creature { MaxWard: > 0 } warded)
+                warded.AdvanceWard(now);
             creature.Script?.Update(deltaTime);
         }
     }
@@ -2800,17 +2805,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// a character in this instance, so nobody sees damage numbers from a fight elsewhere.
     /// </summary>
     void ICombatOutcomes.CharacterDamaged(CharacterEntity character, IUnit attacker, uint damage, AbilityId? abilityId,
-        HitResult result)
+        in HitReport report)
     {
         if (_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
         {
             connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, character.Guid.RawValue,
-                character.CurrentHealth, damage, abilityId?.Value, PacketEncoder.Shared, result));
+                character.CurrentHealth, damage, abilityId?.Value, PacketEncoder.Shared, report.Result));
         }
 
         if (_characters.ContainsKey(character.Guid))
         {
-            BroadcastUnitHit(attacker, character, character.CurrentHealth, damage, result);
+            BroadcastUnitHit(attacker, character, character.CurrentHealth, damage, report.Result);
         }
     }
 
@@ -2819,27 +2824,27 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// packet, and to everyone who hears it, by the same radius as a hit (#532). Only for a unit in this
     /// instance, as a hit is.
     /// </summary>
-    void ICombatOutcomes.HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId) =>
-        SendNothingDealt(attacker, target, abilityId, HitResult.Dodged);
+    void ICombatOutcomes.HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId, DamageType type) =>
+        SendNothingDealt(attacker, target, abilityId, new HitReport(HitResult.Dodged, type, DamageTypes.MaskOf(type), 0u));
 
     /// <summary>
     /// Crowd control resisted whole (#770) is sent as a dodge is, a hit of 0, marked Immune, so a client can say so.
     /// </summary>
     void ICombatOutcomes.ControlResisted(IUnit caster, IUnit target, AbilityId? abilityId) =>
-        SendNothingDealt(caster, target, abilityId, HitResult.Immune);
+        SendNothingDealt(caster, target, abilityId, new HitReport(HitResult.Immune, default, DamageTypeMask.None, 0u));
 
-    /// <summary>A hit of 0 marked <paramref name="result" />, to whoever hears a hit on <paramref name="target" />.</summary>
-    private void SendNothingDealt(IUnit attacker, IUnit target, AbilityId? abilityId, HitResult result)
+    /// <summary>A hit of 0 marked as <paramref name="report" /> says, to whoever hears a hit on <paramref name="target" />.</summary>
+    private void SendNothingDealt(IUnit attacker, IUnit target, AbilityId? abilityId, in HitReport report)
     {
         if (target is CharacterEntity character)
         {
-            ((ICombatOutcomes)this).CharacterDamaged(character, attacker, 0, abilityId, result);
+            ((ICombatOutcomes)this).CharacterDamaged(character, attacker, 0, abilityId, report);
             return;
         }
 
         if (target is ICreature && _creatures.ContainsKey(target.Guid))
         {
-            BroadcastUnitHit(attacker, target, target.CurrentHealth, 0, result);
+            BroadcastUnitHit(attacker, target, target.CurrentHealth, 0, report.Result);
         }
     }
 
@@ -2880,8 +2885,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// is sent its own damage packet first. Nobody applied it, or its caster is gone: the packets name raw 0. Only for a
     /// target in this instance, as a hit is.
     /// </summary>
-    void ICombatOutcomes.PeriodicTick(IUnit? caster, IUnit target, uint amount, AuraId aura, HitResult result, bool heal)
+    void ICombatOutcomes.PeriodicTick(IUnit? caster, IUnit target, uint amount, AuraId aura, in HitReport report, bool heal)
     {
+        HitResult result = report.Result;
         if (!_characters.ContainsKey(target.Guid) && !_creatures.ContainsKey(target.Guid))
         {
             return;

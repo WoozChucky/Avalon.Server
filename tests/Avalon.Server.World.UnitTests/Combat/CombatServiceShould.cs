@@ -572,7 +572,8 @@ public class CombatServiceShould
         svc.ApplyDamage(attacker, target, 30, ability);
 
         outcomes.Received(1).CharacterDamaged(target, attacker, 30, new Avalon.Common.ValueObjects.AbilityId(7),
-            Avalon.Network.Packets.Combat.HitResult.None);
+            new HitReport(Avalon.Network.Packets.Combat.HitResult.None, Avalon.Network.Packets.Combat.DamageType.Physical,
+                Avalon.Network.Packets.Combat.DamageTypeMask.Physical, 0u));
 
         target.IsDead = true;
         outcomes.ClearReceivedCalls();
@@ -600,7 +601,8 @@ public class CombatServiceShould
         Assert.True(target.IsInCombat);
         Assert.NotNull(reg.FindEncounterContaining(target));
         outcomes.Received(1).CharacterDamaged(target, attacker, 0,
-            new Avalon.Common.ValueObjects.AbilityId(7), Avalon.Network.Packets.Combat.HitResult.None);
+            new Avalon.Common.ValueObjects.AbilityId(7), new HitReport(Avalon.Network.Packets.Combat.HitResult.None, Avalon.Network.Packets.Combat.DamageType.Physical,
+                Avalon.Network.Packets.Combat.DamageTypeMask.Physical, 0u));
         ctx.DidNotReceiveWithAnyArgs().BroadcastUnitDeath(default!, default!);
     }
 
@@ -617,13 +619,15 @@ public class CombatServiceShould
         svc.ApplyDamage(attacker, target, 10);
         Assert.Equal(100u, target.CurrentHealth);
         outcomes.Received(1).CharacterDamaged(target, attacker, 0, null,
-            Avalon.Network.Packets.Combat.HitResult.None);
+            new HitReport(Avalon.Network.Packets.Combat.HitResult.None, Avalon.Network.Packets.Combat.DamageType.Physical,
+                Avalon.Network.Packets.Combat.DamageTypeMask.Physical, 0u));
 
         target.GodMode = false;
         svc.ApplyDamage(attacker, target, 10);
         Assert.Equal(90u, target.CurrentHealth);
         outcomes.Received(1).CharacterDamaged(target, attacker, 10, null,
-            Avalon.Network.Packets.Combat.HitResult.None);
+            new HitReport(Avalon.Network.Packets.Combat.HitResult.None, Avalon.Network.Packets.Combat.DamageType.Physical,
+                Avalon.Network.Packets.Combat.DamageTypeMask.Physical, 0u));
     }
 
     // ── #588: a hit larger than a creature's remaining health kills it; health never wraps ──
