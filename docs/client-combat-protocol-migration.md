@@ -274,14 +274,14 @@ The retired abilities 1, 2 and 100-103 are gone, and their ids are never reused,
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | 800 ms | 0 |
 | 201 | Warrior | Ground Slam | Circle | Movement | Caster | 0 | 3 | – | – | – | Hostile | 0 | 5000 ms | 20 |
-| 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 18 | no | Hostile | 0 | 3000 ms | 10 |
-| 210 | Wizard | Arcane Bolt | Projectile | Cursor | – | 20 | – | – | 22 | no | Hostile | 0 | 800 ms | 0 |
+| 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 9 | no | Hostile | 0 | 3000 ms | 10 |
+| 210 | Wizard | Arcane Bolt | Projectile | Cursor | – | 20 | – | – | 11 | no | Hostile | 0 | 800 ms | 0 |
 | 211 | Wizard | Flame Burst | Circle | Cursor | AimPoint | 18 | 3 | – | – | – | Hostile | 600 ms | 5000 ms | 25 |
 | 212 | Wizard | Frost Fan | Cone | Cursor | – | 6 | – | 60 | – | – | Hostile | 0 | 4000 ms | 15 |
-| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 28 | no | Hostile | 0 | 800 ms | 0 |
-| 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 24 | yes | Hostile | 0 | 4000 ms | 15 |
+| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 14 | no | Hostile | 0 | 800 ms | 0 |
+| 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 12 | yes | Hostile | 0 | 4000 ms | 15 |
 | 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4000 ms | 20 |
-| 230 | Cleric | Smite | Projectile | Cursor | – | 18 | – | – | 20 | no | Hostile | 0 | 800 ms | 0 |
+| 230 | Cleric | Smite | Projectile | Cursor | – | 18 | – | – | 10 | no | Hostile | 0 | 800 ms | 0 |
 | 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5000 ms | 20 |
 | 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8000 ms | 25 |
 
