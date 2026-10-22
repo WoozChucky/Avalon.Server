@@ -71,6 +71,8 @@ public partial class CharacterDbContext : DbContext
     public DbSet<CharacterIgnore> CharacterIgnores { get; set; } = null!;
     public DbSet<CharacterAura> CharacterAuras { get; set; } = null!;
     public DbSet<CharacterConsolidationReceipt> CharacterConsolidationReceipts { get; set; } = null!;
+    public DbSet<TradeRecord> TradeRecords { get; set; } = null!;
+    public DbSet<TradeRecordItem> TradeRecordItems { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -112,6 +114,37 @@ public partial class CharacterDbContext : DbContext
         receipt.Property(r => r.Id).ValueGeneratedNever();
         receipt.Property(r => r.SourceAccountId).HasConversion(v => v.Value, v => new AccountId(v));
         receipt.Property(r => r.TargetAccountId).HasConversion(v => v.Value, v => new AccountId(v));
+        Configure(modelBuilder.Entity<TradeRecord>());
+        Configure(modelBuilder.Entity<TradeRecordItem>());
+    }
+
+    /// <summary>
+    /// The trade history (#1175). Permanent: no foreign key to the characters, the items or the templates, so a record
+    /// outlives a deleted character, an item used up and a template a reload removed. Child rows rather than a JSON or
+    /// array column, so the history is queryable by character and by item instance with plain indexes on both Postgres
+    /// and SQLite.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<TradeRecord> builder)
+    {
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).ValueGeneratedNever();
+        builder.Property(r => r.FirstCharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+        builder.Property(r => r.SecondCharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+        builder.HasMany(r => r.Items)
+            .WithOne()
+            .HasForeignKey(i => i.TradeId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(r => r.FirstCharacterId);
+        builder.HasIndex(r => r.SecondCharacterId);
+    }
+
+    private static void Configure(EntityTypeBuilder<TradeRecordItem> builder)
+    {
+        builder.HasKey(i => new { i.TradeId, i.ItemInstanceId });
+        builder.Property(i => i.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
+        builder.Property(i => i.GiverCharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
+        builder.Property(i => i.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
+        builder.HasIndex(i => i.ItemInstanceId);
     }
 
     private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder, bool postgres)

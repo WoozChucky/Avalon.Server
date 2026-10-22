@@ -64,156 +64,224 @@ public interface ICharacterSaveRepository
     /// <c>CharacterSaver</c> in Avalon.World honours both: it builds one batch per character from
     /// marks keyed by item and slot, refuses a multi-character save that names a character twice,
     /// and chains every save behind the previous one for the same character.
+    /// <para>Three outcomes (#1175): it returns once committed; it throws <see cref="SaveOutcomeUnknownException" />
+    /// when the commit itself failed, or succeeded with its acknowledgement lost; and any other exception (a fence or
+    /// lease refusal <see cref="GameplayWriteRejectedException" />, the deadline, a constraint, a connection that never
+    /// opened) came before the commit, rolled the transaction back, and means nothing was written.</para>
     /// </remarks>
     Task WriteAsync(IReadOnlyList<CharacterSaveBatch> batches, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// <see cref="WriteAsync" /> for a trade (#1175): the same write, with <paramref name="record" /> inserted in the same
+    /// transaction, so the record exists exactly when the swap committed. The same three outcomes; on
+    /// <see cref="SaveOutcomeUnknownException" />, <see cref="TradeRecordExistsAsync" /> tells which it was.
+    /// </summary>
+    Task WriteTradeAsync(IReadOnlyList<CharacterSaveBatch> batches, TradeRecord record, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether the trade <paramref name="tradeId" /> was committed (#1175). In its own transaction it first takes both
+    /// accounts' gameplay fence locks, the lower account id first as a save takes them, and only then reads: a paired
+    /// write still committing holds those locks, so the read waits for it to finish and never answers "absent" for a
+    /// write that then commits. Any failure throws; it never guesses.
+    /// </summary>
+    Task<bool> TradeRecordExistsAsync(Guid tradeId, AccountId first, AccountId second, CancellationToken cancellationToken = default);
 }
 
 public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> transactions, TimeProvider? clock = null) : ICharacterSaveRepository
 {
     public Task WriteAsync(IReadOnlyList<CharacterSaveBatch> batches, CancellationToken cancellationToken = default) =>
+        WriteCoreAsync(batches, record: null, cancellationToken);
+
+    public Task WriteTradeAsync(IReadOnlyList<CharacterSaveBatch> batches, TradeRecord record, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        return WriteCoreAsync(batches, record, cancellationToken);
+    }
+
+    public Task<bool> TradeRecordExistsAsync(Guid tradeId, AccountId first, AccountId second, CancellationToken cancellationToken = default) =>
         transactions.ExecuteAsync(async (context, token) =>
         {
-            AccountGameplayFence[] guards = await GuardAsync(context, batches, token);
-            context.ValidatedGameplaySave = true;
-            // Every delete, for every batch, before any upsert: a row one batch removes and another
-            // adds (a trade) must end up present, whichever order the batches came in.
-            foreach (CharacterSaveBatch batch in batches)
+            // The order every save takes them in (GuardAsync), so this read and a paired save never deadlock. On Postgres
+            // the read runs at Read Committed, so a statement after the wait sees what the write it waited for committed.
+            (AccountId lower, AccountId higher) = first.Value <= second.Value ? (first, second) : (second, first);
+            await GameplayFenceRepository.LockAsync(context, lower, token);
+            if (higher.Value != lower.Value)
+                await GameplayFenceRepository.LockAsync(context, higher, token);
+            return await context.TradeRecords.AnyAsync(r => r.Id == tradeId, token);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Runs the write and sorts its failure. <c>workDone</c> is set on the work's last line, after the one SaveChanges
+    /// and the deadline check, and the runner's only step after the work is the commit (and disposing the transaction
+    /// and context). So an exception with it set came from the commit or after it, and the outcome is unknown; one
+    /// without it came before the commit, and the runner's transaction, never committed, rolled back.
+    /// </summary>
+    private async Task WriteCoreAsync(IReadOnlyList<CharacterSaveBatch> batches, TradeRecord? record, CancellationToken cancellationToken)
+    {
+        bool workDone = false;
+        try
+        {
+            await transactions.ExecuteAsync(async (context, token) =>
+            {
+                await WriteBatchesAsync(context, batches, record, token);
+                workDone = true;
+            }, cancellationToken);
+        }
+        catch (Exception e) when (workDone)
+        {
+            throw new SaveOutcomeUnknownException(e);
+        }
+    }
+
+    private async Task WriteBatchesAsync(CharacterDbContext context, IReadOnlyList<CharacterSaveBatch> batches, TradeRecord? record,
+        CancellationToken token)
+    {
+        AccountGameplayFence[] guards = await GuardAsync(context, batches, token);
+        context.ValidatedGameplaySave = true;
+        // Every delete, for every batch, before any upsert: a row one batch removes and another
+        // adds (a trade) must end up present, whichever order the batches came in.
+        foreach (CharacterSaveBatch batch in batches)
+        {
+            CharacterId owner = batch.Row.Id;
+            if (batch.DeleteSlots.Count > 0)
+                await DeleteSlotsAsync(context, owner, batch.DeleteSlots, token);
+
+            if (batch.Quests is { Rewrite.Count: > 0 } quests)
+            {
+                // Two statements per batch, not two per rewritten quest (#883): the objectives, then the quests.
+                var rewrite = quests.Rewrite.ToList();
+                await context.CharacterQuestObjectives
+                    .Where(o => o.CharacterId == owner && rewrite.Contains(o.QuestId))
+                    .ExecuteDeleteAsync(token);
+                await context.CharacterQuests
+                    .Where(q => q.CharacterId == owner && rewrite.Contains(q.QuestId))
+                    .ExecuteDeleteAsync(token);
+            }
+
+            if (batch.Ignores is { } ignores)
+                await DeleteIgnoresAsync(context, owner, ignores, token);
+
+            if (batch.Auras is not null)
+                await context.CharacterAuras.Where(a => a.CharacterId == owner).ExecuteDeleteAsync(token);
+        }
+
+        // After the slots, which reference items by foreign key.
+        foreach (CharacterSaveBatch batch in batches)
+        {
+            if (batch.DeleteItems.Count == 0)
+                continue;
+
+            // One statement per batch, not one per item (#883).
+            var removed = batch.DeleteItems.ToList();
+            await context.ItemInstances.Where(i => removed.Contains(i.Id)).ExecuteDeleteAsync(token);
+        }
+
+        foreach (CharacterSaveBatch batch in batches)
+        {
+            context.TrackForUpdate(batch.Row);
+
+            if (batch.UpsertItems.Count > 0)
+            {
+                // One query per batch for which of its items already exist, not one per item.
+                var ids = batch.UpsertItems.Select(i => i.Id).ToList();
+                var existingItems = (await context.ItemInstances
+                        .Where(i => ids.Contains(i.Id))
+                        .Select(i => i.Id)
+                        .ToListAsync(token))
+                    .ToHashSet();
+
+                foreach (ItemInstance item in batch.UpsertItems)
+                {
+                    if (existingItems.Contains(item.Id))
+                        context.TrackForUpdate(item);
+                    else
+                        context.TrackForInsert(item);
+                }
+            }
+
+            if (batch.UpsertSlots.Count > 0)
             {
                 CharacterId owner = batch.Row.Id;
-                if (batch.DeleteSlots.Count > 0)
-                    await DeleteSlotsAsync(context, owner, batch.DeleteSlots, token);
+                var existingSlots = (await context.CharacterInventory
+                        .Where(r => r.CharacterId == owner)
+                        .Select(r => new { r.Container, r.Slot })
+                        .ToListAsync(token))
+                    .Select(key => (key.Container, key.Slot))
+                    .ToHashSet();
 
-                if (batch.Quests is { Rewrite.Count: > 0 } quests)
+                foreach (CharacterInventory slot in batch.UpsertSlots)
                 {
-                    // Two statements per batch, not two per rewritten quest (#883): the objectives, then the quests.
-                    var rewrite = quests.Rewrite.ToList();
-                    await context.CharacterQuestObjectives
-                        .Where(o => o.CharacterId == owner && rewrite.Contains(o.QuestId))
-                        .ExecuteDeleteAsync(token);
-                    await context.CharacterQuests
-                        .Where(q => q.CharacterId == owner && rewrite.Contains(q.QuestId))
-                        .ExecuteDeleteAsync(token);
-                }
-
-                if (batch.Ignores is { } ignores)
-                    await DeleteIgnoresAsync(context, owner, ignores, token);
-
-                if (batch.Auras is not null)
-                    await context.CharacterAuras.Where(a => a.CharacterId == owner).ExecuteDeleteAsync(token);
-            }
-
-            // After the slots, which reference items by foreign key.
-            foreach (CharacterSaveBatch batch in batches)
-            {
-                if (batch.DeleteItems.Count == 0)
-                    continue;
-
-                // One statement per batch, not one per item (#883).
-                var removed = batch.DeleteItems.ToList();
-                await context.ItemInstances.Where(i => removed.Contains(i.Id)).ExecuteDeleteAsync(token);
-            }
-
-            foreach (CharacterSaveBatch batch in batches)
-            {
-                context.TrackForUpdate(batch.Row);
-
-                if (batch.UpsertItems.Count > 0)
-                {
-                    // One query per batch for which of its items already exist, not one per item.
-                    var ids = batch.UpsertItems.Select(i => i.Id).ToList();
-                    var existingItems = (await context.ItemInstances
-                            .Where(i => ids.Contains(i.Id))
-                            .Select(i => i.Id)
-                            .ToListAsync(token))
-                        .ToHashSet();
-
-                    foreach (ItemInstance item in batch.UpsertItems)
-                    {
-                        if (existingItems.Contains(item.Id))
-                            context.TrackForUpdate(item);
-                        else
-                            context.TrackForInsert(item);
-                    }
-                }
-
-                if (batch.UpsertSlots.Count > 0)
-                {
-                    CharacterId owner = batch.Row.Id;
-                    var existingSlots = (await context.CharacterInventory
-                            .Where(r => r.CharacterId == owner)
-                            .Select(r => new { r.Container, r.Slot })
-                            .ToListAsync(token))
-                        .Select(key => (key.Container, key.Slot))
-                        .ToHashSet();
-
-                    foreach (CharacterInventory slot in batch.UpsertSlots)
-                    {
-                        if (existingSlots.Contains((slot.Container, slot.Slot)))
-                            context.TrackForUpdate(slot);
-                        else
-                            context.TrackForInsert(slot);
-                    }
-                }
-
-                if (batch.Stats is { } stats)
-                {
-                    // Every character has had a stats row since creation, but upserting costs one
-                    // query and survives a row lost to an old bug.
-                    CharacterId statsOwner = stats.CharacterId;
-                    bool exists = await context.CharacterStats.AnyAsync(s => s.CharacterId == statsOwner, token);
-                    if (exists)
-                        context.TrackForUpdate(stats);
+                    if (existingSlots.Contains((slot.Container, slot.Slot)))
+                        context.TrackForUpdate(slot);
                     else
-                        context.TrackForInsert(stats);
-                }
-
-                if (batch.Quests is { } write)
-                {
-                    foreach (CharacterQuest quest in write.Active)
-                        context.TrackForInsert(quest);
-                    foreach (CharacterQuestObjective objective in write.Objectives)
-                        context.TrackForInsert(objective);
-
-                    if (write.Completed.Count > 0)
-                    {
-                        CharacterId who = batch.Row.Id;
-                        var ids = write.Completed.Select(c => c.QuestId).ToList();
-                        var stored = (await context.CharacterCompletedQuests
-                                .Where(c => c.CharacterId == who && ids.Contains(c.QuestId))
-                                .Select(c => c.QuestId)
-                                .ToListAsync(token))
-                            .ToHashSet();
-                        foreach (CharacterCompletedQuest completed in write.Completed)
-                        {
-                            if (!stored.Contains(completed.QuestId))
-                            {
-                                context.TrackForInsert(completed);
-                                continue;
-                            }
-
-                            // Written by column, never whole: the first turn-in time stays as stored. Raw Attach, not
-                            // TrackForUpdate, which marks every column; the row has no navigation to drag a graph in.
-                            EntityEntry<CharacterCompletedQuest> entry = context.CharacterCompletedQuests.Attach(completed);
-                            entry.Property(c => c.LastCompletedAt).IsModified = true;
-                            entry.Property(c => c.CompletionCount).IsModified = true;
-                        }
-                    }
-                }
-
-                if (batch.Ignores is { } ignoreWrite)
-                    await InsertIgnoresAsync(context, ignoreWrite, token);
-
-                if (batch.Auras is { } auras)
-                {
-                    foreach (CharacterAura aura in auras.Rows)
-                        context.TrackForInsert(aura);
+                        context.TrackForInsert(slot);
                 }
             }
 
-            // One SaveChanges: EF orders the item inserts ahead of the slot inserts that reference them.
-            await context.SaveChangesAsync(token);
-            await CheckDeadlineAsync(context, guards, token);
-        }, cancellationToken);
+            if (batch.Stats is { } stats)
+            {
+                // Every character has had a stats row since creation, but upserting costs one
+                // query and survives a row lost to an old bug.
+                CharacterId statsOwner = stats.CharacterId;
+                bool exists = await context.CharacterStats.AnyAsync(s => s.CharacterId == statsOwner, token);
+                if (exists)
+                    context.TrackForUpdate(stats);
+                else
+                    context.TrackForInsert(stats);
+            }
+
+            if (batch.Quests is { } write)
+            {
+                foreach (CharacterQuest quest in write.Active)
+                    context.TrackForInsert(quest);
+                foreach (CharacterQuestObjective objective in write.Objectives)
+                    context.TrackForInsert(objective);
+
+                if (write.Completed.Count > 0)
+                {
+                    CharacterId who = batch.Row.Id;
+                    var ids = write.Completed.Select(c => c.QuestId).ToList();
+                    var stored = (await context.CharacterCompletedQuests
+                            .Where(c => c.CharacterId == who && ids.Contains(c.QuestId))
+                            .Select(c => c.QuestId)
+                            .ToListAsync(token))
+                        .ToHashSet();
+                    foreach (CharacterCompletedQuest completed in write.Completed)
+                    {
+                        if (!stored.Contains(completed.QuestId))
+                        {
+                            context.TrackForInsert(completed);
+                            continue;
+                        }
+
+                        // Written by column, never whole: the first turn-in time stays as stored. Raw Attach, not
+                        // TrackForUpdate, which marks every column; the row has no navigation to drag a graph in.
+                        EntityEntry<CharacterCompletedQuest> entry = context.CharacterCompletedQuests.Attach(completed);
+                        entry.Property(c => c.LastCompletedAt).IsModified = true;
+                        entry.Property(c => c.CompletionCount).IsModified = true;
+                    }
+                }
+            }
+
+            if (batch.Ignores is { } ignoreWrite)
+                await InsertIgnoresAsync(context, ignoreWrite, token);
+
+            if (batch.Auras is { } auras)
+            {
+                foreach (CharacterAura aura in auras.Rows)
+                    context.TrackForInsert(aura);
+            }
+        }
+
+        // A trade's record goes in with the swap, so it exists exactly when the swap committed. Add, not
+        // TrackForInsert: the record and its item rows are one new graph, written together on this context.
+        if (record is not null)
+            context.TradeRecords.Add(record);
+
+        // One SaveChanges: EF orders the item inserts ahead of the slot inserts that reference them.
+        await context.SaveChangesAsync(token);
+        await CheckDeadlineAsync(context, guards, token);
+    }
 
     /// <summary>
     /// One statement per container that has emptied slots, not one per slot (#883): a slot's key is the owner, the

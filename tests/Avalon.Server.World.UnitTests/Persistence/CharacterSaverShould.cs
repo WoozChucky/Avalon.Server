@@ -539,6 +539,15 @@ public sealed class CharacterSaverShould : IDisposable
             await _gate.Task.WaitAsync(s_limit, cancellationToken);
             await inner.WriteAsync(batches, cancellationToken);
         }
+
+        public async Task WriteTradeAsync(IReadOnlyList<CharacterSaveBatch> batches, TradeRecord record, CancellationToken cancellationToken = default)
+        {
+            await _gate.Task.WaitAsync(s_limit, cancellationToken);
+            await inner.WriteTradeAsync(batches, record, cancellationToken);
+        }
+
+        public Task<bool> TradeRecordExistsAsync(Guid tradeId, AccountId first, AccountId second, CancellationToken cancellationToken = default) =>
+            inner.TradeRecordExistsAsync(tradeId, first, second, cancellationToken);
     }
 
     /// <summary>
@@ -566,5 +575,11 @@ public sealed class CharacterSaverShould : IDisposable
                 await _gate.Task.WaitAsync(s_limit, cancellationToken);
             }
         }
+
+        public Task WriteTradeAsync(IReadOnlyList<CharacterSaveBatch> batches, TradeRecord record, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<bool> TradeRecordExistsAsync(Guid tradeId, AccountId first, AccountId second, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }
