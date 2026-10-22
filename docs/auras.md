@@ -88,7 +88,8 @@ lowers the speed through the stat fold as before. A unit holding several is in e
   A creature's control on a character, an aura from nobody, and a slow alone never diminish. Every step that lands, a
   refresh included, is recorded and restarts the window; the refused step records nothing, so repeated tries cannot hold
   a target immune. **Nothing landing** (a resistance of 0, the refused step, or a creature walking home) is
-  `AuraApplyResult.Resisted`: nothing is placed or recorded and the aura enters no combat; for an ability's aura its
+  `AuraApplyResult.Resisted`: nothing is placed or recorded and the aura enters no combat (an ability's hit without
+  damage has already entered combat when it landed, #1164); for an ability's aura its
   caster and whoever would have seen the hit get a hit of 0 marked `HitResult.Immune`
   (`ICombatOutcomes.ControlResisted`, sent as a dodge is), after the ability's own damage. A creature walking home is
   told so only by an `Unavoidable` ability (#1164): any other sees its hit passed over first, with or without damage,

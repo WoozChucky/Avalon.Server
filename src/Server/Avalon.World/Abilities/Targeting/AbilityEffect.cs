@@ -23,7 +23,8 @@ public static class AbilityEffect
     /// What the ability does to one unit its shape affects, then its aura (auras). A Hostile ability rolls whether it lands
     /// (#1164), deals its damage when Effects has Damage, and applies its aura only when it landed: a dodged hit, or one
     /// the target passed over, applies none, whether it deals damage or not. An Unavoidable one skips that check and
-    /// applies its aura whatever the hit did. An Ally ability heals when Effects has Heal, and is never dodged.
+    /// offers its aura whatever the hit did (the aura system's own refusals still apply). An Ally ability heals when
+    /// Effects has Heal, and is never dodged.
     /// </summary>
     public static void Apply(IAbilityArena arena, IUnit caster, IAbility ability, IUnit unit)
     {
