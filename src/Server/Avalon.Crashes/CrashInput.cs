@@ -11,7 +11,15 @@ public sealed record CrashInput(string DumpPath, CrashMetadata Metadata, string?
 
 public sealed record RuntimeIdentity(string ImageName, string ImageKey, string PdbName, string PdbKey);
 
-public sealed record ModuleIdentity(string Name, string ImageKey, string? PdbName, string? PdbKey, string? Version, ulong BaseAddress, ulong Size);
+public sealed record ModuleIdentity(string Name, string ImageKey, string? PdbName, string? PdbKey, string? Version, ulong BaseAddress, ulong Size)
+{
+    // This is a conservative name/identity prerequisite. Resolver allowlists and budgets still apply before I/O.
+    public bool SymbolLookupEligible => IsSymbolName(Name) && IsSymbolName(PdbName) && PdbKey is not null;
+
+    private static bool IsSymbolName(string? name) => name is { Length: > 0 and <= 128 }
+        && name is not "." and not ".."
+        && name.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-');
+}
 
 public sealed record DumpIdentity(RuntimeIdentity Runtime, string Architecture, IReadOnlyList<ModuleIdentity> Modules);
 

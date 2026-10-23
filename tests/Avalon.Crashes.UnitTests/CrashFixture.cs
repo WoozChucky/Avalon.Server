@@ -66,6 +66,52 @@ internal static class CrashFixture
         Put32(bytes, 300, 35);
         return bytes;
     }
+    internal sealed record TestModule(string Name, string PdbName, ulong BaseAddress, uint Timestamp = 0x12345678);
+
+    internal static byte[] DumpWithModules(IReadOnlyList<TestModule> modules)
+    {
+        byte[] template = Dump();
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+        writer.Write(template, 0, 112);
+        writer.Write(modules.Count);
+        writer.Write(new byte[108 * modules.Count]);
+        uint[] names = new uint[modules.Count];
+        uint[] codeViews = new uint[modules.Count];
+        uint[] codeViewLengths = new uint[modules.Count];
+        for (int i = 0; i < modules.Count; i++)
+        {
+            names[i] = (uint)stream.Position;
+            byte[] name = Encoding.Unicode.GetBytes(modules[i].Name);
+            writer.Write(name.Length);
+            writer.Write(name);
+            writer.Write((ushort)0);
+            codeViews[i] = (uint)stream.Position;
+            writer.Write("RSDS"u8);
+            byte[] guid = new Guid("00112233-4455-6677-8899-aabbccddeeff").ToByteArray();
+            Put32(guid, 0, (uint)i + 1);
+            writer.Write(guid);
+            writer.Write(1u);
+            writer.Write(Encoding.UTF8.GetBytes(modules[i].PdbName));
+            writer.Write((byte)0);
+            codeViewLengths[i] = (uint)stream.Position - codeViews[i];
+        }
+        byte[] bytes = stream.ToArray();
+        Put32(bytes, 48, (uint)(4 + 108 * modules.Count));
+        for (int i = 0; i < modules.Count; i++)
+        {
+            int offset = 116 + 108 * i;
+            template.AsSpan(116, 108).CopyTo(bytes.AsSpan(offset));
+            BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(offset), modules[i].BaseAddress);
+            Put32(bytes, offset + 8, 0x10000);
+            Put32(bytes, offset + 16, modules[i].Timestamp);
+            Put32(bytes, offset + 20, names[i]);
+            Put32(bytes, offset + 76, codeViewLengths[i]);
+            Put32(bytes, offset + 80, codeViews[i]);
+        }
+        return bytes;
+    }
+
     internal static byte[] Archive(byte[]? dump = null, string? metadata = null, byte[]? log = null, string? extraName = null, CompressionLevel compression = CompressionLevel.NoCompression)
     {
         using var stream = new MemoryStream();

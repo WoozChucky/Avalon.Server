@@ -1,16 +1,14 @@
 using System.Buffers.Binary;
 using System.Globalization;
-using System.Text;
 
 namespace Avalon.Crashes.Validation;
 
 public sealed class MinidumpIdentityReader
 {
-    private static readonly UnicodeEncoding s_utf16 = new(false, false, true);
-    private static readonly UTF8Encoding s_utf8 = new(false, true);
-
     public DumpIdentity Read(ReadOnlySpan<byte> dump)
     {
+        if (dump.Length > CrashLimits.ArchiveBytes)
+            throw new CrashInputException(CrashFailureCode.ArchiveTooLarge);
         if (dump.Length < 32 || U32(dump, 0) != 0x504d444d || (U32(dump, 4) & 0xffff) != 0xa793)
             throw Invalid();
 
@@ -46,10 +44,10 @@ public sealed class MinidumpIdentityReader
             throw new CrashInputException(CrashFailureCode.UnsupportedArchitecture);
 
         uint moduleCount = U32(modules, 0);
-        if (moduleCount is 0 or > CrashLimits.Modules || (ulong)moduleCount * 108 + 4 != (ulong)modules.Length)
+        if (moduleCount == 0 || (ulong)moduleCount * 108 + 4 != (ulong)modules.Length)
             throw Invalid();
         var identities = new List<ModuleIdentity>((int)moduleCount);
-        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var names = new MinidumpNameReader();
         RuntimeIdentity? runtime = null;
         for (int i = 0; i < moduleCount; i++)
         {
@@ -58,31 +56,22 @@ public sealed class MinidumpIdentityReader
             uint size = U32(module, 8);
             if (size == 0 || address > ulong.MaxValue - size)
                 throw Invalid();
-            string name = ReadName(dump, U32(module, 20));
-            if (!names.Add(name))
-                throw Invalid();
+            string name = ReadName(dump, U32(module, 20), names);
             string imageKey = U32(module, 16).ToString("X8", CultureInfo.InvariantCulture) + size.ToString("x", CultureInfo.InvariantCulture);
             uint cvLength = U32(module, 76);
             ReadOnlySpan<byte> cv = Slice(dump, U32(module, 80), cvLength);
             string? pdbName = null;
-            string? codeViewName = null;
+            MinidumpName? codeViewName = null;
             string? pdbKey = null;
             if (cv.Length >= 4 && cv[..4].SequenceEqual("RSDS"u8))
             {
-                if (cv.Length < 25 || cv.Length > 32768)
+                if (cv.Length < 25)
                     throw Invalid();
                 int terminator = cv[24..].IndexOf((byte)0);
                 if (terminator <= 0 || terminator != cv.Length - 25)
                     throw Invalid();
-                try
-                {
-                    codeViewName = s_utf8.GetString(cv.Slice(24, terminator));
-                    pdbName = Basename(codeViewName);
-                }
-                catch (DecoderFallbackException)
-                {
-                    throw Invalid();
-                }
+                codeViewName = names.Read(cv.Slice(24, terminator), U32(module, 80) + 24, utf16: false);
+                pdbName = codeViewName.Value.Basename;
                 Guid guid = new(cv.Slice(4, 16));
                 uint age = U32(cv, 20);
                 if (guid == Guid.Empty || age == 0)
@@ -101,7 +90,7 @@ public sealed class MinidumpIdentityReader
             identities.Add(new ModuleIdentity(name, imageKey, pdbName, pdbKey, version, address, size));
             if (string.Equals(name, "runtime.exe", StringComparison.OrdinalIgnoreCase))
             {
-                if (!string.Equals(codeViewName, "runtime.pdb", StringComparison.Ordinal) || pdbKey is null)
+                if (runtime is not null || codeViewName is not { IsBareName: true, Basename: "runtime.pdb" } || pdbKey is null)
                     throw new CrashInputException(CrashFailureCode.RuntimeIdentityMismatch);
                 runtime = new RuntimeIdentity("runtime.exe", imageKey, "runtime.pdb", pdbKey);
             }
@@ -117,28 +106,13 @@ public sealed class MinidumpIdentityReader
         return new DumpIdentity(runtime, "x86_64", identities.AsReadOnly());
     }
 
-    private static string ReadName(ReadOnlySpan<byte> dump, uint rva)
+    private static string ReadName(ReadOnlySpan<byte> dump, uint rva, MinidumpNameReader names)
     {
         uint length = U32(Slice(dump, rva, 4), 0);
-        if (length == 0 || length > 32768 || length % 2 != 0)
+        if (length == 0 || length % 2 != 0)
             throw Invalid();
         ReadOnlySpan<byte> bytes = Slice(dump, (ulong)rva + 4, length);
-        try
-        {
-            return Basename(s_utf16.GetString(bytes));
-        }
-        catch (DecoderFallbackException)
-        {
-            throw Invalid();
-        }
-    }
-
-    private static string Basename(string path)
-    {
-        string name = path[(Math.Max(path.LastIndexOf('/'), path.LastIndexOf('\\')) + 1)..];
-        if (name.Length is 0 or > CrashLimits.ModuleCharacters || name is "." or ".." || name.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not '.' and not '_' and not '-'))
-            throw Invalid();
-        return name.ToLowerInvariant();
+        return names.Read(bytes, rva + 4, utf16: true).Basename;
     }
 
     private static ReadOnlySpan<byte> Slice(ReadOnlySpan<byte> dump, ulong offset, ulong length)
