@@ -561,7 +561,7 @@ public class CharacterSelectHandlerShould
             StatValue1 = 10,
         };
         (List<CharacterInventory> rows, List<ItemInstance> instances) = BuildInventory(
-            (InventoryType.Equipment, Avalon.World.Inventory.EquipmentSlots.Feet, boots.Id.Value, 1u, 100u, ItemInstanceFlags.None));
+            (InventoryType.Equipment, EquipmentSlots.Feet, boots.Id.Value, 1u, 100u, ItemInstanceFlags.None));
         ClassLevelStat warrior = new()
         {
             Class = CharacterClass.Warrior,

@@ -107,12 +107,17 @@ public class CreatureStatDeriver
             ward,
             new Resistances(template.FireResistance, template.ColdResistance, template.LightningResistance,
                 template.BlightResistance),
-            Milliseconds(template.BaseAttackTime));
+            AttackTimeMs(template.BaseAttackTime));
     }
 
-    /// <summary>Seconds as whole milliseconds, rounded; 0 for a value that is not a finite value above 0.</summary>
-    private static uint Milliseconds(float seconds) =>
-        float.IsFinite(seconds) && seconds > 0f ? (uint)Math.Min(Math.Round(seconds * 1000d), uint.MaxValue) : 0u;
+    /// <summary>
+    /// A creature's BaseAttackTime, in seconds, as its natural weapon's attack time in whole milliseconds, rounded; 0 for a
+    /// value that is not a finite value above 0. The one conversion the derived stats and a live creature share.
+    /// </summary>
+    public static uint AttackTimeMs(float baseAttackTimeSeconds) =>
+        float.IsFinite(baseAttackTimeSeconds) && baseAttackTimeSeconds > 0f
+            ? (uint)Math.Min(Math.Round(baseAttackTimeSeconds * 1000d), uint.MaxValue)
+            : 0u;
 
     private CreatureBaseStat ResolveBaseStat(ICreatureMetadata template, ushort level)
     {

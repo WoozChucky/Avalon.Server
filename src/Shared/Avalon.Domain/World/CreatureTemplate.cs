@@ -66,7 +66,7 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
 
     /// <summary>
     /// True for creatures that can never be damaged. Town NPCs (templates 1-3) set it; every
-    /// monster leaves it false. Enforced in CombatService.ApplyDamageCore.
+    /// monster leaves it false. Enforced in CombatService.IgnoresHits.
     /// </summary>
     public bool Invulnerable { get; set; }
 

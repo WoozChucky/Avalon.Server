@@ -1,4 +1,5 @@
 using Avalon.Common;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Server.World.UnitTests.Inventory;

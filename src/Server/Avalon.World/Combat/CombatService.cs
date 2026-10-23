@@ -66,7 +66,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// weapon roll, a Spell's spell base) scaled by the caster's offence, then the target's defences are rolled.
     /// </summary>
     public void ApplyDamage(IUnit attacker, IUnit target, IAbility ability)
-        => ApplyDamageCore(attacker, target, 0u, ability);
+        => ApplyAbilityDamage(attacker, target, ability, unavoidable: false);
 
     /// <summary>
     /// A Hostile ability's hit on one unit (#1164), answering how it went: only a hit that landed applies the ability's aura.
@@ -84,9 +84,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         AbilityMetadata metadata = ability.Metadata;
         bool unavoidable = (metadata.Flags & AbilityFlags.Unavoidable) != AbilityFlags.None;
         if (AbilityRules.HasDirectEffect(metadata.Effects, metadata.Affects))
-            return ApplyDamageCore(attacker, target, 0u, ability, unavoidable);
+            return ApplyAbilityDamage(attacker, target, ability, unavoidable);
 
-        // The same targets ApplyDamageCore returns early for, before any draw.
+        // The same targets every hit passes over, before any draw.
         if (IgnoresHits(target)) return HitOutcome.Ignored;
         if (unavoidable || !HitResolver.Evades(DefenderOf(target), attacker.Level, _formula(), _random))
         {
@@ -102,44 +102,48 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     /// <summary>A raw hit, such as a creature's swing (#506): <paramref name="damage" /> is the base the defences reduce.</summary>
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage)
-        => ApplyDamageCore(attacker, target, damage, ability: null);
+    {
+        // Every target a hit passes over (IgnoresHits) is refused here, before anything is drawn or changed.
+        if (IgnoresHits(target)) return;
 
-    /// <param name="damage">A raw hit's whole base, of the attacker's base type; unread for an ability's hit.</param>
+        AttackerCombat attackerCombat = AttackerOf(attacker);
+        // #1178: a raw hit is one part, of the attacker's base type.
+        var parts = DamageParts.Of(attackerCombat.BaseType, damage);
+        ResolveHit(attacker, target, attackerCombat, parts, ability: null, unavoidable: false);
+    }
+
+    /// <summary>
+    /// An ability's hit (#1178): its own base, split by type (<see cref="OffenceMath.DirectBase" />), drawn only past every
+    /// target a hit passes over, so nothing refused draws a roll.
+    /// </summary>
+    /// <param name="unavoidable">An Unavoidable ability's hit (#1164): it draws no evasion roll.</param>
+    private HitOutcome ApplyAbilityDamage(IUnit attacker, IUnit target, IAbility ability, bool unavoidable)
+    {
+        if (IgnoresHits(target)) return HitOutcome.Ignored;
+
+        AttackerCombat attackerCombat = AttackerOf(attacker);
+        DamageParts parts = OffenceMath.DirectBase(attackerCombat, ability.Metadata, _random);
+        return ResolveHit(attacker, target, attackerCombat, parts, ability, unavoidable);
+    }
+
+    /// <summary>
+    /// Resolves a hit whose base is <paramref name="parts" />, on a target no early refusal passes over (IgnoresHits): an
+    /// invulnerable creature (a town NPC) absorbs nothing and provokes nothing, so attacking one never creates an encounter,
+    /// adds threat or tags anyone in combat; a corpse takes no hits (#588); a creature walking home ignores them (#610); a
+    /// protected arrival passes over the whole hit. Every damage source funnels through the two entries above, so those
+    /// guards cover them all.
+    /// </summary>
     /// <param name="ability">
-    /// The ability that hit, or null for a raw hit: its own base decides the damage (#1178), and it multiplies the threat,
-    /// names the hit to the character hit, and gives its PowerGainPerHit to the caster per unit damaged (#526).
+    /// The ability that hit, or null for a raw hit: it multiplies the threat, names the hit to the character hit, and gives
+    /// its PowerGainPerHit to the caster per unit damaged (#526).
     /// </param>
     /// <param name="unavoidable">An Unavoidable ability's hit (#1164): it draws no evasion roll.</param>
-    private HitOutcome ApplyDamageCore(IUnit attacker, IUnit target, uint damage, IAbility? ability,
-        bool unavoidable = false)
+    private HitOutcome ResolveHit(IUnit attacker, IUnit target, in AttackerCombat attackerCombat, in DamageParts parts,
+        IAbility? ability, bool unavoidable)
     {
-        // Arrival protection passes over the whole hit, including its rolls, threat and combat tags.
-        if (ArrivalProtection.IsProtected(target)) return HitOutcome.Ignored;
-
-        // Invulnerable creatures (town NPCs) absorb nothing and provoke nothing. This sits ahead of
-        // ResolveOrSpawn deliberately: attacking one must not create an encounter, add threat, or
-        // put the attacker in combat, or a player could tag themselves in combat on the innkeeper.
-        // Every damage source in the game funnels through here, so this one guard covers them all.
-        if (target is ICreature { Invulnerable: true }) return HitOutcome.Ignored;
-
-        // A corpse takes no hits (#588), as a dead character's OnHit ignores them: no threat, no
-        // encounter, no script call, no second death, and its attacker is not tagged in combat.
-        if (target is ICreature { CurrentHealth: 0 }) return HitOutcome.Ignored;
-
-        // A creature walking home, after the leash or a lost target, ignores hits entirely (#610): no
-        // encounter, no threat, no script call, no broadcast, and its attacker is not tagged in
-        // combat, so nothing from the walk home outlives the reset there.
-        if (IsReturningHome(target)) return HitOutcome.Ignored;
-
-        // #506: the hit resolves here, past every early return above, so nothing refused draws a roll.
-        // The formula is read once for the whole hit.
+        // #506: the formula is read once for the whole hit.
         CombatFormula formula = _formula();
-        AttackerCombat attackerCombat = AttackerOf(attacker);
         AbilityMetadata? metadata = ability?.Metadata;
-        // #1178: an ability's base is its own, split by type; a raw hit is one part of the attacker's base type.
-        DamageParts parts = metadata is null
-            ? DamageParts.Of(attackerCombat.BaseType, damage)
-            : OffenceMath.DirectBase(attackerCombat, metadata, _random);
         HitDamage hit = HitResolver.ResolveDamage(attackerCombat, DefenderOf(target), parts, formula, _random, unavoidable);
         HitResult result = hit.Result;
 
@@ -155,7 +159,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // Everything below reads the resolved damage (#506): threat, the hit, the gain and the PvP reset read the whole
         // hit, the ward's part included (#1178).
-        damage = hit.Total;
+        uint damage = hit.Total;
         // Staff testing still resolves and reports the hit, forms an encounter, and tags combat.
         // Only its health loss and effects that require positive damage are suppressed.
         if (target is CharacterEntity { GodMode: true, IsDead: false }) damage = 0;

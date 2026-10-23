@@ -10,7 +10,6 @@ using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
-using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;

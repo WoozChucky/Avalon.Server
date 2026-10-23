@@ -514,8 +514,8 @@ public class CombatServiceShould
     [Fact]
     public void Should_not_damage_a_creature_that_is_invulnerable()
     {
-        // Town NPCs are never killable. The guard sits at the very top of ApplyDamageCore — the
-        // single chokepoint every damage source funnels through — so an invulnerable target costs
+        // Town NPCs are never killable. The guard (IgnoresHits) sits at the very top of both hit entries — the
+        // chokepoint every damage source funnels through — so an invulnerable target costs
         // no encounter, no threat, no combat tag, and never reaches OnHit.
         (CombatService? svc, EncounterRegistry? reg) = BuildService();
         ICharacter attacker = StubCharacter(CharacterClass.Warrior);
@@ -533,8 +533,8 @@ public class CombatServiceShould
     [Fact]
     public void Should_not_damage_an_invulnerable_creature_through_the_abilityless_overload()
     {
-        // Creature melee (CreatureCombatScript) uses the 3-arg overload. Both overloads share
-        // ApplyDamageCore, and this pins that they do — a guard added to only one would leave
+        // Creature melee (CreatureCombatScript) uses the 3-arg overload. Both overloads check
+        // IgnoresHits first, and this pins that they do — a guard added to only one would leave
         // creature-on-NPC damage live.
         (CombatService? svc, EncounterRegistry? reg) = BuildService();
         ICreature attacker = StubCreature();

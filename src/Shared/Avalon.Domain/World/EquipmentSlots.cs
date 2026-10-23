@@ -1,12 +1,11 @@
-using Avalon.Domain.World;
-
-namespace Avalon.World.Inventory;
+namespace Avalon.Domain.World;
 
 /// <summary>
 /// The one mapping from an Equipment container slot to the ItemSlotType an item must have to be
 /// worn there (spec #463). The container has 14 slots; 11-13 are reserved and any request naming
 /// one is refused. The numbers are not ItemSlotType's own: Gem is 8 there, but slot 8 is the second
-/// finger, and a gem is a socket item that is never worn.
+/// finger, and a gem is a socket item that is never worn. Shared by the world server and the API (#1178), so both
+/// count the same worn items.
 /// </summary>
 public static class EquipmentSlots
 {

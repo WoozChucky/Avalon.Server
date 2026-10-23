@@ -287,19 +287,38 @@ public class CharacterService : ICharacterService
         return new AttackerCombat(character.Level, stats?.CritPct ?? 0f, WeaponDamage.Of(mainHand, formula), offence);
     }
 
-    /// <summary>The templates of the items the character wears.</summary>
+    /// <summary>
+    /// The template of each item the character wears, as the world's stats refresh counts them: one per worn item, so two
+    /// copies of one template count twice, and none for an item in a slot its template does not fit
+    /// (<see cref="EquipmentSlots.Accepts" />).
+    /// </summary>
     private async Task<IReadOnlyList<ItemTemplate>> WornTemplatesAsync(CharacterId id, CancellationToken cancellationToken)
     {
         var worn = (await _inventoryRepository.GetByCharacterIdAsync(id, cancellationToken))
             .Where(r => r.Container == Avalon.Common.InventoryType.Equipment)
-            .Select(r => r.ItemId)
-            .ToHashSet();
+            .ToList();
         if (worn.Count == 0) return [];
 
         var instances = (await _itemInstanceRepository.GetByCharacterIdAsync(id, cancellationToken))
-            .Where(i => worn.Contains(i.Id))
-            .ToList();
-        return await _itemTemplateRepository.GetByIdsAsync(instances.Select(i => i.TemplateId), cancellationToken);
+            .ToDictionary(i => i.Id);
+        IEnumerable<ItemTemplateId> templateIds = worn
+            .Select(r => instances.GetValueOrDefault(r.ItemId)?.TemplateId)
+            .OfType<ItemTemplateId>();
+        var templates = (await _itemTemplateRepository.GetByIdsAsync(templateIds, cancellationToken))
+            .ToDictionary(t => t.Id);
+
+        List<ItemTemplate> result = [];
+        foreach (CharacterInventory row in worn)
+        {
+            if (instances.TryGetValue(row.ItemId, out ItemInstance? instance)
+                && templates.TryGetValue(instance.TemplateId, out ItemTemplate? template)
+                && EquipmentSlots.Accepts(row.Slot, template.Slot))
+            {
+                result.Add(template);
+            }
+        }
+
+        return result;
     }
 
     private static CharacterAbilityAmountDto AmountFor(AbilityTemplate t, in AttackerCombat attacker)

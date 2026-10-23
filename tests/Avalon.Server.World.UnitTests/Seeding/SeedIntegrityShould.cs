@@ -707,9 +707,9 @@ public class SeedIntegrityShould
 
     /// <summary>
     /// #163: the creature abilities exactly as the design's table has them, with the arcs chosen for the cones
-    /// and the speeds chosen for the projectiles. Every one is creature-only (no class), free, EffectValue 0, and
-    /// dealt from the creature's natural range through BaseDamageCoefficient; a basic (coefficient 1.0) lists the
-    /// seeded 2.25 s swing interval, which is what it waits.
+    /// and the speeds chosen for the projectiles. Every one is creature-only (no class) and free, and deals its
+    /// creature's natural range times its DamageEffectiveness (#1178: the old weapon coefficient as a percentage, the last
+    /// column here); a basic (100 %) lists the seeded 2.25 s swing interval, which is what it waits.
     /// </summary>
     [Theory]
     [InlineData(300u, "Gore", AbilityShape.Cone, 1.8f, 0f, 90f, 0f, false, 0u, 2250u, 1.0f)]

@@ -3,7 +3,6 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
-using Avalon.World.Inventory;
 using Avalon.World.Public.Enums;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 

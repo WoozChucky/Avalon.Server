@@ -32,7 +32,7 @@ public class TownNpcScriptShould
         // The second layer under ICreature.Invulnerable. Creature.OnHit forwards straight to the
         // script, and CreatureCombatScript.OnHit is where a creature's health is actually reduced —
         // so a script that does not implement it cannot kill its creature even if the guard in
-        // ApplyDamageCore were ever bypassed.
+        // CombatService.IgnoresHits were ever bypassed.
         ICreature creature = Substitute.For<ICreature>();
         var script = new TownNpcScript(creature, Substitute.For<IMapInstance>());
 

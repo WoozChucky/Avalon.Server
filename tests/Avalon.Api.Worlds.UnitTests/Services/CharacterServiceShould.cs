@@ -126,14 +126,20 @@ public class CharacterServiceShould
         abilities.GetByIdsAsync(Arg.Any<IEnumerable<AbilityId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<AbilityTemplate> { ability });
 
+        // Each item in the slot its template fits; a second ring goes on the second finger.
         var instanceIds = worn.Select(_ => new ItemInstanceId(Guid.CreateVersion7())).ToList();
+        int rings = 0;
+        byte SlotOf(ItemTemplate t) => t.Slot == Avalon.Domain.World.ItemSlotType.Finger
+            ? (rings++ == 0 ? EquipmentSlots.Finger1 : EquipmentSlots.Finger2)
+            : Enumerable.Range(0, EquipmentSlots.FirstReserved).Select(slot => (byte)slot)
+                .First(slot => EquipmentSlots.Accepts(slot, t.Slot));
         ICharacterInventoryRepository slots = Substitute.For<ICharacterInventoryRepository>();
         slots.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(instanceIds
             .Select((itemId, i) => new CharacterInventory
             {
                 CharacterId = id,
                 Container = Avalon.Common.InventoryType.Equipment,
-                Slot = (byte)i,
+                Slot = SlotOf(worn[i]),
                 ItemId = itemId,
             })
             .ToList());
@@ -141,9 +147,10 @@ public class CharacterServiceShould
         instances.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(instanceIds
             .Select((itemId, i) => new ItemInstance { Id = itemId, TemplateId = worn[i].Id, CharacterId = id, Count = 1 })
             .ToList());
+        // As the repository does: one template per id, however many items share it.
         IItemTemplateRepository templates = Substitute.For<IItemTemplateRepository>();
         templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
-            .Returns(worn.ToList());
+            .Returns(worn.DistinctBy(t => t.Id).ToList());
 
         ICharacterStatsRepository statsRepository = Substitute.For<ICharacterStatsRepository>();
         statsRepository.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(stats);
@@ -158,10 +165,14 @@ public class CharacterServiceShould
     /// #1178 (review focus 5): the worlds service advertises exactly what the world server sends for the same saved
     /// character. A saved level-1 Warrior wearing the starter sword and armour (Strength 29): Cleave rolls 4..7 at 315 %
     /// effectiveness and 101.5 % increased physical attack damage, 25..44, the same as AbilityAmounts over the stats
-    /// calculator's attacker for the same row and gear, as the world builds it at select.
+    /// calculator's attacker for the same row and gear, as the world builds it at select. With the same ring on both
+    /// fingers (10 % increased physical damage each), both count, as in the world: 121.5 %, 27..48.
     /// </summary>
-    [Fact]
-    public async Task Advertise_the_amounts_the_world_sends_for_the_same_saved_character()
+    [Theory]
+    [InlineData(false, 25u, 44u)]
+    [InlineData(true, 27u, 48u)]
+    public async Task Advertise_the_amounts_the_world_sends_for_the_same_saved_character(bool twoRings, uint min,
+        uint max)
     {
         var id = new CharacterId(42);
         using var sqlite = new SqliteWorlds(1);
@@ -172,6 +183,19 @@ public class CharacterServiceShould
         CombatFormula formula = world.CombatFormulas.Single();
         ulong[] starter = [32, 36, 37, 38, 39, 40];
         var worn = world.ItemTemplates.AsEnumerable().Where(t => starter.Contains(t.Id.Value)).ToList();
+        if (twoRings)
+        {
+            var ring = new ItemTemplate
+            {
+                Id = new ItemTemplateId(990),
+                Name = "Band of Edges",
+                Slot = Avalon.Domain.World.ItemSlotType.Finger,
+                StatType1 = Avalon.Domain.World.StatType.IncreasedPhysicalDamage,
+                StatValue1 = 10,
+            };
+            worn.AddRange([ring, ring]);
+        }
+
         AbilityTemplate cleave = world.AbilityTemplates.AsEnumerable().Single(a => a.Id.Value == 200);
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, factors, formula);
         AbilityAmount sent = AbilityAmounts.For(stats.AttackerAt(1), AbilityMetadataMapper.From(cleave));
@@ -181,7 +205,7 @@ public class CharacterServiceShould
 
         CharacterAbilityAmountDto amount = Assert.Single(result!.Abilities).Amount!;
         Assert.Equal(29u, stats.Strength);
-        Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, 25u, 44u), (amount.Kind, amount.Min, amount.Max));
+        Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, min, max), (amount.Kind, amount.Min, amount.Max));
         Assert.Equal(((Avalon.Api.Contract.AbilityAmountKind)sent.Kind, sent.Min, sent.Max),
             (amount.Kind, amount.Min, amount.Max));
     }

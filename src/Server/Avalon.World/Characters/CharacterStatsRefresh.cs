@@ -3,7 +3,6 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Entities;
-using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
