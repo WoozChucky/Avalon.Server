@@ -94,6 +94,7 @@ public class AuraTemplateController(
         TickIntervalMs = t.TickIntervalMs,
         PeriodicKind = (AuraPeriodicKind)t.PeriodicKind,
         PeriodicBase = t.PeriodicBase,
+        PeriodicEffectiveness = t.PeriodicEffectiveness,
         Stacking = (AuraStacking)t.Stacking,
         MaxStacks = t.MaxStacks,
         Control = (CrowdControl)t.Control,

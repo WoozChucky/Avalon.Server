@@ -48,6 +48,16 @@ internal static class TemplateFields
         A("allowedClasses", e => e.AllowedClasses, (e, r) => e.AllowedClasses = r.AllowedClasses.ToList()),
         A("auraId", e => e.AuraId?.Value, (e, r) => e.AuraId = r.AuraId is { } aura ? new AuraId(aura) : null),
         A("damageType", e => e.DamageType, (e, r) => e.DamageType = ConvN(r.DamageType, e.DamageType)),
+        A("tags", e => e.Tags, (e, r) => e.Tags = Conv(r.Tags, e.Tags)),
+        A("damageEffectiveness", e => e.DamageEffectiveness, (e, r) => e.DamageEffectiveness = r.DamageEffectiveness),
+        A("spellBaseMin", e => e.SpellBaseMin, (e, r) => e.SpellBaseMin = r.SpellBaseMin),
+        A("spellBaseMax", e => e.SpellBaseMax, (e, r) => e.SpellBaseMax = r.SpellBaseMax),
+        A("spellBasePerLevelPct", e => e.SpellBasePerLevelPct, (e, r) => e.SpellBasePerLevelPct = r.SpellBasePerLevelPct),
+        A("convertToType", e => e.ConvertToType, (e, r) => e.ConvertToType = ConvN(r.ConvertToType, e.ConvertToType)),
+        A("convertPct", e => e.ConvertPct, (e, r) => e.ConvertPct = r.ConvertPct),
+        A("addedType", e => e.AddedType, (e, r) => e.AddedType = ConvN(r.AddedType, e.AddedType)),
+        A("addedMin", e => e.AddedMin, (e, r) => e.AddedMin = r.AddedMin),
+        A("addedMax", e => e.AddedMax, (e, r) => e.AddedMax = r.AddedMax),
     ];
 
     public static readonly IReadOnlyList<TemplateField<CreatureTemplate, UpdateCreatureTemplateRequest>> Creature =
@@ -112,6 +122,7 @@ internal static class TemplateFields
         I("requiredStrength", e => e.RequiredStrength, (e, r) => e.RequiredStrength = r.RequiredStrength),
         I("requiredAgility", e => e.RequiredAgility, (e, r) => e.RequiredAgility = r.RequiredAgility),
         I("requiredIntellect", e => e.RequiredIntellect, (e, r) => e.RequiredIntellect = r.RequiredIntellect),
+        I("attackTimeMs", e => e.AttackTimeMs, (e, r) => e.AttackTimeMs = r.AttackTimeMs),
         I("damageMin1", e => e.DamageMin1, (e, r) => e.DamageMin1 = r.DamageMin1),
         I("damageMax1", e => e.DamageMax1, (e, r) => e.DamageMax1 = r.DamageMax1),
         I("damageType1", e => e.DamageType1, (e, r) => e.DamageType1 = ConvN(r.DamageType1, e.DamageType1)),
@@ -154,6 +165,7 @@ internal static class TemplateFields
         U("tickIntervalMs", e => e.TickIntervalMs, (e, r) => e.TickIntervalMs = r.TickIntervalMs),
         U("periodicKind", e => e.PeriodicKind, (e, r) => e.PeriodicKind = Conv(r.PeriodicKind, e.PeriodicKind)),
         U("periodicBase", e => e.PeriodicBase, (e, r) => e.PeriodicBase = r.PeriodicBase),
+        U("periodicEffectiveness", e => e.PeriodicEffectiveness, (e, r) => e.PeriodicEffectiveness = r.PeriodicEffectiveness),
         U("stacking", e => e.Stacking, (e, r) => e.Stacking = Conv(r.Stacking, e.Stacking)),
         U("maxStacks", e => e.MaxStacks, (e, r) => e.MaxStacks = r.MaxStacks),
         U("control", e => e.Control, (e, r) => e.Control = Conv(r.Control, e.Control)),

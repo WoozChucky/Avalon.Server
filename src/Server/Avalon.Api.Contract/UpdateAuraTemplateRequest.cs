@@ -18,6 +18,12 @@ public sealed class UpdateAuraTemplateRequest
     /// <summary>The flat part of the total dealt or healed before scaling, split over the ticks.</summary>
     public float PeriodicBase { get; set; }
 
+    /// <summary>
+    /// Percent of its source's base roll added to <see cref="PeriodicBase"/> (#1178): a weapon roll for an Attack, the
+    /// spell base for a Spell or a Heal. Finite and 0 or more; 0 adds none.
+    /// </summary>
+    public float PeriodicEffectiveness { get; set; }
+
     public AuraStacking Stacking { get; set; }
     public uint MaxStacks { get; set; }
 

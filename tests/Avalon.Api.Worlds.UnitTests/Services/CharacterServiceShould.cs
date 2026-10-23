@@ -14,6 +14,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using NSubstitute;
 using Xunit;
+using AbilityTags = Avalon.Network.Packets.Abilities.AbilityTags;
 
 namespace Avalon.Api.Worlds.UnitTests.Services;
 

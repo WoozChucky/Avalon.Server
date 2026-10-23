@@ -115,5 +115,15 @@ public class AbilityTemplateController : BaseController
         AllowedClasses = t.AllowedClasses is null ? [] : t.AllowedClasses.ToList(),
         AuraId = t.AuraId?.Value,
         DamageType = (Avalon.Api.Contract.DamageType?)t.DamageType,
+        Tags = (Avalon.Api.Contract.AbilityTags)t.Tags,
+        DamageEffectiveness = t.DamageEffectiveness,
+        SpellBaseMin = t.SpellBaseMin,
+        SpellBaseMax = t.SpellBaseMax,
+        SpellBasePerLevelPct = t.SpellBasePerLevelPct,
+        ConvertToType = (Avalon.Api.Contract.DamageType?)t.ConvertToType,
+        ConvertPct = t.ConvertPct,
+        AddedType = (Avalon.Api.Contract.DamageType?)t.AddedType,
+        AddedMin = t.AddedMin,
+        AddedMax = t.AddedMax,
     };
 }

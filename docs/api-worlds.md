@@ -316,8 +316,11 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
 - **The description** (`LinkPreviewText.Describe`) reads like the site's tooltips: for an item its rarity, slot,
   subclass, damage, armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178),
   allowed classes (only when restricted to some; an empty list means every class, #1171) and item power; for an
-  ability its classes, cost, cast time, cooldown, amount line and damage type (`Fire damage`, #1178; templates have
-  no description or flavour text). Parts are joined by ` · `, collapsed to one line and capped
+  ability its classes, cost, cast time, cooldown and what one hit deals or heals (#1178): an Attack as its weapon
+  damage (`315 % of weapon damage`, then `converts 50 % to cold` or `adds 2-4 blight damage`), a Spell or a Heal as
+  its level-1 base and growth (`14-20 lightning damage, +0.7 % per level`, `Heals 30-44`); an ability with no direct
+  amount (one that only applies an aura) shows its damage type instead (`Fire damage`). Templates have no
+  description or flavour text. Parts are joined by ` · `, collapsed to one line and capped
   at 200 characters with an ellipsis.
 - **Colours:** an item's `theme-color` is its rarity's colour, an ability's `AbilityColour`. A missing or malformed
   colour leaves `theme-color` out; it never fails the request.

@@ -353,6 +353,11 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "ability", "damageType", null, "damageType" },            // on Ignite, a class ability whose aura burns (#1178)
         { "creature", "fireResistance", 150, "fireResistance" },
         { "creature", "wardModifier", -1, "wardModifier" },
+        { "ability", "convertPct", 150, "convertPct" },                     // on Crippling Shot (#1178)
+        { "ability", "tags", "Attack, Spell, Projectile", "tags" },         // on Spark Bolt: two kinds at once
+        { "ability", "tags", "Area", "tags" },                              // on Ignite: its burning aura needs a Spell source
+        { "aura", "periodicEffectiveness", -1, "periodicEffectiveness" },   // on Bleed
+        { "item", "attackTimeMs", 0, "attackTimeMs" },                      // on the starter sword
     };
 
     [Theory]
@@ -387,6 +392,10 @@ public sealed class TemplateEditShould : IAsyncLifetime
             ("item", "damageMax1") => db.ItemTemplates.AsEnumerable().First(t => t.DamageMin1 is not null && t.DamageMax1 is not null).Id.Value,
             ("ability", "scriptName") => 200UL,
             ("ability", "damageType") => value is null ? 213UL : 232UL,
+            ("ability", "convertPct") => 223UL,
+            ("ability", "tags") => value is "Area" ? 213UL : 210UL,
+            ("aura", "periodicEffectiveness") => 1UL,
+            ("item", "attackTimeMs") => 32UL,
             ("ability", _) => 200UL,
             ("creature", "fireResistance" or "wardModifier") => 7UL,
             ("aura", "control") => TestWard,
@@ -740,10 +749,17 @@ public sealed class TemplateEditShould : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Save_and_read_back_the_new_combat_fields()
+    public async Task Save_and_read_back_the_combat_and_offence_fields()
     {
         JsonObject ability = (await ReadAsync("ability", 211)).Json;   // Flame Burst
         ability["damageType"] = "Cold";
+        JsonObject attack = (await ReadAsync("ability", 224)).Json;    // Binding Shot
+        attack["tags"] = "Attack, Area, Projectile";
+        attack["damageEffectiveness"] = 170f;
+        attack["addedMin"] = 3;
+        attack["addedMax"] = 6;
+        JsonObject aura = (await ReadAsync("aura", 1)).Json;           // Bleed
+        aura["periodicEffectiveness"] = 35f;
         JsonObject creature = (await ReadAsync("creature", 7)).Json;
         creature["fireResistance"] = -25f;
         creature["coldResistance"] = 40f;
@@ -751,12 +767,17 @@ public sealed class TemplateEditShould : IAsyncLifetime
         creature["blightResistance"] = 100f;
         creature["evasionModifier"] = 1.5f;
         creature["wardModifier"] = 2f;
-        JsonObject item = (await ReadAsync("item", 5)).Json;
+        JsonObject item = (await ReadAsync("item", 32)).Json;          // the starter sword
         item["requiredStrength"] = 10;   // three different values, so a swapped setter shows
         item["requiredAgility"] = 11;
         item["requiredIntellect"] = 12;
+        item["attackTimeMs"] = 900;
 
-        foreach ((string kind, ulong id, JsonObject body) in new[] { ("ability", 211UL, ability), ("creature", 7UL, creature), ("item", 5UL, item) })
+        foreach ((string kind, ulong id, JsonObject body) in new[]
+                 {
+                     ("ability", 211UL, ability), ("ability", 224UL, attack), ("aura", 1UL, aura), ("creature", 7UL, creature),
+                     ("item", 32UL, item),
+                 })
         {
             HttpResponseMessage response = await PutAsync(Editable, kind, id, body, Tag(body["version"]!.GetValue<string>()));
             Assert.True(response.StatusCode == HttpStatusCode.OK, $"{kind} {id}: {await response.Content.ReadAsStringAsync()}");
@@ -766,9 +787,10 @@ public sealed class TemplateEditShould : IAsyncLifetime
                      {
                          "damageType", "fireResistance", "coldResistance", "lightningResistance", "blightResistance",
                          "evasionModifier", "wardModifier", "requiredStrength", "requiredAgility", "requiredIntellect",
+                         "attackTimeMs", "tags", "damageEffectiveness", "addedMin", "addedMax", "periodicEffectiveness",
                      }.Where(body.ContainsKey))
             {
-                Assert.Equal(body[field]!.ToJsonString(), stored[field]!.ToJsonString());
+                Assert.Equal(body[field]!.ToJsonString(), stored[field]?.ToJsonString());
             }
         }
     }

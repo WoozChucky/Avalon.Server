@@ -4,10 +4,12 @@ using System.Text.RegularExpressions;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Testing;
 using Avalon.Api.Worlds.Controllers;
+using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Worlds.Previews;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Database.World;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.World;
@@ -240,6 +242,27 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
             Decoded(html, "og:description"));
         Assert.True(response.Headers.CacheControl!.Public);
         Assert.Equal(TimeSpan.FromSeconds(300), response.Headers.CacheControl.MaxAge);
+    }
+
+    /// <summary>
+    /// What a seeded ability deals or heals (#1178), one part of its description: an attack by its weapon damage, its
+    /// conversion and its added damage; a spell or a heal by its own base and its growth per level.
+    /// </summary>
+    [Theory]
+    [InlineData(200u, "315 % of weapon damage")]
+    [InlineData(223u, "495 % of weapon damage, converts 50 % to cold")]
+    [InlineData(224u, "168 % of weapon damage, adds 2-4 blight damage")]
+    [InlineData(210u, "14-20 lightning damage, +0.7 % per level")]
+    [InlineData(232u, "Heals 30-44")]
+    public void Describe_what_a_seeded_ability_deals_or_heals(uint id, string expected)
+    {
+        using var sqlite = new SqliteWorlds(Open);
+        using WorldDbContext world = sqlite.CreateWorld(new WorldId(Open));
+        AbilityTemplate ability = world.AbilityTemplates.AsEnumerable().Single(a => a.Id.Value == id);
+
+        string description = LinkPreviewText.Describe(ability.ToPublicDto());
+
+        Assert.Contains(expected, description.Split(" · "));
     }
 
     [Fact]

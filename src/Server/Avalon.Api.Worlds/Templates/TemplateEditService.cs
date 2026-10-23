@@ -107,7 +107,7 @@ public sealed class TemplateEditService(
                     else if (loaded is not null && AuraRules.DamageTypeProblem(row, loaded) is { } typeProblem)
                         errors.Add("damageType", $"The world would refuse this ability: {typeProblem}.");
                     else if (loaded is not null && AuraRules.SourceProblem(row, loaded) is { } sourceProblem)
-                        errors.Add("auraId", $"The world would refuse this ability: {sourceProblem}.");
+                        errors.Add(TemplateValidation.AbilitySourceField(sourceProblem), $"The world would refuse this ability: {sourceProblem}.");
                 }
             }),
             caller, id, ifMatch, request, ct);

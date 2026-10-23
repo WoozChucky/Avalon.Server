@@ -65,9 +65,14 @@ public static class AbilityCatalogExport
                      "shape: 0 circle, 1 cone, 2 projectile. aimMode: 0 movement (along the facing of the caster), " +
                      "1 cursor (at a ground point). anchor, where a circle is centred: 0 caster, 1 aim point. " +
                      "affects: 0 hostile (damaged), 1 ally (healed). damageType: 0 physical, 1 fire, 2 cold, 3 lightning, " +
-                     "4 blight, null none (a creature's own ability: the creature's). Distances in metres, arcDegrees the full arc " +
-                     "of a cone, projectileSpeed in metres per second, castTimeMs and cooldownMs in milliseconds " +
-                     "before haste. The basic of a creature waits its swing interval rather than its cooldownMs. " +
+                     "4 blight, null none (a creature's own ability: the creature's). tags, flags: 1 attack, 2 spell, 4 heal, " +
+                     "8 area, 16 projectile, 32 melee (64, damage over time, is an aura's tag and never an ability's). " +
+                     "Distances in metres, arcDegrees the full arc of a cone, projectileSpeed in metres per second, " +
+                     "castTimeMs in milliseconds before cast speed, cooldownMs in milliseconds before cooldown recovery; " +
+                     "a basic attack's pace is its weapon's (its cooldownMs is 0), and a basic spell's cooldownMs is " +
+                     "shortened by cast speed instead. The basic of a creature waits its swing interval rather than its " +
+                     "cooldownMs. The server sends the effective pace of the character's own abilities: trust that over " +
+                     "this file. " +
                      "auraId: the aura each unit the ability affects receives (see aura-catalog), or null. " +
                      "basic: true for the basic attack of a class, the one ability a silence does not stop.",
             Abilities: templates.OrderBy(template => template.Id.Value).Select(Row.From).ToList());
@@ -88,6 +93,7 @@ public static class AbilityCatalogExport
         byte Anchor,
         byte Affects,
         int? DamageType,
+        int Tags,
         float Radius,
         float Reach,
         float ArcDegrees,
@@ -100,7 +106,7 @@ public static class AbilityCatalogExport
     {
         public static Row From(AbilityTemplate t) => new(
             t.Id.Value, t.Name ?? string.Empty, (byte)t.Shape, (byte)t.AimMode, (byte)t.Anchor, (byte)t.Affects,
-            (int?)t.DamageType, t.Radius, t.Reach, t.ArcDegrees, t.ProjectileSpeed, t.Pierce, t.CastTime, t.Cooldown, t.AuraId?.Value,
+            (int?)t.DamageType, (int)t.Tags, t.Radius, t.Reach, t.ArcDegrees, t.ProjectileSpeed, t.Pierce, t.CastTime, t.Cooldown, t.AuraId?.Value,
             (t.Flags & AbilityFlags.Basic) != 0);
     }
 }

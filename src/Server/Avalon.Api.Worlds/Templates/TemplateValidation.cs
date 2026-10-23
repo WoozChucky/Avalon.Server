@@ -33,8 +33,8 @@ public sealed class TemplateErrors
 /// shared <c>Avalon.Combat</c> loaders own are called, not copied: <see cref="AbilityRules.Problem"/>,
 /// <see cref="AuraRules.Problem"/>, <see cref="AuraRules.LinkProblem"/>, <see cref="AuraRules.DamageTypeProblem"/>,
 /// <see cref="AuraRules.SourceProblem"/> and <see cref="CreatureTemplateRules.Validate"/>. The world loads items with no
-/// validation of its own, and the ItemTemplates table checks only a weapon's attack time (which an edit cannot reach),
-/// so items get sanity rules only.
+/// validation of its own, and the ItemTemplates table checks only a weapon's attack time (#1178, checked here as its
+/// request field), so items get sanity rules only.
 /// </summary>
 public static class TemplateValidation
 {
@@ -55,6 +55,8 @@ public static class TemplateValidation
 
         Damage(e, 1, r.DamageMin1, r.DamageMax1, r.DamageType1);
         Damage(e, 2, r.DamageMin2, r.DamageMax2, r.DamageType2);
+        // CK_ItemTemplates_AttackTimeMs: a weapon's pace is above 0; an item that is not a weapon has none.
+        if (r.AttackTimeMs == 0) e.Add("attackTimeMs", "Attack time must be above 0, or null for an item that is not a weapon.");
 
         (Contract.StatType? Type, uint? Value)[] stats =
         [
@@ -88,6 +90,9 @@ public static class TemplateValidation
         if (r.Cost > 0 && r.CostPowerType == Contract.PowerType.None)
             e.Add("costPowerType", "A cost needs the pool it is spent from (Mana, Fury or Energy).");
         if (r.DamageType is { } damageType) Defined(e, "damageType", damageType);
+        Flags(e, "tags", r.Tags);
+        if (r.ConvertToType is { } convertTo) Defined(e, "convertToType", convertTo);
+        if (r.AddedType is { } addedType) Defined(e, "addedType", addedType);
         Classes(e, r.AllowedClasses);
         return e;
     }
@@ -220,8 +225,40 @@ public static class TemplateValidation
         _ when problem.StartsWith("Cost ", StringComparison.Ordinal) => "costPowerType",
         _ when problem.StartsWith("the ability does nothing", StringComparison.Ordinal) => "effects",
         _ when problem.Contains("damage type", StringComparison.Ordinal) => "damageType",
+        // The offence model (#1178): AbilityRules' wording, keyed by the editable field each refusal is about.
+        _ when problem.StartsWith("a class attack deals its weapon's physical damage", StringComparison.Ordinal) => "damageType",
+        _ when problem.StartsWith("a basic attack is paced by its weapon", StringComparison.Ordinal) => "cooldown",
+        _ when IsTagProblem(problem) => "tags",
+        _ when problem.StartsWith("ConvertPct ", StringComparison.Ordinal)
+               || problem.StartsWith("only an Attack converts", StringComparison.Ordinal) => "convertPct",
+        _ when problem.StartsWith("a conversion names an element", StringComparison.Ordinal) => "convertToType",
+        _ when problem.StartsWith("AddedMin ", StringComparison.Ordinal) => "addedMax",
+        _ when problem.StartsWith("added damage names its type", StringComparison.Ordinal) => "addedType",
+        _ when problem.StartsWith("SpellBaseMin ", StringComparison.Ordinal)
+               || problem.Contains("needs a SpellBaseMax above 0", StringComparison.Ordinal) => "spellBaseMax",
+        _ when problem.StartsWith("SpellBasePerLevelPct ", StringComparison.Ordinal) => "spellBasePerLevelPct",
+        _ when problem.StartsWith("DamageEffectiveness ", StringComparison.Ordinal)
+               || problem.Contains("needs a DamageEffectiveness above 0", StringComparison.Ordinal) => "damageEffectiveness",
         _ => "template",
     };
+
+    /// <summary>
+    /// The field an <see cref="AuraRules.SourceProblem"/> refusal is about, on an ability edit: the spell base for a Spell
+    /// or a Heal with nothing for its aura to draw on, otherwise the tags the aura scales with.
+    /// </summary>
+    public static string AbilitySourceField(string problem) =>
+        problem.Contains("needs a SpellBaseMax above 0", StringComparison.Ordinal) ? "spellBaseMax" : "tags";
+
+    /// <summary>Whether an <see cref="AbilityRules.Problem"/> refusal is about what the ability's tags say it is.</summary>
+    private static bool IsTagProblem(string problem) =>
+        problem.StartsWith("Tags ", StringComparison.Ordinal)
+        || problem.StartsWith("an ability is at most one of Attack, Spell and Heal", StringComparison.Ordinal)
+        || problem.StartsWith("DamageOverTime is an aura's tag", StringComparison.Ordinal)
+        || problem.StartsWith("only a Hostile ability is an Attack or a Spell", StringComparison.Ordinal)
+        || problem.StartsWith("a Hostile ability that deals damage is an Attack or a Spell", StringComparison.Ordinal)
+        || problem.StartsWith("an Ally ability that heals is a Heal", StringComparison.Ordinal)
+        || problem.StartsWith("Projectile is the tag of a projectile", StringComparison.Ordinal)
+        || problem.StartsWith("only an Attack is Melee", StringComparison.Ordinal);
 
     private static string CreatureField(string problem) => problem switch
     {
@@ -248,6 +285,7 @@ public static class TemplateValidation
         _ when problem.StartsWith("DurationMs", StringComparison.Ordinal) => "durationMs",
         _ when problem.Contains("MaxStacks", StringComparison.Ordinal) => "maxStacks",
         _ when problem.StartsWith("PeriodicBase", StringComparison.Ordinal) => "periodicBase",
+        _ when problem.StartsWith("PeriodicEffectiveness", StringComparison.Ordinal) => "periodicEffectiveness",
         _ when problem.Contains("cannot heal", StringComparison.Ordinal) || problem.Contains("cannot deal", StringComparison.Ordinal) => "periodicKind",
         _ when problem.Contains("modif", StringComparison.Ordinal) || problem.StartsWith("unknown stat", StringComparison.Ordinal) => "modifiers",
         _ => "template",

@@ -121,6 +121,7 @@ public class ItemTemplateController : BaseController
         RequiredStrength = t.RequiredStrength,
         RequiredAgility = t.RequiredAgility,
         RequiredIntellect = t.RequiredIntellect,
+        AttackTimeMs = t.AttackTimeMs,
         DamageMin1 = t.DamageMin1,
         DamageMax1 = t.DamageMax1,
         DamageType1 = (Avalon.Api.Contract.DamageType?)t.DamageType1,
