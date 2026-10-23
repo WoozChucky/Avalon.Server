@@ -1069,7 +1069,7 @@ public class SeedIntegrityShould
     /// is 10 and ward 8 per level, before the template's modifiers.
     /// </summary>
     [Fact]
-    public void Seed_creature_armour_rising_linearly_to_thirty_at_level_ten()
+    public void Seed_creature_defences_by_level()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();

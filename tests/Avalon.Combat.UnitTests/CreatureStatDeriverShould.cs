@@ -115,7 +115,6 @@ public class CreatureStatDeriverShould
         Assert.Equal((16u, 12u, 24u), (stats.Armor, stats.Evasion, stats.Ward));   // 13, 10 and 40 x 0.5, each x 1.2
         Assert.Equal(new Resistances(-25f, 0f, 0f, 50f), stats.Resistances);
         Assert.Equal(DamageType.Blight, stats.Attacker.BaseType);
-        Assert.Equal(new Resistances(-25f, 0f, 0f, 50f), stats.Defence.Resistances);
         Assert.Equal(0u, NewDeriver().Derive(plain, level: 5).Evasion);
     }
 

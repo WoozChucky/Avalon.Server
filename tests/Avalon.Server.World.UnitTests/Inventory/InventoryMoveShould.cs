@@ -211,6 +211,7 @@ public class InventoryMoveShould
     [InlineData((ushort)23, null, null, 23u, 20u, 20u, ItemRequestResult.Ok)]
     [InlineData(null, (ushort)21, (ushort)20, 23u, 20u, 20u, ItemRequestResult.AttributesTooLow)]
     [InlineData(null, null, null, 0u, 0u, 0u, ItemRequestResult.Ok)]
+    [InlineData((ushort)1, null, null, 0u, 0u, 0u, ItemRequestResult.AttributesTooLow)]   // no refresh yet: any requirement refuses
     [InlineData((ushort)25, null, null, 25u, 20u, 20u, ItemRequestResult.Ok, true)]   // 25 only with the worn item it replaces: attributes now count
     public void Equip_only_when_every_attribute_requirement_is_met(ushort? str, ushort? agi, ushort? intl,
         uint hasStr, uint hasAgi, uint hasInt, ItemRequestResult expected, bool replacesWorn = false)

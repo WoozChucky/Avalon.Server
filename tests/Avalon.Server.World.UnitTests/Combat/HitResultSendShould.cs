@@ -166,11 +166,13 @@ public class HitResultSendShould
 
     /// <summary>
     /// #1178: a hit names its type, the types it carried and what the target's ward took of it, to its target's own
-    /// packet and to everyone who hears it. Both targets hold a ward of 10: a character's takes the cold hit's first 10, a
-    /// creature's is passed by blight, the creature script's broadcast carrying the hit's report.
+    /// packet and to everyone who hears it. Both targets hold a ward of 10: a character's or a creature's takes the cold
+    /// hit's first 10, and a creature's is passed by blight. The creature script's broadcast carries the hit's report, and
+    /// its damage adds back what the ward took, so watchers see the whole hit.
     /// </summary>
     [Theory]
     [InlineData(true, DamageType.Cold, 10u, 25u)]
+    [InlineData(false, DamageType.Cold, 10u, 25u)]
     [InlineData(false, DamageType.Blight, 0u, 25u)]
     public void Carry_the_damage_type_and_the_ward_absorbed_to_everyone_who_hears_the_hit(bool characterTarget,
         DamageType type, uint wardAbsorbed, uint hit)

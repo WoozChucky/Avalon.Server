@@ -350,6 +350,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "creature", "silenceDurationPct", -1, "silenceDurationPct" },
         { "creature", "slowDurationPct", 101, "slowDurationPct" },
         { "ability", "damageType", "Fire", "damageType" },          // on Mending Circle, an Ally ability (#1178)
+        { "ability", "damageType", null, "damageType" },            // on Ignite, a class ability whose aura burns (#1178)
         { "creature", "fireResistance", 150, "fireResistance" },
         { "creature", "wardModifier", -1, "wardModifier" },
     };
@@ -358,7 +359,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
     [MemberData(nameof(Refusals))]
     public async Task Answer_400_with_the_field_key_and_write_nothing(string kind, string field, object? value, string key)
     {
-        ulong id = await RefusalTargetAsync(kind, field);
+        ulong id = await RefusalTargetAsync(kind, field, value);
         (JsonObject json, string version) = await ReadAsync(kind, id);
         json[field] = value is null ? null : JsonSerializer.SerializeToNode(value);
         if (kind == "ability" && field == "costPowerType") json["cost"] = 10;
@@ -376,7 +377,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
     /// <summary>
     /// A seeded row the refusal applies to: one with a first stat, a weapon, a circle ability, a helpful aura.
     /// </summary>
-    private async Task<ulong> RefusalTargetAsync(string kind, string field)
+    private async Task<ulong> RefusalTargetAsync(string kind, string field, object? value)
     {
         await Task.CompletedTask;
         using WorldDbContext db = _sqlite.CreateWorld(new WorldId(Editable));
@@ -385,7 +386,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
             ("item", "statType1") => db.ItemTemplates.AsEnumerable().First(t => t.StatType1 is not null && t.StatValue1 is not null).Id.Value,
             ("item", "damageMax1") => db.ItemTemplates.AsEnumerable().First(t => t.DamageMin1 is not null && t.DamageMax1 is not null).Id.Value,
             ("ability", "scriptName") => 200UL,
-            ("ability", "damageType") => 232UL,
+            ("ability", "damageType") => value is null ? 213UL : 232UL,
             ("ability", _) => 200UL,
             ("creature", "fireResistance" or "wardModifier") => 7UL,
             ("aura", "control") => TestWard,
@@ -751,6 +752,8 @@ public sealed class TemplateEditShould : IAsyncLifetime
         creature["evasionModifier"] = 1.5f;
         creature["wardModifier"] = 2f;
         JsonObject item = (await ReadAsync("item", 5)).Json;
+        item["requiredStrength"] = 10;   // three different values, so a swapped setter shows
+        item["requiredAgility"] = 11;
         item["requiredIntellect"] = 12;
 
         foreach ((string kind, ulong id, JsonObject body) in new[] { ("ability", 211UL, ability), ("creature", 7UL, creature), ("item", 5UL, item) })
@@ -762,7 +765,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
             foreach (string field in new[]
                      {
                          "damageType", "fireResistance", "coldResistance", "lightningResistance", "blightResistance",
-                         "evasionModifier", "wardModifier", "requiredIntellect",
+                         "evasionModifier", "wardModifier", "requiredStrength", "requiredAgility", "requiredIntellect",
                      }.Where(body.ContainsKey))
             {
                 Assert.Equal(body[field]!.ToJsonString(), stored[field]!.ToJsonString());

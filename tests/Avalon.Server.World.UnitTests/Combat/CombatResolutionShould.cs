@@ -119,7 +119,7 @@ public class CombatResolutionShould
     }
 
     /// <summary>Spark Bolt's scaling on a cone (#506): 12 + 0.25 x AbilityDamage, no weapon term.</summary>
-    private static AbilityTemplate ArcaneCone()
+    private static AbilityTemplate SparkCone()
     {
         AbilityTemplate bolt = AbilityTestData.Cone(210, reach: 6f, arc: 100f);
         bolt.EffectValue = 12;
@@ -238,7 +238,7 @@ public class CombatResolutionShould
         wizard.PowerType = PowerType.Mana;
         wizard.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.MainHand, s_staff)]);
         Assert.True(CharacterStatsRefresh.Apply(wizard, s_rows, TestCombat.Factors, Find, CurrentValues.Refill, TestCombat.Formula));
-        wizard.Spells.Load([AbilityTestData.Game(ArcaneCone())]);
+        wizard.Spells.Load([AbilityTestData.Game(SparkCone())]);
         Creature target = AddCreature(instance, 506_921, new Vector3(0f, 0f, 2f));
 
         handler.Execute(caster.Connection, new CCastAbilityPacket { AbilityId = 210 });
