@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.Combat.UnitTests;
@@ -21,6 +22,7 @@ public class StaticDataRulesShould
         Reach = 4f,
         ArcDegrees = 90f,
         Effects = SpellEffect.Damage,
+        Tags = AbilityTags.Attack | AbilityTags.Area,
     };
 
     private static CombatFormula Formula() => new()
@@ -33,7 +35,6 @@ public class StaticDataRulesShould
         BlockMultiplier = 0.5f,
         CritCap = 50f,
         BlockCap = 50f,
-        HasteCap = 50f,
         MoveSpeedCap = 35f,
         MoveSpeedFloor = -50f,
         EvasionBase = 560f,
@@ -44,34 +45,33 @@ public class StaticDataRulesShould
         ArmorPerStrength = 0.1f,
         EvasionPerAgility = 1.125f,
         WardPerIntellect = 0.25f,
+        IncreasedPhysicalAttackPerStrength = 3.5f,
+        AttackSpeedPerAgility = 0.1f,
+        IncreasedSpellPerIntellect = 3.5f,
+        IncreasedHealingPerIntellect = 3.5f,
+        LifePerStamina = 5,
+        BaseCritPct = 5f,
+        AttackSpeedCap = 50f,
+        CastSpeedCap = 50f,
+        CooldownRecoveryCap = 50f,
+        UnarmedDamageMin = 3,
+        UnarmedDamageMax = 6,
+        UnarmedAttackTimeMs = 816,
     };
 
     private static ClassStatFactors[] Factors() => CharacterClasses.Playable
         .Select(c => new ClassStatFactors
         {
             Class = c,
-            HpPerStamina = 10,
             PowerPerIntellect = 1,
             PowerPerAgility = 0,
             FixedPower = null,
-            AttackPerStrength = 2,
-            AttackPerAgility = 0,
-            AbilityPerIntellect = 0.2,
-            BaseCrit = 5f,
         })
         .ToArray();
 
     [Fact]
     public void Accept_a_valid_cone_naming_the_cone_script() =>
         Assert.Null(AbilityRules.Problem(Cone()));
-
-    [Fact]
-    public void Refuse_a_negative_scaling_coefficient()
-    {
-        AbilityTemplate t = Cone();
-        t.ScalingCoefficient = -1f;
-        Assert.NotNull(AbilityRules.Problem(t));
-    }
 
     [Fact]
     public void Name_the_shape_scripts_by_class_name()
@@ -207,6 +207,147 @@ public class StaticDataRulesShould
     [MemberData(nameof(DamageTypeMisfits))]
     public void Refuse_an_ability_whose_damage_type_does_not_fit(string message, Func<string?> problem) =>
         Assert.Equal(message, problem());
+
+    /// <summary>
+    /// The offence model (#1178): each row is a seeded ability (or the formula) with one column changed, refused by the
+    /// rule that change breaks. The seeded rows themselves load (<c>SeedIntegrityShould</c>).
+    /// </summary>
+    public static TheoryData<string, Func<string?>> OffenceMisfits() => new()
+    {
+        { "an ability is at most one of Attack, Spell and Heal",
+            () => AbilityRules.Problem(Seeded(210, t => t.Tags = AbilityTags.Attack | AbilityTags.Spell | AbilityTags.Projectile)) },
+        { "Projectile is the tag of a projectile, and only of one",
+            () => AbilityRules.Problem(Seeded(222, t => t.Tags = AbilityTags.Attack | AbilityTags.Projectile)) },
+        { "an Ally ability that heals is a Heal", () => AbilityRules.Problem(Seeded(232, t => t.Tags = AbilityTags.Area)) },
+        { "DamageOverTime is an aura's tag, never an ability's",
+            () => AbilityRules.Problem(Seeded(211, t => t.Tags = AbilityTags.Spell | AbilityTags.Area | AbilityTags.DamageOverTime)) },
+        { "a class attack deals its weapon's physical damage: an element comes from its conversion or added damage",
+            () => AbilityRules.Problem(Seeded(220, t => t.DamageType = DamageType.Cold)) },
+        { "a basic attack is paced by its weapon: its Cooldown is 0",
+            () => AbilityRules.Problem(Seeded(220, t => (t.Flags, t.Cooldown) = (AbilityFlags.Basic, 800u))) },
+        { "ConvertPct 150 is not a percentage from 0 to 100", () => AbilityRules.Problem(Seeded(223, t => t.ConvertPct = 150f)) },
+        { "a conversion names an element to convert to",
+            () => AbilityRules.Problem(Seeded(223, t => (t.ConvertPct, t.ConvertToType) = (0f, DamageType.Physical))) },
+        { "a Spell or a Heal that deals or heals needs a SpellBaseMax above 0",
+            () => AbilityRules.Problem(Seeded(210, t => t.SpellBaseMin = t.SpellBaseMax = 0)) },
+        { "added damage names its type", () => AbilityRules.Problem(Seeded(224, t => t.AddedType = null)) },
+        { "an Ally ability that applies a healing aura is a Heal",
+            () => AuraRules.SourceProblem(Seeded(233, t => t.Tags = AbilityTags.Area), Renew()) },
+        { "CombatFormula 1: UnarmedDamageMin 7 is above UnarmedDamageMax 6", () => Refusal(f => f.UnarmedDamageMin = 7) },
+    };
+
+    [Theory]
+    [MemberData(nameof(OffenceMisfits))]
+    public void Refuse_an_offence_row_that_does_not_fit_naming_why(string message, Func<string?> problem) =>
+        Assert.Equal(message, problem());
+
+    /// <summary>
+    /// The seeded ability <paramref name="id" /> as the offence model authors it, with <paramref name="change" /> made: a
+    /// copy of the World seed's columns the rules read, not the seed itself.
+    /// </summary>
+    private static AbilityTemplate Seeded(uint id, Action<AbilityTemplate> change)
+    {
+        AbilityTemplate t = id switch
+        {
+            210 => Projectile(CharacterClass.Wizard, DamageType.Lightning, AbilityTags.Spell | AbilityTags.Projectile),
+            220 or 223 or 224 => Projectile(CharacterClass.Hunter, DamageType.Physical, AbilityTags.Attack | AbilityTags.Projectile),
+            211 => Circle(CharacterClass.Wizard, AbilityAffects.Hostile, SpellEffect.Damage, AbilityTags.Spell | AbilityTags.Area),
+            222 => new AbilityTemplate
+            {
+                ScriptName = AbilityRules.ConeScript,
+                Shape = AbilityShape.Cone,
+                AimMode = AbilityAimMode.Cursor,
+                Reach = 8f,
+                ArcDegrees = 45f,
+                Effects = SpellEffect.Damage,
+                AllowedClasses = [CharacterClass.Hunter],
+                DamageType = DamageType.Physical,
+                Tags = AbilityTags.Attack | AbilityTags.Area,
+            },
+            232 => Circle(CharacterClass.Cleric, AbilityAffects.Ally, SpellEffect.Heal, AbilityTags.Heal | AbilityTags.Area),
+            233 => Circle(CharacterClass.Cleric, AbilityAffects.Ally, SpellEffect.Buff, AbilityTags.Heal | AbilityTags.Area),
+            _ => throw new ArgumentOutOfRangeException(nameof(id), id, "not a row these cases use"),
+        };
+
+        t.Id = id;
+        (t.DamageEffectiveness, t.SpellBaseMin, t.SpellBaseMax, t.SpellBasePerLevelPct) = id switch
+        {
+            210 => (100f, 14u, 20u, 0.70f),
+            211 => (100f, 21u, 32u, 0.75f),
+            220 => (363f, 0u, 0u, 0f),
+            222 => (516f, 0u, 0u, 0f),
+            223 => (495f, 0u, 0u, 0f),
+            224 => (168f, 0u, 0u, 0f),
+            232 => (100f, 30u, 44u, 0f),
+            233 => (100f, 19u, 28u, 0f),
+            _ => throw new ArgumentOutOfRangeException(nameof(id), id, "not a row these cases use"),
+        };
+        if (id == 223) (t.ConvertToType, t.ConvertPct) = (DamageType.Cold, 50f);
+        if (id == 224) (t.AddedType, t.AddedMin, t.AddedMax) = (DamageType.Blight, 2u, 4u);
+        if (id == 233) t.AuraId = new AuraId(4);
+
+        Assert.Null(AbilityRules.Problem(t));
+        change(t);
+        return t;
+
+        static AbilityTemplate Projectile(CharacterClass cls, DamageType type, AbilityTags tags) => new()
+        {
+            ScriptName = AbilityRules.ProjectileScript,
+            Shape = AbilityShape.Projectile,
+            AimMode = AbilityAimMode.Cursor,
+            Reach = 25f,
+            ProjectileSpeed = 14f,
+            Effects = SpellEffect.Damage,
+            AllowedClasses = [cls],
+            DamageType = type,
+            Tags = tags,
+        };
+
+        static AbilityTemplate Circle(CharacterClass cls, AbilityAffects affects, SpellEffect effects, AbilityTags tags) => new()
+        {
+            ScriptName = AbilityRules.CircleScript,
+            Shape = AbilityShape.Circle,
+            AimMode = AbilityAimMode.Cursor,
+            Anchor = AbilityAnchor.AimPoint,
+            Reach = 18f,
+            Radius = 3f,
+            Effects = effects,
+            Affects = affects,
+            AllowedClasses = [cls],
+            DamageType = affects == AbilityAffects.Hostile ? DamageType.Fire : null,
+            Tags = tags,
+        };
+    }
+
+    /// <summary>The seeded aura 4, Renew: a helpful heal over time that draws its whole source base.</summary>
+    private static AuraTemplate Renew() => new()
+    {
+        Id = new AuraId(4),
+        Name = "Renew",
+        Kind = AuraKind.Helpful,
+        DurationMs = 12000,
+        TickIntervalMs = 3000,
+        PeriodicKind = AuraPeriodicKind.Heal,
+        PeriodicBase = 24f,
+        PeriodicEffectiveness = 100f,
+        Stacking = AuraStacking.Refresh,
+    };
+
+    /// <summary>Why the seeded formula, with <paramref name="change" /> made, is refused, or null when it builds.</summary>
+    private static string? Refusal(Action<CombatFormula> change)
+    {
+        CombatFormula f = Formula();
+        change(f);
+        try
+        {
+            CombatDataRules.Build([f], Factors());
+            return null;
+        }
+        catch (InvalidDataException ex)
+        {
+            return ex.Message;
+        }
+    }
 
     [Fact]
     public void Give_a_warrior_fury() =>

@@ -211,6 +211,9 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<int>("CasterLevel")
                         .HasColumnType("integer");
 
+                    b.Property<float>("CritMultiplierBonus")
+                        .HasColumnType("real");
+
                     b.Property<float>("CritPct")
                         .HasColumnType("real");
 
@@ -379,16 +382,10 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<long>("CharacterId")
                         .HasColumnType("bigint");
 
-                    b.Property<long>("AbilityDamage")
-                        .HasColumnType("bigint");
-
                     b.Property<long>("Agility")
                         .HasColumnType("bigint");
 
                     b.Property<long>("Armor")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("AttackDamage")
                         .HasColumnType("bigint");
 
                     b.Property<float>("BlightResistance")
@@ -401,9 +398,6 @@ namespace Avalon.Database.Character.Migrations
                         .HasColumnType("real");
 
                     b.Property<float>("CritPct")
-                        .HasColumnType("real");
-
-                    b.Property<float>("DodgePct")
                         .HasColumnType("real");
 
                     b.Property<long>("Evasion")

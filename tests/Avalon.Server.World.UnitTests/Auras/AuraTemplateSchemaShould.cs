@@ -3,7 +3,6 @@ using Avalon.Database.World;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
-using Avalon.World.Public.Abilities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Server.World.UnitTests.Auras;
@@ -19,10 +18,9 @@ public class AuraTemplateSchemaShould
         Kind = AuraKind.Helpful,
         DurationMs = 30000,
         PeriodicKind = AuraPeriodicKind.None,
-        ScalingStat = ScalingStat.Attack,
         Stacking = AuraStacking.Refresh,
         MaxStacks = 1,
-        Modifiers = [new AuraStatModifier { AuraId = new AuraId(id), Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 20f }],
+        Modifiers = [new AuraStatModifier { AuraId = new AuraId(id), Stat = AuraStat.Armor, Kind = AuraModifierKind.Increased, Value = 20f }],
     };
 
     [Fact]
@@ -40,7 +38,7 @@ public class AuraTemplateSchemaShould
 
         Assert.Equal(("Fortified", AuraKind.Helpful, 30000u), (read.Name, read.Kind, read.DurationMs));
         AuraStatModifier armour = Assert.Single(read.Modifiers);
-        Assert.Equal((AuraStat.Armor, AuraModifierKind.Percent, 20f), (armour.Stat, armour.Kind, armour.Value));
+        Assert.Equal((AuraStat.Armor, AuraModifierKind.Increased, 20f), (armour.Stat, armour.Kind, armour.Value));
         Assert.Contains(await repository.GetAllAsync(), a => a.Id.Value == 900 && a.Modifiers.Count == 1);
         Assert.Contains((await repository.PaginateAsync(1, 50)).Items, a => a.Id.Value == 900);
     }
@@ -52,10 +50,10 @@ public class AuraTemplateSchemaShould
         { "a periodic aura with no tick", "CK_AuraTemplates_TickIntervalMs", a => { a.Kind = AuraKind.Helpful; a.PeriodicKind = AuraPeriodicKind.Heal; } },
         { "a harmful heal", "CK_AuraTemplates_PeriodicFitsKind", a => { a.Kind = AuraKind.Harmful; a.PeriodicKind = AuraPeriodicKind.Heal; a.TickIntervalMs = 3000; } },
         { "no kind", "CK_AuraTemplates_Kind", a => a.Kind = 0 },
-        { "an unknown scaling stat", "CK_AuraTemplates_ScalingStat", a => a.ScalingStat = (ScalingStat)2 },
         { "no stacks", "CK_AuraTemplates_MaxStacks", a => a.MaxStacks = 0 },
         { "a negative base", "CK_AuraTemplates_PeriodicBase", a => a.PeriodicBase = -1f },
-        { "a negative base damage coefficient", "CK_AuraTemplates_BaseDamageCoefficient", a => a.BaseDamageCoefficient = -0.5f },
+        { "a negative periodic effectiveness", "CK_AuraTemplates_PeriodicEffectiveness", a => a.PeriodicEffectiveness = -0.5f },
+        { "a retired stat", "CK_AuraStatModifiers_Stat", a => a.Modifiers[0].Stat = (AuraStat)2 },
         { "a percent that takes everything", "CK_AuraStatModifiers_Value", a => a.Modifiers[0].Value = -100f },
         { "no stat", "CK_AuraStatModifiers_Stat", a => a.Modifiers[0].Stat = 0 },
     };

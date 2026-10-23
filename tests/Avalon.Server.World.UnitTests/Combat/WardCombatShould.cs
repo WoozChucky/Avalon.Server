@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Auras;
@@ -41,7 +42,7 @@ public class WardCombatShould
     {
         CharacterEntity character = TestCharacters.New(1178_101, time: _time);
         character.ApplyStats(new DerivedCharacterStats(MaxHealth: 500, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0,
-            Intellect: 0, Armor: armor, BlockPct: 0f, Evasion: 0, CritPct: 0f, AttackDamage: 0, AbilityDamage: 0,
+            Intellect: 0, Armor: armor, BlockPct: 0f, Evasion: 0, CritPct: 0f,
             MaxWard: maxWard), CurrentValues.EnterWorld, TestCombat.Formula);
         return character;
     }
@@ -146,9 +147,20 @@ public class WardCombatShould
         var script = new HitRecordingScript(boar);
         boar.Script = script;
         IAbility fireball = Substitute.For<IAbility>();
-        fireball.Metadata.Returns(new AbilityMetadata { Name = "Fireball", ScriptName = "x", DamageType = DamageType.Fire });
+        fireball.Metadata.Returns(new AbilityMetadata
+        {
+            Name = "Fireball",
+            ScriptName = "x",
+            DamageType = DamageType.Fire,
+            Tags = AbilityTags.Spell,
+            SpellBaseMin = 20,
+            SpellBaseMax = 20,
+        });
 
-        _combat.ApplyDamage(Character(maxWard: 0), boar, 20, fireball);
+        var combat = new CombatService(new CombatConfig(), new EncounterRegistry(new CombatConfig(), _time), outcomes: _outcomes,
+            time: _time, random: ScriptedCombatRandom.Plain().Longs(20));
+
+        combat.ApplyDamage(Character(maxWard: 0), boar, fireball);
 
         Assert.Equal([20u], script.Hits);
     }

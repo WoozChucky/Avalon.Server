@@ -72,11 +72,10 @@
       ],
       "itemPower": 2,
       "requiredLevel": 1,
-      "damageMin1": 1,
-      "damageMax1": 3,
+      "damageMin1": 4,
+      "damageMax1": 6,
       "damageType1": 0,
-      "statType1": 12,
-      "statValue1": 3
+      "attackTimeMs": 792
     },
     {
       "id": 5,
@@ -99,10 +98,9 @@
       "damageMin1": 9,
       "damageMax1": 14,
       "damageType1": 0,
-      "statType1": 12,
-      "statValue1": 0,
-      "statType2": 3,
-      "statValue2": 1
+      "attackTimeMs": 800,
+      "statType1": 3,
+      "statValue1": 1
     },
     {
       "id": 6,
@@ -122,13 +120,12 @@
       ],
       "itemPower": 3,
       "requiredLevel": 1,
-      "damageMin1": 7,
-      "damageMax1": 11,
+      "damageMin1": 5,
+      "damageMax1": 7,
       "damageType1": 0,
-      "statType1": 12,
-      "statValue1": 3,
-      "statType2": 2,
-      "statValue2": 1
+      "attackTimeMs": 801,
+      "statType1": 2,
+      "statValue1": 1
     },
     {
       "id": 7,
@@ -148,13 +145,12 @@
       ],
       "itemPower": 3,
       "requiredLevel": 1,
-      "damageMin1": 7,
-      "damageMax1": 11,
+      "damageMin1": 5,
+      "damageMax1": 7,
       "damageType1": 0,
-      "statType1": 12,
-      "statValue1": 3,
-      "statType2": 1,
-      "statValue2": 1
+      "attackTimeMs": 792,
+      "statType1": 1,
+      "statValue1": 1
     },
     {
       "id": 8,
@@ -177,10 +173,9 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "statType1": 12,
-      "statValue1": 2,
-      "statType2": 3,
-      "statValue2": 1
+      "attackTimeMs": 784,
+      "statType1": 3,
+      "statValue1": 1
     },
     {
       "id": 9,
@@ -725,10 +720,9 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "statType1": 12,
-      "statValue1": 3,
-      "statType2": 1,
-      "statValue2": 1
+      "attackTimeMs": 792,
+      "statType1": 1,
+      "statValue1": 1
     },
     {
       "id": 33,
@@ -751,10 +745,9 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "statType1": 12,
-      "statValue1": 0,
-      "statType2": 3,
-      "statValue2": 1
+      "attackTimeMs": 800,
+      "statType1": 3,
+      "statValue1": 1
     },
     {
       "id": 34,
@@ -777,10 +770,9 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "statType1": 12,
-      "statValue1": 3,
-      "statType2": 2,
-      "statValue2": 1
+      "attackTimeMs": 801,
+      "statType1": 2,
+      "statValue1": 1
     },
     {
       "id": 35,
@@ -803,10 +795,9 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "statType1": 12,
-      "statValue1": 2,
-      "statType2": 3,
-      "statValue2": 1
+      "attackTimeMs": 784,
+      "statType1": 3,
+      "statValue1": 1
     },
     {
       "id": 36,

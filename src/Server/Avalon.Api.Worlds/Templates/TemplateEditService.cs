@@ -93,9 +93,10 @@ public sealed class TemplateEditService(
                 ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
                 TemplateValidation.ScriptKnown(errors, row.ScriptName, stored, catalog, c => c.Ability);
                 // The aura must exist (its foreign key) and be one the world loads, fit what the ability affects, and find
-                // a damage type on a class ability when it deals damage over time (#1178), as the world's ability catalog
-                // checks the link. A concurrent edit of that aura's Kind can still race this check (it reads the aura, not
-                // a lock on it); the world's catalog then refuses the link and logs it.
+                // a damage type on a class ability when it deals damage over time (#1178), and have the ability as a source
+                // it can scale with (its tags and spell base), as the world's ability catalog checks the link. A
+                // concurrent edit of that aura's Kind can still race this check (it reads the aura, not a lock on it); the
+                // world's catalog then refuses the link and logs it.
                 if (row.AuraId is { } auraId)
                 {
                     AuraTemplate? aura = await db.AuraTemplates.AsNoTracking().Include(a => a.Modifiers)
@@ -105,6 +106,8 @@ public sealed class TemplateEditService(
                         errors.Add("auraId", $"The world would refuse this ability: {problem}.");
                     else if (loaded is not null && AuraRules.DamageTypeProblem(row, loaded) is { } typeProblem)
                         errors.Add("damageType", $"The world would refuse this ability: {typeProblem}.");
+                    else if (loaded is not null && AuraRules.SourceProblem(row, loaded) is { } sourceProblem)
+                        errors.Add(TemplateValidation.AbilitySourceField(sourceProblem), $"The world would refuse this ability: {sourceProblem}.");
                 }
             }),
             caller, id, ifMatch, request, ct);
@@ -130,13 +133,13 @@ public sealed class TemplateEditService(
                 ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
                 TemplateValidation.ScriptKnown(errors, row.ScriptName, stored, catalog, c => c.Aura);
                 // The aura must still fit every ability that applies it, a damaging one a class ability naming its damage
-                // type (#1178), or the world would refuse those abilities.
+                // type, and a ticking one a source it can scale with (#1178), or the world would refuse those abilities.
                 foreach (AbilityTemplate ability in await db.AbilityTemplates.AsNoTracking()
                              .Where(a => a.AuraId == row.Id).ToListAsync(ct2))
                 {
                     if (AuraRules.LinkProblem(ability.Affects, row.Id, _ => row) is { } problem)
                         errors.Add("kind", $"The world would refuse ability {ability.Id.Value} '{ability.Name}': {problem}.");
-                    else if (AuraRules.DamageTypeProblem(ability, row) is { } typeProblem)
+                    else if ((AuraRules.DamageTypeProblem(ability, row) ?? AuraRules.SourceProblem(ability, row)) is { } typeProblem)
                         errors.Add("periodicKind", $"The world would refuse ability {ability.Id.Value} '{ability.Name}': {typeProblem}.");
                 }
             }),

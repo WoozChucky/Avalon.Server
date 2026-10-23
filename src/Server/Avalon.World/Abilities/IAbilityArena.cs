@@ -24,8 +24,8 @@ public interface IAbilityArena
 
     /// <summary>
     /// A Hostile ability's hit on one unit, through this instance's combat service, answering how it went (#1164): whether
-    /// it lands (the target's dodge chance, unless the ability is Unavoidable), then its direct damage (its EffectValue,
-    /// scaled) when its Effects has Damage. Only a hit that landed applies the ability's aura.
+    /// it lands (the target's dodge chance, unless the ability is Unavoidable), then its direct damage (#1178: its own
+    /// base, scaled by the caster's offence) when its Effects has Damage. Only a hit that landed applies the ability's aura.
     /// </summary>
     HitOutcome HitForAbility(IUnit caster, IUnit target, IAbility ability);
 

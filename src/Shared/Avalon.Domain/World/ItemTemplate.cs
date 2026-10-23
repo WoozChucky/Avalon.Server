@@ -76,6 +76,12 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     public DamageType? DamageType2 { get; set; }
 
+    /// <summary>
+    /// Milliseconds between a weapon's basic attacks before attack speed (#1178), above 0; null for an item that is not
+    /// a weapon.
+    /// </summary>
+    public uint? AttackTimeMs { get; set; }
+
     public StatType? StatType1 { get; set; }
 
     public uint? StatValue1 { get; set; }
@@ -135,7 +141,7 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     public uint? UseValue { get; set; }
 }
 
-/// <summary>A stat an item gives: the stored numbers, so values are only ever appended.</summary>
+/// <summary>A stat an item gives: the stored numbers, the retired ones (8 and 9, the old damage stats) never reused.</summary>
 public enum StatType
 {
     Stamina = 0,
@@ -148,8 +154,6 @@ public enum StatType
     /// <summary>Evasion rating (#1178), formerly the dodge chance.</summary>
     Evasion = 6,
     CritPct = 7,
-    AttackDamage = 8,
-    AbilityDamage = 9,
     Health = 10,
     Power = 11,
     AttackSpeed = 12,
@@ -159,6 +163,24 @@ public enum StatType
     ColdResistance = 16,
     LightningResistance = 17,
     BlightResistance = 18,
+
+    // The offence model (#1178): percentages of increased damage or healing, then the crit multiplier and the speeds.
+    IncreasedDamage = 19,
+    IncreasedPhysicalDamage = 20,
+    IncreasedFireDamage = 21,
+    IncreasedColdDamage = 22,
+    IncreasedLightningDamage = 23,
+    IncreasedBlightDamage = 24,
+    IncreasedAttackDamage = 25,
+    IncreasedSpellDamage = 26,
+    IncreasedAreaDamage = 27,
+    IncreasedProjectileDamage = 28,
+    IncreasedMeleeDamage = 29,
+    IncreasedDamageOverTime = 30,
+    IncreasedHealing = 31,
+    CritMultiplier = 32,
+    CastSpeed = 33,
+    CooldownRecovery = 34,
 }
 
 [Flags]

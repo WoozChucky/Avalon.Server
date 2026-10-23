@@ -30,14 +30,21 @@ variant populated
       field 2 Kind : AbilityAmountKind = Healing (2)
       field 3 Min : uint = 42
       field 4 Max : uint = 7
+      field 5 Types : DamageTypeMask = Blight (16)
+      field 6 CooldownMs : uint = 19
+      field 7 CastTimeMs : uint = 65535
     element 1
       field 1 AbilityId : uint = 7
       field 2 Kind : AbilityAmountKind = Damage (1)
       field 3 Min : uint = 300
       field 4 Max : uint = 65535
-  bytes 25
-    0a 0a 08 ff ff 03 10 02 18 2a 20 07 0a 0b 08 07
-    10 01 18 ac 02 20 ff ff 03
+      field 5 Types : DamageTypeMask = Lightning (8)
+      field 6 CooldownMs : uint = 65535
+      field 7 CastTimeMs : uint = 19
+  bytes 41
+    0a 12 08 ff ff 03 10 02 18 2a 20 07 28 10 30 13
+    38 ff ff 03 0a 13 08 07 10 01 18 ac 02 20 ff ff
+    03 28 08 30 ff ff 03 38 13
 
 variant maxima
   field 1 Amounts : AbilityAmountInfo[] = 3 elements
@@ -46,22 +53,33 @@ variant maxima
       field 2 Kind : AbilityAmountKind = Healing (2)
       field 3 Min : uint = 4294967295
       field 4 Max : uint = 4294967295
+      field 5 Types : DamageTypeMask = Blight (16)
+      field 6 CooldownMs : uint = 4294967295
+      field 7 CastTimeMs : uint = 4294967295
     element 1
       field 1 AbilityId : uint = 4294967295
       field 2 Kind : AbilityAmountKind = Healing (2)
       field 3 Min : uint = 4294967295
       field 4 Max : uint = 4294967295
+      field 5 Types : DamageTypeMask = Blight (16)
+      field 6 CooldownMs : uint = 4294967295
+      field 7 CastTimeMs : uint = 4294967295
     element 2
       field 1 AbilityId : uint = 4294967295
       field 2 Kind : AbilityAmountKind = Healing (2)
       field 3 Min : uint = 4294967295
       field 4 Max : uint = 4294967295
-  bytes 66
-    0a 14 08 ff ff ff ff 0f 10 02 18 ff ff ff ff 0f
-    20 ff ff ff ff 0f 0a 14 08 ff ff ff ff 0f 10 02
-    18 ff ff ff ff 0f 20 ff ff ff ff 0f 0a 14 08 ff
-    ff ff ff 0f 10 02 18 ff ff ff ff 0f 20 ff ff ff
-    ff 0f
+      field 5 Types : DamageTypeMask = Blight (16)
+      field 6 CooldownMs : uint = 4294967295
+      field 7 CastTimeMs : uint = 4294967295
+  bytes 108
+    0a 22 08 ff ff ff ff 0f 10 02 18 ff ff ff ff 0f
+    20 ff ff ff ff 0f 28 10 30 ff ff ff ff 0f 38 ff
+    ff ff ff 0f 0a 22 08 ff ff ff ff 0f 10 02 18 ff
+    ff ff ff 0f 20 ff ff ff ff 0f 28 10 30 ff ff ff
+    ff 0f 38 ff ff ff ff 0f 0a 22 08 ff ff ff ff 0f
+    10 02 18 ff ff ff ff 0f 20 ff ff ff ff 0f 28 10
+    30 ff ff ff ff 0f 38 ff ff ff ff 0f
 
 variant minima
   field 1 Amounts : AbilityAmountInfo[] = 1 element
@@ -70,6 +88,9 @@ variant minima
       field 2 Kind : AbilityAmountKind = None (0)
       field 3 Min : uint = 0
       field 4 Max : uint = 0
+      field 5 Types : DamageTypeMask = None (0)
+      field 6 CooldownMs : uint = 0
+      field 7 CastTimeMs : uint = 0
   bytes 2
     0a 00
 
@@ -80,11 +101,19 @@ variant varint-edges
       field 2 Kind : AbilityAmountKind = <not a declared member> (3)
       field 3 Min : uint = 128
       field 4 Max : uint = 268435456
+      field 5 Types : DamageTypeMask = Physical, Blight (17)
+      field 6 CooldownMs : uint = 127
+      field 7 CastTimeMs : uint = 128
     element 1
       field 1 AbilityId : uint = 16384
       field 2 Kind : AbilityAmountKind = <not a declared member> (3)
       field 3 Min : uint = 268435455
       field 4 Max : uint = 2097151
-  bytes 32
-    0a 0d 08 7f 10 03 18 80 01 20 80 80 80 80 01 0a
-    0f 08 80 80 01 10 03 18 ff ff ff 7f 20 ff ff 7f
+      field 5 Types : DamageTypeMask = Physical, Blight (17)
+      field 6 CooldownMs : uint = 16384
+      field 7 CastTimeMs : uint = 268435455
+  bytes 50
+    0a 14 08 7f 10 03 18 80 01 20 80 80 80 80 01 28
+    11 30 7f 38 80 01 0a 1a 08 80 80 01 10 03 18 ff
+    ff ff 7f 20 ff ff 7f 28 11 30 80 80 01 38 ff ff
+    ff 7f

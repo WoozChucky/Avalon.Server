@@ -19,8 +19,6 @@ public sealed class CharacterStatsDto
     public float BlockPct { get; set; }
     /// <summary>Chance to land a critical hit, in percent.</summary>
     public float CritPct { get; set; }
-    public uint AttackDamage { get; set; }
-    public uint AbilityDamage { get; set; }
     /// <summary>Evasion rating: the chance to evade it gives depends on the attacker's level.</summary>
     public uint Evasion { get; set; }
     /// <summary>The ward a full recharge reaches.</summary>

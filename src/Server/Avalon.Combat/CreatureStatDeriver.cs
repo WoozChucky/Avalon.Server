@@ -10,7 +10,7 @@ namespace Avalon.Combat;
 /// Stats a creature spawns with, after level, template modifiers and rarity are applied. Armour, the evasion
 /// rating, the crit and block chances (percentage points) and the resistances (percent) are what combat resolves its hits
 /// with (#506, #1178); DamageType is the type of a hit whose ability names none, the template's. Ward is the most its ward
-/// holds.
+/// holds. AttackTimeMs is its natural weapon's pace, the template's BaseAttackTime.
 /// </summary>
 public readonly record struct DerivedCreatureStats(
     ushort Level,
@@ -24,13 +24,15 @@ public readonly record struct DerivedCreatureStats(
     float BlockPct = 0f,
     DamageType DamageType = DamageType.Physical,
     uint Ward = 0,
-    Resistances Resistances = default)
+    Resistances Resistances = default,
+    uint AttackTimeMs = 0)
 {
     /// <summary>
-    /// What a creature with these stats attacks with (#163): no damage stats, its natural range, its template's
-    /// damage type (#1178).
+    /// What a creature with these stats attacks with (#163, #1178): its crit, its natural range as an untyped weapon (a
+    /// part takes the hit's type), no offence of its own, and its template's damage type.
     /// </summary>
-    public AttackerCombat Attacker => new(Level, 0, 0, CritPct, DamageMin, DamageMax, DamageType);
+    public AttackerCombat Attacker =>
+        new(Level, CritPct, new WeaponDamage(DamageMin, DamageMax, null, 0, 0, null, AttackTimeMs), default, DamageType);
 
     /// <summary>What a creature with these stats defends with (#506).</summary>
     public DefenderCombat Defence => new(Armor, Evasion, BlockPct, Resistances);
@@ -104,8 +106,18 @@ public class CreatureStatDeriver
             template.DamageType,
             ward,
             new Resistances(template.FireResistance, template.ColdResistance, template.LightningResistance,
-                template.BlightResistance));
+                template.BlightResistance),
+            AttackTimeMs(template.BaseAttackTime));
     }
+
+    /// <summary>
+    /// A creature's BaseAttackTime, in seconds, as its natural weapon's attack time in whole milliseconds, rounded; 0 for a
+    /// value that is not a finite value above 0. The one conversion the derived stats and a live creature share.
+    /// </summary>
+    public static uint AttackTimeMs(float baseAttackTimeSeconds) =>
+        float.IsFinite(baseAttackTimeSeconds) && baseAttackTimeSeconds > 0f
+            ? (uint)Math.Min(Math.Round(baseAttackTimeSeconds * 1000d), uint.MaxValue)
+            : 0u;
 
     private CreatureBaseStat ResolveBaseStat(ICreatureMetadata template, ushort level)
     {

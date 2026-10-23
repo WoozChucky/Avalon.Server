@@ -18,7 +18,21 @@ public sealed class SimCreature : SimUnit
     /// <summary>Specials this creature casts only from range, which never happens in melee.</summary>
     public IReadOnlySet<AbilityId> RangedOnly { get; private init; } = new HashSet<AbilityId>();
 
-    public required float HasteCap { get; init; }
+    public required float AttackSpeedCap { get; init; }
+
+    public required float CastSpeedCap { get; init; }
+
+    public required float CooldownRecoveryCap { get; init; }
+
+    /// <summary>
+    /// As Creature.AttackSpeedPct, CastSpeedPct and CooldownRecoveryPct: raw, set by its auras. Public so a test can build a
+    /// creature past its cap.
+    /// </summary>
+    public float AttackSpeedPct { get; set; }
+
+    public float CastSpeedPct { get; set; }
+
+    public float CooldownRecoveryPct { get; set; }
 
     /// <summary>
     /// As Creature.BaseMaxHealth: the maximum health it spawned with, which a health aura is folded onto; 0 leaves its
@@ -26,8 +40,12 @@ public sealed class SimCreature : SimUnit
     /// </summary>
     public uint BaseMaxHealth { get; set; }
 
-    /// <summary>As Creature.SwingInterval: BaseAttackTime over 1 + haste / 100, haste at most the cap.</summary>
-    public float SwingInterval => Haste.Scale(Template.BaseAttackTime, MathF.Min(HastePct, HasteCap));
+    /// <summary>As Creature.SwingInterval: BaseAttackTime over 1 + attack speed / 100, attack speed at most the cap.</summary>
+    public float SwingInterval => Speed.Scale(Template.BaseAttackTime, MathF.Min(AttackSpeedPct, AttackSpeedCap));
+
+    /// <summary>As Creature.Pace: each speed from 0 to its cap, and BaseAttackTime.</summary>
+    public CasterPace Pace => new(CasterPace.Bound(AttackSpeedPct, AttackSpeedCap), CasterPace.Bound(CastSpeedPct, CastSpeedCap),
+        CasterPace.Bound(CooldownRecoveryPct, CooldownRecoveryCap), Template.BaseAttackTime);
 
     /// <summary>The forest scripts' rotation in melee: the first ready special in kit order, else the basic.</summary>
     public SimAbility? Choose() =>
@@ -35,7 +53,7 @@ public sealed class SimCreature : SimUnit
         ?? (Basic is { Ready: true } basic ? basic : null);
 
     /// <summary>
-    /// As Creature.ApplyAuraStats: its attack, defence and haste with its auras folded in; its maximum health
+    /// As Creature.ApplyAuraStats: its attack, defence and speeds with its auras folded in; its maximum health
     /// <see cref="BaseMaxHealth" /> with its health aura on top, at least 1, its health keeping its share. A corpse's
     /// health, and one with no base, is never changed.
     /// </summary>
@@ -44,7 +62,9 @@ public sealed class SimCreature : SimUnit
         AuraStatTotals totals = AuraTotals();
         Attack = AuraStats.Fold(Derived.Attacker, totals);
         Defence = AuraStats.Fold(Derived.Defence, totals);
-        HastePct = AuraStats.Apply(0f, totals, AuraStat.HastePct);
+        AttackSpeedPct = AuraStats.Apply(0f, totals, AuraStat.AttackSpeed);
+        CastSpeedPct = AuraStats.Apply(0f, totals, AuraStat.CastSpeed);
+        CooldownRecoveryPct = AuraStats.Apply(0f, totals, AuraStat.CooldownRecovery);
 
         if (BaseMaxHealth == 0 || CurrentHealth == 0)
             return;
@@ -81,7 +101,9 @@ public sealed class SimCreature : SimUnit
             Basic = basic,
             Specials = specials,
             RangedOnly = kit.RangedOnly,
-            HasteCap = data.Combat.Formula.HasteCap,
+            AttackSpeedCap = data.Combat.Formula.AttackSpeedCap,
+            CastSpeedCap = data.Combat.Formula.CastSpeedCap,
+            CooldownRecoveryCap = data.Combat.Formula.CooldownRecoveryCap,
             Attack = derived.Attacker,
             Defence = derived.Defence,
             Level = derived.Level,

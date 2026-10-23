@@ -1,13 +1,20 @@
 using Avalon.Api.Contract;
+using Avalon.Api.Testing;
 using Avalon.Api.Worlds.Services;
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
+using Avalon.Database.World;
 using Avalon.Database.World.Repositories;
+using Avalon.Database.World.Seeding;
+using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abilities;
 using NSubstitute;
 using Xunit;
+using AbilityTags = Avalon.Network.Packets.Abilities.AbilityTags;
 
 namespace Avalon.Api.Worlds.UnitTests.Services;
 
@@ -49,7 +56,7 @@ public class CharacterServiceShould
         var service = new CharacterService(characters, slots, items,
             Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
             Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
-            Substitute.For<ICharacterAuraRepository>());
+            Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
 
@@ -98,7 +105,7 @@ public class CharacterServiceShould
         var service = new CharacterService(characters, slots, items,
             Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
             Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
-            Substitute.For<ICharacterAuraRepository>());
+            Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
 
@@ -107,11 +114,11 @@ public class CharacterServiceShould
     }
 
     private static CharacterService AbilityService(CharacterId id, AbilityTemplate ability, CharacterStats? stats,
-        ItemTemplate? mainHand)
+        IReadOnlyList<ItemTemplate> worn, CombatFormula formula)
     {
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
-            .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Caster" });
+            .Returns(new Avalon.Domain.Characters.Character { Id = id, Name = "Caster", Level = 1 });
 
         ICharacterAbilityRepository rows = Substitute.For<ICharacterAbilityRepository>();
         rows.GetCharacterAbilitiesAsync(id, Arg.Any<CancellationToken>())
@@ -120,73 +127,112 @@ public class CharacterServiceShould
         abilities.GetByIdsAsync(Arg.Any<IEnumerable<AbilityId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<AbilityTemplate> { ability });
 
-        var weaponId = new ItemInstanceId(Guid.CreateVersion7());
+        // Each item in the slot its template fits; a second ring goes on the second finger.
+        var instanceIds = worn.Select(_ => new ItemInstanceId(Guid.CreateVersion7())).ToList();
+        int rings = 0;
+        byte SlotOf(ItemTemplate t) => t.Slot == Avalon.Domain.World.ItemSlotType.Finger
+            ? (rings++ == 0 ? EquipmentSlots.Finger1 : EquipmentSlots.Finger2)
+            : Enumerable.Range(0, EquipmentSlots.FirstReserved).Select(slot => (byte)slot)
+                .First(slot => EquipmentSlots.Accepts(slot, t.Slot));
         ICharacterInventoryRepository slots = Substitute.For<ICharacterInventoryRepository>();
-        slots.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(mainHand is null
-            ? new List<CharacterInventory>()
-            : new List<CharacterInventory>
+        slots.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(instanceIds
+            .Select((itemId, i) => new CharacterInventory
             {
-                new() { CharacterId = id, Container = Avalon.Common.InventoryType.Equipment, Slot = 9, ItemId = weaponId },
-            });
+                CharacterId = id,
+                Container = Avalon.Common.InventoryType.Equipment,
+                Slot = SlotOf(worn[i]),
+                ItemId = itemId,
+            })
+            .ToList());
         IItemInstanceRepository instances = Substitute.For<IItemInstanceRepository>();
-        instances.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(mainHand is null
-            ? new List<ItemInstance>()
-            : new List<ItemInstance> { new() { Id = weaponId, TemplateId = mainHand.Id, CharacterId = id, Count = 1 } });
+        instances.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(instanceIds
+            .Select((itemId, i) => new ItemInstance { Id = itemId, TemplateId = worn[i].Id, CharacterId = id, Count = 1 })
+            .ToList());
+        // As the repository does: one template per id, however many items share it.
         IItemTemplateRepository templates = Substitute.For<IItemTemplateRepository>();
         templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
-            .Returns(mainHand is null ? new List<ItemTemplate>() : new List<ItemTemplate> { mainHand });
+            .Returns(worn.DistinctBy(t => t.Id).ToList());
 
         ICharacterStatsRepository statsRepository = Substitute.For<ICharacterStatsRepository>();
         statsRepository.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(stats);
+        ICombatDataRepository combat = Substitute.For<ICombatDataRepository>();
+        combat.GetFormulasAsync(Arg.Any<CancellationToken>()).Returns(new List<CombatFormula> { formula });
 
         return new CharacterService(characters, slots, instances, rows, abilities, templates, statsRepository,
-            Substitute.For<ICharacterQuestRepository>(),
-            Substitute.For<ICharacterAuraRepository>());
+            Substitute.For<ICharacterQuestRepository>(), Substitute.For<ICharacterAuraRepository>(), combat);
     }
 
-    private static AbilityTemplate Cleave() => new()
-    {
-        Id = new AbilityId(210),
-        Name = "Cleave",
-        ScriptName = "ConeAbilityScript",
-        Affects = Avalon.Network.Packets.Abilities.AbilityAffects.Hostile,
-        EffectValue = 10,
-        ScalingStat = Avalon.World.Public.Abilities.ScalingStat.Attack,
-        ScalingCoefficient = 0.5f,
-        BaseDamageCoefficient = 1f,
-        Effects = Avalon.World.Public.Enums.SpellEffect.Damage,
-    };
-
-    /// <summary>10 + 0.5 × 40 attack + 1 × (24..28) main hand: 54..58, the world server's own example (#669).</summary>
-    [Fact]
-    public async Task Compute_each_abilitys_per_hit_amount_from_saved_stats_and_the_main_hand()
+    /// <summary>
+    /// #1178 (review focus 5): the worlds service advertises exactly what the world server sends for the same saved
+    /// character. A saved level-1 Warrior wearing the starter sword and armour (Strength 29): Cleave rolls 4..7 at 315 %
+    /// effectiveness and 101.5 % increased physical attack damage, 25..44, the same as AbilityAmounts over the stats
+    /// calculator's attacker for the same row and gear, as the world builds it at select. With the same ring on both
+    /// fingers (10 % increased physical damage each), both count, as in the world: 121.5 %, 27..48.
+    /// </summary>
+    [Theory]
+    [InlineData(false, 25u, 44u)]
+    [InlineData(true, 27u, 48u)]
+    public async Task Advertise_the_amounts_the_world_sends_for_the_same_saved_character(bool twoRings, uint min,
+        uint max)
     {
         var id = new CharacterId(42);
-        ItemTemplate axe = new()
+        using var sqlite = new SqliteWorlds(1);
+        using WorldDbContext world = sqlite.CreateWorld(new WorldId(1));
+        ClassLevelStat row = world.ClassLevelStats.AsEnumerable()
+            .Single(r => r.Class == CharacterClass.Warrior && r.Level == 1);
+        ClassStatFactors factors = world.ClassStatFactors.AsEnumerable().Single(f => f.Class == CharacterClass.Warrior);
+        CombatFormula formula = world.CombatFormulas.Single();
+        ulong[] starter = [32, 36, 37, 38, 39, 40];
+        var worn = world.ItemTemplates.AsEnumerable().Where(t => starter.Contains(t.Id.Value)).ToList();
+        if (twoRings)
         {
-            Id = new ItemTemplateId(5),
-            Name = "Axe",
-            Slot = Avalon.Domain.World.ItemSlotType.MainHand,
-            DamageMin1 = 24,
-            DamageMax1 = 28,
-        };
+            var ring = new ItemTemplate
+            {
+                Id = new ItemTemplateId(990),
+                Name = "Band of Edges",
+                Slot = Avalon.Domain.World.ItemSlotType.Finger,
+                StatType1 = Avalon.Domain.World.StatType.IncreasedPhysicalDamage,
+                StatValue1 = 10,
+            };
+            worn.AddRange([ring, ring]);
+        }
 
-        CharacterAbilitiesDto? result = await AbilityService(id, Cleave(),
-            new CharacterStats { CharacterId = id, AttackDamage = 40 }, axe).GetAbilitiesAsync(id);
+        AbilityTemplate cleave = world.AbilityTemplates.AsEnumerable().Single(a => a.Id.Value == 200);
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, factors, formula);
+        AbilityAmount sent = AbilityAmounts.For(stats.AttackerAt(1), AbilityMetadataMapper.From(cleave), default);
+
+        CharacterAbilitiesDto? result = await AbilityService(id, cleave, stats.ToRow(id), worn, formula)
+            .GetAbilitiesAsync(id);
 
         CharacterAbilityAmountDto amount = Assert.Single(result!.Abilities).Amount!;
-        Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, 54u, 58u), (amount.Kind, amount.Min, amount.Max));
+        Assert.Equal(29u, stats.Strength);
+        Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, min, max), (amount.Kind, amount.Min, amount.Max));
+        Assert.Equal(((Avalon.Api.Contract.AbilityAmountKind)sent.Kind, sent.Min, sent.Max),
+            (amount.Kind, amount.Min, amount.Max));
     }
 
+    /// <summary>No saved stats and no weapon: the bare hand's 3..6 at Cleave's 315 %, with no offence, 9..18.</summary>
     [Fact]
     public async Task Compute_amounts_without_stats_or_a_weapon()
     {
         var id = new CharacterId(42);
+        AbilityTemplate cleave = new()
+        {
+            Id = new AbilityId(200),
+            Name = "Cleave",
+            ScriptName = "ConeAbilityScript",
+            Affects = AbilityAffects.Hostile,
+            Effects = Avalon.World.Public.Enums.SpellEffect.Damage,
+            Tags = AbilityTags.Attack | AbilityTags.Melee,
+            DamageType = Avalon.Network.Packets.Combat.DamageType.Physical,
+            DamageEffectiveness = 315f,
+        };
 
-        CharacterAbilitiesDto? result = await AbilityService(id, Cleave(), stats: null, mainHand: null).GetAbilitiesAsync(id);
+        CharacterAbilitiesDto? result = await AbilityService(id, cleave, stats: null, worn: [], CombatSeed.Formula())
+            .GetAbilitiesAsync(id);
 
         CharacterAbilityAmountDto amount = Assert.Single(result!.Abilities).Amount!;
-        Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, 10u, 10u), (amount.Kind, amount.Min, amount.Max));
+        Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, 9u, 18u), (amount.Kind, amount.Min, amount.Max));
     }
 
     /// <summary>A character's abilities carry the pool each cost is spent from (#652).</summary>
@@ -218,10 +264,13 @@ public class CharacterServiceShould
                 },
             });
 
+        ICombatDataRepository combat = Substitute.For<ICombatDataRepository>();
+        combat.GetFormulasAsync(Arg.Any<CancellationToken>()).Returns(new List<CombatFormula> { CombatSeed.Formula() });
+
         var service = new CharacterService(characters, Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), rows, abilities, Substitute.For<IItemTemplateRepository>(),
             Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
-            Substitute.For<ICharacterAuraRepository>());
+            Substitute.For<ICharacterAuraRepository>(), combat);
 
         CharacterAbilitiesDto? result = await service.GetAbilitiesAsync(id);
 
@@ -257,8 +306,6 @@ public class CharacterServiceShould
             Armor = 12,
             BlockPct = 5f,
             CritPct = 5.5f,
-            AttackDamage = 54,
-            AbilityDamage = 4,
         });
 
         CharacterStatsDto? dto = await StatsService(stats).GetStatsAsync(id);
@@ -275,8 +322,6 @@ public class CharacterServiceShould
         Assert.Equal(12u, dto.Armor);
         Assert.Equal(5f, dto.BlockPct);
         Assert.Equal(5.5f, dto.CritPct);
-        Assert.Equal(54u, dto.AttackDamage);
-        Assert.Equal(4u, dto.AbilityDamage);
     }
 
     /// <summary>A character the world server has never saved stats for has none to return (#676).</summary>
@@ -294,7 +339,7 @@ public class CharacterServiceShould
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(), stats,
             Substitute.For<ICharacterQuestRepository>(),
-            Substitute.For<ICharacterAuraRepository>());
+            Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
 
     /// <summary>#714: the saved quest rows, each held quest with its own counts, by quest and objective id.</summary>
     [Fact]
@@ -359,7 +404,8 @@ public class CharacterServiceShould
         var service = new CharacterService(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(), auras);
+            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(), auras,
+            Substitute.For<ICombatDataRepository>());
 
         CharacterAurasDto dto = await service.GetAurasAsync(new CharacterId(42));
 
@@ -381,7 +427,8 @@ public class CharacterServiceShould
         var service = new CharacterService(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(), auras);
+            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(), auras,
+            Substitute.For<ICombatDataRepository>());
 
         CharacterAurasDto dto = await service.GetAurasAsync(new CharacterId(7));
 
@@ -393,5 +440,6 @@ public class CharacterServiceShould
         new(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<ICharacterStatsRepository>(), quests, Substitute.For<ICharacterAuraRepository>());
+            Substitute.For<ICharacterStatsRepository>(), quests, Substitute.For<ICharacterAuraRepository>(),
+            Substitute.For<ICombatDataRepository>());
 }

@@ -6,12 +6,14 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Characters;
@@ -26,6 +28,7 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
@@ -419,13 +422,16 @@ public class CharacterSelectHandlerShould
     }
 
     /// <summary>
-    /// #669: each ability's per-hit amount travels with it at select, from the stats the select chain
-    /// refreshed, and the entity records it, so the first tick in the world sends no update on top.
+    /// #669, #1178: each ability's per-hit amount, tags and pace travel with it at select, from the stats the select chain
+    /// refreshed, and the entity records them, so the first tick in the world sends no update on top.
     /// </summary>
     [Fact]
     public async Task Send_each_abilitys_amount_at_select_and_record_it_on_the_character()
     {
-        Fixture f = await BuildAsync(abilityTemplates: [AbilityTestData.Cone(1), AbilityTestData.HealCircle(2)]);
+        AbilityTemplate cone = AbilityTestData.Cone(1).Dealing(10);
+        cone.Cooldown = 3000;
+        cone.CastTime = 500;
+        Fixture f = await BuildAsync(abilityTemplates: [cone, AbilityTestData.HealCircle(2)]);
         ICharacter? built = null;
         f.Connection.When(c => c.SetPendingSpawn(Arg.Any<ICharacter>(), Arg.Any<IMapInstance>(), Arg.Any<long>()))
             .Do(ci => built = ci.Arg<ICharacter>());
@@ -436,8 +442,10 @@ public class CharacterSelectHandlerShould
             f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
         using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         AbilityInfo[] abilities = Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities;
-        AbilityInfo cone = Assert.Single(abilities, a => a.AbilityId == 1);
-        Assert.Equal((AbilityAmountKind.Damage, 10u, 10u), (cone.AmountKind, cone.AmountMin, cone.AmountMax));
+        AbilityInfo coneInfo = Assert.Single(abilities, a => a.AbilityId == 1);
+        Assert.Equal((AbilityAmountKind.Damage, 10u, 10u), (coneInfo.AmountKind, coneInfo.AmountMin, coneInfo.AmountMax));
+        Assert.Equal((AbilityTags.Spell | AbilityTags.Area, DamageTypeMask.Physical, 3000u, 500u),
+            (coneInfo.Tags, coneInfo.AmountTypes, coneInfo.CooldownMs, coneInfo.CastTimeMs));
         AbilityInfo heal = Assert.Single(abilities, a => a.AbilityId == 2);
         Assert.Equal((AbilityAmountKind.Healing, 40u, 40u), (heal.AmountKind, heal.AmountMin, heal.AmountMax));
 
@@ -521,7 +529,7 @@ public class CharacterSelectHandlerShould
         {
             Class = CharacterClass.Warrior,
             Level = 1,
-            BaseHp = 20,
+            BaseHp = 130,
             BaseMana = 0,
             Stamina = 22,
             Strength = 23,
@@ -534,8 +542,8 @@ public class CharacterSelectHandlerShould
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
-        Assert.Equal(260u, entity.Health);
-        Assert.Equal(260u, entity.CurrentHealth);
+        Assert.Equal(250u, entity.Health);
+        Assert.Equal(250u, entity.CurrentHealth);
         Assert.Equal(100u, entity.Power);
         Assert.Equal(0u, entity.CurrentPower);   // a warrior's Fury pool enters empty (#526)
         Assert.Equal(24u, entity.Stamina);
@@ -561,12 +569,12 @@ public class CharacterSelectHandlerShould
             StatValue1 = 10,
         };
         (List<CharacterInventory> rows, List<ItemInstance> instances) = BuildInventory(
-            (InventoryType.Equipment, Avalon.World.Inventory.EquipmentSlots.Feet, boots.Id.Value, 1u, 100u, ItemInstanceFlags.None));
+            (InventoryType.Equipment, EquipmentSlots.Feet, boots.Id.Value, 1u, 100u, ItemInstanceFlags.None));
         ClassLevelStat warrior = new()
         {
             Class = CharacterClass.Warrior,
             Level = 1,
-            BaseHp = 20,
+            BaseHp = 130,
             BaseMana = 0,
             Stamina = 22,
             Strength = 23,
@@ -590,12 +598,15 @@ public class CharacterSelectHandlerShould
     /// <summary>
     /// Regression guard: a class and level with no ClassLevelStat row keeps the stored maximums and
     /// derives nothing (select once patched Stamina from a row that is not there), and a warrior still
-    /// enters with no Fury (#526).
+    /// enters with no Fury (#526). With no refresh to fix its pace, its basic attack waits the bare hand's attack time,
+    /// never nothing (#1178).
     /// </summary>
     [Fact]
     public async Task Keep_the_stored_maximums_and_enter_with_no_fury_when_the_class_and_level_have_no_row()
     {
-        Fixture f = await BuildAsync(storedHealth: 150, storedPower: 100);
+        AbilityTemplate basic = AbilityTestData.Cone(1);
+        basic.Flags = AbilityFlags.Basic;
+        Fixture f = await BuildAsync(storedHealth: 150, storedPower: 100, abilityTemplates: [basic]);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
@@ -604,6 +615,12 @@ public class CharacterSelectHandlerShould
         Assert.Equal((100u, 0u), (entity.Power, entity.CurrentPower));
         Assert.Null(entity.Stats);
         Assert.Equal(0u, entity.Stamina);
+
+        OutboundPacket sent = Assert.Single(
+            f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
+        using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
+        AbilityInfo info = Assert.Single(Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities);
+        Assert.Equal(CombatSeed.Formula().UnarmedAttackTimeMs, info.CooldownMs);
     }
 
     /// <summary>#526: Game:FuryDecayPerSecond reaches the character select builds: at 30, a second out of combat loses 30.</summary>

@@ -81,8 +81,8 @@ public class TemplateVersionShould
 #pragma warning restore xUnit1026
 
     [Fact]
-    public void Cover_the_base_damage_coefficient_of_an_aura() =>
-        Assert.Contains(nameof(AuraTemplate.BaseDamageCoefficient), TemplateVersion.ColumnsOf(typeof(AuraTemplate)));
+    public void Cover_the_periodic_effectiveness_of_an_aura() =>
+        Assert.Contains(nameof(AuraTemplate.PeriodicEffectiveness), TemplateVersion.ColumnsOf(typeof(AuraTemplate)));
 
     [Fact]
     public void Change_with_any_aura_modifier_and_not_with_their_order()
@@ -211,7 +211,7 @@ public class TemplateVersionShould
         MaxStacks = 1,
         Modifiers =
         [
-            new AuraStatModifier { AuraId = new AuraId(3), Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 10f },
+            new AuraStatModifier { AuraId = new AuraId(3), Stat = AuraStat.Armor, Kind = AuraModifierKind.Increased, Value = 10f },
             new AuraStatModifier { AuraId = new AuraId(3), Stat = AuraStat.Evasion, Kind = AuraModifierKind.Flat, Value = 2f },
         ],
     };

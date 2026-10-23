@@ -197,7 +197,7 @@ public class Creature : ICreature
     }
 
     /// <summary>
-    /// Seconds between swings with no haste (#627): the template's BaseAttackTime, fixed at spawn by
+    /// Seconds between swings with no attack speed (#627, #1178): the template's BaseAttackTime, fixed at spawn by
     /// <see cref="CreatureSpawner" />. The seeded 2.25 for a creature built without one.
     /// </summary>
     public float BaseAttackTime { get; init; } = DefaultBaseAttackTime;
@@ -213,18 +213,41 @@ public class Creature : ICreature
     /// </summary>
     public ControlResistance ControlResistance { get; init; } = ControlResistance.Full;
 
-    /// <summary>The combat formula's HasteCap when this creature spawned (#627): the most of <see cref="HastePct" /> that counts.</summary>
-    public float HasteCap { get; init; } = 50f;
+    /// <summary>
+    /// The combat formula's AttackSpeedCap when this creature spawned (#1178): the most of <see cref="AttackSpeedPct" />
+    /// that counts.
+    /// </summary>
+    public float AttackSpeedCap { get; init; } = 50f;
+
+    /// <summary>The combat formula's CastSpeedCap when this creature spawned (#1178).</summary>
+    public float CastSpeedCap { get; init; } = 50f;
+
+    /// <summary>The combat formula's CooldownRecoveryCap when this creature spawned (#1178).</summary>
+    public float CooldownRecoveryCap { get; init; } = 50f;
 
     /// <summary>
-    /// Haste in percentage points (#627), 0 until an effect sets it; set by its auras. World-side, deliberately
-    /// not on ICreature: the modding API cannot change how fast a creature swings (#622). A change applies from
-    /// the next swing; the countdown in progress keeps running.
+    /// Attack speed in percentage points (#627, #1178), 0 until an effect sets it; set by its auras, as are
+    /// <see cref="CastSpeedPct" /> and <see cref="CooldownRecoveryPct" />. World-side, deliberately not on ICreature: the
+    /// modding API cannot change how fast a creature swings or casts (#622). A change applies from the next swing or cast;
+    /// the countdown in progress keeps running.
     /// </summary>
-    public float HastePct { get; set; }
+    public float AttackSpeedPct { get; set; }
 
-    /// <summary>Seconds between swings: BaseAttackTime divided by 1 + haste / 100, haste at most the cap.</summary>
-    public float SwingInterval => Haste.Scale(BaseAttackTime, MathF.Min(HastePct, HasteCap));
+    /// <summary>Cast speed in percentage points (#1178): shortens every cast time.</summary>
+    public float CastSpeedPct { get; set; }
+
+    /// <summary>Cooldown recovery in percentage points (#1178): shortens every cooldown but its basic's.</summary>
+    public float CooldownRecoveryPct { get; set; }
+
+    /// <summary>Seconds between swings: BaseAttackTime divided by 1 + attack speed / 100, attack speed at most the cap.</summary>
+    public float SwingInterval => Avalon.Combat.Speed.Scale(BaseAttackTime, MathF.Min(AttackSpeedPct, AttackSpeedCap));
+
+    /// <summary>
+    /// What it casts with (#1178): each speed from 0 to the cap it spawned with, and BaseAttackTime, which its basic waits
+    /// over attack speed (its <see cref="SwingInterval" />).
+    /// </summary>
+    internal CasterPace Pace => new(CasterPace.Bound(AttackSpeedPct, AttackSpeedCap),
+        CasterPace.Bound(CastSpeedPct, CastSpeedCap), CasterPace.Bound(CooldownRecoveryPct, CooldownRecoveryCap), BaseAttackTime);
 
     /// <summary>
     /// What this creature's auras add to its stats (auras), set by the aura system whenever they change. World-side,
@@ -240,14 +263,24 @@ public class Creature : ICreature
     // The party scaling its maximum health was last given, which the health aura composes with.
     private double _healthFactor = 1d;
 
+    // Its crit with its auras and the offence block they give it (#1178), folded when they change, read by Combat.
+    private float _auraCritPct;
+    private OffenceStats _auraOffence;
+
     /// <summary>
-    /// Takes the auras' totals: its haste (from none, since nothing else sets one), its maximum health and its maximum ward
-    /// (#1178, keeping its share from <paramref name="now" />); its attack, defence and speed read them as they go.
+    /// Takes the auras' totals: its attack speed, cast speed and cooldown recovery (from none, since nothing else sets
+    /// one), its crit and offence block (#1178), its maximum health and its maximum ward (#1178, keeping its share from
+    /// <paramref name="now" />); its defence and speed read them as they go.
     /// </summary>
     public void ApplyAuraStats(AuraStatTotals totals, DateTime now)
     {
         AuraTotals = totals;
-        HastePct = AuraStats.Apply(0f, totals, AuraStat.HastePct);
+        AttackerCombat folded = AuraStats.Fold(new AttackerCombat(Level, CritPct), totals);
+        _auraCritPct = folded.CritPct;
+        _auraOffence = folded.Offence;
+        AttackSpeedPct = AuraStats.Apply(0f, totals, AuraStat.AttackSpeed);
+        CastSpeedPct = AuraStats.Apply(0f, totals, AuraStat.CastSpeed);
+        CooldownRecoveryPct = AuraStats.Apply(0f, totals, AuraStat.CooldownRecovery);
         RecomputeMaxHealth();
 
         uint oldWard = _ward.Current;
@@ -303,11 +336,16 @@ public class Creature : ICreature
     }
 
     /// <summary>
-    /// What this creature attacks with (#506): its level, its crit, its natural damage range in place of a weapon
-    /// (#163) and its base damage type (#1178), with its auras folded in.
+    /// What this creature attacks with (#506, #1178): its level, its crit, its natural damage range as an untyped weapon
+    /// at its BaseAttackTime (#163) and its base damage type, with its auras folded in (its offence block is theirs alone).
     /// </summary>
-    internal AttackerCombat Combat =>
-        AuraStats.Fold(new AttackerCombat(Level, 0, 0, CritPct, DamageMin, DamageMax, DamageType), AuraTotals);
+    /// <remarks>
+    /// The crit and the offence block its auras give are folded once, by <see cref="ApplyAuraStats" />, whenever the auras
+    /// change, never on a read: every hit and every cast reads this.
+    /// </remarks>
+    internal AttackerCombat Combat => new(Level, AuraTotals.IsEmpty ? CritPct : _auraCritPct,
+        new WeaponDamage(DamageMin, DamageMax, null, 0, 0, null, CreatureStatDeriver.AttackTimeMs(BaseAttackTime)),
+        _auraOffence, DamageType);
 
     /// <summary>What this creature defends with (#506), its resistances (#1178) and its auras folded in.</summary>
     internal DefenderCombat Defence =>

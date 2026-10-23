@@ -9,67 +9,66 @@ using Avalon.World.Scripts.Abilities;
 namespace Avalon.Server.World.UnitTests.Abilities;
 
 /// <summary>
-/// The per-hit amount a player is told an ability deals or heals (#669): the base combat computes, at both
-/// ends of the weapon roll, floored as a hit that nothing procs on, against no armour. The acceptance
-/// examples of the issue, one per test.
+/// The per-hit amount a player is told an ability deals or heals (#669): the base combat computes (#1178: an Attack's
+/// weapon roll, a Spell's or a Heal's spell base, scaled by the caster's offence), with every roll at its low and at its
+/// high end, floored as a hit that nothing procs on, against no armour.
 /// </summary>
 public class AbilityAmountsShould
 {
-    private static AttackerCombat Caster(uint attack = 0, uint ability = 0, uint weaponMin = 0, uint weaponMax = 0) =>
-        new(Level: 1, AttackDamage: attack, AbilityDamage: ability, CritPct: 50f, WeaponMin: weaponMin, WeaponMax: weaponMax);
+    private static AttackerCombat Caster(uint weaponMin = 0, uint weaponMax = 0, OffenceStats offence = default) =>
+        new(Level: 1, CritPct: 50f, Weapon: new WeaponDamage(weaponMin, weaponMax, DamageType.Physical, 0, 0, null, 800),
+            Offence: offence);
 
-    private static AbilityMetadata Ability(uint effect = 0, ScalingStat stat = ScalingStat.Attack, float scaling = 0f,
-        float weapon = 0f, AbilityAffects affects = AbilityAffects.Hostile, string script = "ConeAbilityScript") => new()
+    private static AbilityMetadata Ability(AbilityTags tags = AbilityTags.Attack, float effectiveness = 100f,
+        uint baseMin = 0, uint baseMax = 0, AbilityAffects affects = AbilityAffects.Hostile,
+        string script = "ConeAbilityScript") => new()
         {
             Name = "Test",
             ScriptName = script,
-            EffectValue = effect,
-            ScalingStat = stat,
-            ScalingCoefficient = scaling,
-            BaseDamageCoefficient = weapon,
+            Tags = tags,
+            DamageType = affects == AbilityAffects.Ally ? null : DamageType.Physical,
+            DamageEffectiveness = effectiveness,
+            SpellBaseMin = baseMin,
+            SpellBaseMax = baseMax,
             Affects = affects,
             Effects = affects == AbilityAffects.Ally
             ? Avalon.World.Public.Enums.SpellEffect.Heal
             : Avalon.World.Public.Enums.SpellEffect.Damage,
         };
 
-    /// <summary>A spell with no weapon term is one number, whatever is in the main hand, and follows ability damage.</summary>
-    [Fact]
-    public void Follow_a_spells_ability_damage_without_a_weapon_roll()
-    {
-        AbilityMetadata bolt = Ability(effect: 12, stat: ScalingStat.Ability, scaling: 0.8f);
-
-        Assert.Equal(new AbilityAmount(AbilityAmountKind.Damage, 28, 28),
-            AbilityAmounts.For(Caster(attack: 99, ability: 20, weaponMin: 5, weaponMax: 50), bolt));
-        Assert.Equal(new AbilityAmount(AbilityAmountKind.Damage, 36, 36),
-            AbilityAmounts.For(Caster(attack: 99, ability: 30, weaponMin: 5, weaponMax: 50), bolt));
-    }
-
-    /// <summary>An ally ability heals, before the crit, floored with no minimum of 1.</summary>
+    /// <summary>
+    /// An ally ability heals its spell base times its increased healing (20..30 × 1.5), before the crit, floored with no
+    /// minimum of 1.
+    /// </summary>
     [Fact]
     public void Label_an_ally_heal_as_healing()
     {
-        AbilityMetadata mend = Ability(effect: 40, stat: ScalingStat.Ability, scaling: 0.55f, affects: AbilityAffects.Ally,
-            script: "CircleAbilityScript");
+        OffenceStats healing = default;
+        healing.AddIncreased(OffenceStat.Healing, 50f);
+        AbilityMetadata mend = Ability(AbilityTags.Heal | AbilityTags.Area, baseMin: 20, baseMax: 30,
+            affects: AbilityAffects.Ally, script: "CircleAbilityScript");
 
-        Assert.Equal(new AbilityAmount(AbilityAmountKind.Healing, 51, 51), AbilityAmounts.For(Caster(ability: 21), mend));
-        Assert.Equal(new AbilityAmount(AbilityAmountKind.Healing, 0, 0),
-            AbilityAmounts.For(Caster(), Ability(affects: AbilityAffects.Ally, script: "CircleAbilityScript")));
+        Assert.Equal(new AbilityAmount(AbilityAmountKind.Healing, 30, 45, DamageTypeMask.None, 0, 0),
+            AbilityAmounts.For(Caster(offence: healing), mend, default));
+        Assert.Equal(new AbilityAmount(AbilityAmountKind.Healing, 0, 0, DamageTypeMask.None, 0, 0),
+            AbilityAmounts.For(Caster(), Ability(AbilityTags.Heal, affects: AbilityAffects.Ally, script: "CircleAbilityScript"),
+                default));
     }
 
-    /// <summary>A hit never deals less than 1, so an ability with no terms at all still says 1.</summary>
+    /// <summary>A hit never deals less than 1, so an ability with nothing to roll still says 1.</summary>
     [Fact]
     public void Floor_damage_at_one_as_a_hit_does()
     {
-        Assert.Equal(new AbilityAmount(AbilityAmountKind.Damage, 1, 1), AbilityAmounts.For(Caster(), Ability()));
+        Assert.Equal(new AbilityAmount(AbilityAmountKind.Damage, 1, 1, DamageTypeMask.None, 0, 0),
+            AbilityAmounts.For(Caster(), Ability(), default));
     }
 
     /// <summary>An ability run by any script other than the shape scripts gets no fabricated amount.</summary>
     [Fact]
     public void State_no_amount_for_a_script_that_does_not_apply_one_directly()
     {
-        Assert.Equal(AbilityAmount.None,
-            AbilityAmounts.For(Caster(attack: 40), Ability(effect: 10, scaling: 1f, script: "SomeCustomScript")));
+        Assert.Equal(new AbilityAmount(AbilityAmountKind.None, 0, 0, DamageTypeMask.None, 0, 0),
+            AbilityAmounts.For(Caster(10, 20), Ability(effectiveness: 300f, script: "SomeCustomScript"), default));
     }
 
     /// <summary>
@@ -79,22 +78,20 @@ public class AbilityAmountsShould
     [Fact]
     public void Match_what_a_hit_resolves_to_at_each_end_of_the_weapon_roll()
     {
-        AttackerCombat caster = Caster(attack: 33, ability: 17, weaponMin: 9, weaponMax: 14);
+        OffenceStats offence = default;
+        offence.AddIncreased(OffenceStat.PhysicalAttack, 37f);
+        AttackerCombat caster = Caster(9, 14, offence);
         CombatFormula formula = Avalon.Database.World.Seeding.CombatSeed.Formula();
 
-        AbilityMetadata hit = Ability(effect: 7, scaling: 0.37f, weapon: 1.3f);
-        AbilityAmount amount = AbilityAmounts.For(caster, hit);
+        AbilityMetadata hit = Ability(effectiveness: 130f);
+        AbilityAmount amount = AbilityAmounts.For(caster, hit, default);
 
         foreach ((long roll, uint expected) in new[] { (9L, amount.Min), (14L, amount.Max) })
         {
-            float b = HitResolver.AbilityBase(caster, hit.EffectValue, hit.ScalingStat, hit.ScalingCoefficient,
-                hit.BaseDamageCoefficient, new ScriptedCombatRandom().Longs(roll));
-            uint dealt = HitResolver.ResolveDamage(caster, new DefenderCombat(0, 0, 0f), DamageParts.Of(DamageType.Physical, b),
-                formula, new ScriptedCombatRandom().Doubles(0.99, 0.99, 0.99)).Total;
+            DamageParts parts = OffenceMath.DirectBase(caster, hit, new ScriptedCombatRandom().Longs(roll));
+            uint dealt = HitResolver.ResolveDamage(caster, new DefenderCombat(0, 0, 0f), parts, formula,
+                new ScriptedCombatRandom().Doubles(0.99, 0.99, 0.99)).Total;
             Assert.Equal(expected, dealt);
-
-            (uint healed, _) = HitResolver.ResolveHeal(caster, b, formula, new ScriptedCombatRandom().Doubles(0.99));
-            Assert.Equal(HitResolver.NormalHeal(b), healed);
         }
     }
 
@@ -103,26 +100,4 @@ public class AbilityAmountsShould
         Assert.Equal(
             new[] { nameof(CircleAbilityScript), nameof(ConeAbilityScript), nameof(ProjectileAbilityScript) }.Order(),
             AbilityAmountMath.DirectScripts.Order());
-
-    /// <summary>The world server and the api must print the same numbers for the same inputs.</summary>
-    [Theory]
-    [InlineData(0u, 0.35f, 0.7f, AbilityAffects.Hostile, 37u, 10u, 10u)]
-    [InlineData(5u, 0.35f, 0.7f, AbilityAffects.Ally, 41u, 3u, 17u)]
-    [InlineData(10u, 0.5f, 1f, AbilityAffects.Hostile, 40u, 24u, 28u)]
-    [InlineData(7u, 0.35f, 0f, AbilityAffects.Ally, 13u, 0u, 0u)]
-    [InlineData(0u, 0f, 0.7f, AbilityAffects.Hostile, 0u, 9u, 5u)]
-    public void Match_the_shared_api_arithmetic(uint effect, float scaling, float weapon, AbilityAffects affects,
-        uint attack, uint weaponMin, uint weaponMax)
-    {
-        AbilityMetadata ability = Ability(effect: effect, scaling: scaling, weapon: weapon, affects: affects,
-            script: "ProjectileAbilityScript");
-        AbilityAmount amount = AbilityAmounts.For(Caster(attack: attack, weaponMin: weaponMin, weaponMax: weaponMax),
-            ability);
-
-        AbilityAmountKind kind = AbilityAmountMath.KindOf(ability.ScriptName, affects, ability.Effects);
-        (uint min, uint max) = AbilityAmountMath.Range(kind, effect, ScalingStat.Attack, scaling, weapon, attack, 0,
-            weaponMin, weaponMax);
-
-        Assert.Equal(new AbilityAmount(kind, min, max), amount);
-    }
 }

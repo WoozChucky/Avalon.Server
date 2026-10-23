@@ -216,12 +216,15 @@ public sealed class AuraSystem
         }
 
         // Rolled once, here, past every refusal, so a refused aura draws nothing from the combat random.
-        // #1178: its ticks take the source ability's type, else the caster's base type, else Physical.
+        // #1178: its ticks take the source ability's type, else the caster's base type, else Physical; its total comes from
+        // the source ability and the caster's offence as they are now, and nothing that happens to the caster later
+        // changes it. With no caster there is no source to draw on.
         AttackerCombat casterCombat = caster is null ? default : CombatService.AttackerFor(caster);
-        AuraSnapshot snapshot = AuraRules.Snapshot(template, casterCombat,
+        AuraSnapshot snapshot = AuraRules.Snapshot(template, casterCombat, caster is null ? null : source.Ability,
             HitResolver.TypeOf(source.DamageType, casterCombat), _combat.Random);
-        AuraApplyResult result = Place(target, auras, held, template, casterGuid, source, snapshot, placedMs, scaled,
-            now);
+        // The metadata has done its work: the aura keeps its source without it, so it holds no ability for its life.
+        AuraApplyResult result = Place(target, auras, held, template, casterGuid, source with { Ability = null }, snapshot,
+            placedMs, scaled, now);
 
         // A first hook (or the removal it asked for) that killed the target: death ends every aura, and a corpse enters
         // no combat.

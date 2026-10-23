@@ -3,7 +3,6 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
-using Avalon.World.Inventory;
 using Avalon.World.Public.Enums;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -16,7 +15,7 @@ public class CharacterStatsRefreshShould
     {
         Class = CharacterClass.Warrior,
         Level = 1,
-        BaseHp = 20,
+        BaseHp = 130,
         BaseMana = 0,
         Stamina = 22,
         Strength = 23,
@@ -40,7 +39,7 @@ public class CharacterStatsRefreshShould
     {
         Class = CharacterClass.Hunter,
         Level = 1,
-        BaseHp = 18,
+        BaseHp = 78,
         BaseMana = 10,
         Stamina = 20,
         Strength = 21,
@@ -85,8 +84,8 @@ public class CharacterStatsRefreshShould
 
         Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.KeepShare, TestCombat.Formula));
 
-        Assert.Equal(260u, character.Health);
-        Assert.Equal(130u, character.CurrentHealth);
+        Assert.Equal(250u, character.Health);
+        Assert.Equal(125u, character.CurrentHealth);
         Assert.Equal(100u, character.CurrentPower);
     }
 

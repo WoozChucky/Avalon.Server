@@ -110,11 +110,12 @@ public partial class CharacterEntity : ICharacter
     private float MovementSpeed { get; set; } = CharacterMovement.BaseSpeed;
 
     /// <summary>
-    /// The haste this character casts with (#627), in percentage points: its gear's AttackSpeed total, from 0
-    /// up to the combat formula's HasteCap, fixed at the last stats refresh. The cast system reads it once
-    /// per cast. World-side and read-only, not on ICharacter: the modding API cannot change it (#622).
+    /// The speeds this character casts with and its basic attack time (#1178): its offence block's attack speed, cast speed
+    /// and cooldown recovery, each from 0 up to the combat formula's cap, and its main hand's attack time (the bare hand's
+    /// with none), fixed at the last stats refresh. The cast system reads it once per cast. World-side and read-only, not on
+    /// ICharacter: the modding API cannot change it (#622).
     /// </summary>
-    public float EffectiveHastePct { get; private set; }
+    internal CasterPace Pace { get; private set; }
 
     public DateTime EnteredWorld { get; set; }
 
@@ -132,7 +133,7 @@ public partial class CharacterEntity : ICharacter
     /// (#526): EnterWorld empties it, and Refill and KeepShare keep its value, capped at the new maximum.
     /// </summary>
     /// <param name="formula">
-    /// Bounds haste and movement speed (#627): the current generation's, so a /reload combat reaches the
+    /// Bounds the speeds (#1178) and movement speed (#627): the current generation's, so a /reload combat reaches the
     /// character at this refresh. Required, so no caller can fall back to the seeded values unnoticed.
     /// </param>
     public void ApplyStats(DerivedCharacterStats stats, CurrentValues current, Avalon.Domain.World.CombatFormula formula)
@@ -188,8 +189,8 @@ public partial class CharacterEntity : ICharacter
         Stamina = stats.Stamina;
         RegenStat = PowerRegen.StatOf(Class, stats);
 
-        // #627: both bounded by the formula this refresh read, so a combat reload reaches them at the next refresh.
-        EffectiveHastePct = stats.EffectiveHastePct(formula);
+        // #627, #1178: bounded by the formula this refresh read, so a combat reload reaches them at the next refresh.
+        Pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, formula);
         MovementSpeed = CharacterMovement.SpeedFor(stats.MovementSpeedPct, formula);
 
         Stats = stats;
@@ -197,17 +198,25 @@ public partial class CharacterEntity : ICharacter
         SaveState.StatsChanged();
     }
 
+    /// <summary>
+    /// Select's fallback when no stats refresh could run (#1178: no class row for the class and level): the pace a bare
+    /// hand gives, the formula's unarmed attack time with no speed, so a basic attack is never free. A later refresh
+    /// replaces it.
+    /// </summary>
+    internal void UseBareHandPace(Avalon.Domain.World.CombatFormula formula) =>
+        Pace = new CasterPace(0f, 0f, 0f, formula.UnarmedAttackTimeMs / 1000f);
+
     /// <summary>Counts the stats refreshes (<see cref="ApplyStats" />), so the sheet flush can tell nothing moved without rebuilding the sheet.</summary>
     internal int StatsVersion { get; private set; }
 
     /// <summary>
-    /// What this character attacks with (#506): its level, and the damage stats, crit and main-hand weapon
-    /// range the last stats refresh derived (select, gear change, level-up). World-side and read-only, not
-    /// on ICharacter: the modding API cannot change what a hit deals (#622).
+    /// What this character attacks with (#506, #1178): its level, and the crit, weapon and offence block the last stats
+    /// refresh derived (select, gear change, level-up). World-side and read-only, not on ICharacter: the modding API cannot
+    /// change what a hit deals (#622).
     /// </summary>
     internal AttackerCombat Combat => Stats is { } s
         ? s.AttackerAt(Level)
-        : new AttackerCombat(Level, 0, 0, 0f, 0, 0);
+        : new AttackerCombat(Level, 0f);
 
     /// <summary>
     /// The character sheet this character's client was last sent (#506), null before the first. World-side
@@ -227,13 +236,19 @@ public partial class CharacterEntity : ICharacter
     }
 
     /// <summary>
-    /// The per-hit ability amounts this character's client was last told (#669), in ability load order, and
-    /// the combat stats they were worked out from. World-side and never saved. Set at select, where the
+    /// The per-hit ability amounts and paces this character's client was last told (#669, #1178), in ability load order,
+    /// and the combat stats and pace they were worked out from. World-side and never saved. Set at select, where the
     /// abilities packet carries them, and by <c>AbilityAmountsFlusher</c> whenever they change.
     /// </summary>
     internal AbilityAmount[]? AbilityAmountsSent { get; set; }
 
-    internal AttackerCombat? AbilityAmountsSentFor { get; set; }
+    internal (AttackerCombat Combat, CasterPace Pace)? AbilityAmountsSentFor { get; set; }
+
+    /// <summary>
+    /// The stats refresh and the level the ability amounts were last checked at (#1178), so the flush compares two counts
+    /// on a tick where neither moved, not the whole combat stats and pace.
+    /// </summary>
+    internal (int StatsVersion, ushort Level) AbilityAmountsInputs { get; set; }
 
     /// <summary>What this character defends with (#506): armour, evasion, block and resistances, from the last stats refresh.</summary>
     internal DefenderCombat Defence => Stats is { } s ? s.Defence : default;

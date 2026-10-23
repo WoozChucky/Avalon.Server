@@ -16,17 +16,14 @@ public sealed class AuraTemplateDto
 
     public AuraPeriodicKind PeriodicKind { get; set; }
 
-    /// <summary>The total dealt or healed before scaling, split over the ticks.</summary>
+    /// <summary>The flat part of the total dealt or healed before scaling, split over the ticks.</summary>
     public float PeriodicBase { get; set; }
 
-    public AbilityScalingStat ScalingStat { get; set; }
-    public float ScalingCoefficient { get; set; }
-
     /// <summary>
-    /// What one roll of the caster's base damage (a creature's natural range, a character's main hand) adds to the total,
-    /// rolled once when the aura is applied; 0 for none.
+    /// Percent of its source's base roll added to <see cref="PeriodicBase"/> (#1178): a weapon roll for an Attack, the
+    /// spell base for a Spell or a Heal. Finite and 0 or more; 0 adds none.
     /// </summary>
-    public float BaseDamageCoefficient { get; set; }
+    public float PeriodicEffectiveness { get; set; }
 
     public AuraStacking Stacking { get; set; }
     public uint MaxStacks { get; set; }

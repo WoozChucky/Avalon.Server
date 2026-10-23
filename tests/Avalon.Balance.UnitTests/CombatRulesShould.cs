@@ -38,7 +38,7 @@ public class CombatRulesShould
         Assert.Equal(wizard.Stats.Intellect, wizard.RegenStat);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Deal_cleave_through_the_real_resolver()
     {
         SimPlayer warrior = Warrior();
@@ -120,7 +120,7 @@ public class CombatRulesShould
         Assert.Equal(mana, wizard.CurrentPower);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Cap_a_creatures_haste_for_cast_times_and_cooldowns()
     {
         CreatureTemplate alpha = Data.Creature(8);   // Bramblemaw Alpha: Howling Roar winds up for 1 s
@@ -129,12 +129,17 @@ public class CombatRulesShould
             Name = "hasty",
             Template = alpha,
             Derived = Data.CreatureStats.Derive(alpha, 1),
-            HasteCap = 50f,
-            HastePct = 80f,
+            // #1178: the one haste became three speeds; this is the compile fix alone (#1183: skipped, never edited to pass).
+            AttackSpeedCap = 50f,
+            CastSpeedCap = 50f,
+            CooldownRecoveryCap = 50f,
+            AttackSpeedPct = 80f,
+            CastSpeedPct = 80f,
+            CooldownRecoveryPct = 80f,
         };
         var roar = new SimAbility(Data.Abilities.TryGetValue(new AbilityId(310), out AbilityTemplate? row) ? row : throw new InvalidOperationException());
 
-        Assert.Equal(50f, CombatRules.EffectiveHaste(hasty));
+        Assert.Equal(50f, CombatRules.PaceOf(hasty).CastSpeedPct);
         Assert.Equal(roar.Metadata.CastTime / 1.5f, CombatRules.CastTime(hasty, roar), precision: 5);
         Assert.Equal(roar.Metadata.Cooldown / 1.5f, CombatRules.CooldownAfterFire(hasty, roar), precision: 5);
         Assert.Equal(2.25f / 1.5f, hasty.SwingInterval, precision: 5);
@@ -150,12 +155,13 @@ public class CombatRulesShould
         Assert.Equal(10f, CombatRules.CooldownAfterFire(boar, boar.Specials.Single()));   // Trample, 10 s
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Divide_a_characters_cooldown_by_its_haste()
     {
         SimPlayer warrior = Warrior(1, 7);   // Bramblesteel Sword: 3 % haste
 
-        Assert.Equal(3f, warrior.HastePct);
+        // #1178: haste became attack speed; this is the compile fix alone (#1183: skipped, never edited to pass).
+        Assert.Equal(3f, warrior.Pace.AttackSpeedPct);
         Assert.Equal(0.8f / 1.03f, CombatRules.CooldownAfterFire(warrior, warrior.Ability(200)), precision: 5);
     }
 

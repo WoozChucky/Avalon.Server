@@ -37,6 +37,10 @@ public class AuraApplyShould
     /// A creature's poison: 3 + 1.0 x one roll of its natural 4..8, drawn from the combat service's random when the aura
     /// is applied (6 here), over 3 ticks. The random proves it was drawn once, over that range, and nothing else was.
     /// </summary>
+    /// <summary>
+    /// A creature's poison (#1178): its source, an Attack, draws one roll of the creature's natural damage, whole, at
+    /// application: (3 + 6) over 3 ticks.
+    /// </summary>
     [Fact]
     public void Roll_a_creature_casters_natural_damage_once_into_the_snapshot()
     {
@@ -44,15 +48,16 @@ public class AuraApplyShould
         var h = new AuraHarness(random: random);
         AuraTemplate poison = AuraTestData.Burn(907);
         poison.PeriodicBase = 3f;
-        poison.ScalingCoefficient = 0f;
-        poison.BaseDamageCoefficient = 1f;
+        poison.PeriodicEffectiveness = 100f;
         h.Use(poison);
         Creature blightfly = h.Creature(909_990);
         blightfly.DamageMin = 4;
         blightfly.DamageMax = 8;
         CharacterEntity target = h.Player(909_190);
+        var spit = new AuraSource(null, 1f, 0f, 0u,
+            Ability: new Avalon.World.Public.Abilities.AbilityMetadata { Name = "Spit", Tags = AbilityTags.Attack | AbilityTags.Projectile });
 
-        Assert.Equal(AuraApplyResult.Applied, h.Auras.Apply(blightfly, target, new AuraId(907), AuraSource.None));
+        Assert.Equal(AuraApplyResult.Applied, h.Auras.Apply(blightfly, target, new AuraId(907), spit));
 
         Assert.Equal(3f, Assert.Single(target.Auras.All).Snapshot.PerTickPerStack, precision: 4);
         Assert.Equal([(4L, 8L)], random.WeaponRolls);
@@ -66,7 +71,7 @@ public class AuraApplyShould
         var random = new ScriptedCombatRandom();
         var h = new AuraHarness(maxPerUnit: 1, random: random);
         AuraTemplate poison = AuraTestData.Burn(907);
-        poison.BaseDamageCoefficient = 1f;
+        poison.PeriodicEffectiveness = 100f;
         h.Use(poison, AuraTestData.Fortified());
         Creature blightfly = h.Creature(909_991);
         blightfly.DamageMin = 4;
@@ -74,7 +79,9 @@ public class AuraApplyShould
         CharacterEntity target = h.Player(909_191);
         h.Auras.Apply(null, target, new AuraId(905), AuraSource.None);
 
-        Assert.Equal(AuraApplyResult.Refused, h.Auras.Apply(blightfly, target, new AuraId(907), AuraSource.None));
+        var spit = new AuraSource(null, 1f, 0f, 0u,
+            Ability: new Avalon.World.Public.Abilities.AbilityMetadata { Name = "Spit", Tags = AbilityTags.Attack | AbilityTags.Projectile });
+        Assert.Equal(AuraApplyResult.Refused, h.Auras.Apply(blightfly, target, new AuraId(907), spit));
 
         Assert.Empty(random.WeaponRolls);
     }
@@ -293,7 +300,7 @@ public class AuraApplyShould
         _h.Data = await TestStaticData.LoadAsync(classStats:
         [
             new ClassLevelStat
-                { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
+                { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
         ]);
         CharacterEntity warrior = _h.Player(909_119);
         Creature boar = _h.Creature(909_915);

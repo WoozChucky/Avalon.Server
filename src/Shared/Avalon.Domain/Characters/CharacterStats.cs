@@ -17,11 +17,7 @@ public class CharacterStats
     public uint Intellect { get; set; }
     public uint Armor { get; set; }
     public float BlockPct { get; set; }
-    [Obsolete("Retired by #1178: evasion replaced dodge. Still mapped so a released API reads the column; dropped with the other retired columns.")]
-    public float DodgePct { get; set; }
     public float CritPct { get; set; }
-    public uint AttackDamage { get; set; }
-    public uint AbilityDamage { get; set; }
 
     /// <summary>The evasion rating (#1178), a flat number weighed against an attacker's level.</summary>
     public uint Evasion { get; set; }

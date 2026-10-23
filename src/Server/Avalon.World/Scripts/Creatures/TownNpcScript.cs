@@ -19,7 +19,7 @@ namespace Avalon.World.Scripts.Creatures;
 /// </para>
 /// <para>
 /// This script is not what makes a town NPC unkillable — <see cref="ICreature.Invulnerable"/> is,
-/// enforced in <c>CombatService.ApplyDamageCore</c>. Not implementing <c>OnHit</c> is the second
+/// enforced in <c>CombatService.IgnoresHits</c>, which both hit entries check first. Not implementing <c>OnHit</c> is the second
 /// layer: health is only ever subtracted inside <c>CreatureCombatScript.OnHit</c>, so a creature
 /// running this script has no code path that can reduce its health.
 /// </para>

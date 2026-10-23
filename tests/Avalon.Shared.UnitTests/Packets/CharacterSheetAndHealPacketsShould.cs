@@ -36,14 +36,11 @@ public class CharacterSheetAndHealPacketsShould
             Agility = 20,
             Intellect = 21,
             Armor = 8,
-            AttackDamage = 50,
-            AbilityDamage = 12,
             CritPct = 5.5f,
             EvasionPct = 30f,
             BlockPct = 2.25f,
             WeaponMin = 4,
             WeaponMax = 9,
-            HastePct = 3f,
             MovementSpeed = 4.4f,
             Evasion = 150,
             MaxWard = 12,
@@ -51,41 +48,30 @@ public class CharacterSheetAndHealPacketsShould
             ColdResistance = 10f,
             LightningResistance = 0.5f,
             BlightResistance = -30f,
+            CritMultiplier = 1.75f,
+            AttackSpeedPct = 2f,
+            CastSpeedPct = 5f,
+            CooldownRecoveryPct = 10f,
+            AttackTimeMs = 792,
+            IncreasedPct = [0f, 0f, 12f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 101.5f],
         };
 
         OutboundPacket packet = SCharacterStatsPacket.Create(sheet, PacketEncoder.Shared);
         SCharacterStatsPacket read = Read<SCharacterStatsPacket>(packet);
 
         Assert.Equal(NetworkPacketType.SMSG_CHARACTER_STATS, packet.Header.Type);
-        Assert.Equal((22u, 23u, 20u, 21u, 8u, 50u, 12u), (read.Stamina, read.Strength, read.Agility, read.Intellect,
-            read.Armor, read.AttackDamage, read.AbilityDamage));
+        Assert.Equal((22u, 23u, 20u, 21u, 8u), (read.Stamina, read.Strength, read.Agility, read.Intellect, read.Armor));
         Assert.Equal((5.5f, 2.25f, 4u, 9u), (read.CritPct, read.BlockPct, read.WeaponMin, read.WeaponMax));
-        // #627: haste and movement speed, on fields 13 and 14.
-        Assert.Equal((3f, 4.4f), (read.HastePct, read.MovementSpeed));
-        // #1178: evasion, its chance, the ward's maximum and the four resistances, on fields 15 to 21; 9 is retired.
+        // #627: movement speed, on field 14.
+        Assert.Equal(4.4f, read.MovementSpeed);
+        // #1178: evasion, its chance, the ward's maximum and the four resistances, on fields 15 to 21.
         Assert.Equal((150u, 30f, 12u), (read.Evasion, read.EvasionPct, read.MaxWard));
         Assert.Equal((75f, 10f, 0.5f, -30f),
             (read.FireResistance, read.ColdResistance, read.LightningResistance, read.BlightResistance));
-    }
-
-    /// <summary>The sheet as it was before #627, fields 1 to 12 only.</summary>
-    [ProtoContract]
-    public sealed class SheetBeforeSpeeds
-    {
-        [ProtoMember(2)] public uint Strength { get; set; }
-        [ProtoMember(12)] public uint WeaponMax { get; set; }
-    }
-
-    [Fact]
-    public void Read_a_sheet_from_before_the_speeds_as_no_haste_and_no_speed()
-    {
-        using var stream = new MemoryStream();
-        Serializer.Serialize(stream, new SheetBeforeSpeeds { Strength = 23, WeaponMax = 9 });
-        stream.Position = 0;
-
-        SCharacterStatsPacket read = Serializer.Deserialize<SCharacterStatsPacket>(stream);
-
-        Assert.Equal((23u, 9u, 0f, 0f), (read.Strength, read.WeaponMax, read.HastePct, read.MovementSpeed));
+        // #1178: the crit multiplier, the three effective speeds, the attack time and the offence block, on 22 to 27.
+        Assert.Equal((1.75f, 2f, 5f, 10f, 792u),
+            (read.CritMultiplier, read.AttackSpeedPct, read.CastSpeedPct, read.CooldownRecoveryPct, read.AttackTimeMs));
+        Assert.Equal(sheet.IncreasedPct, read.IncreasedPct);
     }
 
     [Theory]
@@ -107,6 +93,11 @@ public class CharacterSheetAndHealPacketsShould
         using var sheet = new MemoryStream();
         Serializer.Serialize(sheet, new SCharacterStatsPacket { CritPct = 1f, WeaponMax = 7 });
         Assert.Equal("450000803F6007", Convert.ToHexString(sheet.ToArray()));   // field 8 fixed32 1.0, field 12 varint 7
+
+        // #1178: field 26 varint 792 (a tag above 15 takes two bytes), field 27 one fixed32 per element, in index order.
+        using var offence = new MemoryStream();
+        Serializer.Serialize(offence, new SCharacterStatsPacket { AttackTimeMs = 792, IncreasedPct = [1f, 0f] });
+        Assert.Equal("D0019806DD010000803FDD0100000000", Convert.ToHexString(offence.ToArray()));
 
         using var heal = new MemoryStream();
         Serializer.Serialize(heal, new SUnitHealedPacket { AbilityId = 232, Result = HitResult.Crit });

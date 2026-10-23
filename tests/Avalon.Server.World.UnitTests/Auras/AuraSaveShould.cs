@@ -118,7 +118,7 @@ public class AuraSaveShould
 
     private static async Task<StaticData> DataAsync(params AuraTemplate[] auras) =>
         await TestStaticData.LoadAsync(TestStaticData.Repositories(
-            classStats: () => [new ClassLevelStat { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 }],
+            classStats: () => [new ClassLevelStat { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 }],
             auras: () => auras));
 
     private static CharacterAura Saved(uint auraId, uint remainingMs, int ticksLeft, int slot = 0) => new()
@@ -249,6 +249,29 @@ public class AuraSaveShould
 
         Assert.Equal([DamageType.Fire, DamageType.Physical, DamageType.Physical],
             restored.Auras.All.Select(a => a.Snapshot.Type));
+    }
+
+    /// <summary>
+    /// #1178 (review focus 4): a damage over time keeps its caster's crit multiplier bonus from the moment it landed, and a
+    /// save and a select bring it back with it, so a restored tick crits as hard as the first.
+    /// </summary>
+    [Fact]
+    public async Task Restore_a_saved_aura_with_its_crit_multiplier_bonus()
+    {
+        var h = new AuraHarness();
+        h.Use(AuraTestData.Burn());
+        CharacterEntity wizard = h.Player(913_116);
+        wizard.ApplyStats(new DerivedCharacterStats(MaxHealth: 500, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0,
+            Intellect: 0, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 0f,
+            Offence: new OffenceStats { CritMultiplierBonus = 25f }), Avalon.World.Characters.CurrentValues.Refill,
+            TestCombat.Formula);
+        CharacterEntity burning = h.Player(913_117);
+        h.Auras.Apply(wizard, burning, new AuraId(902), new AuraSource(new AbilityId(213), 1f, 0f, 0));
+
+        CharacterEntity restored = Character(913_118);
+        Restore(restored, await DataAsync(AuraTestData.Burn()), [.. CharacterSaveSnapshot.Take(burning).Batch.Auras!.Rows]);
+
+        Assert.Equal(25f, Assert.Single(restored.Auras.All).Snapshot.CritMultiplierBonus);
     }
 
     [Fact]

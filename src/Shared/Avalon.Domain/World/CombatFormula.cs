@@ -30,12 +30,6 @@ public class CombatFormula
 
     public float BlockCap { get; set; }
 
-    /// <summary>
-    /// The most haste that counts, in percentage points (#627): a character's effective haste is its gear's
-    /// AttackSpeed total, at most this. 0 or more.
-    /// </summary>
-    public float HasteCap { get; set; }
-
     /// <summary>The largest movement speed bonus, in percentage points of the base 4 m/s (#627).</summary>
     public float MoveSpeedCap { get; set; }
 
@@ -69,4 +63,42 @@ public class CombatFormula
 
     /// <summary>Maximum ward each point of Intellect gives, for every class. Finite and 0 or more.</summary>
     public float WardPerIntellect { get; set; }
+
+    // Offence (#1178): the attributes' class-neutral conversions, the base crit chance, the speed caps and the bare hand.
+
+    /// <summary>Percent of increased physical attack damage each point of Strength gives. Finite and 0 or more.</summary>
+    public float IncreasedPhysicalAttackPerStrength { get; set; }
+
+    /// <summary>Percentage points of attack speed each point of Agility gives. Finite and 0 or more.</summary>
+    public float AttackSpeedPerAgility { get; set; }
+
+    /// <summary>Percent of increased spell damage each point of Intellect gives. Finite and 0 or more.</summary>
+    public float IncreasedSpellPerIntellect { get; set; }
+
+    /// <summary>Percent of increased healing each point of Intellect gives. Finite and 0 or more.</summary>
+    public float IncreasedHealingPerIntellect { get; set; }
+
+    /// <summary>Maximum health each point of Stamina gives, for every class.</summary>
+    public uint LifePerStamina { get; set; }
+
+    /// <summary>Every unit's crit chance before gear and auras, in percentage points, 0 to 100.</summary>
+    public float BaseCritPct { get; set; }
+
+    /// <summary>The most attack speed that counts, in percentage points. Finite and 0 or more.</summary>
+    public float AttackSpeedCap { get; set; }
+
+    /// <summary>The most cast speed that counts, in percentage points. Finite and 0 or more.</summary>
+    public float CastSpeedCap { get; set; }
+
+    /// <summary>The most cooldown recovery that counts, in percentage points. Finite and 0 or more.</summary>
+    public float CooldownRecoveryCap { get; set; }
+
+    /// <summary>The lowest an attack rolls with no weapon, inclusive; at most <see cref="UnarmedDamageMax" />.</summary>
+    public uint UnarmedDamageMin { get; set; }
+
+    /// <summary>The highest an attack rolls with no weapon, inclusive.</summary>
+    public uint UnarmedDamageMax { get; set; }
+
+    /// <summary>Milliseconds between basic attacks with no weapon, before attack speed; above 0.</summary>
+    public uint UnarmedAttackTimeMs { get; set; }
 }

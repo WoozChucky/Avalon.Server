@@ -150,6 +150,36 @@ singletons as in every host. Only their context factories differ in the API, whi
   restores the dropped columns with their old seed values, and its `CK_AuraStatModifiers_Stat` again allows only stats
   1 to 10, so an aura modifier on a stat from 11 to 15 (none is seeded) must be removed first. No world or API does
   that by itself.
+  **Exception, #1178 (part B).** The offence model is not additive: the owner chose no backward compatibility while
+  the overhaul runs (2026-10-23), so its migrations drop and rename columns the released API maps, and nothing keeps
+  them for it. A world's World database migrates through `AddOffenceModel` (`AbilityTemplates` gains `Tags`,
+  `DamageEffectiveness`, `SpellBaseMin`, `SpellBaseMax`, `SpellBasePerLevelPct`, `ConvertToType`, `ConvertPct`,
+  `AddedType`, `AddedMin` and `AddedMax`; `AuraTemplates` gains `PeriodicEffectiveness`; `ItemTemplates` gains
+  `AttackTimeMs`; `CombatFormula` gains the attribute conversions, `LifePerStamina`, `BaseCritPct`, the three speed caps
+  and the unarmed range and attack time; aura modifiers gain stats 16-32 and the kind More), then
+  `SplitAttackAndCastSpeed` (drops `CombatFormula.HasteCap`), then `ClassNeutralAttributes` (drops
+  `ClassStatFactors.HpPerStamina` and `BaseCrit` and rebalances `ClassLevelStats`), then `RetireOldOffence` (drops
+  `AbilityTemplates.EffectValue`, `ScalingStat`, `ScalingCoefficient` and `BaseDamageCoefficient`, the last three on
+  `AuraTemplates` too, and `ClassStatFactors.AttackPerStrength`, `AttackPerAgility` and `AbilityPerIntellect`; renames
+  `CreatureTemplates.DmgSchool` to `DamageType`; re-expresses the forest weapons' ranges and retires the old aura
+  stats 2, 3 and 7). Its Character database migrates through `AddAuraCritBonus` (`CharacterAuras` gains
+  `CritMultiplierBonus`), then `DropRetiredCharacterStats` (drops `CharacterStats.DodgePct`, `AttackDamage` and
+  `AbilityDamage`). Each world applies them in that order at its start. `CombatFormula` is read by the API from this
+  release on: the worlds service builds a character's advertised ability amounts from the world's formula row. The
+  order is: the worlds go first, each migrating at its next start (start any stopped world once, so it migrates too),
+  and then the API release with the change is cut. The released API is broken in between, which the owner accepted:
+  an older API reading a migrated world fails with Postgres 42703 on the dropped or renamed columns, so every ability,
+  aura and creature template read fails (the worlds service's template list, get and `PUT`, the public ability
+  tooltips and link previews, a character's abilities) and so does a character's stats. An API with the change reading
+  a world that has not migrated fails the same way on the new columns: every ability, aura, creature and item template
+  read (a character's inventory as soon as it holds an item), a character's abilities (the formula's new columns) and
+  its auras. To roll a world back to a build without the change, first run
+  `dotnet ef database update ReexpressForestDefences` against its World database and
+  `dotnet ef database update AddDefenceStats` against its Character database; the World rollback restores the dropped
+  columns with their old seed values, and its `CK_AuraStatModifiers_Stat` again allows only stats 1 to 15 and its
+  `_Kind` only Flat and Percent, so an aura modifier on a stat from 16 to 32 or of kind More added by hand (the seeded
+  ones are handled) must be removed first; the Character rollback restores the three stats columns at 0 until each
+  character's next save. No world or API does that by itself.
 
 ## How a request reaches its world
 
@@ -316,9 +346,13 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
 - **The description** (`LinkPreviewText.Describe`) reads like the site's tooltips: for an item its rarity, slot,
   subclass, damage, armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178),
   allowed classes (only when restricted to some; an empty list means every class, #1171) and item power; for an
-  ability its classes, cost, cast time, cooldown, amount line and damage type (`Fire damage`, #1178; templates have
-  no description or flavour text). Parts are joined by ` · `, collapsed to one line and capped
-  at 200 characters with an ellipsis.
+  ability its classes, cost, cast time, cooldown and what one hit deals or heals (#1178): an Attack as its weapon
+  damage (`315 % of weapon damage`, then `converts 50 % to cold` or `adds 2-4 blight damage`; a creature's, with no
+  classes, as its natural damage, and any attack's type when it is not physical: `240 % of its natural damage, blight
+  damage`), a Spell or a Heal as its level-1 base and growth (`14-20 lightning damage, +0.7 % per level`, `Heals 30-44`);
+  an ability with no direct amount (one that only applies an aura) shows its damage type instead (`Fire damage`).
+  Templates have no description or flavour text. Parts are joined by ` · `, collapsed to one line and capped at 200
+  characters with an ellipsis.
 - **Colours:** an item's `theme-color` is its rarity's colour, an ability's `AbilityColour`. A missing or malformed
   colour leaves `theme-color` out; it never fails the request.
 - **Not-found and unavailable pages** are titled "Not found · {SiteName}" and "Unavailable · {SiteName}" (or just

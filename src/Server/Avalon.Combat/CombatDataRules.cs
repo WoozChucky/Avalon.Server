@@ -30,8 +30,7 @@ public static class CombatDataRules
         if (!(f.ArmorBase + f.ArmorPerLevel > 0f))
             throw new InvalidDataException("CombatFormula 1: ArmorBase + ArmorPerLevel must be above 0");
 
-        // #627: a speed at or below -100 % would stop a character dead, or reverse it.
-        RequireNonNegative("CombatFormula 1", nameof(f.HasteCap), f.HasteCap);
+        // #627: a movement speed at or below -100 % would stop a character dead, or reverse it.
         if (!float.IsFinite(f.MoveSpeedCap) || !float.IsFinite(f.MoveSpeedFloor)
             || !(f.MoveSpeedFloor > -100f) || !(f.MoveSpeedFloor <= f.MoveSpeedCap))
         {
@@ -52,6 +51,25 @@ public static class CombatDataRules
         RequireNonNegative("CombatFormula 1", nameof(f.EvasionPerAgility), f.EvasionPerAgility);
         RequireNonNegative("CombatFormula 1", nameof(f.WardPerIntellect), f.WardPerIntellect);
 
+        // #1178, offence: the attributes' conversions and the speed caps are finite and 0 or more, the base crit chance
+        // percentage points, and the bare hand rolls an ordered range at a pace above 0.
+        RequireNonNegative("CombatFormula 1", nameof(f.IncreasedPhysicalAttackPerStrength), f.IncreasedPhysicalAttackPerStrength);
+        RequireNonNegative("CombatFormula 1", nameof(f.AttackSpeedPerAgility), f.AttackSpeedPerAgility);
+        RequireNonNegative("CombatFormula 1", nameof(f.IncreasedSpellPerIntellect), f.IncreasedSpellPerIntellect);
+        RequireNonNegative("CombatFormula 1", nameof(f.IncreasedHealingPerIntellect), f.IncreasedHealingPerIntellect);
+        RequireNonNegative("CombatFormula 1", nameof(f.AttackSpeedCap), f.AttackSpeedCap);
+        RequireNonNegative("CombatFormula 1", nameof(f.CastSpeedCap), f.CastSpeedCap);
+        RequireNonNegative("CombatFormula 1", nameof(f.CooldownRecoveryCap), f.CooldownRecoveryCap);
+        RequireRange("CombatFormula 1", nameof(f.BaseCritPct), f.BaseCritPct, 0f, 100f);
+        if (f.UnarmedDamageMin > f.UnarmedDamageMax)
+        {
+            throw new InvalidDataException(
+                $"CombatFormula 1: UnarmedDamageMin {f.UnarmedDamageMin} is above UnarmedDamageMax {f.UnarmedDamageMax}");
+        }
+
+        if (f.UnarmedAttackTimeMs == 0)
+            throw new InvalidDataException("CombatFormula 1: UnarmedAttackTimeMs must be above 0");
+
         var byClass = new Dictionary<CharacterClass, ClassStatFactors>();
         foreach (ClassStatFactors row in factors)
         {
@@ -61,15 +79,10 @@ public static class CombatDataRules
             if (!byClass.TryAdd(row.Class, row))
                 throw new InvalidDataException($"{name}: the class has two rows");
 
-            RequireUInt(name, nameof(row.HpPerStamina), row.HpPerStamina);
             if (row.FixedPower is { } fixedPower)
                 RequireUInt(name, nameof(row.FixedPower), fixedPower);
             RequireNonNegative(name, nameof(row.PowerPerIntellect), row.PowerPerIntellect);
             RequireNonNegative(name, nameof(row.PowerPerAgility), row.PowerPerAgility);
-            RequireNonNegative(name, nameof(row.AttackPerStrength), row.AttackPerStrength);
-            RequireNonNegative(name, nameof(row.AttackPerAgility), row.AttackPerAgility);
-            RequireNonNegative(name, nameof(row.AbilityPerIntellect), row.AbilityPerIntellect);
-            RequireNonNegative(name, nameof(row.BaseCrit), row.BaseCrit);
         }
 
         foreach (CharacterClass @class in CharacterClasses.Playable)

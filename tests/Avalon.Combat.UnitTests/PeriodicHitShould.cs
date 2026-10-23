@@ -16,7 +16,6 @@ public class PeriodicHitShould
         BlockMultiplier = 0.5f,
         CritCap = 50f,
         BlockCap = 50f,
-        HasteCap = 50f,
         MoveSpeedCap = 35f,
         MoveSpeedFloor = -50f,
         EvasionBase = 560f,
@@ -45,7 +44,7 @@ public class PeriodicHitShould
     {
         var rng = new Rolls(0.99);
 
-        (double damage, HitResult result) = HitResolver.ResolvePeriodic(new AttackerCombat(1, 0, 0, 10f, 0, 0),
+        (double damage, HitResult result) = HitResolver.ResolvePeriodic(new AttackerCombat(1, 10f),
             new DefenderCombat(60, Evasion: 100000, BlockPct: 100f), DamageType.Physical, 20f, Formula(), rng);
 
         Assert.Equal((10d, HitResult.None), (damage, result));
@@ -55,7 +54,7 @@ public class PeriodicHitShould
     [Fact]
     public void Crit_a_tick_by_the_casters_snapshot_chance()
     {
-        (double damage, HitResult result) = HitResolver.ResolvePeriodic(new AttackerCombat(1, 0, 0, 10f, 0, 0),
+        (double damage, HitResult result) = HitResolver.ResolvePeriodic(new AttackerCombat(1, 10f),
             new DefenderCombat(0, 0, 0f), DamageType.Physical, 20f, Formula(), new Rolls(0.05));
 
         Assert.Equal((30d, HitResult.Crit), (damage, result));
@@ -64,7 +63,7 @@ public class PeriodicHitShould
     /// <summary>The tick is not floored: the fraction is the carry's to keep.</summary>
     [Fact]
     public void Leave_a_ticks_fraction_unfloored() =>
-        Assert.Equal(5.875d, HitResolver.ResolvePeriodic(new AttackerCombat(1, 0, 0, 0f, 0, 0),
+        Assert.Equal(5.875d, HitResolver.ResolvePeriodic(new AttackerCombat(1, 0f),
             new DefenderCombat(0, 0, 0f), DamageType.Physical, 5.875f, Formula(), new Rolls(0.99)).Damage, precision: 6);
 
     /// <summary>
@@ -78,7 +77,7 @@ public class PeriodicHitShould
         double carry = 0d;
         for (int tick = 0; tick < 4; tick++)
         {
-            (double damage, _) = HitResolver.ResolvePeriodic(new AttackerCombat(1, 0, 0, 0f, 0, 0),
+            (double damage, _) = HitResolver.ResolvePeriodic(new AttackerCombat(1, 0f),
                 new DefenderCombat(0, 0, 0f), DamageType.Physical, 23.5f / 4f, Formula(), new Rolls(0.99));
             dealt.Add(AuraRules.TakeTick(damage, ref carry, lastTick: tick == 3));
         }
@@ -92,7 +91,7 @@ public class PeriodicHitShould
     {
         var rng = new Rolls(0.05);
 
-        (double heal, HitResult result) = HitResolver.ResolvePeriodicHeal(new AttackerCombat(1, 0, 0, 10f, 0, 0),
+        (double heal, HitResult result) = HitResolver.ResolvePeriodicHeal(new AttackerCombat(1, 10f),
             5.25f, Formula(), rng);
 
         Assert.Equal((7.875d, HitResult.Crit), (heal, result));
@@ -101,6 +100,6 @@ public class PeriodicHitShould
 
     [Fact]
     public void Floor_a_direct_heal_as_before() =>
-        Assert.Equal(7u, HitResolver.ResolveHeal(new AttackerCombat(1, 0, 0, 10f, 0, 0), 5.25f, Formula(),
+        Assert.Equal(7u, HitResolver.ResolveHeal(new AttackerCombat(1, 10f), 5.25f, Formula(),
             new Rolls(0.05)).Heal);
 }

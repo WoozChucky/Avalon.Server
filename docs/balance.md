@@ -4,13 +4,16 @@ The balance simulator library and tool, and the in-cluster service that runs it 
 
 ## Balance Simulator
 
-**Paused (#1183).** The simulator is paused during the itemization and build overhaul (#1182). It keeps compiling with
-today's maths, and no new mechanic is mirrored into it. Its parity guards (`SimulatorParityShould`,
-`CreatureKitParityShould`) and the balance tests that stop holding are skipped with `BalancePause.Reason`, never
-deleted. Until the re-sync (#1183) the API's `/balance` endpoints serve a mix, not the old maths: the new evasion and the
-class-neutral defences reach it through the shared `Avalon.Combat` stats (evasion from Agility, no class base dodge or
-block, armour from Strength, the creatures' evasion seed), but every hit is one physical part, so elements still meet
-armour there, and it has no ward and no resistances.
+**Paused (#1183).** The simulator is paused during the itemization and build overhaul (#1182). It keeps compiling, and
+no new mechanic is mirrored into it: where a shared `Avalon.Combat` function changed, it calls the new one exactly as
+the world does. Its parity guards (`SimulatorParityShould`, `CreatureKitParityShould`) and the balance tests that stop
+holding are skipped with `BalancePause.Reason`, never deleted. Until the re-sync (#1183) the API's `/balance` endpoints
+serve a mix, not the old maths: what it takes from the shared `Avalon.Combat` maths is the new maths, the class-neutral
+stats and defences (evasion from Agility, no class base dodge or block, armour from Strength, the formula's life per
+Stamina and base crit for every class, the creatures' evasion seed) and the offence model of #1178 (each hit's typed
+parts and each heal from `OffenceMath`, the offence block from `CharacterStatsCalculator`, cooldowns and cast times from
+`AbilityPace` over the three speeds), so an element meets its resistance there; but it has no ward, and nothing in it
+was re-checked against the new numbers.
 
 The simulator is a library with a thin tool on top. `Avalon.Balance.Core` (`src/Server/`) is the simulator, grader and
 run contract; it references `Avalon.Combat` and `Avalon.Domain` only, no `Avalon.World`, no `Avalon.Database*`, no EF,
@@ -23,7 +26,7 @@ class parity, level curve, resource flow and levelling pace against `balance/tar
 `--out`); exit 0 no red, 1 red, 2 refused input.
 `SeedSource.Load` reads the seed from `WorldDbContext`'s design-time model (`IDesignTimeModel`, `GetSeedData()`, Npgsql
 with a placeholder string, never connected) into `SeedTables`; `balance/overrides.json` (`"Table.key.Column": value`)
-is applied to a copy of it. It never copies a balance formula: stats, hits, Fury, haste, costs, power regen, power
+is applied to a copy of it. It never copies a balance formula: stats, hits, Fury, speeds, costs, power regen, power
 gains and heal caps (`PowerRegen`, `PowerPool`, `HealRules`, see World Simulation) are `Avalon.Combat`, the code the
 world server runs, and so are the checks that validate the data: `AbilityRules`, `CombatDataRules` and
 `CreatureTemplateRules` (and `ClassPowerType`, `Fury.DefaultFromDamageTaken`) in `Avalon.Combat`, which the world's

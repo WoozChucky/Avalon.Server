@@ -20,8 +20,7 @@ public class AuraRulesShould
         TickIntervalMs = 3000,
         PeriodicKind = AuraPeriodicKind.Damage,
         PeriodicBase = 12f,
-        ScalingStat = ScalingStat.Attack,
-        ScalingCoefficient = 0.25f,
+        PeriodicEffectiveness = 50f,
         Stacking = AuraStacking.Stack,
         MaxStacks = 3,
     };
@@ -48,7 +47,6 @@ public class AuraRulesShould
         { "unknown kind 0", t => t.Kind = 0 },
         { "unknown periodic kind 9", t => t.PeriodicKind = (AuraPeriodicKind)9 },
         { "unknown stacking 0", t => t.Stacking = 0 },
-        { "unknown scaling stat 7", t => t.ScalingStat = (ScalingStat)7 },
         { "DurationMs must be above 0", t => { t.DurationMs = 0; t.TickIntervalMs = 0; t.PeriodicKind = AuraPeriodicKind.None; } },
         { "a periodic aura needs a TickIntervalMs above 0", t => t.TickIntervalMs = 0 },
         { "TickIntervalMs 13000 is longer than DurationMs 12000", t => t.TickIntervalMs = 13000 },
@@ -56,8 +54,7 @@ public class AuraRulesShould
         { "MaxStacks must be 1 or more", t => { t.Stacking = AuraStacking.Refresh; t.MaxStacks = 0; } },
         { "MaxStacks must be 1 or more", t => { t.Stacking = AuraStacking.Independent; t.MaxStacks = 0; } },
         { "PeriodicBase -1 is not a finite value of 0 or more", t => t.PeriodicBase = -1f },
-        { "ScalingCoefficient NaN is not a finite value of 0 or more", t => t.ScalingCoefficient = float.NaN },
-        { "BaseDamageCoefficient -1 is not a finite value of 0 or more", t => t.BaseDamageCoefficient = -1f },
+        { "PeriodicEffectiveness NaN is not a finite value of 0 or more", t => t.PeriodicEffectiveness = float.NaN },
         { "a harmful aura cannot heal", t => t.PeriodicKind = AuraPeriodicKind.Heal },
         { "a helpful aura cannot deal damage", t => t.Kind = AuraKind.Helpful },
         { "a helpful aura cannot stun, root or silence", t =>
@@ -74,11 +71,10 @@ public class AuraRulesShould
         { "unknown stat 0", t => t.Modifiers.Add(new AuraStatModifier { Stat = 0, Kind = AuraModifierKind.Flat, Value = 1f }) },
         { "unknown modifier kind 0 on Armor", t => t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Value = 1f }) },
         { FormattableString.Invariant($"Armor modifier {float.PositiveInfinity} is not finite"), t => t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Flat, Value = float.PositiveInfinity }) },
-        { "Armor modifier -100 % would take the whole stat", t => t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = -100f }) },
         { "Armor is modified twice", t =>
             {
                 t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Flat, Value = 1f });
-                t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 5f });
+                t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Increased, Value = 5f });
             } },
     };
 
@@ -114,6 +110,27 @@ public class AuraRulesShould
         Assert.Equal(reason, AuraRules.Problem(t));
     }
 
+    /// <summary>
+    /// An Increased or a More at or below -100 would take the whole stat; the thirteen Increased keys, the crit multiplier
+    /// and the three speeds are percentages already, so they take Flat ("+X %") or More ("X % more"), never Increased.
+    /// </summary>
+    [Theory]
+    [InlineData(AuraStat.Armor, AuraModifierKind.More, -100f, "Armor modifier -100 % would take the whole stat")]
+    [InlineData(AuraStat.Armor, AuraModifierKind.Increased, -100f, "Armor modifier -100 % would take the whole stat")]
+    [InlineData(AuraStat.IncreasedFireDamage, AuraModifierKind.Increased, 10f,
+        "IncreasedFireDamage is already a percentage: it takes Flat or More, never Increased")]
+    [InlineData(AuraStat.AttackSpeed, AuraModifierKind.Increased, 10f,
+        "AttackSpeed is already a percentage: it takes Flat or More, never Increased")]
+    [InlineData(AuraStat.IncreasedFireDamage, AuraModifierKind.More, 20f, null)]
+    public void Refuse_a_modifier_that_does_not_fit_its_stat(AuraStat stat, AuraModifierKind kind, float value,
+        string? expected)
+    {
+        AuraTemplate t = Bleed();
+        t.Modifiers.Add(new AuraStatModifier { Stat = stat, Kind = kind, Value = value });
+
+        Assert.Equal(expected, AuraRules.Problem(t));
+    }
+
     [Theory]
     [InlineData(12000u, 3000u, 4)]
     [InlineData(10000u, 3000u, 3)]
@@ -122,28 +139,33 @@ public class AuraRulesShould
     public void Count_the_ticks_of_a_duration(uint duration, uint interval, int expected) =>
         Assert.Equal(expected, AuraRules.TickCount(duration, interval));
 
-    /// <summary>12 + 0.25 x 46 = 23.5, split over 4 ticks; the caster's crit and level, and the ticks' type, go with it.</summary>
-    [Fact]
-    public void Snapshot_the_total_from_the_casters_stat_and_split_it_over_the_ticks()
+    /// <summary>A weapon Attack, the source of a damage-over-time aura (#1178).</summary>
+    private static readonly AbilityMetadata s_rend = new()
     {
-        AuraSnapshot snapshot = AuraRules.Snapshot(Bleed(), new AttackerCombat(3, 46, 69, 7.5f, 4, 7), DamageType.Fire,
-            NoRoll.Instance);
+        Name = "Rend",
+        Tags = AbilityTags.Attack | AbilityTags.Melee,
+        DamageType = DamageType.Physical,
+        DamageEffectiveness = 200f,
+    };
 
-        Assert.Equal(new AuraSnapshot(5.875f, 7.5f, 3, DamageType.Fire), snapshot);
-        Assert.Equal(new AttackerCombat(3, 0, 0, 7.5f, 0, 0, DamageType.Fire), snapshot.Attacker);
-    }
-
-    /// <summary>24 + 0.6 x 69 = 65.4, over 3 ticks.</summary>
+    /// <summary>
+    /// (12 + 50 % of a 10 roll) x 2 for 100 % increased physical attack damage = 34, split over 4 ticks (#1178); the
+    /// caster's crit chance, level and crit multiplier bonus, and the ticks' type, go with it, and a tick resolves against
+    /// those alone.
+    /// </summary>
     [Fact]
-    public void Scale_a_spell_aura_by_ability_damage()
+    public void Snapshot_the_total_from_the_casters_offence_and_split_it_over_the_ticks()
     {
-        AuraTemplate burn = Bleed();
-        burn.DurationMs = 9000;
-        burn.PeriodicBase = 24f;
-        burn.ScalingStat = ScalingStat.Ability;
-        burn.ScalingCoefficient = 0.6f;
+        OffenceStats offence = default;
+        offence.AddIncreased(OffenceStat.PhysicalAttack, 100f);
+        offence.CritMultiplierBonus = 25f;
+        var caster = new AttackerCombat(3, 7.5f, new WeaponDamage(10, 10, DamageType.Physical, 0, 0, null, 800), offence);
 
-        Assert.Equal(21.8f, AuraRules.Snapshot(burn, new AttackerCombat(1, 0, 69, 0f, 0, 0), DamageType.Physical, NoRoll.Instance).PerTickPerStack, precision: 4);
+        AuraSnapshot snapshot = AuraRules.Snapshot(Bleed(), caster, s_rend, DamageType.Physical, new FixedRoll(10));
+
+        Assert.Equal(new AuraSnapshot(8.5f, 7.5f, 3, DamageType.Physical, 25f), snapshot);
+        Assert.Equal(new AttackerCombat(3, 7.5f, Offence: new OffenceStats { CritMultiplierBonus = 25f }),
+            snapshot.Attacker);
     }
 
     [Fact]
@@ -153,46 +175,48 @@ public class AuraRulesShould
         fortified.PeriodicKind = AuraPeriodicKind.None;
         fortified.TickIntervalMs = 0;
 
-        Assert.Equal(0f, AuraRules.Snapshot(fortified, new AttackerCombat(1, 46, 0, 5f, 0, 0), DamageType.Physical, NoRoll.Instance).PerTickPerStack);
+        Assert.Equal(0f, AuraRules.Snapshot(fortified, new AttackerCombat(1, 5f), s_rend, DamageType.Physical,
+            NoRoll.Instance).PerTickPerStack);
     }
 
     /// <summary>
-    /// A creature's poison: no damage stats, so 3 + 1.0 x a roll of its natural 5..9 (7 here) = 10, over 3 ticks. The
-    /// roll is drawn once, over the whole range, both ends included.
+    /// A creature's poison keeps 3 + a whole roll of its natural 5..9 (7 here) = 10, over 3 ticks: a creature has no
+    /// offence of its own. The roll is drawn once, over the whole range, both ends included.
     /// </summary>
     [Fact]
-    public void Add_one_roll_of_the_casters_base_damage_times_its_coefficient()
+    public void Add_a_whole_roll_of_a_creatures_natural_range_to_its_poison()
     {
         AuraTemplate poison = Bleed();
         poison.DurationMs = 9000;
         poison.PeriodicBase = 3f;
-        poison.ScalingCoefficient = 0f;
-        poison.BaseDamageCoefficient = 1f;
+        poison.PeriodicEffectiveness = 100f;
+        var spit = new AbilityMetadata { Name = "Venom Spit", Tags = AbilityTags.Attack | AbilityTags.Projectile };
         var rng = new FixedRoll(7);
 
-        AuraSnapshot snapshot = AuraRules.Snapshot(poison, new AttackerCombat(4, 0, 0, 5f, 5, 9), DamageType.Physical, rng);
+        AuraSnapshot snapshot = AuraRules.Snapshot(poison,
+            new AttackerCombat(4, 5f, new WeaponDamage(5, 9, null, 0, 0, null, 2250)), spit, DamageType.Physical, rng);
 
         Assert.Equal(10f / 3f, snapshot.PerTickPerStack, precision: 4);
         Assert.Equal([(5L, 9L)], rng.Draws);
     }
 
+    /// <summary>No source (an item's or a script's aura), no ticks, or no effectiveness: no roll, PeriodicBase alone.</summary>
     [Fact]
-    public void Draw_no_roll_without_a_coefficient_a_range_or_ticks()
+    public void Draw_no_roll_without_a_source_ticks_or_an_effectiveness()
     {
-        AuraTemplate noCoefficient = Bleed();
+        var caster = new AttackerCombat(1, 0f, new WeaponDamage(4, 7, DamageType.Physical, 0, 0, null, 800));
         AuraTemplate statOnly = Bleed();
-        statOnly.BaseDamageCoefficient = 1f;
         statOnly.PeriodicKind = AuraPeriodicKind.None;
         statOnly.TickIntervalMs = 0;
-        AuraTemplate unarmed = Bleed();
-        unarmed.BaseDamageCoefficient = 1f;
+        AuraTemplate noEffectiveness = Bleed();
+        noEffectiveness.PeriodicEffectiveness = 0f;
 
-        AuraRules.Snapshot(noCoefficient, new AttackerCombat(1, 46, 0, 0f, 4, 7), DamageType.Physical, NoRoll.Instance);
-        AuraRules.Snapshot(statOnly, new AttackerCombat(1, 46, 0, 0f, 4, 7), DamageType.Physical, NoRoll.Instance);
         // The assertion is that none of these snapshots draws: NoRoll throws on any draw.
-        float unarmedTick = AuraRules.Snapshot(unarmed, new AttackerCombat(1, 46, 0, 0f, 0, 0), DamageType.Physical, NoRoll.Instance).PerTickPerStack;
+        float sourceless = AuraRules.Snapshot(Bleed(), caster, null, DamageType.Physical, NoRoll.Instance).PerTickPerStack;
+        AuraRules.Snapshot(statOnly, caster, s_rend, DamageType.Physical, NoRoll.Instance);
+        AuraRules.Snapshot(noEffectiveness, caster, s_rend, DamageType.Physical, NoRoll.Instance);
 
-        Assert.Equal(5.875f, unarmedTick);
+        Assert.Equal(3f, sourceless);
     }
 
     /// <summary>A random that fails the test on any draw: the snapshot must not roll.</summary>

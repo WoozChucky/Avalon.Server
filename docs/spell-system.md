@@ -31,12 +31,11 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `Id` | `AbilityId` | | Primary key. Retired ids are never reused, so no client cache confuses an old skill with a new one. |
 | `Name` | string | | Display name. |
 | `CastTime` | uint | ms | 0 is instant; above 0 the cast waits in the queue first. |
-| `Cooldown` | uint | ms | Time before the skill can be cast again. |
+| `Cooldown` | uint | ms | Time before the skill can be cast again, before cooldown recovery (or, for a basic Spell, cast speed). 0 for a basic Attack, which its weapon paces (#1178, §3). |
 | `Cost` | uint | power points | Paid from the pool `CostPowerType` names (see the power rule below). |
 | `CostPowerType` | `PowerType` | | The pool `Cost` is spent from: Mana, Fury or Energy (#652). None only with a cost of 0; the catalog and a check constraint refuse a cost with none. |
 | `ScriptName` | string | | The script class that runs the skill: `CircleAbilityScript`, `ConeAbilityScript` or `ProjectileAbilityScript`. |
 | `Effects` | `SpellEffect` | | `Damage` for a hostile skill, `Heal` for an ally skill. |
-| `EffectValue` | uint | health points | The base of the damage dealt or health restored per unit affected; the scaling terms below are added to it (#506). |
 | `AllowedClasses` | list of `CharacterClass` | | The classes that may hold it. |
 | `ThreatMultiplier`, `HealThreatPerHp`, `TauntDurationMs` | float, float, uint | | Threat rules, unchanged by #164. The two floats must be finite and 0 or more (#529). |
 | `Flags` | `AbilityFlags` | | `RequiresInCombat`, `RequiresOutOfCombat`, `Basic` (a class's basic attack, the one ability a silence does not stop), `Unavoidable` (a Hostile ability never rolled against for evasion, #1164). |
@@ -50,9 +49,12 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `ProjectileSpeed` | float | m/s | Projectile only; 0 otherwise. |
 | `Pierce` | bool | | Projectile only: false ends on the first unit hit; true hits each unit once and flies on. |
 | `Affects` | `AbilityAffects` | | `Hostile` (0) damages hostile units; `Ally` (1) heals allies. |
-| `ScalingStat` | `ScalingStat` | | `Attack` (0) scales with the caster's AttackDamage, `Ability` (1) with its AbilityDamage (#506). |
-| `ScalingCoefficient` | float | | Multiplies the scaling stat into the base; finite and 0 or more (#506, also a database check). |
-| `BaseDamageCoefficient` | float | | Multiplies a roll of the caster's base damage into the base: a character's main-hand weapon (`DamageMin1..DamageMax1`, inclusive; none with no weapon), a creature's natural `DamageMin..DamageMax` (#163); finite and 0 or more (#506). Was `WeaponCoefficient` until #163. |
+| `Tags` | `AbilityTags` | | What the skill is (#1178, `[Flags]`): at most one of `Attack` (1), `Spell` (2) and `Heal` (4), plus its delivery, `Area` (8), `Projectile` (16), `Melee` (32). `DamageOverTime` (64) is an aura's tag, never an ability's (`CK_AbilityTemplates_Tags`). The tags pick the base (§4) and the modifiers that scale it. |
+| `DamageEffectiveness` | float | percent | What an Attack's weapon roll counts for, and a Spell's added damage; 100 counts it whole. Finite and 0 or more, above 0 for an Attack that deals damage (#1178). |
+| `SpellBaseMin`, `SpellBaseMax` | uint, uint | health points | The range a Spell or a Heal rolls at level 1, inclusive; `SpellBaseMax` above 0 for one that deals or heals, or whose aura ticks (#1178). |
+| `SpellBasePerLevelPct` | float | percent | Percent of the level-1 spell base added for each caster level above 1, linear. Finite and 0 or more (#1178). |
+| `ConvertToType`, `ConvertPct` | `DamageType?`, float | percent | The element an Attack converts `ConvertPct` (0 to 100) of its weapon's physical damage to (#1178). |
+| `AddedType`, `AddedMin`, `AddedMax` | `DamageType?`, uint, uint | health points | The skill's built-in added damage, inclusive, rolled after the weapon and never converted; `AddedMax` 0 adds none, and a range above 0 names its type (#1178). |
 | `DamageType` | `DamageType?` | | The type its hits and its aura's damage ticks deal (#1178): Physical 0, Fire 1, Cold 2, Lightning 3, Blight 4 (`CK_AbilityTemplates_DamageType`). Null deals the caster's base type, which only a creature-only ability may rely on (a creature's base type is its template's). |
 
 **Legacy `Range`.** The `Range` column (`SpellRange`) stays for schema compatibility and is still sent
@@ -72,6 +74,7 @@ loads. A character holding a refused skill simply does not get it at character s
 - `Affects = Ally` only on a circle;
 - an Ally ability may not be `Unavoidable` (#1164: it is never evaded anyway);
 - a damage type is a known value; an Ally ability names none; a Hostile class ability (`AllowedClasses` not empty) whose `Effects` has `Damage` names one, and so does a class ability whose aura deals damage over time (`AuraRules.DamageTypeProblem`: Ignite says Fire) (#1178);
+- the offence model (#1178): `DamageEffectiveness` and `SpellBasePerLevelPct` are finite and 0 or more; the tags are known, at most one of Attack, Spell and Heal, and never DamageOverTime; Attack and Spell only on a Hostile ability, Heal only on an Ally one; a Hostile ability that deals damage is an Attack or a Spell, an Ally ability that heals a Heal; Projectile is the tag of a projectile and only of one; only an Attack is Melee; a basic Attack has `Cooldown` 0 (its weapon paces it); a class Attack deals Physical, an element arriving only by its conversion or added damage; `ConvertPct` is 0 to 100; a row with a `ConvertPct` above 0 or any `ConvertToType` converts, and a converting row names an element and is an Attack; `AddedMin` and `SpellBaseMin` are at most their maximums, and added damage names its type; a Spell or a Heal that deals or heals has a `SpellBaseMax` above 0, and an Attack that deals damage a `DamageEffectiveness` above 0. `AuraRules.SourceProblem` adds the aura's side: a class ability applying a damaging aura is an Attack or a Spell, an Ally ability applying a healing aura a Heal, and a Spell or a Heal whose aura ticks has a spell base for it to draw on;
 - **circle**: `Radius > 0`; on the aim point it needs `AimMode = Cursor` and `Reach > 0`; on the
   caster it needs `Reach = 0`;
 - **cone**: `Reach > 0`, and `ArcDegrees` above 0 and at most 360;
@@ -134,12 +137,24 @@ script reads the caster's *position* only when it fires, never when it is built.
 **A creature casts through the same system (#163).** Its script calls `ISimulationContext.RunInstantAbility`
 or `QueueAbility` (which take any `IUnit`) with its own clone of the ability, aimed at its target; there
 is no handler and no global cooldown. Its casts are free (the power rule is skipped for an `ICreature`).
-Its haste is its own `min(HastePct, HasteCap)`. Its basic's cooldown is its `SwingInterval`, which already
-carries that haste; any other cooldown is the row's divided by it. A creature that dies or turns for
+It casts with its own pace (`Creature.Pace`, #1178): its cast speed shortens its cast times, its basic waits
+its `SwingInterval` (its `BaseAttackTime` over its attack speed), and cooldown recovery shortens any other
+cooldown; each speed comes from its auras, from 0 to the cap it spawned with. A creature that dies or turns for
 home during a cast has the cast dropped on the next tick, with the interrupt, however much was left, and
 any projectile it loosed that is still in flight dropped with it; so does one removed from its instance.
 Moving never interrupts a creature's cast: its script stands still for a wind-up, so only a push (a
 crowd's separation) could move it. See [creature-system.md](creature-system.md).
+
+**Pace (#1178).** The cast system reads the caster's pace once, when it takes the cast (`CasterPace`: a
+character's is fixed at its last stats refresh), through `AbilityPace`, the one rule: the cast time is
+`CastTime / (1 + cast speed / 100)`, and the cooldown the cast sets when it fires is worked out then and kept on
+the cast (`AbilityInstance.CooldownSeconds`). A basic Attack (Cleave, Quick Shot) waits its weapon's
+`AttackTimeMs` (the formula's `UnarmedAttackTimeMs`, 816, with no weapon) over attack speed; a basic Spell (Spark
+Bolt, Smite) its row's `Cooldown` (800 ms) over cast speed, still instant and with no cast bar (owner decision
+D1); every other skill its row's `Cooldown` over cooldown recovery. Each speed is percentage points, from 0 to its
+cap (`AttackSpeedCap`, `CastSpeedCap`, `CooldownRecoveryCap`, 50 each), so a negative one never lengthens a time.
+A weapon swap mid-fight changes neither a queued cast's time nor the cooldown it will set, and never a running
+cooldown; the next cast follows the new weapon. The global cooldown is no speed's.
 
 Firing starts the cooldown, sends the finish-cast animation, and runs the script's `Prepare`. A circle
 or cone resolves completely there; a projectile keeps ticking. A skill that affects nobody is not
@@ -168,7 +183,7 @@ refused: its cost and cooldown are spent all the same.
   chance to evade it (its evasion rating against the caster's level, #1178), the dodge wait for a telegraph's players
   (§4), and the units every hit passes over. One whose `Effects` has `Damage` then deals its amount, each unit's hit
   resolving on its own (#506, #1178), typed by the ability's `DamageType`, else the caster's base type:
-  `EffectValue + ScalingCoefficient x stat + BaseDamageCoefficient x base damage roll`, then the unit's evasion, the
+  its base (below, split by type), then the unit's evasion, the
   caster's crit, the unit's block, then each type's part mitigated on its own (physical by the unit's armour, an
   element by its resistance), floored with a minimum of 1 (0 when evaded); the unit's ward then takes all of it but
   its blight share, and health the rest. One without `Damage` draws the evasion roll alone and, landed, sends nothing
@@ -179,11 +194,46 @@ refused: its cost and cooldown are spent all the same.
   invulnerable creature, a corpse or a creature walking home, still apply). See
   "Combat reads the derived stats" in [World simulation](world-simulation.md).
 - **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
-  `min(Health, CurrentHealth + heal)`, the heal being the same base as damage and then a crit roll,
+  `min(Health, CurrentHealth + heal)`, the heal being its Heal base (below) and then a crit roll,
   never evaded, blocked or reduced by armour or resistance, and never restores ward (#506, #1178). It never lowers health (a unit at or above its maximum
   keeps what it has, #548), never heals a dead unit, and adds heal threat from
   `HealThreatPerHp` when the healed unit is in an encounter. Heal threat counts the health actually
   restored, so overheal adds none (#531).
+- **The base (#1178, the offence model; `OffenceMath`, `Avalon.Combat`, shared with the API's amounts and the
+  simulator).** The tags decide it (`OffenceMath.DirectBase`, `HealBase`):
+  - **An Attack** rolls its caster's weapon: the main hand's range 1, then its range 2 when it has one (each typed by
+    the item's `DamageType1`/`DamageType2`, else the hit's type), then the global added damage when given (a parameter
+    with no source yet, passed as none), then the skill's built-in added roll when `AddedMax` is above 0, in that
+    order. `ConvertPct` of the physical part then moves to `ConvertToType`, and the built-in added damage (`AddedType`)
+    joins, never converted. Each part is multiplied by `DamageEffectiveness / 100` (worked out as
+    `roll x effectiveness / 100`, so whole percentages stay exact) and by its scale. A character with no main hand
+    (every new character: its starting items are potions and a scroll), or with one whose first range deals nothing,
+    rolls the formula's unarmed range, `UnarmedDamageMin..UnarmedDamageMax` (3-6), as physical damage, at the unarmed
+    pace. A creature's weapon is its natural `DamageMin..DamageMax`, untyped, so it takes the hit's type.
+  - **A Spell** rolls `SpellBaseMin..SpellBaseMax`, inclusive, times `1 + SpellBasePerLevelPct / 100 x (level - 1)`,
+    in its damage type, times its scale. It never converts, and its `DamageEffectiveness` (seeded 100) scales only
+    added damage, global or built-in.
+  - **A Heal** rolls the same spell base, grown the same way, times `max(0, 1 + increased healing / 100)` and every
+    more on healing: neither increased spell damage nor increased damage boosts a heal.
+  - **The scale** of a part of type T for a skill with tags G (`OffenceMath.Scale`) is
+    `max(0, 1 + sum of increased / 100) x product of every more`, over the attacker's offence keys `Damage`, T, and,
+    for each tag G has, `Attack` (and `PhysicalAttack` for a physical part), `Spell`, `Area`, `Projectile`, `Melee`
+    and `DamageOverTime`. An increased sum below -100 makes that part nothing (the hit still deals its minimum of 1). A
+    character's offence block (`CharacterOffence.Of`) is class-neutral: each point of Strength gives
+    `IncreasedPhysicalAttackPerStrength` (3.5) points of increased physical attack damage, each point of Intellect
+    `IncreasedSpellPerIntellect` and `IncreasedHealingPerIntellect` (3.5 each), each point of Agility
+    `AttackSpeedPerAgility` (0.1) points of attack speed (`CombatFormula`); the gear's `Increased…` stats add flat, and
+    auras fold Flat, Increased and More on top ([Auras](auras.md)). A creature's offence block is its auras' alone.
+  - **Conversion.** Converted damage takes the modifiers of the type it became plus every untyped, delivery and tag
+    modifier, never its original type's. So Strength's increased physical attack damage never boosts Crippling Shot's
+    cold half, which grows only with the skill's effectiveness; Binding Shot's built-in 2-4 blight is scaled the same
+    way, as blight.
+  - **Crit.** A crit multiplies by `HitResolver.CritMultiplier`, `max(0, CritMultiplier + bonus / 100)`: the formula's
+    `CritMultiplier` (1.5) plus the attacker's crit multiplier bonus in points (gear `StatType.CritMultiplier`, auras
+    `AuraStat.CritMultiplier`; 50 makes a 1.5 crit a 2.0 one). A character's crit chance is the formula's
+    `BaseCritPct` (5) plus its gear's, the same for every class; a creature's is its rarity row's.
+  - **A damage-over-time aura's** total is rolled once, at application, from its source's base without the source's
+    conversion or built-in added damage, and scaled with the source's tags plus DamageOverTime ([Auras](auras.md)).
 - **Whose screen judges a hit (lag compensation, #1082).** Every hit is positional, and each side of a
   fight sees the other late: a client draws other units its render delay (about 120 ms) plus half its
   round trip behind the server, and what it does reaches the server half a round trip later. The rule:
@@ -339,9 +389,11 @@ It never homes and has no target.
   the interest radius of the target (#506, #532): `Amount` is the health restored, overheal left out, and
   `Result` is `Crit` for a critical heal. The new health also reaches clients through state replication.
 - **The character sheet** is `SMSG_CHARACTER_STATS` (`SCharacterStatsPacket`), sent to its owner only
-  (#506): the attributes, armour, damage stats, crit and block chances clamped to the formula's caps,
-  weapon range, and since #1178 the evasion rating, the chance it gives against an attacker of the
-  character's own level, the maximum ward and the four effective resistances (capped as a hit caps them).
+  (#506): the attributes, armour, crit and block chances clamped to the formula's caps, the weapon's range
+  (the bare hand's with none), and since #1178 the evasion rating, the chance it gives against an attacker of the
+  character's own level, the maximum ward, the four effective resistances (capped as a hit caps them), the crit
+  multiplier, the three effective speeds, the weapon's attack time and the offence block's increased points (see
+  [inventory and saves](inventory-and-saves.md)).
 
 ---
 
@@ -363,22 +415,25 @@ Seeded by the World migration `SeedStarterSkillKit`; `CharacterCreateInfos.Start
 class its three, and the Character migration `GrantStarterSkillKit` gave every existing character its
 class's three in place of whatever it held. The retired skills 1, 2 and 100-103 are gone and their ids
 are never reused. Every kit skill has `AllowedClasses` its own class, `ThreatMultiplier` 1, and
-`HealThreatPerHp` 0 except Mending Circle (0.5). The numbers are placeholders to tune.
+`HealThreatPerHp` 0 except Mending Circle (0.5). The numbers are placeholders to tune. Under the offence model
+(#1178) the bases re-express the old numbers: an Attack's effectiveness carries its old level-1 average over a
+starter weapon's roll, and a Spell's or a Heal's base and growth carry its old level-1 and level-10 averages, each
+within a few percent. A basic Attack's cooldown is its weapon's attack time (`weapon`).
 
-| id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost | value | type |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | 0.8 s | 0 | 12 | Physical |
-| 201 | Warrior | Ground Slam | Circle | Movement | Caster | 0 | 3 | – | – | – | Hostile | 0 | 5 s | 20 | 25 | Physical |
-| 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 9 | no | Hostile | 0 | 3 s | 10 | 20 | Physical |
-| 210 | Wizard | Spark Bolt | Projectile | Cursor | – | 20 | – | – | 11 | no | Hostile | 0 | 0.8 s | 0 | 12 | Lightning |
-| 211 | Wizard | Flame Burst | Circle | Cursor | AimPoint | 18 | 3 | – | – | – | Hostile | 0.6 s | 5 s | 25 | 18 | Fire |
-| 212 | Wizard | Frost Fan | Cone | Cursor | – | 6 | – | 60 | – | – | Hostile | 0 | 4 s | 15 | 22 | Cold |
-| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 14 | no | Hostile | 0 | 0.8 s | 0 | 12 | Physical |
-| 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 12 | yes | Hostile | 0 | 4 s | 15 | 25 | Physical |
-| 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4 s | 20 | 22 | Physical |
-| 230 | Cleric | Smite | Projectile | Cursor | – | 18 | – | – | 10 | no | Hostile | 0 | 0.8 s | 0 | 12 | Lightning |
-| 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5 s | 20 | 22 | Lightning |
-| 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8 s | 25 | 40 | – |
+| id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost | tags | base | type |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | weapon | 0 | Attack, Melee, Area | 315 % | Physical |
+| 201 | Warrior | Ground Slam | Circle | Movement | Caster | 0 | 3 | – | – | – | Hostile | 0 | 5 s | 20 | Attack, Melee, Area | 614 % | Physical |
+| 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 9 | no | Hostile | 0 | 3 s | 10 | Attack, Projectile | 492 % | Physical |
+| 210 | Wizard | Spark Bolt | Projectile | Cursor | – | 20 | – | – | 11 | no | Hostile | 0 | 0.8 s | 0 | Spell, Projectile | 14-20, +0.70 %/level | Lightning |
+| 211 | Wizard | Flame Burst | Circle | Cursor | AimPoint | 18 | 3 | – | – | – | Hostile | 0.6 s | 5 s | 25 | Spell, Area | 21-32, +0.75 %/level | Fire |
+| 212 | Wizard | Frost Fan | Cone | Cursor | – | 6 | – | 60 | – | – | Hostile | 0 | 4 s | 15 | Spell, Area | 26-40, +0.80 %/level | Cold |
+| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 14 | no | Hostile | 0 | weapon | 0 | Attack, Projectile | 363 % | Physical |
+| 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 12 | yes | Hostile | 0 | 4 s | 15 | Attack, Projectile | 690 % | Physical |
+| 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4 s | 20 | Attack, Area | 516 % | Physical |
+| 230 | Cleric | Smite | Projectile | Cursor | – | 18 | – | – | 10 | no | Hostile | 0 | 0.8 s | 0 | Spell, Projectile | 12-17, +0.45 %/level | Lightning |
+| 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5 s | 20 | Spell, Area | 20-31, +0.35 %/level | Lightning |
+| 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8 s | 25 | Heal, Area | 30-44 | – |
 
 Costs are paid from the class's pool: Warriors Fury, Wizards and Clerics Mana, Hunters Energy
 (`ClassPowerType`). `SeedIntegrityShould` pins the twelve rows, the class links, the starting skills,
@@ -388,32 +443,33 @@ class's pool under the power rule.
 ## 8b. The creature abilities
 
 Seeded by the World migration `SeedCreatureAbilities` (#163). Every one is creature-only
-(`AllowedClasses` empty), costs nothing, has `EffectValue` 0, `ThreatMultiplier` 1 and no scaling
-stat, and deals `BaseDamageCoefficient` times a roll of the creature's natural `DamageMin..DamageMax`.
-Each basic has coefficient 1.0, so it deals what the old raw swing did, and lists the seeded 2250 ms
+(`AllowedClasses` empty), costs nothing, has `ThreatMultiplier` 1, and is an Attack (#1178, tagged
+Projectile or Area by its shape and Melee as a cone of 2.5 m or less) that deals a roll of the creature's natural
+`DamageMin..DamageMax` times its `DamageEffectiveness`.
+Each basic has effectiveness 100 %, so it deals what the old raw swing did, and lists the seeded 2250 ms
 swing interval as its cooldown, which it never reads: it waits the creature's `SwingInterval`. Cones and
 circles aim along the facing (a circle sits on the creature); projectiles aim at the cursor, which a
 creature sets to its target's position. The arcs and projectile speeds are the values chosen for #163.
 
-| id | creature | name | shape | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | cast | cooldown | base damage |
+| id | creature | name | shape | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | cast | cooldown | effectiveness |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 300 | Thornback Boar | Gore (basic) | Cone | 1.8 | – | 90 | – | – | 0 | swing | 1.0 |
-| 301 | Thornback Boar | Trample | Circle | 0 | 2.5 | – | – | – | 0 | 10 s | 1.6 |
-| 302 | Grey Fen Wolf | Bite (basic) | Cone | 1.8 | – | 90 | – | – | 0 | swing | 1.0 |
-| 303 | Grey Fen Wolf | Ravenous Claw | Cone | 2.5 | – | 90 | – | – | 0 | 8 s | 1.8 |
-| 304 | Blightfly Swarmling | Sting (basic) | Cone | 1.5 | – | 90 | – | – | 0 | swing | 1.0 |
-| 305 | Blightfly Swarmling | Blight Spit | Projectile | 10 | – | – | 14 | no | 0 | 6 s | 1.4 |
-| 306 | Husk of the Wold | Slam (basic) | Cone | 1.8 | – | 90 | – | – | 0 | swing | 1.0 |
-| 307 | Husk of the Wold | Rotting Burst | Circle | 0 | 3 | – | – | – | 0 | 12 s | 1.5 |
-| 308 | Bramblemaw Alpha | Maul (basic) | Cone | 2 | – | 90 | – | – | 0 | swing | 1.0 |
-| 309 | Bramblemaw Alpha | Rending Frenzy | Cone | 2.5 | – | 100 | – | – | 0 | 9 s | 1.8 |
-| 310 | Bramblemaw Alpha | Howling Roar | Circle | 0 | 5 | – | – | – | 1 s | 15 s | 2.0 |
-| 311 | Old Tuskroot | Tusk Gore (basic) | Cone | 2 | – | 90 | – | – | 0 | swing | 1.0 |
-| 312 | Old Tuskroot | Earthsplitter | Cone | 5 | – | 60 | – | – | 1.2 s | 14 s | 2.4 |
-| 313 | Old Tuskroot | Thorn Volley | Projectile | 12 | – | – | 16 | yes | 0 | 10 s | 1.6 |
-| 314 | Mother Bramble | Bramble Lash (basic) | Cone | 2.5 | – | 90 | – | – | 0 | swing | 1.0 |
-| 315 | Mother Bramble | Bramble Nova | Circle | 0 | 6 | – | – | – | 1.2 s | 16 s | 2.5 |
-| 316 | Mother Bramble | Thornspray | Cone | 5 | – | 120 | – | – | 0 | 8 s | 1.8 |
+| 300 | Thornback Boar | Gore (basic) | Cone | 1.8 | – | 90 | – | – | 0 | swing | 100 % |
+| 301 | Thornback Boar | Trample | Circle | 0 | 2.5 | – | – | – | 0 | 10 s | 160 % |
+| 302 | Grey Fen Wolf | Bite (basic) | Cone | 1.8 | – | 90 | – | – | 0 | swing | 100 % |
+| 303 | Grey Fen Wolf | Ravenous Claw | Cone | 2.5 | – | 90 | – | – | 0 | 8 s | 180 % |
+| 304 | Blightfly Swarmling | Sting (basic) | Cone | 1.5 | – | 90 | – | – | 0 | swing | 100 % |
+| 305 | Blightfly Swarmling | Blight Spit | Projectile | 10 | – | – | 14 | no | 0 | 6 s | 140 % |
+| 306 | Husk of the Wold | Slam (basic) | Cone | 1.8 | – | 90 | – | – | 0 | swing | 100 % |
+| 307 | Husk of the Wold | Rotting Burst | Circle | 0 | 3 | – | – | – | 0 | 12 s | 150 % |
+| 308 | Bramblemaw Alpha | Maul (basic) | Cone | 2 | – | 90 | – | – | 0 | swing | 100 % |
+| 309 | Bramblemaw Alpha | Rending Frenzy | Cone | 2.5 | – | 100 | – | – | 0 | 9 s | 180 % |
+| 310 | Bramblemaw Alpha | Howling Roar | Circle | 0 | 5 | – | – | – | 1 s | 15 s | 200 % |
+| 311 | Old Tuskroot | Tusk Gore (basic) | Cone | 2 | – | 90 | – | – | 0 | swing | 100 % |
+| 312 | Old Tuskroot | Earthsplitter | Cone | 5 | – | 60 | – | – | 1.2 s | 14 s | 240 % |
+| 313 | Old Tuskroot | Thorn Volley | Projectile | 12 | – | – | 16 | yes | 0 | 10 s | 160 % |
+| 314 | Mother Bramble | Bramble Lash (basic) | Cone | 2.5 | – | 90 | – | – | 0 | swing | 100 % |
+| 315 | Mother Bramble | Bramble Nova | Circle | 0 | 6 | – | – | – | 1.2 s | 16 s | 250 % |
+| 316 | Mother Bramble | Thornspray | Cone | 5 | – | 120 | – | – | 0 | 8 s | 180 % |
 
 Damage types (#1178): Rotting Burst (307), Earthsplitter (312) and Thorn Volley (313) name Blight; every other
 leaves `DamageType` null and deals its creature's base type, Blight for the Blightfly Swarmling and Mother Bramble
@@ -430,7 +486,7 @@ re-export.
 ## 9. Out of scope
 
 - Creature abilities that heal or buff other creatures (#163 leaves a creature's only ally itself).
-- Tempo: attack and cast speed, and removing the global cooldown (a later spec, with the #506 stats).
+- Removing the global cooldown (attack speed, cast speed and cooldown recovery exist since #1178, §3).
 - A line or beam shape.
 - Cones clipped by walls.
 - Groups: allies are every non-hostile player, not a party.

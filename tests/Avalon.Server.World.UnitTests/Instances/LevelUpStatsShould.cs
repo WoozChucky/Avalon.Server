@@ -25,8 +25,8 @@ public class LevelUpStatsShould
 {
     private static readonly ClassLevelStat[] s_warriorRows =
     [
-        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
-        new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 40, BaseMana = 0, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
+        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
+        new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 160, BaseMana = 0, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
     ];
 
     [Fact]
@@ -63,10 +63,10 @@ public class LevelUpStatsShould
 
         Assert.Equal((ushort)2, killer.Level);
         Assert.Equal(50ul, killer.Experience);
-        Assert.Equal(40u + 24u * 10u, killer.Health);
+        Assert.Equal(160u + 24u * 5u, killer.Health);
         Assert.Equal(killer.Health, killer.CurrentHealth);
         Assert.Equal(100u, killer.CurrentPower);
-        Assert.Equal(50u, killer.Stats!.Value.AttackDamage);
+        Assert.Equal(87.5f, killer.Stats!.Value.Offence.Increased(Avalon.Network.Packets.Combat.OffenceStat.PhysicalAttack));   // 25 x 3.5
         Assert.True(killer.SaveState.StatsDirty);
         instance.Dispose();
     }
@@ -159,7 +159,7 @@ public class LevelUpStatsShould
         instance.ReportKill(creature, killer);
 
         Assert.Equal((ushort)2, killer.Level);
-        Assert.Equal(40u + 24u * 10u, killer.Health);
+        Assert.Equal(160u + 24u * 5u, killer.Health);
         Assert.True(killer.IsDead);
         Assert.Equal(0u, killer.CurrentHealth);
         instance.Dispose();

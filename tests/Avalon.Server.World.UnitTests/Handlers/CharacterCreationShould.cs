@@ -79,9 +79,9 @@ public class CharacterCreationShould : IDisposable
     /// helpers already produced a Warrior's values; each class's are ClassStatFactorsGoldenShould's.
     /// </summary>
     [Theory]
-    [InlineData(CharacterClass.Wizard, "Wizardess", 121, 365, 10u, 69u, 0f)]
+    [InlineData(CharacterClass.Wizard, "Wizardess", 121, 365, 0f)]
     public async Task Derive_a_new_characters_maximums_and_stats_from_its_level_one_row(
-        CharacterClass @class, string name, int health, int power, uint attack, uint ability, float block)
+        CharacterClass @class, string name, int health, int power, float block)
     {
         StaticData data = await LoadStaticDataAsync();
         IWorldConnection connection = NewConnection();
@@ -97,7 +97,7 @@ public class CharacterCreationShould : IDisposable
         Avalon.Domain.Characters.CharacterStats stats =
             await characterDb.CharacterStats.AsNoTracking().SingleAsync(s => s.CharacterId == character.Id);
         Assert.Equal(((uint)health, (uint)power), (stats.MaxHealth, stats.MaxPower1));
-        Assert.Equal((attack, ability, block), (stats.AttackDamage, stats.AbilityDamage, stats.BlockPct));
+        Assert.Equal(block, stats.BlockPct);
         // #1178: Strength 20, Agility 20 and Intellect 23 through the seeded conversions (0.1, 1.125, 0.25).
         Assert.Equal((2u, 22u, 5u), (stats.Armor, stats.Evasion, stats.MaxWard));
     }

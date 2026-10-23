@@ -611,6 +611,35 @@ public class SeedIntegrityShould
         Assert.All(rows, r => Assert.InRange(r.Level, (ushort)1, topLevel));
     }
 
+    /// <summary>
+    /// #1178: every class gains the formula's one life per Stamina, so each class's BaseHp is rebalanced to keep a
+    /// character's health with nothing worn exactly what its class's own rate gave: 10, 5, 8 and 7 life per Stamina over
+    /// a BaseHp of 20, 16, 18 and 18 per level for the Warrior, Wizard, Hunter and Cleric.
+    /// </summary>
+    [Fact]
+    public void Carry_todays_bare_health_over_for_every_class_and_level()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        var factors = context.ClassStatFactors.AsNoTracking().ToList().ToDictionary(f => f.Class);
+        CombatFormula formula = context.CombatFormulas.AsNoTracking().Single();
+        var old = new Dictionary<CharacterClass, (uint HpPerLevel, uint PerStamina)>
+        {
+            [CharacterClass.Warrior] = (20, 10),
+            [CharacterClass.Wizard] = (16, 5),
+            [CharacterClass.Hunter] = (18, 8),
+            [CharacterClass.Cleric] = (18, 7),
+        };
+
+        foreach (ClassLevelStat row in context.ClassLevelStats.AsNoTracking().ToList())
+        {
+            (uint hpPerLevel, uint perStamina) = old[row.Class];
+            uint bare = CharacterStatsCalculator.Calculate(row, [], factors[row.Class], formula).MaxHealth;
+            Assert.True(hpPerLevel * row.Level + row.Stamina * perStamina == bare,
+                $"{row.Class} level {row.Level}: bare health {bare}, was {hpPerLevel * row.Level + row.Stamina * perStamina}");
+        }
+    }
+
     private static uint ArmorOf(ItemTemplate item) =>
         (uint)new (StatType? Type, uint? Value)[]
             {
@@ -662,9 +691,9 @@ public class SeedIntegrityShould
 
     /// <summary>
     /// #163: the creature abilities exactly as the design's table has them, with the arcs chosen for the cones
-    /// and the speeds chosen for the projectiles. Every one is creature-only (no class), free, EffectValue 0, and
-    /// dealt from the creature's natural range through BaseDamageCoefficient; a basic (coefficient 1.0) lists the
-    /// seeded 2.25 s swing interval, which is what it waits.
+    /// and the speeds chosen for the projectiles. Every one is creature-only (no class) and free, and deals its
+    /// creature's natural range times its DamageEffectiveness (#1178: the old weapon coefficient as a percentage, the last
+    /// column here); a basic (100 %) lists the seeded 2.25 s swing interval, which is what it waits.
     /// </summary>
     [Theory]
     [InlineData(300u, "Gore", AbilityShape.Cone, 1.8f, 0f, 90f, 0f, false, 0u, 2250u, 1.0f)]
@@ -694,11 +723,12 @@ public class SeedIntegrityShould
 
         AbilityTemplate a = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(t => t.Id.Value == id);
 
-        Assert.Equal((name, shape, reach, radius, arc, speed, pierce, castTime, cooldown, baseDamage),
+        // #1178: the old weapon coefficient is the damage effectiveness, as a percentage.
+        Assert.Equal((name, shape, reach, radius, arc, speed, pierce, castTime, cooldown, MathF.Round(baseDamage * 100f)),
             (a.Name, a.Shape, a.Reach, a.Radius, a.ArcDegrees, a.ProjectileSpeed, a.Pierce, a.CastTime, a.Cooldown,
-                a.BaseDamageCoefficient));
+                a.DamageEffectiveness));
         Assert.Empty(a.AllowedClasses);
-        Assert.Equal((0u, 0u, 0f, 0), (a.Cost, a.EffectValue, a.ScalingCoefficient, a.PowerGainPerHit));
+        Assert.Equal((0u, 0), (a.Cost, a.PowerGainPerHit));
         Assert.Equal(PowerType.None, a.CostPowerType);
         Assert.Equal(AbilityAffects.Hostile, a.Affects);
         Assert.Equal(AbilityAnchor.Caster, a.Anchor);
@@ -726,8 +756,8 @@ public class SeedIntegrityShould
         Type type = typeof(Avalon.World.Scripts.ScriptManager).Assembly.GetTypes().Single(t => t.Name == script);
         var kit = (Avalon.World.Creatures.CreatureAbilityKit)type.GetProperty("Kit")!.GetValue(null)!;
         Assert.Equal(abilities, new[] { kit.Basic }.Concat(kit.Specials).Select(i => i.Value));
-        Assert.Equal(1.0f, context.AbilityTemplates.AsNoTracking().AsEnumerable()
-            .Single(a => a.Id == kit.Basic).BaseDamageCoefficient);
+        Assert.Equal(100f, context.AbilityTemplates.AsNoTracking().AsEnumerable()
+            .Single(a => a.Id == kit.Basic).DamageEffectiveness);
     }
 
     /// <summary>
@@ -903,81 +933,37 @@ public class SeedIntegrityShould
         Assert.All(allies, a => Assert.Equal(0.5f, a.HealThreatPerHp));
     }
 
-    /// <summary>#506: each kit ability's damage stat and coefficients, as the balance seed set them.</summary>
-    [Theory]
-    [InlineData(200u, ScalingStat.Attack, 0.3f, 1.0f)]
-    [InlineData(201u, ScalingStat.Attack, 0.6f, 1.5f)]
-    [InlineData(202u, ScalingStat.Attack, 0.5f, 1.0f)]
-    [InlineData(210u, ScalingStat.Ability, 0.25f, 0f)]
-    [InlineData(211u, ScalingStat.Ability, 0.4f, 0f)]
-    [InlineData(212u, ScalingStat.Ability, 0.5f, 0f)]
-    [InlineData(220u, ScalingStat.Attack, 0.3f, 1.0f)]
-    [InlineData(221u, ScalingStat.Attack, 0.6f, 1.2f)]
-    [InlineData(222u, ScalingStat.Attack, 0.4f, 0.8f)]
-    [InlineData(230u, ScalingStat.Ability, 0.3f, 0f)]
-    [InlineData(231u, ScalingStat.Ability, 0.5f, 0f)]
-    [InlineData(232u, ScalingStat.Ability, 0.6f, 0f)]
-    [InlineData(203u, ScalingStat.Attack, 0.2f, 0.5f)]
-    [InlineData(213u, ScalingStat.Ability, 0f, 0f)]
-    [InlineData(223u, ScalingStat.Attack, 0.35f, 0.6f)]
-    [InlineData(233u, ScalingStat.Ability, 0f, 0f)]
-    [InlineData(234u, ScalingStat.Ability, 0f, 0f)]
-    [InlineData(204u, ScalingStat.Attack, 0.15f, 0.3f)]
-    [InlineData(214u, ScalingStat.Ability, 0.1f, 0f)]
-    [InlineData(224u, ScalingStat.Attack, 0.2f, 0.3f)]
-    [InlineData(235u, ScalingStat.Ability, 0f, 0f)]
-    public void Seed_each_kit_abilitys_scaling(uint id, ScalingStat stat, float scaling, float weapon)
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().ToList().Single(a => a.Id.Value == id);
-        Assert.Equal((stat, scaling, weapon), (ability.ScalingStat, ability.ScalingCoefficient, ability.BaseDamageCoefficient));
-    }
-
-    /// <summary>#732: Flame Burst halved from 35 + 0.8 x ability damage to 18 + 0.4 x ability damage.</summary>
-    [Fact]
-    public void Seed_flame_burst_at_half_its_first_damage()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        AbilityTemplate burst = context.AbilityTemplates.AsNoTracking().ToList().Single(a => a.Id.Value == 211);
-        Assert.Equal((18u, 0.4f, 25u, 3f), (burst.EffectValue, burst.ScalingCoefficient, burst.Cost, burst.Radius));
-    }
-
     /// <summary>
     /// Auras: the seeded auras, each as designed (8-10 the forest shrine's outcomes, 12-15 the crowd control of #770,
     /// with the design's break chances in percent; the slows Crippled and Hexed take its slow row).
     /// </summary>
     [Theory]
-    [InlineData(1u, "Bleed", AuraKind.Harmful, 12000u, 3000u, AuraPeriodicKind.Damage, 12f, ScalingStat.Attack, 0.25f, 0f, AuraStacking.Stack, 3u, CrowdControl.None, 0f, 0f)]
-    [InlineData(2u, "Burn", AuraKind.Harmful, 9000u, 3000u, AuraPeriodicKind.Damage, 24f, ScalingStat.Ability, 0.6f, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0f)]
-    [InlineData(3u, "Crippled", AuraKind.Harmful, 6000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0.5f)]
-    [InlineData(4u, "Renew", AuraKind.Helpful, 12000u, 3000u, AuraPeriodicKind.Heal, 24f, ScalingStat.Ability, 0.4f, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0f)]
-    [InlineData(5u, "Fortified", AuraKind.Helpful, 30000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0f)]
-    [InlineData(6u, "Poison", AuraKind.Harmful, 9000u, 3000u, AuraPeriodicKind.Damage, 3f, ScalingStat.Attack, 0f, 1f, AuraStacking.Stack, 3u, CrowdControl.None, 0f, 0f)]
-    [InlineData(7u, "Sundered", AuraKind.Harmful, 10000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0f)]
-    [InlineData(8u, "Blessed", AuraKind.Helpful, 120000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0f)]
-    [InlineData(9u, "Emboldened", AuraKind.Helpful, 120000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0f)]
-    [InlineData(10u, "Hexed", AuraKind.Harmful, 60000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0.5f)]
-    [InlineData(12u, "Stunned", AuraKind.Harmful, 1500u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u, CrowdControl.Stun, 10f, 0.5f)]
-    [InlineData(13u, "Bound", AuraKind.Harmful, 3000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u, CrowdControl.Root, 25f, 0.5f)]
-    [InlineData(14u, "Frozen", AuraKind.Harmful, 2500u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u, CrowdControl.Root, 25f, 0.5f)]
-    [InlineData(15u, "Silenced", AuraKind.Harmful, 3000u, 0u, AuraPeriodicKind.None, 0f, ScalingStat.Attack, 0f, 0f, AuraStacking.Refresh, 1u, CrowdControl.Silence, 0f, 0f)]
+    [InlineData(1u, "Bleed", AuraKind.Harmful, 12000u, 3000u, AuraPeriodicKind.Damage, 12f, AuraStacking.Stack, 3u, CrowdControl.None, 0f, 0f)]
+    [InlineData(2u, "Burn", AuraKind.Harmful, 9000u, 3000u, AuraPeriodicKind.Damage, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0f)]
+    [InlineData(3u, "Crippled", AuraKind.Harmful, 6000u, 0u, AuraPeriodicKind.None, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0.5f)]
+    [InlineData(4u, "Renew", AuraKind.Helpful, 12000u, 3000u, AuraPeriodicKind.Heal, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0f)]
+    [InlineData(5u, "Fortified", AuraKind.Helpful, 30000u, 0u, AuraPeriodicKind.None, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0f)]
+    [InlineData(6u, "Poison", AuraKind.Harmful, 9000u, 3000u, AuraPeriodicKind.Damage, 3f, AuraStacking.Stack, 3u, CrowdControl.None, 0f, 0f)]
+    [InlineData(7u, "Sundered", AuraKind.Harmful, 10000u, 0u, AuraPeriodicKind.None, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0f)]
+    [InlineData(8u, "Blessed", AuraKind.Helpful, 120000u, 0u, AuraPeriodicKind.None, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0f)]
+    [InlineData(9u, "Emboldened", AuraKind.Helpful, 120000u, 0u, AuraPeriodicKind.None, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0f)]
+    [InlineData(10u, "Hexed", AuraKind.Harmful, 60000u, 0u, AuraPeriodicKind.None, 0f, AuraStacking.Refresh, 1u, CrowdControl.None, 0f, 0.5f)]
+    [InlineData(12u, "Stunned", AuraKind.Harmful, 1500u, 0u, AuraPeriodicKind.None, 0f, AuraStacking.Refresh, 1u, CrowdControl.Stun, 10f, 0.5f)]
+    [InlineData(13u, "Bound", AuraKind.Harmful, 3000u, 0u, AuraPeriodicKind.None, 0f, AuraStacking.Refresh, 1u, CrowdControl.Root, 25f, 0.5f)]
+    [InlineData(14u, "Frozen", AuraKind.Harmful, 2500u, 0u, AuraPeriodicKind.None, 0f, AuraStacking.Refresh, 1u, CrowdControl.Root, 25f, 0.5f)]
+    [InlineData(15u, "Silenced", AuraKind.Harmful, 3000u, 0u, AuraPeriodicKind.None, 0f, AuraStacking.Refresh, 1u, CrowdControl.Silence, 0f, 0f)]
     public void Seed_each_aura_as_designed(uint id, string name, AuraKind kind, uint duration, uint interval,
-        AuraPeriodicKind periodic, float periodicBase, ScalingStat stat, float coefficient, float baseDamage,
-        AuraStacking stacking, uint maxStacks, CrowdControl control, float breakOnDamage, float breakPerSecond)
+        AuraPeriodicKind periodic, float periodicBase, AuraStacking stacking, uint maxStacks, CrowdControl control, float breakOnDamage, float breakPerSecond)
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         AuraTemplate a = context.AuraTemplates.AsNoTracking().AsEnumerable().Single(t => t.Id.Value == id);
 
-        Assert.Equal((name, name.ToLowerInvariant(), kind, duration, interval, periodic, periodicBase, stat, coefficient,
-                baseDamage, stacking, maxStacks, (string?)null),
-            (a.Name, a.Icon, a.Kind, a.DurationMs, a.TickIntervalMs, a.PeriodicKind, a.PeriodicBase, a.ScalingStat,
-                a.ScalingCoefficient, a.BaseDamageCoefficient, a.Stacking, a.MaxStacks, a.ScriptName));
+        Assert.Equal((name, name.ToLowerInvariant(), kind, duration, interval, periodic, periodicBase, stacking, maxStacks,
+                (string?)null),
+            (a.Name, a.Icon, a.Kind, a.DurationMs, a.TickIntervalMs, a.PeriodicKind, a.PeriodicBase, a.Stacking, a.MaxStacks,
+                a.ScriptName));
         Assert.Equal((control, breakOnDamage, breakPerSecond), (a.Control, a.BreakOnDamagePct, a.BreakPerSecondPct));
     }
 
@@ -988,41 +974,41 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         Assert.Equal(
-            [(3u, AuraStat.MovementSpeed, AuraModifierKind.Flat, -30f), (5u, AuraStat.Armor, AuraModifierKind.Percent, 20f),
-             (7u, AuraStat.Armor, AuraModifierKind.Percent, -25f), (8u, AuraStat.MaxHealth, AuraModifierKind.Percent, 10f),
-             (9u, AuraStat.AttackDamage, AuraModifierKind.Percent, 10f), (9u, AuraStat.AbilityDamage, AuraModifierKind.Percent, 10f),
-             (10u, AuraStat.Armor, AuraModifierKind.Percent, -10f), (10u, AuraStat.MovementSpeed, AuraModifierKind.Flat, -15f)],
+            [(3u, AuraStat.MovementSpeed, AuraModifierKind.Flat, -30f), (5u, AuraStat.Armor, AuraModifierKind.Increased, 20f),
+             (7u, AuraStat.Armor, AuraModifierKind.Increased, -25f), (8u, AuraStat.MaxHealth, AuraModifierKind.Increased, 10f),
+             (9u, AuraStat.IncreasedDamage, AuraModifierKind.Flat, 10f), (9u, AuraStat.IncreasedHealing, AuraModifierKind.Flat, 10f),
+             (10u, AuraStat.Armor, AuraModifierKind.Increased, -10f), (10u, AuraStat.MovementSpeed, AuraModifierKind.Flat, -15f)],
             context.AuraStatModifiers.AsNoTracking().AsEnumerable().OrderBy(m => m.AuraId.Value).ThenBy(m => m.Stat)
                 .Select(m => (m.AuraId.Value, m.Stat, m.Kind, m.Value)));
     }
 
     /// <summary>
-    /// Auras: the aura abilities, each with its shape, timing, cost, direct amount and aura; 204-235 the crowd control
+    /// Auras: the aura abilities, each with its shape, timing, cost, effects and aura; 204-235 the crowd control
     /// of #770, which a dodge or a miss lands no control from: Hush (235) deals nothing and is pure silence (#1164).
     /// </summary>
     [Theory]
-    [InlineData(203u, "Rend", AbilityShape.Cone, AbilityAimMode.Movement, 2.5f, 0f, 90f, 0f, 6000u, 10u, PowerType.Fury, SpellEffect.Damage, 8u, 1u)]
-    [InlineData(213u, "Ignite", AbilityShape.Circle, AbilityAimMode.Cursor, 18f, 3f, 0f, 0f, 6000u, 20u, PowerType.Mana, SpellEffect.Debuff, 0u, 2u)]
-    [InlineData(223u, "Crippling Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, 25f, 0f, 0f, 14f, 8000u, 15u, PowerType.Energy, SpellEffect.Damage, 14u, 3u)]
-    [InlineData(233u, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, 15f, 4f, 0f, 0f, 6000u, 15u, PowerType.Mana, SpellEffect.Buff, 0u, 4u)]
-    [InlineData(234u, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, 0f, 8f, 0f, 0f, 20000u, 20u, PowerType.Mana, SpellEffect.Buff, 0u, 5u)]
-    [InlineData(204u, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, 2.5f, 0f, 90f, 0f, 15000u, 15u, PowerType.Fury, SpellEffect.Damage, 6u, 12u)]
-    [InlineData(214u, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, 18f, 3f, 0f, 0f, 20000u, 25u, PowerType.Mana, SpellEffect.Damage, 6u, 14u)]
-    [InlineData(224u, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, 25f, 0f, 0f, 14f, 15000u, 20u, PowerType.Energy, SpellEffect.Damage, 8u, 13u)]
-    [InlineData(235u, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, 18f, 0f, 0f, 17f, 20000u, 20u, PowerType.Mana, SpellEffect.Debuff, 0u, 15u)]
-    [InlineData(317u, "Venom Spit", AbilityShape.Projectile, AbilityAimMode.Cursor, 10f, 0f, 0f, 14f, 8000u, 0u, PowerType.None, SpellEffect.Damage, 0u, 6u)]
-    [InlineData(318u, "Sundering Howl", AbilityShape.Circle, AbilityAimMode.Movement, 0f, 6f, 0f, 0f, 18000u, 0u, PowerType.None, SpellEffect.Debuff, 0u, 7u)]
+    [InlineData(203u, "Rend", AbilityShape.Cone, AbilityAimMode.Movement, 2.5f, 0f, 90f, 0f, 6000u, 10u, PowerType.Fury, SpellEffect.Damage, 1u)]
+    [InlineData(213u, "Ignite", AbilityShape.Circle, AbilityAimMode.Cursor, 18f, 3f, 0f, 0f, 6000u, 20u, PowerType.Mana, SpellEffect.Debuff, 2u)]
+    [InlineData(223u, "Crippling Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, 25f, 0f, 0f, 14f, 8000u, 15u, PowerType.Energy, SpellEffect.Damage, 3u)]
+    [InlineData(233u, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, 15f, 4f, 0f, 0f, 6000u, 15u, PowerType.Mana, SpellEffect.Buff, 4u)]
+    [InlineData(234u, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, 0f, 8f, 0f, 0f, 20000u, 20u, PowerType.Mana, SpellEffect.Buff, 5u)]
+    [InlineData(204u, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, 2.5f, 0f, 90f, 0f, 15000u, 15u, PowerType.Fury, SpellEffect.Damage, 12u)]
+    [InlineData(214u, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, 18f, 3f, 0f, 0f, 20000u, 25u, PowerType.Mana, SpellEffect.Damage, 14u)]
+    [InlineData(224u, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, 25f, 0f, 0f, 14f, 15000u, 20u, PowerType.Energy, SpellEffect.Damage, 13u)]
+    [InlineData(235u, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, 18f, 0f, 0f, 17f, 20000u, 20u, PowerType.Mana, SpellEffect.Debuff, 15u)]
+    [InlineData(317u, "Venom Spit", AbilityShape.Projectile, AbilityAimMode.Cursor, 10f, 0f, 0f, 14f, 8000u, 0u, PowerType.None, SpellEffect.Damage, 6u)]
+    [InlineData(318u, "Sundering Howl", AbilityShape.Circle, AbilityAimMode.Movement, 0f, 6f, 0f, 0f, 18000u, 0u, PowerType.None, SpellEffect.Debuff, 7u)]
     public void Seed_each_aura_ability_as_designed(uint id, string name, AbilityShape shape, AbilityAimMode aim, float reach,
-        float radius, float arc, float speed, uint cooldown, uint cost, PowerType pool, SpellEffect effects, uint value, uint aura)
+        float radius, float arc, float speed, uint cooldown, uint cost, PowerType pool, SpellEffect effects, uint aura)
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         AbilityTemplate a = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(t => t.Id.Value == id);
 
-        Assert.Equal((name, shape, aim, reach, radius, arc, speed, 0u, cooldown, cost, pool, effects, value, (uint?)aura),
+        Assert.Equal((name, shape, aim, reach, radius, arc, speed, 0u, cooldown, cost, pool, effects, (uint?)aura),
             (a.Name, a.Shape, a.AimMode, a.Reach, a.Radius, a.ArcDegrees, a.ProjectileSpeed, a.CastTime, a.Cooldown, a.Cost,
-                a.CostPowerType, a.Effects, a.EffectValue, a.AuraId?.Value));
+                a.CostPowerType, a.Effects, a.AuraId?.Value));
     }
 
     /// <summary>
@@ -1045,15 +1031,20 @@ public class SeedIntegrityShould
         }
     }
 
-    /// <summary>#506: the starter weapons roll 4-7, the forest weapons 7-11, and the two-handed Thornwood Staff 9-14.</summary>
+    /// <summary>
+    /// #506: the starter weapons roll 4-7 and the two-handed Thornwood Staff 9-14. #1178 (owner decision D2): a weapon's
+    /// roll is an attack's whole base, so the forest's sword and bow roll 5-7 and the Rusted Sword 4-6, carrying their old
+    /// hits (the carry-over theory below pins them); the Rootknot Mace keeps 7-11, which no Attack reads.
+    /// </summary>
     [Theory]
+    [InlineData(4ul, 4u, 6u)]
     [InlineData(32ul, 4u, 7u)]
     [InlineData(33ul, 4u, 7u)]
     [InlineData(34ul, 4u, 7u)]
     [InlineData(35ul, 4u, 7u)]
     [InlineData(5ul, 9u, 14u)]
-    [InlineData(6ul, 7u, 11u)]
-    [InlineData(7ul, 7u, 11u)]
+    [InlineData(6ul, 5u, 7u)]
+    [InlineData(7ul, 5u, 7u)]
     [InlineData(8ul, 7u, 11u)]
     public void Seed_the_weapon_damage_ranges(ulong id, uint min, uint max)
     {
@@ -1105,7 +1096,8 @@ public class SeedIntegrityShould
 
     /// <summary>
     /// #506: the one formula row and the class factors, as the balance seed set them. #1178: the evasion curve, the
-    /// resistance bounds and the class-neutral attribute conversions; no class has a base dodge or block any more.
+    /// resistance bounds and the class-neutral attribute conversions; no class has a base dodge, block, crit or life
+    /// rate of its own any more.
     /// </summary>
     [Fact]
     public void Seed_the_combat_formula_and_one_factors_row_per_class()
@@ -1123,13 +1115,9 @@ public class SeedIntegrityShould
         var factors = context.ClassStatFactors.AsNoTracking().ToList().ToDictionary(r => r.Class);
         Assert.Equal(CharacterClasses.Playable.Order(), factors.Keys.Order());
         ClassStatFactors w = factors[CharacterClass.Warrior];
-        Assert.Equal((10L, 0d, 0d, (long?)100L, 2d, 0d, 0.2d, 5.0f),
-            (w.HpPerStamina, w.PowerPerIntellect, w.PowerPerAgility, w.FixedPower, w.AttackPerStrength, w.AttackPerAgility,
-             w.AbilityPerIntellect, w.BaseCrit));
+        Assert.Equal((0d, 0d, (long?)100L), (w.PowerPerIntellect, w.PowerPerAgility, w.FixedPower));
         ClassStatFactors h = factors[CharacterClass.Hunter];
-        Assert.Equal((8L, 2d, 0.8d, (long?)null, 0.5d, 1.5d, 0.5d, 5.0f),
-            (h.HpPerStamina, h.PowerPerIntellect, h.PowerPerAgility, h.FixedPower, h.AttackPerStrength, h.AttackPerAgility,
-             h.AbilityPerIntellect, h.BaseCrit));
+        Assert.Equal((2d, 0.8d, (long?)null), (h.PowerPerIntellect, h.PowerPerAgility, h.FixedPower));
     }
 
     /// <summary>
@@ -1200,53 +1188,198 @@ public class SeedIntegrityShould
         double evadePct = HitResolver.EvasionChance(evasion, (uint)level, formula) * 100d;
         Assert.InRange(evadePct, todayPct - 0.5, todayPct + 0.5);
     }
-    /// <summary>#627: the haste cap and the movement speed bounds, in percentage points.</summary>
+    /// <summary>#627: the movement speed bounds, in percentage points.</summary>
     [Fact]
-    public void Seed_the_haste_cap_and_the_movement_speed_bounds()
+    public void Seed_the_movement_speed_bounds()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         CombatFormula f = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
-        Assert.Equal((50f, 35f, -50f), (f.HasteCap, f.MoveSpeedCap, f.MoveSpeedFloor));
+        Assert.Equal((35f, -50f), (f.MoveSpeedCap, f.MoveSpeedFloor));
     }
 
     /// <summary>
-    /// #627: a weapon's AttackSpeed is a haste percentage, set by weapon type: swords and bows 3, maces 2,
-    /// staves 0. A staff keeps its AttackSpeed pair, at 0.
+    /// #1178 (B-R9): a weapon's old haste pair is folded into its attack time, so each weapon's attribute moves to its
+    /// first stat and nothing follows it; the Rusted Sword, which had only the haste, carries no stat.
     /// </summary>
     [Theory]
-    [InlineData(4ul, 3u)]   // Rusted Sword
-    [InlineData(7ul, 3u)]   // Bramblesteel Sword
-    [InlineData(32ul, 3u)]  // Ironwood Sword
-    [InlineData(6ul, 3u)]   // Briarstring Bow
-    [InlineData(34ul, 3u)]  // Hunter's Shortbow
-    [InlineData(8ul, 2u)]   // Rootknot Mace
-    [InlineData(35ul, 2u)]  // Oak Mace
-    [InlineData(5ul, 0u)]   // Thornwood Staff
-    [InlineData(33ul, 0u)]  // Ash Staff
-    public void Seed_each_weapons_attack_speed_as_a_haste_percentage(ulong id, uint haste)
+    [InlineData(4ul, null, null)]                   // Rusted Sword
+    [InlineData(7ul, StatType.Strength, 1u)]        // Bramblesteel Sword
+    [InlineData(32ul, StatType.Strength, 1u)]       // Ironwood Sword
+    [InlineData(6ul, StatType.Agility, 1u)]         // Briarstring Bow
+    [InlineData(34ul, StatType.Agility, 1u)]        // Hunter's Shortbow
+    [InlineData(8ul, StatType.Intellect, 1u)]       // Rootknot Mace
+    [InlineData(35ul, StatType.Intellect, 1u)]      // Oak Mace
+    [InlineData(5ul, StatType.Intellect, 1u)]       // Thornwood Staff
+    [InlineData(33ul, StatType.Intellect, 1u)]      // Ash Staff
+    public void Seed_each_weapons_attribute_as_its_first_stat(ulong id, StatType? stat, uint? value)
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
-        Assert.Equal((StatType?)StatType.AttackSpeed, item.StatType1);
-        Assert.Equal((uint?)haste, item.StatValue1);
+        Assert.Equal((stat, value, (StatType?)null, (uint?)null), (item.StatType1, item.StatValue1, item.StatType2, item.StatValue2));
     }
 
-    /// <summary>#627: every seeded weapon is one of the nine above, and no seeded item carries MovementSpeed.</summary>
+    /// <summary>#1178: a weapon's speed is its attack time, so no seeded item carries attack speed, nor movement speed.</summary>
     [Fact]
-    public void Seed_attack_speed_on_the_nine_weapons_only_and_movement_speed_on_nothing()
+    public void Seed_attack_speed_and_movement_speed_on_no_item()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         var items = context.ItemTemplates.AsNoTracking().ToList();
-        Assert.Equal([4ul, 5ul, 6ul, 7ul, 8ul, 32ul, 33ul, 34ul, 35ul],
-            items.Where(i => StatTypesOf(i).Contains(StatType.AttackSpeed)).Select(i => i.Id.Value).Order());
+        Assert.DoesNotContain(items, i => StatTypesOf(i).Contains(StatType.AttackSpeed));
         Assert.DoesNotContain(items, i => StatTypesOf(i).Contains(StatType.MovementSpeed));
     }
+
+    /// <summary>
+    /// #1178 (B-R9, table C): each class's basic attack, now paced by its weapon's attack time over Agility's attack speed,
+    /// keeps today's pace (800 ms over the weapon's old haste) through the stats calculator over the seeded rows, with the
+    /// balance tool's starter profile (the class's starter weapon and five armour pieces) or bare-handed.
+    /// </summary>
+    [Theory]
+    [InlineData(CharacterClass.Warrior, (ushort)1, true, 776.7, 0.1)]
+    [InlineData(CharacterClass.Hunter, (ushort)1, true, 776.7, 0.1)]
+    [InlineData(CharacterClass.Warrior, (ushort)1, false, 800.0, 0.1)]
+    [InlineData(CharacterClass.Warrior, (ushort)10, true, 776.7, 1.5)]
+    [InlineData(CharacterClass.Hunter, (ushort)10, true, 776.7, 2.0)]
+    public void Carry_todays_basic_attack_pace_over(CharacterClass c, ushort level, bool starter, double todayMs,
+        double tolerancePct)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
+        ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().AsEnumerable().Single(f => f.Class == c);
+        ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
+        ulong[] starterIds = c == CharacterClass.Warrior ? [32, 36, 37, 38, 39, 40] : [34, 46, 47, 48, 49, 50];
+        List<ItemTemplate> worn = starter
+            ? context.ItemTemplates.AsNoTracking().AsEnumerable().Where(i => starterIds.Contains(i.Id.Value)).ToList()
+            : [];
+        Assert.Equal(starter ? 6 : 0, worn.Count);
+        AbilityTemplate basic = context.AbilityTemplates.AsNoTracking().AsEnumerable()
+            .Single(a => (a.Flags & AbilityFlags.Basic) != 0 && a.AllowedClasses!.Contains(c));
+
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, factors, formula);
+        var pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, formula);
+        double paceMs = AbilityPace.Cooldown(AbilityMetadataMapper.From(basic), pace) * 1000d;
+
+        Assert.InRange(Math.Abs(paceMs - todayMs) / todayMs * 100d, 0d, tolerancePct);
+    }
+
+    /// <summary>
+    /// #1178 (R17, tables A and B): each kit ability carries today's numbers over, through the stats calculator over the
+    /// seeded row and the balance tool's starter profile (the class's starter weapon and five armour pieces). The average of
+    /// the ability's base with every roll at its low and at its high end (<see cref="RollEnds" />): an Attack's or a Spell's
+    /// <see cref="OffenceMath.DirectBase" />, a Heal's <see cref="OffenceMath.HealBase" />, or, through its aura, the
+    /// whole of <see cref="OffenceMath.PeriodicTotal" /> (Rend's Bleed, Ignite's Burn, Renew). Today's average is the old
+    /// <c>EffectValue + coefficient × damage stat + weapon coefficient × roll</c>, the tolerance its table's. The re-expressed
+    /// weapons (owner decision D2) carry their tiers over too: the balance tool's forest profile (the Bramblesteel Sword
+    /// and the Briarstring Bow, 7-11 then, 5-7 now) and the starter Warrior with the Rusted Sword (1-3 then, 4-6 now).
+    /// </summary>
+    [Theory]
+    [InlineData(200u, (ushort)1, 34.9, 1.0)]       // Cleave
+    [InlineData(200u, (ushort)10, 45.7, 1.0)]
+    [InlineData(201u, (ushort)1, 68.05, 1.0)]      // Ground Slam
+    [InlineData(201u, (ushort)10, 89.65, 1.0)]
+    [InlineData(202u, (ushort)1, 54.5, 1.0)]       // Hurled Axe
+    [InlineData(202u, (ushort)10, 72.5, 2.0)]
+    [InlineData(203u, (ushort)1, 22.35, 1.0)]      // Rend
+    [InlineData(203u, (ushort)10, 29.55, 1.0)]
+    [InlineData(204u, (ushort)1, 16.35, 1.0)]      // Shield Bash
+    [InlineData(204u, (ushort)10, 21.75, 1.5)]
+    [InlineData(220u, (ushort)1, 34.6, 1.0)]       // Quick Shot
+    [InlineData(220u, (ushort)10, 43.9, 1.5)]
+    [InlineData(221u, (ushort)1, 65.8, 1.0)]       // Piercing Arrow
+    [InlineData(221u, (ushort)10, 84.4, 1.0)]
+    [InlineData(222u, (ushort)1, 49.2, 1.0)]       // Scatter Shot
+    [InlineData(222u, (ushort)10, 61.6, 3.0)]
+    [InlineData(223u, (ushort)1, 37.3, 1.0)]       // Crippling Shot
+    [InlineData(223u, (ushort)10, 48.1, 9.0)]
+    [InlineData(224u, (ushort)1, 21.05, 1.0)]      // Binding Shot
+    [InlineData(224u, (ushort)10, 27.25, 7.0)]
+    [InlineData(210u, (ushort)1, 35.25, 1.0)]      // Spark Bolt
+    [InlineData(210u, (ushort)10, 48.75, 1.0)]
+    [InlineData(211u, (ushort)1, 55.2, 1.0)]       // Flame Burst
+    [InlineData(211u, (ushort)10, 76.8, 1.0)]
+    [InlineData(212u, (ushort)1, 68.5, 1.0)]       // Frost Fan
+    [InlineData(212u, (ushort)10, 95.5, 1.0)]
+    [InlineData(214u, (ushort)1, 15.3, 3.0)]       // Frost Bind
+    [InlineData(214u, (ushort)10, 20.7, 3.0)]
+    [InlineData(230u, (ushort)1, 29.4, 1.0)]       // Smite
+    [InlineData(230u, (ushort)10, 40.2, 1.0)]
+    [InlineData(231u, (ushort)1, 51.0, 1.0)]       // Radiant Pulse
+    [InlineData(231u, (ushort)10, 69.0, 1.0)]
+    [InlineData(232u, (ushort)1, 74.8, 1.0)]       // Mending Circle
+    [InlineData(232u, (ushort)10, 96.4, 2.0)]
+    [InlineData(213u, (ushort)1, 79.8, 1.0, true)]   // Ignite's Burn, the whole total
+    [InlineData(213u, (ushort)10, 112.2, 1.0, true)]
+    [InlineData(233u, (ushort)1, 47.2, 1.0, true)]   // Renew, the whole heal
+    [InlineData(233u, (ushort)10, 61.6, 1.0, true)]
+    [InlineData(203u, (ushort)1, 26.5, 1.0, true)]   // Rend's Bleed, the whole total
+    [InlineData(203u, (ushort)10, 35.5, 2.5, true)]
+    [InlineData(200u, (ushort)1, 39.6, 1.0, false, "forest")]    // Cleave, Bramblesteel Sword
+    [InlineData(200u, (ushort)10, 50.4, 2.0, false, "forest")]   // tolerance: the closest whole-number range's measured gap (D2)
+    [InlineData(220u, (ushort)1, 39.3, 4.0, false, "forest")]    // Quick Shot, Briarstring Bow; tolerance: the closest whole-number range's measured gap (D2)
+    [InlineData(220u, (ushort)10, 48.9, 1.5, false, "forest")]
+    [InlineData(200u, (ushort)1, 30.8, 1.5, false, "rusted")]    // Cleave, Rusted Sword; tolerance: the closest whole-number range's measured gap (D2)
+    [InlineData(200u, (ushort)10, 41.6, 1.5, false, "rusted")]   // tolerance: the closest whole-number range's measured gap (D2)
+    public void Carry_todays_ability_numbers_over_at_levels_one_and_ten(uint id, ushort level, double todayAvg,
+        double tolerancePct, bool viaAura = false, string gear = "starter")
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == id);
+        CharacterClass c = Assert.Single(ability.AllowedClasses);
+        CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
+        ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().AsEnumerable().Single(f => f.Class == c);
+        ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
+        ulong[] profile = s_gearProfiles[gear][c];
+        var worn = context.ItemTemplates.AsNoTracking().AsEnumerable()
+            .Where(i => profile.Contains(i.Id.Value)).ToList();
+        Assert.Equal(6, worn.Count);
+
+        AttackerCombat caster = CharacterStatsCalculator.Calculate(row, worn, factors, formula).AttackerAt(level);
+        AbilityMetadata metadata = AbilityMetadataMapper.From(ability);
+        AuraTemplate? aura = viaAura
+            ? context.AuraTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == ability.AuraId!.Value)
+            : null;
+
+        double At(ICombatRandom ends) =>
+            aura is not null
+                ? OffenceMath.PeriodicTotal(aura, caster, metadata, HitResolver.TypeOf(metadata.DamageType, caster), ends)
+                : (metadata.Tags & AbilityTags.Heal) != 0
+                    ? OffenceMath.HealBase(caster, metadata, ends)
+                    : OffenceMath.DirectBase(caster, metadata, ends).Total;
+
+        double average = (At(RollEnds.Low) + At(RollEnds.High)) / 2d;
+        Assert.True(Math.Abs(average - todayAvg) / todayAvg * 100d <= tolerancePct,
+            FormattableString.Invariant($"ability {id} at level {level}: {average:0.###} against today's {todayAvg}"));
+    }
+
+    /// <summary>
+    /// The balance tool's starter and forest profiles (each class's weapon and its five armour pieces), and the starter
+    /// Warrior with the Rusted Sword in place of its starter sword.
+    /// </summary>
+    private static readonly Dictionary<string, Dictionary<CharacterClass, ulong[]>> s_gearProfiles = new()
+    {
+        ["starter"] = new()
+        {
+            [CharacterClass.Warrior] = [32, 36, 37, 38, 39, 40],
+            [CharacterClass.Wizard] = [33, 41, 42, 43, 44, 45],
+            [CharacterClass.Hunter] = [34, 46, 47, 48, 49, 50],
+            [CharacterClass.Cleric] = [35, 51, 52, 53, 54, 55],
+        },
+        ["forest"] = new()
+        {
+            [CharacterClass.Warrior] = [7, 12, 13, 14, 15, 16],
+            [CharacterClass.Hunter] = [6, 22, 23, 24, 25, 26],
+        },
+        ["rusted"] = new() { [CharacterClass.Warrior] = [4, 36, 37, 38, 39, 40] },
+    };
 
     private static StatType?[] StatTypesOf(ItemTemplate i) =>
     [

@@ -1,18 +1,16 @@
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
-using Avalon.World.Public.Abilities;
 
 namespace Avalon.Combat;
 
 /// <summary>
-/// What the attacking side of a hit brings (#506). Chances are percentage points. WeaponMin..WeaponMax is
-/// the base damage an ability's BaseDamageCoefficient rolls: a character's main hand, a creature's natural
-/// DamageMin..DamageMax (#163). A creature has no damage stats. BaseType is the type of a hit whose ability names
-/// none (#1178): a creature's template's, a character's Physical. Penetration has no data source yet.
+/// What the attacking side of a hit brings (#506, #1178). CritPct is percentage points. Weapon is what an Attack rolls: a
+/// character's main hand (the bare hand's range with none), a creature's natural DamageMin..DamageMax (#163). Offence is
+/// the attacker's offence block, read by <see cref="OffenceMath" /> and the crit multiplier. BaseType is the type of a hit
+/// whose ability names none: a creature's template's, a character's Physical. Penetration has no data source yet.
 /// </summary>
-public readonly record struct AttackerCombat(
-    uint Level, uint AttackDamage, uint AbilityDamage, float CritPct, uint WeaponMin, uint WeaponMax,
-    DamageType BaseType = DamageType.Physical, Penetration Penetration = default);
+public readonly record struct AttackerCombat(uint Level, float CritPct, WeaponDamage Weapon = default,
+    OffenceStats Offence = default, DamageType BaseType = DamageType.Physical, Penetration Penetration = default);
 
 /// <summary>
 /// What the defending side of a hit brings (#506, #1178). Evasion is a rating, weighed against the attacker's level;
@@ -29,9 +27,9 @@ public readonly record struct DefenderCombat(uint Armor, uint Evasion, float Blo
 /// <remarks>
 /// A damage hit draws, in this order: an evasion roll (none for an Unavoidable ability, #1164); then, when not evaded,
 /// a crit roll and a block roll. The order of the draws is part of the contract. The steps are: base, evasion (0, and
-/// nothing else is drawn), crit (× CritMultiplier), block (× BlockMultiplier), then each damage type's part on its own
-/// × its mitigation (<see cref="Mitigation" />: armour for physical, resistance for an element), then the sum floored
-/// with a minimum of 1. Each chance is clamped to its cap, and one that is not a finite value of 0 or more counts as 0.
+/// nothing else is drawn), crit (× <see cref="CritMultiplier(in AttackerCombat, CombatFormula)" />), block (× BlockMultiplier), then each damage type's
+/// part on its own × its mitigation (<see cref="Mitigation" />: armour for physical, resistance for an element), then the
+/// sum floored with a minimum of 1. Each chance is clamped to its cap, and one that is not a finite value of 0 or more counts as 0.
 /// </remarks>
 public static class HitResolver
 {
@@ -43,40 +41,13 @@ public static class HitResolver
         abilityType ?? attacker.BaseType;
 
     /// <summary>
-    /// An ability's base: <c>effectValue + scaling × stat + baseDamageCoefficient × roll</c>, the stat being
-    /// AttackDamage or AbilityDamage. The base damage is rolled, uniform and inclusive over the attacker's
-    /// WeaponMin..WeaponMax (a character's main hand, a creature's natural range, #163), only when the
-    /// coefficient is above 0 and the range is above 0.
-    /// </summary>
-    public static float AbilityBase(in AttackerCombat a, float effectValue, ScalingStat stat, float scaling,
-        float baseDamageCoefficient, ICombatRandom rng)
-    {
-        double statValue = stat == ScalingStat.Ability ? a.AbilityDamage : a.AttackDamage;
-        long roll = 0;
-        if (NonNegative(baseDamageCoefficient) > 0 && a.WeaponMax > 0)
-            roll = rng.NextInt64(Math.Min(a.WeaponMin, a.WeaponMax), a.WeaponMax);
-
-        return (float)AbilityAmountMath.Sum(effectValue, scaling, statValue, baseDamageCoefficient, roll);
-    }
-
-    /// <summary>
-    /// The lowest and highest <see cref="AbilityBase" /> the attacker can produce (#669): the same sum, with
-    /// the weapon roll at the low and the high end of its inclusive range, so the bounds come from the very
-    /// arithmetic a hit uses. Without a weapon term the two are equal.
-    /// </summary>
-    public static (float Min, float Max) AbilityBaseRange(in AttackerCombat a, float effectValue, ScalingStat stat,
-        float scaling, float baseDamageCoefficient) =>
-        (AbilityBase(a, effectValue, stat, scaling, baseDamageCoefficient, FixedRoll.Low),
-            AbilityBase(a, effectValue, stat, scaling, baseDamageCoefficient, FixedRoll.High));
-
-    /// <summary>
     /// What <see cref="ResolveDamage" /> deals from <paramref name="baseDamage" /> when nothing procs and the
     /// defender has no armour (#669): the base, floored, with a minimum of 1.
     /// </summary>
-    public static uint NormalDamage(float baseDamage) => AbilityAmountMath.NormalDamage(baseDamage);
+    public static uint NormalDamage(double baseDamage) => AbilityAmountMath.NormalDamage(baseDamage);
 
     /// <summary>What <see cref="ResolveHeal" /> restores from <paramref name="baseHeal" /> without a crit (#669): the base, floored.</summary>
-    public static uint NormalHeal(float baseHeal) => AbilityAmountMath.NormalHeal(baseHeal);
+    public static uint NormalHeal(double baseHeal) => AbilityAmountMath.NormalHeal(baseHeal);
 
     /// <summary>
     /// The chance to evade an attacker of <paramref name="attackerLevel" /> (#1178), armour's shape:
@@ -130,9 +101,13 @@ public static class HitResolver
     /// (<c>1 − ArmorReduction</c>), an element its resistance less the attacker's penetration.
     /// </summary>
     public static double Mitigation(DamageType type, in AttackerCombat a, in DefenderCombat d, CombatFormula f) =>
+        MitigationOf(type, a.Level, a.Penetration.Of(type), d, f);
+
+    private static double MitigationOf(DamageType type, uint attackerLevel, float penetration, in DefenderCombat d,
+        CombatFormula f) =>
         type == DamageType.Physical
-            ? 1d - ArmorReduction(d.Armor, a.Level, f)
-            : ResistanceMultiplier(d.Resistances.Of(type), d.MaxResistanceBonus.Of(type), a.Penetration.Of(type), f);
+            ? 1d - ArmorReduction(d.Armor, attackerLevel, f)
+            : ResistanceMultiplier(d.Resistances.Of(type), d.MaxResistanceBonus.Of(type), penetration, f);
 
     /// <summary>
     /// A damage hit (#1178): <paramref name="baseDamage" /> split by type, each part mitigated on its own after the
@@ -155,7 +130,7 @@ public static class HitResolver
 
         if (rng.NextDouble() < Chance(a.CritPct, f.CritCap))
         {
-            scale *= NonNegative(f.CritMultiplier);
+            scale *= CritMultiplier(a, f);
             result |= HitResult.Crit;
         }
 
@@ -216,7 +191,7 @@ public static class HitResolver
     /// A heal: the base, then a crit roll (the one draw). Never dodged, blocked or reduced by armour, and
     /// floored with no minimum, so a heal of nothing stays nothing.
     /// </summary>
-    public static (uint Heal, HitResult Result) ResolveHeal(in AttackerCombat a, float baseHeal, CombatFormula f,
+    public static (uint Heal, HitResult Result) ResolveHeal(in AttackerCombat a, double baseHeal, CombatFormula f,
         ICombatRandom rng)
     {
         (double heal, HitResult result) = ResolvePeriodicHeal(a, baseHeal, f, rng);
@@ -230,35 +205,69 @@ public static class HitResolver
     /// the fraction from tick to tick (<see cref="AuraRules.TakeTick" />), so its ticks add up to its total.
     /// </summary>
     public static (double Damage, HitResult Result) ResolvePeriodic(in AttackerCombat a, in DefenderCombat d,
-        DamageType type, float baseDamage, CombatFormula f, ICombatRandom rng)
-    {
-        double damage = NonNegative(baseDamage);
-        HitResult result = HitResult.None;
+        DamageType type, double baseDamage, CombatFormula f, ICombatRandom rng) =>
+        Periodic(a.Level, a.CritPct, a.Offence.CritMultiplierBonus, a.Penetration.Of(type), d, type, baseDamage, f, rng);
 
-        if (rng.NextDouble() < Chance(a.CritPct, f.CritCap))
-        {
-            damage *= NonNegative(f.CritMultiplier);
-            result |= HitResult.Crit;
-        }
-
-        damage *= Mitigation(type, a, d, f);
-
-        return (damage, result);
-    }
+    /// <summary>
+    /// The same tick from the aura's own <paramref name="snapshot" /> (#1178): its caster's level, crit chance and crit
+    /// multiplier bonus, and the type its ticks deal, with no penetration. What a ticking aura resolves with: it reads
+    /// four values, so no attacker is built per tick.
+    /// </summary>
+    public static (double Damage, HitResult Result) ResolvePeriodic(in AuraSnapshot snapshot, in DefenderCombat d,
+        double baseDamage, CombatFormula f, ICombatRandom rng) =>
+        Periodic(snapshot.CasterLevel, snapshot.CritPct, snapshot.CritMultiplierBonus, 0f, d, snapshot.Type, baseDamage,
+            f, rng);
 
     /// <summary>
     /// A heal before flooring: the base, then a crit roll (the one draw). An aura's heal tick takes it as it is and
     /// carries the fraction (<see cref="AuraRules.TakeTick" />); <see cref="ResolveHeal" /> floors it.
     /// </summary>
-    public static (double Heal, HitResult Result) ResolvePeriodicHeal(in AttackerCombat a, float baseHeal,
+    public static (double Heal, HitResult Result) ResolvePeriodicHeal(in AttackerCombat a, double baseHeal,
+        CombatFormula f, ICombatRandom rng) =>
+        PeriodicHeal(a.CritPct, a.Offence.CritMultiplierBonus, baseHeal, f, rng);
+
+    /// <summary>The same heal tick from the aura's own <paramref name="snapshot" />: its caster's crit chance and crit multiplier bonus.</summary>
+    public static (double Heal, HitResult Result) ResolvePeriodicHeal(in AuraSnapshot snapshot, double baseHeal,
+        CombatFormula f, ICombatRandom rng) =>
+        PeriodicHeal(snapshot.CritPct, snapshot.CritMultiplierBonus, baseHeal, f, rng);
+
+    /// <summary>
+    /// What a crit multiplies by (#1178): the formula's <c>CritMultiplier</c> plus the attacker's crit multiplier bonus,
+    /// in points, as <c>max(0, CritMultiplier + bonus / 100)</c>. A value that is not finite counts as 0.
+    /// </summary>
+    public static double CritMultiplier(in AttackerCombat a, CombatFormula f) =>
+        CritMultiplier(a.Offence.CritMultiplierBonus, f);
+
+    /// <summary>The same from the crit multiplier bonus alone, in points.</summary>
+    public static double CritMultiplier(float critMultiplierBonus, CombatFormula f) =>
+        NonNegative(Finite(f.CritMultiplier) + (Finite(critMultiplierBonus) / 100d));
+
+    private static (double Damage, HitResult Result) Periodic(uint level, float critPct, float critMultiplierBonus,
+        float penetration, in DefenderCombat d, DamageType type, double baseDamage, CombatFormula f, ICombatRandom rng)
+    {
+        double damage = NonNegative(baseDamage);
+        HitResult result = HitResult.None;
+
+        if (rng.NextDouble() < Chance(critPct, f.CritCap))
+        {
+            damage *= CritMultiplier(critMultiplierBonus, f);
+            result |= HitResult.Crit;
+        }
+
+        damage *= MitigationOf(type, level, penetration, d, f);
+
+        return (damage, result);
+    }
+
+    private static (double Heal, HitResult Result) PeriodicHeal(float critPct, float critMultiplierBonus, double baseHeal,
         CombatFormula f, ICombatRandom rng)
     {
         double heal = NonNegative(baseHeal);
         HitResult result = HitResult.None;
 
-        if (rng.NextDouble() < Chance(a.CritPct, f.CritCap))
+        if (rng.NextDouble() < Chance(critPct, f.CritCap))
         {
-            heal *= NonNegative(f.CritMultiplier);
+            heal *= CritMultiplier(critMultiplierBonus, f);
             result |= HitResult.Crit;
         }
 
@@ -298,16 +307,4 @@ public static class HitResolver
     private static double ResistanceFloor(CombatFormula f) => Math.Min(Finite(f.ResistanceFloor), 0d);
 
     private static uint Floor(double value) => value >= uint.MaxValue ? uint.MaxValue : (uint)Math.Floor(value);
-
-    /// <summary>A roll pinned to one end of its range; only the weapon roll is ever asked of it.</summary>
-    private sealed class FixedRoll(bool high) : ICombatRandom
-    {
-        public static readonly FixedRoll Low = new(false);
-        public static readonly FixedRoll High = new(true);
-
-        public double NextDouble() => 0d;
-
-        public long NextInt64(long minInclusive, long maxInclusive) =>
-            high ? Math.Max(minInclusive, maxInclusive) : minInclusive;
-    }
 }

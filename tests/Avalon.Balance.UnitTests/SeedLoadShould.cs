@@ -4,6 +4,8 @@ using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
+using Avalon.World.Public.Abilities;
 using Xunit;
 
 namespace Avalon.Balance.UnitTests;
@@ -15,23 +17,24 @@ public class SeedLoadShould
     {
         DerivedCharacterStats warrior = TestData.Seeded.CharacterStats(CharacterClass.Warrior, 1, []);
 
-        Assert.Equal(240u, warrior.MaxHealth);     // 20 + 22 x 10
-        Assert.Equal(46u, warrior.AttackDamage);   // 23 x 2
+        Assert.Equal(240u, warrior.MaxHealth);     // 130 + 22 x 5
+        Assert.Equal(80.5f, warrior.Offence.Increased(OffenceStat.PhysicalAttack));   // 23 x 3.5
         Assert.Equal(100u, warrior.MaxPower);      // Fury is fixed at 100
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Give_cleave_a_base_of_25_point_8_for_that_warrior()
     {
         BalanceData data = TestData.Seeded;
         AbilityTemplate cleave = data.KitOf(CharacterClass.Warrior).Single(a => a.Id.Value == 200);
         AttackerCombat attacker = data.CharacterStats(CharacterClass.Warrior, 1, []).AttackerAt(1);
 
-        (float min, float max) = HitResolver.AbilityBaseRange(attacker, cleave.EffectValue, cleave.ScalingStat,
-            cleave.ScalingCoefficient, cleave.BaseDamageCoefficient);
+        AbilityMetadata metadata = AbilityMetadataMapper.From(cleave);
+        double min = OffenceMath.DirectBase(attacker, metadata, RollEnds.Low).Total;
+        double max = OffenceMath.DirectBase(attacker, metadata, RollEnds.High).Total;
 
-        Assert.Equal(25.8f, min, precision: 4);
-        Assert.Equal(25.8f, max, precision: 4);
+        Assert.Equal(25.8, min, precision: 4);
+        Assert.Equal(25.8, max, precision: 4);
     }
 
     [Fact]

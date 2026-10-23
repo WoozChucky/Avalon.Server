@@ -3,12 +3,14 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
 using Avalon.World.Public.Maps;
+using Avalon.World.Testing;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Auras;
@@ -23,7 +25,7 @@ public class AuraStatsIntegrationShould
             AuraSchedule.Start(s_t0, template.DurationMs, template.TickIntervalMs), template.DurationMs, s_t0.UtcDateTime);
 
     private static readonly ClassLevelStat s_warriorOne = new()
-    { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 };
+    { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 };
 
     private static readonly ItemTemplate s_plate = new()
     {
@@ -56,6 +58,54 @@ public class AuraStatsIntegrationShould
 
         Assert.Equal(38u, warrior.Stats!.Value.Armor);   // round(32 x 1.2)
         Assert.True(warrior.SaveState.StatsDirty);
+    }
+
+    private static readonly ItemTemplate s_sword = new()
+    {
+        Id = new ItemTemplateId(905_002),
+        Name = "Sword",
+        Slot = ItemSlotType.MainHand,
+        MaxStackSize = 1,
+        DamageMin1 = 4,
+        DamageMax1 = 7,
+        AttackTimeMs = 792,
+        StatType1 = StatType.Strength,
+        StatValue1 = 3,
+        StatType2 = StatType.IncreasedFireDamage,
+        StatValue2 = 10,
+        StatType3 = StatType.CritMultiplier,
+        StatValue3 = 25,
+    };
+
+    private static readonly ClassLevelStat[] s_warriorRows = [s_warriorOne];
+
+    private static ItemTemplate? Worn(ItemTemplateId id) => id == s_plate.Id ? s_plate : id == s_sword.Id ? s_sword : null;
+
+    /// <summary>
+    /// #1178: the refresh an aura with stat modifiers runs on a geared character (its gear's offence keys, its auras'
+    /// offence) allocates nothing once its aura totals are worked out: the worn templates, the gear's stats and the main
+    /// hand are read without a list, an iterator or a closure.
+    /// </summary>
+    [Fact]
+    public void Refresh_a_geared_characters_stats_for_its_auras_without_allocating()
+    {
+        CharacterEntity warrior = TestCharacters.New(905_102);
+        warrior.Container(InventoryType.Equipment).Load(
+            [TestCharacters.Item(3, s_plate), TestCharacters.Item(EquipmentSlots.MainHand, s_sword)]);
+        AuraTemplate emboldened = AuraTestData.Fortified();
+        emboldened.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.IncreasedDamage, Kind = AuraModifierKind.Flat, Value = 10f });
+        emboldened.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.IncreasedFireDamage, Kind = AuraModifierKind.More, Value = 20f });
+        emboldened.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.AttackSpeed, Kind = AuraModifierKind.Flat, Value = 5f });
+        warrior.Auras.Add(Held(emboldened), s_t0);
+
+        // The test data builds a new formula and factors on every read, so they are read once, outside the windows.
+        IReadOnlyDictionary<CharacterClass, ClassStatFactors> factors = TestCombat.Factors;
+        CombatFormula formula = TestCombat.Formula;
+        long allocated = ThreadAllocations.FewestOfThreeWindows(10, () => CharacterStatsRefresh.Apply(warrior, s_warriorRows,
+            factors, Worn, CurrentValues.KeepShare, formula));
+
+        Assert.Equal(0, allocated);
+        Assert.Equal(1.2d, warrior.Stats!.Value.Offence.More(OffenceStat.Fire), precision: 6);
     }
 
     private static Creature Wolf() => new()

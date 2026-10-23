@@ -14,7 +14,7 @@ public class PowerRegenShould
 
     private static DerivedCharacterStats Stats(uint intellect, uint agility) =>
         new(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0, Agility: agility, Intellect: intellect, Armor: 0,
-            BlockPct: 0f, Evasion: 0, CritPct: 0f, AttackDamage: 0, AbilityDamage: 0);
+            BlockPct: 0f, Evasion: 0, CritPct: 0f);
 
     [Theory]
     [InlineData(CharacterClass.Wizard, 23u)]

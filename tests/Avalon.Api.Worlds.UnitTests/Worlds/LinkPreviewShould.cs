@@ -4,10 +4,12 @@ using System.Text.RegularExpressions;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Testing;
 using Avalon.Api.Worlds.Controllers;
+using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Worlds.Previews;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Database.World;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.World;
@@ -96,9 +98,9 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
             StatValue3 = 1,
             StatType4 = StatType.Stamina,
             StatValue4 = 1,
-            StatType5 = StatType.AttackDamage,
+            StatType5 = StatType.IncreasedFireDamage,
             StatValue5 = 1,
-            StatType6 = StatType.AbilityDamage,
+            StatType6 = StatType.IncreasedColdDamage,
             StatValue6 = 1,
             StatType7 = StatType.AttackSpeed,
             StatValue7 = 1,
@@ -127,8 +129,6 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
                 Cooldown = 8000,
                 AllowedClasses = [CharacterClass.Warrior],
                 ScriptName = "ConeAbilityScript",
-                EffectValue = 10,
-                ScalingCoefficient = 0.5f,
                 Effects = SpellEffect.Damage,
                 DamageType = DamageType.Physical,
             });
@@ -238,10 +238,33 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         Assert.Equal("https://avalon.example/ability/210", Meta(html, "og:url"));
         Assert.Equal("#BC8A4E", Meta(html, "theme-color"));
         Assert.Equal("summary", Meta(html, "twitter:card"));
-        Assert.Equal("Warrior · 30 Mana · 2.5 sec cast · 8 sec cooldown · 10 + 50% of Attack Damage · Physical damage",
+        Assert.Equal("Warrior · 30 Mana · 2.5 sec cast · 8 sec cooldown · Physical damage",
             Decoded(html, "og:description"));
         Assert.True(response.Headers.CacheControl!.Public);
         Assert.Equal(TimeSpan.FromSeconds(300), response.Headers.CacheControl.MaxAge);
+    }
+
+    /// <summary>
+    /// What a seeded ability deals or heals (#1178), one part of its description: an attack by its weapon damage (a
+    /// creature's by its natural damage, with its type when not physical), its conversion and its added damage; a spell
+    /// or a heal by its own base and its growth per level.
+    /// </summary>
+    [Theory]
+    [InlineData(200u, "315 % of weapon damage")]
+    [InlineData(223u, "495 % of weapon damage, converts 50 % to cold")]
+    [InlineData(224u, "168 % of weapon damage, adds 2-4 blight damage")]
+    [InlineData(210u, "14-20 lightning damage, +0.7 % per level")]
+    [InlineData(232u, "Heals 30-44")]
+    [InlineData(312u, "240 % of its natural damage, blight damage")]
+    public void Describe_what_a_seeded_ability_deals_or_heals(uint id, string expected)
+    {
+        using var sqlite = new SqliteWorlds(Open);
+        using WorldDbContext world = sqlite.CreateWorld(new WorldId(Open));
+        AbilityTemplate ability = world.AbilityTemplates.AsEnumerable().Single(a => a.Id.Value == id);
+
+        string description = LinkPreviewText.Describe(ability.ToPublicDto());
+
+        Assert.Contains(expected, description.Split(" · "));
     }
 
     [Fact]

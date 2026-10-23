@@ -50,7 +50,7 @@ public class ExportComposerShould
     {
         FakeGitHub github = GitHubWithDefaults();
 
-        ExportResultDto result = await Compose(Request(overrides: """{"Ability.201.EffectValue":18}"""), github);
+        ExportResultDto result = await Compose(Request(overrides: """{"Ability.201.Cost":18}"""), github);
 
         (string Branch, string Path, string Text, string? ExistingSha, string Message) put = Assert.Single(github.Puts);
         Assert.Equal("balance/overrides.json", put.Path);
@@ -66,9 +66,9 @@ public class ExportComposerShould
     {
         FakeGitHub github = GitHubWithDefaults();
 
-        await Compose(Request(overrides: """{"Ability.201.EffectValue":18,"Ability.200.EffectValue":9}"""), github);
+        await Compose(Request(overrides: """{"Ability.201.Cost":18,"Ability.200.Cost":9}"""), github);
 
-        Assert.Equal("{\n  \"Ability.200.EffectValue\": 9,\n  \"Ability.201.EffectValue\": 18\n}\n", github.Puts.Single().Text);
+        Assert.Equal("{\n  \"Ability.200.Cost\": 9,\n  \"Ability.201.Cost\": 18\n}\n", github.Puts.Single().Text);
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class ExportComposerShould
         Assert.NotEqual(WireMapping.ToDto(Host.Defaults).Targets, edited.Targets);
         github.FilesAtCommit.Remove("balance/overrides.json");
 
-        await Compose(Request(overrides: """{"Ability.201.EffectValue":18}""", config: edited), github);
+        await Compose(Request(overrides: """{"Ability.201.Cost":18}""", config: edited), github);
 
         Assert.Equal(["balance/overrides.json", "balance/targets.json"], github.Puts.Select(p => p.Path));
         Assert.Null(github.Puts[0].ExistingSha);
@@ -96,7 +96,7 @@ public class ExportComposerShould
     {
         FakeGitHub github = GitHubWithDefaults();
 
-        ExportResultDto result = await Compose(Request(title: "  Slam: +10% damage!  ", overrides: """{"Ability.201.EffectValue":18}"""), github);
+        ExportResultDto result = await Compose(Request(title: "  Slam: +10% damage!  ", overrides: """{"Ability.201.Cost":18}"""), github);
 
         Assert.Equal("balance/slam-10-damage-20260930-1405", result.Branch);
     }
@@ -108,7 +108,7 @@ public class ExportComposerShould
     {
         FakeGitHub github = GitHubWithDefaults();
 
-        ExportResultDto result = await Compose(Request(title: title, overrides: """{"Ability.201.EffectValue":18}"""), github);
+        ExportResultDto result = await Compose(Request(title: title, overrides: """{"Ability.201.Cost":18}"""), github);
 
         Assert.Equal($"balance/{slug}-20260930-1405", result.Branch);
     }
@@ -119,7 +119,7 @@ public class ExportComposerShould
         FakeGitHub github = GitHubWithDefaults();
         string title = new string('a', 39) + " bbbbbbbb";
 
-        ExportResultDto result = await Compose(Request(title: title, overrides: """{"Ability.201.EffectValue":18}"""), github);
+        ExportResultDto result = await Compose(Request(title: title, overrides: """{"Ability.201.Cost":18}"""), github);
 
         Assert.Equal($"balance/{new string('a', 39)}-20260930-1405", result.Branch);
     }
@@ -131,7 +131,7 @@ public class ExportComposerShould
         github.Branches.Add("balance/slam-tuning-20260930-1405");
         github.Branches.Add("balance/slam-tuning-20260930-1405-2");
 
-        ExportResultDto result = await Compose(Request(overrides: """{"Ability.201.EffectValue":18}"""), github);
+        ExportResultDto result = await Compose(Request(overrides: """{"Ability.201.Cost":18}"""), github);
 
         Assert.Equal("balance/slam-tuning-20260930-1405-3", result.Branch);
         Assert.Equal(result.Branch, github.CreatedBranch);
@@ -146,7 +146,7 @@ public class ExportComposerShould
             github.Branches.Add($"balance/slam-tuning-20260930-1405-{i}");
 
         ExportFailedException e = await Assert.ThrowsAsync<ExportFailedException>(() =>
-            Compose(Request(overrides: """{"Ability.201.EffectValue":18}"""), github));
+            Compose(Request(overrides: """{"Ability.201.Cost":18}"""), github));
 
         Assert.Equal(50, github.Calls.Count(c => c == "BranchExists"));
         Assert.Null(github.CreatedBranch);
@@ -172,9 +172,9 @@ public class ExportComposerShould
     {
         FakeGitHub github = GitHubWithDefaults();
 
-        // Ability 200's EffectValue is 12 in the seed.
+        // Ability 200's Cost is 0 in the seed.
         ExportInvalidException e = await Assert.ThrowsAsync<ExportInvalidException>(() =>
-            Compose(Request(overrides: """{"Ability.200.EffectValue":12}"""), github));
+            Compose(Request(overrides: """{"Ability.200.Cost":0}"""), github));
 
         Assert.Contains(e.Issues, i => i.Message.Contains("nothing to export", StringComparison.Ordinal));
     }
@@ -185,7 +185,7 @@ public class ExportComposerShould
         FakeGitHub github = GitHubWithDefaults();
 
         ExportInvalidException e = await Assert.ThrowsAsync<ExportInvalidException>(() =>
-            Compose(Request(overrides: """{"Ability.999.EffectValue":1}"""), github));
+            Compose(Request(overrides: """{"Ability.999.Cost":1}"""), github));
 
         Assert.Contains(e.Issues, i => i.Path.StartsWith("overrides", StringComparison.Ordinal) && i.Message.Contains("999", StringComparison.Ordinal));
         Assert.Empty(github.Calls);
@@ -212,7 +212,7 @@ public class ExportComposerShould
         FakeGitHub github = GitHubWithDefaults();
 
         ExportInvalidException e = await Assert.ThrowsAsync<ExportInvalidException>(() =>
-            Compose(Request(title: title, overrides: """{"Ability.201.EffectValue":18}"""), github));
+            Compose(Request(title: title, overrides: """{"Ability.201.Cost":18}"""), github));
 
         Assert.Contains(e.Issues, i => i.Path == "title");
         Assert.Empty(github.Calls);
@@ -223,7 +223,7 @@ public class ExportComposerShould
     {
         FakeGitHub github = GitHubWithDefaults();
 
-        await Compose(Request(title: "Slam tuning.", overrides: """{"Ability.201.EffectValue":18}"""), github);
+        await Compose(Request(title: "Slam tuning.", overrides: """{"Ability.201.Cost":18}"""), github);
 
         Assert.Equal("chore(balance): Slam tuning", github.PullRequests.Single().Title);
     }
@@ -233,11 +233,11 @@ public class ExportComposerShould
     {
         FakeGitHub github = GitHubWithDefaults();
 
-        await Compose(Request(overrides: """{"Ability.201.EffectValue":18}""", notes: "Slam hit too hard."), github);
+        await Compose(Request(overrides: """{"Ability.201.Cost":18}""", notes: "Slam hit too hard."), github);
 
         string body = github.PullRequests.Single().Body;
         Assert.Contains("Slam hit too hard.", body);
-        Assert.Contains("| Ability.201.EffectValue | 25 | 18 |", body);
+        Assert.Contains("| Ability.201.Cost | 20 | 18 |", body);
         Assert.Contains("balance/overrides.json", body);
         Assert.DoesNotContain("balance/targets.json", body);
         Assert.EndsWith("Player note: No gameplay changes: balance tuning proposal.", body.TrimEnd());
@@ -250,7 +250,7 @@ public class ExportComposerShould
         FakeGitHub github = GitHubWithDefaults();
         string notes = "Player note: Added X.\n  > player NOTE: y\n- Player   Note : z\r\nsee also PLAYER NOTE: inline";
 
-        await Compose(Request(overrides: """{"Ability.201.EffectValue":18}""", notes: notes), github);
+        await Compose(Request(overrides: """{"Ability.201.Cost":18}""", notes: notes), github);
 
         string body = github.PullRequests.Single().Body;
         string[] matching = body.Split('\n').Where(l => System.Text.RegularExpressions.Regex.IsMatch(l, "(?i)player note:")).ToArray();
@@ -270,7 +270,7 @@ public class ExportComposerShould
         FakeGitHub github = GitHubWithDefaults();
 
         ExportInvalidException e = await Assert.ThrowsAsync<ExportInvalidException>(() =>
-            Compose(Request(title: title, overrides: """{"Ability.201.EffectValue":18}"""), github));
+            Compose(Request(title: title, overrides: """{"Ability.201.Cost":18}"""), github));
 
         Assert.Contains(e.Issues, i => i.Path == "title");
         Assert.Empty(github.Calls);
@@ -286,7 +286,7 @@ public class ExportComposerShould
             .ToList();
         var run = new RunResultDto([], metrics, [], new SummaryDto(1, 2, 12), [], [], 1, 10);
 
-        await Compose(Request(overrides: """{"Ability.201.EffectValue":18}""", runId: "run1"), github, run);
+        await Compose(Request(overrides: """{"Ability.201.Cost":18}""", runId: "run1"), github, run);
 
         string body = github.PullRequests.Single().Body;
         Assert.Contains("green 1", body);
@@ -306,7 +306,7 @@ public class ExportComposerShould
         github.Fail = ("CreateBranch", 403);
 
         ExportFailedException e = await Assert.ThrowsAsync<ExportFailedException>(() =>
-            Compose(Request(overrides: """{"Ability.201.EffectValue":18}"""), github));
+            Compose(Request(overrides: """{"Ability.201.Cost":18}"""), github));
 
         Assert.Contains("create branch", e.Message);
         Assert.Contains("403", e.Message);
@@ -320,7 +320,7 @@ public class ExportComposerShould
         github.Fail = ("OpenPullRequest", 422);
 
         ExportFailedException e = await Assert.ThrowsAsync<ExportFailedException>(() =>
-            Compose(Request(overrides: """{"Ability.201.EffectValue":18}"""), github));
+            Compose(Request(overrides: """{"Ability.201.Cost":18}"""), github));
 
         Assert.Contains("open pull request", e.Message);
         Assert.Contains("422", e.Message);

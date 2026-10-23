@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalon.Combat;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Serialization;
@@ -9,36 +10,57 @@ using Avalon.World.Public.Abilities;
 namespace Avalon.World.Characters;
 
 /// <summary>
-/// Keeps a character's own client told what each of its abilities deals or heals per hit (#669). Called by
-/// WorldServer once per tick per connection, right after <see cref="CharacterSheetFlusher" />, so a stats
-/// refresh (a gear change, a level-up) sends the new sheet and the new amounts in the same flush.
+/// Keeps a character's own client told what each of its abilities deals or heals per hit (#669), and how long its cooldown
+/// and cast take (#1178). Called by WorldServer once per tick per connection, right after
+/// <see cref="CharacterSheetFlusher" />, so a stats refresh (a gear change, a level-up) sends the new sheet and the new
+/// amounts in the same flush.
 /// </summary>
 public static class AbilityAmountsFlusher
 {
     /// <summary>
-    /// The amounts follow only the character's combat stats (its damage stats and main-hand range), and the
-    /// abilities it learned at select. So they are worked out again only when those stats differ from the
-    /// ones last used, and sent, whole, only when an amount actually changed: a level-up that moves no damage
-    /// stat sends nothing. The amounts at select travel in SCharacterAbilitiesPacket, which records them here,
-    /// so nothing is sent again on the tick the character enters the world. A new session builds a new
-    /// entity, which starts from that session's select.
+    /// The amounts follow only the character's combat stats (#1178: its level, weapon and offence block), its pace (the
+    /// speeds, bounded by the formula its last refresh read, and its weapon's attack time) and the abilities it learned at
+    /// select. Both are fixed by a stats refresh and the level, so most ticks compare those two counts
+    /// (<see cref="CharacterEntity.AbilityAmountsInputs" />) and read nothing else. Once one moved, the combat stats and the
+    /// pace are compared with the ones last used, so a refresh that changed neither (an aura with no offence) works nothing
+    /// out; the amounts are then worked out again and sent, whole, only when an amount or a pace actually changed. The
+    /// amounts at select travel in SCharacterAbilitiesPacket, which records them here, so nothing is sent again on the tick
+    /// the character enters the world. A new session builds a new entity, which starts from that session's select.
     /// </summary>
     public static void Flush(IWorldConnection connection)
     {
         if (connection.Character is not CharacterEntity { Spells: CharacterAbilityContainer spells } character)
             return;
 
-        AttackerCombat combat = character.Combat;
-        if (character.AbilityAmountsSentFor == combat)
+        // The amounts sent (an array, set with what they were worked out from) say a first flush or select has run.
+        (int StatsVersion, ushort Level) inputs = (character.StatsVersion, character.Level);
+        if (character.AbilityAmountsSent is not null && character.AbilityAmountsInputs == inputs)
             return;
 
-        character.AbilityAmountsSentFor = combat;
+        FlushChanged(connection, character, spells, inputs);
+    }
+
+    /// <summary>
+    /// The rare path, once the stats refresh or the level moved. Kept out of <see cref="Flush" /> so the unchanged tick
+    /// reserves and zeroes no frame for the 192 B attacker and the tuples this path copies.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void FlushChanged(IWorldConnection connection, CharacterEntity character,
+        CharacterAbilityContainer spells, (int StatsVersion, ushort Level) inputs)
+    {
+        character.AbilityAmountsInputs = inputs;
+        AttackerCombat combat = character.Combat;
+        CasterPace pace = character.Pace;
+        if (character.AbilityAmountsSentFor is { } sentFor && sentFor.Combat == combat && sentFor.Pace == pace)
+            return;
+
+        character.AbilityAmountsSentFor = (combat, pace);
 
         IReadOnlyCollection<IAbility> abilities = spells.All;
         var amounts = new AbilityAmount[abilities.Count];
         int i = 0;
         foreach (IAbility ability in abilities)
-            amounts[i++] = AbilityAmounts.For(combat, ability.Metadata);
+            amounts[i++] = AbilityAmounts.For(combat, ability.Metadata, pace);
 
         if (character.AbilityAmountsSent is { } sent && sent.AsSpan().SequenceEqual(amounts))
             return;

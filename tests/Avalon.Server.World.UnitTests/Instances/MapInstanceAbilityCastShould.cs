@@ -151,7 +151,7 @@ public class MapInstanceAbilityCastShould
         AiScript ai = Substitute.For<AiScript>(creature, Substitute.For<ISimulationContext>());
         creature.Script = ai;   // a creature takes its damage through its script
         instance.AddCreature(creature);
-        caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: 5f, speed: 20f))]);
+        caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: 5f, speed: 20f).Dealing(10))]);
 
         handler.Execute(caster.Connection,
             new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
@@ -219,7 +219,7 @@ public class MapInstanceAbilityCastShould
         b.Character.Health = 100;
         b.Character.CurrentHealth = 100;
         b.Character.Position = new Vector3(1f, 0f, 0f);
-        a.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Circle(201, radius: 3f))]);
+        a.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Circle(201, radius: 3f).Dealing(10))]);
         return (a, b);
     }
 
@@ -266,7 +266,7 @@ public class MapInstanceAbilityCastShould
         using MapInstance instance = BuildCasting(out CastAbilityHandler handler);
         MapInstanceClient caster = Join(instance, 164_241);
         Creature creature = AddCreature(instance, 164_995, new Vector3(0f, 0f, 1f), health: 50);   // point blank
-        caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: 5f, speed: 20f))]);
+        caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: 5f, speed: 20f).Dealing(10))]);
         TickUntilBroadcast(instance);   // a broadcast has just gone out, so the next tick sends nothing
 
         handler.Execute(caster.Connection,

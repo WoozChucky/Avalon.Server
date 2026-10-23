@@ -38,7 +38,7 @@ then asks `CreatureStatDeriver.Derive` for the stats that level gives:
    modifiers default to 0. The four resistances, `FireResistance`, `ColdResistance`,
    `LightningResistance` and `BlightResistance` (percent, -100 to 100, default 0, negative taking
    more), are the template's as authored, never scaled by rarity. The template's `DamageType`
-   (Physical 0 to Blight 4, stored in the `DmgSchool` column) is the type of a hit whose ability names
+   (Physical 0 to Blight 4, the `DamageType` column, `DmgSchool` before #1178) is the type of a hit whose ability names
    none (see [World simulation](world-simulation.md), "Combat reads the derived stats"). The
    creature's crit and block chances, in percentage points, are its rarity row's `CritPct` and
    `BlockPct` (Normal 0/0, Elite 5/0, Rare 8/5, Boss 10/10); every rarity's `DefenceMultiplier` is
@@ -268,16 +268,20 @@ contracts.
 
 - Every attack is an ability (#163; the raw swing is gone), cast through the instance's cast system and
   resolved by its shape script, so its damage goes through `ICombatService.ApplyDamage` with the ability:
-  `BaseDamageCoefficient` times a roll of the creature's `DamageMin..DamageMax`, inclusive, through
-  `ICombatRandom` (#506), of the ability's damage type or else the template's (#1178), then the
+  every creature ability is an Attack (#1178) whose base is a roll of the creature's natural
+  `DamageMin..DamageMax`, inclusive, through `ICombatRandom` (#506), times the ability's `DamageEffectiveness`
+  (100 % for each basic) and the scale of its auras' offence modifiers (none seeded), of the ability's damage
+  type or else the template's (#1178; the natural range is an untyped weapon, so it takes that type), then the
   target's evasion, the creature's own crit, the target's block, and its armour or resistance, then its
   ward; see `CombatService` below. The first attack lands as soon as an ability reaches the target.
-- The cadence (#627): the basic ability's cooldown is one `Creature.SwingInterval`. The interval is the
-  template's `BaseAttackTime` in seconds (2.25 for every seeded template; a check constraint and the
-  Creatures reload area refuse anything below 0.5 or not finite), divided by
-  `1 + min(HastePct, HasteCap) / 100`. `BaseAttackTime` and the combat formula's `HasteCap` are fixed on
-  the creature at spawn; `HastePct` is World-side, 0, and set by nothing yet (a future buff or debuff).
-  The interval is read when the basic fires, so a haste change applies from the next and never changes the
+- The cadence (#627, #1178): the basic ability's cooldown is one `Creature.SwingInterval`, whatever its row's
+  `Cooldown` says. The interval is the template's `BaseAttackTime` in seconds (2.25 for every seeded template;
+  a check constraint and the Creatures reload area refuse anything below 0.5 or not finite), divided by
+  `1 + min(AttackSpeedPct, AttackSpeedCap) / 100`. `BaseAttackTime` and the combat formula's three speed caps
+  (`AttackSpeedCap`, `CastSpeedCap`, `CooldownRecoveryCap`, 50 each) are fixed on the creature at spawn; its
+  attack speed, cast speed and cooldown recovery are World-side, never on `ICreature` (#622), and come from its
+  auras alone (`AuraStat.AttackSpeed`, `CastSpeed`, `CooldownRecovery`; none seeded), each from 0 to its cap.
+  The interval is read when the basic fires, so a speed change applies from the next and never changes the
   cooldown already running. The cooldowns run down every tick the combat script runs, in reach or not, and
   are cleared when the creature resets at home.
 - It gives up and returns home at full health when a character target dies, the target leaves the
@@ -327,10 +331,10 @@ contracts.
   the script is built. An id the catalog lacks is logged at Error and left out; the creature fights
   with the rest. The numbers are ability rows, so `/reload abilities` reaches creatures spawned (or
   hot reloaded) afterwards; the rotation is code.
-- **Cost and haste.** A creature's casts are free: it has no pool, and only cooldowns gate it. Its
-  haste (`min(HastePct, HasteCap)`) scales its cast times and cooldowns. The basic's cooldown is its
-  `SwingInterval`, which already carries the haste; every other ability's is its row's `Cooldown`
-  divided by it.
+- **Cost and pace.** A creature's casts are free: it has no pool, and only cooldowns gate it. It casts
+  with its own pace (`Creature.Pace`, the rule a character's casts follow, `AbilityPace`, #1178): every cast
+  time over its cast speed, its basic's cooldown its `SwingInterval` (`BaseAttackTime` over attack speed),
+  and every other ability's its row's `Cooldown` over its cooldown recovery.
 - **Choosing.** `ChooseAbility(target, distance)` (protected virtual) answers which ability to start,
   every tick the creature fights and is not casting, stunned or silenced (#770). The base answers the
   basic when it is ready and reaches. `Ready(id, distance)` answers a held ability when it is ready
@@ -495,7 +499,7 @@ These `CreatureTemplate` fields are deliberately unread. Do not assume any of th
 | `RegenHealth` | Creatures do not regenerate health. |
 
 `RangeAttackTime`, `MovementType`, `MovementId` and `Family` are not read by the world server
-either. `DmgSchool` is read since #1178, as the template's `DamageType`.
+either. The old `DmgSchool` column is read since #1178, renamed `DamageType`.
 
 ---
 

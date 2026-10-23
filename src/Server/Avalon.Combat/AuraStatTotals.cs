@@ -3,15 +3,19 @@ using Avalon.Domain.World;
 namespace Avalon.Combat;
 
 /// <summary>
-/// What a unit's auras add to each stat: the flat points and the percentage, each modifier times the stacks held.
-/// Immutable once built; rebuilt only when an aura is applied, stacked or removed.
+/// What a unit's auras add to each stat (#1178): the flat points and the increased percentage, each modifier times the
+/// stacks held, and the product of every More, each multiplying once per stack. Immutable once built; rebuilt only when
+/// an aura is applied, stacked or removed.
 /// </summary>
 public sealed class AuraStatTotals
 {
-    private const int Slots = (int)AuraStat.MaxWard + 1;
+    private const int Slots = (int)AuraStat.CooldownRecovery + 1;
 
     private readonly float[] _flat = new float[Slots];
-    private readonly float[] _percent = new float[Slots];
+    private readonly float[] _increased = new float[Slots];
+
+    // The product of every (1 + more / 100) held, minus 1, so a stat no More names holds 0 like the other two.
+    private readonly double[] _more = new double[Slots];
 
     public static readonly AuraStatTotals Empty = new();
 
@@ -24,7 +28,10 @@ public sealed class AuraStatTotals
 
     public float Flat(AuraStat stat) => Index(stat) is { } i ? _flat[i] : 0f;
 
-    public float Percent(AuraStat stat) => Index(stat) is { } i ? _percent[i] : 0f;
+    public float Increased(AuraStat stat) => Index(stat) is { } i ? _increased[i] : 0f;
+
+    /// <summary>The factor every More on <paramref name="stat" /> multiplies it by: 1 with none.</summary>
+    public double More(AuraStat stat) => Index(stat) is { } i ? 1d + _more[i] : 1d;
 
     /// <summary>
     /// The totals of the auras a unit holds, in the list's order, each read through <paramref name="read" /> as its
@@ -55,9 +62,11 @@ public sealed class AuraStatTotals
             if (Index(m.Stat) is not { } i || !float.IsFinite(m.Value))
                 continue;
 
-            float value = m.Value * Math.Max(1u, stacks);
-            if (m.Kind == AuraModifierKind.Percent) _percent[i] += value;
-            else if (m.Kind == AuraModifierKind.Flat) _flat[i] += value;
+            uint held = Math.Max(1u, stacks);
+            if (m.Kind == AuraModifierKind.Increased) _increased[i] += m.Value * held;
+            else if (m.Kind == AuraModifierKind.Flat) _flat[i] += m.Value * held;
+            else if (m.Kind == AuraModifierKind.More)
+                _more[i] = ((1d + _more[i]) * Math.Pow(Math.Max(0d, 1d + m.Value / 100d), held)) - 1d;
             else continue;
 
             IsEmpty = false;

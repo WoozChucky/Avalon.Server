@@ -1,13 +1,12 @@
 using Avalon.Network.Packets.Abilities;
-using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.Combat;
 
 /// <summary>
-/// The per-hit arithmetic of an ability (#669), shared by the world server's combat and the api's tooltips
-/// so the two never disagree: <c>effectValue + scaling × stat + baseDamageCoefficient × weapon roll</c>,
-/// floored as a hit nothing procs on, against no armour.
+/// What a player is told an ability does (#669), shared by the world server and the api's tooltips so the two never
+/// disagree: which abilities have a direct amount, and how a base is floored as a hit nothing procs on, against no
+/// armour. The base itself is <see cref="OffenceMath" />'s (#1178).
 /// </summary>
 public static class AbilityAmountMath
 {
@@ -26,31 +25,6 @@ public static class AbilityAmountMath
             ? AbilityAmountKind.None
             : affects == AbilityAffects.Ally ? AbilityAmountKind.Healing
             : AbilityAmountKind.Damage;
-
-    /// <summary>The base before flooring. <paramref name="weaponRoll"/> is ignored when the coefficient is not above 0.</summary>
-    public static double Sum(double effectValue, double scaling, double statValue, double baseDamageCoefficient,
-        long weaponRoll)
-    {
-        double total = NonNegative(effectValue) + NonNegative(scaling) * statValue;
-        if (NonNegative(baseDamageCoefficient) > 0)
-            total += (float)baseDamageCoefficient * weaponRoll; // float product, as combat always evaluated it
-        return total;
-    }
-
-    public static (uint Min, uint Max) Range(AbilityAmountKind kind, float effectValue, ScalingStat stat, float scaling,
-        float baseDamageCoefficient, uint attackDamage, uint abilityDamage, uint weaponMin, uint weaponMax)
-    {
-        if (kind == AbilityAmountKind.None) return (0, 0);
-
-        double statValue = stat == ScalingStat.Ability ? abilityDamage : attackDamage;
-        long low = Math.Min(weaponMin, weaponMax);
-        float min = (float)Sum(effectValue, scaling, statValue, baseDamageCoefficient, weaponMax > 0 ? low : 0);
-        float max = (float)Sum(effectValue, scaling, statValue, baseDamageCoefficient, weaponMax);
-
-        return kind == AbilityAmountKind.Healing
-            ? (NormalHeal(min), NormalHeal(max))
-            : (NormalDamage(min), NormalDamage(max));
-    }
 
     public static uint NormalDamage(double baseDamage) => Math.Max(1u, Floor(NonNegative(baseDamage)));
 

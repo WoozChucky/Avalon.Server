@@ -305,8 +305,7 @@ public class WorldServerBarrierTickShould : IDisposable
 
         CharacterEntity character = New();
         character.ApplyStats(new DerivedCharacterStats(MaxHealth: 240, MaxPower: 100, Stamina: 22, Strength: 23,
-            Agility: 20, Intellect: 20, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 80f, AttackDamage: 46,
-            AbilityDamage: 0), CurrentValues.EnterWorld, TestCombat.Formula);
+            Agility: 20, Intellect: 20, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 80f), CurrentValues.EnterWorld, TestCombat.Formula);
         connection.Character = character;
 
         server.Tick();

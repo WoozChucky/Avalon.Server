@@ -207,12 +207,14 @@ public class VendorSeedShould
                 s => s.Key, s => s.Key == StatType.AttackSpeed ? s.Value : SixtyPercent(s.Value));
             Assert.Equal(expected, Stats(starter));
 
-            // #506 re-balanced the weapon damage ranges on their own (SeedIntegrityShould pins them), so the
-            // starter weapon only has to roll below its forest counterpart.
+            // #506 re-balanced the weapon damage ranges on their own (SeedIntegrityShould pins them), and #1178 (owner
+            // decision D2) re-expressed the forest sword and bow to 5-7 against the starter 4-7, so the starter weapon
+            // only has to roll below its forest counterpart: a lower minimum and a lower average.
             if (forest.DamageMax1 is { } max)
             {
                 Assert.True(starter.DamageMin1 < forest.DamageMin1, $"{starter.Name} minimum is not below {forest.Name}'s");
-                Assert.True(starter.DamageMax1 < max, $"{starter.Name} maximum is not below {forest.Name}'s");
+                Assert.True(starter.DamageMin1 + starter.DamageMax1 < forest.DamageMin1 + max,
+                    $"{starter.Name} average is not below {forest.Name}'s");
                 Assert.Equal(forest.DamageType1, starter.DamageType1);
             }
             else

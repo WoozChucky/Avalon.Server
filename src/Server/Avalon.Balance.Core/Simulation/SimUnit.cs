@@ -52,13 +52,6 @@ public abstract class SimUnit : IUnit
     /// <summary>What it defends with, its auras folded in.</summary>
     public DefenderCombat Defence { get; protected set; }
 
-    /// <summary>
-    /// Percentage points: a character's effective haste (already capped), a creature's raw haste, which
-    /// CombatRules.EffectiveHaste caps as the server does. Public so a test can build a creature past its cap; an aura
-    /// with a haste modifier sets it again.
-    /// </summary>
-    public float HastePct { get; set; }
-
     public List<SimAbility> Abilities { get; } = [];
 
     /// <summary>The auras this unit holds, in the order applied, as the server's UnitAuras.</summary>

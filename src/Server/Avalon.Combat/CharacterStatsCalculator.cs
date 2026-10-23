@@ -5,19 +5,22 @@ namespace Avalon.Combat;
 /// <summary>
 /// The one stats calculation (spec #463, closes #434): a class and level's seeded ClassLevelStat
 /// row, its class's ClassStatFactors row (#506, reloaded with the combat area), the combat formula's
-/// class-neutral defence conversions (#1178), plus the stats of the gear worn. Pure.
+/// class-neutral life per Stamina, base crit and attribute conversions (#1178), plus the stats of the gear worn. Pure.
 /// </summary>
 public static class CharacterStatsCalculator
 {
     /// <summary>
-    /// Where a class factor is fractional, the whole sum of the factored terms is truncated to a
-    /// whole number once, not each product on its own: a level-1 Hunter (Strength 21, Agility 23)
-    /// attacks for <c>(long)(0.5 x 21 + 1.5 x 23) = 45</c>, where truncating each product would give 44.
+    /// Where a class's power factor is fractional, the whole sum of the factored terms is truncated to a whole number once,
+    /// not each product on its own. Health and crit are the same for every class (#1178): BaseHp plus Stamina times <paramref name="formula" />'s life per
+    /// Stamina plus gear health, and the formula's base crit plus gear crit; only power still reads the class's factors.
     /// Defence is the same for every class (#1178): armour, evasion and ward are gear plus Strength, Agility and Intellect
     /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances are gear's alone.
-    /// <paramref name="auras" />, when given, is folded in after gear: the result is what the character has now.
+    /// Weapon is the main hand's damage and attack time (the bare hand's with none) and Offence the offence block (#1178),
+    /// each attribute with gear. <paramref name="auras" />, when given, is folded in after gear: the result is what the
+    /// character has now. The offence block takes them through CharacterOffence alone, so they count once there.
+    /// <paramref name="worn" /> is read by index, so a refresh allocates nothing here.
     /// </summary>
-    public static DerivedCharacterStats Calculate(ClassLevelStat row, IEnumerable<ItemTemplate> worn,
+    public static DerivedCharacterStats Calculate(ClassLevelStat row, IReadOnlyList<ItemTemplate> worn,
         ClassStatFactors factors, CombatFormula formula, AuraStatTotals? auras = null)
     {
         var gear = GearTotals.Of(worn);
@@ -27,22 +30,18 @@ public static class CharacterStatsCalculator
         long agility = row.Agility + gear.Agility;
         long intellect = row.Intellect + gear.Intellect;
 
-        long maxHealth = row.BaseHp + stamina * factors.HpPerStamina + gear.Health;
+        long maxHealth = row.BaseHp + stamina * formula.LifePerStamina + gear.Health;
         long maxPower = factors.FixedPower is { } fixedPower
             ? fixedPower
             : row.BaseMana
               + (long)(intellect * factors.PowerPerIntellect + agility * factors.PowerPerAgility)
               + gear.Power;
-        long attack = (long)(strength * factors.AttackPerStrength + agility * factors.AttackPerAgility) + gear.AttackDamage;
-        long ability = (long)(intellect * factors.AbilityPerIntellect) + gear.AbilityDamage;
         long armor = gear.Armor + (long)(strength * (double)formula.ArmorPerStrength);
         long evasion = gear.Evasion + (long)(agility * (double)formula.EvasionPerAgility);
         long ward = gear.Ward + (long)(intellect * (double)formula.WardPerIntellect);
 
-        // #506: the main-hand weapon's first damage range, what a skill's weapon term rolls; none is 0-0.
-        ItemTemplate? weapon = worn.FirstOrDefault(t => t.Slot == ItemSlotType.MainHand);
-        uint weaponMax = weapon?.DamageMax1 ?? 0;
-        uint weaponMin = Math.Min(weapon?.DamageMin1 ?? 0, weaponMax);
+        // #506, #1178: the main hand, what an Attack rolls; the bare hand's range with none.
+        ItemTemplate? weapon = MainHandOf(worn);
 
         DerivedCharacterStats derived = new(
             MaxHealth: Clamp(maxHealth),
@@ -55,16 +54,13 @@ public static class CharacterStatsCalculator
             // #1178: no class base block or dodge any more.
             BlockPct: gear.BlockPct,
             Evasion: Clamp(evasion),
-            CritPct: factors.BaseCrit + gear.CritPct,
-            AttackDamage: Clamp(attack),
-            AbilityDamage: Clamp(ability),
-            WeaponMin: weaponMin,
-            WeaponMax: weaponMax,
-            HastePct: gear.HastePct,
+            CritPct: formula.BaseCritPct + gear.CritPct,
             MovementSpeedPct: gear.MovementSpeedPct,
             MaxWard: Clamp(ward),
             Resistances: new Resistances(gear.FireResistance, gear.ColdResistance, gear.LightningResistance,
-                gear.BlightResistance));
+                gear.BlightResistance),
+            Weapon: WeaponDamage.Of(weapon, formula),
+            Offence: CharacterOffence.Of(Clamp(strength), Clamp(agility), Clamp(intellect), worn, formula, auras));
 
         return auras is null ? derived : AuraStats.Fold(derived, auras);
     }
@@ -89,29 +85,52 @@ public static class CharacterStatsCalculator
         return (uint)Math.Clamp(scaled, 1UL, newMax);
     }
 
+    /// <summary>The first worn template for the main hand, or null.</summary>
+    private static ItemTemplate? MainHandOf(IReadOnlyList<ItemTemplate> worn)
+    {
+        for (int i = 0; i < worn.Count; i++)
+        {
+            if (worn[i].Slot == ItemSlotType.MainHand) return worn[i];
+        }
+
+        return null;
+    }
+
     /// <summary>Stats are summed in long, so no amount of authored gear can wrap a uint.</summary>
     private static uint Clamp(long value) => (uint)Math.Clamp(value, 0L, uint.MaxValue);
 
     private struct GearTotals
     {
-        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, AttackDamage, AbilityDamage, Health, Power;
-        public float BlockPct, CritPct, HastePct, MovementSpeedPct;
+        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, Health, Power;
+        public float BlockPct, CritPct, MovementSpeedPct;
         public float FireResistance, ColdResistance, LightningResistance, BlightResistance;
 
-        public static GearTotals Of(IEnumerable<ItemTemplate> worn)
+        /// <summary>Every stat pair with both a type and a value of every template, read by index: nothing is allocated.</summary>
+        public static GearTotals Of(IReadOnlyList<ItemTemplate> worn)
         {
             GearTotals totals = default;
-            foreach (ItemTemplate template in worn)
+            for (int i = 0; i < worn.Count; i++)
             {
-                foreach ((StatType type, uint value) in StatsOf(template))
-                    totals.Add(type, value);
+                ItemTemplate t = worn[i];
+                totals.Add(t.StatType1, t.StatValue1);
+                totals.Add(t.StatType2, t.StatValue2);
+                totals.Add(t.StatType3, t.StatValue3);
+                totals.Add(t.StatType4, t.StatValue4);
+                totals.Add(t.StatType5, t.StatValue5);
+                totals.Add(t.StatType6, t.StatValue6);
+                totals.Add(t.StatType7, t.StatValue7);
+                totals.Add(t.StatType8, t.StatValue8);
+                totals.Add(t.StatType9, t.StatValue9);
+                totals.Add(t.StatType10, t.StatValue10);
             }
 
             return totals;
         }
 
-        private void Add(StatType type, uint value)
+        private void Add(StatType? statType, uint? statValue)
         {
+            if (statType is not { } type || statValue is not { } value) return;
+
             switch (type)
             {
                 case StatType.Stamina: Stamina += value; break;
@@ -122,12 +141,10 @@ public static class CharacterStatsCalculator
                 case StatType.BlockPct: BlockPct += value; break;
                 case StatType.Evasion: Evasion += value; break;
                 case StatType.CritPct: CritPct += value; break;
-                case StatType.AttackDamage: AttackDamage += value; break;
-                case StatType.AbilityDamage: AbilityDamage += value; break;
                 case StatType.Health: Health += value; break;
                 case StatType.Power: Power += value; break;
-                // #627: both percentages, summed raw; the entity applies the combat formula's bounds.
-                case StatType.AttackSpeed: HastePct += value; break;
+                // #627: a percentage, summed raw; the entity applies the combat formula's bounds. Attack speed, cast speed
+                // and cooldown recovery are the offence block's (#1178), CharacterOffence's to sum.
                 case StatType.MovementSpeed: MovementSpeedPct += value; break;
                 case StatType.Ward: Ward += value; break;
                 case StatType.FireResistance: FireResistance += value; break;
@@ -135,24 +152,6 @@ public static class CharacterStatsCalculator
                 case StatType.LightningResistance: LightningResistance += value; break;
                 case StatType.BlightResistance: BlightResistance += value; break;
                 default: break;
-            }
-        }
-
-        /// <summary>The template's stat pairs that have both a type and a value.</summary>
-        private static IEnumerable<(StatType Type, uint Value)> StatsOf(ItemTemplate t)
-        {
-            (StatType? Type, uint? Value)[] pairs =
-            [
-                (t.StatType1, t.StatValue1), (t.StatType2, t.StatValue2), (t.StatType3, t.StatValue3),
-                (t.StatType4, t.StatValue4), (t.StatType5, t.StatValue5), (t.StatType6, t.StatValue6),
-                (t.StatType7, t.StatValue7), (t.StatType8, t.StatValue8), (t.StatType9, t.StatValue9),
-                (t.StatType10, t.StatValue10),
-            ];
-
-            foreach ((StatType? type, uint? value) in pairs)
-            {
-                if (type is { } statType && value is { } statValue)
-                    yield return (statType, statValue);
             }
         }
     }

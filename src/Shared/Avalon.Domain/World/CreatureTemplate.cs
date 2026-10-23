@@ -66,7 +66,7 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
 
     /// <summary>
     /// True for creatures that can never be damaged. Town NPCs (templates 1-3) set it; every
-    /// monster leaves it false. Enforced in CombatService.ApplyDamageCore.
+    /// monster leaves it false. Enforced in CombatService.IgnoresHits.
     /// </summary>
     public bool Invulnerable { get; set; }
 
@@ -91,8 +91,7 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     public short RegenHealth { get; set; }
 
     /// <summary>
-    /// The type of damage the creature's basic attack deals, and its abilities that name none (#1178). Stored in the
-    /// column <c>DmgSchool</c>, which the world never read before.
+    /// The type of damage the creature's basic attack deals, and its abilities that name none (#1178).
     /// </summary>
     public DamageType DamageType { get; set; }
 

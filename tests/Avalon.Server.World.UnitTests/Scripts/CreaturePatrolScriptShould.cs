@@ -214,7 +214,7 @@ public class CreaturePatrolScriptShould
         fight.Script.OnHit(fight.Attacker, 1);
         fight.Tick();
 
-        fight.Combat.Received(1).ApplyDamage(fight.Creature, fight.Attacker, Arg.Any<uint>(), Arg.Any<IAbility>());
+        fight.Combat.Received(1).ApplyDamage(fight.Creature, fight.Attacker, Arg.Any<IAbility>());
     }
 
     /// <summary>

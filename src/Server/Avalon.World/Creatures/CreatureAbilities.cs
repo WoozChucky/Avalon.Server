@@ -22,8 +22,8 @@ public sealed record CreatureAbilityKit(AbilityId Basic, params AbilityId[] Spec
 /// <remarks>
 /// The cast system reads and writes the clones as it does a character's: it marks one <c>Casting</c> while
 /// its cast time runs and sets its cooldown when it fires. The basic's cooldown is the creature's
-/// SwingInterval, which already carries its haste; every other one is its row's cooldown divided by the
-/// creature's haste. Casts are free: a creature has no pool.
+/// SwingInterval, which already carries its attack speed; every other one is its row's cooldown divided by its
+/// cooldown recovery, and every cast time by its cast speed (#1178). Casts are free: a creature has no pool.
 /// </remarks>
 public sealed class CreatureAbilities
 {

@@ -19,10 +19,13 @@ The client needs no aura data of its own beyond the catalog: names, icons, kinds
 break chances and stat modifiers come from `schema/auras/aura-catalog-v1.json`, keyed by aura id, with every
 enumeration written as a number and listed in its `$comment` (`kind` 1 helpful, 2 harmful; `periodicKind` 0 none,
 1 damage, 2 heal; `stacking` 1 refresh, 2 stack up to `maxStacks`, 3 one per caster; `control` flags 1 stun, 2 root,
-4 silence, 0 none; `breakOnDamagePct` and `breakPerSecondPct` in percent; modifier `stat` 1 armor, 2 attack damage,
-3 ability damage, 4 crit %, 5 evasion, 6 block %, 7 haste %, 8 movement speed %, 9 max health, 10 max power,
-11 fire resistance, 12 cold resistance, 13 lightning resistance, 14 blight resistance, 15 max ward; modifier `kind`
-1 flat, 2 percent). The catalog's `control` is for tooltips only: a unit's crowd control is read from
+4 silence, 0 none; `breakOnDamagePct` and `breakPerSecondPct` in percent; modifier `stat` 1 armor, 4 crit %, 5 evasion, 6 block %,
+8 movement speed %, 9 max health, 10 max power, 11 fire resistance, 12 cold resistance, 13 lightning resistance,
+14 blight resistance, 15 max ward, and since #1178 16-28 the increased percentages (damage, physical, fire, cold,
+lightning, blight, attack, spell, area, projectile, melee and damage over time damage, then healing), 29 crit
+multiplier (points: 50 makes a 1.5 crit 2.0), 30 attack speed %, 31 cast speed %, 32 cooldown recovery %, with 2, 3
+and 7 retired and never reused; modifier `kind` 1 flat, 2 increased, 3 more, an increased stat 16-28 taking flat or
+more, never increased). The catalog's `control` is for tooltips only: a unit's crowd control is read from
 each aura entry's `Control` (section 10), which also carries the slow and stays right after a live edit. In
 `schema/abilities/ability-catalog-v1.json`, an ability's `auraId` names the aura it applies, or is `null`, and
 `basic` marks a class's basic attack, which a silence does not stop (section 10).
@@ -123,10 +126,13 @@ at full health). A killing tick is sent like any killing hit, before `SMSG_UNIT_
 
 - **Ticks** come every tick interval of the aura, the last exactly at its expiry: an aura of duration D and interval I
   ticks `max(1, floor(D / I))` times, at `expiry - j x I` (j counting down to 0). An aura with interval 0 never ticks.
-- **The amount** is fixed when the aura is applied, from the caster's stats then: the aura's base, plus its scaling
-  coefficient times the caster's attack or ability damage, plus its base damage coefficient times one roll of the
-  caster's base damage (a character's main hand, a creature's natural range), split evenly over the ticks. Each tick
-  rolls crit with the caster's crit chance as it was at apply time.
+- **The amount** is fixed when the aura is applied, from the caster's stats then (#1178): the aura's flat base plus a
+  percentage of one roll of its source ability's base (the caster's weapon for an attack, a character's main hand or
+  bare hand and a creature's natural range; the ability's own spell base for a spell or a heal), scaled by the
+  caster's damage modifiers for the source's tags plus damage over time (healing modifiers for a heal), split evenly
+  over the ticks. Nothing the caster does afterwards changes it. Each tick rolls crit with the caster's crit chance
+  and crit multiplier as they were at apply time. The amounts are the server's: the catalog carries neither the base
+  nor the percentage.
 - **Applied again**, by its stacking: a refresh aura renews its duration and amounts (a fresh snapshot and a fresh
   roll of the base damage); a stack aura gains a stack up to its `maxStacks` and renews the same way; a "one per
   caster" aura keeps a separate copy for each caster, each renewed by its own caster only. Stacks multiply the
@@ -185,36 +191,36 @@ no answer.
 
 | Id | Name (icon) | Kind | Duration / tick | Periodic | Stacking | Modifiers |
 |---|---|---|---|---|---|---|
-| 1 | Bleed (`bleed`) | Harmful | 12 000 / 3 000 ms (4 ticks) | Damage: 12 + Attack x 0.25 | Stack, up to 3 | |
-| 2 | Burn (`burn`) | Harmful | 9 000 / 3 000 ms (3 ticks) | Damage: 24 + Ability x 0.6 | Refresh | |
+| 1 | Bleed (`bleed`) | Harmful | 12 000 / 3 000 ms (4 ticks) | Damage: 12 + 21 % of the source's weapon roll | Stack, up to 3 | |
+| 2 | Burn (`burn`) | Harmful | 9 000 / 3 000 ms (3 ticks) | Damage: 100 % of the source's spell base | Refresh | |
 | 3 | Crippled (`crippled`) | Harmful | 6 000 ms, no ticks | | Refresh | Movement speed flat -30 (a 30 % slow) |
-| 4 | Renew (`renew`) | Helpful | 12 000 / 3 000 ms (4 ticks) | Heal: 24 + Ability x 0.4 | Refresh | |
-| 5 | Fortified (`fortified`) | Helpful | 30 000 ms, no ticks | | Refresh | Armor percent +20 |
-| 6 | Poison (`poison`) | Harmful | 9 000 / 3 000 ms (3 ticks) | Damage: 3 + 1.0 x one roll of the caster's base damage | Stack, up to 3 | |
-| 7 | Sundered (`sundered`) | Harmful | 10 000 ms, no ticks | | Refresh | Armor percent -25 |
+| 4 | Renew (`renew`) | Helpful | 12 000 / 3 000 ms (4 ticks) | Heal: 100 % of the source's spell base | Refresh | |
+| 5 | Fortified (`fortified`) | Helpful | 30 000 ms, no ticks | | Refresh | Armor increased +20 |
+| 6 | Poison (`poison`) | Harmful | 9 000 / 3 000 ms (3 ticks) | Damage: 3 + 100 % of one roll of the caster's natural range | Stack, up to 3 | |
+| 7 | Sundered (`sundered`) | Harmful | 10 000 ms, no ticks | | Refresh | Armor increased -25 |
 | 12 | Stunned (`stunned`) | Harmful | 1 500 ms, no ticks | | Refresh | none; stun |
 | 13 | Bound (`bound`) | Harmful | 3 000 ms, no ticks | | Refresh | none; root |
 | 14 | Frozen (`frozen`) | Harmful | 2 500 ms, no ticks | | Refresh | none; root |
 | 15 | Silenced (`silenced`) | Harmful | 3 000 ms, no ticks | | Refresh | none; silence |
 
-The periodic amount is the total per stack, split over the ticks. At level 1 (a Warrior's attack 46, a Wizard's
-ability damage 69, a Cleric's 46) that is 23.5 for Bleed, 65.4 for Burn and 42.4 for Renew. Armour auras are
-percentages: they scale the armour a unit already has and do nothing to a unit with none. Crippled (3) and Hexed (10)
+The periodic amount is the total per stack, split over the ticks. At level 1 with starter gear (a Warrior's Strength
+29 and its 4-7 sword, a Wizard's Intellect 31, a Cleric's 29) that is 25.9-27.1 for Bleed (from Rend), 64.6-95.9 for
+Burn (from Ignite) and 38.3-56.4 for Renew. Armour auras are increased modifiers: they scale the armour a unit already has and do nothing to a unit with none. Crippled (3) and Hexed (10)
 are slows. Break chances (on damage / on its own, per second): Stunned 10 % / 0.5 %, Bound and Frozen 25 % / 0.5 %,
 Silenced never, Crippled and Hexed 0 % / 0.5 %.
 
 | Ability | Who | Shape | Aim | Reach, size | Cooldown | Cost | Direct | Aura |
 |---|---|---|---|---|---|---|---|---|
-| 203 Rend | Warrior | Cone | Movement | reach 2.5, arc 90 | 6 s | 10 Fury | Damage: 8 + Attack x 0.2 + weapon x 0.5 | 1 Bleed |
-| 213 Ignite | Wizard | Circle on the aim point | Cursor | reach 18, radius 3 | 6 s | 20 Mana | none | 2 Burn |
-| 223 Crippling Shot | Hunter | Projectile, 14 m/s | Cursor | reach 25 | 8 s | 15 Energy | Damage: 14 + Attack x 0.35 + weapon x 0.6 | 3 Crippled |
-| 233 Renew | Cleric | Ally circle on the aim point | Cursor | reach 15, radius 4 | 6 s | 15 Mana | none | 4 Renew |
+| 203 Rend | Warrior | Cone | Movement | reach 2.5, arc 90 | 6 s | 10 Fury | Damage: an attack at 202 % of the weapon | 1 Bleed |
+| 213 Ignite | Wizard | Circle on the aim point | Cursor | reach 18, radius 3 | 6 s | 20 Mana | none (a spell: its spell base, 31-46 growing 0.9 % a level, is Burn's) | 2 Burn |
+| 223 Crippling Shot | Hunter | Projectile, 14 m/s | Cursor | reach 25 | 8 s | 15 Energy | Damage: an attack at 495 % of the weapon, half converted to cold | 3 Crippled |
+| 233 Renew | Cleric | Ally circle on the aim point | Cursor | reach 15, radius 4 | 6 s | 15 Mana | none (a heal: its spell base, 19-28, is Renew's) | 4 Renew |
 | 234 Fortify | Cleric | Ally circle on the caster | Movement | radius 8 | 20 s | 20 Mana | none | 5 Fortified |
-| 317 Venom Spit | Blightfly Swarmling | Projectile, 14 m/s | Cursor | reach 10 | 8 s | none | Damage: natural roll x 0.6 | 6 Poison |
+| 317 Venom Spit | Blightfly Swarmling | Projectile, 14 m/s | Cursor | reach 10 | 8 s | none | Damage: an attack at 60 % of the natural roll | 6 Poison |
 | 318 Sundering Howl | Bramblemaw Alpha | Circle on the caster | Movement | radius 6 | 18 s | none | none | 7 Sundered |
-| 204 Shield Bash | Warrior | Cone | Movement | reach 2.5, arc 90 | 15 s | 15 Fury | Damage: 6 + Attack x 0.15 + weapon x 0.3 | 12 Stunned |
-| 214 Frost Bind | Wizard | Circle on the aim point | Cursor | reach 18, radius 3 | 20 s | 25 Mana | Damage: 6 + Ability x 0.1 | 14 Frozen |
-| 224 Binding Shot | Hunter | Projectile, 14 m/s | Cursor | reach 25 | 15 s | 20 Energy | Damage: 8 + Attack x 0.2 + weapon x 0.3 | 13 Bound |
+| 204 Shield Bash | Warrior | Cone | Movement | reach 2.5, arc 90 | 15 s | 15 Fury | Damage: an attack at 148 % of the weapon | 12 Stunned |
+| 214 Frost Bind | Wizard | Circle on the aim point | Cursor | reach 18, radius 3 | 20 s | 25 Mana | Damage: a spell of 6-9, growing 0.45 % a level | 14 Frozen |
+| 224 Binding Shot | Hunter | Projectile, 14 m/s | Cursor | reach 25 | 15 s | 20 Energy | Damage: an attack at 168 % of the weapon, plus 2-4 blight | 13 Bound |
 | 235 Hush | Cleric | Projectile, 17 m/s | Cursor | reach 18 | 20 s | 20 Mana | none | 15 Silenced |
 
 All are instant. Every character of a class holds its class's new abilities. An Ally circle affects the caster too when

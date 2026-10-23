@@ -20,10 +20,9 @@ public static class CombatSeed
         BlockMultiplier = 0.5f,
         CritCap = 50f,
         BlockCap = 50f,
-        // #627: haste counts up to 50 %, and gear moves a character between half and 1.35 times the base
+        // #627: gear moves a character between half and 1.35 times the base
         // 4 m/s. The cap is owner-set to keep a whole change from the base under the client's snap:
         // 4 x 0.35 x 0.1 s = 0.14 m of drift over a round trip, below 0.15 m.
-        HasteCap = 50f,
         MoveSpeedCap = 35f,
         MoveSpeedFloor = -50f,
         // #1178: evasion has armour's shape. These constants keep each class's former base dodge as evasion from Agility
@@ -38,35 +37,43 @@ public static class CombatSeed
         ArmorPerStrength = 0.1f,
         EvasionPerAgility = 1.125f,
         WardPerIntellect = 0.25f,
+        // #1178, offence: 3.5 % per point of Strength (physical attacks) and of Intellect (spells, healing) keeps a point's
+        // marginal worth near today's; 5 life per Stamina is the largest rate that keeps the Wizard's base health 0 or
+        // more. Every speed counts up to 50 %. The bare hand rolls 3-6 every 816 ms, which carries today's bare hits and
+        // basic pace over with a level-1 Warrior's Agility.
+        IncreasedPhysicalAttackPerStrength = 3.5f,
+        AttackSpeedPerAgility = 0.1f,
+        IncreasedSpellPerIntellect = 3.5f,
+        IncreasedHealingPerIntellect = 3.5f,
+        LifePerStamina = 5,
+        BaseCritPct = 5f,
+        AttackSpeedCap = 50f,
+        CastSpeedCap = 50f,
+        CooldownRecoveryCap = 50f,
+        UnarmedDamageMin = 3,
+        UnarmedDamageMax = 6,
+        UnarmedAttackTimeMs = 816,
     };
 
     public static ClassStatFactors[] ClassFactors() =>
     [
         new()
         {
-            Class = CharacterClass.Warrior, HpPerStamina = 10, PowerPerIntellect = 0, PowerPerAgility = 0, FixedPower = 100,
-            AttackPerStrength = 2, AttackPerAgility = 0, AbilityPerIntellect = 0.2,
-            BaseCrit = 5.0f,
+            Class = CharacterClass.Warrior, PowerPerIntellect = 0, PowerPerAgility = 0, FixedPower = 100,
         },
         new()
         {
-            Class = CharacterClass.Wizard, HpPerStamina = 5, PowerPerIntellect = 15, PowerPerAgility = 0, FixedPower = null,
-            AttackPerStrength = 0.5, AttackPerAgility = 0, AbilityPerIntellect = 3,
-            BaseCrit = 1.85f,
+            Class = CharacterClass.Wizard, PowerPerIntellect = 15, PowerPerAgility = 0, FixedPower = null,
         },
         // 0.8 per agility and 2 per intellect: what the old base-power helper's
         // (agility * 0.8) + (intellect * 0.2) * 10 computed, kept as it was (#506 owner decision).
         new()
         {
-            Class = CharacterClass.Hunter, HpPerStamina = 8, PowerPerIntellect = 2, PowerPerAgility = 0.8, FixedPower = null,
-            AttackPerStrength = 0.5, AttackPerAgility = 1.5, AbilityPerIntellect = 0.5,
-            BaseCrit = 5.0f,
+            Class = CharacterClass.Hunter, PowerPerIntellect = 2, PowerPerAgility = 0.8, FixedPower = null,
         },
         new()
         {
-            Class = CharacterClass.Cleric, HpPerStamina = 7, PowerPerIntellect = 12, PowerPerAgility = 0, FixedPower = null,
-            AttackPerStrength = 0.5, AttackPerAgility = 0, AbilityPerIntellect = 2,
-            BaseCrit = 1.85f,
+            Class = CharacterClass.Cleric, PowerPerIntellect = 12, PowerPerAgility = 0, FixedPower = null,
         },
     ];
 }

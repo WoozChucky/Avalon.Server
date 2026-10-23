@@ -25,6 +25,8 @@ public sealed class UpdateItemTemplateRequest
     public ushort? RequiredAgility { get; set; }
     /// <summary>The Intellect a character needs to equip the item, or null for none (#1178).</summary>
     public ushort? RequiredIntellect { get; set; }
+    /// <summary>Milliseconds between a weapon's basic attacks before attack speed (#1178), above 0; null for an item that is not a weapon.</summary>
+    public uint? AttackTimeMs { get; set; }
     public uint? DamageMin1 { get; set; }
     public uint? DamageMax1 { get; set; }
     public DamageType? DamageType1 { get; set; }

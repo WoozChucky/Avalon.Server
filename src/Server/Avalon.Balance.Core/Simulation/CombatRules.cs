@@ -7,24 +7,22 @@ using Avalon.World.Public.Abilities;
 namespace Avalon.Balance.Core;
 
 /// <summary>
-/// The server's hit, heal, Fury and haste rules, applied to simulated units. Every number comes from the World
+/// The server's hit, heal, Fury and speed rules, applied to simulated units. Every number comes from the World
 /// functions; only the bookkeeping CombatService does around them (who loses health, who gains power) is here, and
 /// the parity test pins it against CombatService.
 /// </summary>
 public static class CombatRules
 {
     /// <summary>
-    /// An ability's hit: the base (weapon roll first), then evasion (none for an Unavoidable ability, #1164), crit, block,
-    /// armour. The draw order is HitResolver's. While the simulator is paused (#1183) every hit is one physical part.
+    /// An ability's hit, as CombatService's: the ability's own base (OffenceMath.DirectBase, its rolls first), then evasion
+    /// (none for an Unavoidable ability, #1164), crit, block, mitigation. The draw order is HitResolver's.
     /// </summary>
     public static (uint Damage, HitResult Result) Damage(SimUnit attacker, SimUnit target, SimAbility ability,
         CombatFormula formula, ICombatRandom rng)
     {
         AbilityMetadata m = ability.Metadata;
-        float baseDamage = HitResolver.AbilityBase(attacker.Attack, m.EffectValue, m.ScalingStat, m.ScalingCoefficient,
-            m.BaseDamageCoefficient, rng);
-        HitDamage hit = HitResolver.ResolveDamage(attacker.Attack, target.Defence,
-            DamageParts.Of(DamageType.Physical, baseDamage), formula, rng, IsUnavoidable(m));
+        DamageParts parts = OffenceMath.DirectBase(attacker.Attack, m, rng);
+        HitDamage hit = HitResolver.ResolveDamage(attacker.Attack, target.Defence, parts, formula, rng, IsUnavoidable(m));
         return (hit.Total, hit.Result);
     }
 
@@ -40,9 +38,7 @@ public static class CombatRules
 
     public static (uint Heal, HitResult Result) Heal(SimUnit healer, SimAbility ability, CombatFormula formula, ICombatRandom rng)
     {
-        AbilityMetadata m = ability.Metadata;
-        float baseHeal = HitResolver.AbilityBase(healer.Attack, m.EffectValue, m.ScalingStat, m.ScalingCoefficient,
-            m.BaseDamageCoefficient, rng);
+        double baseHeal = OffenceMath.HealBase(healer.Attack, ability.Metadata, rng);
         return HitResolver.ResolveHeal(healer.Attack, baseHeal, formula, rng);
     }
 
@@ -123,22 +119,19 @@ public static class CombatRules
         return after > before ? after - before : 0;
     }
 
-    /// <summary>As InstanceAbilityCastSystem.CooldownOf: a creature's basic waits its SwingInterval, everything else its cooldown over its haste.</summary>
+    /// <summary>As InstanceAbilityCastSystem.CooldownOf: AbilityPace.Cooldown over the caster's pace, a creature's basic its SwingInterval.</summary>
     public static float CooldownAfterFire(SimUnit caster, SimAbility ability) =>
-        caster is SimCreature creature && ReferenceEquals(ability, creature.Basic)
-            ? creature.SwingInterval
-            : Haste.Scale(ability.Metadata.Cooldown, EffectiveHaste(caster));
+        AbilityPace.Cooldown(ability.Metadata, PaceOf(caster),
+            creatureBasic: caster is SimCreature creature && ReferenceEquals(ability, creature.Basic));
 
-    /// <summary>As InstanceAbilityCastSystem: the cast time over the caster's effective haste.</summary>
-    public static float CastTime(SimUnit caster, SimAbility ability) => Haste.Scale(ability.Metadata.CastTime, EffectiveHaste(caster));
+    /// <summary>As InstanceAbilityCastSystem: the cast time over the caster's cast speed.</summary>
+    public static float CastTime(SimUnit caster, SimAbility ability) => AbilityPace.CastTime(ability.Metadata, PaceOf(caster));
 
-    /// <summary>
-    /// As InstanceAbilityCastSystem.HasteOf: a character's effective haste from its derived stats, a creature's haste
-    /// capped by the cap it spawned with.
-    /// </summary>
-    public static float EffectiveHaste(SimUnit caster) => caster switch
+    /// <summary>As InstanceAbilityCastSystem.PaceOf: a character's pace from its derived stats, a creature's capped by its caps.</summary>
+    public static CasterPace PaceOf(SimUnit caster) => caster switch
     {
-        SimCreature creature => MathF.Min(creature.HastePct, creature.HasteCap),
-        _ => caster.HastePct,
+        SimCreature creature => creature.Pace,
+        SimPlayer player => player.Pace,
+        _ => default,
     };
 }

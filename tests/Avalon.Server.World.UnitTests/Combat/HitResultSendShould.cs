@@ -80,7 +80,7 @@ public class HitResultSendShould
     /// <summary>A character that dodges, blocks and crits at 30 %, 50 % and 50 %.</summary>
     private static void GiveDefences(CharacterEntity character) =>
         character.ApplyStats(new DerivedCharacterStats(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0,
-            Intellect: 0, Armor: 0, BlockPct: 50f, Evasion: 10000, CritPct: 50f, AttackDamage: 0, AbilityDamage: 0),
+            Intellect: 0, Armor: 0, BlockPct: 50f, Evasion: 10000, CritPct: 50f),
             CurrentValues.Refill, TestCombat.Formula);
 
     private static List<SUnitDamagePacket> UnitHits(MapInstanceClient client) =>
@@ -177,21 +177,20 @@ public class HitResultSendShould
     public void Carry_the_damage_type_and_the_ward_absorbed_to_everyone_who_hears_the_hit(bool characterTarget,
         DamageType type, uint wardAbsorbed, uint hit)
     {
-        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain());
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain().Longs(hit));
         MapInstanceClient player = At(instance, 1178_301, Vector3.zero);
         player.Character.ApplyStats(new DerivedCharacterStats(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0,
-            Agility: 0, Intellect: 0, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 0f, AttackDamage: 0, AbilityDamage: 0,
+            Agility: 0, Intellect: 0, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 0f,
             MaxWard: 10), CurrentValues.Refill, TestCombat.Formula);
         MapInstanceClient watcher = At(instance, 1178_302, new Vector3(3f, 0f, 0f));
         Creature boar = AddCreature(instance, 1178_801, new Vector3(1f, 0f, 0f), ward: 10);
-        AbilityTemplate template = AbilityTestData.Circle(1178);
+        AbilityTemplate template = AbilityTestData.Circle(1178).Dealing(hit);
         template.DamageType = type;
-        template.EffectValue = hit;
 
         if (characterTarget)
-            instance.CombatService.ApplyDamage(boar, player.Character, hit, AbilityTestData.Game(template));
+            instance.CombatService.ApplyDamage(boar, player.Character, AbilityTestData.Game(template));
         else
-            instance.CombatService.ApplyDamage(player.Character, boar, hit, AbilityTestData.Game(template));
+            instance.CombatService.ApplyDamage(player.Character, boar, AbilityTestData.Game(template));
 
         (uint, DamageType, DamageTypeMask, uint) expected = (hit, type, DamageTypes.MaskOf(type), wardAbsorbed);
         foreach (MapInstanceClient client in new[] { player, watcher })
@@ -242,7 +241,7 @@ public class HitResultSendShould
     [Fact]
     public void Mark_a_crit_and_a_block_on_a_characters_own_packet_and_its_broadcast()
     {
-        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: new ScriptedCombatRandom(0.99, 0.0, 0.0));
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: new ScriptedCombatRandom(0.99, 0.0, 0.0).Longs(20));
         MapInstanceClient attacker = At(instance, 506_341, new Vector3(1f, 0f, 0f));
         GiveDefences(attacker.Character);
         MapInstanceClient victim = At(instance, 506_342, Vector3.zero);
@@ -250,8 +249,8 @@ public class HitResultSendShould
         attacker.Character.Data!.PvpEnabled = true;
         victim.Character.Data!.PvpEnabled = true;
 
-        instance.CombatService.ApplyDamage(attacker.Character, victim.Character, 20,
-            AbilityTestData.Game(AbilityTestData.Circle(201, radius: 3f)));
+        instance.CombatService.ApplyDamage(attacker.Character, victim.Character,
+            AbilityTestData.Game(AbilityTestData.Circle(201, radius: 3f).Dealing(20)));
 
         SCharacterDamagePacket own = Assert.Single(victim.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
         Assert.Equal((15u, HitResult.Crit | HitResult.Blocked, (uint?)201u), (own.Damage, own.Result, own.AbilityId));
@@ -336,14 +335,14 @@ public class HitResultSendShould
     [Fact]
     public void Send_two_hits_and_one_dodge_for_a_cleave_on_three_units_one_of_which_dodges()
     {
-        var rng = new ScriptedCombatRandom(0.99, 0.99, 0.99, 0.0, 0.99, 0.99, 0.99);
+        ScriptedCombatRandom rng = new ScriptedCombatRandom(0.99, 0.99, 0.99, 0.0, 0.99, 0.99, 0.99).Longs(10, 10, 10);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, random: rng);
         MapInstanceClient warrior = At(instance, 506_361, Vector3.zero);
         warrior.Character.PowerType = PowerType.Fury;
         warrior.Character.Power = 100;
         warrior.Character.CurrentPower = 0;
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);
-        AbilityTemplate cleave = AbilityTestData.Cone(200, reach: 2.5f, arc: 100f);
+        AbilityTemplate cleave = AbilityTestData.Cone(200, reach: 2.5f, arc: 100f).Dealing(10);
         cleave.PowerGainPerHit = 8;
         warrior.Character.Spells.Load([AbilityTestData.Game(cleave)]);
         AddCreature(instance, 506_861, new Vector3(0f, 0f, 1.0f), evasion: 10000);

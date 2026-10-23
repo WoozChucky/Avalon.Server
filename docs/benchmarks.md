@@ -1621,6 +1621,128 @@ tracks the sum, the largest mitigated part and the blight part. What remains ove
 hit, is the work #1178 adds: the evasion chance (a division where the dodge was a comparison) and the per-part loop with
 its type dispatch. The tick is unchanged. A hit stays well under a microsecond.
 
+**Re-run after `AttackerCombat` grew to 192 B (#1178 part B).** The world-perf review re-ran these rows on part B's
+branch (`85b1bfb1c`): 15.44 ns, 3.94 ns and 31.28 ns, 0 B, so the bigger attacker, passed `in`, costs the resolution
+nothing measurable. After part B's perf fixes the tick row resolves the way a ticking aura now does in the world, from
+its `AuraSnapshot` (`HitResolver.ResolvePeriodic(in AuraSnapshot, …)`: the caster's level, crit chance and crit
+multiplier bonus, and the ticks' type), where the world used to build a 192 B attacker per tick to read those four
+values. One out-of-process run with BenchmarkDotNet's default job (its own warmup and iteration counts), same machine,
+SDK 10.0.402 / runtime 10.0.13, 2026-10-23:
+
+| Operation | Review re-run (`85b1bfb1c`) | After the perf fixes | Allocated |
+|---|---:|---:|---:|
+| `ResolveCreatureHitOnArmouredCharacter` | 15.44 ns | 16.23 ns (± 0.07 ns, error ± 0.08 ns) | 0 B |
+| `ResolveDamageTick` | 3.94 ns | 4.06 ns (± 0.04 ns, error ± 0.05 ns) | 0 B |
+| `ResolveMixedHit` | 31.28 ns | 30.26 ns (± 0.22 ns, error ± 0.25 ns) | 0 B |
+
+The differences are within run-to-run noise: the resolution itself did not change. The saving on the tick is the
+attacker the world no longer builds before calling it, which this row never paid (its attacker is a field).
+
+### Offence — `Benchmarks/OffenceBenchmarks.cs` (#1178)
+
+The base of an ability in `Avalon.Combat`, which every damaging hit, every heal and every damage-over-time aura's
+application computes before the hit maths, measured before and after the offence model of #1178 (part B). Before, each
+row timed `HitResolver.AbilityBase` (`EffectValue + coefficient x the caster's damage stat + weapon coefficient x roll`):
+Cleave (200) for a level-1 starter Warrior (attack damage 58, a 4..7 main hand), `12 + 0.3 x 58 + 1.0 x roll`; Spark
+Bolt (210) for a level-1 starter Wizard (ability damage 93), `12 + 0.25 x 93` with no weapon term, so nothing was drawn;
+and `AuraRules.Snapshot` of Bleed (aura 1, 12 s ticking every 3 s) from the Warrior, `(12 + 0.25 x 58) / 4` per tick.
+After, the same casters and abilities through the offence model: `AttackBase` is `OffenceMath.AttackBase` for Cleave
+(an Attack at 315 % effectiveness) by the Warrior at Strength 29 (101.5 % increased physical attack damage) with the
+4..7 Ironwood Sword (item 32), `roll x 3.15 x 2.015`; `ConvertedAttackBase` (new) is the same for Crippling Shot (223,
+an Attack at 495 % converting half its physical damage to cold) by a level-1 starter Hunter at Strength 21 (73.5 %)
+with the 4..7 Hunter's Shortbow (item 34), the physical half `roll / 2 x 4.95 x 1.735` and the cold half
+`roll / 2 x 4.95`, two parts; `SpellBase` is `OffenceMath.SpellBase` for Spark Bolt (a 14..20 lightning spell base) by
+the Wizard at Intellect 31 (108.5 % increased spell damage), `roll x 2.085`; and `DamageOverTimeSnapshot` is
+`AuraRules.Snapshot` of Bleed (PeriodicBase 12, 21 % of its source's roll) from Rend (203, an Attack) by the Warrior,
+`(12 + 0.21 x roll) x 2.015 / 4` per tick. The abilities, the aura and the attackers carry the seeded values (the
+attackers as the stats calculator builds them at level 1 with starter gear); neither side reads the database or the
+formula row. All run on `CombatRandom.Steady`, whose rolls come up at their low end, so every iteration takes the same
+path; setup fails the run unless the bases are, before, Cleave 33.4, Spark Bolt 35.25 and Bleed's tick 6.625, and,
+after, Cleave 25.389, Crippling Shot 17.1765 physical and 9.9 cold, Spark Bolt 29.19 and Bleed's tick 6.468.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*OffenceBenchmarks*" --warmupCount 10 --iterationCount 20
+```
+
+Out of process (BenchmarkDotNet's default toolchain), ten warmups and twenty measured iterations, each side measured
+once: BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, Release. Before is `3e36c9774`
+with this benchmark added and no maths changed, after is #1178 part B, both on 2026-10-23:
+
+| Operation | Before (#1178 part B) | After (#1178 part B) | Allocated |
+|---|---:|---:|---:|
+| `AttackBase` | 1.78 ns (± 0.06 ns, error ± 0.05 ns) | 35.19 ns (± 0.61 ns, error ± 0.53 ns) | 0 B |
+| `ConvertedAttackBase` | – | 38.50 ns (± 0.41 ns, error ± 0.36 ns) | 0 B |
+| `SpellBase` | 0.00 ns (below what BenchmarkDotNet resolves) | 32.08 ns (± 0.53 ns, error ± 0.46 ns) | 0 B |
+| `DamageOverTimeSnapshot` | 2.49 ns (± 0.03 ns, error ± 0.03 ns) | 39.98 ns (± 0.51 ns, error ± 0.45 ns) | 0 B |
+
+None allocates, before or after: the attacker is a value struct passed `in`, the aura template is read, and the parts
+and the snapshot are value structs. Before, the spell base was two float operations on fields with no draw, which the
+JIT inlined into the benchmark method, so it measured as nothing over BenchmarkDotNet's empty-method overhead; a spell
+now draws its roll as an attack does, so its after number compares with the attack base's one-draw cost before
+(1.78 ns), not with that 0.00 ns.
+
+**The perf fixes (#1178 part B, the world-perf review).** The first cut cost about 32 to 40 ns a base, about twenty
+times the old attack base. The review measured where: `OffenceMath.Scale` cost about 15 ns per damage part, because it
+summed the increased points and multiplied the more factors of every key the ability's tags name again for each part
+(Damage, Attack, Spell, Area, Projectile, Melee, DamageOverTime), and an attack base walks the five damage types. The
+fix sums the keys every part shares once per base (`TermsOf`) and adds only each part's own type key, and
+PhysicalAttack for an Attack's physical part (`PartScale`); the rule and its order are unchanged. One out-of-process run
+with BenchmarkDotNet's default job, same machine, SDK 10.0.402 / runtime 10.0.13, 2026-10-23:
+
+| Operation | Before the perf fixes | After the perf fixes | Allocated |
+|---|---:|---:|---:|
+| `AttackBase` | 35.19 ns | 14.25 ns (± 0.10 ns, error ± 0.10 ns) | 0 B |
+| `ConvertedAttackBase` | 38.50 ns | 15.84 ns (± 0.17 ns, error ± 0.21 ns) | 0 B |
+| `SpellBase` | 32.08 ns | 16.95 ns (± 1.04 ns, error ± 0.39 ns) | 0 B |
+| `DamageOverTimeSnapshot` | 39.98 ns | 9.75 ns (± 0.39 ns, error ± 0.22 ns) | 0 B |
+
+What is left over the old bases is the draw (a spell now rolls its base) and the one copy of the 128 B offence block
+(`OffenceStats`) each base reads from the attacker. `AttackerCombat` grew from 44 B to 192 B (the offence block and the
+36 B `WeaponDamage`), passed `in` everywhere; the per-tick reads that copied or compared it are measured below
+(`OffenceReadBenchmarks`). With the hit resolution above (16 to 30 ns, re-run on the 192 B attacker), a hit's base and
+its resolution together stay under 50 ns.
+
+### Offence reads — `Benchmarks/OffenceReadBenchmarks.cs` (#1178)
+
+The reads of the offence block that run every tick or every hit, which the world-perf review of #1178 part B found
+costly. `AbilityAmountsFlushUnchanged` is `AbilityAmountsFlusher.Flush` for a level-1 Warrior with three abilities on
+a tick where nothing moved, once per tick per connection: it used to build the character's `AttackerCombat` (192 B)
+and compare it, with its `CasterPace`, against the one last used; it now compares the stats refresh count and the level
+the amounts were last checked at (`CharacterEntity.AbilityAmountsInputs`), and only when one moved compares the attacker
+and the pace, so a refresh that changed neither works nothing out. `CreatureCombatWithAura` reads a creature's
+`Combat`, which every hit it lands and every cast it makes reads, while it holds an aura giving 20 % more damage: it
+used to fold the aura totals into the offence block on every read (`AuraStats.Fold`, 26 lookups); the crit and the
+offence block its auras give are now folded once, in `Creature.ApplyAuraStats`, when they change.
+`CreatureCombatNoAura` is the same read with no aura. `Combat` is internal to the world, so the benchmark reads it
+through a delegate bound to its getter once in setup.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*OffenceReadBenchmarks*"
+```
+
+The "before" figures are the review's own probe on `85b1bfb1c` (a BenchmarkDotNet project in its scratch directory,
+same machine): the flusher's comparison alone (the attacker built from the stats, then compared with its pace), and the
+fold of a creature's attacker with an aura of -30 % more movement speed and with none, without the delegate call or
+the reads of the creature's fields. The "after" rows run the real flusher (the connection's character, its type check
+and the two counts) and the real `Combat` getter, so they carry costs the probe left out. One out-of-process run with
+the default job, SDK 10.0.402 / runtime 10.0.13, 2026-10-23:
+
+| Operation | Before (review probe) | After the perf fixes | Allocated |
+|---|---:|---:|---:|
+| `AbilityAmountsFlushUnchanged` | 73.9 ns (the comparison alone) | 0.68 ns (± 0.01 ns, error ± 0.01 ns), the whole flush | 0 B |
+| `CreatureCombatWithAura` | 41.1 ns (the fold alone) | 15.15 ns (± 0.11 ns, error ± 0.11 ns), the whole read | 0 B |
+| `CreatureCombatNoAura` | 0.6 ns (the fold alone) | 9.71 ns (± 1.60 ns, error ± 0.55 ns), the whole read | 0 B |
+
+At 1,800 players the flush's comparison cost about 133 us a tick; the unchanged flush now costs about 1.2 us a tick. A
+first cut of the count check, with the recompute in the same method, measured 19.33 ns: the JIT gave every call the
+frame of the rarely taken path, whose 192 B attacker and 200-odd byte tuples made each call reserve about 1.8 KB of stack
+and zero about 1.1 KB of it before the gate (the re-check's disassembly). The recompute now lives in its own
+`[MethodImpl(MethodImplOptions.NoInlining)]` method (`FlushChanged`), so `Flush` is the type check and the counts'
+comparison alone; the gate reads the amounts array rather than the nullable attacker tuple, so it copies nothing. This
+row was re-run alone after that change, out of process with the default job, the same day. A creature's read no longer
+folds anything: the two creature rows
+differ by what they read back from the 192 B attacker (a more factor against the crit), not by a fold.
+
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
 Measures the production `WorldConnection` arrival, session/map filtering and handler dispatch paths. Each operation

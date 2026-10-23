@@ -116,12 +116,13 @@ variant float-specials
   field 3 AbilityId : uint = 300
   field 4 CastId : uint = 19
   field 5 Position : Vector3Dto
-    field 1 X : float = -Infinity (0xff800000)
-    field 2 Y : float = -0 (0x80000000)
-    field 3 Z : float = 1.40129846E-45 (0x00000001)
+    field 1 X : float = 1.40129846E-45 (0x00000001)
+    field 2 Y : float = 1.17549421E-38 (0x007fffff)
+    field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
   field 6 Reason : ProjectileImpactReason = Pierced (2)
   field 7 Target : ulong = 7
   field 8 WorldTick : long = 11
-  bytes 29
-    08 13 10 ff ff 03 18 ac 02 20 13 2a 0a 0d 00 00
-    80 ff 1d 01 00 00 00 30 02 38 07 40 0b
+  bytes 34
+    08 13 10 ff ff 03 18 ac 02 20 13 2a 0f 0d 01 00
+    00 00 15 ff ff 7f 00 1d ff ff 7f 7f 30 02 38 07
+    40 0b

@@ -6,11 +6,11 @@ namespace Avalon.Combat;
 
 /// <summary>
 /// What a character's class, level and worn gear add up to (spec #463). Written to the entity by
-/// CharacterEntity.ApplyStats and saved as the character's CharacterStats row. Combat reads the damage
-/// stats, armour, block, evasion and crit, and the main-hand weapon's damage range (#506), from the copy
-/// the entity holds, so a hit looks nothing up. The weapon range is not saved. HastePct and
-/// MovementSpeedPct (#627) are the worn gear's AttackSpeed and MovementSpeed totals, in percentage
-/// points, before the combat formula's bounds; neither is saved. MaxWard and Resistances (#1178) are what a full ward
+/// CharacterEntity.ApplyStats and saved as the character's CharacterStats row. Combat reads armour, block, evasion and
+/// crit, the weapon and the offence block (#506, #1178), from the copy the entity holds, so a hit looks nothing up.
+/// Weapon and Offence are not saved: the main hand's damage and attack time (or the bare hand's), and the offence block
+/// with the speeds before their caps. MovementSpeedPct (#627) is the worn gear's MovementSpeed total, in percentage
+/// points, before the combat formula's bounds, not saved. MaxWard and Resistances (#1178) are what a full ward
 /// reaches and the resistances before any cap; both are saved, the ward's current value is not.
 /// </summary>
 public readonly record struct DerivedCharacterStats(
@@ -24,14 +24,11 @@ public readonly record struct DerivedCharacterStats(
     float BlockPct,
     uint Evasion,
     float CritPct,
-    uint AttackDamage,
-    uint AbilityDamage,
-    uint WeaponMin = 0,
-    uint WeaponMax = 0,
-    float HastePct = 0f,
     float MovementSpeedPct = 0f,
     uint MaxWard = 0,
-    Resistances Resistances = default)
+    Resistances Resistances = default,
+    WeaponDamage Weapon = default,
+    OffenceStats Offence = default)
 {
     /// <summary>The Character-DB row, named by its key alone (no navigation), as every save writes it.</summary>
     public CharacterStats ToRow(CharacterId characterId) => new()
@@ -47,8 +44,6 @@ public readonly record struct DerivedCharacterStats(
         Armor = Armor,
         BlockPct = BlockPct,
         CritPct = CritPct,
-        AttackDamage = AttackDamage,
-        AbilityDamage = AbilityDamage,
         Evasion = Evasion,
         MaxWard = MaxWard,
         FireResistance = Resistances.Fire,
@@ -58,16 +53,11 @@ public readonly record struct DerivedCharacterStats(
     };
 
     /// <summary>
-    /// What a character with these stats attacks with at <paramref name="level" /> (#506). A character's base type is Physical
-    /// (#1178): every class ability that deals damage names its own.
+    /// What a character with these stats attacks with at <paramref name="level" /> (#506, #1178): its crit, weapon and
+    /// offence block. A character's base type is Physical: every class ability that deals damage names its own.
     /// </summary>
-    public AttackerCombat AttackerAt(ushort level) =>
-        new(level, AttackDamage, AbilityDamage, CritPct, WeaponMin, WeaponMax, BaseType: DamageType.Physical);
+    public AttackerCombat AttackerAt(ushort level) => new(level, CritPct, Weapon, Offence, DamageType.Physical);
 
     /// <summary>What a character with these stats defends with (#506).</summary>
     public DefenderCombat Defence => new(Armor, Evasion, BlockPct, Resistances);
-
-    /// <summary>The haste that counts (#627): the gear total, 0 to the formula's HasteCap.</summary>
-    public float EffectiveHastePct(Avalon.Domain.World.CombatFormula formula) =>
-        Math.Clamp(HastePct, 0f, Math.Max(0f, formula.HasteCap));
 }

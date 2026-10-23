@@ -18,8 +18,6 @@ message AbilityInfo
 variant absent
   field 1 AbilityId : uint = 0
   field 2 Name : string = null
-  field 3 Cooldown : float = 0 (0x00000000)
-  field 4 CastTime : float = 0 (0x00000000)
   field 5 Cost : uint = 0
   field 6 Range : ushort = 0
   field 7 FacingAngle : float = 0 (0x00000000)
@@ -36,13 +34,15 @@ variant absent
   field 18 AmountKind : AbilityAmountKind = None (0)
   field 19 AmountMin : uint = 0
   field 20 AmountMax : uint = 0
+  field 21 Tags : AbilityTags = None (0)
+  field 22 AmountTypes : DamageTypeMask = None (0)
+  field 23 CooldownMs : uint = 0
+  field 24 CastTimeMs : uint = 0
   bytes 0
 
 variant empty
   field 1 AbilityId : uint = 0
   field 2 Name : string = "" (0 chars, 0 bytes utf-8)
-  field 3 Cooldown : float = 0 (0x00000000)
-  field 4 CastTime : float = 0 (0x00000000)
   field 5 Cost : uint = 0
   field 6 Range : ushort = 0
   field 7 FacingAngle : float = 0 (0x00000000)
@@ -59,14 +59,16 @@ variant empty
   field 18 AmountKind : AbilityAmountKind = None (0)
   field 19 AmountMin : uint = 0
   field 20 AmountMax : uint = 0
+  field 21 Tags : AbilityTags = None (0)
+  field 22 AmountTypes : DamageTypeMask = None (0)
+  field 23 CooldownMs : uint = 0
+  field 24 CastTimeMs : uint = 0
   bytes 2
     12 00
 
 variant populated
   field 1 AbilityId : uint = 42
   field 2 Name : string = "Ωμέγα ΔΕΛΤΑ" (11 chars, 21 bytes utf-8)
-  field 3 Cooldown : float = -7.50000027E-08 (0xb3a10fb0)
-  field 4 CastTime : float = 1E+10 (0x501502f9)
   field 5 Cost : uint = 300
   field 6 Range : ushort = 42
   field 7 FacingAngle : float = 3.14159274 (0x40490fdb)
@@ -83,19 +85,21 @@ variant populated
   field 18 AmountKind : AbilityAmountKind = Healing (2)
   field 19 AmountMin : uint = 19
   field 20 AmountMax : uint = 300
-  bytes 89
+  field 21 Tags : AbilityTags = Heal (4)
+  field 22 AmountTypes : DamageTypeMask = Blight (16)
+  field 23 CooldownMs : uint = 300
+  field 24 CastTimeMs : uint = 300
+  bytes 93
     08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1 20 ce
-    94 ce 95 ce 9b ce a4 ce 91 1d b0 0f a1 b3 25 f9
-    02 15 50 28 ac 02 30 2a 3d db 0f 49 40 40 01 48
-    01 50 01 5d 00 00 c0 3f 65 00 00 10 c0 6d b0 0f
-    a1 b3 75 00 00 10 c0 78 01 80 01 01 88 01 02 90
-    01 02 98 01 13 a0 01 ac 02
+    94 ce 95 ce 9b ce a4 ce 91 28 ac 02 30 2a 3d db
+    0f 49 40 40 01 48 01 50 01 5d 00 00 c0 3f 65 00
+    00 10 c0 6d b0 0f a1 b3 75 00 00 10 c0 78 01 80
+    01 01 88 01 02 90 01 02 98 01 13 a0 01 ac 02 a8
+    01 04 b0 01 10 b8 01 ac 02 c0 01 ac 02
 
 variant maxima
   field 1 AbilityId : uint = 4294967295
   field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-  field 3 Cooldown : float = 3.40282347E+38 (0x7f7fffff)
-  field 4 CastTime : float = 3.40282347E+38 (0x7f7fffff)
   field 5 Cost : uint = 4294967295
   field 6 Range : ushort = 65535
   field 7 FacingAngle : float = 3.40282347E+38 (0x7f7fffff)
@@ -112,7 +116,11 @@ variant maxima
   field 18 AmountKind : AbilityAmountKind = Healing (2)
   field 19 AmountMin : uint = 4294967295
   field 20 AmountMax : uint = 4294967295
-  bytes 217
+  field 21 Tags : AbilityTags = DamageOverTime (64)
+  field 22 AmountTypes : DamageTypeMask = Blight (16)
+  field 23 CooldownMs : uint = 4294967295
+  field 24 CastTimeMs : uint = 4294967295
+  bytes 227
     08 ff ff ff ff 0f 12 84 01 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -121,18 +129,17 @@ variant maxima
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 1d ff ff
-    7f 7f 25 ff ff 7f 7f 28 ff ff ff ff 0f 30 ff ff
-    03 3d ff ff 7f 7f 40 01 48 02 50 01 5d ff ff 7f
-    7f 65 ff ff 7f 7f 6d ff ff 7f 7f 75 ff ff 7f 7f
-    78 01 80 01 01 88 01 03 90 01 02 98 01 ff ff ff
-    ff 0f a0 01 ff ff ff ff 0f
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 28 ff ff
+    ff ff 0f 30 ff ff 03 3d ff ff 7f 7f 40 01 48 02
+    50 01 5d ff ff 7f 7f 65 ff ff 7f 7f 6d ff ff 7f
+    7f 75 ff ff 7f 7f 78 01 80 01 01 88 01 03 90 01
+    02 98 01 ff ff ff ff 0f a0 01 ff ff ff ff 0f a8
+    01 40 b0 01 10 b8 01 ff ff ff ff 0f c0 01 ff ff
+    ff ff 0f
 
 variant minima
   field 1 AbilityId : uint = 0
   field 2 Name : string = "\u0001" (1 chars, 1 bytes utf-8)
-  field 3 Cooldown : float = -3.40282347E+38 (0xff7fffff)
-  field 4 CastTime : float = -3.40282347E+38 (0xff7fffff)
   field 5 Cost : uint = 0
   field 6 Range : ushort = 0
   field 7 FacingAngle : float = -3.40282347E+38 (0xff7fffff)
@@ -149,16 +156,17 @@ variant minima
   field 18 AmountKind : AbilityAmountKind = None (0)
   field 19 AmountMin : uint = 0
   field 20 AmountMax : uint = 0
-  bytes 38
-    12 01 01 1d ff ff 7f ff 25 ff ff 7f ff 3d ff ff
-    7f ff 5d ff ff 7f ff 65 ff ff 7f ff 6d ff ff 7f
-    ff 75 ff ff 7f ff
+  field 21 Tags : AbilityTags = None (0)
+  field 22 AmountTypes : DamageTypeMask = None (0)
+  field 23 CooldownMs : uint = 0
+  field 24 CastTimeMs : uint = 0
+  bytes 28
+    12 01 01 3d ff ff 7f ff 5d ff ff 7f ff 65 ff ff
+    7f ff 6d ff ff 7f ff 75 ff ff 7f ff
 
 variant varint-edges
   field 1 AbilityId : uint = 2097151
   field 2 Name : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
-  field 3 Cooldown : float = 1.17549435E-38 (0x00800000)
-  field 4 CastTime : float = 1.17549435E-38 (0x00800000)
   field 5 Cost : uint = 127
   field 6 Range : ushort = 16383
   field 7 FacingAngle : float = 1.17549435E-38 (0x00800000)
@@ -175,7 +183,11 @@ variant varint-edges
   field 18 AmountKind : AbilityAmountKind = <not a declared member> (3)
   field 19 AmountMin : uint = 128
   field 20 AmountMax : uint = 268435456
-  bytes 203
+  field 21 Tags : AbilityTags = Attack, DamageOverTime (65)
+  field 22 AmountTypes : DamageTypeMask = Physical, Blight (17)
+  field 23 CooldownMs : uint = 2097151
+  field 24 CastTimeMs : uint = 2097152
+  bytes 210
     08 ff ff 7f 12 80 01 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
@@ -184,37 +196,40 @@ variant varint-edges
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
-    79 79 79 79 79 79 79 1d 00 00 80 00 25 00 00 80
-    00 28 7f 30 ff 7f 3d 00 00 80 00 40 02 48 03 50
-    02 5d 00 00 80 00 65 00 00 80 00 6d 00 00 80 00
-    75 00 00 80 00 78 01 80 01 02 88 01 04 90 01 03
-    98 01 80 01 a0 01 80 80 80 80 01
+    79 79 79 79 79 79 79 28 7f 30 ff 7f 3d 00 00 80
+    00 40 02 48 03 50 02 5d 00 00 80 00 65 00 00 80
+    00 6d 00 00 80 00 75 00 00 80 00 78 01 80 01 02
+    88 01 04 90 01 03 98 01 80 01 a0 01 80 80 80 80
+    01 a8 01 41 b0 01 11 b8 01 ff ff 7f c0 01 80 80
+    80 01
 
 variant float-specials
   field 1 AbilityId : uint = 42
   field 2 Name : string = "Ωμέγα ΔΕΛΤΑ" (11 chars, 21 bytes utf-8)
-  field 3 Cooldown : float = 1.40129846E-45 (0x00000001)
-  field 4 CastTime : float = -0 (0x80000000)
   field 5 Cost : uint = 300
   field 6 Range : ushort = 42
-  field 7 FacingAngle : float = 1.17549421E-38 (0x007fffff)
+  field 7 FacingAngle : float = -0 (0x80000000)
   field 8 AimMode : AbilityAimMode = Cursor (1)
   field 9 Shape : AbilityShape = Cone (1)
   field 10 Anchor : AbilityAnchor = AimPoint (1)
-  field 11 Reach : float = NaN (0x7fc00001)
-  field 12 Radius : float = NaN (0xffc00000)
+  field 11 Reach : float = 3.40282347E+38 (0x7f7fffff)
+  field 12 Radius : float = 1.17549421E-38 (0x007fffff)
   field 13 ArcDegrees : float = -Infinity (0xff800000)
-  field 14 ProjectileSpeed : float = 3.40282347E+38 (0x7f7fffff)
+  field 14 ProjectileSpeed : float = 1.40129846E-45 (0x00000001)
   field 15 Pierce : bool = true
   field 16 Affects : AbilityAffects = Ally (1)
   field 17 CostPowerType : PowerType = Fury (2)
   field 18 AmountKind : AbilityAmountKind = Healing (2)
   field 19 AmountMin : uint = 19
   field 20 AmountMax : uint = 300
-  bytes 84
+  field 21 Tags : AbilityTags = Heal (4)
+  field 22 AmountTypes : DamageTypeMask = Blight (16)
+  field 23 CooldownMs : uint = 300
+  field 24 CastTimeMs : uint = 300
+  bytes 88
     08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1 20 ce
-    94 ce 95 ce 9b ce a4 ce 91 1d 01 00 00 00 28 ac
-    02 30 2a 3d ff ff 7f 00 40 01 48 01 50 01 5d 01
-    00 c0 7f 65 00 00 c0 ff 6d 00 00 80 ff 75 ff ff
-    7f 7f 78 01 80 01 01 88 01 02 90 01 02 98 01 13
-    a0 01 ac 02
+    94 ce 95 ce 9b ce a4 ce 91 28 ac 02 30 2a 40 01
+    48 01 50 01 5d ff ff 7f 7f 65 ff ff 7f 00 6d 00
+    00 80 ff 75 01 00 00 00 78 01 80 01 01 88 01 02
+    90 01 02 98 01 13 a0 01 ac 02 a8 01 04 b0 01 10
+    b8 01 ac 02 c0 01 ac 02

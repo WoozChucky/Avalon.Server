@@ -7,5 +7,6 @@ namespace Avalon.Api.Contract;
 public enum AuraModifierKind
 {
     Flat = 1,
-    Percent = 2,
+    Increased = 2,
+    More = 3,
 }

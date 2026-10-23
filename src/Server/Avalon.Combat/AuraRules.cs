@@ -2,6 +2,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
+using Avalon.World.Public.Abilities;
 
 namespace Avalon.Combat;
 
@@ -19,7 +20,6 @@ public static class AuraRules
         if (!Enum.IsDefined(t.Kind)) return $"unknown kind {(int)t.Kind}";
         if (!Enum.IsDefined(t.PeriodicKind)) return $"unknown periodic kind {(int)t.PeriodicKind}";
         if (!Enum.IsDefined(t.Stacking)) return $"unknown stacking {(int)t.Stacking}";
-        if (!Enum.IsDefined(t.ScalingStat)) return $"unknown scaling stat {(int)t.ScalingStat}";
         if ((t.Control & ~KnownControl) != 0) return $"unknown control {(int)t.Control}";
         if (t.DurationMs == 0) return "DurationMs must be above 0";
         if (t.PeriodicKind != AuraPeriodicKind.None && t.TickIntervalMs == 0)
@@ -30,8 +30,7 @@ public static class AuraRules
 
         foreach ((string name, float value) in new[]
                  {
-                     ("PeriodicBase", t.PeriodicBase), ("ScalingCoefficient", t.ScalingCoefficient),
-                     ("BaseDamageCoefficient", t.BaseDamageCoefficient),
+                     ("PeriodicBase", t.PeriodicBase), ("PeriodicEffectiveness", t.PeriodicEffectiveness),
                  })
         {
             if (!float.IsFinite(value) || value < 0f)
@@ -58,8 +57,18 @@ public static class AuraRules
             if (!Enum.IsDefined(m.Stat)) return $"unknown stat {(int)m.Stat}";
             if (!Enum.IsDefined(m.Kind)) return $"unknown modifier kind {(int)m.Kind} on {m.Stat}";
             if (!float.IsFinite(m.Value)) return FormattableString.Invariant($"{m.Stat} modifier {m.Value} is not finite");
-            // A percentage at or below -100 would take the whole stat, or turn it negative.
-            if (m.Kind == AuraModifierKind.Percent && m.Value <= -100f) return FormattableString.Invariant($"{m.Stat} modifier {m.Value} % would take the whole stat");
+            // An Increased or a More at or below -100 would take the whole stat, or turn it negative.
+            if (m.Kind is AuraModifierKind.Increased or AuraModifierKind.More && m.Value <= -100f)
+                return FormattableString.Invariant($"{m.Stat} modifier {m.Value} % would take the whole stat");
+            // The Increased keys, the crit multiplier and the three speeds are percentages already: "+X %" is Flat and
+            // "X % more" is More, so nothing reads "increased increased".
+            if (m.Kind == AuraModifierKind.Increased
+                && m.Stat is (>= AuraStat.IncreasedDamage and <= AuraStat.IncreasedHealing)
+                    or AuraStat.CritMultiplier or AuraStat.AttackSpeed or AuraStat.CastSpeed or AuraStat.CooldownRecovery)
+            {
+                return $"{m.Stat} is already a percentage: it takes Flat or More, never Increased";
+            }
+
             if (!seen.Add(m.Stat)) return $"{m.Stat} is modified twice";
         }
 
@@ -90,29 +99,30 @@ public static class AuraRules
         tickIntervalMs == 0 ? 0 : (int)Math.Max(1u, durationMs / tickIntervalMs);
 
     /// <summary>
-    /// The snapshot: <c>PeriodicBase + ScalingCoefficient x the caster's ScalingStat + BaseDamageCoefficient x one
-    /// roll of the caster's base damage</c>, the ability formula (<see cref="HitResolver.AbilityBase" />), divided
-    /// evenly over the ticks. The roll is uniform and inclusive over the caster's WeaponMin..WeaponMax (a character's
-    /// main hand, a creature's natural range) and is drawn once, here, only for a tick-giving aura whose coefficient
-    /// is above 0 and whose caster has a range above 0. A creature has no damage stats, so its auras scale through
-    /// the roll alone. <paramref name="type" /> is the type its damage ticks deal (#1178), which the caller resolves from
-    /// the source ability and the caster (<see cref="HitResolver.TypeOf" />).
+    /// The snapshot (#1178): <see cref="OffenceMath.PeriodicTotal" /> of the aura from its <paramref name="caster" /> and
+    /// <paramref name="source" /> ability, divided evenly over the ticks, with the caster's crit chance, level and crit
+    /// multiplier bonus. The total is rolled once, here, only for a tick-giving aura; nothing about the caster changes it
+    /// afterwards. <paramref name="type" /> is the type its damage ticks deal, which the caller resolves from the source
+    /// ability and the caster (<see cref="HitResolver.TypeOf" />). With no source (an item's, a script's aura, or no
+    /// caster), the aura's PeriodicBase alone.
     /// </summary>
-    public static AuraSnapshot Snapshot(AuraTemplate t, in AttackerCombat caster, DamageType type, ICombatRandom rng)
+    public static AuraSnapshot Snapshot(AuraTemplate t, in AttackerCombat caster, AbilityMetadata? source,
+        DamageType type, ICombatRandom rng)
     {
         ushort level = (ushort)Math.Min(caster.Level, ushort.MaxValue);
+        float critBonus = caster.Offence.CritMultiplierBonus;
         int ticks = TickCount(t.DurationMs, t.TickIntervalMs);
         if (t.PeriodicKind == AuraPeriodicKind.None || ticks == 0)
-            return new AuraSnapshot(0f, caster.CritPct, level, type);
+            return new AuraSnapshot(0f, caster.CritPct, level, type, critBonus);
 
-        float total = HitResolver.AbilityBase(caster, t.PeriodicBase, t.ScalingStat, t.ScalingCoefficient,
-            t.BaseDamageCoefficient, rng);
-        return new AuraSnapshot(total / ticks, caster.CritPct, level, type);
+        double total = OffenceMath.PeriodicTotal(t, caster, source, type, rng);
+        return new AuraSnapshot((float)(total / ticks), caster.CritPct, level, type, critBonus);
     }
 
     /// <summary>
     /// The whole points one tick deals or heals: <paramref name="amount" /> (an unfloored
-    /// <see cref="HitResolver.ResolvePeriodic" /> or <see cref="HitResolver.ResolvePeriodicHeal" />) is added to the aura's
+    /// <see cref="HitResolver.ResolvePeriodic(in AuraSnapshot, in DefenderCombat, double, CombatFormula, ICombatRandom)" /> or
+    /// <see cref="HitResolver.ResolvePeriodicHeal(in AuraSnapshot, double, CombatFormula, ICombatRandom)" />) is added to the aura's
     /// <paramref name="carry" /> and the whole points are taken out, as regeneration takes them
     /// (<see cref="PowerRegen.TakeWholePoints" />), the fraction left for the next tick. There is no minimum of 1: a tick
     /// below a point gives nothing until the carry reaches one. On the <paramref name="lastTick" /> the leftover is
@@ -176,4 +186,31 @@ public static class AuraRules
         ability.DamageType is null && ability.AllowedClasses is { Count: > 0 } && aura.PeriodicKind == AuraPeriodicKind.Damage
             ? "a class ability that applies a damaging aura names its damage type"
             : null;
+
+    /// <summary>
+    /// Why <paramref name="ability" /> cannot be the source of <paramref name="aura" /> under the offence model (#1178), or
+    /// null: a damage-over-time aura scales with its source's tags, so a class ability applying a damaging aura is an
+    /// Attack or a Spell and an Ally ability applying a healing aura is a Heal; and a Spell or a Heal whose aura ticks
+    /// has a spell base for the aura to draw on, as one dealing or healing directly must.
+    /// </summary>
+    public static string? SourceProblem(AbilityTemplate ability, AuraTemplate aura)
+    {
+        AbilityTags tags = ability.Tags;
+        if (aura.PeriodicKind == AuraPeriodicKind.Damage && ability.AllowedClasses is { Count: > 0 }
+            && !AbilityRules.Has(tags, AbilityTags.Attack | AbilityTags.Spell))
+        {
+            return "a class ability that applies a damaging aura is an Attack or a Spell";
+        }
+
+        if (aura.PeriodicKind == AuraPeriodicKind.Heal && ability.Affects == AbilityAffects.Ally
+            && !AbilityRules.Has(tags, AbilityTags.Heal))
+        {
+            return "an Ally ability that applies a healing aura is a Heal";
+        }
+
+        return aura.PeriodicKind != AuraPeriodicKind.None && AbilityRules.Has(tags, AbilityTags.Spell | AbilityTags.Heal)
+               && ability.SpellBaseMax == 0
+            ? AbilityRules.NoSpellBase
+            : null;
+    }
 }

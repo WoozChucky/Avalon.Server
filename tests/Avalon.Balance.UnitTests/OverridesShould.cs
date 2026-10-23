@@ -19,10 +19,10 @@ public class OverridesShould
     [Fact]
     public void Change_an_ability_column()
     {
-        (SeedTables tables, OverrideReport report) = Apply("""{ "Ability.201.EffectValue": 18 }""");
+        (SeedTables tables, OverrideReport report) = Apply("""{ "Ability.201.Cost": 18 }""");
 
-        Assert.Equal(18u, tables.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue);
-        Assert.Equal(new AppliedOverride("Ability.201.EffectValue", "25", "18"), Assert.Single(report.Applied));
+        Assert.Equal(18u, tables.AbilityTemplates.Single(a => a.Id.Value == 201).Cost);
+        Assert.Equal(new AppliedOverride("Ability.201.Cost", "20", "18"), Assert.Single(report.Applied));
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class OverridesShould
     {
         (SeedTables tables, _) = Apply("""
             { "ClassLevelStat.Warrior.3.Strength": 28,
-              "ClassStatFactors.Warrior.AttackPerStrength": 2.5,
+              "ClassStatFactors.Warrior.PowerPerIntellect": 2.5,
               "CombatFormula.ArmorBase": 60,
               "CreatureBaseStats.4.Health": 90,
               "CreatureTemplate.8.HealthModifier": 1.2,
@@ -39,7 +39,7 @@ public class OverridesShould
             """);
 
         Assert.Equal(28u, tables.ClassLevelStats.Single(r => r.Class == CharacterClass.Warrior && r.Level == 3).Strength);
-        Assert.Equal(2.5, tables.ClassStatFactors.Single(r => r.Class == CharacterClass.Warrior).AttackPerStrength);
+        Assert.Equal(2.5, tables.ClassStatFactors.Single(r => r.Class == CharacterClass.Warrior).PowerPerIntellect);
         Assert.Equal(60f, tables.CombatFormulas.Single().ArmorBase);
         Assert.Equal(90u, tables.CreatureBaseStats.Single(r => r.Level == 4).Health);
         Assert.Equal(1.2f, tables.CreatureTemplates.Single(t => t.Id.Value == 8).HealthModifier);
@@ -50,10 +50,10 @@ public class OverridesShould
     [Fact]
     public void Report_an_override_equal_to_the_seed_as_already_applied()
     {
-        (_, OverrideReport report) = Apply("""{ "Ability.200.EffectValue": 12 }""");
+        (_, OverrideReport report) = Apply("""{ "Ability.200.Cost": 0 }""");
 
         Assert.Empty(report.Applied);
-        Assert.Equal(["Ability.200.EffectValue"], report.Stale);
+        Assert.Equal(["Ability.200.Cost"], report.Stale);
     }
 
     /// <summary>A <c>string?</c> column (an item's use script) takes null; a non-nullable string (a name) still refuses it.</summary>
@@ -69,8 +69,8 @@ public class OverridesShould
     }
 
     [Theory]
-    [InlineData("""{ "Nope.1.EffectValue": 1 }""", "unknown table 'Nope'")]
-    [InlineData("""{ "Ability.999.EffectValue": 1 }""", "no Ability row '999'")]
+    [InlineData("""{ "Nope.1.Cost": 1 }""", "unknown table 'Nope'")]
+    [InlineData("""{ "Ability.999.Cost": 1 }""", "no Ability row '999'")]
     [InlineData("""{ "Ability.201.Nope": 1 }""", "Ability has no column 'Nope'")]
     [InlineData("""{ "Ability.201.Id": 5 }""", "'Id' is the row's key")]
     [InlineData("""{ "Ability.201.Cost": -1 }""", "-1 does not fit")]
@@ -90,13 +90,13 @@ public class OverridesShould
     {
         SeedTables tables = SeedSource.Load();
         using var document = JsonDocument.Parse(
-            """{ "Ability.200.EffectValue": 30, "Ability.201.EffectValue": 18, "Ability.201.EffectValue": 25 }""");
+            """{ "Ability.200.Cost": 30, "Ability.201.Cost": 18, "Ability.201.Cost": 25 }""");
 
         InvalidDataException error = Assert.Throws<InvalidDataException>(() => Overrides.Apply(tables, document.RootElement));
 
-        Assert.Contains("'Ability.201.EffectValue' is given twice", error.Message, StringComparison.Ordinal);
-        Assert.Equal(12u, tables.AbilityTemplates.Single(a => a.Id.Value == 200).EffectValue);
-        Assert.Equal(25u, tables.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue);
+        Assert.Contains("'Ability.201.Cost' is given twice", error.Message, StringComparison.Ordinal);
+        Assert.Equal(0u, tables.AbilityTemplates.Single(a => a.Id.Value == 200).Cost);
+        Assert.Equal(20u, tables.AbilityTemplates.Single(a => a.Id.Value == 201).Cost);
     }
 
     [Fact]
@@ -104,13 +104,13 @@ public class OverridesShould
     {
         SeedTables tables = SeedSource.Load();
         using var document = JsonDocument.Parse(
-            """{ "Ability.201.EffectValue": 18, "Item.5.Stackable": true }""");
+            """{ "Ability.201.Cost": 18, "Item.5.Stackable": true }""");
 
         InvalidDataException error = Assert.Throws<InvalidDataException>(() => Overrides.Apply(tables, document.RootElement));
 
         Assert.Contains("Override 'Item.5.Stackable'", error.Message, StringComparison.Ordinal);
         Assert.Contains("cannot be overridden", error.Message, StringComparison.Ordinal);
-        Assert.Equal(25u, tables.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue);
+        Assert.Equal(20u, tables.AbilityTemplates.Single(a => a.Id.Value == 201).Cost);
     }
 
     [Fact]

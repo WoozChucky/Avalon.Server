@@ -44,8 +44,43 @@ public static partial class LinkPreviewText
         parts.Add(ability.CastTime == 0 ? "Instant" : $"{Seconds(ability.CastTime)} cast");
         if (ability.Cooldown > 0) parts.Add($"{Seconds(ability.Cooldown)} cooldown");
         if (Amount(ability) is { } amount) parts.Add(amount);
-        if (ability.DamageType is { } type) parts.Add($"{type} damage");
+        else if (ability.DamageType is { } type) parts.Add($"{type} damage");
         return Cap(string.Join(Separator, parts));
+    }
+
+    /// <summary>
+    /// What one hit deals or heals (#1178), or null for an ability with no direct amount (it only applies an aura) or no
+    /// kind to say it by: an Attack as its weapon damage (<c>315 % of weapon damage, converts 50 % to cold</c>, <c>adds
+    /// 2-4 blight damage</c>), or a creature's (no classes) as its natural damage, with its type when that is not
+    /// physical (<c>240 % of its natural damage, blight damage</c>); a Spell or a Heal as its level-1 base and its growth
+    /// (<c>14-20 lightning damage, +0.7 % per level</c>, <c>Heals 30-44</c>).
+    /// </summary>
+    private static string? Amount(PublicAbilityDto ability)
+    {
+        if (ability.AmountKind == AbilityAmountKind.Damage && ability.Tags.HasFlag(AbilityTags.Attack))
+        {
+            string of = ability.AllowedClasses.Count == 0 ? "of its natural damage" : "of weapon damage";
+            List<string> attack = [$"{Number(ability.DamageEffectiveness)} % {of}"];
+            if (ability.DamageType is { } type && type != DamageType.Physical)
+                attack.Add($"{Lower(type)} damage");
+            if (ability.ConvertPct > 0f && ability.ConvertToType is { } to)
+                attack.Add($"converts {Number(ability.ConvertPct)} % to {Lower(to)}");
+            if (ability.AddedMax > 0 && ability.AddedType is { } added)
+                attack.Add($"adds {Range(ability.AddedMin, ability.AddedMax)} {Lower(added)} damage");
+            return string.Join(", ", attack);
+        }
+
+        string? spell = ability.AmountKind switch
+        {
+            AbilityAmountKind.Damage when ability.Tags.HasFlag(AbilityTags.Spell) && ability.DamageType is { } type =>
+                $"{Range(ability.SpellBaseMin, ability.SpellBaseMax)} {Lower(type)} damage",
+            AbilityAmountKind.Healing when ability.Tags.HasFlag(AbilityTags.Heal) =>
+                $"Heals {Range(ability.SpellBaseMin, ability.SpellBaseMax)}",
+            _ => null,
+        };
+        return spell is not null && ability.SpellBasePerLevelPct > 0f
+            ? $"{spell}, +{Number(ability.SpellBasePerLevelPct)} % per level"
+            : spell;
     }
 
     /// <summary>One line, no more than <see cref="MaxDescriptionLength"/> characters, cut with an ellipsis.</summary>
@@ -87,25 +122,17 @@ public static partial class LinkPreviewText
     private static string Seconds(uint ms) =>
         $"{(ms / 1000.0).ToString("0.##", CultureInfo.InvariantCulture)} sec";
 
-    /// <summary>The tooltip's base-and-scaling line (formatAbilityScaling); abilities carry no other text.</summary>
-    private static string? Amount(PublicAbilityDto a)
-    {
-        if (a.AmountKind == AbilityAmountKind.None) return null;
-        List<string> terms = [Num(a.EffectValue)];
-        if (a.ScalingCoefficient > 0)
-            terms.Add($"{Percent(a.ScalingCoefficient)} of {(a.ScalingStat == AbilityScalingStat.Ability ? "Ability" : "Attack")} Damage");
-        if (a.BaseDamageCoefficient > 0) terms.Add($"{Percent(a.BaseDamageCoefficient)} of weapon damage");
-        string line = string.Join(" + ", terms);
-        if (a.AmountKind == AbilityAmountKind.Healing) return $"Heals {line}";
-        return terms.Count == 1 ? $"{line} damage" : line;
-    }
-
-    private static string Percent(float coefficient) =>
-        $"{Math.Round(coefficient * 100, MidpointRounding.AwayFromZero).ToString("0", CultureInfo.InvariantCulture)}%";
-
     private static string Num(uint value) => value.ToString(CultureInfo.InvariantCulture);
 
     private static string Num(ushort value) => value.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>A percentage as the tooltip writes it: <c>315</c>, <c>0.7</c>.</summary>
+    private static string Number(float value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    /// <summary><c>2-4</c>, or one number when both ends are the same.</summary>
+    private static string Range(uint min, uint max) => min == max ? Num(max) : $"{Num(min)}-{Num(max)}";
+
+    private static string Lower(DamageType type) => type.ToString().ToLowerInvariant();
 
     /// <summary><c>MainHand</c> as <c>Main Hand</c>.</summary>
     private static string SplitWords(string name) => SplitRegex().Replace(name, "${lower} ${upper}");
