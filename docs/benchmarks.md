@@ -1624,33 +1624,50 @@ its type dispatch. The tick is unchanged. A hit stays well under a microsecond.
 ### Offence — `Benchmarks/OffenceBenchmarks.cs` (#1178)
 
 The base of an ability in `Avalon.Combat`, which every damaging hit, every heal and every damage-over-time aura's
-application computes before the hit maths, measured before and after the offence model of #1178 (part B). `AttackBase`
-is `HitResolver.AbilityBase` for Cleave (200) cast by a level-1 starter Warrior (attack damage 58, a 4..7 main hand):
-`12 + 0.3 × 58 + 1.0 × roll`. `SpellBase` is the same for Spark Bolt (210) cast by a level-1 starter Wizard (ability
-damage 93): `12 + 0.25 × 93`, with no weapon term, so nothing is drawn. `DamageOverTimeSnapshot` is `AuraRules.Snapshot`
-of Bleed (aura 1, 12 s ticking every 3 s) from the Warrior: `(12 + 0.25 × 58) / 4` per tick. All run on the seeded
-formula (`CombatSeed.Formula`) and on `CombatRandom.Steady`, whose weapon roll comes up at its low end, so every
-iteration takes the same path; setup fails the run unless Cleave's base is 33.4, Spark Bolt's 35.25 and Bleed's tick
-6.625.
+application computes before the hit maths, measured before and after the offence model of #1178 (part B). Before, each
+row timed `HitResolver.AbilityBase` (`EffectValue + coefficient x the caster's damage stat + weapon coefficient x roll`):
+Cleave (200) for a level-1 starter Warrior (attack damage 58, a 4..7 main hand), `12 + 0.3 x 58 + 1.0 x roll`; Spark
+Bolt (210) for a level-1 starter Wizard (ability damage 93), `12 + 0.25 x 93` with no weapon term, so nothing was drawn;
+and `AuraRules.Snapshot` of Bleed (aura 1, 12 s ticking every 3 s) from the Warrior, `(12 + 0.25 x 58) / 4` per tick.
+After, the same casters and abilities through the offence model: `AttackBase` is `OffenceMath.AttackBase` for Cleave
+(an Attack at 315 % effectiveness) by the Warrior at Strength 29 (101.5 % increased physical attack damage) with the
+4..7 Ironwood Sword (item 32), `roll x 3.15 x 2.015`; `ConvertedAttackBase` (new) is the same for Crippling Shot (223,
+an Attack at 495 % converting half its physical damage to cold) by a level-1 starter Hunter at Strength 21 (73.5 %)
+with the 4..7 Hunter's Shortbow (item 34), the physical half `roll / 2 x 4.95 x 1.735` and the cold half
+`roll / 2 x 4.95`, two parts; `SpellBase` is `OffenceMath.SpellBase` for Spark Bolt (a 14..20 lightning spell base) by
+the Wizard at Intellect 31 (108.5 % increased spell damage), `roll x 2.085`; and `DamageOverTimeSnapshot` is
+`AuraRules.Snapshot` of Bleed (PeriodicBase 12, 21 % of its source's roll) from Rend (203, an Attack) by the Warrior,
+`(12 + 0.21 x roll) x 2.015 / 4` per tick. The abilities, the aura and the attackers carry the seeded values (the
+attackers as the stats calculator builds them at level 1 with starter gear); neither side reads the database or the
+formula row. All run on `CombatRandom.Steady`, whose rolls come up at their low end, so every iteration takes the same
+path; setup fails the run unless the bases are, before, Cleave 33.4, Spark Bolt 35.25 and Bleed's tick 6.625, and,
+after, Cleave 25.389, Crippling Shot 17.1765 physical and 9.9 cold, Spark Bolt 29.19 and Bleed's tick 6.468.
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*OffenceBenchmarks*" --warmupCount 10 --iterationCount 20
 ```
 
-Out of process (BenchmarkDotNet's default toolchain), ten warmups and twenty measured iterations, measured once:
-BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, Release. Before is `3e36c9774` with
-this benchmark added and no maths changed, on 2026-10-23:
+Out of process (BenchmarkDotNet's default toolchain), ten warmups and twenty measured iterations, each side measured
+once: BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, Release. Before is `3e36c9774`
+with this benchmark added and no maths changed, after is #1178 part B, both on 2026-10-23:
 
-| Operation | Before (#1178 part B) | Allocated |
-|---|---:|---:|
-| `AttackBase` | 1.78 ns (± 0.06 ns, error ± 0.05 ns) | 0 B |
-| `SpellBase` | 0.00 ns (below what BenchmarkDotNet resolves) | 0 B |
-| `DamageOverTimeSnapshot` | 2.49 ns (± 0.03 ns, error ± 0.03 ns) | 0 B |
+| Operation | Before (#1178 part B) | After (#1178 part B) | Allocated |
+|---|---:|---:|---:|
+| `AttackBase` | 1.78 ns (± 0.06 ns, error ± 0.05 ns) | 35.19 ns (± 0.61 ns, error ± 0.53 ns) | 0 B |
+| `ConvertedAttackBase` | – | 38.50 ns (± 0.41 ns, error ± 0.36 ns) | 0 B |
+| `SpellBase` | 0.00 ns (below what BenchmarkDotNet resolves) | 32.08 ns (± 0.53 ns, error ± 0.46 ns) | 0 B |
+| `DamageOverTimeSnapshot` | 2.49 ns (± 0.03 ns, error ± 0.03 ns) | 39.98 ns (± 0.51 ns, error ± 0.45 ns) | 0 B |
 
-None allocates: the attacker is a value struct passed `in`, the aura template is read, and the snapshot is a value
-struct. Today's spell base is two float operations on fields with no draw, which the JIT inlines into the benchmark
-method, so it measures as nothing over BenchmarkDotNet's empty-method overhead; the attack base adds the weapon roll
-through the `ICombatRandom` interface, and the snapshot adds the tick count and a division.
+None allocates, before or after: the attacker is a value struct passed `in`, the aura template is read, and the parts
+and the snapshot are value structs. Before, the spell base was two float operations on fields with no draw, which the
+JIT inlined into the benchmark method, so it measured as nothing over BenchmarkDotNet's empty-method overhead; a spell
+now draws its roll as an attack does, so its after number compares with the attack base's one-draw cost before
+(1.78 ns), not with that 0.00 ns. Every base now costs about 32 to 40 ns, about twenty times the old attack base: the
+offence block is a 128 B value (`OffenceStats`) that each base copies once, and each part above 0 is scaled on its own
+over the keys its type and the ability's tags name; the attack base also walks the five damage types and converts.
+`AttackerCombat` grew from 44 B to 192 B (the 128 B offence block and the 36 B `WeaponDamage`), and
+`DerivedCharacterStats` to 228 B, which `with` copies and the per-tick sheet and amounts comparisons read. A hit's
+base and its resolution together stay well under a tenth of a microsecond.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
