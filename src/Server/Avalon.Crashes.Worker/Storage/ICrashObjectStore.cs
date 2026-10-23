@@ -1,5 +1,6 @@
 namespace Avalon.Crashes.Worker.Storage;
 
+/// <summary>S3 operations have a 30-second deadline across SDK retries and response reads. Earlier caller cancellation propagates.</summary>
 public interface ICrashObjectStore
 {
     /// <summary>Lists one bounded page; prefix is relative to the configured bucket and tokens are opaque.</summary>

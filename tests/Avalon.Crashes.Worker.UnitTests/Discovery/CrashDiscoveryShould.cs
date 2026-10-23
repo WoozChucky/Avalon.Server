@@ -1,6 +1,7 @@
 using Avalon.Crashes.Persistence;
 using Avalon.Crashes.Worker.Discovery;
 using Avalon.Crashes.Worker.Storage;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Avalon.Crashes.Worker.UnitTests.Discovery;
@@ -9,6 +10,41 @@ public sealed class CrashDiscoveryShould
 {
     private static readonly DateTimeOffset s_now = new(2026, 10, 23, 12, 0, 0, TimeSpan.Zero);
     private static StoredCrashObject Object(string key, DateTimeOffset? uploaded = null) => new(key, "\"etag\"", 10, uploaded ?? s_now);
+
+    [Fact]
+    public async Task Refresh_time_between_candidates_before_retention_and_queue_calls()
+    {
+        var clock = new FakeTimeProvider(s_now);
+        var source = new Objects((_, delimiter, _) => delimiter == "/" ? new([], [], null)
+            : new([Object("first"), Object("expiring", s_now.AddDays(-90).AddSeconds(1)), Object("third")], [], null));
+        var queue = new Queue { OnDiscover = () => clock.Advance(TimeSpan.FromSeconds(2)) };
+        await new CrashDiscovery(source, new MemoryStore(), queue, clock).RunCycleAsync(s_now, default);
+        Assert.Equal(new[] { "first", "third" }, queue.Seen.Select(x => x.Key));
+        Assert.Equal(new[] { s_now, s_now.AddSeconds(2) }, queue.DiscoveryTimes);
+    }
+
+    [Theory]
+    [InlineData("root")]
+    [InlineData("inventory")]
+    [InlineData("recent")]
+    public async Task Skip_objects_expiring_during_lists(string delayedListing)
+    {
+        var clock = new FakeTimeProvider(s_now);
+        StoredCrashObject expiring = Object("expiring", s_now.AddDays(-90).AddSeconds(1));
+        var source = new Objects((prefix, delimiter, _) =>
+        {
+            string listing = prefix.Length == 0 ? delimiter == "/" ? "root" : "inventory" : "recent";
+            if (listing == delayedListing)
+            {
+                clock.Advance(TimeSpan.FromSeconds(2));
+                return new([expiring], [], null);
+            }
+            return new([], delayedListing == "recent" && listing == "root" ? ["0.1.0/"] : [], null);
+        });
+        var queue = new Queue();
+        await new CrashDiscovery(source, new MemoryStore(), queue, clock).RunCycleAsync(s_now, default);
+        Assert.Empty(queue.Seen);
+    }
 
     [Fact]
     public async Task Should_reserve_backfill_work_under_continuous_current_uploads()
@@ -218,12 +254,16 @@ public sealed class CrashDiscoveryShould
     private sealed class Queue : ICrashQueue
     {
         public List<StoredCrashObject> Seen { get; } = [];
+        public List<DateTimeOffset> DiscoveryTimes { get; } = [];
+        public Action? OnDiscover { get; init; }
         public string? FailOn { get; set; }
         public Task<bool> DiscoverAsync(StoredCrashObject source, DateTimeOffset now, CancellationToken ct)
         {
             if (source.Key == FailOn)
                 throw new IOException();
             Seen.Add(source);
+            DiscoveryTimes.Add(now);
+            OnDiscover?.Invoke();
             return Task.FromResult(true);
         }
         public Task<CrashLease?> ClaimAsync(DateTimeOffset now, CancellationToken ct) => throw new NotSupportedException();

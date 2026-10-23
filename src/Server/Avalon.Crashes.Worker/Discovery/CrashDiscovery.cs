@@ -5,10 +5,13 @@ using Avalon.Crashes.Worker.Storage;
 
 namespace Avalon.Crashes.Worker.Discovery;
 
-public sealed class CrashDiscovery(ICrashObjectStore objects, ICrashDiscoveryStore store, ICrashQueue queue)
+public sealed class CrashDiscovery(ICrashObjectStore objects, ICrashDiscoveryStore store, ICrashQueue queue, TimeProvider? timeProvider = null)
 {
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+
     public async Task RunCycleAsync(DateTimeOffset now, CancellationToken ct)
     {
+        long startedAt = _timeProvider.GetTimestamp();
         now = now.ToUniversalTime();
         DiscoveryCursor cursor = await store.LoadAsync(ct).ConfigureAwait(false);
         var versions = cursor.Versions.Take(DiscoveryCursor.VersionBatchSize).ToList();
@@ -16,7 +19,7 @@ public sealed class CrashDiscovery(ICrashObjectStore objects, ICrashDiscoverySto
         try
         {
             CrashObjectPage root = await objects.ListAsync("", "/", cursor.ContinuationToken, ct).ConfigureAwait(false);
-            await DiscoverPageAsync(root, now, ct).ConfigureAwait(false);
+            await DiscoverPageAsync(root, now, startedAt, ct).ConfigureAwait(false);
             string[] found = root.CommonPrefixes.Where(x => x.EndsWith('/') && CrashObjectKey.IsVersion(x[..^1]))
                 .Select(x => x[..^1]).Distinct(StringComparer.Ordinal).Take(DiscoveryCursor.VersionBatchSize).ToArray();
             cursor.DiscoveredVersions = found;
@@ -42,7 +45,7 @@ public sealed class CrashDiscovery(ICrashObjectStore objects, ICrashDiscoverySto
         // Flat inventory also sees nonconforming names and uploads under historical dates.
         while (used < CrashDiscoveryOptions.BackfillBudget && !inventoryComplete)
         {
-            inventoryComplete = await InventoryPageAsync(cursor, now, ct).ConfigureAwait(false);
+            inventoryComplete = await InventoryPageAsync(cursor, now, startedAt, ct).ConfigureAwait(false);
             used++;
         }
         int index = 0;
@@ -52,24 +55,24 @@ public sealed class CrashDiscovery(ICrashObjectStore objects, ICrashDiscoverySto
             {
                 if (inventoryComplete)
                     break;
-                inventoryComplete = await InventoryPageAsync(cursor, now, ct).ConfigureAwait(false);
+                inventoryComplete = await InventoryPageAsync(cursor, now, startedAt, ct).ConfigureAwait(false);
             }
             else
             {
                 DiscoveryVersion version = versions[index++ % versions.Count];
-                await RecentPageAsync(cursor, version, now, ct).ConfigureAwait(false);
+                await RecentPageAsync(cursor, version, now, startedAt, ct).ConfigureAwait(false);
             }
             used++;
         }
     }
 
-    private async Task<bool> InventoryPageAsync(DiscoveryCursor cursor, DateTimeOffset now, CancellationToken ct)
+    private async Task<bool> InventoryPageAsync(DiscoveryCursor cursor, DateTimeOffset now, long startedAt, CancellationToken ct)
     {
         bool complete = false;
         try
         {
             CrashObjectPage page = await objects.ListAsync("", null, cursor.BackfillContinuationToken, ct).ConfigureAwait(false);
-            await DiscoverPageAsync(page, now, ct).ConfigureAwait(false);
+            await DiscoverPageAsync(page, now, startedAt, ct).ConfigureAwait(false);
             cursor.BackfillContinuationToken = page.NextContinuationToken;
             complete = page.NextContinuationToken is null;
             if (complete)
@@ -84,7 +87,7 @@ public sealed class CrashDiscovery(ICrashObjectStore objects, ICrashDiscoverySto
         return complete;
     }
 
-    private async Task RecentPageAsync(DiscoveryCursor cursor, DiscoveryVersion version, DateTimeOffset now, CancellationToken ct)
+    private async Task RecentPageAsync(DiscoveryCursor cursor, DiscoveryVersion version, DateTimeOffset now, long startedAt, CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(now.UtcDateTime);
         if (version.RecentDate != today)
@@ -132,7 +135,7 @@ public sealed class CrashDiscovery(ICrashObjectStore objects, ICrashDiscoverySto
         try
         {
             page = await objects.ListAsync(prefix, version.Phase == 0 ? "/" : null, token, ct).ConfigureAwait(false);
-            await DiscoverPageAsync(page, now, ct).ConfigureAwait(false);
+            await DiscoverPageAsync(page, now, startedAt, ct).ConfigureAwait(false);
             next = page.NextContinuationToken;
         }
         catch (CrashContinuationTokenException)
@@ -177,13 +180,14 @@ public sealed class CrashDiscovery(ICrashObjectStore objects, ICrashDiscoverySto
         cursor.CompletedDates = [];
     }
 
-    private async Task DiscoverPageAsync(CrashObjectPage page, DateTimeOffset now, CancellationToken ct)
+    private async Task DiscoverPageAsync(CrashObjectPage page, DateTimeOffset now, long startedAt, CancellationToken ct)
     {
         foreach (StoredCrashObject source in page.Objects)
         {
             ct.ThrowIfCancellationRequested();
-            if (source.LastModified.ToUniversalTime() > now.AddDays(-90))
-                await queue.DiscoverAsync(source, now, ct).ConfigureAwait(false);
+            DateTimeOffset current = now + _timeProvider.GetElapsedTime(startedAt);
+            if (source.LastModified.ToUniversalTime() > current.AddDays(-90))
+                await queue.DiscoverAsync(source, current, ct).ConfigureAwait(false);
         }
     }
 }

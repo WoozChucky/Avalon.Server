@@ -3,6 +3,7 @@ using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Avalon.Crashes.Worker.Storage;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Avalon.Crashes.Worker.UnitTests.Storage;
@@ -11,6 +12,174 @@ public sealed class S3CrashObjectStoreShould
 {
     private static readonly DateTimeOffset s_now = new(2026, 10, 23, 12, 0, 0, TimeSpan.Zero);
     private static readonly StoredCrashObject s_expected = new("0.1.0/2026-10-23/11111111111111111111111111111111.zip", "\"original\"", 3, s_now);
+
+    [Fact]
+    public async Task Bound_the_combined_sdk_wait_and_response_body_to_thirty_seconds()
+    {
+        var clock = new FakeTimeProvider(s_now);
+        var reading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        GetObjectResponse response = Response([]);
+        response.ResponseStream = new PartialResponseStream(async token =>
+        {
+            reading.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return 0;
+        });
+        using var client = new Client
+        {
+            GetResult = response,
+            BeforeCall = _ => { clock.Advance(TimeSpan.FromSeconds(25)); return Task.CompletedTask; }
+        };
+        using var caller = new CancellationTokenSource();
+        var store = new S3CrashObjectStore(client, new CrashStorageOptions(), clock);
+        string destination = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Task download = store.DownloadAsync(s_expected, destination, CrashLimits.ArchiveBytes, caller.Token);
+        try
+        {
+            await reading.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(File.Exists(destination));
+            clock.Advance(TimeSpan.FromSeconds(4));
+            Assert.False(download.IsCompleted);
+            clock.Advance(TimeSpan.FromSeconds(1));
+            CrashStorageException error = await Assert.ThrowsAsync<CrashStorageException>(() => download.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(CrashFailureCode.StorageUnavailable, error.Code);
+            Assert.False(File.Exists(destination));
+        }
+        finally
+        {
+            caller.Cancel();
+            try { await download; } catch (Exception) { }
+            File.Delete(destination);
+        }
+    }
+
+    [Theory]
+    [InlineData("list")]
+    [InlineData("head")]
+    [InlineData("get")]
+    public async Task Bound_blocked_sdk_operations_to_thirty_seconds(string operation)
+    {
+        var clock = new FakeTimeProvider(s_now);
+        using var client = new Client { BeforeCall = token => Task.Delay(Timeout.InfiniteTimeSpan, token) };
+        using var caller = new CancellationTokenSource();
+        var store = new S3CrashObjectStore(client, new CrashStorageOptions(), clock);
+        string destination = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Task pending = InvokeAsync(store, operation, destination, caller.Token);
+        try
+        {
+            clock.Advance(TimeSpan.FromSeconds(29));
+            Assert.False(pending.IsCompleted);
+            clock.Advance(TimeSpan.FromSeconds(1));
+            CrashStorageException error = await Assert.ThrowsAsync<CrashStorageException>(() => pending.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(CrashFailureCode.StorageUnavailable, error.Code);
+            Assert.False(File.Exists(destination));
+        }
+        finally
+        {
+            caller.Cancel();
+            try { await pending; } catch (Exception) { }
+            File.Delete(destination);
+        }
+    }
+
+    [Theory]
+    [InlineData("list")]
+    [InlineData("head")]
+    [InlineData("get")]
+    [InlineData("body")]
+    public async Task Preserve_earlier_caller_cancellation(string operation)
+    {
+        var clock = new FakeTimeProvider(s_now);
+        var reading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        GetObjectResponse response = Response([]);
+        response.ResponseStream = new PartialResponseStream(async token =>
+        {
+            reading.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return 0;
+        });
+        using var client = new Client
+        {
+            GetResult = response,
+            BeforeCall = operation == "body" ? null : token => Task.Delay(Timeout.InfiniteTimeSpan, token)
+        };
+        using var caller = new CancellationTokenSource();
+        var store = new S3CrashObjectStore(client, new CrashStorageOptions(), clock);
+        string destination = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Task pending = InvokeAsync(store, operation, destination, caller.Token);
+        try
+        {
+            if (operation == "body")
+                await reading.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            clock.Advance(TimeSpan.FromSeconds(10));
+            caller.Cancel();
+            OperationCanceledException error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(caller.Token, error.CancellationToken);
+            Assert.False(File.Exists(destination));
+        }
+        finally
+        {
+            caller.Cancel();
+            try { await pending; } catch (Exception) { }
+            File.Delete(destination);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Normalize_response_stream_transport_failures_and_delete_partial_files(bool httpFailure)
+    {
+        GetObjectResponse response = Response([]);
+        response.ResponseStream = new PartialResponseStream(_ => ValueTask.FromException<int>(httpFailure
+            ? new HttpIOException(HttpRequestError.ResponseEnded, "untrusted-path") : new IOException("untrusted-path")));
+        using var client = new Client { GetResult = response };
+        var store = new S3CrashObjectStore(client, new CrashStorageOptions());
+        string destination = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            CrashStorageException error = await Assert.ThrowsAsync<CrashStorageException>(() => store.DownloadAsync(s_expected, destination, CrashLimits.ArchiveBytes, default));
+            Assert.Equal(CrashFailureCode.StorageUnavailable, error.Code);
+            Assert.DoesNotContain("untrusted-path", error.Message, StringComparison.Ordinal);
+            Assert.False(File.Exists(destination));
+        }
+        finally { File.Delete(destination); }
+    }
+
+    [Fact]
+    public async Task Keep_local_file_errors_distinct_and_preserve_existing_files()
+    {
+        using var client = new Client { GetResult = Response([1, 2, 3]) };
+        var store = new S3CrashObjectStore(client, new CrashStorageOptions());
+        string destination = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllBytesAsync(destination, [9]);
+            await Assert.ThrowsAnyAsync<IOException>(() => store.DownloadAsync(s_expected, destination, CrashLimits.ArchiveBytes, default));
+            Assert.Equal(new byte[] { 9 }, await File.ReadAllBytesAsync(destination));
+        }
+        finally { File.Delete(destination); }
+    }
+
+    private static Task InvokeAsync(S3CrashObjectStore store, string operation, string destination, CancellationToken ct) => operation switch
+    {
+        "list" => store.ListAsync("", null, null, ct),
+        "head" => store.HeadAsync(s_expected.Key, ct),
+        _ => store.DownloadAsync(s_expected, destination, CrashLimits.ArchiveBytes, ct)
+    };
+
+    private sealed class PartialResponseStream(Func<CancellationToken, ValueTask<int>> read) : MemoryStream
+    {
+        private bool _first = true;
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (!_first)
+                return read(cancellationToken);
+            _first = false;
+            buffer.Span[0] = 1;
+            return ValueTask.FromResult(1);
+        }
+    }
 
     [Fact]
     public async Task Send_bounded_listing_parameters_and_keep_original_keys()
@@ -139,22 +308,31 @@ public sealed class S3CrashObjectStoreShould
     private sealed class Client() : AmazonS3Client(new AnonymousAWSCredentials(), new AmazonS3Config { ServiceURL = "http://127.0.0.1:1", ForcePathStyle = true })
     {
         public AmazonS3Exception? Error { get; set; }
+        public Func<CancellationToken, Task>? BeforeCall { get; init; }
         public ListObjectsV2Response ListResult { get; init; } = new();
         public GetObjectMetadataResponse HeadResult { get; init; } = new();
         public GetObjectResponse GetResult { get; init; } = new();
         public ListObjectsV2Request? ListRequest { get; private set; }
         public GetObjectRequest? GetRequest { get; private set; }
-        public override Task<ListObjectsV2Response> ListObjectsV2Async(ListObjectsV2Request request, CancellationToken cancellationToken = default)
+        public override async Task<ListObjectsV2Response> ListObjectsV2Async(ListObjectsV2Request request, CancellationToken cancellationToken = default)
         {
             ListRequest = request;
-            return Error is null ? Task.FromResult(ListResult) : Task.FromException<ListObjectsV2Response>(Error);
+            if (BeforeCall is not null)
+                await BeforeCall(cancellationToken);
+            return Error is null ? ListResult : throw Error;
         }
-        public override Task<GetObjectMetadataResponse> GetObjectMetadataAsync(GetObjectMetadataRequest request, CancellationToken cancellationToken = default)
-            => Error is null ? Task.FromResult(HeadResult) : Task.FromException<GetObjectMetadataResponse>(Error);
-        public override Task<GetObjectResponse> GetObjectAsync(GetObjectRequest request, CancellationToken cancellationToken = default)
+        public override async Task<GetObjectMetadataResponse> GetObjectMetadataAsync(GetObjectMetadataRequest request, CancellationToken cancellationToken = default)
+        {
+            if (BeforeCall is not null)
+                await BeforeCall(cancellationToken);
+            return Error is null ? HeadResult : throw Error;
+        }
+        public override async Task<GetObjectResponse> GetObjectAsync(GetObjectRequest request, CancellationToken cancellationToken = default)
         {
             GetRequest = request;
-            return Error is null ? Task.FromResult(GetResult) : Task.FromException<GetObjectResponse>(Error);
+            if (BeforeCall is not null)
+                await BeforeCall(cancellationToken);
+            return Error is null ? GetResult : throw Error;
         }
     }
 }
