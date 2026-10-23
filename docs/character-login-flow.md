@@ -281,15 +281,9 @@ public class ItemSlotDto
     [ProtoMember(5)] public uint   Count          { get; set; }
     [ProtoMember(6)] public uint   Durability     { get; set; }
     [ProtoMember(7)] public uint   Flags          { get; set; } // ItemInstanceFlags, numeric
-    [ProtoMember(8)] public ItemDetailsDto Details { get; set; } // always set (#1179)
-}
-
-[ProtoContract]
-public class ItemDetailsDto // Avalon.Network.Packets.Items, also on TradeItemDto
-{
-    [ProtoMember(1)] public ItemRarity Rarity { get; set; } // the instance's: Common, Magic, Rare, Unique
-    [ProtoMember(2)] public uint ItemLevel { get; set; }
-    [ProtoMember(3)] public List<ItemModifierDto> Modifiers { get; set; } // in the order the item shows them
+    [ProtoMember(8)] public ItemRarity Rarity { get; set; } // the copy's (#1179): Common, Magic, Rare, Unique
+    [ProtoMember(9)] public uint ItemLevel { get; set; } // the copy's (#1179)
+    [ProtoMember(10)] public List<ItemModifierDto>? Modifiers { get; set; } // in the order the item shows them; null for none
 }
 
 [ProtoContract]

@@ -24,7 +24,9 @@ public static class ItemSlotDtoMapper
             Count = item.Count,
             Durability = item.Durability,
             Flags = (uint)item.Flags,
-            Details = ItemDetailsDtoMapper.ToDto(item, modifiers),
+            Rarity = item.Rarity,
+            ItemLevel = item.ItemLevel,
+            Modifiers = ItemModifierDtoMapper.ToDtos(modifiers),
         };
     }
 }

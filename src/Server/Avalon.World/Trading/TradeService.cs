@@ -1,7 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Trade;
 using Avalon.World.Characters;
@@ -54,6 +53,9 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
     private readonly List<TradeItemDto>[] _itemLists =
         [new List<TradeItemDto>(TradeRules.MaxItems), new List<TradeItemDto>(TradeRules.MaxItems)];
     private readonly TradeItemDto[] _itemDtos = NewItemDtos();
+
+    // The entries' modifiers (#1179), refilled in place; what a smaller item leaves over waits there for a larger one.
+    private readonly ItemModifierDtoPool _modifierDtos = new();
 
     // The completion's (TradeService.Completion.cs): the paired save, and the economy the swap goes through.
     private readonly ICharacterSaver _saver = saver;
@@ -570,7 +572,9 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             entry.ItemInstanceId = item.InstanceId.Value;
             entry.Count = item.Count;
             // An offered item stays in its owner's Bag, locked, until the swap, so the store still holds its modifiers.
-            ItemDetailsDtoMapper.Refill(entry.Details, item, side.Character.ItemModifiers.Of(item.InstanceId));
+            entry.Rarity = item.Rarity;
+            entry.ItemLevel = item.ItemLevel;
+            entry.Modifiers = _modifierDtos.Refill(entry.Modifiers, side.Character.ItemModifiers.Of(item.InstanceId));
             items.Add(entry);
         }
 
@@ -583,7 +587,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
     {
         var dtos = new TradeItemDto[2 * TradeRules.MaxItems];
         for (int i = 0; i < dtos.Length; i++)
-            dtos[i] = new TradeItemDto { Details = new ItemDetailsDto() };
+            dtos[i] = new TradeItemDto();
         return dtos;
     }
 

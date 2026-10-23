@@ -183,9 +183,10 @@ public class TradeServiceShould
     /// <summary>
     /// Each state shows the offer as it now stands, each item with its rarity, item level and modifiers (#1179), and a
     /// trade slot refilled with a different item shows only that item's, though the server reuses the slot's entries.
+    /// Any change resets both confirmations.
     /// </summary>
     [Fact]
-    public void Show_the_offer_as_it_stands_reset_both_confirmations_on_any_change_and_refuse_a_stale_confirm()
+    public void Show_the_offer_as_it_stands_and_refuse_a_stale_confirm()
     {
         var w = new TradeTestWorld();
         Trader a = w.Online(1);
@@ -226,11 +227,17 @@ public class TradeServiceShould
         Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, 1, 0));
         Assert.False(b.States().Last().Partner.Confirmed);
         Assert.Equal("Magic 4: 204 [AddedColdDamage 2..5]", Shown(Assert.Single(b.States().Last().Partner.Items)));
+
+        // And back to the rare, built again from the entries the smaller item left over.
+        Assert.Equal(TradeResult.Ok, w.Trades.RemoveItem(a.Id, 0));
+        Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, 0, 0));
+        Assert.Equal("Rare 9: 10103 [Strength 8.., Armor 3..] 203 [AddedFireDamage 3..7]",
+            Shown(Assert.Single(b.States().Last().Partner.Items)));
     }
 
-    /// <summary>An offered item's details as the client reads them: rarity, item level, then each modifier's values.</summary>
+    /// <summary>An offered item as the client reads it: rarity, item level, then each modifier's values.</summary>
     private static string Shown(TradeItemDto item) =>
-        $"{item.Details.Rarity} {item.Details.ItemLevel}: " + string.Join(" ", item.Details.Modifiers.Select(m =>
+        $"{item.Rarity} {item.ItemLevel}: " + string.Join(" ", (item.Modifiers ?? []).Select(m =>
             $"{m.ModifierId} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value}..{v.Value2}"))}]"));
 
     public static TheoryData<string, TradeResult, TradeResult> Closes => new()

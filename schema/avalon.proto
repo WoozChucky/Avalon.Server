@@ -513,11 +513,6 @@ enum InventoryType {
    InventoryType_Bag = 1;
    InventoryType_Bank = 2;
 }
-message ItemDetailsDto {
-   ItemRarity Rarity = 1;
-   uint32 ItemLevel = 2;
-   repeated ItemModifierDto Modifiers = 3;
-}
 message ItemModifierDto {
    uint32 ModifierId = 1;
    repeated ItemModifierValueDto Values = 2;
@@ -559,7 +554,9 @@ message ItemSlotDto {
    uint32 Count = 5;
    uint32 Durability = 6;
    uint32 Flags = 7;
-   ItemDetailsDto Details = 8;
+   ItemRarity Rarity = 8;
+   uint32 ItemLevel = 9;
+   repeated ItemModifierDto Modifiers = 10;
 }
 enum ItemStat {
    ItemStat_Stamina = 0;
@@ -1517,7 +1514,9 @@ message TradeItemDto {
    uint64 ItemTemplateId = 2;
    .bcl.Guid ItemInstanceId = 3; // default value could not be applied: 00000000-0000-0000-0000-000000000000
    uint32 Count = 4;
-   ItemDetailsDto Details = 5;
+   ItemRarity Rarity = 5;
+   uint32 ItemLevel = 6;
+   repeated ItemModifierDto Modifiers = 7;
 }
 enum TradeResult {
    TradeResult_Unknown = 0;

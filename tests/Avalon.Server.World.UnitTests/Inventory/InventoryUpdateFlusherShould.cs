@@ -158,10 +158,9 @@ public class InventoryUpdateFlusherShould
 
         InventorySlotUpdateDto slot = Assert.Single(Read(Assert.Single(_sent)).Slots);
         Assert.Equal(InventoryType.Bag, slot.Container);
-        ItemDetailsDto details = slot.Item!.Details;
-        Assert.Equal(ItemRarity.Rare, details.Rarity);
-        Assert.Equal(9u, details.ItemLevel);
-        ItemModifierDto modifier = Assert.Single(details.Modifiers);
+        ItemSlotDto item = slot.Item!;
+        Assert.Equal((ItemRarity.Rare, 9u), (item.Rarity, item.ItemLevel));
+        ItemModifierDto modifier = Assert.Single(item.Modifiers!);
         Assert.Equal(203u, modifier.ModifierId);
         ItemModifierValueDto value = Assert.Single(modifier.Values);
         Assert.Equal((ItemStat.AddedFireDamage, 3, (int?)7), (value.Stat, value.Value, value.Value2));
