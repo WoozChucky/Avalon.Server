@@ -1842,9 +1842,9 @@ seven rounds, two runs each; no BenchmarkDotNet run):
     `CharacterOffence.Of`.
 - **The allocation gate's `forest-combat` baseline is lowered from 14,447 B to 13,983 B per window**. Since
   `f67626c78` an item entry no longer builds a details object and an empty modifier list, the one change of the
-  final wave that allocates less. The value was regenerated with
-  the scenario runner (`dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-allocations
-  perf/scenario-allocations.json`), and the Release gate then read 13,991 B (+0.06 %, within).
+  final wave that allocates less. The value was regenerated with the scenario runner (`dotnet run -c Release
+  --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json`), and the
+  Release gate then read 13,991 B (+0.06 %, within).
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 

@@ -156,9 +156,12 @@ public class AuraStatsIntegrationShould
         AuraStatsRefresh.Apply(wolf, data: null, DateTime.UnixEpoch);
         Assert.Equal((3u, 15f, 5u, 9u), Attack(wolf));
 
-        wolf.Level = 4;
+        // Each input on its own, so every setter's own stale mark is what the next read depends on.
         wolf.DamageMin = 6;
+        Assert.Equal((3u, 15f, 6u, 9u), Attack(wolf));
         wolf.DamageMax = 11;
+        Assert.Equal((3u, 15f, 6u, 11u), Attack(wolf));
+        wolf.Level = 4;
         Assert.Equal((4u, 15f, 6u, 11u), Attack(wolf));
 
         static (uint, float, uint, uint) Attack(Creature creature)
