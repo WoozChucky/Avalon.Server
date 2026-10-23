@@ -10,12 +10,16 @@ public sealed class CrashesDbContext(DbContextOptions<CrashesDbContext> options)
     public DbSet<CrashReport> Reports => Set<CrashReport>();
     public DbSet<CrashGroup> Groups => Set<CrashGroup>();
     public DbSet<CrashDiscoveryCursor> DiscoveryCursors => Set<CrashDiscoveryCursor>();
+    public DbSet<CrashDiscoveryVersion> DiscoveryVersions => Set<CrashDiscoveryVersion>();
+    public DbSet<CrashDiscoveryDate> DiscoveryDates => Set<CrashDiscoveryDate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new CrashReportConfiguration());
         modelBuilder.ApplyConfiguration(new CrashGroupConfiguration());
         modelBuilder.ApplyConfiguration(new CrashDiscoveryCursorConfiguration());
+        modelBuilder.ApplyConfiguration(new CrashDiscoveryVersionConfiguration());
+        modelBuilder.ApplyConfiguration(new CrashDiscoveryDateConfiguration());
         foreach (IMutableEntityType entity in modelBuilder.Model.GetEntityTypes())
         {
             foreach (IMutableProperty property in entity.GetProperties())

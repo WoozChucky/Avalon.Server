@@ -60,6 +60,91 @@ namespace Avalon.Database.Crashes.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Database.Crashes.Entities.CrashDiscoveryDate", b =>
+                {
+                    b.Property<string>("Version")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("version");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<DateTimeOffset?>("LastScannedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_scanned_at");
+
+                    b.HasKey("Version", "Date");
+
+                    b.ToTable("crash_discovery_dates", (string)null);
+                });
+
+            modelBuilder.Entity("Avalon.Database.Crashes.Entities.CrashDiscoveryVersion", b =>
+                {
+                    b.Property<string>("Version")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("version");
+
+                    b.Property<bool>("DateInventoryReady")
+                        .HasColumnType("boolean")
+                        .HasColumnName("date_inventory_ready");
+
+                    b.Property<string>("DatePrefixToken")
+                        .HasMaxLength(4096)
+                        .HasColumnType("character varying(4096)")
+                        .HasColumnName("date_prefix_token");
+
+                    b.Property<DateOnly?>("HistoricalDate")
+                        .HasColumnType("date")
+                        .HasColumnName("historical_date");
+
+                    b.Property<string>("HistoricalToken")
+                        .HasMaxLength(4096)
+                        .HasColumnType("character varying(4096)")
+                        .HasColumnName("historical_token");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.Property<DateTimeOffset?>("LastVisitedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_visited_at");
+
+                    b.Property<int>("Phase")
+                        .HasColumnType("integer")
+                        .HasColumnName("phase");
+
+                    b.Property<DateOnly?>("RecentDate")
+                        .HasColumnType("date")
+                        .HasColumnName("recent_date");
+
+                    b.Property<string>("TodayToken")
+                        .HasMaxLength(4096)
+                        .HasColumnType("character varying(4096)")
+                        .HasColumnName("today_token");
+
+                    b.Property<string>("YesterdayToken")
+                        .HasMaxLength(4096)
+                        .HasColumnType("character varying(4096)")
+                        .HasColumnName("yesterday_token");
+
+                    b.HasKey("Version");
+
+                    b.HasIndex("LastSeenAt");
+
+                    b.HasIndex("LastVisitedAt", "Version");
+
+                    b.ToTable("crash_discovery_versions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_crash_discovery_versions_phase", "phase BETWEEN 0 AND 3");
+
+                            t.HasCheckConstraint("ck_crash_discovery_versions_version", "version ~ '^[A-Za-z0-9.+-]{1,64}$' AND version NOT IN ('.','..')");
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Database.Crashes.Entities.CrashGroup", b =>
                 {
                     b.Property<Guid>("Id")
@@ -414,12 +499,21 @@ namespace Avalon.Database.Crashes.Migrations
 
                             t.HasCheckConstraint("ck_crash_reports_quality", "quality_flags ~ '^(none|(missingSystemSymbols|scanFrames|truncated|metadataDisagreement|versionComparisonUnavailable)(, (missingSystemSymbols|scanFrames|truncated|metadataDisagreement|versionComparisonUnavailable))*)$'");
 
-                            t.HasCheckConstraint("ck_crash_reports_reason", "reason_code IS NULL OR reason_code IN ('unsafe_archive','archive_too_large','metadata_too_large','log_too_large','invalid_metadata','unsupported_schema','invalid_dump','unsupported_architecture','runtime_identity_mismatch','object_changed','storage_unavailable','missing_runtime_symbols','tool_timeout','tool_failed','resource_limit','invalid_analysis','ungroupable_analysis','configuration_invalid','access_denied','object_missing')");
+                            t.HasCheckConstraint("ck_crash_reports_reason", "reason_code IS NULL OR reason_code IN ('unsafe_archive','archive_too_large','metadata_too_large','log_too_large','invalid_metadata','unsupported_schema','invalid_dump','unsupported_architecture','runtime_identity_mismatch','object_changed','storage_unavailable','missing_runtime_symbols','tool_timeout','tool_failed','resource_limit','invalid_analysis','ungroupable_analysis','configuration_invalid','access_denied','object_missing','invalid_object_key')");
 
                             t.HasCheckConstraint("ck_crash_reports_source_size", "source_size >= 0");
 
                             t.HasCheckConstraint("ck_crash_reports_status", "status IN ('pending','processing','retry_wait','processed','rejected','failed')");
                         });
+                });
+
+            modelBuilder.Entity("Avalon.Database.Crashes.Entities.CrashDiscoveryDate", b =>
+                {
+                    b.HasOne("Avalon.Database.Crashes.Entities.CrashDiscoveryVersion", null)
+                        .WithMany()
+                        .HasForeignKey("Version")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Avalon.Database.Crashes.Entities.CrashReport", b =>

@@ -4,6 +4,7 @@ using Avalon.Crashes;
 using Avalon.Crashes.Analysis;
 using Avalon.Crashes.Persistence;
 using Avalon.Crashes.Triage;
+using Avalon.Crashes.Validation;
 using Avalon.Database.Crashes.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -19,7 +20,7 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
     public async Task<bool> DiscoverAsync(StoredCrashObject source, DateTimeOffset now, CancellationToken ct)
     {
         long startedAt = _timeProvider.GetTimestamp();
-        ArgumentException.ThrowIfNullOrWhiteSpace(source.Key);
+        ArgumentException.ThrowIfNullOrEmpty(source.Key);
         ArgumentException.ThrowIfNullOrWhiteSpace(source.ETag);
         if (Encoding.UTF8.GetByteCount(source.Key) > 1024 || source.ETag.Length > 1024 || source.Size < 0)
             throw new ArgumentException("Invalid crash object fingerprint.", nameof(source));
@@ -36,8 +37,9 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
             return false;
 
         var id = Guid.NewGuid();
-        string status = source.Size > CrashLimits.ArchiveBytes ? "rejected" : "pending";
-        string? reason = source.Size > CrashLimits.ArchiveBytes ? "archive_too_large" : null;
+        string? reason = !CrashObjectKey.TryParse(source.Key, out _) ? "invalid_object_key"
+            : source.Size > CrashLimits.ArchiveBytes ? "archive_too_large" : null;
+        string status = reason is null ? "pending" : "rejected";
         int inserted = await db.Database.ExecuteSqlAsync($"""
             INSERT INTO crash_reports (id, object_key, source_etag, source_size, received_at, expires_at, status, reason_code, attempt_count, consecutive_tool_failures, quality_flags)
             VALUES ({id}, {source.Key}, {source.ETag}, {source.Size}, {receivedAt}, {expiresAt}, {status}, {reason}, 0, 0, 'none')

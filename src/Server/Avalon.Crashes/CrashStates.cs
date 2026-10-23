@@ -44,7 +44,8 @@ public enum CrashFailureCode
     [JsonStringEnumMemberName("ungroupable_analysis")] UngroupableAnalysis = 16,
     [JsonStringEnumMemberName("configuration_invalid")] ConfigurationInvalid = 17,
     [JsonStringEnumMemberName("access_denied")] AccessDenied = 18,
-    [JsonStringEnumMemberName("object_missing")] ObjectMissing = 19
+    [JsonStringEnumMemberName("object_missing")] ObjectMissing = 19,
+    [JsonStringEnumMemberName("invalid_object_key")] InvalidObjectKey = 20
 }
 
 [Flags]
