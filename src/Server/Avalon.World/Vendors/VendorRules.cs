@@ -134,7 +134,7 @@ public static class VendorRules
 
     /// <summary>
     /// Sell: alive; shop open; a Bag slot; an item there, not offered in a trade (#1175); a sellable
-    /// template; not damaged; the count; the gold cap. Only the Bag is ever named, so nothing is sold
+    /// template; not damaged; the count (the whole of an item carrying modifiers, #1179); the gold cap. Only the Bag is ever named, so nothing is sold
     /// from Equipment or the Bank.
     /// </summary>
     public static SellDecision DecideSell(
@@ -171,6 +171,10 @@ public static class VendorRules
 
         uint selling = count ?? item.Count;
         if (selling == 0 || selling > item.Count)
+            return new SellDecision(VendorResult.InvalidCount, null);
+
+        // #1179: an item carrying modifiers is one of a kind and is sold whole (TakeOut refuses to split it).
+        if (selling < item.Count && character.ItemModifiers.Of(item.InstanceId).Count > 0)
             return new SellDecision(VendorResult.InvalidCount, null);
 
         // CharacterWallet.TryAddGold's own rule, so the apply cannot disagree: gold a completing trade is about to pay

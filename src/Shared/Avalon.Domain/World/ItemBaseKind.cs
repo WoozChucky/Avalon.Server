@@ -38,3 +38,25 @@ public enum ItemBaseKind : byte
     Ring = 26,
     Trinket = 27,
 }
+
+/// <summary>Where each base kind is worn (#1179): the one mapping a template's slot must agree with.</summary>
+public static class ItemBaseKindSlots
+{
+    /// <summary>The slot a <paramref name="kind" /> base is worn in.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">A value that names no base kind.</exception>
+    public static ItemSlotType SlotOf(ItemBaseKind kind) => kind switch
+    {
+        ItemBaseKind.PlateHead or ItemBaseKind.LeatherHead or ItemBaseKind.ClothHead => ItemSlotType.Head,
+        ItemBaseKind.PlateShoulders or ItemBaseKind.LeatherShoulders or ItemBaseKind.ClothShoulders => ItemSlotType.Shoulder,
+        ItemBaseKind.PlateChest or ItemBaseKind.LeatherChest or ItemBaseKind.ClothChest => ItemSlotType.Chest,
+        ItemBaseKind.PlateHands or ItemBaseKind.LeatherHands or ItemBaseKind.ClothHands => ItemSlotType.Hands,
+        ItemBaseKind.PlateLegs or ItemBaseKind.LeatherLegs or ItemBaseKind.ClothLegs => ItemSlotType.Legs,
+        ItemBaseKind.PlateFeet or ItemBaseKind.LeatherFeet or ItemBaseKind.ClothFeet => ItemSlotType.Feet,
+        ItemBaseKind.Sword or ItemBaseKind.Mace or ItemBaseKind.Staff or ItemBaseKind.Bow => ItemSlotType.MainHand,
+        ItemBaseKind.Shield or ItemBaseKind.CasterOffHand => ItemSlotType.OffHand,
+        ItemBaseKind.Amulet => ItemSlotType.Neck,
+        ItemBaseKind.Ring => ItemSlotType.Finger,
+        ItemBaseKind.Trinket => ItemSlotType.Trinket,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+    };
+}

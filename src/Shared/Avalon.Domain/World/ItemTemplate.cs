@@ -20,6 +20,12 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     public bool Stackable => MaxStackSize > 1;
 
+    /// <summary>
+    /// True for a weapon held in both hands, which leaves the off hand empty (#1179): a two-handed weapon or a ranged one
+    /// (a bow).
+    /// </summary>
+    public bool IsTwoHanded => SubClass is ItemSubClass.TwoHanded or ItemSubClass.Ranged;
+
     /// <summary>True when a character of this class may equip the item: the list is empty or names the class.</summary>
     public bool AllowsClass(CharacterClass characterClass) =>
         AllowedClasses.Count == 0 || AllowedClasses.Contains(characterClass);

@@ -237,9 +237,9 @@ public static class InventoryMove
     }
 
     /// <summary>
-    /// True when, after the move, a two-handed weapon would be in the main hand while the off hand
-    /// holds anything. Asked only of a move that changes one of the two hands, so a conflict an old
-    /// row loaded does not freeze the rest of the equipment, and taking the off hand off is allowed.
+    /// True when, after the move, a weapon held in both hands (<see cref="ItemTemplate.IsTwoHanded" />, a bow too) would be
+    /// in the main hand while the off hand holds anything. Asked only of a move that changes one of the two hands, so a
+    /// conflict an old row loaded does not freeze the rest of the equipment, and taking the off hand off is allowed.
     /// </summary>
     private static bool TwoHandConflict(
         CharacterEntity character,
@@ -260,7 +260,7 @@ public static class InventoryMove
 
         return mainAfter is { } main
                && offAfter is not null
-               && findTemplate(main.TemplateId) is { SubClass: ItemSubClass.TwoHanded };
+               && findTemplate(main.TemplateId) is { IsTwoHanded: true };
     }
 
     /// <summary>What <paramref name="slot" /> holds once a Move or Swap from <paramref name="from" /> to <paramref name="to" /> is applied.</summary>

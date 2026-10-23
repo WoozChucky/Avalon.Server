@@ -265,10 +265,12 @@ public class CharacterServiceShould
                 templates[990] = ring;
                 worn.AddRange([Saved(templates[32]), Saved(ring), Saved(ring)]);
                 break;
-            default:
+            case "a modified sword and a global ring":
                 worn.Add(Saved(templates[32], (Avalon.Domain.World.StatType.AddedFireDamage, 2, 5)));
                 worn.Add(Saved(templates[68], (Avalon.Domain.World.StatType.AddedPhysicalDamageToAttacks, 1, 3)));
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(gear), gear, null);
         }
 
         List<ItemTemplate> wornTemplates = [.. worn.Select(item => templates[item.TemplateId.Value])];

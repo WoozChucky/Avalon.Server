@@ -54,6 +54,18 @@ internal static class EquipTemplates
         StatValue1 = 6,
     };
 
+    /// <summary>A bow: held in both hands, as a two-hander is (#1179).</summary>
+    public static readonly ItemTemplate Shortbow = new()
+    {
+        Id = new ItemTemplateId(612),
+        Name = "Shortbow",
+        Class = ItemClass.Weapon,
+        SubClass = ItemSubClass.Ranged,
+        MaxStackSize = 1,
+        Slot = ItemSlotType.MainHand,
+        RequiredLevel = 1,
+    };
+
     public static readonly ItemTemplate Buckler = new()
     {
         Id = new ItemTemplateId(603),
@@ -178,7 +190,8 @@ internal static class EquipTemplates
 
     private static readonly Dictionary<ItemTemplateId, ItemTemplate> s_mine = new[]
     {
-        Longsword, Axe, Greatsword, Buckler, IronHelm, Circlet, Band, StackedBand, Ruby, Heirloom, Chestguard, VigorAmulet,
+        Longsword, Axe, Greatsword, Shortbow, Buckler, IronHelm, Circlet, Band, StackedBand, Ruby, Heirloom, Chestguard,
+        VigorAmulet,
     }.ToDictionary(t => t.Id);
 
     /// <summary>These, then TestCharacters' Potion, Sword, Relic, Pebble and Hoard. Never Ghost.</summary>

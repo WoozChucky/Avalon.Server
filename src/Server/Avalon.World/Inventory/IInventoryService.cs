@@ -47,10 +47,11 @@ public interface IInventoryService
     /// Takes <paramref name="count" /> out of one slot and returns what left. A whole stack returns
     /// the instance itself, with the item and its slot marked Removed, and its modifiers, which leave
     /// the store with it (#1179). Part of a stack shrinks it (the item is marked Changed) and returns a
-    /// copy of <paramref name="count" /> with a new id from IItemIdAllocator and no modifiers: an item
-    /// carrying them never stacks. The copy is in no container and carries no mark. A vendor sale
-    /// (spec #432) keeps what this returns for buyback. Throws when the slot is empty or holds fewer
-    /// than <paramref name="count" />, or when the count is 0: callers decide first.
+    /// copy of <paramref name="count" /> with a new id from IItemIdAllocator and no modifiers. The copy
+    /// is in no container and carries no mark. A vendor sale (spec #432) keeps what this returns for
+    /// buyback. Throws when the slot is empty or holds fewer than <paramref name="count" />, when the
+    /// count is 0, or when it is part of an item carrying modifiers, which is one of a kind and never
+    /// splits: callers decide first.
     /// </summary>
     CarriedItem TakeOut(SlotRef slot, uint count);
 
@@ -59,13 +60,13 @@ public interface IInventoryService
     /// modifiers) in the lowest free Bag slot. It is never merged into a stack. The item is marked New,
     /// whatever mark it had before, so the next save upserts it, and, when it has modifiers, they are
     /// marked too, so that save writes them (#1179): its rows may have been deleted since it left.
-    /// InventoryFull when no Bag slot is free (a slot a completing trade reserved, #1175, is not). UniqueAlreadyOwned when its template is Unique and the character would
-    /// then hold more than one copy anywhere, counting the copies a completing trade is about to add;
-    /// an instance whose template is gone is still the player's own, and is added. Throws when the
-    /// instance is already held: a vendor buyback (spec #432) only ever adds one that TakeOut
-    /// handed over.
+    /// InventoryFull when no Bag slot is free (a slot a completing trade reserved, #1175, is not).
+    /// UniqueAlreadyOwned when its template is Unique and the character would then hold more than one
+    /// copy anywhere, counting the copies a completing trade is about to add; an instance whose
+    /// template is gone is still the player's own, and is added. Throws when the instance is already
+    /// held: a vendor buyback (spec #432) only ever adds one that TakeOut handed over.
     /// </summary>
-    InventoryAddResult TryAddInstance(CarriedItem item);
+    InventoryAddResult TryAddInstance(CarriedItem carried);
 
     /// <summary>
     /// A completing trade's own add (#1175): this exact instance in exactly <paramref name="bagSlot" />,
@@ -75,5 +76,5 @@ public interface IInventoryService
     /// instance already held, as <see cref="TryAddInstance" /> answers them, counting only what the
     /// character holds. Throws when the slot is past the Bag: the trade plans the slot first.
     /// </summary>
-    InventoryAddResult TryAddInstanceAt(CarriedItem item, byte bagSlot);
+    InventoryAddResult TryAddInstanceAt(CarriedItem carried, byte bagSlot);
 }

@@ -54,8 +54,23 @@ public static class TemplateValidation
         if (r.BaseKind is { } baseKind)
         {
             Defined(e, "baseKind", baseKind);
-            if (r.Slot is null) e.Add("baseKind", "A base kind needs the slot it is worn in.");
+            if (r.Slot is null)
+            {
+                e.Add("baseKind", "A base kind needs the slot it is worn in.");
+            }
+            else if (Enum.IsDefined(baseKind)
+                     && ItemBaseKindSlots.SlotOf((Domain.World.ItemBaseKind)baseKind) is var wornIn
+                     && wornIn != (Domain.World.ItemSlotType)r.Slot.Value)
+            {
+                // A base kind and its slot agree (#1179): what rolls on a base is read by its kind.
+                e.Add("baseKind", $"A {baseKind} base is worn in the {wornIn} slot, not {r.Slot.Value}.");
+            }
         }
+
+        // ItemInstances.ItemLevel (#1179, smallint, CK_ItemInstances_ItemLevel): a copy made from the template takes its
+        // required level as its item level, so a level above the column's range could never be stored.
+        if (r.RequiredLevel > short.MaxValue)
+            e.Add("requiredLevel", $"Required level must be at most {short.MaxValue}: a copy's item level is taken from it.");
 
         Flags(e, "flags", r.Flags);
         if (r.MaxStackSize < 1) e.Add("maxStackSize", "Max stack size must be at least 1.");

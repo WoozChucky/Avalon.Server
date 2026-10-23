@@ -76,14 +76,18 @@ public class ItemEquipShould
             .TryMove(EquipTemplates.Bag(3), Eq(EquipmentSlots.FirstReserved), count: null, bankAccessible: false));
     }
 
-    [Fact]
-    public void Move_the_off_hand_item_to_the_bag_for_a_two_hander()
+    /// <summary>A bow is held in both hands too (#1179).</summary>
+    [Theory]
+    [InlineData("two-hander")]
+    [InlineData("bow")]
+    public void Move_the_off_hand_item_to_the_bag_for_a_two_hander(string weapon)
     {
-        Bag(Item(0, Potion), Item(1, Greatsword));
+        ItemTemplate twoHanded = weapon == "bow" ? Shortbow : Greatsword;
+        Bag(Item(0, Potion), Item(1, twoHanded));
         Worn(Item(EquipmentSlots.MainHand, Axe), Item(EquipmentSlots.OffHand, Buckler));
 
-        Assert.Equal(ItemUseResult.Ok, Equip(1, Greatsword));
-        Assert.Equal(Greatsword.Id, At(_character, InventoryType.Equipment, EquipmentSlots.MainHand).TemplateId);
+        Assert.Equal(ItemUseResult.Ok, Equip(1, twoHanded));
+        Assert.Equal(twoHanded.Id, At(_character, InventoryType.Equipment, EquipmentSlots.MainHand).TemplateId);
         Assert.False(_character.Container(InventoryType.Equipment).TryGet(EquipmentSlots.OffHand, out _));
         Assert.Equal(Axe.Id, At(_character, InventoryType.Bag, 1).TemplateId);
         Assert.Equal(Buckler.Id, At(_character, InventoryType.Bag, 2).TemplateId);   // the lowest free slot before the use

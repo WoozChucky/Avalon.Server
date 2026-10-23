@@ -55,7 +55,7 @@ public static class ItemEquip
         var from = new SlotRef(InventoryType.Bag, bagSlot);
         var to = new SlotRef(InventoryType.Equipment, target);
 
-        if (template.SubClass == ItemSubClass.TwoHanded && target == EquipmentSlots.MainHand
+        if (template.IsTwoHanded && target == EquipmentSlots.MainHand
             && equipment.TryGet(EquipmentSlots.OffHand, out _))
         {
             return EquipTwoHander(character, inventory, bagSlot, template, from, to, logger, beforeApply);

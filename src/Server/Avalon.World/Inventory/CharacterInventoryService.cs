@@ -168,6 +168,14 @@ public sealed class CharacterInventoryService(
         if (count == item.Count)
             return new CarriedItem(item, Delete(slot.Container, item));
 
+        // #1179: an item carrying modifiers is one of a kind and never splits, as the move rules refuse it; a part of it
+        // would be a copy without them.
+        if (owner.ItemModifiers.Of(item.InstanceId).Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Cannot take {count} of {item.Count} out of {slot}: an item carrying modifiers is taken out whole.");
+        }
+
         Replace(slot.Container, item with { Count = item.Count - count });
         return new CarriedItem(item with { InstanceId = itemIds.Next(), Count = count }, []);
     }
