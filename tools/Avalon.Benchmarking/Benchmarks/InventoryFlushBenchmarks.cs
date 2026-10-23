@@ -102,7 +102,7 @@ public class InventoryFlushBenchmarks
                 Container = s.Container,
                 Slot = s.Slot,
                 Item = character.Container(s.Container).TryGet(s.Slot, out InventoryItem item)
-                    ? ItemSlotDtoMapper.ToDto(s.Container, item)
+                    ? ItemSlotDtoMapper.ToDto(s.Container, item, character.ItemModifiers.Of(item.InstanceId))
                     : null,
             })
             .ToArray();

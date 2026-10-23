@@ -513,6 +513,26 @@ enum InventoryType {
    InventoryType_Bag = 1;
    InventoryType_Bank = 2;
 }
+message ItemDetailsDto {
+   ItemRarity Rarity = 1;
+   uint32 ItemLevel = 2;
+   repeated ItemModifierDto Modifiers = 3;
+}
+message ItemModifierDto {
+   uint32 ModifierId = 1;
+   repeated ItemModifierValueDto Values = 2;
+}
+message ItemModifierValueDto {
+   ItemStat Stat = 1;
+   int32 Value = 2;
+   optional int32 Value2 = 3;
+}
+enum ItemRarity {
+   ItemRarity_Common = 0;
+   ItemRarity_Magic = 1;
+   ItemRarity_Rare = 2;
+   ItemRarity_Unique = 3;
+}
 enum ItemRequestResult {
    ItemRequestResult_Ok = 0;
    ItemRequestResult_NotFound = 1;
@@ -539,6 +559,60 @@ message ItemSlotDto {
    uint32 Count = 5;
    uint32 Durability = 6;
    uint32 Flags = 7;
+   ItemDetailsDto Details = 8;
+}
+enum ItemStat {
+   ItemStat_Stamina = 0;
+   ItemStat_Strength = 1;
+   ItemStat_Agility = 2;
+   ItemStat_Intellect = 3;
+   ItemStat_Armor = 4;
+   ItemStat_BlockPct = 5;
+   ItemStat_Evasion = 6;
+   ItemStat_CritPct = 7;
+   ItemStat_Health = 10;
+   ItemStat_Power = 11;
+   ItemStat_AttackSpeed = 12;
+   ItemStat_MovementSpeed = 13;
+   ItemStat_Ward = 14;
+   ItemStat_FireResistance = 15;
+   ItemStat_ColdResistance = 16;
+   ItemStat_LightningResistance = 17;
+   ItemStat_BlightResistance = 18;
+   ItemStat_IncreasedDamage = 19;
+   ItemStat_IncreasedPhysicalDamage = 20;
+   ItemStat_IncreasedFireDamage = 21;
+   ItemStat_IncreasedColdDamage = 22;
+   ItemStat_IncreasedLightningDamage = 23;
+   ItemStat_IncreasedBlightDamage = 24;
+   ItemStat_IncreasedAttackDamage = 25;
+   ItemStat_IncreasedSpellDamage = 26;
+   ItemStat_IncreasedAreaDamage = 27;
+   ItemStat_IncreasedProjectileDamage = 28;
+   ItemStat_IncreasedMeleeDamage = 29;
+   ItemStat_IncreasedDamageOverTime = 30;
+   ItemStat_IncreasedHealing = 31;
+   ItemStat_CritMultiplier = 32;
+   ItemStat_CastSpeed = 33;
+   ItemStat_CooldownRecovery = 34;
+   ItemStat_AddedPhysicalDamage = 35;
+   ItemStat_AddedFireDamage = 36;
+   ItemStat_AddedColdDamage = 37;
+   ItemStat_AddedLightningDamage = 38;
+   ItemStat_AddedBlightDamage = 39;
+   ItemStat_LocalIncreasedPhysicalDamage = 40;
+   ItemStat_LocalIncreasedArmor = 41;
+   ItemStat_LocalIncreasedEvasion = 42;
+   ItemStat_LocalIncreasedWard = 43;
+   ItemStat_LocalAttackSpeed = 44;
+   ItemStat_AddedPhysicalDamageToAttacks = 45;
+   ItemStat_AddedFireDamageToAttacks = 46;
+   ItemStat_AddedColdDamageToAttacks = 47;
+   ItemStat_AddedLightningDamageToAttacks = 48;
+   ItemStat_AddedBlightDamageToAttacks = 49;
+   ItemStat_AddedFireDamageToSpells = 50;
+   ItemStat_AddedColdDamageToSpells = 51;
+   ItemStat_AddedLightningDamageToSpells = 52;
 }
 enum ItemUseResult {
    ItemUseResult_Unknown = 0;
@@ -1443,6 +1517,7 @@ message TradeItemDto {
    uint64 ItemTemplateId = 2;
    .bcl.Guid ItemInstanceId = 3; // default value could not be applied: 00000000-0000-0000-0000-000000000000
    uint32 Count = 4;
+   ItemDetailsDto Details = 5;
 }
 enum TradeResult {
    TradeResult_Unknown = 0;

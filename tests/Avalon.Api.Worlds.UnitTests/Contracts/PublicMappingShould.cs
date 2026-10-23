@@ -132,8 +132,8 @@ public class PublicMappingShould
     }
 
     /// <summary>
-    /// The API casts these from the stored enums by ordinal (the public tooltips, the templates, the quest log), so each
-    /// member must keep its name across the pair.
+    /// The API casts these from the stored enums by ordinal (the public tooltips, the templates, the quest log), as the
+    /// world casts an item modifier's stat to the wire's, so each member must keep its name across the pair.
     /// </summary>
     [Theory]
     [InlineData(typeof(Avalon.Common.ItemRarity), typeof(Avalon.Api.Contract.ItemRarity))]
@@ -141,6 +141,7 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.Domain.World.ItemSubClass), typeof(Avalon.Api.Contract.ItemSubClass))]
     [InlineData(typeof(Avalon.Domain.World.ItemSlotType), typeof(Avalon.Api.Contract.ItemSlotType))]
     [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Api.Contract.StatType))]
+    [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Network.Packets.Items.ItemStat))]
     [InlineData(typeof(Avalon.Network.Packets.Combat.DamageType), typeof(Avalon.Api.Contract.DamageType))]
     [InlineData(typeof(Avalon.Network.Packets.State.PowerType), typeof(Avalon.Api.Contract.PowerType))]
     [InlineData(typeof(Avalon.World.Public.Enums.SpellRange), typeof(Avalon.Api.Contract.SpellRange))]

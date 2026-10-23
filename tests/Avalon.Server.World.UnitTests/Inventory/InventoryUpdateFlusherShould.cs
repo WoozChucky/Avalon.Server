@@ -1,7 +1,9 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Items;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
@@ -137,8 +139,8 @@ public class InventoryUpdateFlusherShould
     }
 
     /// <summary>
-    /// Regression guard: already passed before bank slots were recorded. Pins that dropping the
-    /// closed bank's slots does not drop the Bag slots changed in the same tick.
+    /// Pins that dropping the closed bank's slots does not drop the Bag slots changed in the same tick, and that the
+    /// Bag slot's item carries its rarity, item level and modifiers (#1179), which live outside the container.
     /// </summary>
     [Fact]
     public void Send_the_bag_but_not_the_bank_from_one_tick_while_the_bank_is_closed()
@@ -147,13 +149,22 @@ public class InventoryUpdateFlusherShould
         InventoryItem banked = Item(4, Sword);
         character.Container(InventoryType.Bank).Load([banked]);
         IWorldConnection connection = ConnectionFor(character);
+        InventoryItem rare = Item(0, Sword) with { Rarity = ItemRarity.Rare, ItemLevel = 9 };
 
         InventoryFor(character).TryRemove(banked.InstanceId, 1);
-        InventoryFor(character).TryAdd(Potion.Id, 1);
+        InventoryFor(character).TryAddInstance(new CarriedItem(rare,
+            [TestModifiers.Modifier(rare.InstanceId, 203, 0, (0, StatType.AddedFireDamage, 3, 7))]));
         InventoryUpdateFlusher.Flush(connection);
 
         InventorySlotUpdateDto slot = Assert.Single(Read(Assert.Single(_sent)).Slots);
         Assert.Equal(InventoryType.Bag, slot.Container);
+        ItemDetailsDto details = slot.Item!.Details;
+        Assert.Equal(ItemRarity.Rare, details.Rarity);
+        Assert.Equal(9u, details.ItemLevel);
+        ItemModifierDto modifier = Assert.Single(details.Modifiers);
+        Assert.Equal(203u, modifier.ModifierId);
+        ItemModifierValueDto value = Assert.Single(modifier.Values);
+        Assert.Equal((ItemStat.AddedFireDamage, 3, (int?)7), (value.Stat, value.Value, value.Value2));
     }
 
     /// <summary>

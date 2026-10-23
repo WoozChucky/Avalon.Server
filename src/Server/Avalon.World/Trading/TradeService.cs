@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Trade;
 using Avalon.World.Characters;
@@ -568,6 +569,8 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             entry.ItemTemplateId = item.TemplateId.Value;
             entry.ItemInstanceId = item.InstanceId.Value;
             entry.Count = item.Count;
+            // An offered item stays in its owner's Bag, locked, until the swap, so the store still holds its modifiers.
+            ItemDetailsDtoMapper.Refill(entry.Details, item, side.Character.ItemModifiers.Of(item.InstanceId));
             items.Add(entry);
         }
 
@@ -580,7 +583,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
     {
         var dtos = new TradeItemDto[2 * TradeRules.MaxItems];
         for (int i = 0; i < dtos.Length; i++)
-            dtos[i] = new TradeItemDto();
+            dtos[i] = new TradeItemDto { Details = new ItemDetailsDto() };
         return dtos;
     }
 

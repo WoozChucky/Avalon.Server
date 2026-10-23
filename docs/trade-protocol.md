@@ -43,7 +43,8 @@ Server to client.
 revision), 3 `Items` (repeated `TradeItemDto`, in trade-slot order, only the occupied slots).
 
 `TradeItemDto`: 1 `TradeSlot` (uint32, 0-14), 2 `ItemTemplateId` (uint64), 3 `ItemInstanceId` (`.bcl.Guid`, the item
-instance, as everywhere else an instance id crosses), 4 `Count` (uint32: the whole stack is offered).
+instance, as everywhere else an instance id crosses), 4 `Count` (uint32: the whole stack is offered), 5 `Details`
+(`ItemDetailsDto`, always set: the item's rarity, item level and modifiers, as an inventory slot carries them, #1179).
 
 `TradeId` is numbered from 1 each time the world server starts; it names one trade window for as long as it is open.
 

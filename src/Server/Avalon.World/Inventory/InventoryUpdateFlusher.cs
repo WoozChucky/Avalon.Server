@@ -70,7 +70,7 @@ public static class InventoryUpdateFlusher
                 Container = container,
                 Slot = slot,
                 Item = character.Container(container).TryGet(slot, out InventoryItem item)
-                    ? ItemSlotDtoMapper.ToDto(container, item)
+                    ? ItemSlotDtoMapper.ToDto(container, item, character.ItemModifiers.Of(item.InstanceId))
                     : null,
             };
         }

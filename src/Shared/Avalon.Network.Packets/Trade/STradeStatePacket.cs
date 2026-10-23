@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 
@@ -15,6 +16,9 @@ public class TradeItemDto
 
     /// <summary>The whole stack is offered.</summary>
     [ProtoMember(4)] public uint Count { get; set; }
+
+    /// <summary>Its rarity, item level and modifiers (#1179); the server always sets it.</summary>
+    [ProtoMember(5)] public ItemDetailsDto Details { get; set; }
 }
 
 /// <summary>One side of a trade: its items in trade-slot order, its gold, and whether it confirmed this revision.</summary>

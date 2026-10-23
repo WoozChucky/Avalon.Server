@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 
@@ -63,4 +64,7 @@ public class ItemSlotDto
 
     /// <summary>ItemInstanceFlags.</summary>
     [ProtoMember(7)] public uint Flags { get; set; }
+
+    /// <summary>Its rarity, item level and modifiers (#1179); the server always sets it.</summary>
+    [ProtoMember(8)] public ItemDetailsDto Details { get; set; }
 }

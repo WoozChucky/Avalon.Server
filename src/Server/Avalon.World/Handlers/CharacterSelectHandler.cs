@@ -674,8 +674,8 @@ public class CharacterSelectHandler(
         // told about items it has no way to show would have to decide what to do with them.
         ItemSlotDto[] carried =
         [
-            .. ToDtos(InventoryType.Equipment, entity[InventoryType.Equipment].Items),
-            .. ToDtos(InventoryType.Bag, entity[InventoryType.Bag].Items),
+            .. ToDtos(entity, InventoryType.Equipment),
+            .. ToDtos(entity, InventoryType.Bag),
         ];
 
         connection.Send(SInventorySnapshotPacket.Create(carried, character.Gold, PacketEncoder.Shared));
@@ -685,8 +685,9 @@ public class CharacterSelectHandler(
         _parentActivity = activity;
     }
 
-    private static IEnumerable<ItemSlotDto> ToDtos(InventoryType container, IReadOnlyCollection<InventoryItem> items)
-        => items.Select(item => ItemSlotDtoMapper.ToDto(container, item));
+    private static IEnumerable<ItemSlotDto> ToDtos(CharacterEntity entity, InventoryType container)
+        => entity[container].Items.Select(item =>
+            ItemSlotDtoMapper.ToDto(container, item, entity.ItemModifiers.Of(item.InstanceId)));
 
     private void OnSpellsReceived(IWorldConnection connection, long select, CharacterEntity entity, IMapInstance instance,
         IReadOnlyCollection<CharacterAbility> spells)

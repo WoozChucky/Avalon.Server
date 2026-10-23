@@ -65,6 +65,32 @@ variant populated
         field 5 Count : uint = 42
         field 6 Durability : uint = 300
         field 7 Flags : uint = 300
+        field 8 Details : ItemDetailsDto
+          field 1 Rarity : ItemRarity = Unique (3)
+          field 2 ItemLevel : uint = 300
+          field 3 Modifiers : List<ItemModifierDto> = 2 elements
+            element 0
+              field 1 ModifierId : uint = 7
+              field 2 Values : List<ItemModifierValueDto> = 2 elements
+                element 0
+                  field 1 Stat : ItemStat = CritMultiplier (32)
+                  field 2 Value : int = 70000
+                  field 3 Value2 : int? = -9
+                element 1
+                  field 1 Stat : ItemStat = MovementSpeed (13)
+                  field 2 Value : int = 1000
+                  field 3 Value2 : int? = -3
+            element 1
+              field 1 ModifierId : uint = 1000000
+              field 2 Values : List<ItemModifierValueDto> = 2 elements
+                element 0
+                  field 1 Stat : ItemStat = CritMultiplier (32)
+                  field 2 Value : int = 70000
+                  field 3 Value2 : int? = -9
+                element 1
+                  field 1 Stat : ItemStat = MovementSpeed (13)
+                  field 2 Value : int = 1000
+                  field 3 Value2 : int? = -3
       field 3 Price : ulong = 19
     element 1
       field 1 Index : uint = 65535
@@ -76,19 +102,56 @@ variant populated
         field 5 Count : uint = 19
         field 6 Durability : uint = 42
         field 7 Flags : uint = 42
+        field 8 Details : ItemDetailsDto
+          field 1 Rarity : ItemRarity = Rare (2)
+          field 2 ItemLevel : uint = 42
+          field 3 Modifiers : List<ItemModifierDto> = 2 elements
+            element 0
+              field 1 ModifierId : uint = 7
+              field 2 Values : List<ItemModifierValueDto> = 2 elements
+                element 0
+                  field 1 Stat : ItemStat = CritMultiplier (32)
+                  field 2 Value : int = 70000
+                  field 3 Value2 : int? = -9
+                element 1
+                  field 1 Stat : ItemStat = MovementSpeed (13)
+                  field 2 Value : int = 1000
+                  field 3 Value2 : int? = -3
+            element 1
+              field 1 ModifierId : uint = 1000000
+              field 2 Values : List<ItemModifierValueDto> = 2 elements
+                element 0
+                  field 1 Stat : ItemStat = CritMultiplier (32)
+                  field 2 Value : int = 70000
+                  field 3 Value2 : int? = -9
+                element 1
+                  field 1 Stat : ItemStat = MovementSpeed (13)
+                  field 2 Value : int = 1000
+                  field 3 Value2 : int? = -3
       field 3 Price : ulong = 65535
-  bytes 164
+  bytes 348
     08 ac 02 12 1f 08 ac 02 10 2a 18 80 d0 ac f3 0e
     20 13 2a 08 08 80 d0 ac f3 0e 10 2a 2a 06 08 c0
     84 3d 10 13 12 22 08 80 d0 ac f3 0e 10 13 18 c0
     84 3d 20 ff ff 03 2a 08 08 80 d0 ac f3 0e 10 2a
-    2a 06 08 c0 84 3d 10 13 1a 2c 08 07 12 26 08 01
-    10 13 18 80 d0 ac f3 0e 22 12 09 5b ad 8f 0f cb
-    d9 9f 46 11 a1 65 70 86 77 28 95 0e 28 2a 30 ac
-    02 38 ac 02 18 13 1a 2c 08 ff ff 03 12 22 08 02
-    10 2a 18 c0 84 3d 22 12 09 04 03 02 01 06 05 08
-    07 11 09 0a 0b 0c 0d 0e 0f 10 28 13 30 2a 38 2a
-    18 ff ff 03
+    2a 06 08 c0 84 3d 10 13 1a 88 01 08 07 12 81 01
+    08 01 10 13 18 80 d0 ac f3 0e 22 12 09 5b ad 8f
+    0f cb d9 9f 46 11 a1 65 70 86 77 28 95 0e 28 2a
+    30 ac 02 38 ac 02 42 59 08 03 10 ac 02 1a 27 08
+    07 12 11 08 20 10 f0 a2 04 18 f7 ff ff ff ff ff
+    ff ff ff 01 12 10 08 0d 10 e8 07 18 fd ff ff ff
+    ff ff ff ff ff 01 1a 29 08 c0 84 3d 12 11 08 20
+    10 f0 a2 04 18 f7 ff ff ff ff ff ff ff ff 01 12
+    10 08 0d 10 e8 07 18 fd ff ff ff ff ff ff ff ff
+    01 18 13 1a 86 01 08 ff ff 03 12 7c 08 02 10 2a
+    18 c0 84 3d 22 12 09 04 03 02 01 06 05 08 07 11
+    09 0a 0b 0c 0d 0e 0f 10 28 13 30 2a 38 2a 42 58
+    08 02 10 2a 1a 27 08 07 12 11 08 20 10 f0 a2 04
+    18 f7 ff ff ff ff ff ff ff ff 01 12 10 08 0d 10
+    e8 07 18 fd ff ff ff ff ff ff ff ff 01 1a 29 08
+    c0 84 3d 12 11 08 20 10 f0 a2 04 18 f7 ff ff ff
+    ff ff ff ff ff 01 12 10 08 0d 10 e8 07 18 fd ff
+    ff ff ff ff ff ff ff 01 18 ff ff 03
 
 variant maxima
   field 1 VendorGuid : ulong = 18446744073709551615
@@ -149,6 +212,55 @@ variant maxima
         field 5 Count : uint = 4294967295
         field 6 Durability : uint = 4294967295
         field 7 Flags : uint = 4294967295
+        field 8 Details : ItemDetailsDto
+          field 1 Rarity : ItemRarity = Unique (3)
+          field 2 ItemLevel : uint = 4294967295
+          field 3 Modifiers : List<ItemModifierDto> = 3 elements
+            element 0
+              field 1 ModifierId : uint = 4294967295
+              field 2 Values : List<ItemModifierValueDto> = 3 elements
+                element 0
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 1
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 2
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+            element 1
+              field 1 ModifierId : uint = 4294967295
+              field 2 Values : List<ItemModifierValueDto> = 3 elements
+                element 0
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 1
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 2
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+            element 2
+              field 1 ModifierId : uint = 4294967295
+              field 2 Values : List<ItemModifierValueDto> = 3 elements
+                element 0
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 1
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 2
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
       field 3 Price : ulong = 18446744073709551615
     element 1
       field 1 Index : uint = 4294967295
@@ -160,6 +272,55 @@ variant maxima
         field 5 Count : uint = 4294967295
         field 6 Durability : uint = 4294967295
         field 7 Flags : uint = 4294967295
+        field 8 Details : ItemDetailsDto
+          field 1 Rarity : ItemRarity = Unique (3)
+          field 2 ItemLevel : uint = 4294967295
+          field 3 Modifiers : List<ItemModifierDto> = 3 elements
+            element 0
+              field 1 ModifierId : uint = 4294967295
+              field 2 Values : List<ItemModifierValueDto> = 3 elements
+                element 0
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 1
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 2
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+            element 1
+              field 1 ModifierId : uint = 4294967295
+              field 2 Values : List<ItemModifierValueDto> = 3 elements
+                element 0
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 1
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 2
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+            element 2
+              field 1 ModifierId : uint = 4294967295
+              field 2 Values : List<ItemModifierValueDto> = 3 elements
+                element 0
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 1
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 2
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
       field 3 Price : ulong = 18446744073709551615
     element 2
       field 1 Index : uint = 4294967295
@@ -171,8 +332,57 @@ variant maxima
         field 5 Count : uint = 4294967295
         field 6 Durability : uint = 4294967295
         field 7 Flags : uint = 4294967295
+        field 8 Details : ItemDetailsDto
+          field 1 Rarity : ItemRarity = Unique (3)
+          field 2 ItemLevel : uint = 4294967295
+          field 3 Modifiers : List<ItemModifierDto> = 3 elements
+            element 0
+              field 1 ModifierId : uint = 4294967295
+              field 2 Values : List<ItemModifierValueDto> = 3 elements
+                element 0
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 1
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 2
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+            element 1
+              field 1 ModifierId : uint = 4294967295
+              field 2 Values : List<ItemModifierValueDto> = 3 elements
+                element 0
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 1
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 2
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+            element 2
+              field 1 ModifierId : uint = 4294967295
+              field 2 Values : List<ItemModifierValueDto> = 3 elements
+                element 0
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 1
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
+                element 2
+                  field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                  field 2 Value : int = 2147483647
+                  field 3 Value2 : int? = 2147483647
       field 3 Price : ulong = 18446744073709551615
-  bytes 515
+  bytes 1058
     08 ff ff ff ff ff ff ff ff ff 01 12 5b 08 ff ff
     ff ff 0f 10 ff ff ff ff ff ff ff ff ff 01 18 ff
     ff ff ff ff ff ff ff ff 01 20 ff ff ff ff 0f 2a
@@ -191,21 +401,55 @@ variant maxima
     ff ff ff ff ff 01 10 ff ff ff ff 0f 2a 11 08 ff
     ff ff ff ff ff ff ff ff 01 10 ff ff ff ff 0f 2a
     11 08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff
-    ff 0f 1a 49 08 ff ff ff ff 0f 12 36 08 02 10 ff
-    01 18 ff ff ff ff ff ff ff ff ff 01 22 12 09 ff
-    ff ff ff ff ff ff ff 11 ff ff ff ff ff ff ff ff
-    28 ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff ff ff
-    ff 0f 18 ff ff ff ff ff ff ff ff ff 01 1a 49 08
-    ff ff ff ff 0f 12 36 08 02 10 ff 01 18 ff ff ff
-    ff ff ff ff ff ff 01 22 12 09 ff ff ff ff ff ff
-    ff ff 11 ff ff ff ff ff ff ff ff 28 ff ff ff ff
-    0f 30 ff ff ff ff 0f 38 ff ff ff ff 0f 18 ff ff
-    ff ff ff ff ff ff ff 01 1a 49 08 ff ff ff ff 0f
-    12 36 08 02 10 ff 01 18 ff ff ff ff ff ff ff ff
-    ff 01 22 12 09 ff ff ff ff ff ff ff ff 11 ff ff
-    ff ff ff ff ff ff 28 ff ff ff ff 0f 30 ff ff ff
-    ff 0f 38 ff ff ff ff 0f 18 ff ff ff ff ff ff ff
-    ff ff 01
+    ff 0f 1a fd 01 08 ff ff ff ff 0f 12 e9 01 08 02
+    10 ff 01 18 ff ff ff ff ff ff ff ff ff 01 22 12
+    09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff ff
+    ff ff 28 ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff
+    ff ff ff 0f 42 b0 01 08 03 10 ff ff ff ff 0f 1a
+    36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 1a 36 08 ff ff ff ff 0f 12
+    0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff 07 12
+    0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff 07 12
+    0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff 07 1a
+    36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 18 ff ff ff ff ff ff ff ff
+    ff 01 1a fd 01 08 ff ff ff ff 0f 12 e9 01 08 02
+    10 ff 01 18 ff ff ff ff ff ff ff ff ff 01 22 12
+    09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff ff
+    ff ff 28 ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff
+    ff ff ff 0f 42 b0 01 08 03 10 ff ff ff ff 0f 1a
+    36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 1a 36 08 ff ff ff ff 0f 12
+    0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff 07 12
+    0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff 07 12
+    0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff 07 1a
+    36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 18 ff ff ff ff ff ff ff ff
+    ff 01 1a fd 01 08 ff ff ff ff 0f 12 e9 01 08 02
+    10 ff 01 18 ff ff ff ff ff ff ff ff ff 01 22 12
+    09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff ff
+    ff ff 28 ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff
+    ff ff ff 0f 42 b0 01 08 03 10 ff ff ff ff 0f 1a
+    36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 1a 36 08 ff ff ff ff 0f 12
+    0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff 07 12
+    0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff 07 12
+    0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff 07 1a
+    36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff
+    07 18 ff ff ff ff 07 18 ff ff ff ff ff ff ff ff
+    ff 01
 
 variant minima
   field 1 VendorGuid : ulong = 0
@@ -230,9 +474,22 @@ variant minima
         field 5 Count : uint = 0
         field 6 Durability : uint = 0
         field 7 Flags : uint = 0
+        field 8 Details : ItemDetailsDto
+          field 1 Rarity : ItemRarity = Common (0)
+          field 2 ItemLevel : uint = 0
+          field 3 Modifiers : List<ItemModifierDto> = 1 element
+            element 0
+              field 1 ModifierId : uint = 0
+              field 2 Values : List<ItemModifierValueDto> = 1 element
+                element 0
+                  field 1 Stat : ItemStat = Stamina (0)
+                  field 2 Value : int = -2147483648
+                  field 3 Value2 : int? = -2147483648
       field 3 Price : ulong = 0
-  bytes 10
-    12 04 20 00 2a 00 1a 02 12 00
+  bytes 38
+    12 04 20 00 2a 00 1a 1e 12 1c 42 1a 1a 18 12 16
+    10 80 80 80 80 f8 ff ff ff ff 01 18 80 80 80 80
+    f8 ff ff ff ff 01
 
 variant varint-edges
   field 1 VendorGuid : ulong = 268435456
@@ -272,6 +529,32 @@ variant varint-edges
         field 5 Count : uint = 268435455
         field 6 Durability : uint = 2097151
         field 7 Flags : uint = 268435455
+        field 8 Details : ItemDetailsDto
+          field 1 Rarity : ItemRarity = <not a declared member> (4)
+          field 2 ItemLevel : uint = 2097151
+          field 3 Modifiers : List<ItemModifierDto> = 2 elements
+            element 0
+              field 1 ModifierId : uint = 16383
+              field 2 Values : List<ItemModifierValueDto> = 2 elements
+                element 0
+                  field 1 Stat : ItemStat = <not a declared member> (53)
+                  field 2 Value : int = 268435455
+                  field 3 Value2 : int? = 2097151
+                element 1
+                  field 1 Stat : ItemStat = <not a declared member> (53)
+                  field 2 Value : int = 2097152
+                  field 3 Value2 : int? = 16384
+            element 1
+              field 1 ModifierId : uint = 2097152
+              field 2 Values : List<ItemModifierValueDto> = 2 elements
+                element 0
+                  field 1 Stat : ItemStat = <not a declared member> (53)
+                  field 2 Value : int = 268435455
+                  field 3 Value2 : int? = 2097151
+                element 1
+                  field 1 Stat : ItemStat = <not a declared member> (53)
+                  field 2 Value : int = 2097152
+                  field 3 Value2 : int? = 16384
       field 3 Price : ulong = 16383
     element 1
       field 1 Index : uint = 2097151
@@ -283,17 +566,52 @@ variant varint-edges
         field 5 Count : uint = 128
         field 6 Durability : uint = 268435456
         field 7 Flags : uint = 128
+        field 8 Details : ItemDetailsDto
+          field 1 Rarity : ItemRarity = <not a declared member> (4)
+          field 2 ItemLevel : uint = 268435456
+          field 3 Modifiers : List<ItemModifierDto> = 2 elements
+            element 0
+              field 1 ModifierId : uint = 16383
+              field 2 Values : List<ItemModifierValueDto> = 2 elements
+                element 0
+                  field 1 Stat : ItemStat = <not a declared member> (53)
+                  field 2 Value : int = 268435455
+                  field 3 Value2 : int? = 2097151
+                element 1
+                  field 1 Stat : ItemStat = <not a declared member> (53)
+                  field 2 Value : int = 2097152
+                  field 3 Value2 : int? = 16384
+            element 1
+              field 1 ModifierId : uint = 2097152
+              field 2 Values : List<ItemModifierValueDto> = 2 elements
+                element 0
+                  field 1 Stat : ItemStat = <not a declared member> (53)
+                  field 2 Value : int = 268435455
+                  field 3 Value2 : int? = 2097151
+                element 1
+                  field 1 Stat : ItemStat = <not a declared member> (53)
+                  field 2 Value : int = 2097152
+                  field 3 Value2 : int? = 16384
       field 3 Price : ulong = 128
-  bytes 190
+  bytes 336
     08 80 80 80 80 01 12 28 08 80 80 80 80 01 10 ff
     ff ff ff 7f 18 80 80 80 80 80 01 20 ff 7f 2a 08
     08 80 01 10 ff ff ff 7f 2a 06 08 ff 7f 10 80 01
     12 23 08 ff ff 7f 10 80 80 80 80 01 18 7f 20 80
     80 80 01 2a 08 08 80 01 10 ff ff ff 7f 2a 06 08
-    ff 7f 10 80 01 1a 35 08 80 80 80 80 01 12 2a 08
+    ff 7f 10 80 01 1a 7d 08 80 80 80 80 01 12 72 08
     03 10 80 01 18 80 01 22 12 09 04 03 02 01 06 05
     08 07 11 09 0a 0b 0c 0d 0e 0f 10 28 ff ff ff 7f
-    30 ff ff 7f 38 ff ff ff 7f 18 ff 7f 1a 30 08 ff
-    ff 7f 12 27 08 03 10 7f 18 ff 7f 22 12 09 04 03
-    02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28
-    80 01 30 80 80 80 80 01 38 80 01 18 80 01
+    30 ff ff 7f 38 ff ff ff 7f 42 46 08 04 10 ff ff
+    7f 1a 1d 08 ff 7f 12 0b 08 35 10 ff ff ff 7f 18
+    ff ff 7f 12 0b 08 35 10 80 80 80 01 18 80 80 01
+    1a 1f 08 80 80 80 01 12 0b 08 35 10 ff ff ff 7f
+    18 ff ff 7f 12 0b 08 35 10 80 80 80 01 18 80 80
+    01 18 ff 7f 1a 7a 08 ff ff 7f 12 71 08 03 10 7f
+    18 ff 7f 22 12 09 04 03 02 01 06 05 08 07 11 09
+    0a 0b 0c 0d 0e 0f 10 28 80 01 30 80 80 80 80 01
+    38 80 01 42 48 08 04 10 80 80 80 80 01 1a 1d 08
+    ff 7f 12 0b 08 35 10 ff ff ff 7f 18 ff ff 7f 12
+    0b 08 35 10 80 80 80 01 18 80 80 01 1a 1f 08 80
+    80 80 01 12 0b 08 35 10 ff ff ff 7f 18 ff ff 7f
+    12 0b 08 35 10 80 80 80 01 18 80 80 01 18 80 01
