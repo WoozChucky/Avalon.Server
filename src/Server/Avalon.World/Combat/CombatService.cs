@@ -162,10 +162,16 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // Only its health loss and effects that require positive damage are suppressed.
         if (target is CharacterEntity { GodMode: true, IsDead: false }) damage = 0;
 
-        // #1178: the ward takes what it may (all but blight) before life, and any damage pauses its recharge.
-        DateTime now = _time.GetUtcNow().UtcDateTime;
-        uint absorbed = AbsorbWithWard(target, Math.Min(hit.Absorbable, damage), now);
-        if (damage > 0) WardDamaged(target, now);
+        // #1178: the ward takes what it may (all but blight) before life, and any damage pauses its recharge. The clock is
+        // read only for a target with a ward that took damage: anything else leaves the ward as it is.
+        uint absorbed = 0u;
+        if (damage > 0 && HasWard(target))
+        {
+            DateTime now = _time.GetUtcNow().UtcDateTime;
+            absorbed = AbsorbWithWard(target, Math.Min(hit.Absorbable, damage), now);
+            WardDamaged(target, now);
+        }
+
         var report = new HitReport(result, hit.Type, hit.Types, absorbed);
 
         // #164: a player-on-player hit that deals damage to a living player restarts both players'
@@ -332,6 +338,14 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         CharacterEntity character => character.Defence,
         Creature creature => creature.Defence,
         _ => default,
+    };
+
+    /// <summary>Whether a unit has a ward (#1178): a maximum above 0. Without one, absorbing and pausing do nothing.</summary>
+    private static bool HasWard(IUnit unit) => unit switch
+    {
+        CharacterEntity character => character.MaxWard > 0,
+        Creature creature => creature.MaxWard > 0,
+        _ => false,
     };
 
     /// <summary>
@@ -621,9 +635,15 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // #1178: the ward takes a tick it may (never a bleed's or blight's) before life; any tick pauses its recharge.
         // Everything else reads the whole tick, the ward's part included.
-        DateTime now = _time.GetUtcNow().UtcDateTime;
-        uint absorbed = HitResolver.WardAbsorbs(type, periodic: true) ? AbsorbWithWard(target, dealt, now) : 0u;
-        if (dealt > 0) WardDamaged(target, now);
+        // The clock is read only for a target with a ward that took damage, as for a hit.
+        uint absorbed = 0u;
+        if (dealt > 0 && HasWard(target))
+        {
+            DateTime now = _time.GetUtcNow().UtcDateTime;
+            absorbed = HitResolver.WardAbsorbs(type, periodic: true) ? AbsorbWithWard(target, dealt, now) : 0u;
+            WardDamaged(target, now);
+        }
+
         uint life = dealt - absorbed;
 
         // A town never lets players be hostile, so a tick there (an aura brought in from elsewhere) restarts no PvP timer.

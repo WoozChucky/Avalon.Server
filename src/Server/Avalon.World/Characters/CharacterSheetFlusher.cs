@@ -23,17 +23,24 @@ public static class CharacterSheetFlusher
     /// </summary>
     public static void Flush(IWorldConnection connection, CombatPatch combat)
     {
-        if (connection.Character is not CharacterEntity { Stats: { } stats } character)
+        // The stats are read (a copy of the whole struct) only once the inputs say the sheet must be rebuilt.
+        if (connection.Character is not CharacterEntity character || !character.Stats.HasValue)
             return;
 
         float movementSpeed = character.GetMovementSpeed();
-        (int, ushort, CombatPatch?, float) inputs = (character.StatsVersion, character.Level, combat, movementSpeed);
-        if (character.SheetSent is not null && character.SheetInputs == inputs)
+        (int StatsVersion, ushort Level, CombatPatch? Combat, float MovementSpeed) last = character.SheetInputs;
+        if (character.SheetSent is not null
+            && ReferenceEquals(last.Combat, combat)
+            && last.StatsVersion == character.StatsVersion
+            && last.Level == character.Level
+            && last.MovementSpeed == movementSpeed)
+        {
             return;
+        }
 
-        character.SheetInputs = inputs;
-        var sheet = CharacterSheet.From(stats, character.Level, combat.Formula, character.EffectiveHastePct,
-            movementSpeed);
+        character.SheetInputs = (character.StatsVersion, character.Level, combat, movementSpeed);
+        var sheet = CharacterSheet.From(character.Stats.GetValueOrDefault(), character.Level, combat.Formula,
+            character.EffectiveHastePct, movementSpeed);
         if (character.SheetSent == sheet)
             return;
 
