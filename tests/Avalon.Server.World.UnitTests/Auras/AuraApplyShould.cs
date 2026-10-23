@@ -293,7 +293,7 @@ public class AuraApplyShould
         _h.Data = await TestStaticData.LoadAsync(classStats:
         [
             new ClassLevelStat
-                { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
+                { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
         ]);
         CharacterEntity warrior = _h.Player(909_119);
         Creature boar = _h.Creature(909_915);

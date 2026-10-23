@@ -79,7 +79,6 @@ public static class CombatDataRules
             if (!byClass.TryAdd(row.Class, row))
                 throw new InvalidDataException($"{name}: the class has two rows");
 
-            RequireUInt(name, nameof(row.HpPerStamina), row.HpPerStamina);
             if (row.FixedPower is { } fixedPower)
                 RequireUInt(name, nameof(row.FixedPower), fixedPower);
             RequireNonNegative(name, nameof(row.PowerPerIntellect), row.PowerPerIntellect);
@@ -87,7 +86,6 @@ public static class CombatDataRules
             RequireNonNegative(name, nameof(row.AttackPerStrength), row.AttackPerStrength);
             RequireNonNegative(name, nameof(row.AttackPerAgility), row.AttackPerAgility);
             RequireNonNegative(name, nameof(row.AbilityPerIntellect), row.AbilityPerIntellect);
-            RequireNonNegative(name, nameof(row.BaseCrit), row.BaseCrit);
         }
 
         foreach (CharacterClass @class in CharacterClasses.Playable)

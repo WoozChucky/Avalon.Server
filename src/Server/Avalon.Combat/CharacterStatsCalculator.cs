@@ -5,7 +5,7 @@ namespace Avalon.Combat;
 /// <summary>
 /// The one stats calculation (spec #463, closes #434): a class and level's seeded ClassLevelStat
 /// row, its class's ClassStatFactors row (#506, reloaded with the combat area), the combat formula's
-/// class-neutral defence conversions (#1178), plus the stats of the gear worn. Pure.
+/// class-neutral life per Stamina, base crit and attribute conversions (#1178), plus the stats of the gear worn. Pure.
 /// </summary>
 public static class CharacterStatsCalculator
 {
@@ -13,6 +13,8 @@ public static class CharacterStatsCalculator
     /// Where a class factor is fractional, the whole sum of the factored terms is truncated to a
     /// whole number once, not each product on its own: a level-1 Hunter (Strength 21, Agility 23)
     /// attacks for <c>(long)(0.5 x 21 + 1.5 x 23) = 45</c>, where truncating each product would give 44.
+    /// Health and crit are the same for every class (#1178): BaseHp plus Stamina times <paramref name="formula" />'s life per
+    /// Stamina plus gear health, and the formula's base crit plus gear crit; only power still reads the class's factors.
     /// Defence is the same for every class (#1178): armour, evasion and ward are gear plus Strength, Agility and Intellect
     /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances are gear's alone.
     /// Weapon is the main hand's damage and attack time (the bare hand's with none) and Offence the offence block (#1178),
@@ -29,7 +31,7 @@ public static class CharacterStatsCalculator
         long agility = row.Agility + gear.Agility;
         long intellect = row.Intellect + gear.Intellect;
 
-        long maxHealth = row.BaseHp + stamina * factors.HpPerStamina + gear.Health;
+        long maxHealth = row.BaseHp + stamina * formula.LifePerStamina + gear.Health;
         long maxPower = factors.FixedPower is { } fixedPower
             ? fixedPower
             : row.BaseMana
@@ -57,7 +59,7 @@ public static class CharacterStatsCalculator
             // #1178: no class base block or dodge any more.
             BlockPct: gear.BlockPct,
             Evasion: Clamp(evasion),
-            CritPct: factors.BaseCrit + gear.CritPct,
+            CritPct: formula.BaseCritPct + gear.CritPct,
             AttackDamage: Clamp(attack),
             AbilityDamage: Clamp(ability),
             WeaponMin: weaponMin,

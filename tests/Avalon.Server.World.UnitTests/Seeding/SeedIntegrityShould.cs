@@ -611,6 +611,51 @@ public class SeedIntegrityShould
         Assert.All(rows, r => Assert.InRange(r.Level, (ushort)1, topLevel));
     }
 
+    /// <summary>
+    /// #1178: every class gains the formula's one life per Stamina, so each class's BaseHp is rebalanced to keep a
+    /// character's health with nothing worn exactly what its class's own rate gave: 10, 5, 8 and 7 life per Stamina over
+    /// a BaseHp of 20, 16, 18 and 18 per level for the Warrior, Wizard, Hunter and Cleric.
+    /// </summary>
+    [Fact]
+    public void Carry_todays_bare_health_over_for_every_class_and_level()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        var factors = context.ClassStatFactors.AsNoTracking().ToList().ToDictionary(f => f.Class);
+        CombatFormula formula = context.CombatFormulas.AsNoTracking().Single();
+        var old = new Dictionary<CharacterClass, (uint HpPerLevel, uint PerStamina)>
+        {
+            [CharacterClass.Warrior] = (20, 10),
+            [CharacterClass.Wizard] = (16, 5),
+            [CharacterClass.Hunter] = (18, 8),
+            [CharacterClass.Cleric] = (18, 7),
+        };
+
+        foreach (ClassLevelStat row in context.ClassLevelStats.AsNoTracking().ToList())
+        {
+            (uint hpPerLevel, uint perStamina) = old[row.Class];
+            uint bare = CharacterStatsCalculator.Calculate(row, [], factors[row.Class], formula).MaxHealth;
+            Assert.True(hpPerLevel * row.Level + row.Stamina * perStamina == bare,
+                $"{row.Class} level {row.Level}: bare health {bare}, was {hpPerLevel * row.Level + row.Stamina * perStamina}");
+        }
+    }
+
+    /// <summary>
+    /// #1178: Agility no longer adds to the Hunter's attacks, so its Strength grows to 21 + floor(14 x (level - 1) / 9),
+    /// which keeps its attacks' level-10 numbers (was 20 + level; levels 1 and 2 are unchanged).
+    /// </summary>
+    [Fact]
+    public void Seed_the_hunters_strength_as_rebalanced()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        uint[] strength = context.ClassLevelStats.AsNoTracking().ToList()
+            .Where(r => r.Class == CharacterClass.Hunter).OrderBy(r => r.Level).Select(r => r.Strength).ToArray();
+
+        Assert.Equal(Enumerable.Range(1, 16).Select(l => (uint)(21 + (14 * (l - 1) / 9))), strength);
+    }
+
     private static uint ArmorOf(ItemTemplate item) =>
         (uint)new (StatType? Type, uint? Value)[]
             {
@@ -1106,7 +1151,8 @@ public class SeedIntegrityShould
 
     /// <summary>
     /// #506: the one formula row and the class factors, as the balance seed set them. #1178: the evasion curve, the
-    /// resistance bounds and the class-neutral attribute conversions; no class has a base dodge or block any more.
+    /// resistance bounds and the class-neutral attribute conversions; no class has a base dodge, block, crit or life
+    /// rate of its own any more.
     /// </summary>
     [Fact]
     public void Seed_the_combat_formula_and_one_factors_row_per_class()
@@ -1124,13 +1170,13 @@ public class SeedIntegrityShould
         var factors = context.ClassStatFactors.AsNoTracking().ToList().ToDictionary(r => r.Class);
         Assert.Equal(CharacterClasses.Playable.Order(), factors.Keys.Order());
         ClassStatFactors w = factors[CharacterClass.Warrior];
-        Assert.Equal((10L, 0d, 0d, (long?)100L, 2d, 0d, 0.2d, 5.0f),
-            (w.HpPerStamina, w.PowerPerIntellect, w.PowerPerAgility, w.FixedPower, w.AttackPerStrength, w.AttackPerAgility,
-             w.AbilityPerIntellect, w.BaseCrit));
+        Assert.Equal((0d, 0d, (long?)100L, 2d, 0d, 0.2d),
+            (w.PowerPerIntellect, w.PowerPerAgility, w.FixedPower, w.AttackPerStrength, w.AttackPerAgility,
+             w.AbilityPerIntellect));
         ClassStatFactors h = factors[CharacterClass.Hunter];
-        Assert.Equal((8L, 2d, 0.8d, (long?)null, 0.5d, 1.5d, 0.5d, 5.0f),
-            (h.HpPerStamina, h.PowerPerIntellect, h.PowerPerAgility, h.FixedPower, h.AttackPerStrength, h.AttackPerAgility,
-             h.AbilityPerIntellect, h.BaseCrit));
+        Assert.Equal((2d, 0.8d, (long?)null, 0.5d, 1.5d, 0.5d),
+            (h.PowerPerIntellect, h.PowerPerAgility, h.FixedPower, h.AttackPerStrength, h.AttackPerAgility,
+             h.AbilityPerIntellect));
     }
 
     /// <summary>

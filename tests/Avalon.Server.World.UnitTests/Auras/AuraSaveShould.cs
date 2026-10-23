@@ -118,7 +118,7 @@ public class AuraSaveShould
 
     private static async Task<StaticData> DataAsync(params AuraTemplate[] auras) =>
         await TestStaticData.LoadAsync(TestStaticData.Repositories(
-            classStats: () => [new ClassLevelStat { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 }],
+            classStats: () => [new ClassLevelStat { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 }],
             auras: () => auras));
 
     private static CharacterAura Saved(uint auraId, uint remainingMs, int ticksLeft, int slot = 0) => new()

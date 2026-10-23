@@ -124,7 +124,7 @@ public class CastPaceShould
         {
             Class = CharacterClass.Warrior,
             Level = 1,
-            BaseHp = 20,
+            BaseHp = 130,
             Stamina = 22,
             Strength = 23,
             Agility = 20,

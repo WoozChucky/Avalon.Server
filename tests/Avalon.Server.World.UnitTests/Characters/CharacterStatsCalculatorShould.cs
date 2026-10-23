@@ -4,6 +4,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Inventory;
 using Microsoft.EntityFrameworkCore;
@@ -33,11 +34,11 @@ public class CharacterStatsCalculatorShould
     [InlineData(CharacterClass.Wizard, 1, 121u, 365u, 10u, 69u)]
     [InlineData(CharacterClass.Wizard, 5, 205u, 565u, 10u, 93u)]
     [InlineData(CharacterClass.Hunter, 1, 178u, 68u, 45u, 10u)]
-    [InlineData(CharacterClass.Hunter, 5, 282u, 114u, 59u, 10u)]
+    [InlineData(CharacterClass.Hunter, 5, 282u, 114u, 60u, 10u)]
     [InlineData(CharacterClass.Cleric, 1, 158u, 296u, 10u, 46u)]
     [InlineData(CharacterClass.Cleric, 5, 258u, 472u, 10u, 62u)]
     [InlineData(CharacterClass.Warrior, 10, 600u, 100u, 82u, 4u)]
-    [InlineData(CharacterClass.Hunter, 10, 412u, 172u, 76u, 10u)]
+    [InlineData(CharacterClass.Hunter, 10, 412u, 172u, 79u, 10u)]
     public void Derive_the_seeded_numbers_for_each_class_with_no_gear(
         CharacterClass @class, ushort level, uint health, uint power, uint attack, uint ability)
     {
@@ -63,18 +64,43 @@ public class CharacterStatsCalculatorShould
     {
         ClassLevelStat row = SeededRow(CharacterClass.Warrior, 10);
 
-        Assert.Equal((200u, 0u, 40u, 41u, 33u, 20u),
+        Assert.Equal((400u, 0u, 40u, 41u, 33u, 20u),
             (row.BaseHp, row.BaseMana, row.Stamina, row.Strength, row.Agility, row.Intellect));
     }
 
+    /// <summary>
+    /// #1178: attributes are class-neutral. The same row gives every class the same health (BaseHp plus the formula's
+    /// life per Stamina), crit (the formula's base), defence and offence; only power still reads the class. A flat
+    /// attack speed aura passed to the calculation reaches the offence block once, on top of Agility's.
+    /// </summary>
     [Theory]
-    [InlineData(CharacterClass.Warrior, 5.0f)]
-    [InlineData(CharacterClass.Wizard, 1.85f)]
-    [InlineData(CharacterClass.Hunter, 5.0f)]
-    [InlineData(CharacterClass.Cleric, 1.85f)]
-    public void Start_each_class_at_its_base_crit(CharacterClass @class, float crit)
+    [InlineData(CharacterClass.Warrior)]
+    [InlineData(CharacterClass.Wizard)]
+    [InlineData(CharacterClass.Hunter)]
+    [InlineData(CharacterClass.Cleric)]
+    public void Turn_the_same_attributes_into_the_same_stats_for_every_class(CharacterClass @class)
     {
-        Assert.Equal(crit, Calc(SeededRow(@class, 1), []).CritPct);
+        var row = new ClassLevelStat
+        {
+            Class = @class,
+            Level = 1,
+            BaseHp = 100,
+            Stamina = 20,
+            Strength = 30,
+            Agility = 40,
+            Intellect = 50,
+        };
+        var hasted = new AuraStatModifier { Stat = AuraStat.AttackSpeed, Kind = AuraModifierKind.Flat, Value = 10f };
+        var auras = AuraStatTotals.Of([hasted], static m => ((IReadOnlyList<AuraStatModifier>)[m], 1u));
+
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, [], TestCombat.FactorsOf(@class),
+            TestCombat.Formula, auras);
+
+        Assert.Equal((200u, 5f), (stats.MaxHealth, stats.CritPct));
+        Assert.Equal((3u, 45u, 12u), (stats.Armor, stats.Evasion, stats.MaxWard));   // 30 x 0.1, 40 x 1.125, 50 x 0.25
+        Assert.Equal((105f, 175f, 175f, 4f + 10f),
+            (stats.Offence.Increased(OffenceStat.PhysicalAttack), stats.Offence.Increased(OffenceStat.Spell),
+             stats.Offence.Increased(OffenceStat.Healing), stats.Offence.AttackSpeedPct));
     }
 
     /// <summary>
@@ -114,13 +140,13 @@ public class CharacterStatsCalculatorShould
     [Fact]
     public void Add_worn_attributes_before_deriving_health_and_damage()
     {
-        // Warrior 1: BaseHp 20, Stamina 22, Strength 23. The chestguard adds Str 2, Armor 8, Sta 2.
+        // Warrior 1: BaseHp 130, Stamina 22, Strength 23. The chestguard adds Str 2, Armor 8, Sta 2.
         DerivedCharacterStats stats =
             Calc(SeededRow(CharacterClass.Warrior, 1), [EquipTemplates.Chestguard]);
 
         Assert.Equal(24u, stats.Stamina);
         Assert.Equal(25u, stats.Strength);
-        Assert.Equal(20u + 24u * 10u, stats.MaxHealth);
+        Assert.Equal(130u + 24u * 5u, stats.MaxHealth);
         Assert.Equal(50u, stats.AttackDamage);
         Assert.Equal(8u + 2u, stats.Armor);   // and Strength 25 x 0.1
     }
@@ -131,7 +157,7 @@ public class CharacterStatsCalculatorShould
         DerivedCharacterStats warrior = Calc(
             SeededRow(CharacterClass.Warrior, 1), [EquipTemplates.Chestguard, EquipTemplates.VigorAmulet]);
 
-        Assert.Equal(20u + 24u * 10u + 15u, warrior.MaxHealth);
+        Assert.Equal(130u + 24u * 5u + 15u, warrior.MaxHealth);
         Assert.Equal(100u, warrior.MaxPower);
         Assert.Equal(53u, warrior.AttackDamage);
         Assert.Equal(7.0f, warrior.CritPct);
@@ -146,7 +172,7 @@ public class CharacterStatsCalculatorShould
         Assert.Equal(121u + 15u, wizard.MaxHealth);
         Assert.Equal(365u + 20u, wizard.MaxPower);
         Assert.Equal(13u, wizard.AttackDamage);
-        Assert.Equal(1.85f + 2f, wizard.CritPct, precision: 4);
+        Assert.Equal(5f + 2f, wizard.CritPct);
     }
 
     /// <summary>

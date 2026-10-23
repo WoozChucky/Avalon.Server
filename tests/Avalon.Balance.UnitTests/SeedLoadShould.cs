@@ -15,7 +15,7 @@ public class SeedLoadShould
     {
         DerivedCharacterStats warrior = TestData.Seeded.CharacterStats(CharacterClass.Warrior, 1, []);
 
-        Assert.Equal(240u, warrior.MaxHealth);     // 20 + 22 x 10
+        Assert.Equal(240u, warrior.MaxHealth);     // 130 + 22 x 5
         Assert.Equal(46u, warrior.AttackDamage);   // 23 x 2
         Assert.Equal(100u, warrior.MaxPower);      // Fury is fixed at 100
     }

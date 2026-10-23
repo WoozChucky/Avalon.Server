@@ -38,7 +38,7 @@ public class CombatReloadShould
     {
         Class = CharacterClass.Warrior,
         Level = 1,
-        BaseHp = 20,
+        BaseHp = 130,
         BaseMana = 0,
         Stamina = 22,
         Strength = 23,
@@ -65,9 +65,9 @@ public class CombatReloadShould
         StaticData data = await Load(rows);
         CharacterEntity warrior = New();
         Assert.True(CharacterStatsRefresh.Apply(warrior, data, CurrentValues.Refill));
-        Assert.Equal(20u + 22u * 10u, warrior.Health);
+        Assert.Equal(130u + 22u * 5u, warrior.Health);
 
-        rows.Factors.Single(f => f.Class == CharacterClass.Warrior).HpPerStamina = 20;
+        rows.Formulas[0].LifePerStamina = 10;
         Task applied = data.ApplyOnNextTickAsync(await data.PrepareAsync(ReloadArea.Combat));
 
         Assert.Equal(240u, warrior.Health);
@@ -76,7 +76,7 @@ public class CombatReloadShould
         Assert.Equal(240u, warrior.Health);
 
         Assert.True(CharacterStatsRefresh.Apply(warrior, data, CurrentValues.Refill));
-        Assert.Equal(20u + 22u * 20u, warrior.Health);
+        Assert.Equal(130u + 22u * 10u, warrior.Health);
     }
 
     [Fact]
@@ -98,10 +98,8 @@ public class CombatReloadShould
     public static TheoryData<string, Action<Rows>> BadRows => new()
     {
         { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).AttackPerStrength = -1 },
-        { "ClassStatFactors Hunter", r => r.Factors.Single(f => f.Class == CharacterClass.Hunter).BaseCrit = float.NaN },
+        { "ClassStatFactors Hunter", r => r.Factors.Single(f => f.Class == CharacterClass.Hunter).PowerPerAgility = float.NaN },
         { "ClassStatFactors Cleric", r => r.Factors.RemoveAll(f => f.Class == CharacterClass.Cleric) },
-        { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).HpPerStamina = -1 },
-        { "ClassStatFactors Wizard", r => r.Factors.Single(f => f.Class == CharacterClass.Wizard).HpPerStamina = uint.MaxValue + 1L },
         { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).FixedPower = -5 },
         { "ClassStatFactors Hunter", r => r.Factors.Single(f => f.Class == CharacterClass.Hunter).FixedPower = 5_000_000_000 },
         { "CombatFormula 1", r => r.Formulas[0].ArmorCap = 2f },
@@ -137,20 +135,17 @@ public class CombatReloadShould
     }
 
     /// <summary>
-    /// #506 review: the database refuses a negative or oversized HpPerStamina or FixedPower itself, so the
+    /// #506 review: the database refuses a negative or oversized FixedPower itself, so the
     /// load's refusal is a second line, never EF's cast.
     /// </summary>
     [Theory]
-    [InlineData(-1L, null)]
-    [InlineData(4_294_967_296L, null)]
-    [InlineData(10L, -1L)]
-    [InlineData(10L, 4_294_967_296L)]
-    public void Be_refused_by_the_database_out_of_the_uint_range(long hpPerStamina, long? fixedPower)
+    [InlineData(-1L)]
+    [InlineData(4_294_967_296L)]
+    public void Be_refused_by_the_database_out_of_the_uint_range(long fixedPower)
     {
         using var database = Handlers.SqliteDatabase.World();
         using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
         ClassStatFactors warrior = context.ClassStatFactors.Single(f => f.Class == CharacterClass.Warrior);
-        warrior.HpPerStamina = hpPerStamina;
         warrior.FixedPower = fixedPower;
 
         DbUpdateException refused = Assert.Throws<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context.SaveChanges());

@@ -37,8 +37,8 @@ public class CharacterSheetShould
 
     private static readonly ClassLevelStat[] s_warriorRows =
     [
-        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
-        new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 40, BaseMana = 0, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
+        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
+        new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 160, BaseMana = 0, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
     ];
 
     private static IWorldConnection Recording(CharacterEntity character, List<OutboundPacket> sent)

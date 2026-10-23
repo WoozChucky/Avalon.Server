@@ -521,7 +521,7 @@ public class CharacterSelectHandlerShould
         {
             Class = CharacterClass.Warrior,
             Level = 1,
-            BaseHp = 20,
+            BaseHp = 130,
             BaseMana = 0,
             Stamina = 22,
             Strength = 23,
@@ -534,8 +534,8 @@ public class CharacterSelectHandlerShould
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
         var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
-        Assert.Equal(260u, entity.Health);
-        Assert.Equal(260u, entity.CurrentHealth);
+        Assert.Equal(250u, entity.Health);
+        Assert.Equal(250u, entity.CurrentHealth);
         Assert.Equal(100u, entity.Power);
         Assert.Equal(0u, entity.CurrentPower);   // a warrior's Fury pool enters empty (#526)
         Assert.Equal(24u, entity.Stamina);
@@ -566,7 +566,7 @@ public class CharacterSelectHandlerShould
         {
             Class = CharacterClass.Warrior,
             Level = 1,
-            BaseHp = 20,
+            BaseHp = 130,
             BaseMana = 0,
             Stamina = 22,
             Strength = 23,

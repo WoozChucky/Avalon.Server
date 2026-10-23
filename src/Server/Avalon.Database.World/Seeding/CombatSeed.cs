@@ -59,29 +59,25 @@ public static class CombatSeed
     [
         new()
         {
-            Class = CharacterClass.Warrior, HpPerStamina = 10, PowerPerIntellect = 0, PowerPerAgility = 0, FixedPower = 100,
+            Class = CharacterClass.Warrior, PowerPerIntellect = 0, PowerPerAgility = 0, FixedPower = 100,
             AttackPerStrength = 2, AttackPerAgility = 0, AbilityPerIntellect = 0.2,
-            BaseCrit = 5.0f,
         },
         new()
         {
-            Class = CharacterClass.Wizard, HpPerStamina = 5, PowerPerIntellect = 15, PowerPerAgility = 0, FixedPower = null,
+            Class = CharacterClass.Wizard, PowerPerIntellect = 15, PowerPerAgility = 0, FixedPower = null,
             AttackPerStrength = 0.5, AttackPerAgility = 0, AbilityPerIntellect = 3,
-            BaseCrit = 1.85f,
         },
         // 0.8 per agility and 2 per intellect: what the old base-power helper's
         // (agility * 0.8) + (intellect * 0.2) * 10 computed, kept as it was (#506 owner decision).
         new()
         {
-            Class = CharacterClass.Hunter, HpPerStamina = 8, PowerPerIntellect = 2, PowerPerAgility = 0.8, FixedPower = null,
+            Class = CharacterClass.Hunter, PowerPerIntellect = 2, PowerPerAgility = 0.8, FixedPower = null,
             AttackPerStrength = 0.5, AttackPerAgility = 1.5, AbilityPerIntellect = 0.5,
-            BaseCrit = 5.0f,
         },
         new()
         {
-            Class = CharacterClass.Cleric, HpPerStamina = 7, PowerPerIntellect = 12, PowerPerAgility = 0, FixedPower = null,
+            Class = CharacterClass.Cleric, PowerPerIntellect = 12, PowerPerAgility = 0, FixedPower = null,
             AttackPerStrength = 0.5, AttackPerAgility = 0, AbilityPerIntellect = 2,
-            BaseCrit = 1.85f,
         },
     ];
 }

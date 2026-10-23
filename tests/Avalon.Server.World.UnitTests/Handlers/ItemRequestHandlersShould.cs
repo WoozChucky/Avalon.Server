@@ -193,8 +193,8 @@ public class ItemRequestHandlersShould : IAsyncLifetime
         Move(54, InventoryType.Bag, 0, InventoryType.Equipment, EquipmentSlots.Chest);
 
         Assert.Equal(ItemRequestResult.Ok, Assert.Single(Results()).Result);
-        Assert.Equal(260u, _w.Character.Health);
-        Assert.Equal(130u, _w.Character.CurrentHealth);
+        Assert.Equal(250u, _w.Character.Health);
+        Assert.Equal(125u, _w.Character.CurrentHealth);
         Assert.Equal(8u + 2u, _w.Character.Stats!.Value.Armor);   // and Strength 25 x 0.1 (#1178)
     }
 
@@ -206,7 +206,7 @@ public class ItemRequestHandlersShould : IAsyncLifetime
     {
         _w.Character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Chest, EquipTemplates.Chestguard)]);
         CharacterStatsRefresh.Apply(_w.Character, _w.Data, CurrentValues.Refill);
-        Assert.Equal(260u, _w.Character.Health);
+        Assert.Equal(250u, _w.Character.Health);
 
         if (destroy)
             Destroy(62, InventoryType.Equipment, EquipmentSlots.Chest);

@@ -63,14 +63,12 @@ public class StaticDataRulesShould
         .Select(c => new ClassStatFactors
         {
             Class = c,
-            HpPerStamina = 10,
             PowerPerIntellect = 1,
             PowerPerAgility = 0,
             FixedPower = null,
             AttackPerStrength = 2,
             AttackPerAgility = 0,
             AbilityPerIntellect = 0.2,
-            BaseCrit = 5f,
         })
         .ToArray();
 

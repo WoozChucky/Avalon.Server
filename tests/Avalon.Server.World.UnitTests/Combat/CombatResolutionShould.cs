@@ -39,7 +39,7 @@ public class CombatResolutionShould
     {
         Class = CharacterClass.Warrior,
         Level = 1,
-        BaseHp = 20,
+        BaseHp = 130,
         BaseMana = 0,
         Stamina = 22,
         Strength = 23,
@@ -51,7 +51,7 @@ public class CombatResolutionShould
     {
         Class = CharacterClass.Warrior,
         Level = 2,
-        BaseHp = 40,
+        BaseHp = 160,
         BaseMana = 0,
         Stamina = 24,
         Strength = 25,

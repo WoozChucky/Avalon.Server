@@ -32,7 +32,7 @@ public class CharacterMovementSpeedShould
 
     private static readonly ClassLevelStat[] s_warriorRows =
     [
-        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
+        new() { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, BaseMana = 0, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 },
     ];
 
     private static readonly ItemTemplate s_swiftBoots = new()

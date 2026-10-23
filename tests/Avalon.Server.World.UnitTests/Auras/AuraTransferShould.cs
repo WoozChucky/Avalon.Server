@@ -49,7 +49,7 @@ public class AuraTransferShould
 
     private static async Task<StaticData> DataAsync() =>
         await TestStaticData.LoadAsync(TestStaticData.Repositories(
-            classStats: () => [new ClassLevelStat { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 }],
+            classStats: () => [new ClassLevelStat { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 }],
             auras: () => [AuraTestData.Bleed()]));
 
     /// <summary>A Bleed of one stack with 7.5 s and three ticks of 3 left, restored at select.</summary>

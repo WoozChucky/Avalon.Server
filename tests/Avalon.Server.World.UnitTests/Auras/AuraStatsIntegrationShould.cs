@@ -23,7 +23,7 @@ public class AuraStatsIntegrationShould
             AuraSchedule.Start(s_t0, template.DurationMs, template.TickIntervalMs), template.DurationMs, s_t0.UtcDateTime);
 
     private static readonly ClassLevelStat s_warriorOne = new()
-    { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 };
+    { Class = CharacterClass.Warrior, Level = 1, BaseHp = 130, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 };
 
     private static readonly ItemTemplate s_plate = new()
     {
