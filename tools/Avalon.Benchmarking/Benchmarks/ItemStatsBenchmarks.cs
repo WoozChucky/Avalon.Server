@@ -11,19 +11,23 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// The stats calculation a stats refresh runs (#1179): <see cref="CharacterStatsCalculator.Calculate" /> for a level-10
 /// Warrior (the seeded row: BaseHp 400, Stamina 40, Strength 41, Agility 33, Intellect 20) on the seeded formula and the
 /// Warrior's factors, wearing a full forest kit: the five Barkplate pieces (items 12-16), the Bramblesteel Sword (7), the
-/// Alpha's Fang Pendant (58), the Heartwood Band (64) and the Thornheart Signet (65). The world passes the worn templates
-/// as a list it reuses, so the benchmark does too; no auras. 0 B expected.
+/// Alpha's Fang Pendant (58), the Heartwood Band (64) and the Thornheart Signet (65). <see cref="Calculate" /> wears each
+/// piece with no modifiers, as the kit was measured before instance modifiers; <see cref="CalculateModified" /> wears the
+/// same pieces with six modifiers each, local and global lines mixed (local defence and weapon lines, added damage to
+/// attacks and spells, attributes, resistances, crit). The world passes the worn items as a list it reuses, so the
+/// benchmark does too; no auras. 0 B expected.
 /// </summary>
 /// <remarks>
 /// The templates are literals of the seed rows as they stood before #1179 part A replaced them with bases (their old
 /// rarities and item power have no place in the new vocabulary and play no part in the stats), so the benchmark keeps
 /// measuring the same kit now those rows are gone. The gear gives 16 Stamina, so the maximum health is
-/// 400 + 56 x 5 = 680; setup fails the run if it differs.
+/// 400 + 56 x 5 = 680; each piece's modifiers add 2 Stamina more, 770 in all. Setup fails the run if either differs.
 /// </remarks>
 [MemoryDiagnoser]
 public class ItemStatsBenchmarks
 {
     private const uint ExpectedMaxHealth = 680;
+    private const uint ExpectedModifiedMaxHealth = 770;
 
     private static readonly ClassLevelStat s_warriorLevel10 = new()
     {
@@ -76,23 +80,89 @@ public class ItemStatsBenchmarks
     // Each piece as a copy that rolled no modifiers, as the kit was measured before #1179.
     private readonly List<WornItem> _worn = [.. s_kit.Select(t => new WornItem(t, []))];
 
-    private readonly ClassStatFactors _factors = CombatSeed.ClassFactors()[0];
+    // The same pieces, each with six modifiers of one value each.
+    private readonly List<WornItem> _wornModified = [.. s_kit.Select(t => new WornItem(t, ModifiersFor(t)))];
+
+    private readonly ClassStatFactors _factors = CombatSeed.ClassFactors().Single(f => f.Class == CharacterClass.Warrior);
     private readonly CombatFormula _formula = CombatSeed.Formula();
 
     [GlobalSetup]
     public void Setup()
     {
-        if (_factors.Class != CharacterClass.Warrior)
-            throw new InvalidOperationException($"The first seeded factors row is {_factors.Class}, not the Warrior's.");
-
         uint maxHealth = Calculate().MaxHealth;
         if (maxHealth != ExpectedMaxHealth)
             throw new InvalidOperationException($"The maximum health is {maxHealth}, not {ExpectedMaxHealth}.");
+
+        uint modifiedMaxHealth = CalculateModified().MaxHealth;
+        if (modifiedMaxHealth != ExpectedModifiedMaxHealth)
+        {
+            throw new InvalidOperationException(
+                $"The modified kit's maximum health is {modifiedMaxHealth}, not {ExpectedModifiedMaxHealth}.");
+        }
     }
 
     [Benchmark]
     public DerivedCharacterStats Calculate() =>
         CharacterStatsCalculator.Calculate(s_warriorLevel10, _worn, _factors, _formula);
+
+    [Benchmark]
+    public DerivedCharacterStats CalculateModified() =>
+        CharacterStatsCalculator.Calculate(s_warriorLevel10, _wornModified, _factors, _formula);
+
+    // Six modifiers by kind of piece: the sword's local damage and speed, armour's local increased armour, jewellery's
+    // added damage to spells; every piece has 2 Stamina and some global lines.
+    private static List<ItemInstanceModifier> ModifiersFor(ItemTemplate template) => template.Slot switch
+    {
+        ItemSlotType.MainHand => Modifiers(
+            (StatType.Stamina, 2, null),
+            (StatType.AddedPhysicalDamage, 2, 5),
+            (StatType.AddedFireDamage, 1, 4),
+            (StatType.LocalIncreasedPhysicalDamage, 25, null),
+            (StatType.LocalAttackSpeed, 8, null),
+            (StatType.IncreasedAttackDamage, 10, null)),
+        ItemSlotType.Neck or ItemSlotType.Finger => Modifiers(
+            (StatType.Stamina, 2, null),
+            (StatType.AddedColdDamageToAttacks, 1, 2),
+            (StatType.AddedLightningDamageToSpells, 1, 6),
+            (StatType.ColdResistance, 5, null),
+            (StatType.CastSpeed, 4, null),
+            (StatType.Strength, 3, null)),
+        _ => Modifiers(
+            (StatType.Stamina, 2, null),
+            (StatType.Armor, 5, null),
+            (StatType.LocalIncreasedArmor, 20, null),
+            (StatType.FireResistance, 6, null),
+            (StatType.AddedPhysicalDamageToAttacks, 1, 3),
+            (StatType.CritPct, 1, null)),
+    };
+
+    private static List<ItemInstanceModifier> Modifiers(params (StatType Stat, int Value, int? Value2)[] lines)
+    {
+        var modifiers = new List<ItemInstanceModifier>(lines.Length);
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var id = Guid.NewGuid();
+            modifiers.Add(new ItemInstanceModifier
+            {
+                Id = id,
+                ModifierId = (ushort)(i + 1),
+                Ordinal = (byte)i,
+                Values =
+                [
+                    new ItemInstanceModifierValue
+                    {
+                        ItemInstanceModifierId = id,
+                        Index = 0,
+                        Stat = lines[i].Stat,
+                        Value = lines[i].Value,
+                        Value2 = lines[i].Value2,
+                    },
+                ],
+            });
+        }
+
+        return modifiers;
+    }
 
     private static ItemTemplate ForestArmourPiece(ulong id, string name, ItemSubClass subClass, ItemSlotType slot,
         uint strength, uint armor, uint stamina) => new()

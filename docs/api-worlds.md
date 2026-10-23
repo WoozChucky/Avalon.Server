@@ -180,6 +180,30 @@ singletons as in every host. Only their context factories differ in the API, whi
   `_Kind` only Flat and Percent, so an aura modifier on a stat from 16 to 32 or of kind More added by hand (the seeded
   ones are handled) must be removed first; the Character rollback restores the three stats columns at 0 until each
   character's next save. No world or API does that by itself.
+  **Migration order, #1179 (part A).** Bases and instance modifiers are not additive either (no backward
+  compatibility, owner, 2026-10-23). A world's World database migrates through `ReplaceItemsWithBases`:
+  `ItemTemplates.Rarity` becomes a `smallint` in the new numbering (`Common` 0, `Unique` 3, the only two a template may
+  hold, `CK_ItemTemplates_Rarity`), `BaseKind` (`CK_ItemTemplates_BaseKind`) and `RequiresAnyAttribute` are added,
+  `ItemPower` is dropped, and the equipment is reseeded as 74 bases and 5 uniques (items 4, 27-31 and 51-55 deleted,
+  38 new rows 66-103), with the loot entries (table 14 new), vendor rows and quest rewards that name it. Its Character
+  database migrates through `WipeOwnedEquipment`, which deletes every instance of the old equipment templates wherever
+  it is (bags, banks and worn; slot rows by cascade; consumables and quest items stay), and then
+  `AddItemInstanceModifiers` (`ItemInstances` gains `Rarity` and `ItemLevel`, existing rows 0 and 1; the tables
+  `ItemInstanceModifiers` and `ItemInstanceModifierValues`; `TradeRecordItems` gains `Rarity` and `ItemLevel`; the
+  tables `TradeRecordItemModifiers` and `TradeRecordItemModifierValues`). Each world applies them in that order at its
+  start. The order is: the worlds go first, each migrating at its next start (start any stopped world once, so it
+  migrates too), and then the API release with the change is cut. The released API is broken in between, which the
+  owner accepted: an older API reading a migrated world fails with Postgres 42703 on the dropped `ItemPower`, so every
+  item template read fails (the worlds service's item template list, get and `PUT`, the public item tooltips and link
+  previews, a character's inventory as soon as it holds an item, and its abilities once it wears one). An API with the
+  change reading a world that has not migrated fails the same way on the new columns: every item template read, and a
+  character's inventory and abilities on the instance columns and the modifier tables. To roll a world back to a build
+  without the change, first run `dotnet ef database update RetireOldOffence` against its World database and
+  `dotnet ef database update DropRetiredCharacterStats` against its Character database. The World rollback restores the
+  old items with `ItemPower` and the old rarity numbers, and the loot, vendor and quest rows that named them, and
+  deletes items 66-103; the Character rollback drops the modifier tables and the new columns, and every modifier with
+  them. The wiped equipment never comes back (`WipeOwnedEquipment` restores nothing), and an item of a template the
+  World rollback deleted stays as a row whose template is gone. No world or API does that by itself.
 
 ## How a request reaches its world
 

@@ -202,17 +202,25 @@ refused: its cost and cooldown are spent all the same.
 - **The base (#1178, the offence model; `OffenceMath`, `Avalon.Combat`, shared with the API's amounts and the
   simulator).** The tags decide it (`OffenceMath.DirectBase`, `HealBase`):
   - **An Attack** rolls its caster's weapon: the main hand's range 1, then its range 2 when it has one (each typed by
-    the item's `DamageType1`/`DamageType2`, else the hit's type), then the global added damage when given (a parameter
-    with no source yet, passed as none), then the skill's built-in added roll when `AddedMax` is above 0, in that
-    order. `ConvertPct` of the physical part then moves to `ConvertToType`, and the built-in added damage (`AddedType`)
-    joins, never converted. Each part is multiplied by `DamageEffectiveness / 100` (worked out as
+    the item's `DamageType1`/`DamageType2`, else the hit's type), then the weapon's own added damage by type
+    (`WeaponDamage.Added`, Physical to Blight: the main hand's local "adds X to Y" lines, #1179), then the attacker's
+    added damage to attacks by type (`OffenceStats.AddedToAttacks`, Physical to Blight: the sum of every worn item's
+    "adds X to Y to Attacks" lines), then the skill's built-in added roll when `AddedMax` is above 0, in that order (the
+    order is the contract a seeded random sequence relies on). `ConvertPct` of the physical part, the weapon's and the
+    added physical damage included, then moves to `ConvertToType`, and the built-in added damage (`AddedType`) joins,
+    never converted. The weapon's ranges and its added damage are the main hand's after its local lines: its local
+    increased physical damage scales each end of a physical range and of its added physical damage, and its local attack
+    speed shortens its attack time, each rounded half away from zero ([inventory](inventory-and-saves.md)); a local line
+    on any other item adds nothing. Each part is multiplied by `DamageEffectiveness / 100` (worked out as
     `roll x effectiveness / 100`, so whole percentages stay exact) and by its scale. A character with no main hand
     (every new character: its starting items are potions and a scroll), or with one whose first range deals nothing,
     rolls the formula's unarmed range, `UnarmedDamageMin..UnarmedDamageMax` (3-6), as physical damage, at the unarmed
     pace. A creature's weapon is its natural `DamageMin..DamageMax`, untyped, so it takes the hit's type.
   - **A Spell** rolls `SpellBaseMin..SpellBaseMax`, inclusive, times `1 + SpellBasePerLevelPct / 100 x (level - 1)`,
-    in its damage type, times its scale. It never converts, and its `DamageEffectiveness` (seeded 100) scales only
-    added damage, global or built-in.
+    in its damage type, times its scale; then the attacker's added damage to spells by type (`OffenceStats.AddedToSpells`,
+    Fire, Cold and Lightning: every worn item's "adds X to Y to Spells" lines, #1179), then the built-in added roll, in
+    that order. It never converts, and its `DamageEffectiveness` (seeded 100) scales only added damage, to spells or
+    built-in. Neither the weapon's added damage nor added damage to attacks reaches a spell.
   - **A Heal** rolls the same spell base, grown the same way, times `max(0, 1 + increased healing / 100)` and every
     more on healing: neither increased spell damage nor increased damage boosts a heal.
   - **The scale** of a part of type T for a skill with tags G (`OffenceMath.Scale`) is
@@ -233,7 +241,8 @@ refused: its cost and cooldown are spent all the same.
     `AuraStat.CritMultiplier`; 50 makes a 1.5 crit a 2.0 one). A character's crit chance is the formula's
     `BaseCritPct` (5) plus its gear's, the same for every class; a creature's is its rarity row's.
   - **A damage-over-time aura's** total is rolled once, at application, from its source's base without the source's
-    conversion or built-in added damage, and scaled with the source's tags plus DamageOverTime ([Auras](auras.md)).
+    conversion or any added damage (an Attack's source roll is the weapon's two ranges, after its local increased
+    physical damage), and scaled with the source's tags plus DamageOverTime ([Auras](auras.md)).
 - **Whose screen judges a hit (lag compensation, #1082).** Every hit is positional, and each side of a
   fight sees the other late: a client draws other units its render delay (about 120 ms) plus half its
   round trip behind the server, and what it does reaches the server half a round trip later. The rule:

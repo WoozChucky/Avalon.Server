@@ -28,7 +28,7 @@ Both are encrypted, over TCP. The request is accepted only while the character i
 |---|---|---|---|
 | `RequestId` | 1 | `uint32` | Chosen by the client; echoed in the answer, so the client can pair answers with requests. |
 | `Container` | 2 | `InventoryType` | The container of the slot: `1`, the Bag (use or equip), or `0`, Equipment (take off). Anything else is answered `NotFound`. |
-| `Slot` | 3 | `uint32` | The Bag slot, or the Equipment slot (0 Head to 10 OffHand; 11-13 are reserved and answered `NotFound`). A `byte` on the server (#921): a slot the container does not have is `NotFound`, and one past 255 fails the packet's decode, which closes the connection. |
+| `Slot` | 3 | `uint32` | The Bag slot, or the Equipment slot (0 Head to 10 OffHand, 11 and 12 Trinket, #1179; 13 is reserved and answered `NotFound`). A `byte` on the server (#921): a slot the container does not have is `NotFound`, and one past 255 fails the packet's decode, which closes the connection. |
 
 Send one per click. Do not pre-gate on cooldowns, casts or health: the server checks everything and answers every
 request.

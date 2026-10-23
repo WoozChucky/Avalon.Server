@@ -1752,8 +1752,14 @@ and the Warrior's factors, wearing the forest kit as it was seeded before part A
 12-16), the Bramblesteel Sword (7), the Alpha's Fang Pendant (58), the Heartwood Band (64) and the Thornheart Signet
 (65). The templates are literals of those rows, since part A deletes or replaces them; the worn list is a `List` reused
 across calls, as the world's refresh passes it; no auras. Setup fails the run unless the maximum health is 680
-(400 + (40 + 16 from gear) x 5). The `OffenceBenchmarks` rows run alongside, to see whether part A's changes to the
-offence block move a hit's base.
+(400 + (40 + 16 from gear) x 5). `CalculateModified`, added with part A, wears the same nine pieces as `WornItem`s with
+six modifiers each, local and global lines mixed: the sword's added physical and fire damage, local increased
+physical damage, local attack speed and increased attack damage; each armour piece's flat armour, local increased
+armour, fire resistance, added physical damage to attacks and crit; each jewellery piece's added cold damage to
+attacks, added lightning damage to spells, cold resistance, cast speed and Strength; and 2 Stamina on every piece, so
+setup also asks for a maximum health of 770. `Calculate` wears them with no modifiers, so it is the like-for-like row.
+The Warrior's factors row is selected by its class. The `OffenceBenchmarks` rows run alongside, to see whether part
+A's changes to the offence block move a hit's base.
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemStatsBenchmarks*" "*OffenceBenchmarks*" --warmupCount 10 --iterationCount 20
@@ -1770,6 +1776,25 @@ added and nothing else changed, 2026-10-23:
 | `OffenceBenchmarks.ConvertedAttackBase` | 14.54 ns (± 0.02 ns, error ± 0.01 ns) | 0 B |
 | `OffenceBenchmarks.SpellBase` | 16.55 ns (± 0.05 ns, error ± 0.05 ns) | 0 B |
 | `OffenceBenchmarks.DamageOverTimeSnapshot` | 9.59 ns (± 0.07 ns, error ± 0.06 ns) | 0 B |
+
+After is `f09d1ea68` with `CalculateModified` added, the same command, machine and toolchain, one run, 2026-10-23:
+
+| Operation | After (#1179 part A) | Allocated |
+|---|---:|---:|
+| `ItemStatsBenchmarks.Calculate` | 732.1 ns (± 186.8 ns, error ± 162.2 ns; median 598.2 ns) | 0 B |
+| `ItemStatsBenchmarks.CalculateModified` | 1,353.6 ns (± 208.0 ns, error ± 180.6 ns; median 1,360.1 ns) | 0 B |
+| `OffenceBenchmarks.AttackBase` | 43.19 ns (± 10.76 ns, error ± 9.35 ns) | 0 B |
+| `OffenceBenchmarks.ConvertedAttackBase` | 47.72 ns (± 12.15 ns, error ± 10.55 ns) | 0 B |
+| `OffenceBenchmarks.SpellBase` | 33.10 ns (± 0.73 ns, error ± 0.68 ns) | 0 B |
+| `OffenceBenchmarks.DamageOverTimeSnapshot` | 39.75 ns (± 2.07 ns, error ± 1.86 ns) | 0 B |
+
+Nothing allocates, with or without modifiers. The after run is not comparable with the before one: it ran on a loaded
+machine (a local world server, browsers and Docker running, about 28 % CPU), BenchmarkDotNet called `Calculate`
+bimodal (its iterations sit near 565 ns and near 950 ns), and the rows whose code part A barely touched slowed as much
+as the others (`DamageOverTimeSnapshot` 4.1 times, `SpellBase` 2.0 times). Within the run, six modifiers on each of nine
+pieces cost about 1.8 times the stats calculation without them (1,354 ns against 732 ns by mean, 1,360 ns against 598
+ns by median), a cost paid once per gear, level or aura change. A before and after on a quiet machine is still owed
+for the offence rows.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
@@ -4574,7 +4599,7 @@ the real `PartyService` and joined at the forest's entry (15, 1, 15). The harnes
 instances, so players start in the forest. Since #972 the classes cycle over all four across the roster rather than per
 party slot (warrior, wizard, hunter; cleric, warrior, wizard; hunter, cleric, warrior; wizard, hunter, cleric), as the
 load test's parties of three do, so three parties in four carry a cleric. Each character starts with 28 of its 30 bag
-slots holding a piece of forest armour (item 12, which does not stack), added through its inventory service: a level 1
+slots holding a Barkplate Helm (item 12, a tier-2 plate base, which does not stack), added through its inventory service: a level 1
 bag fills far slower than a minute's fight, and this stands for a character that has played a while, so the item
 destroy path runs in every minute.
 
