@@ -204,8 +204,9 @@ refused: its cost and cooldown are spent all the same.
   - **An Attack** rolls its caster's weapon: the main hand's range 1, then its range 2 when it has one (each typed by
     the item's `DamageType1`/`DamageType2`, else the hit's type), then the weapon's own added damage by type
     (`WeaponDamage.Added`, Physical to Blight: the main hand's local "adds X to Y" lines, #1179), then the attacker's
-    added damage to attacks by type (`OffenceStats.AddedToAttacks`, Physical to Blight: the sum of every worn item's
-    "adds X to Y to Attacks" lines), then the skill's built-in added roll when `AddedMax` is above 0, in that order (the
+    added damage to attacks by type (`AttackerCombat.AddedToAttacks`, beside the offence block, Physical to Blight: the
+    sum of every worn item's "adds X to Y to Attacks" lines; a range's mask names the types that add anything, and only
+    those are drawn), then the skill's built-in added roll when `AddedMax` is above 0, in that order (the
     order is the contract a seeded random sequence relies on). `ConvertPct` of the physical part, the weapon's and the
     added physical damage included, then moves to `ConvertToType`, and the built-in added damage (`AddedType`) joins,
     never converted. The weapon's ranges and its added damage are the main hand's after its local lines: its local
@@ -217,10 +218,11 @@ refused: its cost and cooldown are spent all the same.
     rolls the formula's unarmed range, `UnarmedDamageMin..UnarmedDamageMax` (3-6), as physical damage, at the unarmed
     pace. A creature's weapon is its natural `DamageMin..DamageMax`, untyped, so it takes the hit's type.
   - **A Spell** rolls `SpellBaseMin..SpellBaseMax`, inclusive, times `1 + SpellBasePerLevelPct / 100 x (level - 1)`,
-    in its damage type, times its scale; then the attacker's added damage to spells by type (`OffenceStats.AddedToSpells`,
-    Fire, Cold and Lightning: every worn item's "adds X to Y to Spells" lines, #1179), then the built-in added roll, in
-    that order. It never converts, and its `DamageEffectiveness` (seeded 100) scales only added damage, to spells or
-    built-in. Neither the weapon's added damage nor added damage to attacks reaches a spell.
+    in its damage type, times its scale; then the attacker's added damage to spells by type
+    (`AttackerCombat.AddedToSpells`, Fire, Cold and Lightning: every worn item's "adds X to Y to Spells" lines, #1179),
+    then the built-in added roll, in that order. It never converts, and its `DamageEffectiveness` (seeded 100) scales
+    only added damage, to spells or built-in. Neither the weapon's added damage nor added damage to attacks reaches a
+    spell.
   - **A Heal** rolls the same spell base, grown the same way, times `max(0, 1 + increased healing / 100)` and every
     more on healing: neither increased spell damage nor increased damage boosts a heal.
   - **The scale** of a part of type T for a skill with tags G (`OffenceMath.Scale`) is
