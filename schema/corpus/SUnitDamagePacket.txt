@@ -22,6 +22,9 @@ variant absent
   field 4 Damage : uint = 0
   field 5 Result : HitResult = None (0)
   field 6 AuraId : uint? = null
+  field 7 Type : DamageType = Physical (0)
+  field 8 Types : DamageTypeMask = None (0)
+  field 9 WardAbsorbed : uint = 0
   bytes 0
 
 variant empty
@@ -31,6 +34,9 @@ variant empty
   field 4 Damage : uint = 0
   field 5 Result : HitResult = None (0)
   field 6 AuraId : uint? = 0
+  field 7 Type : DamageType = Physical (0)
+  field 8 Types : DamageTypeMask = None (0)
+  field 9 WardAbsorbed : uint = 0
   bytes 2
     30 00
 
@@ -41,9 +47,12 @@ variant populated
   field 4 Damage : uint = 1000000
   field 5 Result : HitResult = Crit (1)
   field 6 AuraId : uint? = 7
-  bytes 20
+  field 7 Type : DamageType = Blight (4)
+  field 8 Types : DamageTypeMask = Cold (4)
+  field 9 WardAbsorbed : uint = 1000000
+  bytes 28
     08 c0 84 3d 10 ff ff 03 18 ff ff 03 20 c0 84 3d
-    28 01 30 07
+    28 01 30 07 38 04 40 04 48 c0 84 3d
 
 variant maxima
   field 1 Attacker : ulong = 18446744073709551615
@@ -52,10 +61,14 @@ variant maxima
   field 4 Damage : uint = 4294967295
   field 5 Result : HitResult = Immune (8)
   field 6 AuraId : uint? = 4294967295
-  bytes 42
+  field 7 Type : DamageType = Blight (4)
+  field 8 Types : DamageTypeMask = Blight (16)
+  field 9 WardAbsorbed : uint = 4294967295
+  bytes 52
     08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
     ff ff ff ff ff 01 18 ff ff ff ff 0f 20 ff ff ff
-    ff 0f 28 08 30 ff ff ff ff 0f
+    ff 0f 28 08 30 ff ff ff ff 0f 38 04 40 10 48 ff
+    ff ff ff 0f
 
 variant minima
   field 1 Attacker : ulong = 0
@@ -64,6 +77,9 @@ variant minima
   field 4 Damage : uint = 0
   field 5 Result : HitResult = None (0)
   field 6 AuraId : uint? = 0
+  field 7 Type : DamageType = Physical (0)
+  field 8 Types : DamageTypeMask = None (0)
+  field 9 WardAbsorbed : uint = 0
   bytes 2
     30 00
 
@@ -74,6 +90,9 @@ variant varint-edges
   field 4 Damage : uint = 127
   field 5 Result : HitResult = Crit, Immune (9)
   field 6 AuraId : uint? = 128
-  bytes 17
+  field 7 Type : DamageType = <not a declared member> (5)
+  field 8 Types : DamageTypeMask = Physical, Blight (17)
+  field 9 WardAbsorbed : uint = 128
+  bytes 24
     08 ff ff ff ff 7f 10 7f 18 7f 20 7f 28 09 30 80
-    01
+    01 38 05 40 11 48 80 01

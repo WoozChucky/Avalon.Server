@@ -505,7 +505,7 @@ public sealed class CreatureSchedulingShould
         Creature pathless = Place(town, 11, template, square + new Vector3(6f, 0f, 6f),
             c => new CreaturePatrolScript(NullLoggerFactory.Instance, c, town, world.Clock));
         Creature aggroA = Place(town, 20, template, entry + new Vector3(8f, 0f, -4f), Aggro(town, world));
-        Creature aggroB = Place(town, 21, template, square + new Vector3(0f, 0f, -6f), Aggro(town, world), dodge: 100f);
+        Creature aggroB = Place(town, 21, template, square + new Vector3(0f, 0f, -6f), Aggro(town, world), evasion: 10000);
         side.Counting = new CountingScript(Place(town, 30, template, entry + new Vector3(0f, 0f, -6f), _ => null), town);
 
         // Patrols pausing for different times, so several timed waits are due in turn.
@@ -580,7 +580,7 @@ public sealed class CreatureSchedulingShould
         c => new AggroDefendScript(NullLoggerFactory.Instance, c, town, world.Clock);
 
     private static Creature Place(MapInstance map, uint id, CreatureTemplate template, Vector3 position,
-        Func<Creature, AiScript?> script, PatrolPoint[]? path = null, float dodge = 0f)
+        Func<Creature, AiScript?> script, PatrolPoint[]? path = null, uint evasion = 0)
     {
         var creature = new Creature
         {
@@ -592,7 +592,7 @@ public sealed class CreatureSchedulingShould
             Health = 100,
             CurrentHealth = 100,
             Speed = template.SpeedWalk,
-            DodgePct = dodge,
+            Evasion = evasion,
         };
         if (path is not null)
             creature.PatrolPath = path;

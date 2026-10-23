@@ -8,7 +8,7 @@ namespace Avalon.Combat;
 /// </summary>
 public sealed class AuraStatTotals
 {
-    private const int Slots = (int)AuraStat.MaxPower + 1;
+    private const int Slots = (int)AuraStat.MaxWard + 1;
 
     private readonly float[] _flat = new float[Slots];
     private readonly float[] _percent = new float[Slots];

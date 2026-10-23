@@ -24,10 +24,9 @@ public static class CombatDataRules
         RequireNonNegative("CombatFormula 1", nameof(f.ArmorPerLevel), f.ArmorPerLevel);
         RequireNonNegative("CombatFormula 1", nameof(f.CritMultiplier), f.CritMultiplier);
         RequireNonNegative("CombatFormula 1", nameof(f.BlockMultiplier), f.BlockMultiplier);
-        RequireRange("CombatFormula 1", nameof(f.ArmorCap), f.ArmorCap, 1f);
-        RequireRange("CombatFormula 1", nameof(f.CritCap), f.CritCap, 100f);
-        RequireRange("CombatFormula 1", nameof(f.DodgeCap), f.DodgeCap, 100f);
-        RequireRange("CombatFormula 1", nameof(f.BlockCap), f.BlockCap, 100f);
+        RequireRange("CombatFormula 1", nameof(f.ArmorCap), f.ArmorCap, 0f, 1f);
+        RequireRange("CombatFormula 1", nameof(f.CritCap), f.CritCap, 0f, 100f);
+        RequireRange("CombatFormula 1", nameof(f.BlockCap), f.BlockCap, 0f, 100f);
         if (!(f.ArmorBase + f.ArmorPerLevel > 0f))
             throw new InvalidDataException("CombatFormula 1: ArmorBase + ArmorPerLevel must be above 0");
 
@@ -39,6 +38,19 @@ public static class CombatDataRules
             throw new InvalidDataException(
                 $"CombatFormula 1: MoveSpeedFloor and MoveSpeedCap must be finite, with -100 < floor <= cap, not {f.MoveSpeedFloor} and {f.MoveSpeedCap}");
         }
+
+        // #1178: the evasion terms divide a rating as the armour terms do; a resistance stays under the hard ceiling of
+        // 90, and the floor lets a negative one at most double an element. The attribute conversions are class-neutral.
+        RequireNonNegative("CombatFormula 1", nameof(f.EvasionBase), f.EvasionBase);
+        RequireNonNegative("CombatFormula 1", nameof(f.EvasionPerLevel), f.EvasionPerLevel);
+        if (!(f.EvasionBase + f.EvasionPerLevel > 0f))
+            throw new InvalidDataException("CombatFormula 1: EvasionBase + EvasionPerLevel must be above 0");
+        RequireRange("CombatFormula 1", nameof(f.EvasionCap), f.EvasionCap, 0f, 100f);
+        RequireRange("CombatFormula 1", nameof(f.ResistanceCap), f.ResistanceCap, 0f, 90f);
+        RequireRange("CombatFormula 1", nameof(f.ResistanceFloor), f.ResistanceFloor, -100f, 0f);
+        RequireNonNegative("CombatFormula 1", nameof(f.ArmorPerStrength), f.ArmorPerStrength);
+        RequireNonNegative("CombatFormula 1", nameof(f.EvasionPerAgility), f.EvasionPerAgility);
+        RequireNonNegative("CombatFormula 1", nameof(f.WardPerIntellect), f.WardPerIntellect);
 
         var byClass = new Dictionary<CharacterClass, ClassStatFactors>();
         foreach (ClassStatFactors row in factors)
@@ -57,8 +69,6 @@ public static class CombatDataRules
             RequireNonNegative(name, nameof(row.AttackPerStrength), row.AttackPerStrength);
             RequireNonNegative(name, nameof(row.AttackPerAgility), row.AttackPerAgility);
             RequireNonNegative(name, nameof(row.AbilityPerIntellect), row.AbilityPerIntellect);
-            RequireNonNegative(name, nameof(row.BaseBlock), row.BaseBlock);
-            RequireNonNegative(name, nameof(row.BaseDodge), row.BaseDodge);
             RequireNonNegative(name, nameof(row.BaseCrit), row.BaseCrit);
         }
 
@@ -83,9 +93,9 @@ public static class CombatDataRules
             throw new InvalidDataException($"{row}: {column} must be between 0 and {uint.MaxValue}, not {value}");
     }
 
-    private static void RequireRange(string row, string column, float value, float max)
+    private static void RequireRange(string row, string column, float value, float min, float max)
     {
-        if (!float.IsFinite(value) || value < 0 || value > max)
-            throw new InvalidDataException($"{row}: {column} must be between 0 and {max}, not {value}");
+        if (!float.IsFinite(value) || value < min || value > max)
+            throw new InvalidDataException($"{row}: {column} must be between {min} and {max}, not {value}");
     }
 }

@@ -1,9 +1,15 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
+using Avalon.Server.World.UnitTests.Combat;
+using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.World.Combat;
 using Avalon.World.Entities;
+using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
+using Avalon.World.Serialization;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 
@@ -79,5 +85,34 @@ public class EntityDirtyFlagShould
         GameEntityFields dirty = c.ConsumeDirtyFields();
         Assert.True(dirty.HasFlag(GameEntityFields.CurrentHealth));
         Assert.True(dirty.HasFlag(GameEntityFields.MoveState));
+    }
+
+    /// <summary>
+    /// #1178: a hit the ward takes marks the ward, and the state written for it carries the ward with its maximum, so a
+    /// client always holds the pair its ward bar is drawn from.
+    /// </summary>
+    [Fact]
+    public void Replicate_a_units_ward_and_its_maximum_when_they_change()
+    {
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 22, 12, 0, 0, TimeSpan.Zero));
+        var combat = new CombatService(new CombatConfig(), new EncounterRegistry(new CombatConfig(), time), time: time,
+            random: ScriptedCombatRandom.Plain());
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 1178_902),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Level = 1,
+            Health = 100,
+            CurrentHealth = 100,
+            BaseWard = 30,
+        };
+        creature.ConsumeDirtyFields();
+
+        combat.ApplyDamage(TestCharacters.New(1178_102, time: time), creature, 10);
+
+        GameEntityFields fields = creature.ConsumeDirtyFields() & GameEntityFields.CreatureUpdate;
+        Assert.True(fields.HasFlag(GameEntityFields.Ward));
+        ObjectState state = ObjectStateWriter.From(creature, fields);
+        Assert.Equal((20u, 30u), (state.Ward, state.MaxWard));
     }
 }

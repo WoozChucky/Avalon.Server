@@ -30,8 +30,28 @@ public sealed class CreatureTemplateDto
     public float ArmorModifier { get; set; }
     public float ExperienceModifier { get; set; }
     public short RegenHealth { get; set; }
-    public short DmgSchool { get; set; }
+    /// <summary>The type of damage the basic attack deals, and the abilities that name none (#1178).</summary>
+    public DamageType DamageType { get; set; }
     public float DamageModifier { get; set; }
+
+    /// <summary>Percent of fire damage the creature resists, -100 to 100; negative takes more (#1178).</summary>
+    public float FireResistance { get; set; }
+
+    /// <summary>Percent of cold damage the creature resists, as <see cref="FireResistance" />.</summary>
+    public float ColdResistance { get; set; }
+
+    /// <summary>Percent of lightning damage the creature resists, as <see cref="FireResistance" />.</summary>
+    public float LightningResistance { get; set; }
+
+    /// <summary>Percent of blight damage the creature resists, as <see cref="FireResistance" />.</summary>
+    public float BlightResistance { get; set; }
+
+    /// <summary>Scales the creature's level-derived evasion; finite and 0 or more, where 0 is none (#1178).</summary>
+    public float EvasionModifier { get; set; }
+
+    /// <summary>Scales the creature's level-derived ward, as <see cref="EvasionModifier" />.</summary>
+    public float WardModifier { get; set; }
+
     /// <summary>Seconds between the creature's swings, 0.5 or more (#627).</summary>
     public float BaseAttackTime { get; set; }
     public int RangeAttackTime { get; set; }

@@ -118,7 +118,7 @@ public class AbilityAuraShould
         return client;
     }
 
-    private static Creature Boar(MapInstance instance, uint id, uint health = 100, float dodge = 0f,
+    private static Creature Boar(MapInstance instance, uint id, uint health = 100, uint evasion = 0,
         float stunResistance = 100f)
     {
         var creature = new Creature
@@ -129,7 +129,7 @@ public class AbilityAuraShould
             Level = 1,
             Health = health,
             CurrentHealth = health,
-            DodgePct = dodge,
+            Evasion = evasion,
             ControlResistance = ControlResistance.Full with { Stun = stunResistance },
         };
         creature.Script = new CombatResolutionShould.CountingWoundScript(creature);
@@ -157,7 +157,7 @@ public class AbilityAuraShould
     {
         (MapInstance instance, CastAbilityHandler handler) = await InstanceAsync(new ScriptedCombatRandom(0.0));
         MapInstanceClient warrior = Caster(instance, 912_102, Rend());
-        Creature boar = Boar(instance, 912_902, dodge: 30f);
+        Creature boar = Boar(instance, 912_902, evasion: 10000);
 
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 203 });
 
@@ -166,18 +166,18 @@ public class AbilityAuraShould
     }
 
     /// <summary>
-    /// An ability that deals no damage rolls whether it lands, as a damage hit does (#1164): the one dodge draw (a scripted
-    /// roll under the boar's 30 % is a dodge), then only its aura. Dodged, it applies none and is sent as a dodge; landed,
-    /// it sends no damage and the boar's script is never hit. Unavoidable, it draws nothing at a 100 % dodge chance (the
+    /// An ability that deals no damage rolls whether it lands, as a damage hit does (#1164): the one evasion draw (a scripted
+    /// roll under the boar's capped 30 % is an evasion), then only its aura. Evaded, it applies none and is sent as a dodge; landed,
+    /// it sends no damage and the boar's script is never hit. Unavoidable, it draws nothing at that chance (the
     /// random throws on a draw it was not given) and lands. Landed on a boar that resists stuns whole, its stun is told
     /// as Immune and placed nothing. Combat is entered every time, by the hit itself, whether or not its aura sticks.
     /// </summary>
     [Theory]
-    [InlineData(213u, 30f, new[] { 0.0 }, 100f, 0u, HitResult.Dodged)]
-    [InlineData(213u, 30f, new[] { 0.99 }, 100f, 902u, HitResult.None)]
-    [InlineData(219u, 100f, new double[0], 100f, 902u, HitResult.None)]
-    [InlineData(218u, 30f, new[] { 0.99 }, 0f, 0u, HitResult.Immune)]
-    public async Task Roll_whether_an_ability_without_damage_lands_before_applying_its_aura(uint abilityId, float dodge,
+    [InlineData(213u, 10000u, new[] { 0.0 }, 100f, 0u, HitResult.Dodged)]
+    [InlineData(213u, 10000u, new[] { 0.99 }, 100f, 902u, HitResult.None)]
+    [InlineData(219u, 10000u, new double[0], 100f, 902u, HitResult.None)]
+    [InlineData(218u, 10000u, new[] { 0.99 }, 0f, 0u, HitResult.Immune)]
+    public async Task Roll_whether_an_ability_without_damage_lands_before_applying_its_aura(uint abilityId, uint evasion,
         double[] rolls, float stunResistance, uint aura, HitResult sent)
     {
         var random = new ScriptedCombatRandom(rolls);
@@ -188,7 +188,7 @@ public class AbilityAuraShould
             218 => StunningIgnite(),
             _ => UnavoidableIgnite(),
         });
-        Creature boar = Boar(instance, 912_903, dodge: dodge, stunResistance: stunResistance);
+        Creature boar = Boar(instance, 912_903, evasion: evasion, stunResistance: stunResistance);
 
         handler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = abilityId, GroundPos = s_atTheBoar });
 
@@ -198,9 +198,10 @@ public class AbilityAuraShould
             ActiveAuraIs(boar, aura, wizard.Character.Guid);
         else
             Assert.Equal(0, boar.Auras.Count);
-        (uint, HitResult)[] expected = sent == HitResult.None ? [] : [(0u, sent)];
+        // #1178: an evaded ability that deals no damage would have dealt no part, so it carries no type.
+        (uint, HitResult, DamageTypeMask)[] expected = sent == HitResult.None ? [] : [(0u, sent, DamageTypeMask.None)];
         Assert.Equal(expected, wizard.Read<SUnitDamagePacket>(NetworkPacketType.SMSG_CREATURE_DAMAGED)
-            .Select(p => (p.Damage, p.Result)));
+            .Select(p => (p.Damage, p.Result, p.Types)));
         Assert.NotNull(instance.CombatService.GetEncounterFor(boar));
         Assert.True(wizard.Character.IsInCombat, "the caster is not in combat");
     }

@@ -292,7 +292,7 @@ public class AuraScriptHooksShould
         Assert.Equal(AuraApplyResult.Applied, _h.Auras.Apply(_h.Player(911_115), boar, new AuraId(905), AuraSource.None));
 
         Assert.Single(boar.Auras.All);
-        Assert.Equal(new DefenderCombat(120, 0f, 0f), Defence(boar));   // +20 % armour
+        Assert.Equal(new DefenderCombat(120, 0, 0f), Defence(boar));   // +20 % armour
     }
 
     /// <summary>A creature's World-side defence, read as AuraStatsIntegrationShould reads it.</summary>

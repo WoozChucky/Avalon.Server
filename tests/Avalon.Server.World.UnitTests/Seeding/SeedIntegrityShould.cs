@@ -6,6 +6,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Abilities;
@@ -729,6 +730,55 @@ public class SeedIntegrityShould
             .Single(a => a.Id == kit.Basic).BaseDamageCoefficient);
     }
 
+    /// <summary>
+    /// #1178: every damaging kit ability names its damage type, the heals, buffs and Hush name none, and the creature
+    /// abilities name one only where it differs from their creature's base type (null inherits it). Blightfly and
+    /// Mother Bramble deal blight; every other template is physical.
+    /// </summary>
+    [Fact]
+    public void Type_every_seeded_ability_and_creature_as_the_combat_foundation_maps_them()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        var expectedAbilities = new Dictionary<uint, DamageType?>
+        {
+            [200] = DamageType.Physical,
+            [201] = DamageType.Physical,
+            [202] = DamageType.Physical,
+            [203] = DamageType.Physical,
+            [204] = DamageType.Physical,
+            [210] = DamageType.Lightning,
+            [211] = DamageType.Fire,
+            [212] = DamageType.Cold,
+            [213] = DamageType.Fire,
+            [214] = DamageType.Cold,
+            [220] = DamageType.Physical,
+            [221] = DamageType.Physical,
+            [222] = DamageType.Physical,
+            [223] = DamageType.Physical,
+            [224] = DamageType.Physical,
+            [230] = DamageType.Lightning,
+            [231] = DamageType.Lightning,
+            [232] = null,
+            [233] = null,
+            [234] = null,
+            [235] = null,
+        };
+        for (uint id = 300; id <= 318; id++)
+            expectedAbilities[id] = id is 307 or 312 or 313 ? DamageType.Blight : null;
+
+        var expectedCreatures = new Dictionary<ulong, DamageType>();
+        for (ulong id = 1; id <= 14; id++)
+            expectedCreatures[id] = id is 6 or 10 ? DamageType.Blight : DamageType.Physical;
+
+        var abilities = context.AbilityTemplates.AsNoTracking().ToList();
+        Assert.Equal(expectedAbilities, abilities.ToDictionary(a => a.Id.Value, a => a.DamageType));
+        Assert.Equal(expectedCreatures,
+            context.CreatureTemplates.AsNoTracking().AsEnumerable().ToDictionary(t => t.Id.Value, t => t.DamageType));
+        Assert.Equal("Spark Bolt", abilities.Single(a => a.Id.Value == 210).Name);
+    }
+
     [Fact]
     public void Load_every_kit_ability_through_the_catalog()
     {
@@ -784,7 +834,7 @@ public class SeedIntegrityShould
         foreach ((CharacterClass cls, uint[] ids) in s_kit)
         {
             ClassLevelStat levelOne = levelStats.Single(s => s.Class == cls && s.Level == 1);
-            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, [], factors.Single(f => f.Class == cls)).MaxPower;
+            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, [], factors.Single(f => f.Class == cls), TestCombat.Formula).MaxPower;
 
             foreach (uint id in ids)
             {
@@ -1014,9 +1064,12 @@ public class SeedIntegrityShould
         Assert.Equal(((uint?)min, (uint?)max), (item.DamageMin1, item.DamageMax1));
     }
 
-    /// <summary>#506: creature armour rises linearly from 0 at level 1 to 30 at level 10, round(30 x (L - 1) / 9).</summary>
+    /// <summary>
+    /// #506: creature armour rises linearly from 0 at level 1 to 30 at level 10, round(30 x (L - 1) / 9). #1178: evasion
+    /// is 10 and ward 8 per level, before the template's modifiers.
+    /// </summary>
     [Fact]
-    public void Seed_creature_armour_rising_linearly_to_thirty_at_level_ten()
+    public void Seed_creature_defences_by_level()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
@@ -1024,30 +1077,36 @@ public class SeedIntegrityShould
         var rows = context.CreatureBaseStats.AsNoTracking().ToList().OrderBy(r => r.Level).ToList();
         Assert.Equal(Enumerable.Range(1, 10).Select(l => (ushort)l), rows.Select(r => r.Level));
         Assert.Equal([0u, 3u, 7u, 10u, 13u, 17u, 20u, 23u, 27u, 30u], rows.Select(r => r.Armor));
+        Assert.Equal(rows.Select(r => 10u * r.Level), rows.Select(r => r.Evasion));
+        Assert.Equal(rows.Select(r => 8u * r.Level), rows.Select(r => r.Ward));
     }
 
     /// <summary>
-    /// #506: the rarity crit, dodge and block chances, in percentage points; #770: the share of a stun's, root's,
-    /// silence's and slow's duration each tier takes, in percent.
+    /// #506: the rarity crit and block chances, in percentage points; #770: the share of a stun's, root's, silence's and
+    /// slow's duration each tier takes, in percent. #1178: no tier dodges any more (the forest's creatures carry it as
+    /// evasion), and every tier's defence multiplier is 1, so armour carries over exactly.
     /// </summary>
     [Theory]
-    [InlineData(CreatureRarity.Normal, 0f, 0f, 0f, 100f, 100f, 100f, 100f)]
-    [InlineData(CreatureRarity.Elite, 5f, 3f, 0f, 100f, 100f, 100f, 100f)]
-    [InlineData(CreatureRarity.Rare, 8f, 5f, 5f, 50f, 50f, 50f, 50f)]
-    [InlineData(CreatureRarity.Boss, 10f, 5f, 10f, 0f, 50f, 0f, 50f)]
-    public void Seed_the_rarity_rolls(CreatureRarity rarity, float crit, float dodge, float block, float stun, float root,
+    [InlineData(CreatureRarity.Normal, 0f, 0f, 100f, 100f, 100f, 100f)]
+    [InlineData(CreatureRarity.Elite, 5f, 0f, 100f, 100f, 100f, 100f)]
+    [InlineData(CreatureRarity.Rare, 8f, 5f, 50f, 50f, 50f, 50f)]
+    [InlineData(CreatureRarity.Boss, 10f, 10f, 0f, 50f, 0f, 50f)]
+    public void Seed_the_rarity_rolls(CreatureRarity rarity, float crit, float block, float stun, float root,
         float silence, float slow)
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         CreatureRarityModifier row = context.CreatureRarityModifiers.AsNoTracking().ToList().Single(r => r.Rarity == rarity);
-        Assert.Equal((crit, dodge, block), (row.CritPct, row.DodgePct, row.BlockPct));
+        Assert.Equal((crit, block, 1f), (row.CritPct, row.BlockPct, row.DefenceMultiplier));
         Assert.Equal((stun, root, silence, slow),
             (row.StunDurationPct, row.RootDurationPct, row.SilenceDurationPct, row.SlowDurationPct));
     }
 
-    /// <summary>#506: the one formula row and the class factors, as the balance seed set them.</summary>
+    /// <summary>
+    /// #506: the one formula row and the class factors, as the balance seed set them. #1178: the evasion curve, the
+    /// resistance bounds and the class-neutral attribute conversions; no class has a base dodge or block any more.
+    /// </summary>
     [Fact]
     public void Seed_the_combat_formula_and_one_factors_row_per_class()
     {
@@ -1055,19 +1114,91 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         CombatFormula f = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
-        Assert.Equal((1, 50f, 10f, 0.75f, 1.5f, 0.5f, 50f, 30f, 50f),
-            (f.Id, f.ArmorBase, f.ArmorPerLevel, f.ArmorCap, f.CritMultiplier, f.BlockMultiplier, f.CritCap, f.DodgeCap, f.BlockCap));
+        Assert.Equal((1, 50f, 10f, 0.75f, 1.5f, 0.5f, 50f, 50f),
+            (f.Id, f.ArmorBase, f.ArmorPerLevel, f.ArmorCap, f.CritMultiplier, f.BlockMultiplier, f.CritCap, f.BlockCap));
+        Assert.Equal((560f, 40f, 30f, 75f, -100f, 0.1f, 1.125f, 0.25f),
+            (f.EvasionBase, f.EvasionPerLevel, f.EvasionCap, f.ResistanceCap, f.ResistanceFloor, f.ArmorPerStrength,
+             f.EvasionPerAgility, f.WardPerIntellect));
 
         var factors = context.ClassStatFactors.AsNoTracking().ToList().ToDictionary(r => r.Class);
         Assert.Equal(CharacterClasses.Playable.Order(), factors.Keys.Order());
         ClassStatFactors w = factors[CharacterClass.Warrior];
-        Assert.Equal((10L, 0d, 0d, (long?)100L, 2d, 0d, 0.2d, 5.0f, 3.664f, 5.0f),
+        Assert.Equal((10L, 0d, 0d, (long?)100L, 2d, 0d, 0.2d, 5.0f),
             (w.HpPerStamina, w.PowerPerIntellect, w.PowerPerAgility, w.FixedPower, w.AttackPerStrength, w.AttackPerAgility,
-             w.AbilityPerIntellect, w.BaseBlock, w.BaseDodge, w.BaseCrit));
+             w.AbilityPerIntellect, w.BaseCrit));
         ClassStatFactors h = factors[CharacterClass.Hunter];
-        Assert.Equal((8L, 2d, 0.8d, (long?)null, 0.5d, 1.5d, 0.5d, 0f, 4.35f, 5.0f),
+        Assert.Equal((8L, 2d, 0.8d, (long?)null, 0.5d, 1.5d, 0.5d, 5.0f),
             (h.HpPerStamina, h.PowerPerIntellect, h.PowerPerAgility, h.FixedPower, h.AttackPerStrength, h.AttackPerAgility,
-             h.AbilityPerIntellect, h.BaseBlock, h.BaseDodge, h.BaseCrit));
+             h.AbilityPerIntellect, h.BaseCrit));
+    }
+
+    /// <summary>
+    /// #1178 (R17): each hostile creature's defences, authored by its type. Armour carries over unchanged; evasion is new
+    /// on the Blightfly and carries the Elite, Rare and Boss dodge over on the others; Mother Bramble alone has a ward.
+    /// The Husk takes more from fire, and the Blightfly, the Husk and Mother Bramble resist blight.
+    /// </summary>
+    [Theory]
+    [InlineData(4, 1f, 0f, 0f, 0f, 0f, 0f, 0f)]       // Thornback Boar, beast
+    [InlineData(5, 1f, 0f, 0f, 0f, 0f, 0f, 0f)]       // Grey Fen Wolf, beast
+    [InlineData(6, 1f, 0.5f, 0f, 0f, 0f, 0f, 25f)]    // Blightfly Swarmling, critter
+    [InlineData(7, 1f, 0f, 0f, -25f, 0f, 0f, 50f)]    // Husk of the Wold, undead
+    [InlineData(8, 1f, 0.55f, 0f, 0f, 0f, 0f, 0f)]    // Bramblemaw Alpha, beast (Elite)
+    [InlineData(9, 1f, 0.8f, 0f, 0f, 0f, 0f, 0f)]     // Old Tuskroot, beast (Rare)
+    [InlineData(10, 1f, 0.8f, 1f, 0f, 0f, 0f, 40f)]   // Mother Bramble, elemental (Boss)
+    public void Seed_each_creatures_defences_as_re_expressed(int templateId, float armorModifier, float evasionModifier,
+        float wardModifier, float fire, float cold, float lightning, float blight)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        CreatureTemplate t = context.CreatureTemplates.AsNoTracking().AsEnumerable()
+            .Single(c => c.Id.Value == (ulong)templateId);
+        Assert.Equal((armorModifier, evasionModifier, wardModifier, fire, cold, lightning, blight),
+            (t.ArmorModifier, t.EvasionModifier, t.WardModifier, t.FireResistance, t.ColdResistance, t.LightningResistance,
+             t.BlightResistance));
+    }
+
+    /// <summary>
+    /// #1178 (R17): today's chance to dodge becomes the same chance to evade, within half a point, through the seeded
+    /// formula. A class's evasion comes from its bare Agility, against a creature of its level, at levels 1 and 10; the
+    /// forest's Elite, Rare and Boss carry their tier's former dodge as evasion, against a player of their level.
+    /// </summary>
+    [Theory]
+    [InlineData("Warrior", 1, 3.664)]
+    [InlineData("Wizard", 1, 3.25)]
+    [InlineData("Hunter", 1, 4.35)]
+    [InlineData("Cleric", 1, 3.25)]
+    [InlineData("Warrior", 10, 3.664)]
+    [InlineData("Wizard", 10, 3.25)]
+    [InlineData("Hunter", 10, 4.35)]
+    [InlineData("Cleric", 10, 3.25)]
+    [InlineData("Bramblemaw Alpha", 4, 3.0)]
+    [InlineData("Old Tuskroot", 5, 5.0)]
+    [InlineData("Mother Bramble", 5, 5.0)]
+    public void Carry_todays_dodge_chances_over_as_evasion(string who, int level, double todayPct)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        CombatFormula formula = context.CombatFormulas.AsNoTracking().Single();
+        uint evasion;
+        if (Enum.TryParse(who, out CharacterClass @class))
+        {
+            ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable()
+                .Single(s => s.Class == @class && s.Level == level);
+            ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().AsEnumerable().Single(f => f.Class == @class);
+            evasion = CharacterStatsCalculator.Calculate(row, [], factors, formula).Evasion;
+        }
+        else
+        {
+            var deriver = new CreatureStatDeriver(context.CreatureBaseStats.AsNoTracking().ToList(),
+                context.CreatureRarityModifiers.AsNoTracking().ToList(), NullLoggerFactory.Instance);
+            CreatureTemplate template = context.CreatureTemplates.AsNoTracking().AsEnumerable().Single(t => t.Name == who);
+            evasion = deriver.Derive(template, (ushort)level).Evasion;
+        }
+
+        double evadePct = HitResolver.EvasionChance(evasion, (uint)level, formula) * 100d;
+        Assert.InRange(evadePct, todayPct - 0.5, todayPct + 0.5);
     }
     /// <summary>#627: the haste cap and the movement speed bounds, in percentage points.</summary>
     [Fact]

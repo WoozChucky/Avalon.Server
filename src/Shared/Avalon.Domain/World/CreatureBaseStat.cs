@@ -21,4 +21,12 @@ public class CreatureBaseStat
     /// takes. Reloaded with the creatures area.
     /// </summary>
     public uint Armor { get; set; }
+
+    /// <summary>
+    /// Evasion rating at this level (#1178), before the template's EvasionModifier and the rarity's DefenceMultiplier.
+    /// </summary>
+    public uint Evasion { get; set; }
+
+    /// <summary>Maximum ward at this level (#1178), before the template's WardModifier and the rarity's DefenceMultiplier.</summary>
+    public uint Ward { get; set; }
 }

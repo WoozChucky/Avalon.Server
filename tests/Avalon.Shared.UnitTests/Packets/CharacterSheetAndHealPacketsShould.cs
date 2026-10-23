@@ -39,12 +39,18 @@ public class CharacterSheetAndHealPacketsShould
             AttackDamage = 50,
             AbilityDamage = 12,
             CritPct = 5.5f,
-            DodgePct = 30f,
+            EvasionPct = 30f,
             BlockPct = 2.25f,
             WeaponMin = 4,
             WeaponMax = 9,
             HastePct = 3f,
             MovementSpeed = 4.4f,
+            Evasion = 150,
+            MaxWard = 12,
+            FireResistance = 75f,
+            ColdResistance = 10f,
+            LightningResistance = 0.5f,
+            BlightResistance = -30f,
         };
 
         OutboundPacket packet = SCharacterStatsPacket.Create(sheet, PacketEncoder.Shared);
@@ -53,9 +59,13 @@ public class CharacterSheetAndHealPacketsShould
         Assert.Equal(NetworkPacketType.SMSG_CHARACTER_STATS, packet.Header.Type);
         Assert.Equal((22u, 23u, 20u, 21u, 8u, 50u, 12u), (read.Stamina, read.Strength, read.Agility, read.Intellect,
             read.Armor, read.AttackDamage, read.AbilityDamage));
-        Assert.Equal((5.5f, 30f, 2.25f, 4u, 9u), (read.CritPct, read.DodgePct, read.BlockPct, read.WeaponMin, read.WeaponMax));
+        Assert.Equal((5.5f, 2.25f, 4u, 9u), (read.CritPct, read.BlockPct, read.WeaponMin, read.WeaponMax));
         // #627: haste and movement speed, on fields 13 and 14.
         Assert.Equal((3f, 4.4f), (read.HastePct, read.MovementSpeed));
+        // #1178: evasion, its chance, the ward's maximum and the four resistances, on fields 15 to 21; 9 is retired.
+        Assert.Equal((150u, 30f, 12u), (read.Evasion, read.EvasionPct, read.MaxWard));
+        Assert.Equal((75f, 10f, 0.5f, -30f),
+            (read.FireResistance, read.ColdResistance, read.LightningResistance, read.BlightResistance));
     }
 
     /// <summary>The sheet as it was before #627, fields 1 to 12 only.</summary>

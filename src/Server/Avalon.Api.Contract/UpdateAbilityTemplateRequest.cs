@@ -27,4 +27,10 @@ public sealed class UpdateAbilityTemplateRequest
 
     /// <summary>The aura each unit the ability affects receives, or null (auras).</summary>
     public uint? AuraId { get; set; }
+
+    /// <summary>
+    /// The type of damage the ability deals (#1178); null for one that deals none, or a creature's own ability that deals
+    /// its creature's type. A class ability that deals damage names one, and an Ally ability never does.
+    /// </summary>
+    public DamageType? DamageType { get; set; }
 }

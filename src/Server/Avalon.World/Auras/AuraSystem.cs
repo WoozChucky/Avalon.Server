@@ -216,8 +216,10 @@ public sealed class AuraSystem
         }
 
         // Rolled once, here, past every refusal, so a refused aura draws nothing from the combat random.
-        AuraSnapshot snapshot = AuraRules.Snapshot(template, caster is null ? default : CombatService.AttackerFor(caster),
-            _combat.Random);
+        // #1178: its ticks take the source ability's type, else the caster's base type, else Physical.
+        AttackerCombat casterCombat = caster is null ? default : CombatService.AttackerFor(caster);
+        AuraSnapshot snapshot = AuraRules.Snapshot(template, casterCombat,
+            HitResolver.TypeOf(source.DamageType, casterCombat), _combat.Random);
         AuraApplyResult result = Place(target, auras, held, template, casterGuid, source, snapshot, placedMs, scaled,
             now);
 
@@ -882,7 +884,7 @@ public sealed class AuraSystem
     private void RefreshStats(IUnit unit, AuraTemplate template)
     {
         if (template.Modifiers.Count > 0)
-            AuraStatsRefresh.Apply(unit, _data());
+            AuraStatsRefresh.Apply(unit, _data(), _time.GetUtcNow().UtcDateTime);
     }
 
     /// <summary>Whether a refusal is logged now: at most once per ThrottledErrorLog.Interval for each reason and aura.</summary>

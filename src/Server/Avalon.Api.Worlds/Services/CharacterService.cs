@@ -199,10 +199,15 @@ public class CharacterService : ICharacterService
             Intellect = stats.Intellect,
             Armor = stats.Armor,
             BlockPct = stats.BlockPct,
-            DodgePct = stats.DodgePct,
             CritPct = stats.CritPct,
             AttackDamage = stats.AttackDamage,
             AbilityDamage = stats.AbilityDamage,
+            Evasion = stats.Evasion,
+            MaxWard = stats.MaxWard,
+            FireResistance = stats.FireResistance,
+            ColdResistance = stats.ColdResistance,
+            LightningResistance = stats.LightningResistance,
+            BlightResistance = stats.BlightResistance,
         };
     }
 

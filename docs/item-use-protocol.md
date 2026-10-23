@@ -72,6 +72,7 @@ acknowledgement. A connection with no character gets no answer at all.
 | 16 | `InternalError` | Something failed on the server; it is logged. Nothing was consumed and no cooldown started. |
 | 17 | `Stunned` | The character is stunned (crowd control, [aura protocol](aura-protocol.md) section 10): it uses no item, gear included, until the stun ends. A silence refuses no item use. |
 | 18 | `Locked` | The item is offered in a face-to-face trade ([trade protocol](trade-protocol.md) section 6): it is neither used nor worn until it leaves the trade. A cast whose item becomes locked before the bar ends is answered `Interrupted`. |
+| 19 | `AttributesTooLow` | The gear requires more Strength, Agility or Intellect than the character has, as its last stats refresh derived them (gear worn and auras included, so the item a swap would take off still counts) (#1178). |
 
 ## 4. The checks, in order
 
@@ -99,7 +100,7 @@ cooldown, so an item can be used right after an ability and the other way round.
 ## 5. What a use does
 
 **Gear** is equipped exactly as dragging it onto the slot its type is worn in would be: the same rules (level,
-class, two-handed weapons against the off hand) and the same refusals. An occupied slot swaps: the worn item goes
+class, attributes, two-handed weapons against the off hand) and the same refusals. An occupied slot swaps: the worn item goes
 into the clicked Bag slot. A ring takes the empty finger, else the first finger. A two-handed weapon with an
 off-hand item worn first moves that item to the lowest free Bag slot; with none free it is `TargetFull` and nothing
 moves (the clicked slot does not count as free). Equipping refreshes the character's stats as a drag does

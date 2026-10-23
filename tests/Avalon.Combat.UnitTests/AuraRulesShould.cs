@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Public.Abilities;
 
 namespace Avalon.Combat.UnitTests;
@@ -121,14 +122,15 @@ public class AuraRulesShould
     public void Count_the_ticks_of_a_duration(uint duration, uint interval, int expected) =>
         Assert.Equal(expected, AuraRules.TickCount(duration, interval));
 
-    /// <summary>12 + 0.25 x 46 = 23.5, split over 4 ticks; the caster's crit and level go with it.</summary>
+    /// <summary>12 + 0.25 x 46 = 23.5, split over 4 ticks; the caster's crit and level, and the ticks' type, go with it.</summary>
     [Fact]
     public void Snapshot_the_total_from_the_casters_stat_and_split_it_over_the_ticks()
     {
-        AuraSnapshot snapshot = AuraRules.Snapshot(Bleed(), new AttackerCombat(3, 46, 69, 7.5f, 4, 7), NoRoll.Instance);
+        AuraSnapshot snapshot = AuraRules.Snapshot(Bleed(), new AttackerCombat(3, 46, 69, 7.5f, 4, 7), DamageType.Fire,
+            NoRoll.Instance);
 
-        Assert.Equal(new AuraSnapshot(5.875f, 7.5f, 3), snapshot);
-        Assert.Equal(new AttackerCombat(3, 0, 0, 7.5f, 0, 0), snapshot.Attacker);
+        Assert.Equal(new AuraSnapshot(5.875f, 7.5f, 3, DamageType.Fire), snapshot);
+        Assert.Equal(new AttackerCombat(3, 0, 0, 7.5f, 0, 0, DamageType.Fire), snapshot.Attacker);
     }
 
     /// <summary>24 + 0.6 x 69 = 65.4, over 3 ticks.</summary>
@@ -141,7 +143,7 @@ public class AuraRulesShould
         burn.ScalingStat = ScalingStat.Ability;
         burn.ScalingCoefficient = 0.6f;
 
-        Assert.Equal(21.8f, AuraRules.Snapshot(burn, new AttackerCombat(1, 0, 69, 0f, 0, 0), NoRoll.Instance).PerTickPerStack, precision: 4);
+        Assert.Equal(21.8f, AuraRules.Snapshot(burn, new AttackerCombat(1, 0, 69, 0f, 0, 0), DamageType.Physical, NoRoll.Instance).PerTickPerStack, precision: 4);
     }
 
     [Fact]
@@ -151,7 +153,7 @@ public class AuraRulesShould
         fortified.PeriodicKind = AuraPeriodicKind.None;
         fortified.TickIntervalMs = 0;
 
-        Assert.Equal(0f, AuraRules.Snapshot(fortified, new AttackerCombat(1, 46, 0, 5f, 0, 0), NoRoll.Instance).PerTickPerStack);
+        Assert.Equal(0f, AuraRules.Snapshot(fortified, new AttackerCombat(1, 46, 0, 5f, 0, 0), DamageType.Physical, NoRoll.Instance).PerTickPerStack);
     }
 
     /// <summary>
@@ -168,7 +170,7 @@ public class AuraRulesShould
         poison.BaseDamageCoefficient = 1f;
         var rng = new FixedRoll(7);
 
-        AuraSnapshot snapshot = AuraRules.Snapshot(poison, new AttackerCombat(4, 0, 0, 5f, 5, 9), rng);
+        AuraSnapshot snapshot = AuraRules.Snapshot(poison, new AttackerCombat(4, 0, 0, 5f, 5, 9), DamageType.Physical, rng);
 
         Assert.Equal(10f / 3f, snapshot.PerTickPerStack, precision: 4);
         Assert.Equal([(5L, 9L)], rng.Draws);
@@ -185,10 +187,10 @@ public class AuraRulesShould
         AuraTemplate unarmed = Bleed();
         unarmed.BaseDamageCoefficient = 1f;
 
-        AuraRules.Snapshot(noCoefficient, new AttackerCombat(1, 46, 0, 0f, 4, 7), NoRoll.Instance);
-        AuraRules.Snapshot(statOnly, new AttackerCombat(1, 46, 0, 0f, 4, 7), NoRoll.Instance);
+        AuraRules.Snapshot(noCoefficient, new AttackerCombat(1, 46, 0, 0f, 4, 7), DamageType.Physical, NoRoll.Instance);
+        AuraRules.Snapshot(statOnly, new AttackerCombat(1, 46, 0, 0f, 4, 7), DamageType.Physical, NoRoll.Instance);
         // The assertion is that none of these snapshots draws: NoRoll throws on any draw.
-        float unarmedTick = AuraRules.Snapshot(unarmed, new AttackerCombat(1, 46, 0, 0f, 0, 0), NoRoll.Instance).PerTickPerStack;
+        float unarmedTick = AuraRules.Snapshot(unarmed, new AttackerCombat(1, 46, 0, 0f, 0, 0), DamageType.Physical, NoRoll.Instance).PerTickPerStack;
 
         Assert.Equal(5.875f, unarmedTick);
     }

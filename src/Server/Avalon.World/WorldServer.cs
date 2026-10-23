@@ -10,7 +10,6 @@ using Avalon.Common.GameAuth;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
-using Avalon.Domain.World;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.Telemetry;
 using Avalon.Infrastructure;
@@ -967,10 +966,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         // The character sheet (#506), to its owner only, when a value it shows changed this tick: a gear
         // change, a level-up, or a combat reload applied at the top of the world update that moved a cap.
-        // The formula is read once, so every connection is measured against the same caps.
-        CombatFormula formula = _world.Data.Combat.Formula;
+        // The combat generation is read once, so every connection is measured against the same caps.
+        CombatPatch combat = _world.Data.Combat;
         for (int i = 0; i < conns.Length; i++)
-            CharacterSheetFlusher.Flush(conns[i], formula);
+            CharacterSheetFlusher.Flush(conns[i], combat);
         stageStart = StageDone(stageStart, s_sheetStage);
 
         // Each ability's per-hit amount (#669), in the same flush as the sheet whose stats moved it.

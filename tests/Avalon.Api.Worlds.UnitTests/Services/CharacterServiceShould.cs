@@ -256,7 +256,6 @@ public class CharacterServiceShould
             Intellect = 20,
             Armor = 12,
             BlockPct = 5f,
-            DodgePct = 3.664f,
             CritPct = 5.5f,
             AttackDamage = 54,
             AbilityDamage = 4,
@@ -275,7 +274,6 @@ public class CharacterServiceShould
         Assert.Equal(20u, dto.Intellect);
         Assert.Equal(12u, dto.Armor);
         Assert.Equal(5f, dto.BlockPct);
-        Assert.Equal(3.664f, dto.DodgePct);
         Assert.Equal(5.5f, dto.CritPct);
         Assert.Equal(54u, dto.AttackDamage);
         Assert.Equal(4u, dto.AbilityDamage);

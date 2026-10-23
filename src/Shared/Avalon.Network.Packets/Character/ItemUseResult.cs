@@ -56,4 +56,7 @@ public enum ItemUseResult : byte
 
     /// <summary>The item is offered in a trade (#1175): it is neither used nor worn until it leaves the trade.</summary>
     Locked = 18,
+
+    /// <summary>The character's attributes are below what the item requires to be worn (#1178).</summary>
+    AttributesTooLow = 19,
 }

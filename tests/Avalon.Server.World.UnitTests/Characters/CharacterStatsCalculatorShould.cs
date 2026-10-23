@@ -25,7 +25,7 @@ public class CharacterStatsCalculatorShould
     }
 
     private static DerivedCharacterStats Calc(ClassLevelStat row, IEnumerable<ItemTemplate> worn)
-        => CharacterStatsCalculator.Calculate(row, worn, TestCombat.FactorsOf(row.Class));
+        => CharacterStatsCalculator.Calculate(row, worn, TestCombat.FactorsOf(row.Class), TestCombat.Formula);
 
     [Theory]
     [InlineData(CharacterClass.Warrior, 1, 240u, 100u, 46u, 4u)]
@@ -51,7 +51,6 @@ public class CharacterStatsCalculatorShould
         Assert.Equal(ability, stats.AbilityDamage);
         Assert.Equal((row.Stamina, row.Strength, row.Agility, row.Intellect),
             (stats.Stamina, stats.Strength, stats.Agility, stats.Intellect));
-        Assert.Equal(0u, stats.Armor);
     }
 
     /// <summary>
@@ -69,15 +68,47 @@ public class CharacterStatsCalculatorShould
     }
 
     [Theory]
-    [InlineData(CharacterClass.Warrior, 5.0f, 3.664f, 5.0f)]
-    [InlineData(CharacterClass.Wizard, 0f, 3.25f, 1.85f)]
-    [InlineData(CharacterClass.Hunter, 0f, 4.35f, 5.0f)]
-    [InlineData(CharacterClass.Cleric, 0f, 3.25f, 1.85f)]
-    public void Start_each_class_at_its_base_block_dodge_and_crit(CharacterClass @class, float block, float dodge, float crit)
+    [InlineData(CharacterClass.Warrior, 5.0f)]
+    [InlineData(CharacterClass.Wizard, 1.85f)]
+    [InlineData(CharacterClass.Hunter, 5.0f)]
+    [InlineData(CharacterClass.Cleric, 1.85f)]
+    public void Start_each_class_at_its_base_crit(CharacterClass @class, float crit)
     {
-        DerivedCharacterStats stats = Calc(SeededRow(@class, 1), []);
+        Assert.Equal(crit, Calc(SeededRow(@class, 1), []).CritPct);
+    }
 
-        Assert.Equal((block, dodge, crit), (stats.BlockPct, stats.DodgePct, stats.CritPct));
+    /// <summary>
+    /// #1178: defence is class-neutral. Armour, evasion and ward are gear plus Strength, Agility and Intellect times the
+    /// combat formula's conversions, each product truncated once; block and resistances come from gear alone. A level-1
+    /// Warrior is Strength 23, Agility 20, Intellect 20.
+    /// </summary>
+    [Theory]
+    [InlineData(false, 2u, 2u, 5u, 0f)]
+    [InlineData(true, 15u, 9u, 9u, 10f)]
+    public void Turn_attributes_and_gear_into_armour_evasion_ward_and_resistances(
+        bool geared, uint armor, uint evasion, uint ward, float fire)
+    {
+        var formula = new CombatFormula { ArmorPerStrength = 0.1f, EvasionPerAgility = 0.1f, WardPerIntellect = 0.25f };
+        var robe = new ItemTemplate
+        {
+            Id = new ItemTemplateId(703),
+            Name = "Robe",
+            Slot = ItemSlotType.Chest,
+            StatType1 = StatType.Armor,
+            StatValue1 = 13,
+            StatType2 = StatType.Evasion,
+            StatValue2 = 7,
+            StatType3 = StatType.Ward,
+            StatValue3 = 4,
+            StatType4 = StatType.FireResistance,
+            StatValue4 = 10,
+        };
+
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Warrior, 1),
+            geared ? [robe] : [], TestCombat.FactorsOf(CharacterClass.Warrior), formula);
+
+        Assert.Equal((armor, evasion, ward, 0f), (stats.Armor, stats.Evasion, stats.MaxWard, stats.BlockPct));
+        Assert.Equal(new Resistances(fire, 0f, 0f, 0f), stats.Resistances);
     }
 
     [Fact]
@@ -91,7 +122,7 @@ public class CharacterStatsCalculatorShould
         Assert.Equal(25u, stats.Strength);
         Assert.Equal(20u + 24u * 10u, stats.MaxHealth);
         Assert.Equal(50u, stats.AttackDamage);
-        Assert.Equal(8u, stats.Armor);
+        Assert.Equal(8u + 2u, stats.Armor);   // and Strength 25 x 0.1
     }
 
     [Fact]
@@ -169,22 +200,24 @@ public class CharacterStatsCalculatorShould
             StatValue5 = null,
         };
 
-        Assert.Equal(3u, Calc(SeededRow(CharacterClass.Hunter, 1), [trinket]).Armor);
+        Assert.Equal(3u + 2u, Calc(SeededRow(CharacterClass.Hunter, 1), [trinket]).Armor);   // and Strength 21 x 0.1
     }
 
     [Fact]
     public void Write_every_value_to_the_character_stats_row()
     {
         DerivedCharacterStats stats = new(MaxHealth: 260, MaxPower: 100, Stamina: 24, Strength: 25, Agility: 20,
-            Intellect: 20, Armor: 8, BlockPct: 5f, DodgePct: 3.664f, CritPct: 5f, AttackDamage: 50, AbilityDamage: 4);
+            Intellect: 20, Armor: 8, BlockPct: 5f, Evasion: 4, CritPct: 5f, AttackDamage: 50, AbilityDamage: 4, MaxWard: 6,
+            Resistances: new Resistances(11f, 12f, 13f, 14f));
 
         CharacterStats row = stats.ToRow(new CharacterId(7));
 
         Assert.Equal(new CharacterId(7), row.CharacterId);
         Assert.Equal((260u, 100u, 0u), (row.MaxHealth, row.MaxPower1, row.MaxPower2));
         Assert.Equal((24u, 25u, 20u, 20u), (row.Stamina, row.Strength, row.Agility, row.Intellect));
-        Assert.Equal((8u, 5f, 3.664f, 5f), (row.Armor, row.BlockPct, row.DodgePct, row.CritPct));
-        Assert.Equal((50u, 4u), (row.AttackDamage, row.AbilityDamage));
+        Assert.Equal((8u, 5f, 5f), (row.Armor, row.BlockPct, row.CritPct));
+        Assert.Equal((50u, 4u, 4u, 6u, 11f, 12f, 13f, 14f), (row.AttackDamage, row.AbilityDamage, row.Evasion, row.MaxWard,
+            row.FireResistance, row.ColdResistance, row.LightningResistance, row.BlightResistance));
     }
 
     /// <summary>Review Focus 3: a gear change never kills, revives or overfills.</summary>

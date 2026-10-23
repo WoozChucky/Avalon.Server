@@ -3,6 +3,7 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Xunit;
@@ -211,7 +212,7 @@ public class TemplateVersionShould
         Modifiers =
         [
             new AuraStatModifier { AuraId = new AuraId(3), Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 10f },
-            new AuraStatModifier { AuraId = new AuraId(3), Stat = AuraStat.DodgePct, Kind = AuraModifierKind.Flat, Value = 2f },
+            new AuraStatModifier { AuraId = new AuraId(3), Stat = AuraStat.Evasion, Kind = AuraModifierKind.Flat, Value = 2f },
         ],
     };
 

@@ -105,5 +105,7 @@ public sealed class ObjectStatePool
         state.AbilityId = null;
         state.CasterGuid = null;
         state.CastId = null;
+        state.Ward = null;
+        state.MaxWard = null;
     }
 }

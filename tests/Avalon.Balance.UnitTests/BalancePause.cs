@@ -1,0 +1,7 @@
+namespace Avalon.Balance.UnitTests;
+
+internal static class BalancePause
+{
+    public const string Reason =
+        "Balance simulator paused during the itemization and build overhaul; re-sync tracked in #1183.";
+}

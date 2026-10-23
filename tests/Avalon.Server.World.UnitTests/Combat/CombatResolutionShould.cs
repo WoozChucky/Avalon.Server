@@ -118,8 +118,8 @@ public class CombatResolutionShould
         return cleave;
     }
 
-    /// <summary>Arcane Bolt's scaling on a cone (#506): 12 + 0.25 x AbilityDamage, no weapon term.</summary>
-    private static AbilityTemplate ArcaneCone()
+    /// <summary>Spark Bolt's scaling on a cone (#506): 12 + 0.25 x AbilityDamage, no weapon term.</summary>
+    private static AbilityTemplate SparkCone()
     {
         AbilityTemplate bolt = AbilityTestData.Cone(210, reach: 6f, arc: 100f);
         bolt.EffectValue = 12;
@@ -144,7 +144,7 @@ public class CombatResolutionShould
     private static ItemTemplate? Find(ItemTemplateId id) => s_templates.GetValueOrDefault(id);
 
     private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, uint health = 100,
-        uint armor = 0, float dodge = 0f, float block = 0f, ushort level = 1)
+        uint armor = 0, uint evasion = 0, float block = 0f, ushort level = 1)
     {
         var creature = new Creature
         {
@@ -154,7 +154,7 @@ public class CombatResolutionShould
             Health = health,
             CurrentHealth = health,
             Armor = armor,
-            DodgePct = dodge,
+            Evasion = evasion,
             BlockPct = block,
             Level = level,
         };
@@ -238,7 +238,7 @@ public class CombatResolutionShould
         wizard.PowerType = PowerType.Mana;
         wizard.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.MainHand, s_staff)]);
         Assert.True(CharacterStatsRefresh.Apply(wizard, s_rows, TestCombat.Factors, Find, CurrentValues.Refill, TestCombat.Formula));
-        wizard.Spells.Load([AbilityTestData.Game(ArcaneCone())]);
+        wizard.Spells.Load([AbilityTestData.Game(SparkCone())]);
         Creature target = AddCreature(instance, 506_921, new Vector3(0f, 0f, 2f));
 
         handler.Execute(caster.Connection, new CCastAbilityPacket { AbilityId = 210 });
@@ -263,8 +263,8 @@ public class CombatResolutionShould
 
         instance.CombatService.ApplyDamage(boar, warrior.Character, 10);
 
-        // floor(10 x (1 - 24 / (24 + 50 + 10 x 3))) = floor(7.69)
-        Assert.Equal(before - 7u, warrior.Character.CurrentHealth);
+        // floor(10 x (1 - 24 / (24 + 50 + 10 x 3))) = floor(7.69), of which the ward from Intellect 20 takes 5 (#1178)
+        Assert.Equal(before - 2u, warrior.Character.CurrentHealth);
     }
 
     [Fact]
@@ -290,7 +290,7 @@ public class CombatResolutionShould
         var rng = new ScriptedCombatRandom(0.0);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, random: rng);
         MapInstanceClient warrior = Warrior(instance, 506_151, weapon: null, Cleave());
-        Creature target = AddCreature(instance, 506_951, new Vector3(0f, 0f, 2f), dodge: 30f);
+        Creature target = AddCreature(instance, 506_951, new Vector3(0f, 0f, 2f), evasion: 10000);
 
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 200 });
 
@@ -331,7 +331,7 @@ public class CombatResolutionShould
 
         instance.CombatService.ApplyHeal(healer.Character, ally.Character, 40, AbilityTestData.Game(mending));
 
-        // Ability damage 4: floor((40 + 0.6 x 4) x 1.5) = 63, and the armour 24 takes none of it.
+        // Ability damage 4: floor((40 + 0.6 x 4) x 1.5) = 63, and the armour (24, and 2 from Strength) takes none of it.
         Assert.Equal(10u + 63u, ally.Character.CurrentHealth);
         Assert.Equal(1, rng.DoublesDrawn);
     }
@@ -353,9 +353,10 @@ public class CombatResolutionShould
 
         instance.CombatService.ApplyDamage(boar, warrior.Character, 100);
 
-        // floor(100 x (1 - 24 / 84)) = 71 lost of 240
-        Assert.Equal(before - 71u, warrior.Character.CurrentHealth);
-        Assert.Equal(Fury.FromDamageTaken(71, before, warrior.Character.Health, 50f), warrior.Character.CurrentPower);
+        // Armour 24 and 2 from Strength (#1178): floor(100 x (1 - 26 / 86)) = 69, of which the ward from Intellect 20
+        // takes 5: 64 lost of 240, and Fury from those
+        Assert.Equal(before - 64u, warrior.Character.CurrentHealth);
+        Assert.Equal(Fury.FromDamageTaken(64, before, warrior.Character.Health, 50f), warrior.Character.CurrentPower);
     }
 
     [Fact]
@@ -438,9 +439,9 @@ public class CombatResolutionShould
         warrior.Character.CurrentPower = 0;
         Creature[] targets =
         [
-            AddCreature(instance, 506_901_1, new Vector3(0f, 0f, 1.0f), dodge: 30f),
-            AddCreature(instance, 506_901_2, new Vector3(0f, 0f, 1.6f), dodge: 30f),
-            AddCreature(instance, 506_901_3, new Vector3(0f, 0f, 2.2f), dodge: 30f),
+            AddCreature(instance, 506_901_1, new Vector3(0f, 0f, 1.0f), evasion: 10000),
+            AddCreature(instance, 506_901_2, new Vector3(0f, 0f, 1.6f), evasion: 10000),
+            AddCreature(instance, 506_901_3, new Vector3(0f, 0f, 2.2f), evasion: 10000),
         ];
 
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 200 });

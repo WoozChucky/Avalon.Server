@@ -236,8 +236,28 @@ public static class ObjectStateWriter
             state.IsDead = unit is ICharacter character ? character.IsDead : unit.CurrentHealth == 0;
         }
 
+        // The ward and its maximum travel together (#1178): a change to either sends both, so a client always holds the pair
+        // its ward bar is drawn from. A unit with no ward pays only on its add and when its ward or its maximum changes.
+        if (Has(fields, GameEntityFields.Ward) || Has(fields, GameEntityFields.MaxWard))
+        {
+            (uint ward, uint maxWard) = WardOf(unit);
+            state.Ward = ward;
+            state.MaxWard = maxWard;
+        }
+
         return state;
     }
+
+    /// <summary>
+    /// What a unit's ward holds and what a full one holds (#1178). Both live World-side, not on IUnit, so no mod can change
+    /// what a unit advertises; a unit that is neither a character nor a creature has no ward.
+    /// </summary>
+    private static (uint Ward, uint MaxWard) WardOf(IUnit unit) => unit switch
+    {
+        CharacterEntity character => (character.Ward, character.MaxWard),
+        Creature creature => (creature.Ward, creature.MaxWard),
+        _ => (0u, 0u),
+    };
 
     private static void AddPlacement(ObjectState state, IWorldObject worldObject, GameEntityFields fields,
         ObjectStatePool? pool)

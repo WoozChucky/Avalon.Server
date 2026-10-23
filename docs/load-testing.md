@@ -511,7 +511,7 @@ half a second on the thread pool, do not all land at once. A trip:
    from its [world-state table](#the-world-state-table) and walks at it. Within its basic ability's reach, less a
    margin (1 m, or a fifth of a shorter reach: a creature holds its station 1.5 m from what it fights, so a warrior
    stops at 2 m), it stands facing the creature and casts every 0.85 s (the basic abilities' 0.8 s cooldown and a
-   margin), aimed at the creature's position: warrior Cleave (200, 2.5 m), wizard Arcane Bolt (210, 20 m), hunter
+   margin), aimed at the creature's position: warrior Cleave (200, 2.5 m), wizard Spark Bolt (210, 20 m), hunter
    Quick Shot (220, 25 m), cleric Smite (230, 18 m); the class is `index % 4 + 1`. The abilities cost nothing. With no
    creature in sight it walks north, away from the entry. Up to eight creatures it cast at are watched, and each is
    counted as a **kill** when the table shows it dead (a creature several fighters cast at counts for each of them);

@@ -3,6 +3,7 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Abilities;
 using Avalon.World.Public.Enums;
 
@@ -35,6 +36,7 @@ internal static class AbilityTestData
         Effects = SpellEffect.Damage,
         EffectValue = 10,
         AllowedClasses = [CharacterClass.Warrior],
+        DamageType = DamageType.Physical,
     };
 
     public static AbilityTemplate AimedCircle(uint id, float reach = 15f, float radius = 3f) => new()
@@ -50,6 +52,7 @@ internal static class AbilityTestData
         Effects = SpellEffect.Damage,
         EffectValue = 10,
         AllowedClasses = [CharacterClass.Wizard],
+        DamageType = DamageType.Physical,
     };
 
     public static AbilityTemplate HealCircle(uint id, float reach = 15f, float radius = 4f) => new()
@@ -82,6 +85,7 @@ internal static class AbilityTestData
             Effects = SpellEffect.Damage,
             EffectValue = 10,
             AllowedClasses = [CharacterClass.Warrior],
+            DamageType = DamageType.Physical,
         };
 
     public static AbilityTemplate Projectile(uint id, float reach = 20f, float speed = 20f, bool pierce = false) => new()
@@ -97,5 +101,6 @@ internal static class AbilityTestData
         Effects = SpellEffect.Damage,
         EffectValue = 10,
         AllowedClasses = [CharacterClass.Hunter],
+        DamageType = DamageType.Physical,
     };
 }

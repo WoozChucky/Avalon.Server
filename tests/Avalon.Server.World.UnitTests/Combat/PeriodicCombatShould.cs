@@ -37,13 +37,14 @@ public class PeriodicCombatShould
             random: ScriptedCombatRandom.Plain());
     }
 
-    private static Creature Boar(uint health = 100, uint armor = 0) => new()
+    private static Creature Boar(uint health = 100, uint armor = 0, uint ward = 0) => new()
     {
         Guid = new ObjectGuid(ObjectType.Creature, 908_901),
         Level = 1,
         Health = health,
         CurrentHealth = health,
         Armor = armor,
+        BaseWard = ward,
     };
 
     private static CharacterEntity Warrior(uint id = 908_101)
@@ -68,7 +69,7 @@ public class PeriodicCombatShould
 
         Assert.Equal(10u, dealt);
         Assert.Equal(90u, boar.CurrentHealth);
-        _outcomes.Received(1).PeriodicTick(warrior, boar, 10u, s_bleed, HitResult.None, false);
+        _outcomes.Received(1).PeriodicTick(warrior, boar, 10u, s_bleed, new HitReport(HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 0u), false);
     }
 
     [Fact]
@@ -87,15 +88,18 @@ public class PeriodicCombatShould
         Assert.True(warrior.IsInCombat);
     }
 
-    /// <summary>A tick from a caster that is gone kills, and nobody is credited.</summary>
+    /// <summary>
+    /// A tick from a caster that is gone kills, and nobody is credited. A bleed passes the ward, and death empties it
+    /// (#1178).
+    /// </summary>
     [Fact]
     public void Kill_with_a_tick_from_nobody_and_credit_nobody()
     {
-        Creature boar = Boar(health: 15);
+        Creature boar = Boar(health: 15, ward: 30);
 
         _combat.ApplyPeriodicDamage(Tick(caster: null, boar));
 
-        Assert.Equal(0u, boar.CurrentHealth);
+        Assert.Equal((0u, 0u), (boar.CurrentHealth, boar.Ward));
         _outcomes.Received(1).CreatureKilled(boar, null);
         _outcomes.Received(1).UnitDied(boar);
         Assert.Null(_combat.GetEncounterFor(boar));
@@ -138,7 +142,7 @@ public class PeriodicCombatShould
         Assert.Equal(450u, warrior.CurrentHealth);
         Assert.Equal(5u, warrior.CurrentPower);   // floor(50 / 500 x 50)
         Assert.True(warrior.IsInCombat);
-        _outcomes.Received(1).PeriodicTick(null, warrior, 50u, s_bleed, HitResult.None, false);
+        _outcomes.Received(1).PeriodicTick(null, warrior, 50u, s_bleed, new HitReport(HitResult.None, DamageType.Physical, DamageTypeMask.Physical, 0u), false);
     }
 
     [Fact]
@@ -163,7 +167,7 @@ public class PeriodicCombatShould
 
         Assert.Equal(10u, restored);
         Assert.Equal(500u, target.CurrentHealth);
-        _outcomes.Received(1).PeriodicTick(healer, target, 10u, s_bleed, HitResult.None, true);
+        _outcomes.Received(1).PeriodicTick(healer, target, 10u, s_bleed, HitReport.None, true);
     }
 
     [Fact]
@@ -222,7 +226,7 @@ public class PeriodicCombatShould
 
         Assert.Equal([0u, 1u], new[] { first, second });
         Assert.Equal(401u, target.CurrentHealth);
-        _outcomes.Received(1).PeriodicTick(null, target, 1u, s_bleed, HitResult.None, true);
+        _outcomes.Received(1).PeriodicTick(null, target, 1u, s_bleed, HitReport.None, true);
     }
 
     [Fact]
@@ -254,7 +258,7 @@ public class PeriodicCombatShould
             Level = 1,
             Health = 100,
             CurrentHealth = 100,
-            DodgePct = 30f,
+            Evasion = 10000,
         };
         boar.Script = new RecordingAiScript(boar);
         var random = new ScriptedCombatRandom(0.0);

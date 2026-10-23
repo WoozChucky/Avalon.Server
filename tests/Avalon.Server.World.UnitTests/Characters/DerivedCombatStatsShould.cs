@@ -9,7 +9,7 @@ public class DerivedCombatStatsShould
 {
     private static readonly DerivedCharacterStats s_warrior =
         new(MaxHealth: 240, MaxPower: 100, Stamina: 22, Strength: 23, Agility: 20, Intellect: 20, Armor: 24,
-            BlockPct: 5f, DodgePct: 3.664f, CritPct: 5f, AttackDamage: 46, AbilityDamage: 4, WeaponMin: 7, WeaponMax: 11,
+            BlockPct: 5f, Evasion: 4, CritPct: 5f, AttackDamage: 46, AbilityDamage: 4, WeaponMin: 7, WeaponMax: 11,
             HastePct: 80f);
 
     [Fact]

@@ -70,7 +70,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     /// <summary>
     /// A Hostile ability's hit on one unit (#1164), answering how it went: only a hit that landed applies the ability's aura.
-    /// It rolls whether it lands, the target's dodge chance, unless the ability is Unavoidable; then deals its damage (its
+    /// It rolls whether it lands, the target's chance to evade, unless the ability is Unavoidable; then deals its damage (its
     /// EffectValue, scaled, as <see cref="ApplyDamage(IUnit, IUnit, uint, IAbility)" />) when its Effects has Damage. One
     /// with no damage draws that roll alone and counts as combat either way, as a dodge does, whether or not its aura then
     /// sticks: the encounter forms, a creature's script is told it was attacked, both are tagged in combat, no threat is
@@ -88,13 +88,15 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // The same targets ApplyDamageCore returns early for, before any draw.
         if (IgnoresHits(target)) return HitOutcome.Ignored;
-        if (unavoidable || !HitResolver.Dodges(DefenderOf(target), _formula(), _random))
+        if (unavoidable || !HitResolver.Evades(DefenderOf(target), attacker.Level, _formula(), _random))
         {
             EnterCombatForNothing(attacker, target);
             return HitOutcome.Landed;
         }
 
-        Dodged(attacker, target, 0f, ability.AbilityId);
+        // It would have dealt nothing, so it carried no type (#1178), though it is named by its own.
+        Dodged(attacker, target, 0f, ability.AbilityId, HitResolver.TypeOf(metadata.DamageType, AttackerOf(attacker)),
+            DamageTypeMask.None);
         return HitOutcome.Dodged;
     }
 
@@ -107,7 +109,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// The ability that hit, or null for a swing: it scales the base, multiplies the threat, names the hit to
     /// the character hit, and gives its PowerGainPerHit to the caster per unit damaged (#526).
     /// </param>
-    /// <param name="unavoidable">An Unavoidable ability's hit (#1164): it draws no dodge roll.</param>
+    /// <param name="unavoidable">An Unavoidable ability's hit (#1164): it draws no evasion roll.</param>
     private HitOutcome ApplyDamageCore(IUnit attacker, IUnit target, uint damage, IAbility? ability,
         bool unavoidable = false)
     {
@@ -138,8 +140,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             ? damage
             : HitResolver.AbilityBase(attackerCombat, damage, metadata.ScalingStat, metadata.ScalingCoefficient,
                 metadata.BaseDamageCoefficient, _random);
-        (uint dealt, HitResult result) =
-            HitResolver.ResolveDamage(attackerCombat, DefenderOf(target), baseDamage, formula, _random, unavoidable);
+        // #1178: the hit's type is its ability's, else the attacker's base type.
+        var parts = DamageParts.Of(HitResolver.TypeOf(metadata?.DamageType, attackerCombat), baseDamage);
+        HitDamage hit = HitResolver.ResolveDamage(attackerCombat, DefenderOf(target), parts, formula, _random, unavoidable);
+        HitResult result = hit.Result;
 
         float threatMultiplier = metadata?.ThreatMultiplier ?? 1.0f;
         AbilityId? abilityId = ability?.AbilityId;
@@ -147,15 +151,28 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         if ((result & HitResult.Dodged) != 0)
         {
-            Dodged(attacker, target, baseDamage * threatMultiplier, abilityId);
+            Dodged(attacker, target, baseDamage * threatMultiplier, abilityId, hit.Type, hit.Types);
             return HitOutcome.Dodged;
         }
 
-        // Everything below reads the resolved damage (#506): threat, the hit, the gain and the PvP reset.
-        damage = dealt;
+        // Everything below reads the resolved damage (#506): threat, the hit, the gain and the PvP reset read the whole
+        // hit, the ward's part included (#1178).
+        damage = hit.Total;
         // Staff testing still resolves and reports the hit, forms an encounter, and tags combat.
         // Only its health loss and effects that require positive damage are suppressed.
         if (target is CharacterEntity { GodMode: true, IsDead: false }) damage = 0;
+
+        // #1178: the ward takes what it may (all but blight) before life, and any damage pauses its recharge. The clock is
+        // read only for a target with a ward that took damage: anything else leaves the ward as it is.
+        uint absorbed = 0u;
+        if (damage > 0 && HasWard(target))
+        {
+            DateTime now = _time.GetUtcNow().UtcDateTime;
+            absorbed = AbsorbWithWard(target, Math.Min(hit.Absorbable, damage), now);
+            WardDamaged(target, now);
+        }
+
+        var report = new HitReport(result, hit.Type, hit.Types, absorbed);
 
         // #164: a player-on-player hit that deals damage to a living player restarts both players'
         // running PvP off timers. Towns are covered because AbilityEffect checks Hostility before it
@@ -184,7 +201,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // Damage application — IUnit.OnHit mutates HP / sets death flags. A character is also told
         // which ability hit it, or none for a swing (#521 item 8).
-        Hit(attacker, target, damage, abilityId, result);
+        Hit(attacker, target, damage, damage - absorbed, abilityId, report);
 
         // #770: a hit that dealt something to a unit it left alive may break the crowd control it holds, by chance.
         if (damage > 0 && !AuraSystem.IsDead(target))
@@ -214,36 +231,38 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// its script brought from above 0 to 0 health is killed: once, here, before the caller's encounter
     /// death and death broadcast.
     /// </summary>
-    private void Hit(IUnit attacker, IUnit target, uint damage, AbilityId? abilityId, HitResult result)
+    /// <param name="damage">The whole hit, the ward's part included: what the character is told it took.</param>
+    /// <param name="life">What is left for health once the ward took its part (#1178).</param>
+    private void Hit(IUnit attacker, IUnit target, uint damage, uint life, AbilityId? abilityId, in HitReport report)
     {
         if (target is CharacterEntity character)
         {
             bool wasDead = character.IsDead;
             uint characterHealthBefore = character.CurrentHealth;
-            character.OnHit(attacker, damage);
+            character.OnHit(attacker, life);
             if (!wasDead)
             {
                 GainFuryFromDamage(character, characterHealthBefore);
-                _outcomes?.CharacterDamaged(character, attacker, damage, abilityId, result);
+                _outcomes?.CharacterDamaged(character, attacker, damage, abilityId, report);
             }
             return;
         }
 
         // A creature's script is handed at most the health it has left, so a script that subtracts
-        // the damage it is given cannot wrap its uint health past 0 (#588). Threat above still counts
-        // the whole hit.
+        // the damage it is given cannot wrap its uint health past 0 (#588), and only the part its ward left
+        // (#1178): a hit the ward took whole hands it 0. Threat above still counts the whole hit.
         uint healthBefore = target.CurrentHealth;
 
         // The creature script broadcasts the hit itself; for exactly the length of its OnHit the instance
-        // marks that broadcast with how the hit went (#506).
-        if (_outcomes is not null) _outcomes.HitInFlight = result;
+        // marks that broadcast with how the hit went (#506) and adds the ward's part back (#1178).
+        if (_outcomes is not null) _outcomes.HitInFlight = report;
         try
         {
-            target.OnHit(attacker, target is ICreature ? Math.Min(damage, healthBefore) : damage);
+            target.OnHit(attacker, target is ICreature ? Math.Min(life, healthBefore) : life);
         }
         finally
         {
-            if (_outcomes is not null) _outcomes.HitInFlight = HitResult.None;
+            if (_outcomes is not null) _outcomes.HitInFlight = HitReport.None;
         }
 
         if (target is ICreature creature && healthBefore > 0 && creature.CurrentHealth == 0)
@@ -270,14 +289,15 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// attacked (<c>AiScript.OnAttacked</c>) so it engages. It deals nothing, so the script is not hit,
     /// nobody gains power, and nobody dies.
     /// </summary>
-    private void Dodged(IUnit attacker, IUnit target, float baseThreat, AbilityId? abilityId)
+    private void Dodged(IUnit attacker, IUnit target, float baseThreat, AbilityId? abilityId, DamageType type,
+        DamageTypeMask types)
     {
         Encounter enc = ResolveOrSpawn(attacker, target);
 
         // Sent like a hit, with 0, to whoever would have seen it land; a dead character is sent nothing,
         // as a hit on it would not be.
         if (target is not ICharacter { IsDead: true })
-            _outcomes?.HitDodged(attacker, target, abilityId);
+            _outcomes?.HitDodged(attacker, target, abilityId, type, types);
 
         if (target is ICreature creature)
         {
@@ -319,6 +339,34 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         Creature creature => creature.Defence,
         _ => default,
     };
+
+    /// <summary>Whether a unit has a ward (#1178): a maximum above 0. Without one, absorbing and pausing do nothing.</summary>
+    private static bool HasWard(IUnit unit) => unit switch
+    {
+        CharacterEntity character => character.MaxWard > 0,
+        Creature creature => creature.MaxWard > 0,
+        _ => false,
+    };
+
+    /// <summary>
+    /// What a unit's ward takes of <paramref name="absorbable" /> (#1178); a unit that is neither a character nor a creature
+    /// has none.
+    /// </summary>
+    private static uint AbsorbWithWard(IUnit unit, uint absorbable, DateTime now) => unit switch
+    {
+        CharacterEntity character => character.AbsorbWithWard(absorbable, now),
+        Creature creature => creature.AbsorbWithWard(absorbable, now),
+        _ => 0u,
+    };
+
+    /// <summary>Damage a unit took, whether its ward met it or not (#1178): its ward's recharge pauses.</summary>
+    private static void WardDamaged(IUnit unit, DateTime now)
+    {
+        if (unit is CharacterEntity character)
+            character.WardDamaged(now);
+        else if (unit is Creature creature)
+            creature.WardDamaged(now);
+    }
 
     /// <summary>This service's instance is a town, where players are never hostile to one another.</summary>
     private bool InTown => _context is IMapInstance { MapType: MapType.Town };
@@ -556,8 +604,8 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     /// <summary>
     /// One damage tick of a harmful aura (auras), World-side, not on ICombatService: the snapshot's crit is rolled (the
-    /// one draw) and the target's armour taken off, never a dodge or a block. The resolved amount is added to
-    /// <paramref name="carry" /> (the aura's own) and only its whole points are dealt, the fraction kept for the next
+    /// one draw) and the target's mitigation of the snapshot's type taken off (#1178), never evaded or blocked. The
+    /// resolved amount is added to <paramref name="carry" /> (the aura's own) and only its whole points are dealt, the fraction kept for the next
     /// tick; the <paramref name="lastTick" /> rounds what is left (AuraRules.TakeTick). A tick worth less than a point
     /// deals nothing and is not reported, though it still counts as combat. A target every hit passes over
     /// (invulnerable, a corpse, a creature walking home) takes nothing, draws nothing and carries nothing. With a
@@ -575,13 +623,28 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (IgnoresHits(target) || target is ICharacter { IsDead: true })
             return 0;
 
+        DamageType type = hit.Snapshot.Type;
         (double amount, HitResult result) =
-            HitResolver.ResolvePeriodic(hit.Snapshot.Attacker, DefenderOf(target), hit.BaseAmount, _formula(), _random);
+            HitResolver.ResolvePeriodic(hit.Snapshot.Attacker, DefenderOf(target), type, hit.BaseAmount,
+                _formula(), _random);
         uint points = AuraRules.TakeTick(amount, ref carry, lastTick);
 
         // Staff testing still resolves and reports the tick, forms an encounter, and tags combat; only its health loss
         // and what needs positive damage are suppressed.
         uint dealt = target is CharacterEntity { GodMode: true } ? 0u : points;
+
+        // #1178: the ward takes a tick it may (never a bleed's or blight's) before life; any tick pauses its recharge.
+        // Everything else reads the whole tick, the ward's part included.
+        // The clock is read only for a target with a ward that took damage, as for a hit.
+        uint absorbed = 0u;
+        if (dealt > 0 && HasWard(target))
+        {
+            DateTime now = _time.GetUtcNow().UtcDateTime;
+            absorbed = HitResolver.WardAbsorbs(type, periodic: true) ? AbsorbWithWard(target, dealt, now) : 0u;
+            WardDamaged(target, now);
+        }
+
+        uint life = dealt - absorbed;
 
         // A town never lets players be hostile, so a tick there (an aura brought in from elsewhere) restarts no PvP timer.
         if (dealt > 0 && !InTown && caster is CharacterEntity attackerEntity
@@ -595,17 +658,20 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         uint healthBefore = target.CurrentHealth;
         if (target is CharacterEntity character)
         {
-            character.OnPeriodicHit(dealt);
+            character.OnPeriodicHit(life);
             GainFuryFromDamage(character, healthBefore);
         }
-        else if (dealt > 0)
+        else if (life > 0)
         {
             // Written only when it changes, so a tick that deals nothing does not mark the health for a broadcast.
-            target.CurrentHealth = healthBefore - Math.Min(dealt, healthBefore);
+            target.CurrentHealth = healthBefore - Math.Min(life, healthBefore);
         }
 
         if (points > 0)
-            _outcomes?.PeriodicTick(caster, target, dealt, hit.Aura, result, heal: false);
+        {
+            _outcomes?.PeriodicTick(caster, target, dealt, hit.Aura,
+                new HitReport(result, type, DamageTypes.MaskOf(type), absorbed), heal: false);
+        }
 
         if (target is ICreature creature)
         {
@@ -686,7 +752,8 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (restored == 0)
             return 0;
 
-        _outcomes?.PeriodicTick(hit.Caster, target, restored, hit.Aura, result, heal: true);
+        _outcomes?.PeriodicTick(hit.Caster, target, restored, hit.Aura, new HitReport(result, default, DamageTypeMask.None, 0u),
+            heal: true);
         if (hit.Caster is { } healer)
             AddHealThreat(healer, target, restored, hit.Source.HealThreatPerHp);
         return restored;

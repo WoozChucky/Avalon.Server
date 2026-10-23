@@ -10,10 +10,17 @@ public enum AuraStat
     AttackDamage = 2,
     AbilityDamage = 3,
     CritPct = 4,
-    DodgePct = 5,
+
+    /// <summary>Evasion rating (#1178), formerly the dodge chance.</summary>
+    Evasion = 5,
     BlockPct = 6,
     HastePct = 7,
     MovementSpeed = 8,
     MaxHealth = 9,
     MaxPower = 10,
+    FireResistance = 11,
+    ColdResistance = 12,
+    LightningResistance = 13,
+    BlightResistance = 14,
+    MaxWard = 15,
 }

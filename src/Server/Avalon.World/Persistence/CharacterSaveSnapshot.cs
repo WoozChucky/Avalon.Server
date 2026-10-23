@@ -184,6 +184,7 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
                 TickAmount = aura.Snapshot.PerTickPerStack,
                 CritPct = aura.Snapshot.CritPct,
                 CasterLevel = aura.Snapshot.CasterLevel,
+                DamageType = aura.Snapshot.Type,
                 PeriodicCarry = aura.PeriodicCarry,
                 AppliedAt = aura.AppliedAt,
             });

@@ -25,8 +25,21 @@ public class SUnitDamagePacket : Packet
     /// <summary>The aura whose tick this was (auras); absent for every other hit.</summary>
     [ProtoMember(6)] public uint? AuraId { get; set; }
 
+    /// <summary>
+    /// The hit's damage type (#1178): the part that dealt the most after mitigation, a tie going to the lower type. A dodge
+    /// names the type it would have dealt.
+    /// </summary>
+    [ProtoMember(7)] public DamageType Type { get; set; }
+
+    /// <summary>Every damage type the hit carried (#1178), its parts above 0 before mitigation; None for a hit of nothing.</summary>
+    [ProtoMember(8)] public DamageTypeMask Types { get; set; }
+
+    /// <summary>What the target's ward took of <see cref="Damage" /> (#1178), which is the whole hit, ward included.</summary>
+    [ProtoMember(9)] public uint WardAbsorbed { get; set; }
+
     public static OutboundPacket Create(ObjectGuid attacker, ulong target, uint currentHealth, uint damage, PacketEncoder encoder,
-        HitResult result = HitResult.None, uint? auraId = null)
+        HitResult result = HitResult.None, uint? auraId = null, DamageType type = DamageType.Physical,
+        DamageTypeMask types = DamageTypeMask.None, uint wardAbsorbed = 0)
     {
         SUnitDamagePacket message = PacketEncoder.Scratch<SUnitDamagePacket>();
         message.Attacker = attacker.RawValue;
@@ -35,6 +48,9 @@ public class SUnitDamagePacket : Packet
         message.Damage = damage;
         message.Result = result;
         message.AuraId = auraId;
+        message.Type = type;
+        message.Types = types;
+        message.WardAbsorbed = wardAbsorbed;
         return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 }

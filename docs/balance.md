@@ -4,6 +4,14 @@ The balance simulator library and tool, and the in-cluster service that runs it 
 
 ## Balance Simulator
 
+**Paused (#1183).** The simulator is paused during the itemization and build overhaul (#1182). It keeps compiling with
+today's maths, and no new mechanic is mirrored into it. Its parity guards (`SimulatorParityShould`,
+`CreatureKitParityShould`) and the balance tests that stop holding are skipped with `BalancePause.Reason`, never
+deleted. Until the re-sync (#1183) the API's `/balance` endpoints serve a mix, not the old maths: the new evasion and the
+class-neutral defences reach it through the shared `Avalon.Combat` stats (evasion from Agility, no class base dodge or
+block, armour from Strength, the creatures' evasion seed), but every hit is one physical part, so elements still meet
+armour there, and it has no ward and no resistances.
+
 The simulator is a library with a thin tool on top. `Avalon.Balance.Core` (`src/Server/`) is the simulator, grader and
 run contract; it references `Avalon.Combat` and `Avalon.Domain` only, no `Avalon.World`, no `Avalon.Database*`, no EF,
 pinned by `BalanceCoreAssemblyShould`. `Avalon.Balance.Data` reads the seed and the files (`SeedSource`, `OverrideFiles`,
@@ -38,7 +46,7 @@ interval, a creature's level range) and the fight's event order are pinned by `S
 `CombatService`, the cast system and `CharacterEntity.Update`. Hits follow `AbilityEffect.Apply`: every Hostile
 ability rolls whether it lands, damage or not (#1164, `CombatRules.Lands` for one without `Damage`; none for an
 `Unavoidable` one), and its aura lands only where it landed, so an aura-only ability's simulated output (Ignite,
-Sundering Howl) drops with the target's dodge chance. It steps at the server's tick (1/60 s) so cooldowns,
+Sundering Howl) drops with the target's chance to evade it. It steps at the server's tick (1/60 s) so cooldowns,
 casts and the event order count as the server's do. Mana and Energy regenerate `stat x coefficient x dt` a tick with
 the fraction of a point carried between ticks (`PowerRegen.Amount`, the caller owning the carry), dropped while a cast
 suppresses regen or the pool cannot regenerate (full included).
@@ -51,7 +59,7 @@ projectile travel time, continuous combat, wind-ups always land, no crowd contro
 **Crowd control is not modelled in fights** (owner decision, #770): nothing stuns, roots, silences, resists,
 diminishes or breaks early there. The seed's crowd-control columns are still read and validated with the world's rules
 (an aura's `Control` and break chances through `AuraRules.Problem`, the creature and rarity duration percentages and
-the rarity's crit, dodge and block chances (#1145) through `CreatureTemplateRules.Validate` and `ValidateRarities`), so
+the rarity's crit and block chances (#1145) through `CreatureTemplateRules.Validate` and `ValidateRarities`), so
 an override the world would refuse is refused here too, and the overrides reach them like any column. The four crowd-control abilities (204, 214, 224, 235) are in each class's
 kit but in no rotation in `balance/rotations.json`.
 

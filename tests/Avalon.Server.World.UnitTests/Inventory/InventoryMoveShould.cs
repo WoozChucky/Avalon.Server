@@ -1,6 +1,9 @@
+using Avalon.Combat;
 using Avalon.Common;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
+using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using static Avalon.Server.World.UnitTests.Inventory.EquipTemplates;
@@ -197,6 +200,60 @@ public class InventoryMoveShould
             character.Container(InventoryType.Equipment).Items.Count
             + character.Container(InventoryType.Bag).Items.Count
             + character.Container(InventoryType.Bank).Items.Count);
+    }
+
+    /// <summary>
+    /// R13: the requirements read the attributes of the last stats refresh, gear worn included, so the item a swap takes
+    /// off still counts. A row of 0s has had no refresh yet (Stats null), which reads as 0s.
+    /// </summary>
+    [Theory]
+    [InlineData((ushort)25, null, null, 23u, 20u, 20u, ItemRequestResult.AttributesTooLow)]
+    [InlineData((ushort)23, null, null, 23u, 20u, 20u, ItemRequestResult.Ok)]
+    [InlineData(null, (ushort)21, (ushort)20, 23u, 20u, 20u, ItemRequestResult.AttributesTooLow)]
+    [InlineData(null, null, null, 0u, 0u, 0u, ItemRequestResult.Ok)]
+    [InlineData((ushort)1, null, null, 0u, 0u, 0u, ItemRequestResult.AttributesTooLow)]   // no refresh yet: any requirement refuses
+    [InlineData((ushort)25, null, null, 25u, 20u, 20u, ItemRequestResult.Ok, true)]   // 25 only with the worn item it replaces: attributes now count
+    public void Equip_only_when_every_attribute_requirement_is_met(ushort? str, ushort? agi, ushort? intl,
+        uint hasStr, uint hasAgi, uint hasInt, ItemRequestResult expected, bool replacesWorn = false)
+    {
+        var demanding = new ItemTemplate
+        {
+            Id = new ItemTemplateId(700),
+            Name = "Demanding Helm",
+            Class = ItemClass.Armor,
+            SubClass = ItemSubClass.Helmet,
+            MaxStackSize = 1,
+            Slot = ItemSlotType.Head,
+            RequiredStrength = str,
+            RequiredAgility = agi,
+            RequiredIntellect = intl,
+        };
+        var worn = new ItemTemplate
+        {
+            Id = new ItemTemplateId(701),
+            Name = "Worn Helm",
+            Class = ItemClass.Armor,
+            SubClass = ItemSubClass.Helmet,
+            MaxStackSize = 1,
+            Slot = ItemSlotType.Head,
+            StatType1 = StatType.Strength,
+            StatValue1 = 2,
+        };
+        ItemTemplate? Find(ItemTemplateId id) => id == demanding.Id ? demanding : id == worn.Id ? worn : null;
+
+        CharacterEntity character = New();
+        character.Container(InventoryType.Bag).Load([Item(0, demanding)]);
+        if (replacesWorn)
+            character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Head, worn)]);
+        if (hasStr + hasAgi + hasInt > 0)
+        {
+            character.ApplyStats(new DerivedCharacterStats(100, 50, 10, hasStr, hasAgi, hasInt, 0, 0f, 0, 0f, 0, 0),
+                CurrentValues.EnterWorld, TestCombat.Formula);
+        }
+
+        MoveDecision decision = InventoryMove.Decide(character, Find, bankAccessible: false, Bag(0), Eq(EquipmentSlots.Head), null);
+
+        Assert.Equal(expected, decision.Result);
     }
 
     public static IEnumerable<object?[]> DestroyCases =>

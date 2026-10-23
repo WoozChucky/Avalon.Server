@@ -539,7 +539,7 @@ public class CharacterSelectHandlerShould
         Assert.Equal(100u, entity.Power);
         Assert.Equal(0u, entity.CurrentPower);   // a warrior's Fury pool enters empty (#526)
         Assert.Equal(24u, entity.Stamina);
-        Assert.Equal(8u, entity.Stats!.Value.Armor);
+        Assert.Equal(8u + 2u, entity.Stats!.Value.Armor);   // and Strength 25 x 0.1 (#1178)
         Assert.True(entity.SaveState.StatsDirty);
     }
 

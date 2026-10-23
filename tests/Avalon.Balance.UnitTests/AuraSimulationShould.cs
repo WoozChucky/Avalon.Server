@@ -4,6 +4,7 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Xunit;
@@ -57,6 +58,7 @@ public class AuraSimulationShould
         BaseDamageCoefficient = 0.5f,
         AllowedClasses = [CharacterClass.Warrior],
         AuraId = new AuraId(9901),
+        DamageType = DamageType.Physical,
         ThreatMultiplier = 1f,
     };
 
@@ -243,7 +245,7 @@ public class AuraSimulationShould
         poison.DurationMs = 9000;
         var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
 
-        AuraSnapshot snapshot = AuraRules.Snapshot(poison, boar.Attack, CombatRandom.Steady);
+        AuraSnapshot snapshot = AuraRules.Snapshot(poison, boar.Attack, DamageType.Physical, CombatRandom.Steady);
 
         Assert.True(boar.Attack.WeaponMin > 0);
         Assert.Equal((3f + boar.Attack.WeaponMin) / 3f, snapshot.PerTickPerStack, precision: 4);

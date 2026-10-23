@@ -28,6 +28,9 @@ public static partial class LinkPreviewText
         parts.AddRange(item.Stats.Where(s => s.Type == StatType.Armor).Select(s => $"{Num(s.Value)} Armor"));
         parts.AddRange(item.Stats.Where(s => s.Type != StatType.Armor).Select(FormatStat));
         if (item.RequiredLevel is > 0) parts.Add($"Requires Level {Num(item.RequiredLevel.Value)}");
+        if (item.RequiredStrength is > 0) parts.Add($"Requires {Num(item.RequiredStrength.Value)} Strength");
+        if (item.RequiredAgility is > 0) parts.Add($"Requires {Num(item.RequiredAgility.Value)} Agility");
+        if (item.RequiredIntellect is > 0) parts.Add($"Requires {Num(item.RequiredIntellect.Value)} Intellect");
         if (Restricted(item.AllowedClasses) is { } classes) parts.Add($"Classes: {classes}");
         if (item.ItemPower is > 0) parts.Add($"Item Power {Num(item.ItemPower.Value)}");
         return Cap(string.Join(Separator, parts));
@@ -41,6 +44,7 @@ public static partial class LinkPreviewText
         parts.Add(ability.CastTime == 0 ? "Instant" : $"{Seconds(ability.CastTime)} cast");
         if (ability.Cooldown > 0) parts.Add($"{Seconds(ability.Cooldown)} cooldown");
         if (Amount(ability) is { } amount) parts.Add(amount);
+        if (ability.DamageType is { } type) parts.Add($"{type} damage");
         return Cap(string.Join(Separator, parts));
     }
 

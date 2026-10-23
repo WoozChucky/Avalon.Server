@@ -1,4 +1,5 @@
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -12,14 +13,16 @@ public class CreatureStatDeriverShould
     [
         new() { Level = 1, Health = 40,  DamageMin = 3, DamageMax = 5,  Experience = 15 },
         new() { Level = 2, Health = 52,  DamageMin = 4, DamageMax = 7,  Experience = 25 },
-        new() { Level = 5, Health = 106, DamageMin = 9, DamageMax = 14, Experience = 85 },
+        new() { Level = 5, Health = 106, DamageMin = 9, DamageMax = 14, Experience = 85, Armor = 13, Evasion = 10, Ward = 40 },
     ];
 
     private static readonly CreatureRarityModifier[] s_rarities =
     [
         new() { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f },
+        new() { Rarity = CreatureRarity.Elite,  HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f,
+            DefenceMultiplier = 1.2f },
         new() { Rarity = CreatureRarity.Boss,   HealthMultiplier = 8.0f, DamageMultiplier = 2.0f, ExperienceMultiplier = 15.0f,
-            CritPct = 10f, DodgePct = 5f, BlockPct = 10f },
+            CritPct = 10f, BlockPct = 10f },
     ];
 
     private static CreatureStatDeriver NewDeriver() =>
@@ -80,14 +83,39 @@ public class CreatureStatDeriverShould
     }
 
     [Fact]
-    public void Take_crit_dodge_and_block_from_the_rarity()
+    public void Take_crit_and_block_from_the_rarity_but_no_longer_its_dodge()
     {
         DerivedCreatureStats boss = NewDeriver().Derive(Template(rarity: CreatureRarity.Boss), level: 1);
         DerivedCreatureStats normal = NewDeriver().Derive(Template(), level: 1);
 
-        Assert.Equal((10f, 5f, 10f), (boss.CritPct, boss.DodgePct, boss.BlockPct));
-        Assert.Equal((0f, 0f, 0f), (normal.CritPct, normal.DodgePct, normal.BlockPct));
+        Assert.Equal((10f, 0u, 10f), (boss.CritPct, boss.Evasion, boss.BlockPct));
+        Assert.Equal((0f, 0u, 0f), (normal.CritPct, normal.Evasion, normal.BlockPct));
         Assert.Equal(0u, normal.Armor);
+    }
+
+    /// <summary>
+    /// #1178: armour, evasion and ward are the level's base times the template's modifier times the rarity's
+    /// DefenceMultiplier; resistances are as authored and the hit type is the template's. Unlike armour's, an evasion or
+    /// ward modifier of 0 means none.
+    /// </summary>
+    [Fact]
+    public void Derive_evasion_ward_and_resistances_scaled_by_rarity()
+    {
+        ICreatureMetadata husk = Template(rarity: CreatureRarity.Elite);
+        husk.EvasionModifier.Returns(1f);
+        husk.WardModifier.Returns(0.5f);
+        husk.FireResistance.Returns(-25f);
+        husk.BlightResistance.Returns(50f);
+        husk.DamageType.Returns(DamageType.Blight);
+        ICreatureMetadata plain = Template(rarity: CreatureRarity.Elite);
+        plain.EvasionModifier.Returns(0f);
+
+        DerivedCreatureStats stats = NewDeriver().Derive(husk, level: 5);
+
+        Assert.Equal((16u, 12u, 24u), (stats.Armor, stats.Evasion, stats.Ward));   // 13, 10 and 40 x 0.5, each x 1.2
+        Assert.Equal(new Resistances(-25f, 0f, 0f, 50f), stats.Resistances);
+        Assert.Equal(DamageType.Blight, stats.Attacker.BaseType);
+        Assert.Equal(0u, NewDeriver().Derive(plain, level: 5).Evasion);
     }
 
     [Fact]

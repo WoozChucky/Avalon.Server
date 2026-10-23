@@ -46,8 +46,8 @@ public class PublicMappingShould
     public void List_both_damage_pairs_when_set()
     {
         ItemTemplate sword = Helm();
-        sword.DamageMin1 = 12; sword.DamageMax1 = 18; sword.DamageType1 = Avalon.Domain.World.DamageType.Physical;
-        sword.DamageMin2 = 2; sword.DamageMax2 = 4; sword.DamageType2 = Avalon.Domain.World.DamageType.Fire;
+        sword.DamageMin1 = 12; sword.DamageMax1 = 18; sword.DamageType1 = Avalon.Network.Packets.Combat.DamageType.Physical;
+        sword.DamageMin2 = 2; sword.DamageMax2 = 4; sword.DamageType2 = Avalon.Network.Packets.Combat.DamageType.Fire;
 
         Assert.Collection(sword.ToPublicDto().Damage,
             d => Assert.Equal((12u, 18u, Avalon.Api.Contract.DamageType.Physical), (d.Min, d.Max, d.Type)),
@@ -58,7 +58,7 @@ public class PublicMappingShould
     public void Skip_a_damage_pair_without_a_maximum()
     {
         ItemTemplate odd = Helm();
-        odd.DamageMin1 = 5; odd.DamageMax1 = 0; odd.DamageType1 = Avalon.Domain.World.DamageType.Physical;
+        odd.DamageMin1 = 5; odd.DamageMax1 = 0; odd.DamageType1 = Avalon.Network.Packets.Combat.DamageType.Physical;
         odd.DamageMin2 = 3; odd.DamageMax2 = null;
 
         Assert.Empty(odd.ToPublicDto().Damage);
@@ -150,7 +150,7 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.Domain.World.ItemSubClass), typeof(Avalon.Api.Contract.ItemSubClass))]
     [InlineData(typeof(Avalon.Domain.World.ItemSlotType), typeof(Avalon.Api.Contract.ItemSlotType))]
     [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Api.Contract.StatType))]
-    [InlineData(typeof(Avalon.Domain.World.DamageType), typeof(Avalon.Api.Contract.DamageType))]
+    [InlineData(typeof(Avalon.Network.Packets.Combat.DamageType), typeof(Avalon.Api.Contract.DamageType))]
     [InlineData(typeof(Avalon.Network.Packets.State.PowerType), typeof(Avalon.Api.Contract.PowerType))]
     [InlineData(typeof(Avalon.World.Public.Enums.SpellRange), typeof(Avalon.Api.Contract.SpellRange))]
     [InlineData(typeof(Avalon.Network.Packets.Abilities.AbilityAmountKind), typeof(Avalon.Api.Contract.AbilityAmountKind))]

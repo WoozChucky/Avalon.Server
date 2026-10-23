@@ -7,17 +7,30 @@ using Avalon.World.Public.Abilities;
 namespace Avalon.Server.World.UnitTests.Combat;
 
 /// <summary>
-/// The hit maths (#506): the base, then dodge, crit, block and armour, floored with a minimum of 1. The
-/// seeded formula: ArmorBase 50, ArmorPerLevel 10, ArmorCap 0.75, crit 1.5, block 0.5, caps 50/30/50.
+/// The hit maths (#506, #1178): the base, then evasion, crit, block and each type's mitigation (armour for physical,
+/// resistance for an element), floored with a minimum of 1. The seeded formula: ArmorBase 50, ArmorPerLevel 10,
+/// ArmorCap 0.75, crit 1.5, block 0.5, crit and block caps 50; the evasion and resistance constants are set here.
 /// </summary>
 public class HitResolverShould
 {
-    private static readonly CombatFormula s_formula = CombatSeed.Formula();
+    /// <summary>The seeded formula with the defence constants pinned, so later tuning never moves these tests.</summary>
+    private static CombatFormula F()
+    {
+        CombatFormula f = CombatSeed.Formula();
+        f.EvasionBase = 50f;
+        f.EvasionPerLevel = 10f;
+        f.EvasionCap = 30f;
+        f.ResistanceCap = 75f;
+        f.ResistanceFloor = -100f;
+        return f;
+    }
 
     private static AttackerCombat Attacker(uint level = 1, uint attack = 0, uint ability = 0, float crit = 0f,
         uint weaponMin = 0, uint weaponMax = 0) => new(level, attack, ability, crit, weaponMin, weaponMax);
 
-    private static DefenderCombat Defender(uint armor = 0, float dodge = 0f, float block = 0f) => new(armor, dodge, block);
+    private static DefenderCombat Defender(uint armor = 0, uint evasion = 0, float block = 0f) => new(armor, evasion, block);
+
+    private static DamageParts Physical(double amount) => DamageParts.Of(DamageType.Physical, amount);
 
     // ---- the base ----
 
@@ -74,84 +87,96 @@ public class HitResolverShould
         Assert.Equal(30.8f, b, precision: 4);
     }
 
+    // ---- evasion ----
+
+    [Theory]
+    [InlineData(0u, 1u, 0d)]
+    [InlineData(20u, 5u, 20d / 120d)]
+    [InlineData(10u, 10u, 10d / 160d)]
+    [InlineData(40u, 1u, 0.30d)]            // 40/100 capped at 30 %
+    public void Evade_by_rating_weighed_against_the_attackers_level(uint evasion, uint level, double chance) =>
+        Assert.Equal(chance, HitResolver.EvasionChance(evasion, level, F()), precision: 6);
+
     // ---- each roll, just under its chance (it procs) and at it (it does not) ----
 
     [Fact]
-    public void Dodge_a_roll_just_under_the_chance_and_not_one_at_it()
+    public void Evade_a_roll_just_under_the_chance_and_not_one_at_it()
     {
-        (uint dmg, HitResult result) = HitResolver.ResolveDamage(Attacker(), Defender(dodge: 10f), 100f, s_formula,
-            new ScriptedCombatRandom(0.0999));
-        Assert.Equal((0u, HitResult.Dodged), (dmg, result));
+        // Evasion 20 against a level-1 attacker: 20 / (20 + 50 + 10) = 25 %.
+        HitDamage hit = HitResolver.ResolveDamage(Attacker(), Defender(evasion: 20), Physical(100), F(),
+            new ScriptedCombatRandom(0.2499));
+        Assert.Equal((0u, HitResult.Dodged), (hit.Total, hit.Result));
 
-        (dmg, result) = HitResolver.ResolveDamage(Attacker(), Defender(dodge: 10f), 100f, s_formula,
-            new ScriptedCombatRandom(0.10, 0.99, 0.99));
-        Assert.Equal((100u, HitResult.None), (dmg, result));
+        hit = HitResolver.ResolveDamage(Attacker(), Defender(evasion: 20), Physical(100), F(),
+            new ScriptedCombatRandom(0.25, 0.99, 0.99));
+        Assert.Equal((100u, HitResult.None), (hit.Total, hit.Result));
     }
 
     [Fact]
     public void Crit_a_roll_just_under_the_chance_and_not_one_at_it()
     {
-        (uint dmg, HitResult result) = HitResolver.ResolveDamage(Attacker(crit: 20f), Defender(), 100f, s_formula,
+        HitDamage hit = HitResolver.ResolveDamage(Attacker(crit: 20f), Defender(), Physical(100), F(),
             new ScriptedCombatRandom(0.99, 0.1999, 0.99));
-        Assert.Equal((150u, HitResult.Crit), (dmg, result));
+        Assert.Equal((150u, HitResult.Crit), (hit.Total, hit.Result));
 
-        (dmg, result) = HitResolver.ResolveDamage(Attacker(crit: 20f), Defender(), 100f, s_formula,
+        hit = HitResolver.ResolveDamage(Attacker(crit: 20f), Defender(), Physical(100), F(),
             new ScriptedCombatRandom(0.99, 0.20, 0.99));
-        Assert.Equal((100u, HitResult.None), (dmg, result));
+        Assert.Equal((100u, HitResult.None), (hit.Total, hit.Result));
     }
 
     [Fact]
     public void Block_a_roll_just_under_the_chance_and_not_one_at_it()
     {
-        (uint dmg, HitResult result) = HitResolver.ResolveDamage(Attacker(), Defender(block: 5f), 100f, s_formula,
+        HitDamage hit = HitResolver.ResolveDamage(Attacker(), Defender(block: 5f), Physical(100), F(),
             new ScriptedCombatRandom(0.99, 0.99, 0.0499));
-        Assert.Equal((50u, HitResult.Blocked), (dmg, result));
+        Assert.Equal((50u, HitResult.Blocked), (hit.Total, hit.Result));
 
-        (dmg, result) = HitResolver.ResolveDamage(Attacker(), Defender(block: 5f), 100f, s_formula,
+        hit = HitResolver.ResolveDamage(Attacker(), Defender(block: 5f), Physical(100), F(),
             new ScriptedCombatRandom(0.99, 0.99, 0.05));
-        Assert.Equal((100u, HitResult.None), (dmg, result));
+        Assert.Equal((100u, HitResult.None), (hit.Total, hit.Result));
     }
 
     // ---- the caps ----
 
     [Fact]
-    public void Cap_dodge_at_the_formulas_dodge_cap()
+    public void Cap_evasion_at_the_formulas_evasion_cap()
     {
-        (uint dmg, HitResult result) = HitResolver.ResolveDamage(Attacker(), Defender(dodge: 80f), 100f, s_formula,
+        // Evasion 240 against a level-1 attacker would be 240 / 300 = 80 %; the cap holds it at 30 %.
+        HitDamage hit = HitResolver.ResolveDamage(Attacker(), Defender(evasion: 240), Physical(100), F(),
             new ScriptedCombatRandom(0.35, 0.99, 0.99));
-        Assert.Equal((100u, HitResult.None), (dmg, result));
+        Assert.Equal((100u, HitResult.None), (hit.Total, hit.Result));
 
-        (_, result) = HitResolver.ResolveDamage(Attacker(), Defender(dodge: 80f), 100f, s_formula, new ScriptedCombatRandom(0.2999));
-        Assert.Equal(HitResult.Dodged, result);
+        hit = HitResolver.ResolveDamage(Attacker(), Defender(evasion: 240), Physical(100), F(), new ScriptedCombatRandom(0.2999));
+        Assert.Equal(HitResult.Dodged, hit.Result);
     }
 
     [Fact]
     public void Cap_crit_at_the_formulas_crit_cap()
     {
-        (_, HitResult result) = HitResolver.ResolveDamage(Attacker(crit: 90f), Defender(), 100f, s_formula,
+        HitDamage hit = HitResolver.ResolveDamage(Attacker(crit: 90f), Defender(), Physical(100), F(),
             new ScriptedCombatRandom(0.99, 0.55, 0.99));
-        Assert.Equal(HitResult.None, result);
+        Assert.Equal(HitResult.None, hit.Result);
     }
 
     [Fact]
     public void Cap_block_at_the_formulas_block_cap()
     {
-        (_, HitResult result) = HitResolver.ResolveDamage(Attacker(), Defender(block: 90f), 100f, s_formula,
+        HitDamage hit = HitResolver.ResolveDamage(Attacker(), Defender(block: 90f), Physical(100), F(),
             new ScriptedCombatRandom(0.99, 0.99, 0.55));
-        Assert.Equal(HitResult.None, result);
+        Assert.Equal(HitResult.None, hit.Result);
     }
 
     // ---- the order ----
 
     [Fact]
-    public void Stop_at_a_dodge_and_draw_nothing_after_it()
+    public void Stop_at_an_evasion_and_draw_nothing_after_it()
     {
         var rng = new ScriptedCombatRandom(0.0);
 
-        (uint dmg, HitResult result) = HitResolver.ResolveDamage(Attacker(crit: 50f), Defender(armor: 24, dodge: 10f, block: 50f),
-            100f, s_formula, rng);
+        HitDamage hit = HitResolver.ResolveDamage(Attacker(crit: 50f), Defender(armor: 24, evasion: 20, block: 50f),
+            Physical(100), F(), rng);
 
-        Assert.Equal((0u, HitResult.Dodged), (dmg, result));
+        Assert.Equal(new HitDamage(0, HitResult.Dodged, DamageType.Physical, DamageTypeMask.Physical, 0), hit);
         Assert.Equal(1, rng.DoublesDrawn);
     }
 
@@ -159,11 +184,11 @@ public class HitResolverShould
     public void Apply_crit_then_block_then_armour()
     {
         // floor(100 x 1.5 x 0.5 x (1 - 24 / (24 + 50 + 10 x 1))) = floor(75 x 0.7142857) = 53
-        (uint dmg, HitResult result) = HitResolver.ResolveDamage(Attacker(level: 1, crit: 50f),
-            Defender(armor: 24, block: 50f), 100f, s_formula, new ScriptedCombatRandom(0.99, 0.0, 0.0));
+        HitDamage hit = HitResolver.ResolveDamage(Attacker(level: 1, crit: 50f),
+            Defender(armor: 24, block: 50f), Physical(100), F(), new ScriptedCombatRandom(0.99, 0.0, 0.0));
 
-        Assert.Equal(53u, dmg);
-        Assert.Equal(HitResult.Crit | HitResult.Blocked, result);
+        Assert.Equal(53u, hit.Total);
+        Assert.Equal(HitResult.Crit | HitResult.Blocked, hit.Result);
     }
 
     // ---- armour ----
@@ -171,8 +196,10 @@ public class HitResolverShould
     [Fact]
     public void Reduce_by_the_formula_at_levels_one_and_ten()
     {
-        (uint atOne, _) = HitResolver.ResolveDamage(Attacker(level: 1), Defender(armor: 24), 100f, s_formula, ScriptedCombatRandom.Plain());
-        (uint atTen, _) = HitResolver.ResolveDamage(Attacker(level: 10), Defender(armor: 24), 100f, s_formula, ScriptedCombatRandom.Plain());
+        uint atOne = HitResolver.ResolveDamage(Attacker(level: 1), Defender(armor: 24), Physical(100), F(),
+            ScriptedCombatRandom.Plain()).Total;
+        uint atTen = HitResolver.ResolveDamage(Attacker(level: 10), Defender(armor: 24), Physical(100), F(),
+            ScriptedCombatRandom.Plain()).Total;
 
         Assert.Equal(71u, atOne);  // floor(100 x (1 - 24 / 84))
         Assert.Equal(86u, atTen);  // floor(100 x (1 - 24 / 174))
@@ -181,7 +208,8 @@ public class HitResolverShould
     [Fact]
     public void Never_reduce_by_more_than_the_armour_cap()
     {
-        (uint dmg, _) = HitResolver.ResolveDamage(Attacker(level: 1), Defender(armor: 10000), 100f, s_formula, ScriptedCombatRandom.Plain());
+        uint dmg = HitResolver.ResolveDamage(Attacker(level: 1), Defender(armor: 10000), Physical(100), F(),
+            ScriptedCombatRandom.Plain()).Total;
 
         Assert.Equal(25u, dmg);
     }
@@ -189,8 +217,8 @@ public class HitResolverShould
     [Fact]
     public void Reduce_nothing_with_no_armour_whatever_the_attackers_level()
     {
-        (uint dmg, _) = HitResolver.ResolveDamage(Attacker(level: uint.MaxValue), Defender(armor: 0), 100f, s_formula,
-            ScriptedCombatRandom.Plain());
+        uint dmg = HitResolver.ResolveDamage(Attacker(level: uint.MaxValue), Defender(armor: 0), Physical(100), F(),
+            ScriptedCombatRandom.Plain()).Total;
 
         Assert.Equal(100u, dmg);
     }
@@ -198,10 +226,73 @@ public class HitResolverShould
     [Fact]
     public void Stay_finite_against_an_attacker_of_the_highest_level()
     {
-        (uint dmg, _) = HitResolver.ResolveDamage(Attacker(level: uint.MaxValue), Defender(armor: 24), 100f, s_formula,
-            ScriptedCombatRandom.Plain());
+        uint dmg = HitResolver.ResolveDamage(Attacker(level: uint.MaxValue), Defender(armor: 24), Physical(100), F(),
+            ScriptedCombatRandom.Plain()).Total;
 
         Assert.Equal(99u, dmg);
+    }
+
+    // ---- resistances, mixed hits and the ward's share ----
+
+    [Theory]
+    [InlineData(0f, 0f, 0f, 1.0d)]
+    [InlineData(50f, 0f, 0f, 0.5d)]
+    [InlineData(90f, 0f, 0f, 0.25d)]        // capped at 75
+    [InlineData(90f, 5f, 0f, 0.20d)]        // cap raised to 80
+    [InlineData(90f, 20f, 0f, 0.10d)]       // 95 stopped at the 90 ceiling
+    [InlineData(75f, 0f, 25f, 0.5d)]        // penetration after the cap
+    [InlineData(-50f, 0f, 0f, 1.5d)]        // negative: extra damage
+    [InlineData(-300f, 0f, 0f, 2.0d)]       // stopped at the -100 floor
+    public void Mitigate_each_element_by_its_capped_resistance_less_penetration(float res, float bonus, float pen,
+        double multiplier) =>
+        Assert.Equal(multiplier, HitResolver.ResistanceMultiplier(res, bonus, pen, F()), precision: 6);
+
+    [Fact]
+    public void Mitigate_each_part_of_a_mixed_hit_on_its_own_and_report_the_largest()
+    {
+        var hit = DamageParts.Of(DamageType.Physical, 60);
+        hit.Set(DamageType.Cold, 40);
+        var d = new DefenderCombat(Armor: 20, Evasion: 0, BlockPct: 0, new Resistances(0, 50, 0, 0)); // armour 20 at level 1: 25 %
+
+        HitDamage r = HitResolver.ResolveDamage(Attacker(level: 1), d, hit, F(),
+            new ScriptedCombatRandom().Doubles(0.99, 0.99, 0.99));
+
+        Assert.Equal(new HitDamage(65, HitResult.None, DamageType.Physical, DamageTypeMask.Physical | DamageTypeMask.Cold, 65), r);
+    }
+
+    [Theory]
+    [InlineData(DamageType.Fire, 100d, 0d, 100u)]
+    [InlineData(DamageType.Blight, 100d, 0d, 0u)]
+    [InlineData(DamageType.Physical, 50d, 50d, 50u)]       // half blight: half absorbable
+    public void Leave_blight_out_of_what_a_ward_may_absorb(DamageType first, double firstAmount, double blight, uint absorbable)
+    {
+        var hit = DamageParts.Of(first, firstAmount);
+        hit.Set(DamageType.Blight, hit.Get(DamageType.Blight) + blight);
+
+        HitDamage r = HitResolver.ResolveDamage(Attacker(), Defender(), hit, F(), ScriptedCombatRandom.Plain());
+
+        Assert.Equal(absorbable, r.Absorbable);
+    }
+
+    [Theory]
+    [InlineData(DamageType.Physical, false, true)]
+    [InlineData(DamageType.Physical, true, false)]
+    [InlineData(DamageType.Fire, true, true)]
+    [InlineData(DamageType.Blight, false, false)]
+    [InlineData(DamageType.Blight, true, false)]
+    public void Let_the_ward_take_everything_but_blight_and_bleeds(DamageType type, bool periodic, bool absorbs) =>
+        Assert.Equal(absorbs, HitResolver.WardAbsorbs(type, periodic));
+
+    [Fact]
+    public void Resolve_a_tick_by_its_type_with_one_draw_and_no_evasion()
+    {
+        var rng = new ScriptedCombatRandom(0.99);
+        var d = new DefenderCombat(Armor: 0, Evasion: 1000, BlockPct: 0, new Resistances(50, 0, 0, 0));
+
+        (double damage, HitResult result) = HitResolver.ResolvePeriodic(Attacker(), d, DamageType.Fire, 20f, F(), rng);
+
+        Assert.Equal((10d, HitResult.None), (damage, result));
+        Assert.Equal(1, rng.DoublesDrawn);
     }
 
     // ---- the floor ----
@@ -209,16 +300,16 @@ public class HitResolverShould
     [Fact]
     public void Deal_at_least_one_to_a_hit_that_lands()
     {
-        (uint dmg, HitResult result) = HitResolver.ResolveDamage(Attacker(), Defender(), 0.5f, s_formula, ScriptedCombatRandom.Plain());
+        HitDamage hit = HitResolver.ResolveDamage(Attacker(), Defender(), Physical(0.5), F(), ScriptedCombatRandom.Plain());
 
-        Assert.Equal((1u, HitResult.None), (dmg, result));
+        Assert.Equal((1u, HitResult.None), (hit.Total, hit.Result));
     }
 
     [Fact]
     public void Deal_at_least_one_even_through_the_armour_cap_and_a_block()
     {
-        (uint dmg, _) = HitResolver.ResolveDamage(Attacker(), Defender(armor: 10000, block: 50f), 1f, s_formula,
-            new ScriptedCombatRandom(0.99, 0.99, 0.0));
+        uint dmg = HitResolver.ResolveDamage(Attacker(), Defender(armor: 10000, block: 50f), Physical(1), F(),
+            new ScriptedCombatRandom(0.99, 0.99, 0.0)).Total;
 
         Assert.Equal(1u, dmg);
     }
@@ -226,7 +317,7 @@ public class HitResolverShould
     [Fact]
     public void Floor_the_damage()
     {
-        (uint dmg, _) = HitResolver.ResolveDamage(Attacker(), Defender(), 30.99f, s_formula, ScriptedCombatRandom.Plain());
+        uint dmg = HitResolver.ResolveDamage(Attacker(), Defender(), Physical(30.99f), F(), ScriptedCombatRandom.Plain()).Total;
 
         Assert.Equal(30u, dmg);
     }
@@ -236,7 +327,7 @@ public class HitResolverShould
     [Fact]
     public void Crit_a_heal()
     {
-        (uint heal, HitResult result) = HitResolver.ResolveHeal(Attacker(crit: 20f), 40f, s_formula, new ScriptedCombatRandom(0.1));
+        (uint heal, HitResult result) = HitResolver.ResolveHeal(Attacker(crit: 20f), 40f, F(), new ScriptedCombatRandom(0.1));
 
         Assert.Equal((60u, HitResult.Crit), (heal, result));
     }
@@ -246,7 +337,7 @@ public class HitResolverShould
     {
         var rng = new ScriptedCombatRandom(0.99);
 
-        (uint heal, HitResult result) = HitResolver.ResolveHeal(Attacker(crit: 20f), 40.7f, s_formula, rng);
+        (uint heal, HitResult result) = HitResolver.ResolveHeal(Attacker(crit: 20f), 40.7f, F(), rng);
 
         Assert.Equal((40u, HitResult.None), (heal, result));
         Assert.Equal(1, rng.DoublesDrawn);

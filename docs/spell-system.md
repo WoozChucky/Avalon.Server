@@ -39,7 +39,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `EffectValue` | uint | health points | The base of the damage dealt or health restored per unit affected; the scaling terms below are added to it (#506). |
 | `AllowedClasses` | list of `CharacterClass` | | The classes that may hold it. |
 | `ThreatMultiplier`, `HealThreatPerHp`, `TauntDurationMs` | float, float, uint | | Threat rules, unchanged by #164. The two floats must be finite and 0 or more (#529). |
-| `Flags` | `AbilityFlags` | | `RequiresInCombat`, `RequiresOutOfCombat`, `Basic` (a class's basic attack, the one ability a silence does not stop), `Unavoidable` (a Hostile ability never rolled against for a dodge, #1164). |
+| `Flags` | `AbilityFlags` | | `RequiresInCombat`, `RequiresOutOfCombat`, `Basic` (a class's basic attack, the one ability a silence does not stop), `Unavoidable` (a Hostile ability never rolled against for evasion, #1164). |
 | `AnimationId` | uint | | Reserved for the client's cast animation. |
 | `AimMode` | `AbilityAimMode` | | `Movement` (0): the caster's facing. `Cursor` (1): a ground point sent with the cast. |
 | `Shape` | `AbilityShape` | | `Circle` (0), `Cone` (1), `Projectile` (2). |
@@ -53,6 +53,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `ScalingStat` | `ScalingStat` | | `Attack` (0) scales with the caster's AttackDamage, `Ability` (1) with its AbilityDamage (#506). |
 | `ScalingCoefficient` | float | | Multiplies the scaling stat into the base; finite and 0 or more (#506, also a database check). |
 | `BaseDamageCoefficient` | float | | Multiplies a roll of the caster's base damage into the base: a character's main-hand weapon (`DamageMin1..DamageMax1`, inclusive; none with no weapon), a creature's natural `DamageMin..DamageMax` (#163); finite and 0 or more (#506). Was `WeaponCoefficient` until #163. |
+| `DamageType` | `DamageType?` | | The type its hits and its aura's damage ticks deal (#1178): Physical 0, Fire 1, Cold 2, Lightning 3, Blight 4 (`CK_AbilityTemplates_DamageType`). Null deals the caster's base type, which only a creature-only ability may rely on (a creature's base type is its template's). |
 
 **Legacy `Range`.** The `Range` column (`SpellRange`) stays for schema compatibility and is still sent
 in `AbilityInfo.Range`, but no server code reads it: `Reach` replaced it. `AbilityInfo.FacingAngle` is
@@ -69,7 +70,8 @@ loads. A character holding a refused skill simply does not get it at character s
 - `Reach`, `Radius`, `ArcDegrees` and `ProjectileSpeed` are finite and 0 or more;
 - `AimMode`, `Shape`, `Anchor` and `Affects` are known values;
 - `Affects = Ally` only on a circle;
-- an Ally ability may not be `Unavoidable` (#1164: it is never dodged anyway);
+- an Ally ability may not be `Unavoidable` (#1164: it is never evaded anyway);
+- a damage type is a known value; an Ally ability names none; a Hostile class ability (`AllowedClasses` not empty) whose `Effects` has `Damage` names one, and so does a class ability whose aura deals damage over time (`AuraRules.DamageTypeProblem`: Ignite says Fire) (#1178);
 - **circle**: `Radius > 0`; on the aim point it needs `AimMode = Cursor` and `Reach > 0`; on the
   caster it needs `Reach = 0`;
 - **cone**: `Reach > 0`, and `ArcDegrees` above 0 and at most 360;
@@ -163,19 +165,22 @@ refused: its cost and cooldown are spent all the same.
 - **Damage**: a `Hostile` skill calls `CombatService.ApplyAbilityHit(caster, unit, ability)` (through
   `IAbilityArena.HitForAbility`) on each hostile unit, with the usual threat, encounter, combat tag, death and
   invulnerable rules. Every hostile skill rolls whether it lands on each unit (#1164), damage or not: the unit's
-  dodge chance, the dodge wait for a telegraph's players (§4), and the units every hit passes over. One whose
-  `Effects` has `Damage` then deals its amount, each unit's hit resolving on its own (#506): `EffectValue +
-  ScalingCoefficient x stat + BaseDamageCoefficient x base damage roll`, then the unit's dodge, the caster's crit,
-  the unit's block and its armour, floored with a minimum of 1 (0 on a dodge). One without `Damage` draws the dodge
-  roll alone and, landed, sends nothing but its aura; dodged or landed, it counts as combat as a dodge does (the
-  encounter, the creature engaging, both tagged), whether or not its aura then sticks. Its aura lands only where the
-  hit landed. An ability flagged `AbilityFlags.Unavoidable` is never rolled against: no dodge roll, so its damage is
-  never dodged and its aura is offered to every unit its shape affects (the aura system's own refusals, such as an
+  chance to evade it (its evasion rating against the caster's level, #1178), the dodge wait for a telegraph's players
+  (§4), and the units every hit passes over. One whose `Effects` has `Damage` then deals its amount, each unit's hit
+  resolving on its own (#506, #1178), typed by the ability's `DamageType`, else the caster's base type:
+  `EffectValue + ScalingCoefficient x stat + BaseDamageCoefficient x base damage roll`, then the unit's evasion, the
+  caster's crit, the unit's block, then each type's part mitigated on its own (physical by the unit's armour, an
+  element by its resistance), floored with a minimum of 1 (0 when evaded); the unit's ward then takes all of it but
+  its blight share, and health the rest. One without `Damage` draws the evasion roll alone and, landed, sends nothing
+  but its aura; evaded or landed, it counts as combat as an evaded hit does (the encounter, the creature engaging, both
+  tagged), whether or not its aura then sticks. Its aura lands only where the hit landed. An ability flagged
+  `AbilityFlags.Unavoidable` is never rolled against: no evasion roll, so its damage is never evaded and its aura is
+  offered to every unit its shape affects (the aura system's own refusals, such as an
   invulnerable creature, a corpse or a creature walking home, still apply). See
   "Combat reads the derived stats" in [World simulation](world-simulation.md).
 - **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
   `min(Health, CurrentHealth + heal)`, the heal being the same base as damage and then a crit roll,
-  never dodged, blocked or reduced by armour (#506). It never lowers health (a unit at or above its maximum
+  never evaded, blocked or reduced by armour or resistance, and never restores ward (#506, #1178). It never lowers health (a unit at or above its maximum
   keeps what it has, #548), never heals a dead unit, and adds heal threat from
   `HealThreatPerHp` when the healed unit is in an encounter. Heal threat counts the health actually
   restored, so overheal adds none (#531).
@@ -325,14 +330,18 @@ It never homes and has no target.
   shows the real deadline.
 - **Damage** arrives as the usual damage packets; `SCharacterDamagePacket.AbilityId` is filled (#521
   item 8), and both carry `Result`, a `HitResult` saying whether the hit crit, was blocked, or was
-  dodged (sent with 0 damage) (#506). A hostile ability that deals no damage sends a dodge the same way when
-  it is dodged, and nothing but its aura when it lands (#1164).
+  evaded (`Dodged`, sent with 0 damage) (#506), and the hit's `Type`, `Types` and `WardAbsorbed` (#1178;
+  `Damage` is the whole hit, the ward's part included). A hostile ability that deals no damage sends an
+  evaded hit the same way when it is evaded (its type, and no parts), and nothing but its aura when it lands
+  (#1164).
 - **Heals** that restored more than 0 health broadcast `SMSG_UNIT_HEALED` (`SUnitHealedPacket { Healer,
   Target, Amount, CurrentHealth, AbilityId?, Result }`) to the healer, the target and every client within
   the interest radius of the target (#506, #532): `Amount` is the health restored, overheal left out, and
   `Result` is `Crit` for a critical heal. The new health also reaches clients through state replication.
 - **The character sheet** is `SMSG_CHARACTER_STATS` (`SCharacterStatsPacket`), sent to its owner only
-  (#506): the attributes, armour, damage stats, chances clamped to the formula's caps, and weapon range.
+  (#506): the attributes, armour, damage stats, crit and block chances clamped to the formula's caps,
+  weapon range, and since #1178 the evasion rating, the chance it gives against an attacker of the
+  character's own level, the maximum ward and the four effective resistances (capped as a hit caps them).
 
 ---
 
@@ -356,20 +365,20 @@ class's three in place of whatever it held. The retired skills 1, 2 and 100-103 
 are never reused. Every kit skill has `AllowedClasses` its own class, `ThreatMultiplier` 1, and
 `HealThreatPerHp` 0 except Mending Circle (0.5). The numbers are placeholders to tune.
 
-| id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost | value |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | 0.8 s | 0 | 12 |
-| 201 | Warrior | Ground Slam | Circle | Movement | Caster | 0 | 3 | – | – | – | Hostile | 0 | 5 s | 20 | 25 |
-| 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 9 | no | Hostile | 0 | 3 s | 10 | 20 |
-| 210 | Wizard | Arcane Bolt | Projectile | Cursor | – | 20 | – | – | 11 | no | Hostile | 0 | 0.8 s | 0 | 12 |
-| 211 | Wizard | Flame Burst | Circle | Cursor | AimPoint | 18 | 3 | – | – | – | Hostile | 0.6 s | 5 s | 25 | 18 |
-| 212 | Wizard | Frost Fan | Cone | Cursor | – | 6 | – | 60 | – | – | Hostile | 0 | 4 s | 15 | 22 |
-| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 14 | no | Hostile | 0 | 0.8 s | 0 | 12 |
-| 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 12 | yes | Hostile | 0 | 4 s | 15 | 25 |
-| 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4 s | 20 | 22 |
-| 230 | Cleric | Smite | Projectile | Cursor | – | 18 | – | – | 10 | no | Hostile | 0 | 0.8 s | 0 | 12 |
-| 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5 s | 20 | 22 |
-| 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8 s | 25 | 40 |
+| id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost | value | type |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | 0.8 s | 0 | 12 | Physical |
+| 201 | Warrior | Ground Slam | Circle | Movement | Caster | 0 | 3 | – | – | – | Hostile | 0 | 5 s | 20 | 25 | Physical |
+| 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 9 | no | Hostile | 0 | 3 s | 10 | 20 | Physical |
+| 210 | Wizard | Spark Bolt | Projectile | Cursor | – | 20 | – | – | 11 | no | Hostile | 0 | 0.8 s | 0 | 12 | Lightning |
+| 211 | Wizard | Flame Burst | Circle | Cursor | AimPoint | 18 | 3 | – | – | – | Hostile | 0.6 s | 5 s | 25 | 18 | Fire |
+| 212 | Wizard | Frost Fan | Cone | Cursor | – | 6 | – | 60 | – | – | Hostile | 0 | 4 s | 15 | 22 | Cold |
+| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 14 | no | Hostile | 0 | 0.8 s | 0 | 12 | Physical |
+| 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 12 | yes | Hostile | 0 | 4 s | 15 | 25 | Physical |
+| 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4 s | 20 | 22 | Physical |
+| 230 | Cleric | Smite | Projectile | Cursor | – | 18 | – | – | 10 | no | Hostile | 0 | 0.8 s | 0 | 12 | Lightning |
+| 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5 s | 20 | 22 | Lightning |
+| 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8 s | 25 | 40 | – |
 
 Costs are paid from the class's pool: Warriors Fury, Wizards and Clerics Mana, Hunters Energy
 (`ClassPowerType`). `SeedIntegrityShould` pins the twelve rows, the class links, the starting skills,
@@ -405,6 +414,10 @@ creature sets to its target's position. The arcs and projectile speeds are the v
 | 314 | Mother Bramble | Bramble Lash (basic) | Cone | 2.5 | – | 90 | – | – | 0 | swing | 1.0 |
 | 315 | Mother Bramble | Bramble Nova | Circle | 0 | 6 | – | – | – | 1.2 s | 16 s | 2.5 |
 | 316 | Mother Bramble | Thornspray | Cone | 5 | – | 120 | – | – | 0 | 8 s | 1.8 |
+
+Damage types (#1178): Rotting Burst (307), Earthsplitter (312) and Thorn Volley (313) name Blight; every other
+leaves `DamageType` null and deals its creature's base type, Blight for the Blightfly Swarmling and Mother Bramble
+and Physical for the rest.
 
 Which of them a creature uses, and when, is its script's rotation (`creature-system.md`).
 `SeedIntegrityShould` pins every row and each forest template's script. The client reads these rows,

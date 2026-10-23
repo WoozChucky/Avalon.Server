@@ -1,4 +1,5 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Public.Creatures;
@@ -46,4 +47,25 @@ public interface ICreatureMetadata
     /// where the guard is applied.
     /// </summary>
     bool Invulnerable { get; }
+
+    /// <summary>The type of damage the creature's basic attack deals, and its abilities that name none (#1178).</summary>
+    DamageType DamageType { get; }
+
+    /// <summary>Percent, -100 to 100, of fire damage this creature resists (#1178); negative takes more.</summary>
+    float FireResistance { get; }
+
+    /// <summary>Percent of cold damage this creature resists, as <see cref="FireResistance" />.</summary>
+    float ColdResistance { get; }
+
+    /// <summary>Percent of lightning damage this creature resists, as <see cref="FireResistance" />.</summary>
+    float LightningResistance { get; }
+
+    /// <summary>Percent of blight damage this creature resists, as <see cref="FireResistance" />.</summary>
+    float BlightResistance { get; }
+
+    /// <summary>Scales the level-derived base evasion (#1178); 0 gives none.</summary>
+    float EvasionModifier { get; }
+
+    /// <summary>Scales the level-derived base ward (#1178); 0 gives none.</summary>
+    float WardModifier { get; }
 }

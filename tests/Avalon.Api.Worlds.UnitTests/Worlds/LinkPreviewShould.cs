@@ -17,6 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
+using DamageType = Avalon.Network.Packets.Combat.DamageType;
 using ItemRarity = Avalon.Domain.World.ItemRarity;
 using ItemSlotType = Avalon.Domain.World.ItemSlotType;
 using ItemSubClass = Avalon.Domain.World.ItemSubClass;
@@ -71,6 +72,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
             Slot = ItemSlotType.Head,
             SubClass = ItemSubClass.Helmet,
             RequiredLevel = 5,
+            RequiredStrength = 12,
             StatType1 = StatType.Armor,
             StatValue1 = 8,
             StatType2 = StatType.Strength,
@@ -111,7 +113,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
             DamageType1 = DamageType.Lightning,
             DamageMin2 = 100000,
             DamageMax2 = 200000,
-            DamageType2 = DamageType.Poison,
+            DamageType2 = DamageType.Blight,
         });
 
         _abilities.FindByIdAsync(new AbilityId(210), Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -128,6 +130,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
                 EffectValue = 10,
                 ScalingCoefficient = 0.5f,
                 Effects = SpellEffect.Damage,
+                DamageType = DamageType.Physical,
             });
         _abilities.FindByIdAsync(new AbilityId(211), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new AbilityTemplate { Id = new AbilityId(211), Name = "Strike <b>&\"" });
@@ -213,7 +216,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         Assert.Equal("https://avalon.example/item/14", Meta(html, "og:url"));
         Assert.Equal("#C084FC", Meta(html, "theme-color"));
         Assert.Equal("summary", Meta(html, "twitter:card"));
-        Assert.Equal("Epic · Head · Helmet · 8 Armor · +3 Strength · +2% Crit · Requires Level 5",
+        Assert.Equal("Epic · Head · Helmet · 8 Armor · +3 Strength · +2% Crit · Requires Level 5 · Requires 12 Strength",
             Decoded(html, "og:description"));
         Assert.Contains("<title>Barkplate Helm</title>", html, StringComparison.Ordinal);
         Assert.Contains("<body><a href=\"https://avalon.example/item/14\">Barkplate Helm</a></body>", html,
@@ -235,7 +238,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         Assert.Equal("https://avalon.example/ability/210", Meta(html, "og:url"));
         Assert.Equal("#BC8A4E", Meta(html, "theme-color"));
         Assert.Equal("summary", Meta(html, "twitter:card"));
-        Assert.Equal("Warrior · 30 Mana · 2.5 sec cast · 8 sec cooldown · 10 + 50% of Attack Damage",
+        Assert.Equal("Warrior · 30 Mana · 2.5 sec cast · 8 sec cooldown · 10 + 50% of Attack Damage · Physical damage",
             Decoded(html, "og:description"));
         Assert.True(response.Headers.CacheControl!.Public);
         Assert.Equal(TimeSpan.FromSeconds(300), response.Headers.CacheControl.MaxAge);

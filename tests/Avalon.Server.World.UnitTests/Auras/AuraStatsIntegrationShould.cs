@@ -48,13 +48,13 @@ public class AuraStatsIntegrationShould
     public void Fold_a_characters_auras_into_its_next_stats_refresh()
     {
         CharacterEntity warrior = Warrior();
-        Assert.Equal(30u, warrior.Stats!.Value.Armor);
+        Assert.Equal(30u + 2u, warrior.Stats!.Value.Armor);   // and Strength 23 x 0.1 (#1178)
 
         warrior.Auras.Add(Held(AuraTestData.Fortified()), s_t0);
         CharacterStatsRefresh.Apply(warrior, [s_warriorOne], TestCombat.Factors, id => id == s_plate.Id ? s_plate : null,
             CurrentValues.KeepShare, TestCombat.Formula);
 
-        Assert.Equal(36u, warrior.Stats!.Value.Armor);
+        Assert.Equal(38u, warrior.Stats!.Value.Armor);   // round(32 x 1.2)
         Assert.True(warrior.SaveState.StatsDirty);
     }
 
@@ -67,7 +67,7 @@ public class AuraStatsIntegrationShould
         BaseMaxHealth = 100,
         Armor = 40,
         CritPct = 5f,
-        DodgePct = 2f,
+        Evasion = 2,
         BlockPct = 1f,
         DamageMin = 5,
         DamageMax = 9,
@@ -83,9 +83,9 @@ public class AuraStatsIntegrationShould
         sundered.Modifiers[0].Value = -25f;
         wolf.Auras.Add(Held(sundered), s_t0);
 
-        AuraStatsRefresh.Apply(wolf, data: null);
+        AuraStatsRefresh.Apply(wolf, data: null, DateTime.UnixEpoch);
 
-        Assert.Equal(new DefenderCombat(30, 2f, 1f), Internal<DefenderCombat>(wolf, "Defence"));
+        Assert.Equal(new DefenderCombat(30, 2, 1f), Internal<DefenderCombat>(wolf, "Defence"));
     }
 
     /// <summary>A creature's slow reaches the locomotion through its speed factor; the script's Speed stays the template's.</summary>
@@ -94,7 +94,7 @@ public class AuraStatsIntegrationShould
     {
         Creature wolf = Wolf();
         wolf.Auras.Add(Held(AuraTestData.Crippled()), s_t0);
-        AuraStatsRefresh.Apply(wolf, data: null);
+        AuraStatsRefresh.Apply(wolf, data: null, DateTime.UnixEpoch);
 
         Assert.Equal(0.7f, wolf.SpeedFactor, precision: 4);
         Assert.Equal(2.8f, CreatureSpeed.Of(wolf), precision: 4);
@@ -102,7 +102,7 @@ public class AuraStatsIntegrationShould
 
         wolf.Auras.Add(Held(AuraTestData.Crippled(908), stacks: 1), s_t0);
         wolf.Auras.Add(Held(AuraTestData.Crippled(909), stacks: 1), s_t0);
-        AuraStatsRefresh.Apply(wolf, data: null);
+        AuraStatsRefresh.Apply(wolf, data: null, DateTime.UnixEpoch);
         Assert.Equal(0.5f, wolf.SpeedFactor, precision: 4);   // -90 points, held at the -50 floor
     }
 
@@ -115,7 +115,7 @@ public class AuraStatsIntegrationShould
         Creature wolf = Wolf();
         wolf.Position = Vector3.zero;
         wolf.Auras.Add(Held(AuraTestData.Crippled()), s_t0);
-        AuraStatsRefresh.Apply(wolf, data: null);
+        AuraStatsRefresh.Apply(wolf, data: null, DateTime.UnixEpoch);
 
         locomotion.Register(wolf, radius: 0.5f);
         locomotion.MoveTo(wolf, new Vector3(20f, 0f, 0f));
@@ -137,7 +137,7 @@ public class AuraStatsIntegrationShould
 
         wolf.Rescale(1.6);
         wolf.Auras.Add(Held(vigour), s_t0);
-        AuraStatsRefresh.Apply(wolf, data: null);
+        AuraStatsRefresh.Apply(wolf, data: null, DateTime.UnixEpoch);
 
         Assert.Equal(176u, wolf.Health);
         Assert.Equal(88u, wolf.CurrentHealth);

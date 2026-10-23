@@ -288,7 +288,7 @@ public class CrowdControlShould
         MapInstanceClient hunterClient = Join(instance, 770_601);
         CharacterEntity hunter = hunterClient.Character;
         Creature boar = AddCreature(instance, 770_905, new Vector3(0f, 0f, 2f), Loot.LootTestData.BoarTemplate(null),
-            dodgePct: how == "dodge" ? 30f : 0f);
+            evasion: how == "dodge" ? 10000u : 0u);
         UnitAuras holder = boar.Auras;
         if (!how.StartsWith("restored", StringComparison.Ordinal))
             Assert.Equal(AuraApplyResult.Applied, instance.Auras.Apply(hunter, boar, Recorded(auraId), AuraSource.None));
@@ -504,7 +504,7 @@ public class CrowdControlShould
 
     /// <summary>A creature as the spawner fixes it: its resistance from its template and the seeded rarity rows.</summary>
     private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, CreatureTemplate template,
-        float dodgePct = 0f)
+        uint evasion = 0)
     {
         var creature = new Creature
         {
@@ -514,7 +514,7 @@ public class CrowdControlShould
             Level = 1,
             Health = 100,
             CurrentHealth = 100,
-            DodgePct = dodgePct,
+            Evasion = evasion,
             ControlResistance = ControlResistance.Of(template, Data.CreatureRarityModifiers),
         };
         creature.Script = new CombatResolutionShould.CountingWoundScript(creature);

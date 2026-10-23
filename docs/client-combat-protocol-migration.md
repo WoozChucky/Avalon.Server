@@ -73,9 +73,11 @@ Server → all clients in the instance. Triggers death animation + state transit
 | `UnitGuid` | 1 | `ulong` | Raw `ObjectGuid` of the unit that died. |
 | `KillerGuid` | 2 | `ulong?` | Raw `ObjectGuid` of the killer, or `null` for environmental / unattributed kills. |
 
-A creature's killing blow is sent like any other hit, before the death: `SUnitDamagePacket` with `CurrentHealth` 0, `Damage` the health the blow took, and `Result`, the hit's `HitResult` (a killing crit is marked `Crit`) (#506). A character's killing blow arrives the same way, as `SCharacterDamagePacket` to the character (with `AbilityId` and `Result`) and `SUnitDamagePacket` to its watchers. A dodged hit is sent as a hit of 0 marked `Dodged`, also for a hostile ability that deals no damage, whose aura it then does not apply (#1164); such an ability that lands sends no damage packet, only its aura. `SUnitDeathPacket` is the explicit death signal — use it to trigger the death animation, ragdoll, and (for the local player) the Release UI.
+A creature's killing blow is sent like any other hit, before the death: `SUnitDamagePacket` with `CurrentHealth` 0, `Damage` the health the blow took, and `Result`, the hit's `HitResult` (a killing crit is marked `Crit`) (#506). A character's killing blow arrives the same way, as `SCharacterDamagePacket` to the character (with `AbilityId` and `Result`) and `SUnitDamagePacket` to its watchers. An evaded hit is sent as a hit of 0 marked `Dodged` (which means evaded), also for a hostile ability that deals no damage, whose aura it then does not apply (#1164); such an ability that lands sends no damage packet, only its aura. `SUnitDeathPacket` is the explicit death signal — use it to trigger the death animation, ragdoll, and (for the local player) the Release UI.
 
-**Aura ticks (auras).** `AuraId` (field 7 of `SUnitHealedPacket`, field 6 of `SUnitDamagePacket`, field 7 of `SCharacterDamagePacket`) is set on a tick of an aura and absent otherwise; such a hit or heal carries no `AbilityId`. A tick is never dodged or blocked, can be a crit (`Result` `Crit`), and names the aura's caster as the attacker or healer, or raw 0 when nobody applied it or its caster is gone. A damage tick worth no whole point, and a heal tick that restored nothing, sends nothing. See `docs/aura-protocol.md`.
+**Damage types and the ward (#1178).** Both damage packets carry the hit's `Type` (`DamageType`: Physical 0, Fire 1, Cold 2, Lightning 3, Blight 4), the part that dealt the most after mitigation, a tie going to the lower type; `Types` (`DamageTypeMask` flags: Physical 1, Fire 2, Cold 4, Lightning 8, Blight 16), every type the hit carried before mitigation; and `WardAbsorbed`, what the target's ward took. They are fields 7, 8 and 9 of `SUnitDamagePacket` and 8, 9 and 10 of `SCharacterDamagePacket`. `Damage` stays the whole hit, the ward's part included, so health fell by `Damage - WardAbsorbed`. An evaded hit names the type and the parts it would have dealt (no parts for an ability that deals no damage, whose type is still named). Heals carry no type. A unit's ward bar is `ObjectState.Ward` (field 31) and `MaxWard` (field 32), on characters and creatures: the two always arrive together, on the add and on any update where either changed (a unit with no ward sends 0 and 0 on its add). Draw the ward in front of health.
+
+**Aura ticks (auras).** `AuraId` (field 7 of `SUnitHealedPacket`, field 6 of `SUnitDamagePacket`, field 7 of `SCharacterDamagePacket`) is set on a tick of an aura and absent otherwise; such a hit or heal carries no `AbilityId`. A tick is never evaded or blocked, carries the aura's damage type (and the ward's part, as a hit does), can be a crit (`Result` `Crit`), and names the aura's caster as the attacker or healer, or raw 0 when nobody applied it or its caster is gone. A damage tick worth no whole point, and a heal tick that restored nothing, sends nothing. See `docs/aura-protocol.md`.
 
 **A corpse's world state (#672).** `ObjectState.IsDead` (field 12) is `true` on a dead creature as well as a dead character. A creature is dead exactly when its health is 0; the world-state update that carries its `CurrentHealth` 0 carries `IsDead = true` in the same message, and a client that first sees the corpse later (it walked into view, or entered the instance) gets `IsDead = true` on the add. A living creature's routine updates leave `IsDead` out, so absent on a creature update means unchanged, not alive. The corpse stays in the world-state stream until its body is removed (`BodyRemoveTimer`), then leaves with an ordinary remove. Creatures are never revived.
 
@@ -169,7 +171,7 @@ Server → the healer, the target, and every client within `Game:InterestRadius`
 | `Amount` | 3 | `uint` | Health actually restored, overheal left out. |
 | `CurrentHealth` | 4 | `uint` | The target's health after the heal. |
 | `AbilityId` | 5 | `uint?` | The ability that healed; absent when none did. |
-| `Result` | 6 | `HitResult` | `Crit` for a critical heal, otherwise `None`; a heal is never dodged or blocked. |
+| `Result` | 6 | `HitResult` | `Crit` for a critical heal, otherwise `None`; a heal is never evaded or blocked. |
 | `AuraId` | 7 | `uint?` | The aura whose tick healed (auras); absent for an ability's or an item's heal. |
 
 **Aura ticks (auras)** heal on this packet with `AuraId` set: see the paragraph of that name under `SUnitDeathPacket` above, and `docs/aura-protocol.md`.
@@ -188,10 +190,19 @@ Server → the player's own client only. The character sheet (#506), always whol
 | `AttackDamage` | 6 | `uint` | |
 | `AbilityDamage` | 7 | `uint` | |
 | `CritPct` | 8 | `float` | Percentage points, already clamped to the formula's `CritCap`. |
-| `DodgePct` | 9 | `float` | Percentage points, already clamped to `DodgeCap`. |
+| _(reserved)_ | 9 | | The retired `DodgePct` (#1178); never reused. |
 | `BlockPct` | 10 | `float` | Percentage points, already clamped to `BlockCap`. |
 | `WeaponMin` | 11 | `uint` | The main-hand weapon's damage range; both 0 with no weapon. |
 | `WeaponMax` | 12 | `uint` | |
+| `HastePct` | 13 | `float` | The effective haste, in percentage points (#627). |
+| `MovementSpeed` | 14 | `float` | The speed the server steps the character at, m/s (#627). |
+| `Evasion` | 15 | `uint` | The evasion rating (#1178). |
+| `EvasionPct` | 16 | `float` | The chance that rating gives to evade an attacker of the character's own level, percentage points, already capped at the formula's `EvasionCap`. |
+| `MaxWard` | 17 | `uint` | What a full ward holds; the current ward is in `ObjectState.Ward`. |
+| `FireResistance` | 18 | `float` | Percent, effective: capped as a hit caps it (at most `ResistanceCap`, never above 90, never below `ResistanceFloor`); negative takes more. |
+| `ColdResistance` | 19 | `float` | As `FireResistance`. |
+| `LightningResistance` | 20 | `float` | As `FireResistance`. |
+| `BlightResistance` | 21 | `float` | As `FireResistance`. |
 
 ### Ability amounts for tooltips (#669)
 
@@ -207,7 +218,7 @@ What each learned ability deals or heals per unit hit, worked out by the server 
 
 **Afterwards**, `SCharacterAbilityAmountsPacket` (`SMSG_CHARACTER_ABILITY_AMOUNTS = 0x302C`, encrypted, TCP, the player's own client only) carries `Amounts` (field 1), one `AbilityAmountInfo` per learned ability: `AbilityId` 1, `Kind` 2, `Min` 3, `Max` 4, with the meanings above. It is sent, whole, whenever a stats refresh (a gear change, a level-up) moves any amount, in the same tick's flush as the `SCharacterStatsPacket` showing the new stats, and never when nothing moved. Replace every ability's amount with it. Its lifetime is the character's session: a character switch (Change Character, #663) or a new login selects again, and the new select's `SMSG_CHARACTER_ABILITIES` starts over.
 
-**What the numbers are.** The ability's base, exactly as combat computes it: `EffectValue + ScalingCoefficient × (AttackDamage or AbilityDamage) + BaseDamageCoefficient × weapon roll`, the roll uniform and inclusive over the main hand's `WeaponMin..WeaponMax` (only when the coefficient and the weapon are above 0). Then floored as a normal hit resolves it: **before crit, dodge, block and the target's armour** (a target with no armour takes exactly this on a normal hit). Damage has a minimum of 1; healing has none, and a heal on a unit at full health restores less. The kind follows `Affects`: `Ally` is healing, anything else damage. Only the three shape scripts (circle, cone, projectile) apply an amount directly; an ability run by any other script is `None`.
+**What the numbers are.** The ability's base, exactly as combat computes it: `EffectValue + ScalingCoefficient × (AttackDamage or AbilityDamage) + BaseDamageCoefficient × weapon roll`, the roll uniform and inclusive over the main hand's `WeaponMin..WeaponMax` (only when the coefficient and the weapon are above 0). Then floored as a normal hit resolves it: **before evasion, crit, block and the target's armour or resistance** (a target with no armour takes exactly this from a normal physical hit, and one with no resistance from an elemental one). Damage has a minimum of 1; healing has none, and a heal on a unit at full health restores less. The kind follows `Affects`: `Ally` is healing, anything else damage. Only the three shape scripts (circle, cone, projectile) apply an amount directly; an ability run by any other script is `None`.
 
 ## 5. Cast Pipeline Expectations (Client Side)
 
@@ -270,20 +281,22 @@ Each class starts with three skills (#164), ordinary `AbilityTemplate` rows seed
 
 The retired abilities 1, 2 and 100-103 are gone, and their ids are never reused, so a client that cached them cannot confuse them with a kit skill.
 
-| id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | 800 ms | 0 |
-| 201 | Warrior | Ground Slam | Circle | Movement | Caster | 0 | 3 | – | – | – | Hostile | 0 | 5000 ms | 20 |
-| 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 9 | no | Hostile | 0 | 3000 ms | 10 |
-| 210 | Wizard | Arcane Bolt | Projectile | Cursor | – | 20 | – | – | 11 | no | Hostile | 0 | 800 ms | 0 |
-| 211 | Wizard | Flame Burst | Circle | Cursor | AimPoint | 18 | 3 | – | – | – | Hostile | 600 ms | 5000 ms | 25 |
-| 212 | Wizard | Frost Fan | Cone | Cursor | – | 6 | – | 60 | – | – | Hostile | 0 | 4000 ms | 15 |
-| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 14 | no | Hostile | 0 | 800 ms | 0 |
-| 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 12 | yes | Hostile | 0 | 4000 ms | 15 |
-| 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4000 ms | 20 |
-| 230 | Cleric | Smite | Projectile | Cursor | – | 18 | – | – | 10 | no | Hostile | 0 | 800 ms | 0 |
-| 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5000 ms | 20 |
-| 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8000 ms | 25 |
+The type column is the ability catalog's `damageType` (`schema/abilities/ability-catalog-v1.json`, #1178); `AbilityInfo` does not carry it, and each hit names its own type.
+
+| id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost | type |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | 800 ms | 0 | Physical |
+| 201 | Warrior | Ground Slam | Circle | Movement | Caster | 0 | 3 | – | – | – | Hostile | 0 | 5000 ms | 20 | Physical |
+| 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 9 | no | Hostile | 0 | 3000 ms | 10 | Physical |
+| 210 | Wizard | Spark Bolt | Projectile | Cursor | – | 20 | – | – | 11 | no | Hostile | 0 | 800 ms | 0 | Lightning |
+| 211 | Wizard | Flame Burst | Circle | Cursor | AimPoint | 18 | 3 | – | – | – | Hostile | 600 ms | 5000 ms | 25 | Fire |
+| 212 | Wizard | Frost Fan | Cone | Cursor | – | 6 | – | 60 | – | – | Hostile | 0 | 4000 ms | 15 | Cold |
+| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 14 | no | Hostile | 0 | 800 ms | 0 | Physical |
+| 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 12 | yes | Hostile | 0 | 4000 ms | 15 | Physical |
+| 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4000 ms | 20 | Physical |
+| 230 | Cleric | Smite | Projectile | Cursor | – | 18 | – | – | 10 | no | Hostile | 0 | 800 ms | 0 | Lightning |
+| 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5000 ms | 20 | Lightning |
+| 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8000 ms | 25 | – |
 
 On the wire `AbilityInfo.Cooldown` and `CastTime` are seconds (floats); the table gives the stored milliseconds. The cost is paid from the class's pool: Warrior Fury, Wizard and Cleric Mana, Hunter Energy. Damage and heal amounts, and threat, are not transmitted in `AbilityInfo`; they are server-side only and surface through the damage packets, health replication and `SThreatListPacket`. `AbilityInfo.Range` still carries the legacy `SpellRange` value but the server no longer reads it; use `Reach`.
 

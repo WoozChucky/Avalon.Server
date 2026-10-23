@@ -3,7 +3,7 @@ using Avalon.Network.Packets.Combat;
 
 namespace Avalon.Combat.UnitTests;
 
-/// <summary>An aura's damage tick: one crit draw, then armour; never dodged or blocked.</summary>
+/// <summary>An aura's damage tick: one crit draw, then armour for a physical one; never evaded or blocked.</summary>
 public class PeriodicHitShould
 {
     private static CombatFormula Formula() => new()
@@ -15,11 +15,13 @@ public class PeriodicHitShould
         CritMultiplier = 1.5f,
         BlockMultiplier = 0.5f,
         CritCap = 50f,
-        DodgeCap = 30f,
         BlockCap = 50f,
         HasteCap = 50f,
         MoveSpeedCap = 35f,
         MoveSpeedFloor = -50f,
+        EvasionBase = 560f,
+        EvasionPerLevel = 40f,
+        EvasionCap = 30f,
     };
 
     private sealed class Rolls(params double[] doubles) : ICombatRandom
@@ -44,7 +46,7 @@ public class PeriodicHitShould
         var rng = new Rolls(0.99);
 
         (double damage, HitResult result) = HitResolver.ResolvePeriodic(new AttackerCombat(1, 0, 0, 10f, 0, 0),
-            new DefenderCombat(60, DodgePct: 100f, BlockPct: 100f), 20f, Formula(), rng);
+            new DefenderCombat(60, Evasion: 100000, BlockPct: 100f), DamageType.Physical, 20f, Formula(), rng);
 
         Assert.Equal((10d, HitResult.None), (damage, result));
         Assert.Equal(1, rng.Drawn);
@@ -54,7 +56,7 @@ public class PeriodicHitShould
     public void Crit_a_tick_by_the_casters_snapshot_chance()
     {
         (double damage, HitResult result) = HitResolver.ResolvePeriodic(new AttackerCombat(1, 0, 0, 10f, 0, 0),
-            new DefenderCombat(0, 0f, 0f), 20f, Formula(), new Rolls(0.05));
+            new DefenderCombat(0, 0, 0f), DamageType.Physical, 20f, Formula(), new Rolls(0.05));
 
         Assert.Equal((30d, HitResult.Crit), (damage, result));
     }
@@ -63,7 +65,7 @@ public class PeriodicHitShould
     [Fact]
     public void Leave_a_ticks_fraction_unfloored() =>
         Assert.Equal(5.875d, HitResolver.ResolvePeriodic(new AttackerCombat(1, 0, 0, 0f, 0, 0),
-            new DefenderCombat(0, 0f, 0f), 5.875f, Formula(), new Rolls(0.99)).Damage, precision: 6);
+            new DefenderCombat(0, 0, 0f), DamageType.Physical, 5.875f, Formula(), new Rolls(0.99)).Damage, precision: 6);
 
     /// <summary>
     /// A 23.5 total over 4 ticks with no armour: 5.875 a tick, so 5, 6, 6 and a final 6.5 rounded to 7, which adds up to
@@ -77,7 +79,7 @@ public class PeriodicHitShould
         for (int tick = 0; tick < 4; tick++)
         {
             (double damage, _) = HitResolver.ResolvePeriodic(new AttackerCombat(1, 0, 0, 0f, 0, 0),
-                new DefenderCombat(0, 0f, 0f), 23.5f / 4f, Formula(), new Rolls(0.99));
+                new DefenderCombat(0, 0, 0f), DamageType.Physical, 23.5f / 4f, Formula(), new Rolls(0.99));
             dealt.Add(AuraRules.TakeTick(damage, ref carry, lastTick: tick == 3));
         }
 

@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
@@ -101,4 +102,11 @@ public class AbilityTemplate : IDbEntity<AbilityId>
     /// <see cref="Effects" /> has Damage (Hostile) or Heal (Ally).
     /// </summary>
     public AuraId? AuraId { get; set; }
+
+    /// <summary>
+    /// The type of damage the ability deals, and the type its damage-over-time aura takes (#1178), or null: a creature
+    /// ability with none deals its creature's base type. An Ally ability names none; a class ability that deals damage,
+    /// directly or through a damaging aura, must name one (<c>AbilityRules</c>, <c>AuraRules.DamageTypeProblem</c>).
+    /// </summary>
+    public DamageType? DamageType { get; set; }
 }

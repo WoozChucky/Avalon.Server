@@ -98,7 +98,8 @@ public class CharacterCreationShould : IDisposable
             await characterDb.CharacterStats.AsNoTracking().SingleAsync(s => s.CharacterId == character.Id);
         Assert.Equal(((uint)health, (uint)power), (stats.MaxHealth, stats.MaxPower1));
         Assert.Equal((attack, ability, block), (stats.AttackDamage, stats.AbilityDamage, stats.BlockPct));
-        Assert.Equal(0u, stats.Armor);
+        // #1178: Strength 20, Agility 20 and Intellect 23 through the seeded conversions (0.1, 1.125, 0.25).
+        Assert.Equal((2u, 22u, 5u), (stats.Armor, stats.Evasion, stats.MaxWard));
     }
 
     /// <summary>

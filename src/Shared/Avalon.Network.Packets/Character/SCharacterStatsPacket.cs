@@ -13,6 +13,8 @@ namespace Avalon.Network.Packets.Character;
 /// are fixed at each stats refresh, so a reload moves them at the character's next refresh.
 /// </summary>
 [ProtoContract]
+[ProtoReserved(9)]
+[ProtoReserved("DodgePct")]
 public class SCharacterStatsPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHARACTER_STATS;
@@ -29,9 +31,6 @@ public class SCharacterStatsPacket : Packet
 
     /// <summary>Percentage points, clamped to the formula's CritCap.</summary>
     [ProtoMember(8)] public float CritPct { get; set; }
-
-    /// <summary>Percentage points, clamped to the formula's DodgeCap.</summary>
-    [ProtoMember(9)] public float DodgePct { get; set; }
 
     /// <summary>Percentage points, clamped to the formula's BlockCap.</summary>
     [ProtoMember(10)] public float BlockPct { get; set; }
@@ -51,6 +50,30 @@ public class SCharacterStatsPacket : Packet
     /// Metres per second (#627): the speed the server steps this character's input at, the one to predict with.
     /// </summary>
     [ProtoMember(14)] public float MovementSpeed { get; set; }
+
+    /// <summary>The evasion rating (#1178), a flat number; <see cref="EvasionPct" /> is the chance it gives.</summary>
+    [ProtoMember(15)] public uint Evasion { get; set; }
+
+    /// <summary>
+    /// Percentage points (#1178): the chance to evade a hit from an attacker of the character's own level, clamped to the
+    /// formula's EvasionCap. An attacker of another level meets a different chance.
+    /// </summary>
+    [ProtoMember(16)] public float EvasionPct { get; set; }
+
+    /// <summary>What a full ward holds (#1178). The current ward travels on the character's replicated state.</summary>
+    [ProtoMember(17)] public uint MaxWard { get; set; }
+
+    /// <summary>
+    /// Percent (#1178): the fire resistance a hit counts, capped at the formula's ResistanceCap and never below its
+    /// ResistanceFloor; below 0 is a weakness. The other three resistances are the same.
+    /// </summary>
+    [ProtoMember(18)] public float FireResistance { get; set; }
+
+    [ProtoMember(19)] public float ColdResistance { get; set; }
+
+    [ProtoMember(20)] public float LightningResistance { get; set; }
+
+    [ProtoMember(21)] public float BlightResistance { get; set; }
 
     public static OutboundPacket Create(SCharacterStatsPacket sheet, PacketEncoder encoder)
         => encoder.Encode(sheet, PacketType, Flags, Protocol);

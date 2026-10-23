@@ -22,7 +22,7 @@ public class AbilityAmountsFlusherShould
     private static DerivedCharacterStats Stats(uint attack = 40, uint ability = 20, uint weaponMin = 24, uint weaponMax = 28,
         float crit = 5f) =>
         new(MaxHealth: 240, MaxPower: 100, Stamina: 22, Strength: 23, Agility: 20, Intellect: 21, Armor: 8,
-            BlockPct: 3f, DodgePct: 4f, CritPct: crit, AttackDamage: attack, AbilityDamage: ability,
+            BlockPct: 3f, Evasion: 4, CritPct: crit, AttackDamage: attack, AbilityDamage: ability,
             WeaponMin: weaponMin, WeaponMax: weaponMax);
 
     /// <summary>A weapon strike (10 + 0.5 × attack + weapon roll) and a heal (40 + 0.5 × ability damage).</summary>

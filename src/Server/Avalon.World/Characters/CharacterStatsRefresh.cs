@@ -76,7 +76,7 @@ public static class CharacterStatsRefresh
 
         // Auras: whatever the character holds now is folded in, so every refresh (select, gear, level-up, an aura)
         // agrees with every other.
-        character.ApplyStats(CharacterStatsCalculator.Calculate(row, worn, factors, character.Auras.StatTotals), current,
+        character.ApplyStats(CharacterStatsCalculator.Calculate(row, worn, factors, formula, character.Auras.StatTotals), current,
             formula);
         return true;
     }

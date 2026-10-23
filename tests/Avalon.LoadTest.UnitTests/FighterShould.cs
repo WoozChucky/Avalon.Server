@@ -34,7 +34,7 @@ public class FighterShould
     [Fact]
     public void Walk_into_the_forest_fight_walk_out_and_respawn_after_dying()
     {
-        // Bot 1 is a wizard: Arcane Bolt (210), 20 m of reach, so it stops 19 m from its target. The forest has a wall
+        // Bot 1 is a wizard: Spark Bolt (210), 20 m of reach, so it stops 19 m from its target. The forest has a wall
         // filling the inside of the L the fighter walks in by (north, then east): the straight way back runs into it.
         var wizard = new Sim(this, new Fighter(1, _metrics, TimeSpan.FromSeconds(20), firstTripJitter: TimeSpan.Zero))
         {

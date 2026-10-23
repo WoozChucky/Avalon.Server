@@ -31,7 +31,7 @@ public sealed class TemplateErrors
 /// afterwards. The field rules run on the request, the "world rules" on the row as it would be stored (they cover
 /// the columns an edit cannot reach too, so an already-bad row is refused rather than re-saved). Rules that the
 /// shared <c>Avalon.Combat</c> loaders own are called, not copied: <see cref="AbilityRules.Problem"/>,
-/// <see cref="AuraRules.Problem"/>, <see cref="AuraRules.LinkProblem"/> and
+/// <see cref="AuraRules.Problem"/>, <see cref="AuraRules.LinkProblem"/>, <see cref="AuraRules.DamageTypeProblem"/> and
 /// <see cref="CreatureTemplateRules.Validate"/>. The world loads items with no validation of its own and the
 /// ItemTemplates table has no check constraint, so items get sanity rules only.
 /// </summary>
@@ -86,6 +86,7 @@ public static class TemplateValidation
         // CK_AbilityTemplates_CostPowerType: only a cost of 0 may name no pool.
         if (r.Cost > 0 && r.CostPowerType == Contract.PowerType.None)
             e.Add("costPowerType", "A cost needs the pool it is spent from (Mana, Fury or Energy).");
+        if (r.DamageType is { } damageType) Defined(e, "damageType", damageType);
         Classes(e, r.AllowedClasses);
         return e;
     }
@@ -121,6 +122,7 @@ public static class TemplateValidation
         Defined(e, "rarity", r.Rarity);
         Defined(e, "family", r.Family);
         Defined(e, "type", r.Type);
+        Defined(e, "damageType", r.DamageType);
         if (r.MinLevel > r.MaxLevel) e.Add("maxLevel", "Max level must not be below min level.");
         foreach ((string field, float value) in new (string, float)[]
                  {
@@ -128,9 +130,20 @@ public static class TemplateValidation
                      ("detectionRange", r.DetectionRange), ("healthModifier", r.HealthModifier),
                      ("manaModifier", r.ManaModifier), ("armorModifier", r.ArmorModifier),
                      ("experienceModifier", r.ExperienceModifier), ("damageModifier", r.DamageModifier),
+                     ("evasionModifier", r.EvasionModifier), ("wardModifier", r.WardModifier),
                  })
         {
             if (!float.IsFinite(value) || value < 0f) e.Add(field, "Must be a finite number of 0 or more.");
+        }
+
+        // #1178: a resistance is a percentage either way, negative taking more (CreatureTemplateRules, the check constraints).
+        foreach ((string field, float value) in new (string, float)[]
+                 {
+                     ("fireResistance", r.FireResistance), ("coldResistance", r.ColdResistance),
+                     ("lightningResistance", r.LightningResistance), ("blightResistance", r.BlightResistance),
+                 })
+        {
+            if (!float.IsFinite(value) || value < -100f || value > 100f) e.Add(field, "Must be a number from -100 to 100.");
         }
 
         if (r.MinGold < 0) e.Add("minGold", "Min gold must be 0 or more.");
@@ -206,6 +219,7 @@ public static class TemplateValidation
         _ when problem.Contains("power type", StringComparison.OrdinalIgnoreCase) => "costPowerType",
         _ when problem.StartsWith("Cost ", StringComparison.Ordinal) => "costPowerType",
         _ when problem.StartsWith("the ability does nothing", StringComparison.Ordinal) => "effects",
+        _ when problem.Contains("damage type", StringComparison.Ordinal) => "damageType",
         _ => "template",
     };
 
@@ -216,6 +230,7 @@ public static class TemplateValidation
         _ when problem.Contains(nameof(CreatureTemplate.RootDurationPct), StringComparison.Ordinal) => "rootDurationPct",
         _ when problem.Contains(nameof(CreatureTemplate.SilenceDurationPct), StringComparison.Ordinal) => "silenceDurationPct",
         _ when problem.Contains(nameof(CreatureTemplate.SlowDurationPct), StringComparison.Ordinal) => "slowDurationPct",
+        _ when problem.Contains(nameof(CreatureTemplate.DamageType), StringComparison.Ordinal) => "damageType",
         _ => "template",
     };
 

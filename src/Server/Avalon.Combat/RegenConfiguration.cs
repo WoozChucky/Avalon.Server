@@ -29,4 +29,12 @@ public class RegenConfiguration
     /// </summary>
     [Range(0.0, 60.0)]
     public float PowerRegenCastSuppressSeconds { get; set; } = 5f;
+
+    /// <summary>Seconds without any damage taken before a ward starts to recharge (#1178).</summary>
+    [Range(0.0, 60.0)]
+    public float WardRechargeDelaySeconds { get; set; } = 4f;
+
+    /// <summary>Seconds a recharging ward takes to go from empty to full (#1178); 0 fills it at once.</summary>
+    [Range(0.0, 60.0)]
+    public float WardRechargeSeconds { get; set; } = 2f;
 }

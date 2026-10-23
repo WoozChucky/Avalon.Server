@@ -129,6 +129,27 @@ singletons as in every host. Only their context factories differ in the API, whi
   run `dotnet ef database update TrackRepeatedQuestCompletions` against that world's Character database and
   `dotnet ef database update ItemsAllowEveryClassWhenEmpty` against its World database; both rename the columns back
   with their values. No world or API does that by itself.
+  **Release order, #1178 (part A).** Damage types and the defence layers change only additively what the API reads. A
+  world's World database migrates through `AddDefenceLayers` and then `ReexpressForestDefences`: `AbilityTemplates`
+  gains `DamageType`, `CreatureTemplates` gains the four resistances, `EvasionModifier` and `WardModifier` (its base
+  damage type stays in the `DmgSchool` column the API already maps), and `ItemTemplates` gains `RequiredStrength`,
+  `RequiredAgility` and `RequiredIntellect`; the columns the migrations drop or rename (`CombatFormula`,
+  `ClassStatFactors`, `CreatureRarityModifiers`) are on tables only the world reads. Its Character database migrates
+  through `AddDefenceStats`: `CharacterStats` gains `Evasion`, `MaxWard` and the four resistances, and `CharacterAuras`
+  gains `DamageType`. `CharacterStats.DodgePct` is retired but kept, still mapped: the world writes it 0 and the API no
+  longer returns it (`CharacterStatsDto` drops `dodgePct`), so an older API reading a migrated world shows a dodge of 0, nothing
+  worse. The stored item damage types move to the new numbering (Poison 1 became Blight 4, Fire 2 became 1); no
+  seeded item deals anything but Physical, so no row the API reads changes. The worlds go first: each migrates at its
+  next start (start any stopped world once, so it migrates too), and only then is an API release with the change cut.
+  An older API reading a migrated world ignores the new columns, an ability's `DamageType` among them, and serves the
+  migrated seed as it is: ability 210 renamed Spark Bolt (it was Arcane Bolt), and creatures 6 and 10 with `dmgSchool` 4
+  (Blight), a value it reads but does nothing with. An API with the change reading a world that has not
+  migrated fails that world's reads of the three template tables, a character's stats and its auras. To roll a world
+  back to a build without the change, first run `dotnet ef database update RenameRewardMoneyToRewardGold` against its
+  World database and `dotnet ef database update AddTradeRecords` against its Character database; the World rollback
+  restores the dropped columns with their old seed values, and its `CK_AuraStatModifiers_Stat` again allows only stats
+  1 to 10, so an aura modifier on a stat from 11 to 15 (none is seeded) must be removed first. No world or API does
+  that by itself.
 
 ## How a request reaches its world
 
@@ -293,9 +314,10 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
 - **The link** is `<PublicSiteUrl>/item/{id}` (or `/ability/{id}`), with `?world=N` only when the request named a
   world. With no `PublicSiteUrl`, `og:url` is left out and the link is relative.
 - **The description** (`LinkPreviewText.Describe`) reads like the site's tooltips: for an item its rarity, slot,
-  subclass, damage, armour, other stats, required level, allowed classes (only when restricted to some; an empty
-  list means every class, #1171) and item power; for an ability its classes, cost, cast time, cooldown and amount
-  line (templates have no description or flavour text). Parts are joined by ` · `, collapsed to one line and capped
+  subclass, damage, armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178),
+  allowed classes (only when restricted to some; an empty list means every class, #1171) and item power; for an
+  ability its classes, cost, cast time, cooldown, amount line and damage type (`Fire damage`, #1178; templates have
+  no description or flavour text). Parts are joined by ` · `, collapsed to one line and capped
   at 200 characters with an ellipsis.
 - **Colours:** an item's `theme-color` is its rarity's colour, an ability's `AbilityColour`. A missing or malformed
   colour leaves `theme-color` out; it never fails the request.
