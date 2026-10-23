@@ -345,7 +345,7 @@ public class Creature : ICreature
     /// </remarks>
     internal AttackerCombat Combat => new(Level, AuraTotals.IsEmpty ? CritPct : _auraCritPct,
         new WeaponDamage(DamageMin, DamageMax, null, 0, 0, null, CreatureStatDeriver.AttackTimeMs(BaseAttackTime)),
-        _auraOffence, DamageType);
+        _auraOffence, BaseType: DamageType);
 
     /// <summary>What this creature defends with (#506), its resistances (#1178) and its auras folded in.</summary>
     internal DefenderCombat Defence =>

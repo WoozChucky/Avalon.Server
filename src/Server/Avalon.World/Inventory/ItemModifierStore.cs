@@ -20,6 +20,13 @@ public sealed class ItemModifierStore
         _byItem.TryGetValue(item, out List<ItemInstanceModifier>? modifiers) ? modifiers : Array.Empty<ItemInstanceModifier>();
 
     /// <summary>
+    /// The item's live list itself, in ordinal order, or null for an item without modifiers: what the stats refresh folds,
+    /// read through the concrete list. Nothing may change it.
+    /// </summary>
+    internal List<ItemInstanceModifier>? ListOf(ItemInstanceId item) =>
+        _byItem.TryGetValue(item, out List<ItemInstanceModifier>? modifiers) ? modifiers : null;
+
+    /// <summary>
     /// At select: every loaded item's modifiers, in ordinal order, each one's values in index order. It keeps the loaded
     /// objects and marks nothing: they are what the database holds.
     /// </summary>

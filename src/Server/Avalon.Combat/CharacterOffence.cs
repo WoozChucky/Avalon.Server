@@ -11,13 +11,14 @@ public static class CharacterOffence
     /// gear. Strength gives increased physical attack damage, Intellect increased spell damage and increased healing,
     /// Agility attack speed, each by <paramref name="f" />'s rate; every line of the gear worn (its template's and its
     /// modifiers', #1179) adds its Increased… keys, crit multiplier, attack speed, cast speed and cooldown recovery flat,
-    /// and its added damage to attacks and to spells by type; a line local to its item (a weapon's added damage, local
-    /// increased damage or defence, local attack speed) is that item's, never the block's. Then <paramref name="auras" />
-    /// fold on top (a Flat adds, a More multiplies). Runs on a stats refresh, never per hit, and allocates nothing:
-    /// <paramref name="worn" /> is read by index.
+    /// and its added damage to attacks and to spells by type, handed out as <paramref name="addedToAttacks" /> and
+    /// <paramref name="addedToSpells" />, which sit beside the block on the attacker; a line local to its item (a weapon's
+    /// added damage, local increased damage or defence, local attack speed) is that item's, never the block's. Then
+    /// <paramref name="auras" /> fold on top (a Flat adds, a More multiplies). Runs on a stats refresh, never per hit,
+    /// and allocates nothing: <paramref name="worn" /> is read by index.
     /// </summary>
     public static OffenceStats Of(uint strength, uint agility, uint intellect, IReadOnlyList<WornItem> worn,
-        CombatFormula f, AuraStatTotals? auras = null)
+        CombatFormula f, out DamageRanges addedToAttacks, out DamageRanges addedToSpells, AuraStatTotals? auras = null)
     {
         OffenceStats o = default;
         o.AddIncreased(OffenceStat.PhysicalAttack, (float)(strength * (double)f.IncreasedPhysicalAttackPerStrength));
@@ -25,17 +26,15 @@ public static class CharacterOffence
         o.AddIncreased(OffenceStat.Healing, (float)(intellect * (double)f.IncreasedHealingPerIntellect));
         o.AttackSpeedPct = (float)(agility * (double)f.AttackSpeedPerAgility);
 
-        DamageRanges toAttacks = default;
-        DamageRanges toSpells = default;
+        addedToAttacks = default;
+        addedToSpells = default;
         for (int i = 0; i < worn.Count; i++)
         {
             WornItem item = worn[i];
             foreach (ItemLine line in ItemLines.Of(item))
-                Add(ref o, ref toAttacks, ref toSpells, line);
+                Add(ref o, ref addedToAttacks, ref addedToSpells, line);
         }
 
-        o.AddedToAttacks = toAttacks;
-        o.AddedToSpells = toSpells;
         return auras is null ? o : AuraStats.Fold(o, auras);
     }
 

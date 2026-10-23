@@ -306,9 +306,9 @@ public class CharacterService : ICharacterService
             ?? throw new InvalidOperationException("The world has no combat formula row.");
 
         OffenceStats offence = CharacterOffence.Of(stats?.Strength ?? 0, stats?.Agility ?? 0, stats?.Intellect ?? 0, worn,
-            formula);
+            formula, out DamageRanges addedToAttacks, out DamageRanges addedToSpells);
         var weapon = WeaponDamage.Of(CharacterStatsCalculator.MainHandOf(worn), formula);
-        return new AttackerCombat(character.Level, stats?.CritPct ?? 0f, weapon, offence);
+        return new AttackerCombat(character.Level, stats?.CritPct ?? 0f, weapon, offence, addedToAttacks, addedToSpells);
     }
 
     /// <summary>
@@ -339,7 +339,7 @@ public class CharacterService : ICharacterService
                 && templates.TryGetValue(instance.TemplateId, out ItemTemplate? template)
                 && EquipmentSlots.Accepts(row.Slot, template.Slot))
             {
-                result.Add(new WornItem(template, instance.Modifiers));
+                result.Add(new WornItem(template, instance.Modifiers.Count > 0 ? instance.Modifiers : null));
             }
         }
 

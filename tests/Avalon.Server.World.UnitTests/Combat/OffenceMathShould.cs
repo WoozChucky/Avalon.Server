@@ -84,7 +84,7 @@ public class OffenceMathShould
         };
         ScriptedCombatRandom rng = new ScriptedCombatRandom().Longs(10, 2, 3, 1);
 
-        DamageParts parts = OffenceMath.AttackBase(Attacker(new OffenceStats { AddedToAttacks = toAttacks }, weapon),
+        DamageParts parts = OffenceMath.AttackBase(new AttackerCombat(1, 0f, weapon, AddedToAttacks: toAttacks),
             ability, rng);
 
         Assert.Equal((physical, fire, cold),
@@ -107,7 +107,7 @@ public class OffenceMathShould
             SpellBaseMax = 10,
         };
 
-        DamageParts parts = OffenceMath.SpellBase(Attacker(new OffenceStats { AddedToSpells = toSpells }), spell,
+        DamageParts parts = OffenceMath.SpellBase(new AttackerCombat(1, 0f, AddedToSpells: toSpells), spell,
             new ScriptedCombatRandom().Longs(10, 2));
 
         Assert.Equal((10d, 2d), (parts.Get(DamageType.Fire), parts.Get(DamageType.Lightning)));

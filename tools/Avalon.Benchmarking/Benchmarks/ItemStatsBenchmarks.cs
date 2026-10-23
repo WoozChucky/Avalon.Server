@@ -78,7 +78,7 @@ public class ItemStatsBenchmarks
     ];
 
     // Each piece as a copy that rolled no modifiers, as the kit was measured before #1179.
-    private readonly List<WornItem> _worn = [.. s_kit.Select(t => new WornItem(t, []))];
+    private readonly List<WornItem> _worn = [.. s_kit.Select(t => new WornItem(t, null))];
 
     // The same pieces, each with six modifiers of one value each.
     private readonly List<WornItem> _wornModified = [.. s_kit.Select(t => new WornItem(t, ModifiersFor(t)))];

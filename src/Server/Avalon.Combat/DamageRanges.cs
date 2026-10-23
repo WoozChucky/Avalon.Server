@@ -15,11 +15,19 @@ internal struct DamageRangeValues
 /// Added damage by type (#1179): one inclusive range per <see cref="DamageType" />, indexed by the type's number, each
 /// rolled on its own. A weapon's local added damage, or every worn item's added damage to attacks or to spells. An
 /// inline array rather than a managed one, so it is a value that never allocates; its equality is written by hand because
-/// the offence block it sits in is compared after every stats refresh. Default adds nothing.
+/// the attacker it sits in is compared after every stats refresh. <see cref="Mask" /> names the types that add anything,
+/// so a hit with no added damage reads one byte rather than every range. Default adds nothing.
 /// </summary>
 public struct DamageRanges : IEquatable<DamageRanges>
 {
     private DamageRangeValues _ranges;
+
+    // Bit n is set exactly when type n's high end is above 0 (set by Add, cleared by Increase), so it follows the ranges
+    // and equality and the hash leave it out.
+    private byte _mask;
+
+    /// <summary>One bit per type that adds anything, bit n for the type numbered n: 0 when nothing is added.</summary>
+    internal readonly byte Mask => _mask;
 
     public readonly uint Min(DamageType type) => _ranges[Index(type)].Min;
 
@@ -34,6 +42,7 @@ public struct DamageRanges : IEquatable<DamageRanges>
         int i = Index(type);
         (uint Min, uint Max) range = _ranges[i];
         _ranges[i] = (Sum(range.Min, Math.Min(min, max)), Sum(range.Max, max));
+        if (_ranges[i].Max > 0) _mask |= (byte)(1 << i);
     }
 
     /// <summary>An item's "adds X to Y" line to <paramref name="type" />, each end below 0 counting as 0.</summary>
@@ -46,20 +55,7 @@ public struct DamageRanges : IEquatable<DamageRanges>
         int i = Index(type);
         (uint Min, uint Max) range = _ranges[i];
         _ranges[i] = (LocalScaling.Increase(range.Min, increasedPct), LocalScaling.Increase(range.Max, increasedPct));
-    }
-
-    /// <summary>True when no type adds anything.</summary>
-    public readonly bool IsEmpty
-    {
-        get
-        {
-            for (int i = 0; i < DamageTypes.Count; i++)
-            {
-                if (_ranges[i].Max > 0) return false;
-            }
-
-            return true;
-        }
+        if (_ranges[i].Max == 0) _mask &= (byte)~(1 << i);
     }
 
     public readonly bool Equals(DamageRanges other)

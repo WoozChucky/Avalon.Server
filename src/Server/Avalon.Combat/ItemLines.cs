@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalon.Domain.World;
 
 namespace Avalon.Combat;
@@ -9,16 +10,18 @@ namespace Avalon.Combat;
 public readonly record struct ItemLine(StatType Stat, int Min, int Max);
 
 /// <summary>
-/// Every stat line a worn item gives (#1179), in order: its template's stat pairs that have both a type and a value
+/// Every stat line a worn item gives (#1179): its template's stat pairs that have both a type and a value
 /// (<c>Max = Min</c>), then each modifier's values in list order (<c>Min = Value</c>, <c>Max = Value2 ?? Value</c>). Read
-/// by index into the template and the lists, so a <c>foreach</c> over it allocates nothing.
+/// by index into the template and the lists, so a <c>foreach</c> over it allocates nothing. A fold over the lines must
+/// not depend on their order: the world holds an item's modifiers in ordinal order, while the worlds API reads them in
+/// the order the database loads them, and both must reach the same stats.
 /// </summary>
 public readonly ref struct ItemLines
 {
     private readonly ItemTemplate _template;
-    private readonly IReadOnlyList<ItemInstanceModifier> _modifiers;
+    private readonly List<ItemInstanceModifier>? _modifiers;
 
-    private ItemLines(ItemTemplate template, IReadOnlyList<ItemInstanceModifier> modifiers)
+    private ItemLines(ItemTemplate template, List<ItemInstanceModifier>? modifiers)
     {
         _template = template;
         _modifiers = modifiers;
@@ -33,12 +36,12 @@ public readonly ref struct ItemLines
         private const int PairCount = 10;
 
         private readonly ItemTemplate _template;
-        private readonly IReadOnlyList<ItemInstanceModifier> _modifiers;
+        private readonly List<ItemInstanceModifier>? _modifiers;
         private int _pair;
         private int _modifier;
         private int _value;
 
-        internal Enumerator(ItemTemplate template, IReadOnlyList<ItemInstanceModifier> modifiers)
+        internal Enumerator(ItemTemplate template, List<ItemInstanceModifier>? modifiers)
         {
             _template = template;
             _modifiers = modifiers;
@@ -46,6 +49,7 @@ public readonly ref struct ItemLines
 
         public ItemLine Current { get; private set; }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool MoveNext()
         {
             while (_pair < PairCount)
@@ -59,9 +63,12 @@ public readonly ref struct ItemLines
                 }
             }
 
-            while (_modifier < _modifiers.Count)
+            List<ItemInstanceModifier>? modifiers = _modifiers;
+            if (modifiers is null) return false;
+
+            while (_modifier < modifiers.Count)
             {
-                List<ItemInstanceModifierValue> values = _modifiers[_modifier].Values;
+                List<ItemInstanceModifierValue> values = modifiers[_modifier].Values;
                 if (_value < values.Count)
                 {
                     ItemInstanceModifierValue line = values[_value++];
@@ -76,6 +83,7 @@ public readonly ref struct ItemLines
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static (StatType? Type, uint? Value) Pair(ItemTemplate t, int index) => index switch
         {
             0 => (t.StatType1, t.StatValue1),

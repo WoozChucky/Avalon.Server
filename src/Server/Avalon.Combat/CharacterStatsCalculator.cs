@@ -45,6 +45,8 @@ public static class CharacterStatsCalculator
 
         // #506, #1178: the main hand, what an Attack rolls; the bare hand's range with none.
         WornItem? weapon = MainHandOf(worn);
+        OffenceStats offence = CharacterOffence.Of(Clamp(strength), Clamp(agility), Clamp(intellect), worn, formula,
+            out DamageRanges addedToAttacks, out DamageRanges addedToSpells, auras);
 
         DerivedCharacterStats derived = new(
             MaxHealth: Clamp(maxHealth),
@@ -63,7 +65,9 @@ public static class CharacterStatsCalculator
             Resistances: new Resistances(gear.FireResistance, gear.ColdResistance, gear.LightningResistance,
                 gear.BlightResistance),
             Weapon: WeaponDamage.Of(weapon, formula),
-            Offence: CharacterOffence.Of(Clamp(strength), Clamp(agility), Clamp(intellect), worn, formula, auras));
+            Offence: offence,
+            AddedToAttacks: addedToAttacks,
+            AddedToSpells: addedToSpells);
 
         return auras is null ? derived : AuraStats.Fold(derived, auras);
     }

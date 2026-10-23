@@ -38,12 +38,12 @@ public static class CharacterStatsRefresh
 #pragma warning restore IDE1006
 
     /// <summary>
-    /// False, changing nothing, when there is no ClassLevelStat row for the character's class and
-    /// level, or no ClassStatFactors row for its class (#506). A worn item counts only when its template exists and the slot it is in accepts it, so
-    /// a row that put a gem in slot 8 or anything in the reserved slot 13 adds nothing. Each counts the template the lookup
-    /// holds now and the modifiers its copy rolled (#1179), so a base edited live reaches a worn copy and leaves its
-    /// modifiers as they were. <paramref name="formula" /> bounds
-    /// the speeds (#1178) and movement speed (#627), and is required: the caller passes the generation it read.
+    /// False, changing nothing, when there is no ClassLevelStat row for the character's class and level, or no
+    /// ClassStatFactors row for its class (#506). A worn item counts only when its template exists and the slot it is in
+    /// accepts it, so a row that put a gem in slot 8 or anything in the reserved slot 13 adds nothing. Each counts the
+    /// template the lookup holds now and the modifiers its copy rolled (#1179), so a base edited live reaches a worn copy
+    /// and leaves its modifiers as they were. <paramref name="formula" /> bounds the speeds (#1178) and movement speed
+    /// (#627), and is required: the caller passes the generation it read.
     /// </summary>
     public static bool Apply(
         CharacterEntity character,
@@ -61,7 +61,7 @@ public static class CharacterStatsRefresh
     /// over the current reference data, which walked every item template for it besides. The list of worn items
     /// stays: it is what the calculator, shared with the simulator and the API, is handed. It is the calling thread's one
     /// list (#1178), emptied after each refresh, so a refresh allocates nothing for it; each item's modifiers are the
-    /// character's store's own list (#1179), the one empty array for an item without any, so they allocate nothing either.
+    /// character's store's own list (#1179), null for an item without any, so they allocate nothing either.
     /// </summary>
     private static bool Apply(
         CharacterEntity character,
@@ -81,7 +81,7 @@ public static class CharacterStatsRefresh
             foreach (InventoryItem item in character.Container(InventoryType.Equipment).Held)
             {
                 if (templates.Find(item.TemplateId) is { } template && EquipmentSlots.Accepts(item.Slot, template.Slot))
-                    worn.Add(new WornItem(template, character.ItemModifiers.Of(item.InstanceId)));
+                    worn.Add(new WornItem(template, character.ItemModifiers.ListOf(item.InstanceId)));
             }
 
             // Auras: whatever the character holds now is folded in, so every refresh (select, gear, level-up, an aura)

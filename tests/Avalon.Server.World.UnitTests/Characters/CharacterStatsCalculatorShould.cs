@@ -287,8 +287,8 @@ public class CharacterStatsCalculatorShould
             "weapon added physical max" => stats.Weapon.Added.Max(DamageType.Physical),
             "weapon added fire max" => stats.Weapon.Added.Max(DamageType.Fire),
             "attack time" => stats.Weapon.AttackTimeMs,
-            "attacks physical max" => stats.Offence.AddedToAttacks.Max(DamageType.Physical),
-            "spells cold max" => stats.Offence.AddedToSpells.Max(DamageType.Cold),
+            "attacks physical max" => stats.AddedToAttacks.Max(DamageType.Physical),
+            "spells cold max" => stats.AddedToSpells.Max(DamageType.Cold),
             _ => stats.Offence.Increased(OffenceStat.Physical),
         };
         Assert.Equal(expected, actual);
