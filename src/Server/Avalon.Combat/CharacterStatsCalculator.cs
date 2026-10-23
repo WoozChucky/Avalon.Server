@@ -183,7 +183,6 @@ public static class CharacterStatsCalculator
             }
         }
 
-        private static long Scaled(long flat, long increasedPct) =>
-            (long)Math.Round(flat * Math.Max(0d, 1d + (increasedPct / 100d)), MidpointRounding.AwayFromZero);
+        private static long Scaled(long flat, long increasedPct) => LocalScaling.Increase(flat, increasedPct);
     }
 }

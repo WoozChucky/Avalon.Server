@@ -16,9 +16,9 @@ public readonly record struct WeaponDamage(uint Min1, uint Max1, DamageType? Typ
     /// with the lines local to it folded in (#1179): its added damage by type goes to <see cref="Added" />; its local
     /// increased physical damage scales each end of a physical range and of the added physical damage by
     /// <c>max(0, 1 + sum / 100)</c>; its local attack speed makes the attack time <c>time / (1 + sum / 100)</c>, a sum of
-    /// 0 or below counting as none, as every speed does (<see cref="Speed" />). Each result is rounded half away from
-    /// zero. No main hand, or one whose first range deals nothing, rolls the formula's unarmed range as physical damage; a
-    /// main hand with no attack time paces as unarmed.
+    /// 0 or below counting as none, as every speed does (<see cref="Speed" />). Each result is worked out in whole numbers
+    /// and rounded exactly half away from zero (<see cref="LocalScaling" />). No main hand, or one whose first range deals
+    /// nothing, rolls the formula's unarmed range as physical damage; a main hand with no attack time paces as unarmed.
     /// </summary>
     public static WeaponDamage Of(WornItem? mainHand, CombatFormula f)
     {
@@ -46,19 +46,19 @@ public readonly record struct WeaponDamage(uint Min1, uint Max1, DamageType? Typ
         }
 
         ItemTemplate t = item.Template;
-        double physical = Math.Max(0d, 1d + (increasedPhysical / 100d));
-        added.Scale(DamageType.Physical, physical);
+        added.Increase(DamageType.Physical, increasedPhysical);
 
         uint max1 = t.DamageMax1 ?? 0;
         uint max2 = t.DamageMax2 ?? 0;
-        double factor1 = t.DamageType1 == DamageType.Physical ? physical : 1d;
-        double factor2 = t.DamageType2 == DamageType.Physical ? physical : 1d;
+        long increased1 = t.DamageType1 == DamageType.Physical ? increasedPhysical : 0;
+        long increased2 = t.DamageType2 == DamageType.Physical ? increasedPhysical : 0;
         uint time = t.AttackTimeMs is { } attackTime and > 0 ? attackTime : unarmedTime;
-        if (attackSpeed > 0) time = Math.Max(1u, DamageRanges.Round(time / (1d + (attackSpeed / 100d))));
 
         return new WeaponDamage(
-            DamageRanges.Round(Math.Min(t.DamageMin1 ?? 0, max1) * factor1), DamageRanges.Round(max1 * factor1), t.DamageType1,
-            DamageRanges.Round(Math.Min(t.DamageMin2 ?? 0, max2) * factor2), DamageRanges.Round(max2 * factor2), t.DamageType2,
-            time, added);
+            LocalScaling.Increase(Math.Min(t.DamageMin1 ?? 0, max1), increased1), LocalScaling.Increase(max1, increased1),
+            t.DamageType1,
+            LocalScaling.Increase(Math.Min(t.DamageMin2 ?? 0, max2), increased2), LocalScaling.Increase(max2, increased2),
+            t.DamageType2,
+            LocalScaling.Hasten(time, attackSpeed), added);
     }
 }

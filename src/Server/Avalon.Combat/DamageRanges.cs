@@ -40,17 +40,13 @@ public struct DamageRanges : IEquatable<DamageRanges>
     internal void Add(DamageType type, in ItemLine line) =>
         Add(type, (uint)Math.Max(0, line.Min), (uint)Math.Max(0, line.Max));
 
-    /// <summary>Multiplies both ends of <paramref name="type" />'s range by <paramref name="factor" />, each rounded half away from zero.</summary>
-    internal void Scale(DamageType type, double factor)
+    /// <summary>Both ends of <paramref name="type" />'s range increased by <paramref name="increasedPct" /> (<see cref="LocalScaling" />).</summary>
+    internal void Increase(DamageType type, long increasedPct)
     {
         int i = Index(type);
         (uint Min, uint Max) range = _ranges[i];
-        _ranges[i] = (Round(range.Min * factor), Round(range.Max * factor));
+        _ranges[i] = (LocalScaling.Increase(range.Min, increasedPct), LocalScaling.Increase(range.Max, increasedPct));
     }
-
-    /// <summary><paramref name="value" /> rounded half away from zero, held to 0..<see cref="uint.MaxValue" />.</summary>
-    internal static uint Round(double value) =>
-        value > 0d ? value >= uint.MaxValue ? uint.MaxValue : (uint)Math.Round(value, MidpointRounding.AwayFromZero) : 0u;
 
     /// <summary>True when no type adds anything.</summary>
     public readonly bool IsEmpty

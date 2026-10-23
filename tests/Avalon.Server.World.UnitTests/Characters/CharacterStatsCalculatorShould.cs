@@ -231,9 +231,12 @@ public class CharacterStatsCalculatorShould
     /// armour scales its own 5 + 3 to 12, never the chest's 8, and the gloves' 100 % scales no armour of theirs; the main
     /// hand's added damage, 40 % increased physical damage and 10 % attack speed are its own (4-7 to 6-10, added physical
     /// 1-2 to 1-3, 792 ms to 720), never the offence block's; the ring's added damage to attacks and to spells is global.
+    /// The boots' 25 evasion at 82 % is exactly 45.5, rounded half away from zero to 46 in whole numbers (a double gives
+    /// 45.49999… from 25 x (1 + 0.82)).
     /// </summary>
     [Theory]
     [InlineData("armor", 20d)]
+    [InlineData("evasion", 46d)]
     [InlineData("weapon min1", 6d)]
     [InlineData("weapon max1", 10d)]
     [InlineData("weapon added physical min", 1d)]
@@ -259,6 +262,7 @@ public class CharacterStatsCalculatorShould
         };
         var ring = new ItemTemplate { Name = "Ring", Slot = ItemSlotType.Finger };
         var gloves = new ItemTemplate { Name = "Gloves", Slot = ItemSlotType.Hands };
+        var boots = new ItemTemplate { Name = "Boots", Slot = ItemSlotType.Feet, StatType1 = StatType.Evasion, StatValue1 = 25 };
         WornItem[] worn =
         [
             Rolled(head, (StatType.Armor, 3, null), (StatType.LocalIncreasedArmor, 50, null)),
@@ -267,6 +271,7 @@ public class CharacterStatsCalculatorShould
                 (StatType.AddedFireDamage, 2, 5), (StatType.LocalAttackSpeed, 10, null)),
             Rolled(ring, (StatType.AddedPhysicalDamageToAttacks, 1, 3), (StatType.AddedColdDamageToSpells, 1, 2)),
             Rolled(gloves, (StatType.LocalIncreasedArmor, 100, null)),
+            Rolled(boots, (StatType.LocalIncreasedEvasion, 82, null)),
         ];
 
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Warrior, 1), worn,
@@ -275,6 +280,7 @@ public class CharacterStatsCalculatorShould
         double actual = what switch
         {
             "armor" => stats.Armor,
+            "evasion" => stats.Evasion,
             "weapon min1" => stats.Weapon.Min1,
             "weapon max1" => stats.Weapon.Max1,
             "weapon added physical min" => stats.Weapon.Added.Min(DamageType.Physical),
