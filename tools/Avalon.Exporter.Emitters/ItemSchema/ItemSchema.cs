@@ -10,7 +10,7 @@ namespace Avalon.Exporter;
 /// <summary>
 /// Exports what an ItemTemplate is and what its enumerated values mean. The inventory packet
 /// carries an ItemTemplateId and a Rarity as bare numbers, so without this a client cannot learn
-/// that 3 is Epic -- and a reordered enum would change every item's rarity with nothing to say so.
+/// that 3 is Unique -- and a reordered enum would change every item's rarity with nothing to say so.
 ///
 /// Every name and number is read off the types themselves. A transcription would agree with
 /// whatever it transcribed, which is the failure this file exists to catch.

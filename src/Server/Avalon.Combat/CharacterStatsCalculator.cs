@@ -1,4 +1,3 @@
-using Avalon.Common;
 using Avalon.Domain.World;
 
 namespace Avalon.Combat;

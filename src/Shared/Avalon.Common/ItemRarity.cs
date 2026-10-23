@@ -1,8 +1,9 @@
 namespace Avalon.Common;
 
 /// <summary>
-/// How rare an item is (#1179). A template is Common or Unique; Magic and Rare exist only on an instance's rolls. Lives
-/// in Avalon.Common because instance data, the wire and the modding surface all name it.
+/// How rare an item is (#1179). A template is Common or Unique; an instance carries its own rarity, which Magic and
+/// Rare exist only on. Lives in Avalon.Common beside <see cref="ItemInstanceFlags" /> because, like the flags, it is
+/// a fact of every instance that the instance row, the wire and the modding surface's InventoryItem all carry.
 /// </summary>
 public enum ItemRarity : byte
 {
@@ -15,6 +16,6 @@ public enum ItemRarity : byte
     /// <summary>Three to six modifiers.</summary>
     Rare = 2,
 
-    /// <summary>Hand-made: fixed stats whose values each copy rolls.</summary>
+    /// <summary>Hand-made: its stats are its unique modifier, whose values each copy rolls.</summary>
     Unique = 3,
 }

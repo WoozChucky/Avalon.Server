@@ -5116,7 +5116,7 @@ namespace Avalon.Database.World.Migrations
                     b.Property<long?>("AttackTimeMs")
                         .HasColumnType("bigint");
 
-                    b.Property<byte>("BaseKind")
+                    b.Property<byte?>("BaseKind")
                         .HasColumnType("smallint");
 
                     b.Property<long>("BuyPrice")
@@ -5179,36 +5179,6 @@ namespace Avalon.Database.World.Migrations
 
                     b.Property<int?>("Slot")
                         .HasColumnType("integer");
-
-                    b.Property<long?>("StatMax1")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("StatMax10")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("StatMax2")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("StatMax3")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("StatMax4")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("StatMax5")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("StatMax6")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("StatMax7")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("StatMax8")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("StatMax9")
-                        .HasColumnType("bigint");
 
                     b.Property<int?>("StatType1")
                         .HasColumnType("integer");
@@ -5294,29 +5264,9 @@ namespace Avalon.Database.World.Migrations
                         {
                             t.HasCheckConstraint("CK_ItemTemplates_AttackTimeMs", "\"AttackTimeMs\" IS NULL OR \"AttackTimeMs\" > 0");
 
-                            t.HasCheckConstraint("CK_ItemTemplates_BaseKind", "\"BaseKind\" BETWEEN 0 AND 27");
+                            t.HasCheckConstraint("CK_ItemTemplates_BaseKind", "\"BaseKind\" IS NULL OR \"BaseKind\" BETWEEN 1 AND 27");
 
                             t.HasCheckConstraint("CK_ItemTemplates_Rarity", "\"Rarity\" IN (0, 3)");
-
-                            t.HasCheckConstraint("CK_ItemTemplates_StatMax1", "\"StatMax1\" IS NULL OR (\"StatValue1\" IS NOT NULL AND \"StatMax1\" >= \"StatValue1\")");
-
-                            t.HasCheckConstraint("CK_ItemTemplates_StatMax10", "\"StatMax10\" IS NULL OR (\"StatValue10\" IS NOT NULL AND \"StatMax10\" >= \"StatValue10\")");
-
-                            t.HasCheckConstraint("CK_ItemTemplates_StatMax2", "\"StatMax2\" IS NULL OR (\"StatValue2\" IS NOT NULL AND \"StatMax2\" >= \"StatValue2\")");
-
-                            t.HasCheckConstraint("CK_ItemTemplates_StatMax3", "\"StatMax3\" IS NULL OR (\"StatValue3\" IS NOT NULL AND \"StatMax3\" >= \"StatValue3\")");
-
-                            t.HasCheckConstraint("CK_ItemTemplates_StatMax4", "\"StatMax4\" IS NULL OR (\"StatValue4\" IS NOT NULL AND \"StatMax4\" >= \"StatValue4\")");
-
-                            t.HasCheckConstraint("CK_ItemTemplates_StatMax5", "\"StatMax5\" IS NULL OR (\"StatValue5\" IS NOT NULL AND \"StatMax5\" >= \"StatValue5\")");
-
-                            t.HasCheckConstraint("CK_ItemTemplates_StatMax6", "\"StatMax6\" IS NULL OR (\"StatValue6\" IS NOT NULL AND \"StatMax6\" >= \"StatValue6\")");
-
-                            t.HasCheckConstraint("CK_ItemTemplates_StatMax7", "\"StatMax7\" IS NULL OR (\"StatValue7\" IS NOT NULL AND \"StatMax7\" >= \"StatValue7\")");
-
-                            t.HasCheckConstraint("CK_ItemTemplates_StatMax8", "\"StatMax8\" IS NULL OR (\"StatValue8\" IS NOT NULL AND \"StatMax8\" >= \"StatValue8\")");
-
-                            t.HasCheckConstraint("CK_ItemTemplates_StatMax9", "\"StatMax9\" IS NULL OR (\"StatValue9\" IS NOT NULL AND \"StatMax9\" >= \"StatValue9\")");
                         });
 
                     b.HasData(
@@ -5324,7 +5274,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 1m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 10L,
                             Class = 0,
                             DisplayId = 1L,
@@ -5344,7 +5293,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 2m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 13L,
                             Class = 0,
                             DisplayId = 2L,
@@ -5364,7 +5312,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 3m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 100L,
                             Class = 0,
                             DisplayId = 3L,
@@ -5383,7 +5330,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 9m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 20L,
                             Class = 0,
                             DisplayId = 9L,
@@ -5399,7 +5345,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 10m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 20L,
                             Class = 0,
                             DisplayId = 10L,
@@ -5415,7 +5360,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 11m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 20L,
                             Class = 0,
                             DisplayId = 11L,
@@ -7005,14 +6949,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 50L,
                             Slot = 1,
-                            StatType1 = 10,
-                            StatType2 = 1,
-                            StatType3 = 2,
-                            StatType4 = 25,
-                            StatValue1 = 12L,
-                            StatValue2 = 3L,
-                            StatValue3 = 3L,
-                            StatValue4 = 8L,
                             SubClass = 206
                         },
                         new
@@ -7031,12 +6967,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 100L,
                             Slot = 7,
-                            StatType1 = 10,
-                            StatType2 = 18,
-                            StatType3 = 31,
-                            StatValue1 = 20L,
-                            StatValue2 = 12L,
-                            StatValue3 = 8L,
                             SubClass = 207
                         },
                         new
@@ -7055,13 +6985,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 200L,
                             Slot = 7,
-                            StatMax2 = 4L,
-                            StatType1 = 10,
-                            StatType2 = 45,
-                            StatType3 = 7,
-                            StatValue1 = 30L,
-                            StatValue2 = 2L,
-                            StatValue3 = 4L,
                             SubClass = 207
                         },
                         new
@@ -7080,12 +7003,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 200L,
                             Slot = 11,
-                            StatType1 = 10,
-                            StatType2 = 30,
-                            StatType3 = 18,
-                            StatValue1 = 25L,
-                            StatValue2 = 15L,
-                            StatValue3 = 10L,
                             SubClass = 210
                         },
                         new
@@ -7104,19 +7021,12 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 100L,
                             Slot = 11,
-                            StatType1 = 10,
-                            StatType2 = 12,
-                            StatType3 = 33,
-                            StatValue1 = 20L,
-                            StatValue2 = 6L,
-                            StatValue3 = 6L,
                             SubClass = 210
                         },
                         new
                         {
                             Id = 56m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 25L,
                             Class = 0,
                             DisplayId = 56L,
@@ -7136,7 +7046,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 57m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 57L,
@@ -7152,7 +7061,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 59m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 59L,
@@ -7168,7 +7076,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 60m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 60L,
@@ -7184,7 +7091,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 61m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 61L,
@@ -7200,7 +7106,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 62m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 62L,
@@ -7216,7 +7121,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 63m,
                             AllowedClasses = new byte[0],
-                            BaseKind = (byte)0,
                             BuyPrice = 0L,
                             Class = 3,
                             DisplayId = 63L,
@@ -8742,51 +8646,6 @@ namespace Avalon.Database.World.Migrations
                             MaxCount = 1,
                             MinCount = 1,
                             ReferenceTableId = 14
-                        },
-                        new
-                        {
-                            LootTableId = 6,
-                            Sequence = 8,
-                            Chance = 10f,
-                            ItemTemplateId = 58m,
-                            MaxCount = 1,
-                            MinCount = 1
-                        },
-                        new
-                        {
-                            LootTableId = 7,
-                            Sequence = 8,
-                            Chance = 10f,
-                            ItemTemplateId = 64m,
-                            MaxCount = 1,
-                            MinCount = 1
-                        },
-                        new
-                        {
-                            LootTableId = 7,
-                            Sequence = 9,
-                            Chance = 10f,
-                            ItemTemplateId = 67m,
-                            MaxCount = 1,
-                            MinCount = 1
-                        },
-                        new
-                        {
-                            LootTableId = 8,
-                            Sequence = 8,
-                            Chance = 15f,
-                            ItemTemplateId = 65m,
-                            MaxCount = 1,
-                            MinCount = 1
-                        },
-                        new
-                        {
-                            LootTableId = 8,
-                            Sequence = 9,
-                            Chance = 15f,
-                            ItemTemplateId = 66m,
-                            MaxCount = 1,
-                            MinCount = 1
                         },
                         new
                         {

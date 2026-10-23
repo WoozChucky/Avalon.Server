@@ -8,9 +8,9 @@ namespace Avalon.Database.World.Seeding;
 /// The seeded equipment (#1179): 74 bases and 5 uniques. A base is Common, lists no classes and carries no attributes:
 /// its defence or damage, its implicit lines and its requirements, in three tiers at required levels 1, 5 and 10 (the
 /// attribute asks none, 30 and 45). Plate gives armour and asks Strength, leather evasion and Agility, cloth ward and
-/// Intellect. A unique's lines are its drafted values, the centre each copy rolls around. Numbers are rounded half away
-/// from zero and at least 1; every base sells for a quarter of its price. The model's HasData reads these; consumables
-/// and quest items stay in WorldDbContext.
+/// Intellect. A unique is seeded without stat lines: its stats are its unique modifier, rolled per copy. Numbers are
+/// rounded half away from zero and at least 1; every base sells for a quarter of its price. The model's HasData reads
+/// these; consumables and quest items stay in WorldDbContext, with no base kind.
 /// </summary>
 public static class ItemBaseSeed
 {
@@ -69,18 +69,13 @@ public static class ItemBaseSeed
         Jewellery(68, "Copper Band", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger),
         Jewellery(69, "Bone Charm", ItemBaseKind.Amulet, ItemSubClass.Amulet, ItemSlotType.Neck),
 
-        // The uniques: hand-made, a required level only; each copy rolls its values around these.
-        Unique(58, "Alpha's Fang Pendant", ItemBaseKind.Amulet, ItemSubClass.Amulet, ItemSlotType.Neck, 3, 50,
-            (StatType.Health, 12, null), (StatType.Strength, 3, null), (StatType.Agility, 3, null),
-            (StatType.IncreasedAttackDamage, 8, null)),
-        Unique(64, "Heartwood Band", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger, 4, 100,
-            (StatType.Health, 20, null), (StatType.BlightResistance, 12, null), (StatType.IncreasedHealing, 8, null)),
-        Unique(65, "Thornheart Signet", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger, 5, 200,
-            (StatType.Health, 30, null), (StatType.AddedPhysicalDamageToAttacks, 2, 4), (StatType.CritPct, 4, null)),
-        Unique(66, "Bramble Mother's Seed", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 5, 200,
-            (StatType.Health, 25, null), (StatType.IncreasedDamageOverTime, 15, null), (StatType.BlightResistance, 10, null)),
-        Unique(67, "Tuskroot Idol", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 4, 100,
-            (StatType.Health, 20, null), (StatType.AttackSpeed, 6, null), (StatType.CastSpeed, 6, null)),
+        // The uniques: hand-made, a required level and prices only. Their stats are their unique modifiers, rolled per
+        // copy, which the modifier catalog brings; until then nothing drops, sells or rewards them.
+        Unique(58, "Alpha's Fang Pendant", ItemBaseKind.Amulet, ItemSubClass.Amulet, ItemSlotType.Neck, 3, 50),
+        Unique(64, "Heartwood Band", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger, 4, 100),
+        Unique(65, "Thornheart Signet", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger, 5, 200),
+        Unique(66, "Bramble Mother's Seed", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 5, 200),
+        Unique(67, "Tuskroot Idol", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 4, 100),
     ];
 
     // Chest defence by family and tier; the other slots are shares of it (legs 80 %, head 60 %, shoulders 50 %, hands and
@@ -225,26 +220,8 @@ public static class ItemBaseSeed
     }
 
     private static ItemTemplate Unique(
-        ulong id, string name, ItemBaseKind kind, ItemSubClass subClass, ItemSlotType slot, ushort level, uint sellPrice,
-        params (StatType Type, uint Value, uint? Max)[] lines)
-    {
-        ItemTemplate unique = Equipment(id, name, kind, ItemClass.Armor, subClass, slot, ItemRarity.Unique,
-            4 * sellPrice, level);
-        for (int i = 0; i < lines.Length; i++)
-        {
-            (StatType type, uint value, uint? max) = lines[i];
-            switch (i)
-            {
-                case 0: (unique.StatType1, unique.StatValue1, unique.StatMax1) = (type, value, max); break;
-                case 1: (unique.StatType2, unique.StatValue2, unique.StatMax2) = (type, value, max); break;
-                case 2: (unique.StatType3, unique.StatValue3, unique.StatMax3) = (type, value, max); break;
-                case 3: (unique.StatType4, unique.StatValue4, unique.StatMax4) = (type, value, max); break;
-                default: throw new ArgumentOutOfRangeException(nameof(lines), "a seeded unique has at most four lines");
-            }
-        }
-
-        return unique;
-    }
+        ulong id, string name, ItemBaseKind kind, ItemSubClass subClass, ItemSlotType slot, ushort level, uint sellPrice) =>
+        Equipment(id, name, kind, ItemClass.Armor, subClass, slot, ItemRarity.Unique, 4 * sellPrice, level);
 
     private static ItemTemplate Equipment(
         ulong id, string name, ItemBaseKind kind, ItemClass itemClass, ItemSubClass subClass, ItemSlotType slot,

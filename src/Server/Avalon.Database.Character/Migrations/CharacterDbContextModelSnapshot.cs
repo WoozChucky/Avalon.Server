@@ -477,14 +477,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<long>("Count")
                         .HasColumnType("bigint");
 
-                    b.Property<int>("Flags")
-                        .HasColumnType("integer");
-
                     b.Property<long>("GiverCharacterId")
                         .HasColumnType("bigint");
-
-                    b.Property<string>("Rolls")
-                        .HasColumnType("text");
 
                     b.Property<decimal>("TemplateId")
                         .HasColumnType("numeric(20,0)");
@@ -515,9 +509,6 @@ namespace Avalon.Database.Character.Migrations
 
                     b.Property<int>("Flags")
                         .HasColumnType("integer");
-
-                    b.Property<string>("Rolls")
-                        .HasColumnType("text");
 
                     b.Property<decimal>("TemplateId")
                         .HasColumnType("numeric(20,0)");

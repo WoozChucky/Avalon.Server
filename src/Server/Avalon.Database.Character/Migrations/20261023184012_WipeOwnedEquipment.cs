@@ -5,9 +5,9 @@
 namespace Avalon.Database.Character.Migrations
 {
     /// <summary>
-    /// #1179: equipment became bases and uniques with instance rolls, so every equipment item a character owns is
-    /// removed: the 52 retired equipment templates (4-8, 12-55, 58, 64 and 65), in bags, banks and worn. The slots that
-    /// held them go with them (CharacterInventory cascades from ItemInstances); consumables and quest items stay.
+    /// #1179: equipment became bases and uniques, so every equipment item a character owns is removed: the 52 retired
+    /// equipment templates (4-8, 12-55, 58, 64 and 65), in bags, banks and worn. The slots that held them go with them
+    /// (CharacterInventory cascades from ItemInstances); consumables and quest items stay. No model change.
     /// Irreversible: Down restores nothing.
     /// </summary>
     public partial class WipeOwnedEquipment : Migration

@@ -23,7 +23,7 @@ using DamageType = Avalon.Network.Packets.Combat.DamageType;
 using ItemRarity = Avalon.Common.ItemRarity;
 using ItemSlotType = Avalon.Domain.World.ItemSlotType;
 using ItemSubClass = Avalon.Domain.World.ItemSubClass;
-using StatType = Avalon.Common.StatType;
+using StatType = Avalon.Domain.World.StatType;
 using WorldEntity = Avalon.Domain.Auth.World;
 
 namespace Avalon.Api.Worlds.UnitTests.Worlds;

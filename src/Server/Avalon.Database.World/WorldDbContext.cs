@@ -1547,33 +1547,13 @@ public class WorldDbContext : DbContext
     private static void Configure(EntityTypeBuilder<ItemTemplate> builder)
     {
         // #1178: a weapon's basic attack time is above 0; an item that is not a weapon has none. #1179: a template is
-        // Common or Unique (Magic and Rare exist only on an instance's rolls); its base kind is None or one of the 27
-        // kinds; and a line's high end (a range stat's) needs its low end and is not below it.
+        // Common or Unique (Magic and Rare exist only on an instance); its base kind is one of the 27 kinds, or null
+        // for an item that is no base.
         builder.ToTable("ItemTemplates", t =>
         {
             t.HasCheckConstraint("CK_ItemTemplates_AttackTimeMs", "\"AttackTimeMs\" IS NULL OR \"AttackTimeMs\" > 0");
             t.HasCheckConstraint("CK_ItemTemplates_Rarity", "\"Rarity\" IN (0, 3)");
-            t.HasCheckConstraint("CK_ItemTemplates_BaseKind", "\"BaseKind\" BETWEEN 0 AND 27");
-            t.HasCheckConstraint("CK_ItemTemplates_StatMax1",
-                "\"StatMax1\" IS NULL OR (\"StatValue1\" IS NOT NULL AND \"StatMax1\" >= \"StatValue1\")");
-            t.HasCheckConstraint("CK_ItemTemplates_StatMax2",
-                "\"StatMax2\" IS NULL OR (\"StatValue2\" IS NOT NULL AND \"StatMax2\" >= \"StatValue2\")");
-            t.HasCheckConstraint("CK_ItemTemplates_StatMax3",
-                "\"StatMax3\" IS NULL OR (\"StatValue3\" IS NOT NULL AND \"StatMax3\" >= \"StatValue3\")");
-            t.HasCheckConstraint("CK_ItemTemplates_StatMax4",
-                "\"StatMax4\" IS NULL OR (\"StatValue4\" IS NOT NULL AND \"StatMax4\" >= \"StatValue4\")");
-            t.HasCheckConstraint("CK_ItemTemplates_StatMax5",
-                "\"StatMax5\" IS NULL OR (\"StatValue5\" IS NOT NULL AND \"StatMax5\" >= \"StatValue5\")");
-            t.HasCheckConstraint("CK_ItemTemplates_StatMax6",
-                "\"StatMax6\" IS NULL OR (\"StatValue6\" IS NOT NULL AND \"StatMax6\" >= \"StatValue6\")");
-            t.HasCheckConstraint("CK_ItemTemplates_StatMax7",
-                "\"StatMax7\" IS NULL OR (\"StatValue7\" IS NOT NULL AND \"StatMax7\" >= \"StatValue7\")");
-            t.HasCheckConstraint("CK_ItemTemplates_StatMax8",
-                "\"StatMax8\" IS NULL OR (\"StatValue8\" IS NOT NULL AND \"StatMax8\" >= \"StatValue8\")");
-            t.HasCheckConstraint("CK_ItemTemplates_StatMax9",
-                "\"StatMax9\" IS NULL OR (\"StatValue9\" IS NOT NULL AND \"StatMax9\" >= \"StatValue9\")");
-            t.HasCheckConstraint("CK_ItemTemplates_StatMax10",
-                "\"StatMax10\" IS NULL OR (\"StatValue10\" IS NOT NULL AND \"StatMax10\" >= \"StatValue10\")");
+            t.HasCheckConstraint("CK_ItemTemplates_BaseKind", "\"BaseKind\" IS NULL OR \"BaseKind\" BETWEEN 1 AND 27");
         });
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id)
@@ -2678,8 +2658,8 @@ public class WorldDbContext : DbContext
         // kill, whose pieces each roll at 2 %. A group always drops exactly one of its entries when its table rolls, so
         // the chance a group drops at all is the chance its table is referenced with. Potion and common-table chances
         // rise with the creature's rarity; the pool references are the same for every creature. #1179: the pools drop
-        // the tier-1 bases exactly as named (rolling the tier by item level comes later), and the three named
-        // creatures drop the uniques from their own entries, a tunable first draft.
+        // the tier-1 bases exactly as named (rolling the tier by item level comes later). No table names a unique
+        // until the modifier catalog gives every unique its rolled stats.
         builder.HasData(
             new LootTableEntry { LootTableId = 1, Sequence = 1, ItemTemplateId = 3, Chance = 5f, MinCount = 1, MaxCount = 1 },
             new LootTableEntry { LootTableId = 1, Sequence = 2, ItemTemplateId = 1, Chance = 10f, MinCount = 1, MaxCount = 2 });
@@ -2691,16 +2671,6 @@ public class WorldDbContext : DbContext
         builder.HasData(ForestCreatureTable(6, potion: 40f, potionMax: 2, mana: 25f, manaMax: 1, common: 50f));
         builder.HasData(ForestCreatureTable(7, potion: 60f, potionMax: 3, mana: 40f, manaMax: 2, common: 75f));
         builder.HasData(ForestCreatureTable(8, potion: 100f, potionMax: 4, mana: 100f, manaMax: 3, common: 100f, potionMin: 2));
-
-        // The uniques (#1179), each from the creature its name comes from: the Bramblemaw Alpha (table 6) the Alpha's
-        // Fang Pendant, Old Tuskroot (table 7) the Heartwood Band and the Tuskroot Idol, Mother Bramble (table 8) the
-        // Thornheart Signet and the Bramble Mother's Seed.
-        builder.HasData(
-            UniqueEntry(table: 6, sequence: 8, item: 58, chance: 10f),
-            UniqueEntry(table: 7, sequence: 8, item: 64, chance: 10f),
-            UniqueEntry(table: 7, sequence: 9, item: 67, chance: 10f),
-            UniqueEntry(table: 8, sequence: 8, item: 65, chance: 15f),
-            UniqueEntry(table: 8, sequence: 9, item: 66, chance: 15f));
 
         // Table 9: one tier-1 weapon or off-hand base of each kind, equal weights: sword, mace, staff, bow, shield,
         // caster off-hand.
@@ -2781,9 +2751,6 @@ public class WorldDbContext : DbContext
 
     private static LootTableEntry ForestArmourEntry(int sequence, ulong item) =>
         new() { LootTableId = 11, Sequence = sequence, ItemTemplateId = item, Chance = 2f, MinCount = 1, MaxCount = 1 };
-
-    private static LootTableEntry UniqueEntry(int table, int sequence, ulong item, float chance) =>
-        new() { LootTableId = table, Sequence = sequence, ItemTemplateId = item, Chance = chance, MinCount = 1, MaxCount = 1 };
 
     /// <summary>
     /// Vendor stock (#432). Loaded whole into VendorCatalog by the Vendors reload area. Both pairings

@@ -184,7 +184,7 @@ public class VendorSeedShould
         {
             ItemTemplate item = items[id];
             Assert.Equal(ItemRarity.Common, item.Rarity);
-            Assert.NotEqual(ItemBaseKind.None, item.BaseKind);
+            Assert.NotNull(item.BaseKind);
             Assert.Empty(item.AllowedClasses);
             Assert.Equal(item.BuyPrice / 4, item.SellPrice);
             Assert.False(item.Flags.HasFlag(ItemTemplateFlags.NoSell), $"{item.Name} is marked NoSell");

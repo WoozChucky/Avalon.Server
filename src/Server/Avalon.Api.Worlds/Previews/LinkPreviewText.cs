@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Avalon.Api.Contract;
 using Avalon.Common;
-using StatType = Avalon.Api.Contract.StatType;
 
 namespace Avalon.Api.Worlds.Previews;
 
@@ -19,6 +18,8 @@ public static partial class LinkPreviewText
     private const string Separator = " · ";
 
     private const string Increased = "Increased";
+    private const string Local = "Local";
+    private const string Added = "Added";
 
     public static string Describe(PublicItemDto item)
     {
@@ -116,7 +117,9 @@ public static partial class LinkPreviewText
     /// One item stat as the tooltip writes it (#1189): armour as a plain <c>8 Armor</c>; the <c>…Pct</c> stats, the
     /// resistances, the crit multiplier, attack, cast and movement speed and cooldown recovery as percent points
     /// (<c>+2% Crit</c>, <c>+5% Fire Resistance</c>, <c>+5% Movement Speed</c>); the <c>Increased…</c> stats as
-    /// <c>+10% increased Fire Damage</c>; the rest, Evasion and Ward among them, as a plain rating (<c>+12 Evasion</c>).
+    /// <c>+10% increased Fire Damage</c>, and the item-local ones (#1179) alike (<c>+5% increased Armor</c>, <c>+5% increased
+    /// Attack Speed</c>); added damage as <c>Adds 5 Fire Damage</c>, <c>Adds 5 Cold Damage to Attacks</c> or <c>Adds 5
+    /// Lightning Damage to Spells</c>; the rest, Evasion and Ward among them, as a plain rating (<c>+12 Evasion</c>).
     /// A negative value keeps its own sign (<c>-3% Cold Resistance</c>), and armour never gets a plus. The Dashboard's
     /// packages/shared/src/items/stat-wording.json holds a row for every stat; both sides test against it (#460).
     /// </summary>
@@ -131,6 +134,17 @@ public static partial class LinkPreviewText
             return $"{signed}% {SplitWords(name)}";
         if (name.StartsWith(Increased, StringComparison.Ordinal) && name.Length > Increased.Length)
             return $"{signed}% increased {SplitWords(name[Increased.Length..])}";
+        if (name.StartsWith(Local, StringComparison.Ordinal))
+        {
+            string local = name[Local.Length..];
+            if (local.StartsWith(Increased, StringComparison.Ordinal)) local = local[Increased.Length..];
+            return $"{signed}% increased {SplitWords(local)}";
+        }
+
+        // Added damage takes no plus sign, and its target a small "to": "Adds 5 Fire Damage to Attacks".
+        if (name.StartsWith(Added, StringComparison.Ordinal))
+            return $"Adds {amount} {SplitWords(name[Added.Length..]).Replace(" To ", " to ", StringComparison.Ordinal)}";
+
         return $"{signed} {SplitWords(name)}";
     }
 

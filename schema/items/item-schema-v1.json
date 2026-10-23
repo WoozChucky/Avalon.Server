@@ -54,7 +54,7 @@
     {
       "name": "BaseKind",
       "type": "enum",
-      "nullable": false,
+      "nullable": true,
       "enum": "ItemBaseKind"
     },
     {
@@ -154,11 +154,6 @@
       "nullable": true
     },
     {
-      "name": "StatMax1",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
       "name": "StatType2",
       "type": "enum",
       "nullable": true,
@@ -166,11 +161,6 @@
     },
     {
       "name": "StatValue2",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "StatMax2",
       "type": "uint32",
       "nullable": true
     },
@@ -186,11 +176,6 @@
       "nullable": true
     },
     {
-      "name": "StatMax3",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
       "name": "StatType4",
       "type": "enum",
       "nullable": true,
@@ -198,11 +183,6 @@
     },
     {
       "name": "StatValue4",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "StatMax4",
       "type": "uint32",
       "nullable": true
     },
@@ -218,11 +198,6 @@
       "nullable": true
     },
     {
-      "name": "StatMax5",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
       "name": "StatType6",
       "type": "enum",
       "nullable": true,
@@ -230,11 +205,6 @@
     },
     {
       "name": "StatValue6",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "StatMax6",
       "type": "uint32",
       "nullable": true
     },
@@ -250,11 +220,6 @@
       "nullable": true
     },
     {
-      "name": "StatMax7",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
       "name": "StatType8",
       "type": "enum",
       "nullable": true,
@@ -262,11 +227,6 @@
     },
     {
       "name": "StatValue8",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "StatMax8",
       "type": "uint32",
       "nullable": true
     },
@@ -282,11 +242,6 @@
       "nullable": true
     },
     {
-      "name": "StatMax9",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
       "name": "StatType10",
       "type": "enum",
       "nullable": true,
@@ -294,11 +249,6 @@
     },
     {
       "name": "StatValue10",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "StatMax10",
       "type": "uint32",
       "nullable": true
     },
@@ -806,10 +756,6 @@
       }
     ],
     "ItemBaseKind": [
-      {
-        "name": "None",
-        "value": 0
-      },
       {
         "name": "PlateHead",
         "value": 1

@@ -1,4 +1,3 @@
-using Avalon.Common;
 using Avalon.Common.ValueObjects;
 
 namespace Avalon.Domain.Characters;
@@ -41,10 +40,4 @@ public class TradeRecordItem
     public CharacterId GiverCharacterId { get; set; } = default!;
     public ItemTemplateId TemplateId { get; set; } = default!;
     public uint Count { get; set; }
-
-    /// <summary>The rolls the item carried when it moved (#1179), or null for an item that has none.</summary>
-    public ItemRolls? Rolls { get; set; }
-
-    /// <summary>The instance flags the item carried when it moved (#1179).</summary>
-    public ItemInstanceFlags Flags { get; set; }
 }

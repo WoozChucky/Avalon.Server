@@ -192,7 +192,7 @@ public class CharacterServiceShould
                 Id = new ItemTemplateId(990),
                 Name = "Band of Edges",
                 Slot = Avalon.Domain.World.ItemSlotType.Finger,
-                StatType1 = Avalon.Common.StatType.IncreasedPhysicalDamage,
+                StatType1 = Avalon.Domain.World.StatType.IncreasedPhysicalDamage,
                 StatValue1 = 10,
             };
             worn.AddRange([ring, ring]);

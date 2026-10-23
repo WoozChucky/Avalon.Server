@@ -9,16 +9,22 @@ namespace Avalon.Server.World.UnitTests.Entities;
 public class ItemTemplateShould
 {
     [Theory]
-    [InlineData(false, 30u, 0u, 30u, true)]
-    [InlineData(false, 31u, 0u, 29u, false)]
-    [InlineData(true, 31u, 0u, 20u, true)]
-    [InlineData(true, 20u, 0u, 31u, true)]
-    [InlineData(true, 29u, 0u, 29u, false)]
-    public void Meet_attribute_requirements_all_or_any(bool any, uint str, uint agi, uint intl, bool meets)
+    [InlineData(30u, 30u, false, 30u, 0u, 30u, true)]
+    [InlineData(30u, 30u, false, 31u, 0u, 29u, false)]
+    [InlineData(30u, 30u, true, 31u, 0u, 20u, true)]
+    [InlineData(30u, 30u, true, 20u, 0u, 31u, true)]
+    [InlineData(30u, 30u, true, 29u, 0u, 29u, false)]
+    [InlineData(null, null, true, 0u, 0u, 0u, true)]
+    public void Meet_attribute_requirements_all_or_any(
+        uint? requiredStrength, uint? requiredIntellect, bool any, uint str, uint agi, uint intl, bool meets)
     {
-        var mace = new ItemTemplate { RequiredStrength = 30, RequiredIntellect = 30, RequiresAnyAttribute = any };
+        var item = new ItemTemplate
+        {
+            RequiredStrength = (ushort?)requiredStrength,
+            RequiredIntellect = (ushort?)requiredIntellect,
+            RequiresAnyAttribute = any,
+        };
 
-        Assert.Equal(meets, mace.MeetsAttributes(str, agi, intl));
-        Assert.True(new ItemTemplate { RequiresAnyAttribute = true }.MeetsAttributes(0, 0, 0));
+        Assert.Equal(meets, item.MeetsAttributes(str, agi, intl));
     }
 }
