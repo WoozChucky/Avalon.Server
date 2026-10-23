@@ -8,11 +8,13 @@ namespace Avalon.Combat;
 /// What the attacking side of a hit brings (#506). Chances are percentage points. WeaponMin..WeaponMax is
 /// the base damage an ability's BaseDamageCoefficient rolls: a character's main hand, a creature's natural
 /// DamageMin..DamageMax (#163). A creature has no damage stats. BaseType is the type of a hit whose ability names
-/// none (#1178): a creature's template's, a character's Physical. Penetration has no data source yet.
+/// none (#1178): a creature's template's, a character's Physical. Penetration has no data source yet. Weapon is what an
+/// Attack rolls and Offence the attacker's offence block (#1178), read by <see cref="OffenceMath" /> and the crit multiplier.
 /// </summary>
 public readonly record struct AttackerCombat(
     uint Level, uint AttackDamage, uint AbilityDamage, float CritPct, uint WeaponMin, uint WeaponMax,
-    DamageType BaseType = DamageType.Physical, Penetration Penetration = default);
+    DamageType BaseType = DamageType.Physical, Penetration Penetration = default, WeaponDamage Weapon = default,
+    OffenceStats Offence = default);
 
 /// <summary>
 /// What the defending side of a hit brings (#506, #1178). Evasion is a rating, weighed against the attacker's level;
@@ -29,9 +31,9 @@ public readonly record struct DefenderCombat(uint Armor, uint Evasion, float Blo
 /// <remarks>
 /// A damage hit draws, in this order: an evasion roll (none for an Unavoidable ability, #1164); then, when not evaded,
 /// a crit roll and a block roll. The order of the draws is part of the contract. The steps are: base, evasion (0, and
-/// nothing else is drawn), crit (× CritMultiplier), block (× BlockMultiplier), then each damage type's part on its own
-/// × its mitigation (<see cref="Mitigation" />: armour for physical, resistance for an element), then the sum floored
-/// with a minimum of 1. Each chance is clamped to its cap, and one that is not a finite value of 0 or more counts as 0.
+/// nothing else is drawn), crit (× <see cref="CritMultiplier" />), block (× BlockMultiplier), then each damage type's
+/// part on its own × its mitigation (<see cref="Mitigation" />: armour for physical, resistance for an element), then the
+/// sum floored with a minimum of 1. Each chance is clamped to its cap, and one that is not a finite value of 0 or more counts as 0.
 /// </remarks>
 public static class HitResolver
 {
@@ -66,8 +68,8 @@ public static class HitResolver
     /// </summary>
     public static (float Min, float Max) AbilityBaseRange(in AttackerCombat a, float effectValue, ScalingStat stat,
         float scaling, float baseDamageCoefficient) =>
-        (AbilityBase(a, effectValue, stat, scaling, baseDamageCoefficient, FixedRoll.Low),
-            AbilityBase(a, effectValue, stat, scaling, baseDamageCoefficient, FixedRoll.High));
+        (AbilityBase(a, effectValue, stat, scaling, baseDamageCoefficient, RollEnds.Low),
+            AbilityBase(a, effectValue, stat, scaling, baseDamageCoefficient, RollEnds.High));
 
     /// <summary>
     /// What <see cref="ResolveDamage" /> deals from <paramref name="baseDamage" /> when nothing procs and the
@@ -155,7 +157,7 @@ public static class HitResolver
 
         if (rng.NextDouble() < Chance(a.CritPct, f.CritCap))
         {
-            scale *= NonNegative(f.CritMultiplier);
+            scale *= CritMultiplier(a, f);
             result |= HitResult.Crit;
         }
 
@@ -237,7 +239,7 @@ public static class HitResolver
 
         if (rng.NextDouble() < Chance(a.CritPct, f.CritCap))
         {
-            damage *= NonNegative(f.CritMultiplier);
+            damage *= CritMultiplier(a, f);
             result |= HitResult.Crit;
         }
 
@@ -258,12 +260,19 @@ public static class HitResolver
 
         if (rng.NextDouble() < Chance(a.CritPct, f.CritCap))
         {
-            heal *= NonNegative(f.CritMultiplier);
+            heal *= CritMultiplier(a, f);
             result |= HitResult.Crit;
         }
 
         return (heal, result);
     }
+
+    /// <summary>
+    /// What a crit multiplies by (#1178): the formula's <c>CritMultiplier</c> plus the attacker's crit multiplier bonus,
+    /// in points, as <c>max(0, CritMultiplier + bonus / 100)</c>. A value that is not finite counts as 0.
+    /// </summary>
+    public static double CritMultiplier(in AttackerCombat a, CombatFormula f) =>
+        NonNegative(Finite(f.CritMultiplier) + (Finite(a.Offence.CritMultiplierBonus) / 100d));
 
     /// <summary>
     /// The share of a hit armour takes, 0 with no armour, never above ArmorCap. The load refuses a formula
@@ -298,16 +307,4 @@ public static class HitResolver
     private static double ResistanceFloor(CombatFormula f) => Math.Min(Finite(f.ResistanceFloor), 0d);
 
     private static uint Floor(double value) => value >= uint.MaxValue ? uint.MaxValue : (uint)Math.Floor(value);
-
-    /// <summary>A roll pinned to one end of its range; only the weapon roll is ever asked of it.</summary>
-    private sealed class FixedRoll(bool high) : ICombatRandom
-    {
-        public static readonly FixedRoll Low = new(false);
-        public static readonly FixedRoll High = new(true);
-
-        public double NextDouble() => 0d;
-
-        public long NextInt64(long minInclusive, long maxInclusive) =>
-            high ? Math.Max(minInclusive, maxInclusive) : minInclusive;
-    }
 }

@@ -1,10 +1,11 @@
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 
 namespace Avalon.Combat;
 
 /// <summary>
-/// The one fold (#1178): <c>(base + flat) x max(0, 1 + increased / 100) x each (1 + more / 100)</c>, every modifier held
-/// once per stack. A whole-number stat is rounded and never below 0;
+/// The one fold (#1178): <c>(base + flat) x max(0, 1 + increased / 100) x each (1 + more / 100)</c>, a Flat or Increased
+/// times the stacks, a More multiplying once per stack. A whole-number stat is rounded and never below 0;
 /// a percentage stat is not rounded. The caps apply afterwards, where they always did (the hit's chance caps, the
 /// haste cap, the movement floor and cap). Pure.
 /// </summary>
@@ -39,13 +40,40 @@ public static class AuraStats
         Resistances = Apply(s.Resistances, t),
     };
 
-    /// <summary>A creature's attack with its auras: its damage stats and crit. Its natural damage range is unchanged.</summary>
+    /// <summary>
+    /// A creature's attack with its auras: its damage stats, crit and offence block. Its natural damage range is unchanged.
+    /// </summary>
     public static AttackerCombat Fold(in AttackerCombat a, AuraStatTotals t) => t.IsEmpty ? a : a with
     {
         AttackDamage = Apply(a.AttackDamage, t, AuraStat.AttackDamage),
         AbilityDamage = Apply(a.AbilityDamage, t, AuraStat.AbilityDamage),
         CritPct = Apply(a.CritPct, t, AuraStat.CritPct),
+        Offence = Fold(a.Offence, t),
     };
+
+    /// <summary>
+    /// An offence block with its auras (#1178). On the thirteen Increased… keys, already percentages, a Flat adds its points
+    /// to the key's increased sum and a More multiplies the key's more product; an Increased there is refused at load and
+    /// counts as nothing. The crit multiplier bonus and the three speeds fold as any percentage stat.
+    /// </summary>
+    internal static OffenceStats Fold(in OffenceStats o, AuraStatTotals t)
+    {
+        if (t.IsEmpty) return o;
+
+        OffenceStats folded = o;
+        for (AuraStat stat = AuraStat.IncreasedDamage; stat <= AuraStat.IncreasedHealing; stat++)
+        {
+            var key = (OffenceStat)(stat - AuraStat.IncreasedDamage);
+            folded.AddIncreased(key, t.Flat(stat));
+            folded.MultiplyMore(key, t.More(stat));
+        }
+
+        folded.CritMultiplierBonus = Apply(o.CritMultiplierBonus, t, AuraStat.CritMultiplier);
+        folded.AttackSpeedPct = Apply(o.AttackSpeedPct, t, AuraStat.AttackSpeed);
+        folded.CastSpeedPct = Apply(o.CastSpeedPct, t, AuraStat.CastSpeed);
+        folded.CooldownRecoveryPct = Apply(o.CooldownRecoveryPct, t, AuraStat.CooldownRecovery);
+        return folded;
+    }
 
     public static DefenderCombat Fold(in DefenderCombat d, AuraStatTotals t) => t.IsEmpty ? d : d with
     {

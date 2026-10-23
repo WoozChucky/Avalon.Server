@@ -112,16 +112,22 @@ public class HitResolverShould
         Assert.Equal((100u, HitResult.None), (hit.Total, hit.Result));
     }
 
-    [Fact]
-    public void Crit_a_roll_just_under_the_chance_and_not_one_at_it()
+    /// <summary>A crit multiplies by the formula's 1.5 plus the attacker's crit multiplier bonus in points (#1178).</summary>
+    [Theory]
+    [InlineData(0f, 100d, 150u)]
+    [InlineData(50f, 10d, 20u)]
+    public void Crit_a_roll_just_under_the_chance_and_not_one_at_it(float critMultiplierBonus, double baseDamage,
+        uint crit)
     {
-        HitDamage hit = HitResolver.ResolveDamage(Attacker(crit: 20f), Defender(), Physical(100), F(),
-            new ScriptedCombatRandom(0.99, 0.1999, 0.99));
-        Assert.Equal((150u, HitResult.Crit), (hit.Total, hit.Result));
+        AttackerCombat a = Attacker(crit: 20f) with { Offence = new OffenceStats { CritMultiplierBonus = critMultiplierBonus } };
 
-        hit = HitResolver.ResolveDamage(Attacker(crit: 20f), Defender(), Physical(100), F(),
+        HitDamage hit = HitResolver.ResolveDamage(a, Defender(), Physical(baseDamage), F(),
+            new ScriptedCombatRandom(0.99, 0.1999, 0.99));
+        Assert.Equal((crit, HitResult.Crit), (hit.Total, hit.Result));
+
+        hit = HitResolver.ResolveDamage(a, Defender(), Physical(baseDamage), F(),
             new ScriptedCombatRandom(0.99, 0.20, 0.99));
-        Assert.Equal((100u, HitResult.None), (hit.Total, hit.Result));
+        Assert.Equal(((uint)baseDamage, HitResult.None), (hit.Total, hit.Result));
     }
 
     [Fact]
