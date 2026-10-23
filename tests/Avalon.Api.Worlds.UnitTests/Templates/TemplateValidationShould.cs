@@ -31,6 +31,7 @@ public class TemplateValidationShould
         { "ability", "ConvertPct 150 is not a percentage from 0 to 100", "convertPct" },
         { "ability", "a conversion names an element to convert to", "convertToType" },
         { "ability", "only an Attack converts its weapon's physical damage", "convertPct" },
+        { "ability", "only an Attack names a ConvertToType", "convertToType" },
         { "ability", "AddedMin 5 is above AddedMax 2", "addedMax" },
         { "ability", "unknown AddedType 9", "addedType" },
         { "ability", "added damage names its type", "addedType" },

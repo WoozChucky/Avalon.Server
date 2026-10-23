@@ -236,7 +236,8 @@ public static class TemplateValidation
         _ when IsTagProblem(problem) => "tags",
         _ when problem.StartsWith("ConvertPct ", StringComparison.Ordinal)
                || problem.StartsWith("only an Attack converts", StringComparison.Ordinal) => "convertPct",
-        _ when problem.StartsWith("a conversion names an element", StringComparison.Ordinal) => "convertToType",
+        _ when problem.StartsWith("a conversion names an element", StringComparison.Ordinal)
+               || problem.StartsWith("only an Attack names a ConvertToType", StringComparison.Ordinal) => "convertToType",
         _ when problem.StartsWith("AddedMin ", StringComparison.Ordinal) => "addedMax",
         _ when problem.StartsWith("added damage names its type", StringComparison.Ordinal) => "addedType",
         _ when problem.StartsWith("SpellBaseMin ", StringComparison.Ordinal)

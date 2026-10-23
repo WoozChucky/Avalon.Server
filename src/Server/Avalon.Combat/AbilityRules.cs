@@ -127,7 +127,13 @@ public static class AbilityRules
         bool converts = t.ConvertPct > 0f || t.ConvertToType is not null;
         if (converts && t.ConvertToType is not (DamageType.Fire or DamageType.Cold or DamageType.Lightning or DamageType.Blight))
             return "a conversion names an element to convert to";
-        if (converts && !attack) return "only an Attack converts its weapon's physical damage";
+        if (converts && !attack)
+        {
+            // Keyed by the column set: a share converts, and a target alone names where a conversion would go.
+            return t.ConvertPct > 0f
+                ? "only an Attack converts its weapon's physical damage"
+                : "only an Attack names a ConvertToType";
+        }
 
         if (t.AddedMin > t.AddedMax) return $"AddedMin {t.AddedMin} is above AddedMax {t.AddedMax}";
         if (t.AddedType is { } added && !Enum.IsDefined(added)) return $"unknown AddedType {(int)added}";
