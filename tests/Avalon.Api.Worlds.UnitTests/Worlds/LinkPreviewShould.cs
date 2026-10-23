@@ -351,8 +351,8 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         (_, string html) = await Get("/public/preview/item/16");
 
         string description = Decoded(html, "og:description");
-        // One short of the cap when the cut lands after a space, which is trimmed before the ellipsis.
-        Assert.InRange(description.Length, LinkPreviewText.MaxDescriptionLength - 1, LinkPreviewText.MaxDescriptionLength);
+        // Up to three short of the cap when the cut lands in a separator, which is trimmed before the ellipsis.
+        Assert.InRange(description.Length, LinkPreviewText.MaxDescriptionLength - 3, LinkPreviewText.MaxDescriptionLength);
         Assert.EndsWith("…", description, StringComparison.Ordinal);
         Assert.DoesNotContain('\n', description);
         Assert.StartsWith("Legendary", description, StringComparison.Ordinal);
@@ -391,6 +391,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     {
         Assert.Equal("a b c", LinkPreviewText.Cap("a\r\nb\n  c"));
         Assert.Equal(200, LinkPreviewText.Cap(new string('x', 500)).Length);
+        Assert.Equal(new string('x', 197) + "…", LinkPreviewText.Cap(new string('x', 197) + " · " + new string('y', 50)));
     }
 
     [Fact]

@@ -93,7 +93,11 @@ public static partial class LinkPreviewText
         if (line.Length <= MaxDescriptionLength) return line;
         int keep = MaxDescriptionLength - 1;
         if (char.IsHighSurrogate(line[keep - 1])) keep--;
-        return line[..keep].TrimEnd() + "…";
+        string kept = line[..keep].TrimEnd();
+        // A cut inside a separator would leave it dangling before the ellipsis.
+        string separator = Separator.TrimEnd();
+        if (kept.EndsWith(separator, StringComparison.Ordinal)) kept = kept[..^separator.Length].TrimEnd();
+        return kept + "…";
     }
 
     /// <summary>A name or description as one line.</summary>
@@ -110,10 +114,10 @@ public static partial class LinkPreviewText
 
     /// <summary>
     /// One item stat as the tooltip writes it (#1189): armour as a plain <c>8 Armor</c>; the <c>…Pct</c> stats, the
-    /// resistances, the crit multiplier and the speeds as percent points (<c>+2% Crit</c>, <c>+5% Fire Resistance</c>,
-    /// <c>+5% Cast Speed</c>); the <c>Increased…</c> stats as <c>+10% increased Fire Damage</c>; every other stat, Evasion
-    /// and Ward included, as a plain rating (<c>+12 Evasion</c>). schema/items/stat-wording-v1.json holds a row for every
-    /// stat, which the public site's tooltip tests against too.
+    /// resistances, the crit multiplier, attack, cast and movement speed and cooldown recovery as percent points
+    /// (<c>+2% Crit</c>, <c>+5% Fire Resistance</c>, <c>+5% Movement Speed</c>); the <c>Increased…</c> stats as
+    /// <c>+10% increased Fire Damage</c>; the rest, Evasion and Ward among them, as a plain rating (<c>+12 Evasion</c>).
+    /// schema/items/stat-wording-v1.json holds a row for every stat, which the public site's tooltip tests against too.
     /// </summary>
     public static string FormatStat(StatType type, uint value)
     {
@@ -131,18 +135,25 @@ public static partial class LinkPreviewText
     /// <summary>A weapon's pace before attack speed (#1178) as <c>2.6 sec attack time</c>, on its damage line.</summary>
     public static string AttackTime(uint ms) => $"{Seconds(ms)} attack time";
 
-    /// <summary>The stats that are percentages already (#1178) and keep their own name.</summary>
+    /// <summary>
+    /// The stats without a <c>Pct</c> or <c>Resistance</c> in their name that the world adds as percent points (#1178;
+    /// movement speed into MovementSpeedPct, #1189), written with a % and their own name.
+    /// </summary>
     private static bool IsPercentPoints(StatType type) =>
-        type is StatType.CritMultiplier or StatType.AttackSpeed or StatType.CastSpeed or StatType.CooldownRecovery;
+        type is StatType.CritMultiplier or StatType.AttackSpeed or StatType.CastSpeed or StatType.CooldownRecovery
+            or StatType.MovementSpeed;
 
     private static string Cost(PublicAbilityDto ability) =>
         ability.Cost == 0
             ? "Free"
             : $"{Num(ability.Cost)} {(ability.CostPowerType is PowerType.Mana or PowerType.Fury or PowerType.Energy ? ability.CostPowerType.ToString() : "power")}";
 
-    /// <summary>Milliseconds as <c>1.5 sec</c>, as the tooltip writes them.</summary>
+    /// <summary>
+    /// Milliseconds as <c>1.5 sec</c>, as the tooltip writes them: to the hundredth, a half rounded up (<c>1005</c> is
+    /// <c>1.01 sec</c>), with no trailing zeros. Decimal, so a tie is a tie, never a binary fraction either side of one.
+    /// </summary>
     private static string Seconds(uint ms) =>
-        $"{(ms / 1000.0).ToString("0.##", CultureInfo.InvariantCulture)} sec";
+        $"{Math.Round(ms / 1000m, 2, MidpointRounding.AwayFromZero).ToString("0.##", CultureInfo.InvariantCulture)} sec";
 
     private static string Num(uint value) => value.ToString(CultureInfo.InvariantCulture);
 

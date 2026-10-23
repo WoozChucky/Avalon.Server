@@ -12,7 +12,7 @@ contracts so a non-.NET client can be built against it.
 | `vectors/rotation-v1.txt` | Generated. Known-answer vectors for `ChunkRotation.LocalToWorld`, which the client mirrors to place chunks. |
 | `vectors/object-guid-v1.txt` | Generated. Known-answer vectors for the `ObjectGuid` (type, id) packing the world-state stream carries. |
 | `items/item-schema-v1.json` | Generated. What an `ItemTemplate` is, and what every value of its eight enumerations means. |
-| `items/stat-wording-v1.json` | Generated. How every item stat and a weapon's attack time read in the link preview and the public site's tooltip (#1189): one row per `StatType` member and the attack-time cases. `StatWordingShould` fails when it is stale. |
+| `items/stat-wording-v1.json` | Generated. How every item stat and a weapon's attack time read in the link preview and the public site's tooltip (#1189): one row per `StatType` member and the attack-time cases. `StatWordingShould` fails when it lacks a stat or a row's text is no longer what the preview writes. |
 | `items/item-catalog-v1.json` | Generated **from the database**. The item template rows; an empty `allowedClasses` means every class may equip the item (#1171). See below. |
 | `abilities/ability-catalog-v1.json` | Generated **from the database**. Every ability row, the creatures' included, as a client names and draws it (#163). See below. |
 | `auras/aura-catalog-v1.json` | Generated **from the database**. Every aura a client names and draws: its name, icon, kind, duration, tick interval, periodic kind, stacking and stat modifiers; each ability's `auraId` in the ability catalog points into it. `AuraCatalogExportShould` fails when it differs from the seed rendered. |

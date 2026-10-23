@@ -71,7 +71,7 @@
       "stat": "MovementSpeed",
       "id": 13,
       "value": 5,
-      "text": "+5 Movement Speed"
+      "text": "+5% Movement Speed"
     },
     {
       "stat": "Ward",
@@ -212,6 +212,14 @@
     {
       "attackTimeMs": 784,
       "text": "0.78 sec attack time"
+    },
+    {
+      "attackTimeMs": 1005,
+      "text": "1.01 sec attack time"
+    },
+    {
+      "attackTimeMs": 125,
+      "text": "0.13 sec attack time"
     }
   ]
 }

@@ -10,7 +10,7 @@ namespace Avalon.Exporter;
 /// The item wording the link preview writes and the public site's tooltip must write the same (#1189): a row for every
 /// <see cref="StatType"/> member, run through <see cref="LinkPreviewText.FormatStat"/>, and attack times run through
 /// <see cref="LinkPreviewText.AttackTime"/>. The server leads: the site's formatter tests against this file, and
-/// <c>StatWordingShould</c> fails when the preview's wording, or the set of stats, no longer matches the committed copy,
+/// <c>StatWordingShould</c> fails when the committed copy lacks a stat or the preview no longer writes a row's text,
 /// so a new stat fails in both repositories until both write it.
 /// </summary>
 public static class StatWordingExport
@@ -21,8 +21,11 @@ public static class StatWordingExport
     /// <summary>One value for every stat row: the wording, not the number, is what the rows pin.</summary>
     private const uint SampleValue = 5;
 
-    /// <summary>A tenth of a second, a whole second, and the hundredths the seeded weapons have.</summary>
-    private static readonly uint[] s_attackTimesMs = [2600, 2000, 784];
+    /// <summary>
+    /// A tenth of a second, a whole second, the hundredths the seeded weapons have, and two halves of a hundredth, which
+    /// round up.
+    /// </summary>
+    private static readonly uint[] s_attackTimesMs = [2600, 2000, 784, 1005, 125];
 
     // camelCase like the other item files; LF on every platform; the relaxed encoder keeps "+" readable instead of
     // writing +.

@@ -355,14 +355,16 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   Templates have no description or flavour text. Parts are joined by ` · `, collapsed to one line and capped at 200
   characters with an ellipsis.
 - **Item wording shared with the tooltip** (#1189): `LinkPreviewText.FormatStat` writes armour as `8 Armor`; the
-  `…Pct` stats, the four resistances, `CritMultiplier`, `AttackSpeed`, `CastSpeed` and `CooldownRecovery` as percent
-  points (`+2% Crit`, `+5% Fire Resistance`, `+5% Cast Speed`); the `Increased…` stats as `+10% increased Fire Damage`;
-  every other stat, Evasion and Ward included, as a plain rating (`+12 Evasion`). `LinkPreviewText.AttackTime` writes
-  seconds with at most two decimals and no trailing zeros, as ability cast times are (`2.6 sec attack time`, `2 sec
-  attack time`, `0.78 sec attack time`). The exporter writes both into `schema/items/stat-wording-v1.json` (`stat-wording`,
-  [tooling](tooling.md)): one row per `StatType` member and the attack-time cases, which the public site's formatter
-  tests against. `StatWordingShould` fails when the preview's wording, or the set of stats, no longer matches the
-  committed file, so a new stat fails here until it is exported, and on the site until its tooltip writes it the same.
+  `…Pct` stats, the four resistances, `CritMultiplier`, `AttackSpeed`, `CastSpeed`, `CooldownRecovery` and
+  `MovementSpeed` (the world adds it to `MovementSpeedPct`) as percent points (`+2% Crit`, `+5% Fire Resistance`,
+  `+5% Movement Speed`); the `Increased…` stats as `+10% increased Fire Damage`; the rest, Evasion and Ward among them,
+  as a plain rating (`+12 Evasion`). Times (`LinkPreviewText.AttackTime`, and an ability's cast time and cooldown) are
+  seconds to the hundredth, a half rounded up and computed in decimal so a tie is exact, with no trailing zeros
+  (`2.6 sec attack time`, `2 sec`, `0.78 sec`, `1005` ms as `1.01 sec`); the site writes `Math.round(ms / 10) / 100`.
+  The exporter writes both into `schema/items/stat-wording-v1.json` (`stat-wording`, [tooling](tooling.md)): one row
+  per `StatType` member and the attack-time cases, which the public site's formatter tests against. `StatWordingShould`
+  fails when the committed file lacks a stat or the preview no longer writes a row's text, so a new stat fails here
+  until it is exported, and on the site until its tooltip writes it the same.
 - **Colours:** an item's `theme-color` is its rarity's colour, an ability's `AbilityColour`. A missing or malformed
   colour leaves `theme-color` out; it never fails the request.
 - **Not-found and unavailable pages** are titled "Not found · {SiteName}" and "Unavailable · {SiteName}" (or just

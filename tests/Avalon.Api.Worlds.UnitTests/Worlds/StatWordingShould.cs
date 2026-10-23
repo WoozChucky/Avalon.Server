@@ -1,5 +1,6 @@
 using System.Text.Json;
-using Avalon.Exporter;
+using Avalon.Api.Contract;
+using Avalon.Api.Worlds.Previews;
 using Xunit;
 
 namespace Avalon.Api.Worlds.UnitTests.Worlds;
@@ -12,39 +13,38 @@ namespace Avalon.Api.Worlds.UnitTests.Worlds;
 /// </summary>
 public class StatWordingShould
 {
+    private const string FileName = "stat-wording-v1.json";
     private const string RegenerateCommand = "dotnet run --project tools/Avalon.Exporter -- stat-wording";
 
     [Fact]
-    public void Match_the_committed_wording_for_every_stat_type_and_attack_time()
+    public void Hold_a_row_for_every_stat_type_with_the_text_the_preview_writes()
     {
-        string path = Path.Combine(RepositoryRoot(), "schema", StatWordingExport.DirectoryName, StatWordingExport.FileName);
-        Assert.True(File.Exists(path), $"schema/items/{StatWordingExport.FileName} is missing. Create it with: {RegenerateCommand}");
-
-        string committed = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
-        string rendered = StatWordingExport.Render();
-
-        Dictionary<string, string> was = Rows(committed);
-        Dictionary<string, string> now = Rows(rendered);
-        IEnumerable<string> differences = now
-            .Where(row => !was.TryGetValue(row.Key, out string? text) || text != row.Value)
-            .Select(row => $"{row.Key} reads \"{row.Value}\"")
-            .Concat(was.Keys.Except(now.Keys).Select(key => $"{key} is gone"));
-        Assert.True(string.Equals(committed, rendered, StringComparison.Ordinal),
-            $"schema/items/{StatWordingExport.FileName} no longer matches the link preview's wording " +
-            $"({string.Join("; ", differences)}). Re-export it with {RegenerateCommand}, and make the public site's " +
-            "tooltip write the same.");
-    }
-
-    /// <summary>Each row's text by its stat name, or by its attack time.</summary>
-    private static Dictionary<string, string> Rows(string json)
-    {
-        using var document = JsonDocument.Parse(json);
+        string path = Path.Combine(RepositoryRoot(), "schema", "items", FileName);
+        Assert.True(File.Exists(path), $"schema/items/{FileName} is missing. Create it with: {RegenerateCommand}");
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
         JsonElement root = document.RootElement;
-        return root.GetProperty("stats").EnumerateArray()
-            .Select(row => (Key: row.GetProperty("stat").GetString()!, Text: row.GetProperty("text").GetString()!))
+
+        List<(string Stat, int Id, uint Value, string Text)> stats = [.. root.GetProperty("stats").EnumerateArray()
+            .Select(row => (row.GetProperty("stat").GetString()!, row.GetProperty("id").GetInt32(),
+                row.GetProperty("value").GetUInt32(), row.GetProperty("text").GetString()!))];
+        string[] names = Enum.GetNames<StatType>();
+        Assert.True(names.SequenceEqual(stats.Select(row => row.Stat)),
+            $"schema/items/{FileName} does not hold one row per StatType member in value order (missing: " +
+            $"{string.Join(", ", names.Except(stats.Select(row => row.Stat)))}; not a stat: " +
+            $"{string.Join(", ", stats.Select(row => row.Stat).Except(names))}). Re-export it with {RegenerateCommand}.");
+
+        IEnumerable<string> wrong = stats
+            .Select(row => (row, Type: Enum.Parse<StatType>(row.Stat)))
+            .Where(r => r.row.Id != (int)r.Type || r.row.Text != LinkPreviewText.FormatStat(r.Type, r.row.Value))
+            .Select(r => $"{r.row.Stat} ({(int)r.Type}) reads \"{LinkPreviewText.FormatStat(r.Type, r.row.Value)}\"")
             .Concat(root.GetProperty("attackTimes").EnumerateArray()
-                .Select(row => (Key: $"{row.GetProperty("attackTimeMs").GetUInt32()} ms", Text: row.GetProperty("text").GetString()!)))
-            .ToDictionary(row => row.Key, row => row.Text);
+                .Select(row => (Ms: row.GetProperty("attackTimeMs").GetUInt32(), Text: row.GetProperty("text").GetString()!))
+                .Where(row => row.Text != LinkPreviewText.AttackTime(row.Ms))
+                .Select(row => $"{row.Ms} ms reads \"{LinkPreviewText.AttackTime(row.Ms)}\""))
+            .ToList();
+        Assert.True(!wrong.Any(),
+            $"schema/items/{FileName} no longer matches the link preview's wording ({string.Join("; ", wrong)}). " +
+            $"Re-export it with {RegenerateCommand}, and make the public site's tooltip write the same.");
     }
 
     private static string RepositoryRoot()
