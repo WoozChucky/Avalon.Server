@@ -134,8 +134,8 @@ public static class VendorRules
 
     /// <summary>
     /// Sell: alive; shop open; a Bag slot; an item there, not offered in a trade (#1175); a sellable
-    /// template; not damaged; the count (the whole of an item carrying modifiers, #1179); the gold cap. Only the Bag is ever named, so nothing is sold
-    /// from Equipment or the Bank.
+    /// template; not damaged; the count (the whole of an item carrying modifiers, #1179); the gold cap.
+    /// Only the Bag is ever named, so nothing is sold from Equipment or the Bank.
     /// </summary>
     public static SellDecision DecideSell(
         CharacterEntity character,

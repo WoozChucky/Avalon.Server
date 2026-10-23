@@ -14,18 +14,15 @@ public static class CharacterOffence
     /// and its added damage to attacks and to spells by type, handed out as <paramref name="addedToAttacks" /> and
     /// <paramref name="addedToSpells" />, which sit beside the block on the attacker; a line local to its item (a weapon's
     /// added damage, local increased damage or defence, local attack speed) is that item's, never the block's. Then
-    /// <paramref name="auras" /> fold on top (a Flat adds, a More multiplies). Runs on a stats refresh, never per hit,
-    /// and allocates nothing: <paramref name="worn" /> is read by index.
+    /// <paramref name="auras" /> fold on top (a Flat adds, a More multiplies). The gear's lines are summed first and the
+    /// attributes' terms added to those sums, as the stats calculation, which folds the lines in its own single walk of the
+    /// gear (<see cref="Add" />, <see cref="Finish" />), does. Runs on a stats refresh, never per hit, and allocates
+    /// nothing: <paramref name="worn" /> is read by index.
     /// </summary>
     public static OffenceStats Of(uint strength, uint agility, uint intellect, IReadOnlyList<WornItem> worn,
         CombatFormula f, out DamageRanges addedToAttacks, out DamageRanges addedToSpells, AuraStatTotals? auras = null)
     {
         OffenceStats o = default;
-        o.AddIncreased(OffenceStat.PhysicalAttack, (float)(strength * (double)f.IncreasedPhysicalAttackPerStrength));
-        o.AddIncreased(OffenceStat.Spell, (float)(intellect * (double)f.IncreasedSpellPerIntellect));
-        o.AddIncreased(OffenceStat.Healing, (float)(intellect * (double)f.IncreasedHealingPerIntellect));
-        o.AttackSpeedPct = (float)(agility * (double)f.AttackSpeedPerAgility);
-
         addedToAttacks = default;
         addedToSpells = default;
         for (int i = 0; i < worn.Count; i++)
@@ -35,11 +32,26 @@ public static class CharacterOffence
                 Add(ref o, ref addedToAttacks, ref addedToSpells, line);
         }
 
+        return Finish(o, strength, agility, intellect, f, auras);
+    }
+
+    /// <summary>
+    /// <paramref name="lines" />, the gear's lines summed by <see cref="Add" />, with the attributes' terms added and
+    /// <paramref name="auras" /> folded on top.
+    /// </summary>
+    internal static OffenceStats Finish(OffenceStats lines, uint strength, uint agility, uint intellect, CombatFormula f,
+        AuraStatTotals? auras)
+    {
+        OffenceStats o = lines;
+        o.AddIncreased(OffenceStat.PhysicalAttack, (float)(strength * (double)f.IncreasedPhysicalAttackPerStrength));
+        o.AddIncreased(OffenceStat.Spell, (float)(intellect * (double)f.IncreasedSpellPerIntellect));
+        o.AddIncreased(OffenceStat.Healing, (float)(intellect * (double)f.IncreasedHealingPerIntellect));
+        o.AttackSpeedPct += (float)(agility * (double)f.AttackSpeedPerAgility);
         return auras is null ? o : AuraStats.Fold(o, auras);
     }
 
     /// <summary>One gear line; any stat that is not offence adds nothing here.</summary>
-    private static void Add(ref OffenceStats o, ref DamageRanges toAttacks, ref DamageRanges toSpells, in ItemLine line)
+    internal static void Add(ref OffenceStats o, ref DamageRanges toAttacks, ref DamageRanges toSpells, in ItemLine line)
     {
         StatType stat = line.Stat;
         if (OffenceStats.KeyOf(stat) is { } key)

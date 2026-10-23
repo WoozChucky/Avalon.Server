@@ -26,7 +26,11 @@ public static class CharacterStatsCalculator
     public static DerivedCharacterStats Calculate(ClassLevelStat row, IReadOnlyList<WornItem> worn,
         ClassStatFactors factors, CombatFormula formula, AuraStatTotals? auras = null)
     {
-        var gear = GearTotals.Of(worn);
+        // One walk of every worn item's lines feeds both the gear totals and the offence block's line sums (#1179).
+        OffenceStats offenceLines = default;
+        DamageRanges addedToAttacks = default;
+        DamageRanges addedToSpells = default;
+        var gear = GearTotals.Of(worn, ref offenceLines, ref addedToAttacks, ref addedToSpells);
 
         long stamina = row.Stamina + gear.Stamina;
         long strength = row.Strength + gear.Strength;
@@ -45,8 +49,8 @@ public static class CharacterStatsCalculator
 
         // #506, #1178: the main hand, what an Attack rolls; the bare hand's range with none.
         WornItem? weapon = MainHandOf(worn);
-        OffenceStats offence = CharacterOffence.Of(Clamp(strength), Clamp(agility), Clamp(intellect), worn, formula,
-            out DamageRanges addedToAttacks, out DamageRanges addedToSpells, auras);
+        OffenceStats offence = CharacterOffence.Finish(offenceLines, Clamp(strength), Clamp(agility), Clamp(intellect),
+            formula, auras);
 
         DerivedCharacterStats derived = new(
             MaxHealth: Clamp(maxHealth),
@@ -118,9 +122,12 @@ public static class CharacterStatsCalculator
 
         /// <summary>
         /// Every line of every worn item, read by index and through <see cref="ItemLines" />: nothing is allocated. Each
-        /// item's defence lines are summed apart and scaled by its own local increased defence before they join the total.
+        /// item's defence lines are summed apart and scaled by its own local increased defence before they join the total;
+        /// every other line also goes to the offence block's sums (<see cref="CharacterOffence.Add" />), so the walk is the
+        /// only one.
         /// </summary>
-        public static GearTotals Of(IReadOnlyList<WornItem> worn)
+        public static GearTotals Of(IReadOnlyList<WornItem> worn, ref OffenceStats offence, ref DamageRanges toAttacks,
+            ref DamageRanges toSpells)
         {
             GearTotals totals = default;
             for (int i = 0; i < worn.Count; i++)
@@ -129,7 +136,11 @@ public static class CharacterStatsCalculator
                 ItemDefence defence = default;
                 foreach (ItemLine line in ItemLines.Of(item))
                 {
-                    if (!defence.Add(line)) totals.Add(line.Stat, line.Min);
+                    if (defence.Add(line))
+                        continue;
+
+                    totals.Add(line.Stat, line.Min);
+                    CharacterOffence.Add(ref offence, ref toAttacks, ref toSpells, line);
                 }
 
                 totals.Armor += defence.Armor;

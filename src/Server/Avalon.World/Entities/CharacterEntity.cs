@@ -194,6 +194,7 @@ public partial class CharacterEntity : ICharacter
         MovementSpeed = CharacterMovement.SpeedFor(stats.MovementSpeedPct, formula);
 
         Stats = stats;
+        _combatStale = true;
         StatsVersion++;
         SaveState.StatsChanged();
     }
@@ -212,11 +213,28 @@ public partial class CharacterEntity : ICharacter
     /// <summary>
     /// What this character attacks with (#506, #1178): its level, and the crit, weapon and offence block the last stats
     /// refresh derived (select, gear change, level-up). World-side and read-only, not on ICharacter: the modding API cannot
-    /// change what a hit deals (#622).
+    /// change what a hit deals (#622). Built again only after a stats refresh or a level change, so a hit copies it rather
+    /// than building 344 B anew (#1179). Tick thread only.
     /// </summary>
-    internal AttackerCombat Combat => Stats is { } s
-        ? s.AttackerAt(Level)
-        : new AttackerCombat(Level, 0f);
+    internal AttackerCombat Combat
+    {
+        get
+        {
+            ushort level = Level;
+            if (_combatStale || _combat.Level != level)
+            {
+                _combat = Stats is { } s ? s.AttackerAt(level) : new AttackerCombat(level, 0f);
+                _combatStale = false;
+            }
+
+            return _combat;
+        }
+    }
+
+    // What Combat last built, and whether a stats refresh has run since (the level is compared on every read: it lives
+    // on Data, which more than one path writes).
+    private AttackerCombat _combat;
+    private bool _combatStale = true;
 
     /// <summary>
     /// The character sheet this character's client was last sent (#506), null before the first. World-side

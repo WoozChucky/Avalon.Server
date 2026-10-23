@@ -38,9 +38,9 @@ public class VendorRulesShould
     private static Held[] FullBag => Enumerable.Range(0, 30).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
 
     /// <summary>
-    /// A Held marked Locked is offered in a trade (#1175), and one marked Rolled carries a modifier (#1179); <paramref name="heldGold" /> is gold offered. A completing
-    /// trade reserves <paramref name="reserved" /> and expects <paramref name="incomingGold" /> and one
-    /// <paramref name="incoming" />.
+    /// A Held marked Locked is offered in a trade (#1175), and one marked Rolled carries a modifier (#1179);
+    /// <paramref name="heldGold" /> is gold offered. A completing trade reserves <paramref name="reserved" /> and
+    /// expects <paramref name="incomingGold" /> and one <paramref name="incoming" />.
     /// </summary>
     private static CharacterEntity Arrange(IReadOnlyCollection<Held> held, ulong gold, bool dead, ulong heldGold = 0,
         byte? reserved = null, ulong incomingGold = 0, ItemTemplate? incoming = null)

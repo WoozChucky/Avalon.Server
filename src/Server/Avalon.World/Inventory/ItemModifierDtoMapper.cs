@@ -18,11 +18,9 @@ public static class ItemModifierDtoMapper
         for (int i = 0; i < modifiers.Count; i++)
         {
             ItemInstanceModifier modifier = modifiers[i];
-            var dto = new ItemModifierDto
-            {
-                ModifierId = modifier.ModifierId,
-                Values = new List<ItemModifierValueDto>(modifier.Values.Count),
-            };
+            // The entry's own list, sized once: replacing it would throw away the one its initializer made.
+            var dto = new ItemModifierDto { ModifierId = modifier.ModifierId };
+            dto.Values.Capacity = modifier.Values.Count;
             for (int v = 0; v < modifier.Values.Count; v++)
             {
                 var value = new ItemModifierValueDto();

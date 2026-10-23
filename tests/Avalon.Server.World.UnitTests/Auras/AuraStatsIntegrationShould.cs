@@ -138,6 +138,36 @@ public class AuraStatsIntegrationShould
         Assert.Equal(new DefenderCombat(30, 2, 1f), Internal<DefenderCombat>(wolf, "Defence"));
     }
 
+    /// <summary>
+    /// A creature's attacker is built once and kept (#1179), so every change it reads (an aura, a level, a damage range)
+    /// must reach the next read.
+    /// </summary>
+    [Fact]
+    public void Fold_a_creatures_auras_level_and_damage_into_its_next_attack()
+    {
+        Creature wolf = Wolf();
+        Assert.Equal((3u, 5f, 5u, 9u), Attack(wolf));
+        AuraTemplate keen = AuraTestData.Fortified(908);
+        keen.Modifiers[0].Stat = AuraStat.CritPct;
+        keen.Modifiers[0].Kind = AuraModifierKind.Flat;
+        keen.Modifiers[0].Value = 10f;
+        wolf.Auras.Add(Held(keen), s_t0);
+
+        AuraStatsRefresh.Apply(wolf, data: null, DateTime.UnixEpoch);
+        Assert.Equal((3u, 15f, 5u, 9u), Attack(wolf));
+
+        wolf.Level = 4;
+        wolf.DamageMin = 6;
+        wolf.DamageMax = 11;
+        Assert.Equal((4u, 15f, 6u, 11u), Attack(wolf));
+
+        static (uint, float, uint, uint) Attack(Creature creature)
+        {
+            AttackerCombat a = Internal<AttackerCombat>(creature, "Combat");
+            return (a.Level, a.CritPct, a.Weapon.Min1, a.Weapon.Max1);
+        }
+    }
+
     /// <summary>A creature's slow reaches the locomotion through its speed factor; the script's Speed stays the template's.</summary>
     [Fact]
     public void Slow_a_crippled_creature_and_bound_it_by_the_formula()
