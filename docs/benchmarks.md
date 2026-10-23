@@ -1823,6 +1823,29 @@ the same before part A and now, about 64 ns: building the 344 B attacker dominat
 ranges fields of `AttackerCombat`, read in place, brought `AttackBase` alone to 12.7-14 ns in the same probe. It
 made building the attacker slower, though, and the whole read rose to 75-78 ns, so the properties stay.
 
+**Then, at `c51022b97`** (figures from the review's probe, Release, pinned to one core at high priority, best of
+seven rounds, two runs each; no BenchmarkDotNet run):
+
+- A unit keeps the attacker it hands to every hit and builds it again only after one of its inputs changes. That is a
+  stats refresh or a level for a character, and a level, damage range or aura change for a creature.
+  - A character's read and Cleave's base went from 63-64 ns to 35-37 ns.
+  - A creature's went from 28.5 ns to 22-24.5 ns (23.2 ns before part A).
+  - `AttackBase` alone stays about 20 ns.
+- Reading the weapon in place inside `AttackBase`, rather than copying it, was measured and left out. It is faster on
+  an attacker that was not just written (13.3 ns alone). But every real caller has just copied the attacker into a
+  local, and there the narrow reads ran slower: a creature's freshly built attacker 39.5 ns against 28.5 ns, a cached
+  one 19.8-33.4 ns against 22 ns.
+- The stats calculation walks each worn item's lines once, feeding the gear totals and the offence block together.
+  - `Calculate` went from 366 ns to 267-283 ns.
+  - With six modifiers on each piece it went from 970 ns to 686-727 ns.
+  - The attributes' terms now join the offence sums after the gear's lines, in both the calculation and the API's
+    `CharacterOffence.Of`.
+- **The allocation gate's `forest-combat` baseline is lowered from 14,447 B to 13,983 B per window**. Since
+  `f67626c78` an item entry no longer builds a details object and an empty modifier list, the one change of the
+  final wave that allocates less. The value was regenerated with
+  the scenario runner (`dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-allocations
+  perf/scenario-allocations.json`), and the Release gate then read 13,991 B (+0.06 %, within).
+
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
 Measures the production `WorldConnection` arrival, session/map filtering and handler dispatch paths. Each operation
