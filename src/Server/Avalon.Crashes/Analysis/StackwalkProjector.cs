@@ -35,7 +35,7 @@ public static class StackwalkProjector
             int? crashIndex = Integer(Property(info, "crashing_thread"));
             string? reason = Text(Property(info, "type"), 128);
             uint? code = ExceptionCode(reason);
-            if (crashIndex is null || crashIndex < 0 || crashIndex >= rawThreads.Length || (reason is null && code is null))
+            if (crashIndex is null || crashIndex < 0 || crashIndex >= rawThreads.Length)
                 throw new CrashInputException(CrashFailureCode.InvalidAnalysis);
 
             var threads = new List<CrashThread>();

@@ -5,6 +5,44 @@ namespace Avalon.Crashes.UnitTests.Analysis;
 
 public sealed class CrashSignatureShould
 {
+    [Theory]
+    [InlineData("abort()")]
+    [InlineData("abort(void)")]
+    [InlineData("terminate()")]
+    [InlineData("terminate(void)")]
+    [InlineData("std::terminate()")]
+    [InlineData("std::terminate(void)")]
+    [InlineData("__std_terminate()")]
+    [InlineData("__std_terminate(void)")]
+    [InlineData("_purecall()")]
+    [InlineData("_purecall(void)")]
+    [InlineData("__scrt_unhandled_exception_filter(_EXCEPTION_POINTERS* const)")]
+    public void Should_skip_exact_crt_termination_plumbing_linked_into_runtime(string function)
+    {
+        object[] frames = Enumerable.Repeat(AnalysisFixture.Frame(function), 6).Append(AnalysisFixture.Frame("Game::RealFault()", "cfi")).ToArray();
+        SignatureIdentity signature = CrashSignature.Create(AnalysisFixture.Project(frames));
+        Assert.DoesNotContain(function, signature.Canonical, StringComparison.Ordinal);
+        Assert.Contains("runtime.exe!Game::RealFault()", signature.Canonical, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Game::abort()")]
+    [InlineData("Game::terminate()")]
+    [InlineData("Game::std::terminate()")]
+    [InlineData("abortRecovery()")]
+    [InlineData("terminateWorld()")]
+    [InlineData("abort(int)")]
+    public void Should_keep_application_functions_that_resemble_crt_noise(string function) =>
+        Assert.Contains(function, CrashSignature.Create(AnalysisFixture.Project([AnalysisFixture.Frame(function)])).Canonical, StringComparison.Ordinal);
+
+    [Fact]
+    public void Should_keep_a_third_party_abort_function_outside_runtime_and_system_modules()
+    {
+        CrashInput input = AnalysisFixture.Input(AnalysisFixture.Module("application-plugin.dll"));
+        SignatureIdentity signature = CrashSignature.Create(AnalysisFixture.Project([AnalysisFixture.Frame("abort()", module: "application-plugin.dll")], input));
+        Assert.Contains("application-plugin.dll!abort()", signature.Canonical, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Should_not_infer_a_faulting_driver_from_a_basename_without_instruction_identity()
     {

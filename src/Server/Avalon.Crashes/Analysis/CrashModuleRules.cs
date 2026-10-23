@@ -27,6 +27,17 @@ public static class CrashModuleRules
         "Avalon::Engine::CrashHandler::Writer", "Avalon::Engine::CrashHandler::CaptureCaughtException"
     };
 
+    // CRT code may be linked into runtime.exe. The no-argument spellings are deliberate:
+    // application overloads such as abort(int), namespaced functions and other DLLs stay visible.
+    // Grounded in UCRT abort.cpp/terminate.cpp and MSVC ehhelpers.cpp/purevirt.cpp; std::terminate
+    // is a public alias of ::terminate. Both () and (void) demangler spellings denote no arguments.
+    private static readonly HashSet<string> s_crtNoise = new(StringComparer.Ordinal)
+    {
+        "abort()", "abort(void)", "terminate()", "terminate(void)",
+        "std::terminate()", "std::terminate(void)", "__std_terminate()", "__std_terminate(void)",
+        "_purecall()", "_purecall(void)"
+    };
+
     public static bool IsRuntime(string? module) => string.Equals(module, "runtime.exe", StringComparison.OrdinalIgnoreCase);
     public static bool IsSystem(string? module) => module is not null && s_systemModules.Contains(module);
     public static bool IsGpuDriver(string? module) => module is not null && s_driverModules.Contains(module);
@@ -39,7 +50,11 @@ public static class CrashModuleRules
             return false;
         string function = frame.Function.Replace("(anonymous namespace)::", "", StringComparison.Ordinal)
             .Replace("`anonymous namespace'::", "", StringComparison.Ordinal);
+        if (s_crtNoise.Contains(function.Trim()))
+            return true;
         int arguments = function.IndexOf('(');
-        return s_runtimeNoise.Contains((arguments < 0 ? function : function[..arguments]).Trim());
+        string name = (arguments < 0 ? function : function[..arguments]).Trim();
+        // Exact compiler-generated C-linkage filter observed in the controlled runtime symbols.
+        return s_runtimeNoise.Contains(name) || string.Equals(name, "__scrt_unhandled_exception_filter", StringComparison.Ordinal);
     }
 }

@@ -7,6 +7,34 @@ namespace Avalon.Crashes.UnitTests.Analysis;
 
 public sealed class StackwalkProjectorShould
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Should_group_identified_stacks_with_null_or_absent_exception_type(bool absent)
+    {
+        object info = absent ? new { crashing_thread = 0 } : (object)new { crashing_thread = 0, type = (string?)null };
+        byte[] firstJson = JsonSerializer.SerializeToUtf8Bytes(new { crash_info = info, threads = new[] { new { thread_id = 7, frames = new[] { AnalysisFixture.Frame("Game::FirstFault()") } } } });
+        byte[] secondJson = JsonSerializer.SerializeToUtf8Bytes(new { crash_info = info, threads = new[] { new { thread_id = 7, frames = new[] { AnalysisFixture.Frame("Game::SecondFault()") } } } });
+        CrashAnalysis first = StackwalkProjector.Project(firstJson, AnalysisFixture.Input(), AnalysisFixture.Tools);
+        CrashAnalysis second = StackwalkProjector.Project(secondJson, AnalysisFixture.Input(), AnalysisFixture.Tools);
+        Assert.Null(first.Crash.Reason);
+        Assert.Null(first.Crash.Code);
+        Assert.Equal("A1", first.Threads[0].Frames[0].ImageKey);
+        SignatureIdentity firstSignature = CrashSignature.Create(first);
+        Assert.Contains("\"unknown\"", firstSignature.Canonical, StringComparison.Ordinal);
+        Assert.Contains("Game::FirstFault()", firstSignature.Canonical, StringComparison.Ordinal);
+        Assert.NotEqual(firstSignature.Hash, CrashSignature.Create(second).Hash);
+    }
+
+    [Fact]
+    public void Should_still_fail_for_missing_thread_or_ungroupable_stack_when_exception_type_is_null()
+    {
+        byte[] missingThread = Encoding.UTF8.GetBytes("{\"crash_info\":{\"type\":null},\"threads\":[{\"thread_id\":7,\"frames\":[]}]}");
+        Assert.Equal(CrashFailureCode.InvalidAnalysis, Assert.Throws<CrashInputException>(() => StackwalkProjector.Project(missingThread, AnalysisFixture.Input(), AnalysisFixture.Tools)).Code);
+        CrashAnalysis ungroupable = StackwalkProjector.Project(AnalysisFixture.Json([], reason: null), AnalysisFixture.Input(), AnalysisFixture.Tools);
+        Assert.Equal(CrashFailureCode.UngroupableAnalysis, Assert.Throws<CrashInputException>(() => CrashSignature.Create(ungroupable)).Code);
+    }
+
     [Fact]
     public void Should_not_call_an_absent_dump_thread_id_a_metadata_disagreement()
     {
