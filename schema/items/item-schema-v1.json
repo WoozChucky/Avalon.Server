@@ -36,6 +36,11 @@
       "nullable": false
     },
     {
+      "name": "IsTwoHanded",
+      "type": "bool",
+      "nullable": false
+    },
+    {
       "name": "MaxStackSize",
       "type": "uint32",
       "nullable": false
