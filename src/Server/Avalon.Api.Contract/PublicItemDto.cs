@@ -13,6 +13,12 @@ public sealed class PublicItemDto
     public ItemSubClass SubClass { get; set; }
     public ItemSlotType? Slot { get; set; }
     public ushort? RequiredLevel { get; set; }
+    /// <summary>The Strength a character needs to equip the item, or null for none (#1178).</summary>
+    public ushort? RequiredStrength { get; set; }
+    /// <summary>The Agility a character needs to equip the item, or null for none (#1178).</summary>
+    public ushort? RequiredAgility { get; set; }
+    /// <summary>The Intellect a character needs to equip the item, or null for none (#1178).</summary>
+    public ushort? RequiredIntellect { get; set; }
     public ushort? ItemPower { get; set; }
     /// <summary>Empty when every class may use it.</summary>
     public List<CharacterClass> AllowedClasses { get; set; } = [];

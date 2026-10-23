@@ -293,9 +293,10 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
 - **The link** is `<PublicSiteUrl>/item/{id}` (or `/ability/{id}`), with `?world=N` only when the request named a
   world. With no `PublicSiteUrl`, `og:url` is left out and the link is relative.
 - **The description** (`LinkPreviewText.Describe`) reads like the site's tooltips: for an item its rarity, slot,
-  subclass, damage, armour, other stats, required level, allowed classes (only when restricted to some; an empty
-  list means every class, #1171) and item power; for an ability its classes, cost, cast time, cooldown and amount
-  line (templates have no description or flavour text). Parts are joined by ` · `, collapsed to one line and capped
+  subclass, damage, armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178),
+  allowed classes (only when restricted to some; an empty list means every class, #1171) and item power; for an
+  ability its classes, cost, cast time, cooldown, amount line and damage type (`Fire damage`, #1178; templates have
+  no description or flavour text). Parts are joined by ` · `, collapsed to one line and capped
   at 200 characters with an ellipsis.
 - **Colours:** an item's `theme-color` is its rarity's colour, an ability's `AbilityColour`. A missing or malformed
   colour leaves `theme-color` out; it never fails the request.

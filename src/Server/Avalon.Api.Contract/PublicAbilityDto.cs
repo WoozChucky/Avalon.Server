@@ -16,6 +16,8 @@ public sealed class PublicAbilityDto
     /// <summary>In milliseconds.</summary>
     public uint Cooldown { get; set; }
     public List<CharacterClass> AllowedClasses { get; set; } = [];
+    /// <summary>The type of damage the ability deals, or null when it names none (#1178).</summary>
+    public DamageType? DamageType { get; set; }
     /// <summary>None when the ability deals or heals no direct amount; the fields below then mean nothing.</summary>
     public AbilityAmountKind AmountKind { get; set; }
     public uint EffectValue { get; set; }

@@ -29,6 +29,12 @@ public sealed class AbilityTemplateDto
     public uint? AuraId { get; set; }
 
     /// <summary>
+    /// The type of damage the ability deals (#1178); null for one that deals none, or a creature's own ability that deals
+    /// its creature's type. A class ability that deals damage names one, and an Ally ability never does.
+    /// </summary>
+    public DamageType? DamageType { get; set; }
+
+    /// <summary>
     /// The row's version: a lowercase hex SHA-256 of its stored values, also sent as the ETag on a single read.
     /// An edit sends it back as If-Match.
     /// </summary>

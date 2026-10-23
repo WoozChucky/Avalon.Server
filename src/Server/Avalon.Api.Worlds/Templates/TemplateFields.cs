@@ -48,6 +48,7 @@ internal static class TemplateFields
         A("effectValue", e => e.EffectValue, (e, r) => e.EffectValue = r.EffectValue),
         A("allowedClasses", e => e.AllowedClasses, (e, r) => e.AllowedClasses = r.AllowedClasses.ToList()),
         A("auraId", e => e.AuraId?.Value, (e, r) => e.AuraId = r.AuraId is { } aura ? new AuraId(aura) : null),
+        A("damageType", e => e.DamageType, (e, r) => e.DamageType = ConvN(r.DamageType, e.DamageType)),
     ];
 
     public static readonly IReadOnlyList<TemplateField<CreatureTemplate, UpdateCreatureTemplateRequest>> Creature =
@@ -78,6 +79,12 @@ internal static class TemplateFields
         C("regenHealth", e => e.RegenHealth, (e, r) => e.RegenHealth = r.RegenHealth),
         C("damageType", e => e.DamageType, (e, r) => e.DamageType = Conv(r.DamageType, e.DamageType)),
         C("damageModifier", e => e.DamageModifier, (e, r) => e.DamageModifier = r.DamageModifier),
+        C("fireResistance", e => e.FireResistance, (e, r) => e.FireResistance = r.FireResistance),
+        C("coldResistance", e => e.ColdResistance, (e, r) => e.ColdResistance = r.ColdResistance),
+        C("lightningResistance", e => e.LightningResistance, (e, r) => e.LightningResistance = r.LightningResistance),
+        C("blightResistance", e => e.BlightResistance, (e, r) => e.BlightResistance = r.BlightResistance),
+        C("evasionModifier", e => e.EvasionModifier, (e, r) => e.EvasionModifier = r.EvasionModifier),
+        C("wardModifier", e => e.WardModifier, (e, r) => e.WardModifier = r.WardModifier),
         C("baseAttackTime", e => e.BaseAttackTime, (e, r) => e.BaseAttackTime = r.BaseAttackTime),
         C("rangeAttackTime", e => e.RangeAttackTime, (e, r) => e.RangeAttackTime = r.RangeAttackTime),
         C("experience", e => e.Experience, (e, r) => e.Experience = r.Experience),
@@ -103,6 +110,9 @@ internal static class TemplateFields
         I("allowedClasses", e => e.AllowedClasses, (e, r) => e.AllowedClasses = r.AllowedClasses.ToList()),
         I("itemPower", e => e.ItemPower, (e, r) => e.ItemPower = r.ItemPower),
         I("requiredLevel", e => e.RequiredLevel, (e, r) => e.RequiredLevel = r.RequiredLevel),
+        I("requiredStrength", e => e.RequiredStrength, (e, r) => e.RequiredStrength = r.RequiredStrength),
+        I("requiredAgility", e => e.RequiredAgility, (e, r) => e.RequiredAgility = r.RequiredAgility),
+        I("requiredIntellect", e => e.RequiredIntellect, (e, r) => e.RequiredIntellect = r.RequiredIntellect),
         I("damageMin1", e => e.DamageMin1, (e, r) => e.DamageMin1 = r.DamageMin1),
         I("damageMax1", e => e.DamageMax1, (e, r) => e.DamageMax1 = r.DamageMax1),
         I("damageType1", e => e.DamageType1, (e, r) => e.DamageType1 = ConvN(r.DamageType1, e.DamageType1)),

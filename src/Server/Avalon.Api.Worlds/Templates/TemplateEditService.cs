@@ -101,11 +101,10 @@ public sealed class TemplateEditService(
                     AuraTemplate? aura = await db.AuraTemplates.AsNoTracking().Include(a => a.Modifiers)
                         .FirstOrDefaultAsync(a => a.Id == auraId, ct2);
                     AuraTemplate? loaded = aura is not null && AuraRules.Problem(aura) is null ? aura : null;
-                    if ((AuraRules.LinkProblem(row.Affects, auraId, _ => loaded)
-                         ?? (loaded is null ? null : AuraRules.DamageTypeProblem(row, loaded))) is { } problem)
-                    {
+                    if (AuraRules.LinkProblem(row.Affects, auraId, _ => loaded) is { } problem)
                         errors.Add("auraId", $"The world would refuse this ability: {problem}.");
-                    }
+                    else if (loaded is not null && AuraRules.DamageTypeProblem(row, loaded) is { } typeProblem)
+                        errors.Add("damageType", $"The world would refuse this ability: {typeProblem}.");
                 }
             }),
             caller, id, ifMatch, request, ct);

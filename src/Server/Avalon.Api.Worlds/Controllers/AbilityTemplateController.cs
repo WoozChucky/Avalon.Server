@@ -115,5 +115,6 @@ public class AbilityTemplateController : BaseController
         EffectValue = t.EffectValue,
         AllowedClasses = t.AllowedClasses is null ? [] : t.AllowedClasses.ToList(),
         AuraId = t.AuraId?.Value,
+        DamageType = (Avalon.Api.Contract.DamageType?)t.DamageType,
     };
 }

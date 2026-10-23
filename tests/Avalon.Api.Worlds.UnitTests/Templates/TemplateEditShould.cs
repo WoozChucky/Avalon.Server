@@ -349,6 +349,9 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "creature", "rootDurationPct", 101, "rootDurationPct" },
         { "creature", "silenceDurationPct", -1, "silenceDurationPct" },
         { "creature", "slowDurationPct", 101, "slowDurationPct" },
+        { "ability", "damageType", "Fire", "damageType" },          // on Mending Circle, an Ally ability (#1178)
+        { "creature", "fireResistance", 150, "fireResistance" },
+        { "creature", "wardModifier", -1, "wardModifier" },
     };
 
     [Theory]
@@ -382,7 +385,9 @@ public sealed class TemplateEditShould : IAsyncLifetime
             ("item", "statType1") => db.ItemTemplates.AsEnumerable().First(t => t.StatType1 is not null && t.StatValue1 is not null).Id.Value,
             ("item", "damageMax1") => db.ItemTemplates.AsEnumerable().First(t => t.DamageMin1 is not null && t.DamageMax1 is not null).Id.Value,
             ("ability", "scriptName") => 200UL,
+            ("ability", "damageType") => 232UL,
             ("ability", _) => 200UL,
+            ("creature", "fireResistance" or "wardModifier") => 7UL,
             ("aura", "control") => TestWard,
             _ => FirstId(kind),
         };
@@ -731,6 +736,38 @@ public sealed class TemplateEditShould : IAsyncLifetime
         (JsonObject stored, string newVersion) = await ReadAsync("aura", id);
         Assert.Equal(0.5f, stored["baseDamageCoefficient"]!.GetValue<float>());
         Assert.NotEqual(version, newVersion);
+    }
+
+    [Fact]
+    public async Task Save_and_read_back_the_new_combat_fields()
+    {
+        JsonObject ability = (await ReadAsync("ability", 211)).Json;   // Flame Burst
+        ability["damageType"] = "Cold";
+        JsonObject creature = (await ReadAsync("creature", 7)).Json;
+        creature["fireResistance"] = -25f;
+        creature["coldResistance"] = 40f;
+        creature["lightningResistance"] = 75f;
+        creature["blightResistance"] = 100f;
+        creature["evasionModifier"] = 1.5f;
+        creature["wardModifier"] = 2f;
+        JsonObject item = (await ReadAsync("item", 5)).Json;
+        item["requiredIntellect"] = 12;
+
+        foreach ((string kind, ulong id, JsonObject body) in new[] { ("ability", 211UL, ability), ("creature", 7UL, creature), ("item", 5UL, item) })
+        {
+            HttpResponseMessage response = await PutAsync(Editable, kind, id, body, Tag(body["version"]!.GetValue<string>()));
+            Assert.True(response.StatusCode == HttpStatusCode.OK, $"{kind} {id}: {await response.Content.ReadAsStringAsync()}");
+
+            JsonObject stored = (await ReadAsync(kind, id)).Json;
+            foreach (string field in new[]
+                     {
+                         "damageType", "fireResistance", "coldResistance", "lightningResistance", "blightResistance",
+                         "evasionModifier", "wardModifier", "requiredIntellect",
+                     }.Where(body.ContainsKey))
+            {
+                Assert.Equal(body[field]!.ToJsonString(), stored[field]!.ToJsonString());
+            }
+        }
     }
 
     [Fact]

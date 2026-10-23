@@ -78,7 +78,7 @@ public class AbilityCatalogExportShould
         JsonElement bite = Rows(AbilityCatalogExport.Render(Seeded())).Single(r => r.GetProperty("id").GetInt64() == 302);
 
         Assert.Equal(
-            ["id", "name", "shape", "aimMode", "anchor", "affects", "radius", "reach", "arcDegrees", "projectileSpeed",
+            ["id", "name", "shape", "aimMode", "anchor", "affects", "damageType", "radius", "reach", "arcDegrees", "projectileSpeed",
              "pierce", "castTimeMs", "cooldownMs", "auraId", "basic"],
             bite.EnumerateObject().Select(p => p.Name));
     }
