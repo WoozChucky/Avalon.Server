@@ -217,31 +217,31 @@ variant float-specials
   field 3 Agility : uint = 65535
   field 4 Intellect : uint = 42
   field 5 Armor : uint = 1000000
-  field 8 CritPct : float = NaN (0x7fc00001)
-  field 10 BlockPct : float = -0 (0x80000000)
+  field 8 CritPct : float = 3.40282347E+38 (0x7f7fffff)
+  field 10 BlockPct : float = Infinity (0x7f800000)
   field 11 WeaponMin : uint = 1000000
   field 12 WeaponMax : uint = 4000000000
-  field 14 MovementSpeed : float = 1.17549421E-38 (0x007fffff)
+  field 14 MovementSpeed : float = -0 (0x80000000)
   field 15 Evasion : uint = 300
-  field 16 EvasionPct : float = Infinity (0x7f800000)
+  field 16 EvasionPct : float = NaN (0xffc00000)
   field 17 MaxWard : uint = 65535
-  field 18 FireResistance : float = -Infinity (0xff800000)
-  field 19 ColdResistance : float = 1.17549421E-38 (0x007fffff)
-  field 20 LightningResistance : float = 1.40129846E-45 (0x00000001)
-  field 21 BlightResistance : float = -Infinity (0xff800000)
-  field 22 CritMultiplier : float = NaN (0xffc00000)
-  field 23 AttackSpeedPct : float = Infinity (0x7f800000)
-  field 24 CastSpeedPct : float = 1.40129846E-45 (0x00000001)
-  field 25 CooldownRecoveryPct : float = 3.40282347E+38 (0x7f7fffff)
+  field 18 FireResistance : float = NaN (0x7fc00001)
+  field 19 ColdResistance : float = -0 (0x80000000)
+  field 20 LightningResistance : float = -Infinity (0xff800000)
+  field 21 BlightResistance : float = NaN (0x7fc00001)
+  field 22 CritMultiplier : float = 1.17549421E-38 (0x007fffff)
+  field 23 AttackSpeedPct : float = NaN (0xffc00000)
+  field 24 CastSpeedPct : float = -Infinity (0xff800000)
+  field 25 CooldownRecoveryPct : float = 1.40129846E-45 (0x00000001)
   field 26 AttackTimeMs : uint = 7
   field 27 IncreasedPct : float[] = 2 elements
-    element 0 = -0 (0x80000000)
-    element 1 = 1.40129846E-45 (0x00000001)
-  bytes 112
+    element 0 = Infinity (0x7f800000)
+    element 1 = -Infinity (0xff800000)
+  bytes 106
     08 07 10 ac 02 18 ff ff 03 20 2a 28 c0 84 3d 45
-    01 00 c0 7f 58 c0 84 3d 60 80 d0 ac f3 0e 75 ff
-    ff 7f 00 78 ac 02 85 01 00 00 80 7f 88 01 ff ff
-    03 95 01 00 00 80 ff 9d 01 ff ff 7f 00 a5 01 01
-    00 00 00 ad 01 00 00 80 ff b5 01 00 00 c0 ff bd
-    01 00 00 80 7f c5 01 01 00 00 00 cd 01 ff ff 7f
-    7f d0 01 07 dd 01 00 00 00 80 dd 01 01 00 00 00
+    ff ff 7f 7f 55 00 00 80 7f 58 c0 84 3d 60 80 d0
+    ac f3 0e 78 ac 02 85 01 00 00 c0 ff 88 01 ff ff
+    03 95 01 01 00 c0 7f a5 01 00 00 80 ff ad 01 01
+    00 c0 7f b5 01 ff ff 7f 00 bd 01 00 00 c0 ff c5
+    01 00 00 80 ff cd 01 01 00 00 00 d0 01 07 dd 01
+    00 00 80 7f dd 01 00 00 80 ff

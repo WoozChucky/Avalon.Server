@@ -724,14 +724,13 @@ public class CharacterSelectHandler(
         CasterPace pace = entity.Pace;
         AbilityAmount[] amounts = gameAbilities.Select(a => AbilityAmounts.For(combat, a.Metadata, pace)).ToArray();
         entity.AbilityAmountsSentFor = (combat, pace);
+        entity.AbilityAmountsInputs = (entity.StatsVersion, entity.Level);
         entity.AbilityAmountsSent = amounts;
 
         AbilityInfo[] abilityInfos = gameAbilities.Select((s, i) => new AbilityInfo
         {
             AbilityId = s.AbilityId,
             Name = s.Metadata.Name,
-            Cooldown = s.Metadata.Cooldown,
-            CastTime = s.Metadata.CastTime,
             Cost = s.Metadata.Cost,
             CostPowerType = s.Metadata.CostPowerType,
             Range = (ushort)s.Metadata.Range,

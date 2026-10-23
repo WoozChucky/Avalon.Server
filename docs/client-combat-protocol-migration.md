@@ -189,7 +189,7 @@ Server → the player's own client only. The character sheet (#506), always whol
 | `Armor` | 5 | `uint` | |
 | `CritPct` | 8 | `float` | Percentage points, already clamped to the formula's `CritCap`. |
 | `BlockPct` | 10 | `float` | Percentage points, already clamped to `BlockCap`. |
-| `WeaponMin` | 11 | `uint` | The range an attack rolls: the main hand's first range, the bare hand's with no weapon (#1178). |
+| `WeaponMin` | 11 | `uint` | The range an attack rolls: the main hand's first range, the bare hand's with no weapon (#1178). A weapon's second range is not shown. |
 | `WeaponMax` | 12 | `uint` | |
 | `MovementSpeed` | 14 | `float` | The speed the server steps the character at, m/s (#627). |
 | `Evasion` | 15 | `uint` | The evasion rating (#1178). |
@@ -224,7 +224,7 @@ What each learned ability deals or heals per unit hit, and how long its cooldown
 | `CooldownMs` | 23 | `uint` | The cooldown a cast sets now, ms rounded to the nearest: a basic attack's weapon attack time over attack speed, a basic spell's row over cast speed, any other row over cooldown recovery. |
 | `CastTimeMs` | 24 | `uint` | The cast time over cast speed, ms rounded to the nearest; 0 for an instant. |
 
-`Cooldown` (3) and `CastTime` (4) stay the row's own seconds, before any speed (a basic attack's row cooldown is 0).
+`CooldownMs` and `CastTimeMs` are the only pace `AbilityInfo` carries: fields 3 and 4 (the row's own cooldown and cast time in seconds, before any speed) are deleted (#1178). A row's own cooldown, for a tooltip that shows it, is the ability catalog's `cooldownMs` (`schema/abilities/ability-catalog-v1.json`).
 
 **Afterwards**, `SCharacterAbilityAmountsPacket` (`SMSG_CHARACTER_ABILITY_AMOUNTS = 0x302C`, encrypted, TCP, the player's own client only) carries `Amounts` (field 1), one `AbilityAmountInfo` per learned ability: `AbilityId` 1, `Kind` 2, `Min` 3, `Max` 4, `Types` 5, `CooldownMs` 6, `CastTimeMs` 7, with the meanings above. It is sent, whole, whenever a stats refresh (a gear change, a level-up) moves any amount or pace, in the same tick's flush as the `SCharacterStatsPacket` showing the new stats, and never when nothing moved. Replace every ability's amount with it. Its lifetime is the character's session: a character switch (Change Character, #663) or a new login selects again, and the new select's `SMSG_CHARACTER_ABILITIES` starts over.
 
@@ -308,6 +308,6 @@ The type column is the ability catalog's `damageType` (`schema/abilities/ability
 | 231 | Cleric | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5000 ms | 20 | Lightning |
 | 232 | Cleric | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8000 ms | 25 | – |
 
-On the wire `AbilityInfo.Cooldown` and `CastTime` are seconds (floats); the table gives the stored milliseconds. The cost is paid from the class's pool: Warrior Fury, Wizard and Cleric Mana, Hunter Energy. Damage and heal amounts, and threat, are not transmitted in `AbilityInfo`; they are server-side only and surface through the damage packets, health replication and `SThreatListPacket`. `AbilityInfo.Range` still carries the legacy `SpellRange` value but the server no longer reads it; use `Reach`.
+The table gives each row's stored cooldown in milliseconds; on the wire `AbilityInfo` carries the pace a cast takes now (`CooldownMs`, `CastTimeMs`, above). The cost is paid from the class's pool: Warrior Fury, Wizard and Cleric Mana, Hunter Energy. Threat is not transmitted in `AbilityInfo`; it surfaces through `SThreatListPacket`. `AbilityInfo.Range` still carries the legacy `SpellRange` value but the server no longer reads it; use `Reach`.
 
 Numbers are placeholders pending a balance pass.

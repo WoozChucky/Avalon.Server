@@ -31,7 +31,10 @@ public class SCharacterStatsPacket : Packet
     /// <summary>Percentage points, clamped to the formula's BlockCap.</summary>
     [ProtoMember(10)] public float BlockPct { get; set; }
 
-    /// <summary>The main-hand weapon's damage range; both 0 with no weapon.</summary>
+    /// <summary>
+    /// The range an Attack rolls (#1178): the main hand's first range, or the bare hand's range with no weapon. A weapon's
+    /// second range is not shown.
+    /// </summary>
     [ProtoMember(11)] public uint WeaponMin { get; set; }
 
     [ProtoMember(12)] public uint WeaponMax { get; set; }
@@ -90,7 +93,9 @@ public class SCharacterStatsPacket : Packet
     [ProtoMember(26)] public uint AttackTimeMs { get; set; }
 
     /// <summary>
-    /// The offence block's increased percentage points (#1178), one per OffenceStat, indexed by its number. Each ability's
+    /// The offence block's increased percentage points (#1178), one per OffenceStat, indexed by its number: Damage 0,
+    /// Physical 1, Fire 2, Cold 3, Lightning 4, Blight 5, Attack 6, Spell 7, Area 8, Projectile 9, Melee 10,
+    /// DamageOverTime 11, Healing 12, PhysicalAttack 13 (the physical attack damage Strength gives). Each ability's
     /// own amount and pace travel on SCharacterAbilitiesPacket and SCharacterAbilityAmountsPacket, worked out by the
     /// server, so a client never adds these up itself. Not packed, as every repeated scalar here: protobuf-net writes a
     /// packed list of one as a lone element and an empty one as a field of length zero, which a reader generated from the

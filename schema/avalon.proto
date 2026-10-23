@@ -91,8 +91,6 @@ message AbilityFootprintDto {
 message AbilityInfo {
    uint32 AbilityId = 1;
    optional string Name = 2;
-   float Cooldown = 3;
-   float CastTime = 4;
    uint32 Cost = 5;
    uint32 Range = 6;
    float FacingAngle = 7;

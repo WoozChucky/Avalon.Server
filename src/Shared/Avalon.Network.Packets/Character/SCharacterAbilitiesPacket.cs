@@ -29,12 +29,6 @@ public class AbilityInfo
 {
     [ProtoMember(1)] public uint AbilityId { get; set; }
     [ProtoMember(2)] public string Name { get; set; }
-    /// <summary>Seconds, the row's own, before any speed; <see cref="CooldownMs" /> is what a cast waits.</summary>
-    [ProtoMember(3)] public float Cooldown { get; set; }
-
-    /// <summary>Seconds, the row's own, before cast speed; <see cref="CastTimeMs" /> is what a cast takes.</summary>
-    [ProtoMember(4)] public float CastTime { get; set; }
-
     [ProtoMember(5)] public uint Cost { get; set; }
     [ProtoMember(6)] public ushort Range { get; set; }
 
@@ -85,7 +79,8 @@ public class AbilityInfo
 
     /// <summary>
     /// Milliseconds, rounded to the nearest (#1178): the cooldown a cast sets now, worked out by the server from the
-    /// caster's speeds (a basic attack's from its weapon's attack time), so a client never applies the rules itself. Kept
+    /// caster's speeds (a basic attack's from its weapon's attack time), so a client never applies the rules itself. With
+    /// <see cref="CastTimeMs" />, the only pace sent: the row's own cooldown is the ability catalog's cooldownMs. Kept
     /// current after select by SCharacterAbilityAmountsPacket.
     /// </summary>
     [ProtoMember(23)] public uint CooldownMs { get; set; }
