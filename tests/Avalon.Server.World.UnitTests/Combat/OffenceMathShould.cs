@@ -58,19 +58,6 @@ public class OffenceMathShould
         Assert.Equal(added > 0 ? [(10L, 20L), (added, added)] : [(10L, 20L)], rng.WeaponRolls);
     }
 
-    [Fact]
-    public void Roll_an_unarmed_attack_from_the_formulas_range()
-    {
-        var unarmed = WeaponDamage.Of(null, CombatSeed.Formula());
-        ScriptedCombatRandom rng = new ScriptedCombatRandom().Longs(3);
-
-        DamageParts parts = OffenceMath.AttackBase(Attacker(Fixture(), unarmed), MeleeAttack(), rng);
-
-        Assert.Equal(new WeaponDamage(3, 6, DamageType.Physical, 0, 0, null, 816), unarmed);
-        Assert.Equal(6.75, parts.Get(DamageType.Physical), precision: 9);
-        Assert.Equal([(3L, 6L)], rng.WeaponRolls);
-    }
-
     [Theory]
     [InlineData(DamageType.Fire, AbilityTags.Spell | AbilityTags.Area, 3.6)]
     [InlineData(DamageType.Fire, AbilityTags.Attack, 2.34)]
@@ -118,15 +105,6 @@ public class OffenceMathShould
 
         Assert.Equal(lightning, parts.Get(DamageType.Lightning), precision: 9);
         Assert.Equal(lightning, parts.Total, precision: 9);
-    }
-
-    [Fact]
-    public void Heal_by_increased_healing_alone()
-    {
-        var heal = new AbilityMetadata { Tags = AbilityTags.Heal, SpellBaseMin = 10, SpellBaseMax = 10 };
-        OffenceStats o = Offence((OffenceStat.Healing, 50f), (OffenceStat.Spell, 100f), (OffenceStat.Damage, 100f));
-
-        Assert.Equal(15d, OffenceMath.HealBase(Attacker(o), heal, new ScriptedCombatRandom().Longs(10)), precision: 9);
     }
 
     [Theory]

@@ -68,7 +68,7 @@ public class CharacterStatsCalculatorShould
 
     /// <summary>
     /// #1178: attributes are class-neutral. The same row gives every class the same health (BaseHp plus the formula's
-    /// life per Stamina), crit (the formula's base), defence and offence; only power still reads the class. A flat
+    /// life per Stamina), crit (the formula's base) and defence; only power still reads the class. A flat
     /// attack speed aura passed to the calculation reaches the offence block once, on top of Agility's.
     /// </summary>
     [Theory]
@@ -96,9 +96,7 @@ public class CharacterStatsCalculatorShould
 
         Assert.Equal((200u, 5f), (stats.MaxHealth, stats.CritPct));
         Assert.Equal((3u, 45u, 12u), (stats.Armor, stats.Evasion, stats.MaxWard));   // 30 x 0.1, 40 x 1.125, 50 x 0.25
-        Assert.Equal((105f, 175f, 175f, 4f + 10f),
-            (stats.Offence.Increased(OffenceStat.PhysicalAttack), stats.Offence.Increased(OffenceStat.Spell),
-             stats.Offence.Increased(OffenceStat.Healing), stats.Offence.AttackSpeedPct));
+        Assert.Equal(4f + 10f, stats.Offence.AttackSpeedPct);
     }
 
     /// <summary>

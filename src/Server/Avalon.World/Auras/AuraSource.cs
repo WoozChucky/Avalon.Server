@@ -11,8 +11,9 @@ namespace Avalon.World.Auras;
 /// that the aura still fits it when it is applied, since a reload can change either side), the threat its ticks give,
 /// the heal threat per point, the power its caster gains per unit its ticks damage, the damage type the ability
 /// names (#1178), which its damage ticks take, and the ability's metadata (#1178), whose base and tags a ticking aura's
-/// total is rolled from when it is applied. None for an aura no ability applied (an item's, a script's): no ability
-/// and nothing to fit, threat 1, no heal threat, no gain, no type, nothing to roll from.
+/// total is rolled from when it is applied; the aura system drops it then, so a held aura keeps no metadata. None for an
+/// aura no ability applied (an item's, a script's): no ability and nothing to fit, threat 1, no heal threat, no gain, no
+/// type, nothing to roll from.
 /// </summary>
 public readonly record struct AuraSource(
     AbilityId? AbilityId,

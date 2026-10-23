@@ -13,7 +13,7 @@ public interface ICombatService
     void ApplyDamage(IUnit attacker, IUnit target, IAbility ability);
 
     /// <summary>
-    /// Raw-damage entry point for non-ability damage (e.g. creature melee swings). Behaves like
+    /// Raw-damage entry point for damage no ability deals (an item script's, for one). Behaves like
     /// the ability-bearing overload but uses a default <c>ThreatMultiplier</c> of <c>1.0</c> and
     /// skips ability-driven side effects. Funnels through the same encounter / threat / death
     /// pipeline so death broadcasts are still emitted.

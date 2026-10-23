@@ -222,8 +222,9 @@ public sealed class AuraSystem
         AttackerCombat casterCombat = caster is null ? default : CombatService.AttackerFor(caster);
         AuraSnapshot snapshot = AuraRules.Snapshot(template, casterCombat, caster is null ? null : source.Ability,
             HitResolver.TypeOf(source.DamageType, casterCombat), _combat.Random);
-        AuraApplyResult result = Place(target, auras, held, template, casterGuid, source, snapshot, placedMs, scaled,
-            now);
+        // The metadata has done its work: the aura keeps its source without it, so it holds no ability for its life.
+        AuraApplyResult result = Place(target, auras, held, template, casterGuid, source with { Ability = null }, snapshot,
+            placedMs, scaled, now);
 
         // A first hook (or the removal it asked for) that killed the target: death ends every aura, and a corpse enters
         // no combat.

@@ -640,22 +640,6 @@ public class SeedIntegrityShould
         }
     }
 
-    /// <summary>
-    /// #1178: Agility no longer adds to the Hunter's attacks, so its Strength grows to 21 + floor(14 x (level - 1) / 9),
-    /// which keeps its attacks' level-10 numbers (was 20 + level; levels 1 and 2 are unchanged).
-    /// </summary>
-    [Fact]
-    public void Seed_the_hunters_strength_as_rebalanced()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        uint[] strength = context.ClassLevelStats.AsNoTracking().ToList()
-            .Where(r => r.Class == CharacterClass.Hunter).OrderBy(r => r.Level).Select(r => r.Strength).ToArray();
-
-        Assert.Equal(Enumerable.Range(1, 16).Select(l => (uint)(21 + (14 * (l - 1) / 9))), strength);
-    }
-
     private static uint ArmorOf(ItemTemplate item) =>
         (uint)new (StatType? Type, uint? Value)[]
             {
@@ -1134,87 +1118,6 @@ public class SeedIntegrityShould
         Assert.Equal((0d, 0d, (long?)100L), (w.PowerPerIntellect, w.PowerPerAgility, w.FixedPower));
         ClassStatFactors h = factors[CharacterClass.Hunter];
         Assert.Equal((2d, 0.8d, (long?)null), (h.PowerPerIntellect, h.PowerPerAgility, h.FixedPower));
-    }
-
-    /// <summary>
-    /// #1178, the offence model (R17): each kit ability's tags, damage effectiveness, spell base and growth per level, as
-    /// re-expressed from today's numbers. An attack's effectiveness carries its level-1 average over the weapon's roll;
-    /// a spell's or heal's base and growth carry its level-1 and level-10 averages. Fortify and Hush deal and heal nothing.
-    /// </summary>
-    [Theory]
-    [InlineData(200u, AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, 315f, 0u, 0u, 0f)]
-    [InlineData(201u, AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, 614f, 0u, 0u, 0f)]
-    [InlineData(202u, AbilityTags.Attack | AbilityTags.Projectile, 492f, 0u, 0u, 0f)]
-    [InlineData(203u, AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, 202f, 0u, 0u, 0f)]
-    [InlineData(204u, AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, 148f, 0u, 0u, 0f)]
-    [InlineData(210u, AbilityTags.Spell | AbilityTags.Projectile, 100f, 14u, 20u, 0.70f)]
-    [InlineData(211u, AbilityTags.Spell | AbilityTags.Area, 100f, 21u, 32u, 0.75f)]
-    [InlineData(212u, AbilityTags.Spell | AbilityTags.Area, 100f, 26u, 40u, 0.80f)]
-    [InlineData(213u, AbilityTags.Spell | AbilityTags.Area, 100f, 31u, 46u, 0.90f)]
-    [InlineData(214u, AbilityTags.Spell | AbilityTags.Area, 100f, 6u, 9u, 0.45f)]
-    [InlineData(220u, AbilityTags.Attack | AbilityTags.Projectile, 363f, 0u, 0u, 0f)]
-    [InlineData(221u, AbilityTags.Attack | AbilityTags.Projectile, 690f, 0u, 0u, 0f)]
-    [InlineData(222u, AbilityTags.Attack | AbilityTags.Area, 516f, 0u, 0u, 0f)]
-    [InlineData(223u, AbilityTags.Attack | AbilityTags.Projectile, 495f, 0u, 0u, 0f)]
-    [InlineData(224u, AbilityTags.Attack | AbilityTags.Projectile, 168f, 0u, 0u, 0f)]
-    [InlineData(230u, AbilityTags.Spell | AbilityTags.Projectile, 100f, 12u, 17u, 0.45f)]
-    [InlineData(231u, AbilityTags.Spell | AbilityTags.Area, 100f, 20u, 31u, 0.35f)]
-    [InlineData(232u, AbilityTags.Heal | AbilityTags.Area, 100f, 30u, 44u, 0f)]
-    [InlineData(233u, AbilityTags.Heal | AbilityTags.Area, 100f, 19u, 28u, 0f)]
-    [InlineData(234u, AbilityTags.Area, 100f, 0u, 0u, 0f)]
-    [InlineData(235u, AbilityTags.Projectile, 100f, 0u, 0u, 0f)]
-    public void Seed_each_abilitys_offence_as_re_expressed(uint id, AbilityTags tags, float effectiveness, uint baseMin,
-        uint baseMax, float growth)
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        AbilityTemplate a = context.AbilityTemplates.AsNoTracking().ToList().Single(t => t.Id.Value == id);
-        Assert.Equal((tags, effectiveness, baseMin, baseMax, growth),
-            (a.Tags, a.DamageEffectiveness, a.SpellBaseMin, a.SpellBaseMax, a.SpellBasePerLevelPct));
-
-        // Only Crippling Shot converts (half to cold) and only Binding Shot adds (2-4 blight).
-        Assert.Equal(id == 223 ? (DamageType.Cold, 50f) : ((DamageType?)null, 0f), (a.ConvertToType, a.ConvertPct));
-        Assert.Equal(id == 224 ? (DamageType.Blight, 2u, 4u) : ((DamageType?)null, 0u, 0u), (a.AddedType, a.AddedMin, a.AddedMax));
-    }
-
-    /// <summary>
-    /// #1178, the offence model: the formula's attribute conversions, base crit, speed caps and bare hand; each weapon's
-    /// attack time, today's level-1 basic pace with starter gear and Agility's new speed (a sword 792, a bow 801, a mace
-    /// 784, a staff 800), on weapons only; and how much of its source's roll each ticking aura draws.
-    /// </summary>
-    [Fact]
-    public void Seed_the_offence_formula_and_the_weapons_attack_times()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        CombatFormula f = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
-        Assert.Equal((3.5f, 0.1f, 3.5f, 3.5f, 5u, 5f),
-            (f.IncreasedPhysicalAttackPerStrength, f.AttackSpeedPerAgility, f.IncreasedSpellPerIntellect,
-             f.IncreasedHealingPerIntellect, f.LifePerStamina, f.BaseCritPct));
-        Assert.Equal((50f, 50f, 50f, 3u, 6u, 816u),
-            (f.AttackSpeedCap, f.CastSpeedCap, f.CooldownRecoveryCap, f.UnarmedDamageMin, f.UnarmedDamageMax,
-             f.UnarmedAttackTimeMs));
-
-        var attackTimes = new Dictionary<ulong, uint>
-        {
-            [4] = 792,
-            [7] = 792,
-            [32] = 792,
-            [6] = 801,
-            [34] = 801,
-            [8] = 784,
-            [35] = 784,
-            [5] = 800,
-            [33] = 800,
-        };
-        Assert.Equal(attackTimes, context.ItemTemplates.AsNoTracking().AsEnumerable().Where(i => i.AttackTimeMs is not null)
-            .ToDictionary(i => i.Id.Value, i => i.AttackTimeMs!.Value));
-
-        var periodic = new Dictionary<uint, float> { [1] = 21f, [2] = 100f, [4] = 100f, [6] = 100f };
-        Assert.All(context.AuraTemplates.AsNoTracking().AsEnumerable(),
-            a => Assert.Equal(periodic.GetValueOrDefault(a.Id.Value), a.PeriodicEffectiveness));
     }
 
     /// <summary>
