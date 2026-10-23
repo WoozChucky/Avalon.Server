@@ -354,6 +354,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         // Up to three short of the cap when the cut lands in a separator, which is trimmed before the ellipsis.
         Assert.InRange(description.Length, LinkPreviewText.MaxDescriptionLength - 3, LinkPreviewText.MaxDescriptionLength);
         Assert.EndsWith("…", description, StringComparison.Ordinal);
+        Assert.DoesNotContain("·…", description, StringComparison.Ordinal);
         Assert.DoesNotContain('\n', description);
         Assert.StartsWith("Legendary", description, StringComparison.Ordinal);
     }
@@ -387,7 +388,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     }
 
     [Fact]
-    public void Collapse_line_breaks_in_a_capped_text()
+    public void Cap_a_text_on_one_line_without_a_dangling_separator()
     {
         Assert.Equal("a b c", LinkPreviewText.Cap("a\r\nb\n  c"));
         Assert.Equal(200, LinkPreviewText.Cap(new string('x', 500)).Length);

@@ -360,7 +360,8 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   `+5% Movement Speed`); the `Increased…` stats as `+10% increased Fire Damage`; the rest, Evasion and Ward among them,
   as a plain rating (`+12 Evasion`). Times (`LinkPreviewText.AttackTime`, and an ability's cast time and cooldown) are
   seconds to the hundredth, a half rounded up and computed in decimal so a tie is exact, with no trailing zeros
-  (`2.6 sec attack time`, `2 sec`, `0.78 sec`, `1005` ms as `1.01 sec`); the site writes `Math.round(ms / 10) / 100`.
+  (`2.6 sec attack time`, `2 sec`, `0.78 sec`, `1005` ms as `1.01 sec`). In JavaScript the shared rule is
+  `Math.round(ms / 10) / 100`, which the public site adopts through Avalon.Dashboard#460.
   The exporter writes both into `schema/items/stat-wording-v1.json` (`stat-wording`, [tooling](tooling.md)): one row
   per `StatType` member and the attack-time cases, which the public site's formatter tests against. `StatWordingShould`
   fails when the committed file lacks a stat or the preview no longer writes a row's text, so a new stat fails here

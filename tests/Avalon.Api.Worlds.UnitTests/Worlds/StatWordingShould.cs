@@ -33,18 +33,17 @@ public class StatWordingShould
             $"{string.Join(", ", names.Except(stats.Select(row => row.Stat)))}; not a stat: " +
             $"{string.Join(", ", stats.Select(row => row.Stat).Except(names))}). Re-export it with {RegenerateCommand}.");
 
-        IEnumerable<string> wrong = stats
+        // Each row the preview no longer writes as committed. Re-export the file (RegenerateCommand), and make the public
+        // site's tooltip write the same.
+        List<string> differing = [.. stats
             .Select(row => (row, Type: Enum.Parse<StatType>(row.Stat)))
             .Where(r => r.row.Id != (int)r.Type || r.row.Text != LinkPreviewText.FormatStat(r.Type, r.row.Value))
-            .Select(r => $"{r.row.Stat} ({(int)r.Type}) reads \"{LinkPreviewText.FormatStat(r.Type, r.row.Value)}\"")
+            .Select(r => $"{r.row.Stat} ({(int)r.Type}): the preview writes \"{LinkPreviewText.FormatStat(r.Type, r.row.Value)}\"")
             .Concat(root.GetProperty("attackTimes").EnumerateArray()
                 .Select(row => (Ms: row.GetProperty("attackTimeMs").GetUInt32(), Text: row.GetProperty("text").GetString()!))
                 .Where(row => row.Text != LinkPreviewText.AttackTime(row.Ms))
-                .Select(row => $"{row.Ms} ms reads \"{LinkPreviewText.AttackTime(row.Ms)}\""))
-            .ToList();
-        Assert.True(!wrong.Any(),
-            $"schema/items/{FileName} no longer matches the link preview's wording ({string.Join("; ", wrong)}). " +
-            $"Re-export it with {RegenerateCommand}, and make the public site's tooltip write the same.");
+                .Select(row => $"{row.Ms} ms: the preview writes \"{LinkPreviewText.AttackTime(row.Ms)}\""))];
+        Assert.Empty(differing);
     }
 
     private static string RepositoryRoot()
