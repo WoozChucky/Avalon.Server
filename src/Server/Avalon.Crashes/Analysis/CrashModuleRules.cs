@@ -48,13 +48,18 @@ public static class CrashModuleRules
             return true;
         if (!IsRuntime(frame.Module) || frame.Function is null)
             return false;
-        string function = frame.Function.Replace("(anonymous namespace)::", "", StringComparison.Ordinal)
-            .Replace("`anonymous namespace'::", "", StringComparison.Ordinal);
-        if (s_crtNoise.Contains(function.Trim()))
+        string function = frame.Function.Trim();
+        if (s_crtNoise.Contains(function))
             return true;
         int arguments = function.IndexOf('(');
-        string name = (arguments < 0 ? function : function[..arguments]).Trim();
         // Exact compiler-generated C-linkage filter observed in the controlled runtime symbols.
-        return s_runtimeNoise.Contains(name) || string.Equals(name, "__scrt_unhandled_exception_filter", StringComparison.Ordinal);
+        if (string.Equals(arguments < 0 ? function : function[..arguments], "__scrt_unhandled_exception_filter", StringComparison.Ordinal))
+            return true;
+        // Only Avalon's known qualified handlers need anonymous-namespace spelling normalization.
+        // Applying it to CRT matching would turn distinct application symbols into global names.
+        function = function.Replace("(anonymous namespace)::", "", StringComparison.Ordinal)
+            .Replace("`anonymous namespace'::", "", StringComparison.Ordinal);
+        arguments = function.IndexOf('(');
+        return s_runtimeNoise.Contains((arguments < 0 ? function : function[..arguments]).Trim());
     }
 }

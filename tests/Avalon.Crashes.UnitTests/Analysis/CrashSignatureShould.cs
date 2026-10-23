@@ -6,6 +6,32 @@ namespace Avalon.Crashes.UnitTests.Analysis;
 public sealed class CrashSignatureShould
 {
     [Theory]
+    [InlineData("(anonymous namespace)::abort()")]
+    [InlineData("`anonymous namespace'::abort()")]
+    [InlineData("(anonymous namespace)::terminate()")]
+    [InlineData("`anonymous namespace'::terminate()")]
+    [InlineData("(anonymous namespace)::std::terminate()")]
+    [InlineData("`anonymous namespace'::std::terminate()")]
+    [InlineData("(anonymous namespace)::__std_terminate()")]
+    [InlineData("`anonymous namespace'::__std_terminate()")]
+    [InlineData("(anonymous namespace)::_purecall()")]
+    [InlineData("`anonymous namespace'::_purecall()")]
+    [InlineData("(anonymous namespace)::__scrt_unhandled_exception_filter(_EXCEPTION_POINTERS* const)")]
+    [InlineData("`anonymous namespace'::__scrt_unhandled_exception_filter(_EXCEPTION_POINTERS* const)")]
+    public void Should_keep_anonymous_application_functions_that_resemble_crt_noise(string function) =>
+        Assert.Contains(function, CrashSignature.Create(AnalysisFixture.Project([AnalysisFixture.Frame(function)])).Canonical, StringComparison.Ordinal);
+
+    [Fact]
+    public void Should_still_skip_qualified_avalon_handlers_with_backtick_anonymous_namespaces()
+    {
+        SignatureIdentity signature = CrashSignature.Create(AnalysisFixture.Project([
+            AnalysisFixture.Frame("Avalon::Engine::CrashHandler::`anonymous namespace'::Synthetic(unsigned long, unsigned long, bool)"),
+            AnalysisFixture.Frame("Game::RealFault()", "cfi")]));
+        Assert.DoesNotContain("Synthetic", signature.Canonical, StringComparison.Ordinal);
+        Assert.Contains("Game::RealFault()", signature.Canonical, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData("abort()")]
     [InlineData("abort(void)")]
     [InlineData("terminate()")]
