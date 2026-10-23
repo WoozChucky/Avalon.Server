@@ -17,6 +17,8 @@ public static partial class LinkPreviewText
 
     private const string Separator = " · ";
 
+    private const string Increased = "Increased";
+
     public static string Describe(PublicItemDto item)
     {
         List<string> parts = [SplitWords(item.Rarity.ToString())];
@@ -25,8 +27,9 @@ public static partial class LinkPreviewText
         parts.AddRange(item.Damage.Select(d =>
             string.Join(' ', new[] { d.Min == d.Max ? Num(d.Max) : $"{Num(d.Min)} – {Num(d.Max)}", d.Type?.ToString(), "Damage" }
                 .Where(p => !string.IsNullOrEmpty(p)))));
-        parts.AddRange(item.Stats.Where(s => s.Type == StatType.Armor).Select(s => $"{Num(s.Value)} Armor"));
-        parts.AddRange(item.Stats.Where(s => s.Type != StatType.Armor).Select(FormatStat));
+        if (AttackTime(item.AttackTimeMs) is { } attackTime) parts.Add(attackTime);
+        parts.AddRange(item.Stats.Where(s => s.Type == StatType.Armor).Select(s => FormatStat(s.Type, s.Value)));
+        parts.AddRange(item.Stats.Where(s => s.Type != StatType.Armor).Select(s => FormatStat(s.Type, s.Value)));
         if (item.RequiredLevel is > 0) parts.Add($"Requires Level {Num(item.RequiredLevel.Value)}");
         if (item.RequiredStrength is > 0) parts.Add($"Requires {Num(item.RequiredStrength.Value)} Strength");
         if (item.RequiredAgility is > 0) parts.Add($"Requires {Num(item.RequiredAgility.Value)} Agility");
@@ -90,7 +93,11 @@ public static partial class LinkPreviewText
         if (line.Length <= MaxDescriptionLength) return line;
         int keep = MaxDescriptionLength - 1;
         if (char.IsHighSurrogate(line[keep - 1])) keep--;
-        return line[..keep].TrimEnd() + "…";
+        string kept = line[..keep].TrimEnd();
+        // A cut inside a separator would leave it dangling before the ellipsis.
+        string separator = Separator.TrimEnd();
+        if (kept.EndsWith(separator, StringComparison.Ordinal)) kept = kept[..^separator.Length].TrimEnd();
+        return kept + "…";
     }
 
     /// <summary>A name or description as one line.</summary>
@@ -105,22 +112,53 @@ public static partial class LinkPreviewText
             : string.Join(", ", distinct);
     }
 
-    private static string FormatStat(PublicItemStatDto stat)
+    /// <summary>
+    /// One item stat as the tooltip writes it (#1189): armour as a plain <c>8 Armor</c>; the <c>…Pct</c> stats, the
+    /// resistances, the crit multiplier, attack, cast and movement speed and cooldown recovery as percent points
+    /// (<c>+2% Crit</c>, <c>+5% Fire Resistance</c>, <c>+5% Movement Speed</c>); the <c>Increased…</c> stats as
+    /// <c>+10% increased Fire Damage</c>; the rest, Evasion and Ward among them, as a plain rating (<c>+12 Evasion</c>).
+    /// A negative value keeps its own sign (<c>-3% Cold Resistance</c>), and armour never gets a plus. The Dashboard's
+    /// packages/shared/src/items/stat-wording.json holds a row for every stat; both sides test against it (#460).
+    /// </summary>
+    public static string FormatStat(StatType type, long value)
     {
-        string type = stat.Type.ToString();
-        if (type.EndsWith("Pct", StringComparison.Ordinal))
-            return $"+{Num(stat.Value)}% {SplitWords(type[..^3])}";
-        return $"+{Num(stat.Value)} {SplitWords(type)}";
+        string name = type.ToString();
+        string amount = value.ToString(CultureInfo.InvariantCulture);
+        if (type == StatType.Armor) return $"{amount} Armor";
+        string signed = value >= 0 ? $"+{amount}" : amount;
+        if (name.EndsWith("Pct", StringComparison.Ordinal)) return $"{signed}% {SplitWords(name[..^3])}";
+        if (name.EndsWith("Resistance", StringComparison.Ordinal) || IsPercentPoints(type))
+            return $"{signed}% {SplitWords(name)}";
+        if (name.StartsWith(Increased, StringComparison.Ordinal) && name.Length > Increased.Length)
+            return $"{signed}% increased {SplitWords(name[Increased.Length..])}";
+        return $"{signed} {SplitWords(name)}";
     }
+
+    /// <summary>
+    /// A weapon's pace before attack speed (#1178) as <c>2.6 sec attack time</c>, on its damage line; null, so left out,
+    /// for no attack time or 0.
+    /// </summary>
+    public static string? AttackTime(uint? ms) => ms is > 0 ? $"{Seconds(ms.Value)} attack time" : null;
+
+    /// <summary>
+    /// The stats without a <c>Pct</c> or <c>Resistance</c> in their name that the world adds as percent points (#1178;
+    /// movement speed into MovementSpeedPct, #1189), written with a % and their own name.
+    /// </summary>
+    private static bool IsPercentPoints(StatType type) =>
+        type is StatType.CritMultiplier or StatType.AttackSpeed or StatType.CastSpeed or StatType.CooldownRecovery
+            or StatType.MovementSpeed;
 
     private static string Cost(PublicAbilityDto ability) =>
         ability.Cost == 0
             ? "Free"
             : $"{Num(ability.Cost)} {(ability.CostPowerType is PowerType.Mana or PowerType.Fury or PowerType.Energy ? ability.CostPowerType.ToString() : "power")}";
 
-    /// <summary>Milliseconds as <c>1.5 sec</c>, as the tooltip writes them.</summary>
+    /// <summary>
+    /// Milliseconds as <c>1.5 sec</c>, as the tooltip writes them: to the hundredth, a half rounded up (<c>1005</c> is
+    /// <c>1.01 sec</c>), with no trailing zeros. Decimal, so a tie is a tie, never a binary fraction either side of one.
+    /// </summary>
     private static string Seconds(uint ms) =>
-        $"{(ms / 1000.0).ToString("0.##", CultureInfo.InvariantCulture)} sec";
+        $"{Math.Round(ms / 1000m, 2, MidpointRounding.AwayFromZero).ToString("0.##", CultureInfo.InvariantCulture)} sec";
 
     private static string Num(uint value) => value.ToString(CultureInfo.InvariantCulture);
 

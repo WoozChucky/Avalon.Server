@@ -351,17 +351,48 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         (_, string html) = await Get("/public/preview/item/16");
 
         string description = Decoded(html, "og:description");
-        Assert.Equal(LinkPreviewText.MaxDescriptionLength, description.Length);
+        // Up to three short of the cap when the cut lands in a separator, which is trimmed before the ellipsis.
+        Assert.InRange(description.Length, LinkPreviewText.MaxDescriptionLength - 3, LinkPreviewText.MaxDescriptionLength);
         Assert.EndsWith("…", description, StringComparison.Ordinal);
+        Assert.DoesNotContain("·…", description, StringComparison.Ordinal);
         Assert.DoesNotContain('\n', description);
         Assert.StartsWith("Legendary", description, StringComparison.Ordinal);
     }
 
+    /// <summary>A weapon's attack time follows its damage, as on the tooltip's damage line (#1189).</summary>
     [Fact]
-    public void Collapse_line_breaks_in_a_capped_text()
+    public void Put_a_weapons_attack_time_after_its_damage()
+    {
+        var weapon = new ItemTemplate
+        {
+            Id = new ItemTemplateId(30),
+            Name = "Ember Blade",
+            Rarity = ItemRarity.Rare,
+            Slot = ItemSlotType.MainHand,
+            SubClass = ItemSubClass.OneHanded,
+            AttackTimeMs = 784,
+            DamageMin1 = 12,
+            DamageMax1 = 18,
+            DamageType1 = DamageType.Physical,
+            DamageMin2 = 3,
+            DamageMax2 = 5,
+            DamageType2 = DamageType.Fire,
+            StatType1 = StatType.IncreasedFireDamage,
+            StatValue1 = 10,
+        };
+
+        Assert.Equal(
+            "Rare · Main Hand · One Handed · 12 – 18 Physical Damage · 3 – 5 Fire Damage · 0.78 sec attack time · " +
+            "+10% increased Fire Damage",
+            LinkPreviewText.Describe(weapon.ToPublicDto()));
+    }
+
+    [Fact]
+    public void Cap_a_text_on_one_line_without_a_dangling_separator()
     {
         Assert.Equal("a b c", LinkPreviewText.Cap("a\r\nb\n  c"));
         Assert.Equal(200, LinkPreviewText.Cap(new string('x', 500)).Length);
+        Assert.Equal(new string('x', 197) + "…", LinkPreviewText.Cap(new string('x', 197) + " · " + new string('y', 50)));
     }
 
     [Fact]

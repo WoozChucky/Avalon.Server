@@ -344,7 +344,8 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
 - **The link** is `<PublicSiteUrl>/item/{id}` (or `/ability/{id}`), with `?world=N` only when the request named a
   world. With no `PublicSiteUrl`, `og:url` is left out and the link is relative.
 - **The description** (`LinkPreviewText.Describe`) reads like the site's tooltips: for an item its rarity, slot,
-  subclass, damage, armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178),
+  subclass, damage, a weapon's attack time after its damage (`0.78 sec attack time`, before attack speed, #1189),
+  armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178),
   allowed classes (only when restricted to some; an empty list means every class, #1171) and item power; for an
   ability its classes, cost, cast time, cooldown and what one hit deals or heals (#1178): an Attack as its weapon
   damage (`315 % of weapon damage`, then `converts 50 % to cold` or `adds 2-4 blight damage`; a creature's, with no
@@ -353,6 +354,21 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   an ability with no direct amount (one that only applies an aura) shows its damage type instead (`Fire damage`).
   Templates have no description or flavour text. Parts are joined by ` · `, collapsed to one line and capped at 200
   characters with an ellipsis.
+- **Item wording shared with the tooltip** (#1189): `LinkPreviewText.FormatStat` writes armour as `8 Armor`; the
+  `…Pct` stats, the four resistances, `CritMultiplier`, `AttackSpeed`, `CastSpeed`, `CooldownRecovery` and
+  `MovementSpeed` (the world adds it to `MovementSpeedPct`) as percent points (`+2% Crit`, `+5% Fire Resistance`,
+  `+5% Movement Speed`); the `Increased…` stats as `+10% increased Fire Damage`; the rest, Evasion and Ward among
+  them, as a plain rating (`+12 Evasion`); a negative value keeps its own sign (`-3% Cold Resistance`, `-2 Strength`).
+  Times (`LinkPreviewText.AttackTime`, and an ability's cast time and cooldown) are seconds to the hundredth, a half
+  rounded up and computed in decimal so a tie is exact, with no trailing zeros (`2.6 sec attack time`, `2 sec`,
+  `0.78 sec`, `1005` ms as `1.01 sec`; the tie cases are pinned here once Avalon.Dashboard#462 adds them to the shared
+  file). In JavaScript the shared rule is `Math.round(ms / 10) / 100`, which the public site adopts through
+  Avalon.Dashboard#460. An attack time of 0 or none is left out. The one wording table is the Dashboard's
+  `packages/shared/src/items/stat-wording.json` (a row per `StatType`, negative values, attack times), which the
+  site's formatter tests against; a verbatim copy sits in
+  `tests/Avalon.Api.Worlds.UnitTests/Worlds/stat-wording.json`, refreshed from there and never edited here.
+  `StatWordingShould` fails when a `StatType` member has no row, or a row names no stat, or the preview writes a row's
+  text differently, so a new stat fails until the shared file and both formatters handle it.
 - **Colours:** an item's `theme-color` is its rarity's colour, an ability's `AbilityColour`. A missing or malformed
   colour leaves `theme-color` out; it never fails the request.
 - **Not-found and unavailable pages** are titled "Not found · {SiteName}" and "Unavailable · {SiteName}" (or just
