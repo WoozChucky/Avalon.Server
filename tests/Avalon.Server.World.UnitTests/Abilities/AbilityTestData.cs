@@ -24,6 +24,21 @@ internal static class AbilityTestData
         CooldownTimer = 0f,
     };
 
+    /// <summary>
+    /// <paramref name="template" /> as a Spell that deals exactly <paramref name="amount" /> for a caster with no offence
+    /// (#1178): a spell base of <paramref name="amount" />..<paramref name="amount" />, growing with no level. Its hit draws
+    /// that one roll before the hit's chances.
+    /// </summary>
+    public static AbilityTemplate Dealing(this AbilityTemplate template, uint amount)
+    {
+        template.Tags = AbilityTags.Spell
+                        | (template.Shape == AbilityShape.Projectile ? AbilityTags.Projectile : AbilityTags.Area);
+        template.SpellBaseMin = amount;
+        template.SpellBaseMax = amount;
+        template.SpellBasePerLevelPct = 0f;
+        return template;
+    }
+
     public static AbilityTemplate Circle(uint id, string name = "Circle", float radius = 3f) => new()
     {
         Id = new AbilityId(id),
@@ -34,7 +49,6 @@ internal static class AbilityTestData
         Anchor = AbilityAnchor.Caster,
         Radius = radius,
         Effects = SpellEffect.Damage,
-        EffectValue = 10,
         AllowedClasses = [CharacterClass.Warrior],
         DamageType = DamageType.Physical,
         Tags = AbilityTags.Attack | AbilityTags.Area,
@@ -51,7 +65,6 @@ internal static class AbilityTestData
         Reach = reach,
         Radius = radius,
         Effects = SpellEffect.Damage,
-        EffectValue = 10,
         AllowedClasses = [CharacterClass.Wizard],
         DamageType = DamageType.Physical,
         Tags = AbilityTags.Attack | AbilityTags.Area,
@@ -69,7 +82,6 @@ internal static class AbilityTestData
         Radius = radius,
         Affects = AbilityAffects.Ally,
         Effects = SpellEffect.Heal,
-        EffectValue = 40,
         HealThreatPerHp = 0.5f,
         AllowedClasses = [CharacterClass.Cleric],
         Tags = AbilityTags.Heal | AbilityTags.Area,
@@ -88,7 +100,6 @@ internal static class AbilityTestData
             Reach = reach,
             ArcDegrees = arc,
             Effects = SpellEffect.Damage,
-            EffectValue = 10,
             AllowedClasses = [CharacterClass.Warrior],
             DamageType = DamageType.Physical,
             Tags = AbilityTags.Attack | AbilityTags.Area,
@@ -105,7 +116,6 @@ internal static class AbilityTestData
         ProjectileSpeed = speed,
         Pierce = pierce,
         Effects = SpellEffect.Damage,
-        EffectValue = 10,
         AllowedClasses = [CharacterClass.Hunter],
         DamageType = DamageType.Physical,
         Tags = AbilityTags.Attack | AbilityTags.Projectile,

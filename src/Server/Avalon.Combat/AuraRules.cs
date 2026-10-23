@@ -2,6 +2,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
+using Avalon.World.Public.Abilities;
 
 namespace Avalon.Combat;
 
@@ -19,7 +20,6 @@ public static class AuraRules
         if (!Enum.IsDefined(t.Kind)) return $"unknown kind {(int)t.Kind}";
         if (!Enum.IsDefined(t.PeriodicKind)) return $"unknown periodic kind {(int)t.PeriodicKind}";
         if (!Enum.IsDefined(t.Stacking)) return $"unknown stacking {(int)t.Stacking}";
-        if (!Enum.IsDefined(t.ScalingStat)) return $"unknown scaling stat {(int)t.ScalingStat}";
         if ((t.Control & ~KnownControl) != 0) return $"unknown control {(int)t.Control}";
         if (t.DurationMs == 0) return "DurationMs must be above 0";
         if (t.PeriodicKind != AuraPeriodicKind.None && t.TickIntervalMs == 0)
@@ -30,9 +30,7 @@ public static class AuraRules
 
         foreach ((string name, float value) in new[]
                  {
-                     ("PeriodicBase", t.PeriodicBase), ("ScalingCoefficient", t.ScalingCoefficient),
-                     ("BaseDamageCoefficient", t.BaseDamageCoefficient),
-                     ("PeriodicEffectiveness", t.PeriodicEffectiveness),
+                     ("PeriodicBase", t.PeriodicBase), ("PeriodicEffectiveness", t.PeriodicEffectiveness),
                  })
         {
             if (!float.IsFinite(value) || value < 0f)
@@ -95,24 +93,24 @@ public static class AuraRules
         tickIntervalMs == 0 ? 0 : (int)Math.Max(1u, durationMs / tickIntervalMs);
 
     /// <summary>
-    /// The snapshot: <c>PeriodicBase + ScalingCoefficient x the caster's ScalingStat + BaseDamageCoefficient x one
-    /// roll of the caster's base damage</c>, the ability formula (<see cref="HitResolver.AbilityBase" />), divided
-    /// evenly over the ticks. The roll is uniform and inclusive over the caster's WeaponMin..WeaponMax (a character's
-    /// main hand, a creature's natural range) and is drawn once, here, only for a tick-giving aura whose coefficient
-    /// is above 0 and whose caster has a range above 0. A creature has no damage stats, so its auras scale through
-    /// the roll alone. <paramref name="type" /> is the type its damage ticks deal (#1178), which the caller resolves from
-    /// the source ability and the caster (<see cref="HitResolver.TypeOf" />).
+    /// The snapshot (#1178): <see cref="OffenceMath.PeriodicTotal" /> of the aura from its <paramref name="caster" /> and
+    /// <paramref name="source" /> ability, divided evenly over the ticks, with the caster's crit chance, level and crit
+    /// multiplier bonus. The total is rolled once, here, only for a tick-giving aura; nothing about the caster changes it
+    /// afterwards. <paramref name="type" /> is the type its damage ticks deal, which the caller resolves from the source
+    /// ability and the caster (<see cref="HitResolver.TypeOf" />). With no source (an item's, a script's aura, or no
+    /// caster), the aura's PeriodicBase alone.
     /// </summary>
-    public static AuraSnapshot Snapshot(AuraTemplate t, in AttackerCombat caster, DamageType type, ICombatRandom rng)
+    public static AuraSnapshot Snapshot(AuraTemplate t, in AttackerCombat caster, AbilityMetadata? source,
+        DamageType type, ICombatRandom rng)
     {
         ushort level = (ushort)Math.Min(caster.Level, ushort.MaxValue);
+        float critBonus = caster.Offence.CritMultiplierBonus;
         int ticks = TickCount(t.DurationMs, t.TickIntervalMs);
         if (t.PeriodicKind == AuraPeriodicKind.None || ticks == 0)
-            return new AuraSnapshot(0f, caster.CritPct, level, type);
+            return new AuraSnapshot(0f, caster.CritPct, level, type, critBonus);
 
-        float total = HitResolver.AbilityBase(caster, t.PeriodicBase, t.ScalingStat, t.ScalingCoefficient,
-            t.BaseDamageCoefficient, rng);
-        return new AuraSnapshot(total / ticks, caster.CritPct, level, type);
+        double total = OffenceMath.PeriodicTotal(t, caster, source, type, rng);
+        return new AuraSnapshot((float)(total / ticks), caster.CritPct, level, type, critBonus);
     }
 
     /// <summary>

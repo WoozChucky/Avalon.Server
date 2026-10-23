@@ -16,10 +16,10 @@ namespace Avalon.World.Characters;
 public static class AbilityAmountsFlusher
 {
     /// <summary>
-    /// The amounts follow only the character's combat stats (its damage stats and main-hand range), and the
+    /// The amounts follow only the character's combat stats (#1178: its level, weapon and offence block), and the
     /// abilities it learned at select. So they are worked out again only when those stats differ from the
-    /// ones last used, and sent, whole, only when an amount actually changed: a level-up that moves no damage
-    /// stat sends nothing. The amounts at select travel in SCharacterAbilitiesPacket, which records them here,
+    /// ones last used, and sent, whole, only when an amount actually changed: a change that moves no amount sends
+    /// nothing. The amounts at select travel in SCharacterAbilitiesPacket, which records them here,
     /// so nothing is sent again on the tick the character enters the world. A new session builds a new
     /// entity, which starts from that session's select.
     /// </summary>

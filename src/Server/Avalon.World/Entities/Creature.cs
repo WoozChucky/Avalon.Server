@@ -329,11 +329,16 @@ public class Creature : ICreature
     }
 
     /// <summary>
-    /// What this creature attacks with (#506): its level, its crit, its natural damage range in place of a weapon
-    /// (#163) and its base damage type (#1178), with its auras folded in.
+    /// What this creature attacks with (#506, #1178): its level, its crit, its natural damage range as an untyped weapon
+    /// at its BaseAttackTime (#163) and its base damage type, with its auras folded in (its offence block is theirs alone).
     /// </summary>
-    internal AttackerCombat Combat =>
-        AuraStats.Fold(new AttackerCombat(Level, 0, 0, CritPct, DamageMin, DamageMax, DamageType), AuraTotals);
+    internal AttackerCombat Combat => AuraStats.Fold(
+        new AttackerCombat(Level, CritPct, new WeaponDamage(DamageMin, DamageMax, null, 0, 0, null, AttackTimeMs),
+            default, DamageType), AuraTotals);
+
+    /// <summary>BaseAttackTime in whole milliseconds, its natural weapon's pace.</summary>
+    private uint AttackTimeMs =>
+        float.IsFinite(BaseAttackTime) && BaseAttackTime > 0f ? (uint)MathF.Round(BaseAttackTime * 1000f) : 0u;
 
     /// <summary>What this creature defends with (#506), its resistances (#1178) and its auras folded in.</summary>
     internal DefenderCombat Defence =>

@@ -3,7 +3,6 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Auras;
-using Avalon.World.Public.Abilities;
 
 namespace Avalon.Server.World.UnitTests.Auras;
 
@@ -31,8 +30,7 @@ internal static class AuraTestData
         TickIntervalMs = 3000,
         PeriodicKind = AuraPeriodicKind.Damage,
         PeriodicBase = 12f,
-        ScalingStat = ScalingStat.Attack,
-        ScalingCoefficient = 0.25f,
+        PeriodicEffectiveness = 50f,
         Stacking = AuraStacking.Stack,
         MaxStacks = 3,
     };
@@ -47,8 +45,7 @@ internal static class AuraTestData
         TickIntervalMs = 3000,
         PeriodicKind = AuraPeriodicKind.Damage,
         PeriodicBase = 24f,
-        ScalingStat = ScalingStat.Ability,
-        ScalingCoefficient = 0.6f,
+        PeriodicEffectiveness = 100f,
         Stacking = AuraStacking.Refresh,
         MaxStacks = 1,
     };
@@ -75,8 +72,7 @@ internal static class AuraTestData
         TickIntervalMs = 3000,
         PeriodicKind = AuraPeriodicKind.Heal,
         PeriodicBase = 24f,
-        ScalingStat = ScalingStat.Ability,
-        ScalingCoefficient = 0.4f,
+        PeriodicEffectiveness = 100f,
         Stacking = AuraStacking.Refresh,
         MaxStacks = 1,
     };

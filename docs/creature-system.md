@@ -38,7 +38,7 @@ then asks `CreatureStatDeriver.Derive` for the stats that level gives:
    modifiers default to 0. The four resistances, `FireResistance`, `ColdResistance`,
    `LightningResistance` and `BlightResistance` (percent, -100 to 100, default 0, negative taking
    more), are the template's as authored, never scaled by rarity. The template's `DamageType`
-   (Physical 0 to Blight 4, stored in the `DmgSchool` column) is the type of a hit whose ability names
+   (Physical 0 to Blight 4, the `DamageType` column, `DmgSchool` before #1178) is the type of a hit whose ability names
    none (see [World simulation](world-simulation.md), "Combat reads the derived stats"). The
    creature's crit and block chances, in percentage points, are its rarity row's `CritPct` and
    `BlockPct` (Normal 0/0, Elite 5/0, Rare 8/5, Boss 10/10); every rarity's `DefenceMultiplier` is
@@ -495,7 +495,7 @@ These `CreatureTemplate` fields are deliberately unread. Do not assume any of th
 | `RegenHealth` | Creatures do not regenerate health. |
 
 `RangeAttackTime`, `MovementType`, `MovementId` and `Family` are not read by the world server
-either. `DmgSchool` is read since #1178, as the template's `DamageType`.
+either. The old `DmgSchool` column is read since #1178, renamed `DamageType`.
 
 ---
 

@@ -418,7 +418,7 @@ public class CreatureAbilityAiShould
             script.Update(TimeSpan.FromSeconds(0.1));
 
             Assert.Equal([TestKit.BasicId], CastRig.Of(context).Casts.Select(c => c.Ability.AbilityId));
-            fight.Combat.Received(1).ApplyDamage(fight.Creature, fight.Target, Arg.Any<uint>(),
+            fight.Combat.Received(1).ApplyDamage(fight.Creature, fight.Target,
                 Arg.Is<IAbility>(a => a.AbilityId == TestKit.BasicId));
         }
     }

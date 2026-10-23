@@ -59,12 +59,12 @@ internal sealed class TestArena : IAbilityArena
     public HitOutcome HitForAbility(IUnit caster, IUnit target, IAbility ability)
     {
         if (AbilityRules.HasDirectEffect(ability.Metadata.Effects, ability.Metadata.Affects))
-            CombatService.ApplyDamage(caster, target, ability.Metadata.EffectValue, ability);
+            CombatService.ApplyDamage(caster, target, ability);
         return NextOutcome;
     }
 
     public void HealForAbility(IUnit caster, IUnit target, IAbility ability) =>
-        CombatService.ApplyHeal(caster, target, ability.Metadata.EffectValue, ability);
+        CombatService.ApplyHeal(caster, target, ability);
 
     public void ApplyAbilityAura(IUnit caster, IUnit target, IAbility ability) => AurasApplied.Add((caster, target, ability));
 

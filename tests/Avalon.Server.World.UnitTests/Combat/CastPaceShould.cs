@@ -51,7 +51,7 @@ public class CastPaceShould
 
     private static DerivedCharacterStats Stats(float castSpeedPct = 0f, float cooldownRecoveryPct = 0f) =>
         new(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0, Intellect: 0, Armor: 0,
-            BlockPct: 0f, Evasion: 0, CritPct: 0f, AttackDamage: 0, AbilityDamage: 0,
+            BlockPct: 0f, Evasion: 0, CritPct: 0f,
             Offence: new OffenceStats { CastSpeedPct = castSpeedPct, CooldownRecoveryPct = cooldownRecoveryPct });
 
     private static MapInstanceClient Caster(MapInstance instance, uint id, float castSpeedPct = 0f, float cooldownRecoveryPct = 0f)

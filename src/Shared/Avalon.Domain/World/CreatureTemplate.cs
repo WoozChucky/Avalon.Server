@@ -91,8 +91,7 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     public short RegenHealth { get; set; }
 
     /// <summary>
-    /// The type of damage the creature's basic attack deals, and its abilities that name none (#1178). Stored in the
-    /// column <c>DmgSchool</c>, which the world never read before.
+    /// The type of damage the creature's basic attack deals, and its abilities that name none (#1178).
     /// </summary>
     public DamageType DamageType { get; set; }
 

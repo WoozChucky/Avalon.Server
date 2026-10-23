@@ -2,13 +2,14 @@ using System.Text.Json.Serialization;
 
 namespace Avalon.Api.Contract;
 
-/// <summary>A stat an aura modifies (auras): the stored numbers, a retired one (7, haste) never reused.</summary>
+/// <summary>
+/// A stat an aura modifies (auras): the stored numbers, the retired ones (2 and 3, the old damage stats, and 7, haste)
+/// never reused.
+/// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum AuraStat
 {
     Armor = 1,
-    AttackDamage = 2,
-    AbilityDamage = 3,
     CritPct = 4,
 
     /// <summary>Evasion rating (#1178), formerly the dodge chance.</summary>

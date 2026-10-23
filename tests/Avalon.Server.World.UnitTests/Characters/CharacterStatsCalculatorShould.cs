@@ -29,18 +29,18 @@ public class CharacterStatsCalculatorShould
         => CharacterStatsCalculator.Calculate(row, worn, TestCombat.FactorsOf(row.Class), TestCombat.Formula);
 
     [Theory]
-    [InlineData(CharacterClass.Warrior, 1, 240u, 100u, 46u, 4u)]
-    [InlineData(CharacterClass.Warrior, 5, 400u, 100u, 62u, 4u)]
-    [InlineData(CharacterClass.Wizard, 1, 121u, 365u, 10u, 69u)]
-    [InlineData(CharacterClass.Wizard, 5, 205u, 565u, 10u, 93u)]
-    [InlineData(CharacterClass.Hunter, 1, 178u, 68u, 45u, 10u)]
-    [InlineData(CharacterClass.Hunter, 5, 282u, 114u, 60u, 10u)]
-    [InlineData(CharacterClass.Cleric, 1, 158u, 296u, 10u, 46u)]
-    [InlineData(CharacterClass.Cleric, 5, 258u, 472u, 10u, 62u)]
-    [InlineData(CharacterClass.Warrior, 10, 600u, 100u, 82u, 4u)]
-    [InlineData(CharacterClass.Hunter, 10, 412u, 172u, 79u, 10u)]
+    [InlineData(CharacterClass.Warrior, 1, 240u, 100u)]
+    [InlineData(CharacterClass.Warrior, 5, 400u, 100u)]
+    [InlineData(CharacterClass.Wizard, 1, 121u, 365u)]
+    [InlineData(CharacterClass.Wizard, 5, 205u, 565u)]
+    [InlineData(CharacterClass.Hunter, 1, 178u, 68u)]
+    [InlineData(CharacterClass.Hunter, 5, 282u, 114u)]
+    [InlineData(CharacterClass.Cleric, 1, 158u, 296u)]
+    [InlineData(CharacterClass.Cleric, 5, 258u, 472u)]
+    [InlineData(CharacterClass.Warrior, 10, 600u, 100u)]
+    [InlineData(CharacterClass.Hunter, 10, 412u, 172u)]
     public void Derive_the_seeded_numbers_for_each_class_with_no_gear(
-        CharacterClass @class, ushort level, uint health, uint power, uint attack, uint ability)
+        CharacterClass @class, ushort level, uint health, uint power)
     {
         ClassLevelStat row = SeededRow(@class, level);
 
@@ -48,8 +48,6 @@ public class CharacterStatsCalculatorShould
 
         Assert.Equal(health, stats.MaxHealth);
         Assert.Equal(power, stats.MaxPower);
-        Assert.Equal(attack, stats.AttackDamage);
-        Assert.Equal(ability, stats.AbilityDamage);
         Assert.Equal((row.Stamina, row.Strength, row.Agility, row.Intellect),
             (stats.Stamina, stats.Strength, stats.Agility, stats.Intellect));
     }
@@ -147,7 +145,7 @@ public class CharacterStatsCalculatorShould
         Assert.Equal(24u, stats.Stamina);
         Assert.Equal(25u, stats.Strength);
         Assert.Equal(130u + 24u * 5u, stats.MaxHealth);
-        Assert.Equal(50u, stats.AttackDamage);
+        Assert.Equal(25f * 3.5f, stats.Offence.Increased(OffenceStat.PhysicalAttack));
         Assert.Equal(8u + 2u, stats.Armor);   // and Strength 25 x 0.1
     }
 
@@ -159,7 +157,7 @@ public class CharacterStatsCalculatorShould
 
         Assert.Equal(130u + 24u * 5u + 15u, warrior.MaxHealth);
         Assert.Equal(100u, warrior.MaxPower);
-        Assert.Equal(53u, warrior.AttackDamage);
+        Assert.Equal(3f, warrior.Offence.Increased(OffenceStat.Fire));
         Assert.Equal(7.0f, warrior.CritPct);
     }
 
@@ -171,7 +169,7 @@ public class CharacterStatsCalculatorShould
 
         Assert.Equal(121u + 15u, wizard.MaxHealth);
         Assert.Equal(365u + 20u, wizard.MaxPower);
-        Assert.Equal(13u, wizard.AttackDamage);
+        Assert.Equal(3f, wizard.Offence.Increased(OffenceStat.Fire));
         Assert.Equal(5f + 2f, wizard.CritPct);
     }
 
@@ -234,7 +232,7 @@ public class CharacterStatsCalculatorShould
     public void Write_every_value_to_the_character_stats_row()
     {
         DerivedCharacterStats stats = new(MaxHealth: 260, MaxPower: 100, Stamina: 24, Strength: 25, Agility: 20,
-            Intellect: 20, Armor: 8, BlockPct: 5f, Evasion: 4, CritPct: 5f, AttackDamage: 50, AbilityDamage: 4, MaxWard: 6,
+            Intellect: 20, Armor: 8, BlockPct: 5f, Evasion: 4, CritPct: 5f, MaxWard: 6,
             Resistances: new Resistances(11f, 12f, 13f, 14f));
 
         CharacterStats row = stats.ToRow(new CharacterId(7));
@@ -243,8 +241,8 @@ public class CharacterStatsCalculatorShould
         Assert.Equal((260u, 100u, 0u), (row.MaxHealth, row.MaxPower1, row.MaxPower2));
         Assert.Equal((24u, 25u, 20u, 20u), (row.Stamina, row.Strength, row.Agility, row.Intellect));
         Assert.Equal((8u, 5f, 5f), (row.Armor, row.BlockPct, row.CritPct));
-        Assert.Equal((50u, 4u, 4u, 6u, 11f, 12f, 13f, 14f), (row.AttackDamage, row.AbilityDamage, row.Evasion, row.MaxWard,
-            row.FireResistance, row.ColdResistance, row.LightningResistance, row.BlightResistance));
+        Assert.Equal((4u, 6u, 11f, 12f, 13f, 14f), (row.Evasion, row.MaxWard, row.FireResistance, row.ColdResistance,
+            row.LightningResistance, row.BlightResistance));
     }
 
     /// <summary>Review Focus 3: a gear change never kills, revives or overfills.</summary>

@@ -105,7 +105,7 @@ public class FuryLifecycleShould
         var clock = new FixedTimeProvider(s_start);
         CharacterEntity warrior = Character(clock, current: 50);
         var stats = new DerivedCharacterStats(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0,
-            Intellect: 0, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 0f, AttackDamage: 0, AbilityDamage: 0);
+            Intellect: 0, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 0f);
 
         for (int i = 0; i < 60; i++)
         {

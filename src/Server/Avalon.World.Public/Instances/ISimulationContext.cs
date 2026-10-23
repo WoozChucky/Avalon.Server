@@ -81,7 +81,7 @@ public interface ISimulationContext
 
     /// <summary>
     /// Broadcasts a death event to all connections in the instance. Called by
-    /// <see cref="ICombatService"/> when <see cref="ICombatService.ApplyDamage(IUnit,IUnit,uint,IAbility)"/>
+    /// <see cref="ICombatService"/> when <see cref="ICombatService.ApplyDamage(IUnit,IUnit,IAbility)"/>
     /// (or its raw-damage overload) brings <paramref name="unit"/> to 0 HP / dead state.
     /// </summary>
     void BroadcastUnitDeath(IUnit unit, IUnit? killer);

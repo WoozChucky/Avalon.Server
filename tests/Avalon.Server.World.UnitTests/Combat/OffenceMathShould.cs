@@ -16,7 +16,7 @@ public class OffenceMathShould
     private static readonly WeaponDamage s_weapon = new(10, 20, DamageType.Physical, 0, 0, null, 800);
 
     private static AttackerCombat Attacker(OffenceStats offence, WeaponDamage weapon = default, uint level = 1) =>
-        new(level, 0, 0, 0f, 0, 0, Weapon: weapon, Offence: offence);
+        new(level, 0f, weapon, offence);
 
     private static OffenceStats Offence(params (OffenceStat Stat, float Increased)[] increased)
     {

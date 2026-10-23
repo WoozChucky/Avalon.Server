@@ -36,7 +36,6 @@ public sealed class CharacterAbilityTemplateDto
 
     public SpellRange Range { get; set; }
     public SpellEffect Effects { get; set; }
-    public uint EffectValue { get; set; }
     public List<CharacterClass> AllowedClasses { get; set; } = [];
 }
 

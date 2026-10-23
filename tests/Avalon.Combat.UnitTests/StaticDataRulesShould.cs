@@ -66,23 +66,12 @@ public class StaticDataRulesShould
             PowerPerIntellect = 1,
             PowerPerAgility = 0,
             FixedPower = null,
-            AttackPerStrength = 2,
-            AttackPerAgility = 0,
-            AbilityPerIntellect = 0.2,
         })
         .ToArray();
 
     [Fact]
     public void Accept_a_valid_cone_naming_the_cone_script() =>
         Assert.Null(AbilityRules.Problem(Cone()));
-
-    [Fact]
-    public void Refuse_a_negative_scaling_coefficient()
-    {
-        AbilityTemplate t = Cone();
-        t.ScalingCoefficient = -1f;
-        Assert.NotNull(AbilityRules.Problem(t));
-    }
 
     [Fact]
     public void Name_the_shape_scripts_by_class_name()

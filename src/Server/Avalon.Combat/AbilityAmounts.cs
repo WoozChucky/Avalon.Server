@@ -12,10 +12,11 @@ public readonly record struct AbilityAmount(AbilityAmountKind Kind, uint Min, ui
 
 /// <summary>
 /// The amount a player is told an ability deals or heals per unit hit (#669), from the caster's current
-/// combat stats and the ability's own terms, through <see cref="HitResolver" />'s own arithmetic: the base
-/// (<c>EffectValue + ScalingCoefficient × stat + BaseDamageCoefficient × weapon roll</c>) at both ends of
-/// the weapon's inclusive range, then floored as a hit that nothing procs on, against no armour, would be:
-/// <see cref="HitResolver.NormalDamage" /> (a minimum of 1) or <see cref="HitResolver.NormalHeal" />.
+/// combat stats and the ability's own terms, through the very arithmetic a hit uses (#1178): the base
+/// (<see cref="OffenceMath.DirectBase" /> for damage, <see cref="OffenceMath.HealBase" /> for a heal) with every roll at
+/// the low and then the high end of its inclusive range (<see cref="RollEnds" />), then floored as a hit that nothing
+/// procs on, against no defences, would be: <see cref="HitResolver.NormalDamage" /> (a minimum of 1) or
+/// <see cref="HitResolver.NormalHeal" />.
 /// </summary>
 /// <remarks>
 /// Only the generic shape scripts apply an ability's amount directly, through <c>AbilityEffect</c>: an
@@ -29,12 +30,11 @@ public static class AbilityAmounts
         AbilityAmountKind kind = AbilityAmountMath.KindOf(ability.ScriptName, ability.Affects, ability.Effects);
         if (kind == AbilityAmountKind.None) return AbilityAmount.None;
 
-        (float low, float high) = HitResolver.AbilityBaseRange(caster, ability.EffectValue, ability.ScalingStat,
-            ability.ScalingCoefficient, ability.BaseDamageCoefficient);
-
         return kind == AbilityAmountKind.Healing
-            ? new AbilityAmount(kind, HitResolver.NormalHeal(low), HitResolver.NormalHeal(high))
-            : new AbilityAmount(kind, HitResolver.NormalDamage(low), HitResolver.NormalDamage(high));
+            ? new AbilityAmount(kind, HitResolver.NormalHeal(OffenceMath.HealBase(caster, ability, RollEnds.Low)),
+                HitResolver.NormalHeal(OffenceMath.HealBase(caster, ability, RollEnds.High)))
+            : new AbilityAmount(kind, HitResolver.NormalDamage(OffenceMath.DirectBase(caster, ability, RollEnds.Low).Total),
+                HitResolver.NormalDamage(OffenceMath.DirectBase(caster, ability, RollEnds.High).Total));
     }
 
     public static AbilityAmountInfo ToInfo(IAbility ability, AbilityAmount amount) => new()

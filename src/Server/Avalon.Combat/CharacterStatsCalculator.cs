@@ -10,10 +10,8 @@ namespace Avalon.Combat;
 public static class CharacterStatsCalculator
 {
     /// <summary>
-    /// Where a class factor is fractional, the whole sum of the factored terms is truncated to a
-    /// whole number once, not each product on its own: a level-1 Hunter (Strength 21, Agility 23)
-    /// attacks for <c>(long)(0.5 x 21 + 1.5 x 23) = 45</c>, where truncating each product would give 44.
-    /// Health and crit are the same for every class (#1178): BaseHp plus Stamina times <paramref name="formula" />'s life per
+    /// Where a class's power factor is fractional, the whole sum of the factored terms is truncated to a whole number once,
+    /// not each product on its own. Health and crit are the same for every class (#1178): BaseHp plus Stamina times <paramref name="formula" />'s life per
     /// Stamina plus gear health, and the formula's base crit plus gear crit; only power still reads the class's factors.
     /// Defence is the same for every class (#1178): armour, evasion and ward are gear plus Strength, Agility and Intellect
     /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances are gear's alone.
@@ -37,16 +35,12 @@ public static class CharacterStatsCalculator
             : row.BaseMana
               + (long)(intellect * factors.PowerPerIntellect + agility * factors.PowerPerAgility)
               + gear.Power;
-        long attack = (long)(strength * factors.AttackPerStrength + agility * factors.AttackPerAgility) + gear.AttackDamage;
-        long ability = (long)(intellect * factors.AbilityPerIntellect) + gear.AbilityDamage;
         long armor = gear.Armor + (long)(strength * (double)formula.ArmorPerStrength);
         long evasion = gear.Evasion + (long)(agility * (double)formula.EvasionPerAgility);
         long ward = gear.Ward + (long)(intellect * (double)formula.WardPerIntellect);
 
-        // #506: the main-hand weapon's first damage range, what a skill's weapon term rolls; none is 0-0.
+        // #506, #1178: the main hand, what an Attack rolls; the bare hand's range with none.
         ItemTemplate? weapon = worn.FirstOrDefault(t => t.Slot == ItemSlotType.MainHand);
-        uint weaponMax = weapon?.DamageMax1 ?? 0;
-        uint weaponMin = Math.Min(weapon?.DamageMin1 ?? 0, weaponMax);
 
         DerivedCharacterStats derived = new(
             MaxHealth: Clamp(maxHealth),
@@ -60,10 +54,6 @@ public static class CharacterStatsCalculator
             BlockPct: gear.BlockPct,
             Evasion: Clamp(evasion),
             CritPct: formula.BaseCritPct + gear.CritPct,
-            AttackDamage: Clamp(attack),
-            AbilityDamage: Clamp(ability),
-            WeaponMin: weaponMin,
-            WeaponMax: weaponMax,
             MovementSpeedPct: gear.MovementSpeedPct,
             MaxWard: Clamp(ward),
             Resistances: new Resistances(gear.FireResistance, gear.ColdResistance, gear.LightningResistance,
@@ -99,7 +89,7 @@ public static class CharacterStatsCalculator
 
     private struct GearTotals
     {
-        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, AttackDamage, AbilityDamage, Health, Power;
+        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, Health, Power;
         public float BlockPct, CritPct, MovementSpeedPct;
         public float FireResistance, ColdResistance, LightningResistance, BlightResistance;
 
@@ -127,8 +117,6 @@ public static class CharacterStatsCalculator
                 case StatType.BlockPct: BlockPct += value; break;
                 case StatType.Evasion: Evasion += value; break;
                 case StatType.CritPct: CritPct += value; break;
-                case StatType.AttackDamage: AttackDamage += value; break;
-                case StatType.AbilityDamage: AbilityDamage += value; break;
                 case StatType.Health: Health += value; break;
                 case StatType.Power: Power += value; break;
                 // #627: a percentage, summed raw; the entity applies the combat formula's bounds. Attack speed, cast speed

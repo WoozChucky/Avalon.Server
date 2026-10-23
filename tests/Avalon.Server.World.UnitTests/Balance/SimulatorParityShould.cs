@@ -8,6 +8,7 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
@@ -172,7 +173,7 @@ public class SimulatorParityShould
             uint realBefore = realBoar.CurrentHealth;
             uint simBefore = simBoar.CurrentHealth;
 
-            instance.CombatService.ApplyDamage(real.Character, realBoar, realCleave.Metadata.EffectValue, realCleave);
+            instance.CombatService.ApplyDamage(real.Character, realBoar, realCleave);
             (uint damage, _) = CombatRules.Damage(simWarrior, simBoar, simCleave, Data.Combat.Formula, simRng);
             CombatRules.HitCreature(simWarrior, simBoar, damage, simCleave);
 
@@ -199,7 +200,7 @@ public class SimulatorParityShould
             simWarrior.CurrentHealth = simWarrior.Health;
             simWarrior.CurrentPower = 0;
 
-            instance.CombatService.ApplyDamage(realBoar, real.Character, realGore.Metadata.EffectValue, realGore);
+            instance.CombatService.ApplyDamage(realBoar, real.Character, realGore);
             (uint damage, _) = CombatRules.Damage(simBoar, simWarrior, simBoar.Basic!, Data.Combat.Formula, simRng);
             CombatRules.HitPlayer(simWarrior, damage);
 
@@ -313,9 +314,7 @@ public class SimulatorParityShould
         TickIntervalMs = 3000,
         PeriodicKind = AuraPeriodicKind.Damage,
         PeriodicBase = 12f,
-        ScalingStat = ScalingStat.Attack,
-        ScalingCoefficient = 0.25f,
-        BaseDamageCoefficient = 0.5f,
+        PeriodicEffectiveness = 50f,
         Stacking = AuraStacking.Stack,
         MaxStacks = 3,
     };
@@ -331,10 +330,9 @@ public class SimulatorParityShould
         ArcDegrees = 90f,
         Cooldown = 6000,
         Effects = effects,
-        EffectValue = 8,
-        ScalingStat = ScalingStat.Attack,
-        ScalingCoefficient = 0.2f,
-        BaseDamageCoefficient = 0.5f,
+        Tags = AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area,
+        DamageType = DamageType.Physical,
+        DamageEffectiveness = 202f,
         AllowedClasses = [CharacterClass.Warrior],
         AuraId = new Avalon.Common.ValueObjects.AuraId(9901),
         ThreatMultiplier = 1f,
@@ -368,7 +366,7 @@ public class SimulatorParityShould
         var data = BalanceData.From(seed);
         var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
         simWarrior.Abilities.Add(new SimAbility(TestRend(effects: effects)));
-        Assert.True(simWarrior.Attack.WeaponMax > 0, "the Warrior has no main hand to roll");
+        Assert.True(simWarrior.Attack.Weapon.Max1 > 0, "the Warrior has no main hand to roll");
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_971, simBoar);
         CompiledRotationEntry[] rotation = [new(9203, [])];
@@ -421,7 +419,7 @@ public class SimulatorParityShould
             TickIntervalMs = 3000,
             PeriodicKind = AuraPeriodicKind.Damage,
             PeriodicBase = 3.5f,
-            BaseDamageCoefficient = 1f,
+            PeriodicEffectiveness = 100f,
             Stacking = AuraStacking.Refresh,
             MaxStacks = 1,
         };
@@ -442,7 +440,7 @@ public class SimulatorParityShould
         var simBoar = SimCreature.Create(data, data.Creature(4), Level, 0);
         simBoar.Health = simBoar.CurrentHealth = 1_000_000;
         foreach (SimAbility special in simBoar.Specials) special.CooldownLeft = 1_000f;   // only Gore, once
-        Assert.True(simBoar.Attack.WeaponMax > 0, "the boar has no natural damage to roll");
+        Assert.True(simBoar.Attack.Weapon.Max1 > 0, "the boar has no natural damage to roll");
         Creature realBoar = RealBoar(instance, 6760_991, simBoar);
         var fight = new FightSimulator(Data.Combat.Formula, simWarrior, [simBoar], [], new CombatRandom(new Random(PoisonSeed)),
             data: data);
@@ -463,7 +461,7 @@ public class SimulatorParityShould
                 AuraSnapshot snapshot = Assert.Single(real.Character.Auras.All).Snapshot;
                 Assert.Equal(snapshot, Assert.Single(simWarrior.Auras).Snapshot);
                 // A roll above the bottom of the range, so a roll left out (or drawn elsewhere) would show.
-                Assert.True(snapshot.PerTickPerStack > (3.5f + simBoar.Attack.WeaponMin) / 3f + 1e-4f,
+                Assert.True(snapshot.PerTickPerStack > (3.5f + simBoar.Attack.Weapon.Min1) / 3f + 1e-4f,
                     $"the poison rolled the bottom of the boar's range: {snapshot.PerTickPerStack} a tick");
             }
 

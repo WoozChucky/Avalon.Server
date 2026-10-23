@@ -37,9 +37,10 @@ public class AbilityAuraShould
 {
     public AbilityAuraShould() => RecordingAuraScript.Heard.Clear();
 
+    /// <summary>A cone dealing 10 (#1178: a spell base of 10..10 from a caster with no offence) and applying Bleed.</summary>
     private static AbilityTemplate Rend()
     {
-        AbilityTemplate rend = AbilityTestData.Cone(203, reach: 2.5f, arc: 90f);
+        AbilityTemplate rend = AbilityTestData.Cone(203, reach: 2.5f, arc: 90f).Dealing(10);
         rend.AuraId = new AuraId(901);
         return rend;
     }
@@ -48,7 +49,6 @@ public class AbilityAuraShould
     {
         AbilityTemplate ignite = AbilityTestData.AimedCircle(213, reach: 18f, radius: 3f);
         ignite.Effects = SpellEffect.Debuff;
-        ignite.EffectValue = 0;
         ignite.AuraId = new AuraId(902);
         return ignite;
     }
@@ -75,14 +75,13 @@ public class AbilityAuraShould
     {
         AbilityTemplate renew = AbilityTestData.HealCircle(233);
         renew.Effects = SpellEffect.Buff;
-        renew.EffectValue = 0;
         renew.AuraId = new AuraId(904);
         return renew;
     }
 
     private static AbilityTemplate Volley()
     {
-        AbilityTemplate volley = AbilityTestData.Projectile(222, reach: 20f, speed: 20f);
+        AbilityTemplate volley = AbilityTestData.Projectile(222, reach: 20f, speed: 20f).Dealing(10);
         volley.AuraId = new AuraId(901);
         return volley;
     }
@@ -93,18 +92,23 @@ public class AbilityAuraShould
     {
         IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetAuraScript(Arg.Any<string>()).Returns(call => AuraHarness.TestScript(call.Arg<string>()));
+        // #1178: the ticking auras here draw nothing from their source, so their ticks are their PeriodicBase alone.
+        AuraTemplate bleed = AuraTestData.Bleed();
+        bleed.PeriodicEffectiveness = 0f;
+        AuraTemplate renew = AuraTestData.Renew();
+        renew.PeriodicEffectiveness = 0f;
         StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             scripts: scripts,
             abilities: () => [Rend(), Ignite(), UnavoidableIgnite(), StunningIgnite(), Renew(), Volley()],
             auras: () =>
             [
-                AuraTestData.Scripted(AuraTestData.Bleed(), nameof(RecordingAuraScript)), AuraTestData.Burn(),
-                AuraTestData.Scripted(AuraTestData.Renew(), nameof(RecordingAuraScript)), AuraTestData.Stunned(),
+                AuraTestData.Scripted(bleed, nameof(RecordingAuraScript)), AuraTestData.Burn(),
+                AuraTestData.Scripted(renew, nameof(RecordingAuraScript)), AuraTestData.Stunned(),
             ]));
         var auraScripts = new AuraScripts(scripts, new ServiceCollection().BuildServiceProvider(), _clock,
             NullLogger<AuraScripts>.Instance);
         MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, world: NewWorld(data),
-            random: random ?? ScriptedCombatRandom.Plain(), time: _clock, auraScripts: auraScripts);
+            random: random ?? CombatRandom.Steady, time: _clock, auraScripts: auraScripts);
         return (instance, handler);
     }
 
@@ -155,7 +159,7 @@ public class AbilityAuraShould
     [Fact]
     public async Task Apply_no_aura_from_a_dodged_hit()
     {
-        (MapInstance instance, CastAbilityHandler handler) = await InstanceAsync(new ScriptedCombatRandom(0.0));
+        (MapInstance instance, CastAbilityHandler handler) = await InstanceAsync(new ScriptedCombatRandom(0.0).Longs(10));
         MapInstanceClient warrior = Caster(instance, 912_102, Rend());
         Creature boar = Boar(instance, 912_902, evasion: 10000);
 

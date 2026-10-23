@@ -33,8 +33,6 @@ public static class AbilityRules
                      // #529. A NaN or infinite threat value would spread into every threat total it
                      // touches, and a hostile's threat list would stop ordering anything.
                      ("ThreatMultiplier", t.ThreatMultiplier), ("HealThreatPerHp", t.HealThreatPerHp),
-                     // #506. A negative or NaN coefficient would turn a hit into a heal or a NaN damage.
-                     ("ScalingCoefficient", t.ScalingCoefficient), ("BaseDamageCoefficient", t.BaseDamageCoefficient),
                      // #1178: a negative effectiveness or growth would turn a hit into a heal.
                      ("DamageEffectiveness", t.DamageEffectiveness), ("SpellBasePerLevelPct", t.SpellBasePerLevelPct),
                  })
@@ -50,7 +48,6 @@ public static class AbilityRules
         if (!Enum.IsDefined(t.CostPowerType)) return $"unknown cost power type {(int)t.CostPowerType}";
         if (t.Cost > 0 && t.CostPowerType == PowerType.None) return $"Cost {t.Cost} names no power type to spend it from";
 
-        if (!Enum.IsDefined(t.ScalingStat)) return $"unknown scaling stat {(byte)t.ScalingStat}";
         if (!Enum.IsDefined(t.AimMode)) return $"unknown aim mode {(byte)t.AimMode}";
         if (!Enum.IsDefined(t.Shape)) return $"unknown shape {(byte)t.Shape}";
         if (!Enum.IsDefined(t.Anchor)) return $"unknown anchor {(byte)t.Anchor}";

@@ -96,9 +96,9 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
             StatValue3 = 1,
             StatType4 = StatType.Stamina,
             StatValue4 = 1,
-            StatType5 = StatType.AttackDamage,
+            StatType5 = StatType.IncreasedFireDamage,
             StatValue5 = 1,
-            StatType6 = StatType.AbilityDamage,
+            StatType6 = StatType.IncreasedColdDamage,
             StatValue6 = 1,
             StatType7 = StatType.AttackSpeed,
             StatValue7 = 1,
@@ -127,8 +127,6 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
                 Cooldown = 8000,
                 AllowedClasses = [CharacterClass.Warrior],
                 ScriptName = "ConeAbilityScript",
-                EffectValue = 10,
-                ScalingCoefficient = 0.5f,
                 Effects = SpellEffect.Damage,
                 DamageType = DamageType.Physical,
             });
@@ -238,7 +236,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         Assert.Equal("https://avalon.example/ability/210", Meta(html, "og:url"));
         Assert.Equal("#BC8A4E", Meta(html, "theme-color"));
         Assert.Equal("summary", Meta(html, "twitter:card"));
-        Assert.Equal("Warrior · 30 Mana · 2.5 sec cast · 8 sec cooldown · 10 + 50% of Attack Damage · Physical damage",
+        Assert.Equal("Warrior · 30 Mana · 2.5 sec cast · 8 sec cooldown · Physical damage",
             Decoded(html, "og:description"));
         Assert.True(response.Headers.CacheControl!.Public);
         Assert.Equal(TimeSpan.FromSeconds(300), response.Headers.CacheControl.MaxAge);

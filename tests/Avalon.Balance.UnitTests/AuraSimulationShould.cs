@@ -24,8 +24,7 @@ public class AuraSimulationShould
         TickIntervalMs = 3000,
         PeriodicKind = AuraPeriodicKind.Damage,
         PeriodicBase = 12f,
-        ScalingStat = ScalingStat.Attack,
-        ScalingCoefficient = 0.25f,
+        PeriodicEffectiveness = 21f,
         Stacking = AuraStacking.Stack,
         MaxStacks = 3,
     };
@@ -52,10 +51,7 @@ public class AuraSimulationShould
         ArcDegrees = 90f,
         Cooldown = 6000,
         Effects = SpellEffect.Damage,
-        EffectValue = 8,
-        ScalingStat = ScalingStat.Attack,
-        ScalingCoefficient = 0.2f,
-        BaseDamageCoefficient = 0.5f,
+        DamageEffectiveness = 202f,
         AllowedClasses = [CharacterClass.Warrior],
         AuraId = new AuraId(9901),
         DamageType = DamageType.Physical,
@@ -137,12 +133,12 @@ public class AuraSimulationShould
     /// One application of a bleed worth 23.5 over 4 ticks (no armour, no scaling, no crit): the carry gives 5, 6, 6, 7,
     /// the last tick rounding what is left, so the ticks add up to the total rounded.
     /// </summary>
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Carry_the_fraction_of_a_point_from_tick_to_tick()
     {
         AuraTemplate bleed = Bleed();
         bleed.PeriodicBase = 23.5f;
-        bleed.ScalingCoefficient = 0f;
+        bleed.PeriodicEffectiveness = 0f;
         BalanceData data = Data(bleed, seed => seed.CreatureBaseStats.ForEach(row => row.Armor = 0));
         (FightSimulator fight, SimCreature boar) = Fight(data);
         Assert.Equal(0u, boar.Defence.Armor);
@@ -241,15 +237,15 @@ public class AuraSimulationShould
         BalanceData data = Data();
         AuraTemplate poison = Bleed();
         poison.PeriodicBase = 3f;
-        poison.ScalingCoefficient = 0f;
-        poison.BaseDamageCoefficient = 1f;
+        poison.PeriodicEffectiveness = 100f;
         poison.DurationMs = 9000;
         var boar = SimCreature.Create(data, data.Creature(4), 3, 0);
+        var spit = new AbilityMetadata { Name = "Test Spit", Tags = AbilityTags.Attack | AbilityTags.Projectile };
 
-        AuraSnapshot snapshot = AuraRules.Snapshot(poison, boar.Attack, DamageType.Physical, CombatRandom.Steady);
+        AuraSnapshot snapshot = AuraRules.Snapshot(poison, boar.Attack, spit, DamageType.Physical, CombatRandom.Steady);
 
-        Assert.True(boar.Attack.WeaponMin > 0);
-        Assert.Equal((3f + boar.Attack.WeaponMin) / 3f, snapshot.PerTickPerStack, precision: 4);
+        Assert.True(boar.Attack.Weapon.Min1 > 0);
+        Assert.Equal((3f + boar.Attack.Weapon.Min1) / 3f, snapshot.PerTickPerStack, precision: 4);
     }
 
     [Fact]

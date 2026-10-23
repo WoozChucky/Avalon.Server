@@ -28,7 +28,7 @@ public class RenameAbilityScriptAndBaseDamageMigrationShould
     }
 
     [Fact]
-    public void Map_the_renamed_properties_to_the_renamed_columns()
+    public void Map_the_renamed_script_name_to_its_column()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
@@ -36,8 +36,6 @@ public class RenameAbilityScriptAndBaseDamageMigrationShould
         IEntityType entity = context.Model.FindEntityType(typeof(AbilityTemplate))!;
         var table = StoreObjectIdentifier.Table("AbilityTemplates", schema: null);
 
-        Assert.Equal("BaseDamageCoefficient",
-            entity.FindProperty(nameof(AbilityTemplate.BaseDamageCoefficient))!.GetColumnName(table));
         Assert.Equal("ScriptName", entity.FindProperty(nameof(AbilityTemplate.ScriptName))!.GetColumnName(table));
     }
 }

@@ -425,7 +425,7 @@ public class CharacterSelectHandlerShould
     [Fact]
     public async Task Send_each_abilitys_amount_at_select_and_record_it_on_the_character()
     {
-        Fixture f = await BuildAsync(abilityTemplates: [AbilityTestData.Cone(1), AbilityTestData.HealCircle(2)]);
+        Fixture f = await BuildAsync(abilityTemplates: [AbilityTestData.Cone(1).Dealing(10), AbilityTestData.HealCircle(2)]);
         ICharacter? built = null;
         f.Connection.When(c => c.SetPendingSpawn(Arg.Any<ICharacter>(), Arg.Any<IMapInstance>(), Arg.Any<long>()))
             .Do(ci => built = ci.Arg<ICharacter>());

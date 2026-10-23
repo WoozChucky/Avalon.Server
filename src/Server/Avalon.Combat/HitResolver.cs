@@ -1,20 +1,16 @@
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
-using Avalon.World.Public.Abilities;
 
 namespace Avalon.Combat;
 
 /// <summary>
-/// What the attacking side of a hit brings (#506). Chances are percentage points. WeaponMin..WeaponMax is
-/// the base damage an ability's BaseDamageCoefficient rolls: a character's main hand, a creature's natural
-/// DamageMin..DamageMax (#163). A creature has no damage stats. BaseType is the type of a hit whose ability names
-/// none (#1178): a creature's template's, a character's Physical. Penetration has no data source yet. Weapon is what an
-/// Attack rolls and Offence the attacker's offence block (#1178), read by <see cref="OffenceMath" /> and the crit multiplier.
+/// What the attacking side of a hit brings (#506, #1178). CritPct is percentage points. Weapon is what an Attack rolls: a
+/// character's main hand (the bare hand's range with none), a creature's natural DamageMin..DamageMax (#163). Offence is
+/// the attacker's offence block, read by <see cref="OffenceMath" /> and the crit multiplier. BaseType is the type of a hit
+/// whose ability names none: a creature's template's, a character's Physical. Penetration has no data source yet.
 /// </summary>
-public readonly record struct AttackerCombat(
-    uint Level, uint AttackDamage, uint AbilityDamage, float CritPct, uint WeaponMin, uint WeaponMax,
-    DamageType BaseType = DamageType.Physical, Penetration Penetration = default, WeaponDamage Weapon = default,
-    OffenceStats Offence = default);
+public readonly record struct AttackerCombat(uint Level, float CritPct, WeaponDamage Weapon = default,
+    OffenceStats Offence = default, DamageType BaseType = DamageType.Physical, Penetration Penetration = default);
 
 /// <summary>
 /// What the defending side of a hit brings (#506, #1178). Evasion is a rating, weighed against the attacker's level;
@@ -45,40 +41,13 @@ public static class HitResolver
         abilityType ?? attacker.BaseType;
 
     /// <summary>
-    /// An ability's base: <c>effectValue + scaling × stat + baseDamageCoefficient × roll</c>, the stat being
-    /// AttackDamage or AbilityDamage. The base damage is rolled, uniform and inclusive over the attacker's
-    /// WeaponMin..WeaponMax (a character's main hand, a creature's natural range, #163), only when the
-    /// coefficient is above 0 and the range is above 0.
-    /// </summary>
-    public static float AbilityBase(in AttackerCombat a, float effectValue, ScalingStat stat, float scaling,
-        float baseDamageCoefficient, ICombatRandom rng)
-    {
-        double statValue = stat == ScalingStat.Ability ? a.AbilityDamage : a.AttackDamage;
-        long roll = 0;
-        if (NonNegative(baseDamageCoefficient) > 0 && a.WeaponMax > 0)
-            roll = rng.NextInt64(Math.Min(a.WeaponMin, a.WeaponMax), a.WeaponMax);
-
-        return (float)AbilityAmountMath.Sum(effectValue, scaling, statValue, baseDamageCoefficient, roll);
-    }
-
-    /// <summary>
-    /// The lowest and highest <see cref="AbilityBase" /> the attacker can produce (#669): the same sum, with
-    /// the weapon roll at the low and the high end of its inclusive range, so the bounds come from the very
-    /// arithmetic a hit uses. Without a weapon term the two are equal.
-    /// </summary>
-    public static (float Min, float Max) AbilityBaseRange(in AttackerCombat a, float effectValue, ScalingStat stat,
-        float scaling, float baseDamageCoefficient) =>
-        (AbilityBase(a, effectValue, stat, scaling, baseDamageCoefficient, RollEnds.Low),
-            AbilityBase(a, effectValue, stat, scaling, baseDamageCoefficient, RollEnds.High));
-
-    /// <summary>
     /// What <see cref="ResolveDamage" /> deals from <paramref name="baseDamage" /> when nothing procs and the
     /// defender has no armour (#669): the base, floored, with a minimum of 1.
     /// </summary>
-    public static uint NormalDamage(float baseDamage) => AbilityAmountMath.NormalDamage(baseDamage);
+    public static uint NormalDamage(double baseDamage) => AbilityAmountMath.NormalDamage(baseDamage);
 
     /// <summary>What <see cref="ResolveHeal" /> restores from <paramref name="baseHeal" /> without a crit (#669): the base, floored.</summary>
-    public static uint NormalHeal(float baseHeal) => AbilityAmountMath.NormalHeal(baseHeal);
+    public static uint NormalHeal(double baseHeal) => AbilityAmountMath.NormalHeal(baseHeal);
 
     /// <summary>
     /// The chance to evade an attacker of <paramref name="attackerLevel" /> (#1178), armour's shape:
@@ -218,7 +187,7 @@ public static class HitResolver
     /// A heal: the base, then a crit roll (the one draw). Never dodged, blocked or reduced by armour, and
     /// floored with no minimum, so a heal of nothing stays nothing.
     /// </summary>
-    public static (uint Heal, HitResult Result) ResolveHeal(in AttackerCombat a, float baseHeal, CombatFormula f,
+    public static (uint Heal, HitResult Result) ResolveHeal(in AttackerCombat a, double baseHeal, CombatFormula f,
         ICombatRandom rng)
     {
         (double heal, HitResult result) = ResolvePeriodicHeal(a, baseHeal, f, rng);
@@ -232,7 +201,7 @@ public static class HitResolver
     /// the fraction from tick to tick (<see cref="AuraRules.TakeTick" />), so its ticks add up to its total.
     /// </summary>
     public static (double Damage, HitResult Result) ResolvePeriodic(in AttackerCombat a, in DefenderCombat d,
-        DamageType type, float baseDamage, CombatFormula f, ICombatRandom rng)
+        DamageType type, double baseDamage, CombatFormula f, ICombatRandom rng)
     {
         double damage = NonNegative(baseDamage);
         HitResult result = HitResult.None;
@@ -252,7 +221,7 @@ public static class HitResolver
     /// A heal before flooring: the base, then a crit roll (the one draw). An aura's heal tick takes it as it is and
     /// carries the fraction (<see cref="AuraRules.TakeTick" />); <see cref="ResolveHeal" /> floors it.
     /// </summary>
-    public static (double Heal, HitResult Result) ResolvePeriodicHeal(in AttackerCombat a, float baseHeal,
+    public static (double Heal, HitResult Result) ResolvePeriodicHeal(in AttackerCombat a, double baseHeal,
         CombatFormula f, ICombatRandom rng)
     {
         double heal = NonNegative(baseHeal);

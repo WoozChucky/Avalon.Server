@@ -62,16 +62,16 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     }
 
     /// <summary>
-    /// An ability's hit (#506): <paramref name="damage" /> is its effect value, to which the caster's scaled
-    /// stat and weapon roll are added, then the target's defences are rolled.
+    /// An ability's hit (#506, #1178): its base is the ability's own (<see cref="OffenceMath.DirectBase" />: an Attack's
+    /// weapon roll, a Spell's spell base) scaled by the caster's offence, then the target's defences are rolled.
     /// </summary>
-    public void ApplyDamage(IUnit attacker, IUnit target, uint damage, IAbility ability)
-        => ApplyDamageCore(attacker, target, damage, ability);
+    public void ApplyDamage(IUnit attacker, IUnit target, IAbility ability)
+        => ApplyDamageCore(attacker, target, 0u, ability);
 
     /// <summary>
     /// A Hostile ability's hit on one unit (#1164), answering how it went: only a hit that landed applies the ability's aura.
-    /// It rolls whether it lands, the target's chance to evade, unless the ability is Unavoidable; then deals its damage (its
-    /// EffectValue, scaled, as <see cref="ApplyDamage(IUnit, IUnit, uint, IAbility)" />) when its Effects has Damage. One
+    /// It rolls whether it lands, the target's chance to evade, unless the ability is Unavoidable; then deals its damage (as
+    /// <see cref="ApplyDamage(IUnit, IUnit, IAbility)" />) when its Effects has Damage. One
     /// with no damage draws that roll alone and counts as combat either way, as a dodge does, whether or not its aura then
     /// sticks: the encounter forms, a creature's script is told it was attacked, both are tagged in combat, no threat is
     /// added beyond the encounter's and no PvP timer restarts (a dodge restarts none either: only damage dealt does).
@@ -84,7 +84,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         AbilityMetadata metadata = ability.Metadata;
         bool unavoidable = (metadata.Flags & AbilityFlags.Unavoidable) != AbilityFlags.None;
         if (AbilityRules.HasDirectEffect(metadata.Effects, metadata.Affects))
-            return ApplyDamageCore(attacker, target, metadata.EffectValue, ability, unavoidable);
+            return ApplyDamageCore(attacker, target, 0u, ability, unavoidable);
 
         // The same targets ApplyDamageCore returns early for, before any draw.
         if (IgnoresHits(target)) return HitOutcome.Ignored;
@@ -104,10 +104,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage)
         => ApplyDamageCore(attacker, target, damage, ability: null);
 
-    /// <param name="damage">The ability's effect value, or a raw hit's whole base.</param>
+    /// <param name="damage">A raw hit's whole base, of the attacker's base type; unread for an ability's hit.</param>
     /// <param name="ability">
-    /// The ability that hit, or null for a swing: it scales the base, multiplies the threat, names the hit to
-    /// the character hit, and gives its PowerGainPerHit to the caster per unit damaged (#526).
+    /// The ability that hit, or null for a raw hit: its own base decides the damage (#1178), and it multiplies the threat,
+    /// names the hit to the character hit, and gives its PowerGainPerHit to the caster per unit damaged (#526).
     /// </param>
     /// <param name="unavoidable">An Unavoidable ability's hit (#1164): it draws no evasion roll.</param>
     private HitOutcome ApplyDamageCore(IUnit attacker, IUnit target, uint damage, IAbility? ability,
@@ -136,12 +136,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         CombatFormula formula = _formula();
         AttackerCombat attackerCombat = AttackerOf(attacker);
         AbilityMetadata? metadata = ability?.Metadata;
-        float baseDamage = metadata is null
-            ? damage
-            : HitResolver.AbilityBase(attackerCombat, damage, metadata.ScalingStat, metadata.ScalingCoefficient,
-                metadata.BaseDamageCoefficient, _random);
-        // #1178: the hit's type is its ability's, else the attacker's base type.
-        var parts = DamageParts.Of(HitResolver.TypeOf(metadata?.DamageType, attackerCombat), baseDamage);
+        // #1178: an ability's base is its own, split by type; a raw hit is one part of the attacker's base type.
+        DamageParts parts = metadata is null
+            ? DamageParts.Of(attackerCombat.BaseType, damage)
+            : OffenceMath.DirectBase(attackerCombat, metadata, _random);
         HitDamage hit = HitResolver.ResolveDamage(attackerCombat, DefenderOf(target), parts, formula, _random, unavoidable);
         HitResult result = hit.Result;
 
@@ -151,7 +149,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         if ((result & HitResult.Dodged) != 0)
         {
-            Dodged(attacker, target, baseDamage * threatMultiplier, abilityId, hit.Type, hit.Types);
+            Dodged(attacker, target, (float)parts.Total * threatMultiplier, abilityId, hit.Type, hit.Types);
             return HitOutcome.Dodged;
         }
 
@@ -329,7 +327,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     {
         CharacterEntity character => character.Combat,
         Creature creature => creature.Combat,
-        _ => new AttackerCombat(unit.Level, 0, 0, 0f, 0, 0),
+        _ => new AttackerCombat(unit.Level, 0f),
     };
 
     /// <summary>What a unit defends with (#506); a unit that is neither a character nor a creature has no defences.</summary>
@@ -487,9 +485,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     }
 
     /// <summary>
-    /// Restores the resolved heal, capped at the target's maximum (#164). <paramref name="amount" /> is the
-    /// ability's effect value, to which the healer's scaled stat (and weapon roll, if the ability has a weapon
-    /// term) is added; then the one crit roll (#506). A heal is never dodged, blocked or reduced by armour. A heal never
+    /// Restores the resolved heal, capped at the target's maximum (#164): the ability's heal base (#1178,
+    /// <see cref="OffenceMath.HealBase" />: its spell base grown by the healer's level, scaled by its increased healing
+    /// alone), then the one crit roll (#506). A heal is never dodged, blocked or reduced by armour. A heal never
     /// lowers health: a unit already at or above its maximum keeps what it has, and the heal restores 0
     /// (#548). A dead unit is never healed. The health change reaches clients through entity replication, as regeneration's
     /// does; a heal that restored more than 0 is also reported to this service's instance, which sends it as
@@ -498,7 +496,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// encounter. Overheal adds none, so a heal that restores nothing leaves the encounter untouched and
     /// does not even add the healer to it.
     /// </summary>
-    public void ApplyHeal(IUnit healer, IUnit target, uint amount, IAbility ability)
+    public void ApplyHeal(IUnit healer, IUnit target, IAbility ability)
     {
         bool dead = target is ICharacter { IsDead: true } || target.CurrentHealth == 0;
         if (dead) return;
@@ -506,10 +504,8 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // #506: resolved past the early return, so a dead target draws no roll; the formula is read once.
         CombatFormula formula = _formula();
         AttackerCombat healerCombat = AttackerOf(healer);
-        AbilityMetadata metadata = ability.Metadata;
-        float baseHeal = HitResolver.AbilityBase(healerCombat, amount, metadata.ScalingStat, metadata.ScalingCoefficient,
-            metadata.BaseDamageCoefficient, _random);
-        (amount, HitResult result) = HitResolver.ResolveHeal(healerCombat, baseHeal, formula, _random);
+        double baseHeal = OffenceMath.HealBase(healerCombat, ability.Metadata, _random);
+        (uint amount, HitResult result) = HitResolver.ResolveHeal(healerCombat, baseHeal, formula, _random);
 
         uint before = target.CurrentHealth;
         uint after = HealRules.After(before, target.Health, amount); // never lowers health above the maximum (#548)

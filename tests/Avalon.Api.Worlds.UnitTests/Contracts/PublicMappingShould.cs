@@ -4,7 +4,6 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
-using Avalon.World.Public.Abilities;
 using Xunit;
 using DomainFlags = Avalon.Domain.World.ItemTemplateFlags;
 
@@ -100,12 +99,11 @@ public class PublicMappingShould
     }
 
     [Theory]
-    [InlineData("ConeAbilityScript", AbilityAffects.Hostile, Avalon.Api.Contract.AbilityAmountKind.Damage, ScalingStat.Attack, Avalon.Api.Contract.AbilityScalingStat.Attack)]
-    [InlineData("CircleAbilityScript", AbilityAffects.Ally, Avalon.Api.Contract.AbilityAmountKind.Healing, ScalingStat.Ability, Avalon.Api.Contract.AbilityScalingStat.Ability)]
-    [InlineData("ChargeAbilityScript", AbilityAffects.Hostile, Avalon.Api.Contract.AbilityAmountKind.None, ScalingStat.Attack, Avalon.Api.Contract.AbilityScalingStat.Attack)]
+    [InlineData("ConeAbilityScript", AbilityAffects.Hostile, Avalon.Api.Contract.AbilityAmountKind.Damage)]
+    [InlineData("CircleAbilityScript", AbilityAffects.Ally, Avalon.Api.Contract.AbilityAmountKind.Healing)]
+    [InlineData("ChargeAbilityScript", AbilityAffects.Hostile, Avalon.Api.Contract.AbilityAmountKind.None)]
     public void Map_an_abilitys_tooltip_fields(string script, AbilityAffects affects,
-        Avalon.Api.Contract.AbilityAmountKind kind, ScalingStat scaling,
-        Avalon.Api.Contract.AbilityScalingStat expectedScaling)
+        Avalon.Api.Contract.AbilityAmountKind kind)
     {
         AbilityTemplate cleave = new()
         {
@@ -118,10 +116,6 @@ public class PublicMappingShould
             Range = Avalon.World.Public.Enums.SpellRange.Melee,
             ScriptName = script,
             Affects = affects,
-            EffectValue = 10,
-            ScalingStat = scaling,
-            ScalingCoefficient = 0.5f,
-            BaseDamageCoefficient = 1f,
             AllowedClasses = [CharacterClass.Warrior],
             Effects = affects == AbilityAffects.Ally
                 ? Avalon.World.Public.Enums.SpellEffect.Heal
@@ -133,8 +127,6 @@ public class PublicMappingShould
         Assert.Equal((210u, "Cleave", 20u, 800u), (dto.Id, dto.Name, dto.Cost, dto.Cooldown));
         Assert.Equal(Avalon.Api.Contract.PowerType.Fury, dto.CostPowerType);
         Assert.Equal(kind, dto.AmountKind);
-        Assert.Equal((10u, 0.5f, 1f), (dto.EffectValue, dto.ScalingCoefficient, dto.BaseDamageCoefficient));
-        Assert.Equal(expectedScaling, dto.ScalingStat);
         Assert.Equal(Avalon.Api.Contract.SpellRange.Melee, dto.Range);
         Assert.Equal(1500u, dto.CastTime);
         Assert.Equal([CharacterClass.Warrior], dto.AllowedClasses);
@@ -154,7 +146,6 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.Network.Packets.State.PowerType), typeof(Avalon.Api.Contract.PowerType))]
     [InlineData(typeof(Avalon.World.Public.Enums.SpellRange), typeof(Avalon.Api.Contract.SpellRange))]
     [InlineData(typeof(Avalon.Network.Packets.Abilities.AbilityAmountKind), typeof(Avalon.Api.Contract.AbilityAmountKind))]
-    [InlineData(typeof(ScalingStat), typeof(Avalon.Api.Contract.AbilityScalingStat))]
     [InlineData(typeof(Avalon.Domain.World.ItemTemplateFlags), typeof(Avalon.Api.Contract.ItemTemplateFlags))]
     [InlineData(typeof(Avalon.Domain.World.QuestObjectiveType), typeof(Avalon.Api.Contract.QuestObjectiveType))]
     [InlineData(typeof(Avalon.Domain.Characters.CharacterQuestState), typeof(Avalon.Api.Contract.CharacterQuestState))]

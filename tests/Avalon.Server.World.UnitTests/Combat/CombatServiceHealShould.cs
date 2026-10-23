@@ -35,11 +35,20 @@ public class CombatServiceHealShould
         return character;
     }
 
-    private static IAbility Heal(float threatPerHp = 0f)
+    /// <summary>A heal of <paramref name="amount" /> (#1178: its spell base, amount..amount; the healers have no offence).</summary>
+    private static IAbility Heal(uint amount, float threatPerHp = 0f)
     {
         IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(232));
-        ability.Metadata.Returns(new AbilityMetadata { Name = "Heal", ScriptName = "x", HealThreatPerHp = threatPerHp });
+        ability.Metadata.Returns(new AbilityMetadata
+        {
+            Name = "Heal",
+            ScriptName = "x",
+            HealThreatPerHp = threatPerHp,
+            Tags = Avalon.Network.Packets.Abilities.AbilityTags.Heal,
+            SpellBaseMin = amount,
+            SpellBaseMax = amount,
+        });
         return ability;
     }
 
@@ -48,7 +57,7 @@ public class CombatServiceHealShould
     {
         CharacterEntity target = Wounded(1, max: 100, current: 40);
 
-        _combat.ApplyHeal(TestCharacters.New(2), target, 25, Heal());
+        _combat.ApplyHeal(TestCharacters.New(2), target, Heal(25));
 
         Assert.Equal(65u, target.CurrentHealth);
     }
@@ -58,7 +67,7 @@ public class CombatServiceHealShould
     {
         CharacterEntity target = Wounded(1, max: 100, current: 90);
 
-        _combat.ApplyHeal(TestCharacters.New(2), target, 25, Heal());
+        _combat.ApplyHeal(TestCharacters.New(2), target, Heal(25));
 
         Assert.Equal(100u, target.CurrentHealth);
     }
@@ -69,7 +78,7 @@ public class CombatServiceHealShould
         CharacterEntity target = Wounded(1, max: 100, current: 0);
         target.IsDead = true;
 
-        _combat.ApplyHeal(TestCharacters.New(2), target, 25, Heal());
+        _combat.ApplyHeal(TestCharacters.New(2), target, Heal(25));
 
         Assert.Equal(0u, target.CurrentHealth);
         Assert.True(target.IsDead);
@@ -82,7 +91,7 @@ public class CombatServiceHealShould
         corpse.Health.Returns(100u);
         corpse.CurrentHealth.Returns(0u);
 
-        _combat.ApplyHeal(TestCharacters.New(2), corpse, 25, Heal());
+        _combat.ApplyHeal(TestCharacters.New(2), corpse, Heal(25));
 
         corpse.DidNotReceive().CurrentHealth = Arg.Any<uint>();
     }
@@ -95,7 +104,7 @@ public class CombatServiceHealShould
         ICreature wolf = Substitute.For<ICreature>();
         _combat.EnterCombat(wolf, target);
 
-        _combat.ApplyHeal(healer, target, 20, Heal(threatPerHp: 0.5f));
+        _combat.ApplyHeal(healer, target, Heal(20, threatPerHp: 0.5f));
 
         var encounter = (Encounter)_combat.GetEncounterFor(target)!;
         Assert.True(encounter.GetThreatList(wolf).TryGetValue(healer, out float threat));
@@ -110,7 +119,7 @@ public class CombatServiceHealShould
         ICreature wolf = Substitute.For<ICreature>();
         _combat.EnterCombat(wolf, target);
 
-        _combat.ApplyHeal(healer, target, 50, Heal(threatPerHp: 0.5f));
+        _combat.ApplyHeal(healer, target, Heal(50, threatPerHp: 0.5f));
 
         var encounter = (Encounter)_combat.GetEncounterFor(target)!;
         Assert.DoesNotContain(healer, encounter.Players);
@@ -128,7 +137,7 @@ public class CombatServiceHealShould
         _combat.EnterCombat(wolf, target);
         _combat.EnterCombat(boar, target);
 
-        _combat.ApplyHeal(healer, target, 100, Heal(threatPerHp: 0.5f));
+        _combat.ApplyHeal(healer, target, Heal(100, threatPerHp: 0.5f));
 
         var encounter = (Encounter)_combat.GetEncounterFor(target)!;
         Assert.Equal(2, encounter.Hostiles.Count);
@@ -148,7 +157,7 @@ public class CombatServiceHealShould
         _combat.EnterCombat(wolf, target);
         _combat.EnterCombat(boar, target);
 
-        _combat.ApplyHeal(healer, target, 20, Heal(threatPerHp: 0.5f));
+        _combat.ApplyHeal(healer, target, Heal(20, threatPerHp: 0.5f));
 
         var encounter = (Encounter)_combat.GetEncounterFor(target)!;
         float expected = _config.InitialThreatSeed + 20 * 0.5f * ClassThreatModifier.Get(healer.Class) / 2;
@@ -175,14 +184,14 @@ public class CombatServiceHealShould
         for (int i = 0; i < 2; i++)
         {
             target.CurrentHealth = 80;
-            _combat.ApplyHeal(healer, target, 20, heal);
+            _combat.ApplyHeal(healer, target, heal);
         }
 
         long before = ThreadAllocations.BeforeQuietWindow();
         for (int i = 0; i < 100; i++)
         {
             target.CurrentHealth = 80;
-            _combat.ApplyHeal(healer, target, 20, heal);
+            _combat.ApplyHeal(healer, target, heal);
         }
 
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);

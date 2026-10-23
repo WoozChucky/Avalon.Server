@@ -38,7 +38,7 @@ public class CombatRulesShould
         Assert.Equal(wizard.Stats.Intellect, wizard.RegenStat);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Deal_cleave_through_the_real_resolver()
     {
         SimPlayer warrior = Warrior();

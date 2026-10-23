@@ -97,7 +97,7 @@ public class CombatReloadShould
 
     public static TheoryData<string, Action<Rows>> BadRows => new()
     {
-        { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).AttackPerStrength = -1 },
+        { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).PowerPerIntellect = -1 },
         { "ClassStatFactors Hunter", r => r.Factors.Single(f => f.Class == CharacterClass.Hunter).PowerPerAgility = float.NaN },
         { "ClassStatFactors Cleric", r => r.Factors.RemoveAll(f => f.Class == CharacterClass.Cleric) },
         { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).FixedPower = -5 },

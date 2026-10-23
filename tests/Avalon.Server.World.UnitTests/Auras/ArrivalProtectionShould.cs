@@ -251,7 +251,7 @@ public class ArrivalProtectionShould
             switch (source)
             {
                 case "raw": combat.ApplyDamage(attacker, target, 10); break;
-                case "ability": combat.ApplyDamage(attacker, target, 10, ability); break;
+                case "ability": combat.ApplyDamage(attacker, target, ability); break;
                 case "periodic": combat.ApplyPeriodicDamage(tick, ref carry, lastTick: false); break;
             }
         }

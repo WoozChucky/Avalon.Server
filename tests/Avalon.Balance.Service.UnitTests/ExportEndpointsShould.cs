@@ -15,7 +15,7 @@ namespace Avalon.Balance.Service.UnitTests;
 public class ExportEndpointsShould
 {
     private const string Token = "github_pat_SECRET_TOKEN_VALUE";
-    private const string Edit = """{"title":"Slam tuning","notes":"n","overrides":{"Ability.201.EffectValue":18}}""";
+    private const string Edit = """{"title":"Slam tuning","notes":"n","overrides":{"Ability.201.Cost":18}}""";
 
     private static readonly Dictionary<string, string?> s_withToken = new() { ["Balance:GitHubToken"] = Token };
 
@@ -107,7 +107,7 @@ public class ExportEndpointsShould
         await app.StartAsync();
 
         HttpResponseMessage response = await Client(app).PostAsync("/exports",
-            Json("""{"title":"t","overrides":{"Ability.999.EffectValue":1}}"""));
+            Json("""{"title":"t","overrides":{"Ability.999.Cost":1}}"""));
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         RunStatusDto? status = await response.Content.ReadFromJsonAsync<RunStatusDto>(BalanceJson.Options);
@@ -128,7 +128,7 @@ public class ExportEndpointsShould
         await app.StartAsync();
 
         HttpResponseMessage response = await Client(app).PostAsync("/exports",
-            Json("""{"title":"t","overrides":{"Ability.201.EffectValue":1,"Ability.200.EffectValue":2}}"""));
+            Json("""{"title":"t","overrides":{"Ability.201.Cost":1,"Ability.200.Cost":2}}"""));
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.Empty(github.Calls);
@@ -191,7 +191,7 @@ public class ExportEndpointsShould
         Assert.Equal("done", status.Status);
 
         HttpResponseMessage response = await client.PostAsync("/exports",
-            Json($$"""{"title":"Slam tuning","overrides":{"Ability.201.EffectValue":18},"runId":"{{run.RunId}}"}"""));
+            Json($$"""{"title":"Slam tuning","overrides":{"Ability.201.Cost":18},"runId":"{{run.RunId}}"}"""));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains($"green {status.Result!.Summary.Green}", github.PullRequests.Single().Body);

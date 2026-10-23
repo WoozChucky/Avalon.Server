@@ -99,7 +99,6 @@ public static class TemplateValidation
         if (string.IsNullOrWhiteSpace(r.Icon)) e.Add("icon", "Icon is required.");
         Defined(e, "kind", r.Kind);
         Defined(e, "periodicKind", r.PeriodicKind);
-        Defined(e, "scalingStat", r.ScalingStat);
         Defined(e, "stacking", r.Stacking);
         Flags(e, "control", r.Control);
         foreach (AuraStatModifierDto m in r.Modifiers ?? [])
@@ -240,7 +239,6 @@ public static class TemplateValidation
         _ when problem.StartsWith("unknown kind", StringComparison.Ordinal) => "kind",
         _ when problem.StartsWith("unknown periodic kind", StringComparison.Ordinal) => "periodicKind",
         _ when problem.StartsWith("unknown stacking", StringComparison.Ordinal) => "stacking",
-        _ when problem.StartsWith("unknown scaling stat", StringComparison.Ordinal) => "scalingStat",
         _ when problem.StartsWith("unknown control", StringComparison.Ordinal) => "control",
         _ when problem.Contains("cannot stun, root or silence", StringComparison.Ordinal) => "control",
         _ when problem.StartsWith("BreakOnDamagePct", StringComparison.Ordinal) => "breakOnDamagePct",
@@ -250,8 +248,6 @@ public static class TemplateValidation
         _ when problem.StartsWith("DurationMs", StringComparison.Ordinal) => "durationMs",
         _ when problem.Contains("MaxStacks", StringComparison.Ordinal) => "maxStacks",
         _ when problem.StartsWith("PeriodicBase", StringComparison.Ordinal) => "periodicBase",
-        _ when problem.StartsWith("ScalingCoefficient", StringComparison.Ordinal) => "scalingCoefficient",
-        _ when problem.StartsWith("BaseDamageCoefficient", StringComparison.Ordinal) => "baseDamageCoefficient",
         _ when problem.Contains("cannot heal", StringComparison.Ordinal) || problem.Contains("cannot deal", StringComparison.Ordinal) => "periodicKind",
         _ when problem.Contains("modif", StringComparison.Ordinal) || problem.StartsWith("unknown stat", StringComparison.Ordinal) => "modifiers",
         _ => "template",

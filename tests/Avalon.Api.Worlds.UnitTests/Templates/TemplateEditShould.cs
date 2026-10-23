@@ -718,24 +718,24 @@ public sealed class TemplateEditShould : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Save_a_base_damage_coefficient_and_refuse_a_negative_one_by_its_field()
+    public async Task Save_a_periodic_base_and_refuse_a_negative_one_by_its_field()
     {
         ulong id = FirstId("aura");
         (JsonObject json, string version) = await ReadAsync("aura", id);
-        json["baseDamageCoefficient"] = -1f;
+        json["periodicBase"] = -1f;
 
         HttpResponseMessage refused = await PutAsync(Editable, "aura", id, json, Tag(version));
 
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
-        Assert.NotNull((await BodyAsync(refused))["errors"]!["baseDamageCoefficient"]);
+        Assert.NotNull((await BodyAsync(refused))["errors"]!["periodicBase"]);
         Assert.Empty(_signal.Requests);
 
-        json["baseDamageCoefficient"] = 0.5f;
+        json["periodicBase"] = 0.5f;
         HttpResponseMessage saved = await PutAsync(Editable, "aura", id, json, Tag(version));
 
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
         (JsonObject stored, string newVersion) = await ReadAsync("aura", id);
-        Assert.Equal(0.5f, stored["baseDamageCoefficient"]!.GetValue<float>());
+        Assert.Equal(0.5f, stored["periodicBase"]!.GetValue<float>());
         Assert.NotEqual(version, newVersion);
     }
 

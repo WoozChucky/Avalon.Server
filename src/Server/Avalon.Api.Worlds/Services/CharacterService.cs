@@ -41,6 +41,7 @@ public class CharacterService : ICharacterService
     private readonly ICharacterStatsRepository _statsRepository;
     private readonly ICharacterQuestRepository _questRepository;
     private readonly ICharacterAuraRepository _auraRepository;
+    private readonly ICombatDataRepository _combatDataRepository;
 
     public CharacterService(
         ICharacterRepository characterRepository,
@@ -51,7 +52,8 @@ public class CharacterService : ICharacterService
         IItemTemplateRepository itemTemplateRepository,
         ICharacterStatsRepository statsRepository,
         ICharacterQuestRepository questRepository,
-        ICharacterAuraRepository auraRepository)
+        ICharacterAuraRepository auraRepository,
+        ICombatDataRepository combatDataRepository)
     {
         _characterRepository = characterRepository;
         _inventoryRepository = inventoryRepository;
@@ -62,6 +64,7 @@ public class CharacterService : ICharacterService
         _statsRepository = statsRepository;
         _questRepository = questRepository;
         _auraRepository = auraRepository;
+        _combatDataRepository = combatDataRepository;
     }
 
     public Task<Character?> GetCharacterByIdAsync(CharacterId id, CancellationToken cancellationToken = default) =>
@@ -200,8 +203,6 @@ public class CharacterService : ICharacterService
             Armor = stats.Armor,
             BlockPct = stats.BlockPct,
             CritPct = stats.CritPct,
-            AttackDamage = stats.AttackDamage,
-            AbilityDamage = stats.AbilityDamage,
             Evasion = stats.Evasion,
             MaxWard = stats.MaxWard,
             FireResistance = stats.FireResistance,
@@ -255,55 +256,73 @@ public class CharacterService : ICharacterService
             abilityRows.Select(s => s.AbilityId), cancellationToken);
         var templateById = templates.ToDictionary(t => t.Id);
 
-        CharacterStats? stats = await _statsRepository.GetByCharacterIdAsync(id, cancellationToken);
-        (uint weaponMin, uint weaponMax) = await MainHandRangeAsync(id, cancellationToken);
+        AttackerCombat attacker = await AttackerAsync(character, cancellationToken);
 
         return new CharacterAbilitiesDto
         {
             CharacterId = character.Id.Value,
             Abilities = abilityRows
-                .Select(row => MapAbility(row, templateById, stats, weaponMin, weaponMax))
+                .Select(row => MapAbility(row, templateById, attacker))
                 .ToList(),
         };
     }
 
-    /// <summary>The worn main hand's first damage range, as the world server's stats read it (#506); none is 0-0.</summary>
-    private async Task<(uint Min, uint Max)> MainHandRangeAsync(CharacterId id, CancellationToken cancellationToken)
+    /// <summary>
+    /// What the character attacks with, as the world server's stats refresh builds it (#1178), through the same
+    /// Avalon.Combat entry points: the offence block from the saved attributes (with gear) and the worn templates, the main
+    /// hand's weapon (the bare hand's with none), over the world's combat formula. Without auras: a character out of the
+    /// world holds none that count, and the ones it saved are stale. A character with no saved stats has no attributes.
+    /// </summary>
+    private async Task<AttackerCombat> AttackerAsync(Character character, CancellationToken cancellationToken)
+    {
+        CharacterStats? stats = await _statsRepository.GetByCharacterIdAsync(character.Id, cancellationToken);
+        IReadOnlyList<ItemTemplate> worn = await WornTemplatesAsync(character.Id, cancellationToken);
+        CombatFormula formula = (await _combatDataRepository.GetFormulasAsync(cancellationToken))
+            .FirstOrDefault(f => f.Id == CombatFormula.SingletonId)
+            ?? throw new InvalidOperationException("The world has no combat formula row.");
+
+        ItemTemplate? mainHand = worn.FirstOrDefault(t => t.Slot == Avalon.Domain.World.ItemSlotType.MainHand);
+        OffenceStats offence = CharacterOffence.Of(stats?.Strength ?? 0, stats?.Agility ?? 0, stats?.Intellect ?? 0, worn,
+            formula);
+        return new AttackerCombat(character.Level, stats?.CritPct ?? 0f, WeaponDamage.Of(mainHand, formula), offence);
+    }
+
+    /// <summary>The templates of the items the character wears.</summary>
+    private async Task<IReadOnlyList<ItemTemplate>> WornTemplatesAsync(CharacterId id, CancellationToken cancellationToken)
     {
         var worn = (await _inventoryRepository.GetByCharacterIdAsync(id, cancellationToken))
             .Where(r => r.Container == Avalon.Common.InventoryType.Equipment)
             .Select(r => r.ItemId)
             .ToHashSet();
-        if (worn.Count == 0) return (0, 0);
+        if (worn.Count == 0) return [];
 
         var instances = (await _itemInstanceRepository.GetByCharacterIdAsync(id, cancellationToken))
             .Where(i => worn.Contains(i.Id))
             .ToList();
-        IReadOnlyList<ItemTemplate> templates = await _itemTemplateRepository.GetByIdsAsync(instances.Select(i => i.TemplateId), cancellationToken);
-
-        ItemTemplate? weapon = templates.FirstOrDefault(t => t.Slot == Avalon.Domain.World.ItemSlotType.MainHand);
-        uint max = weapon?.DamageMax1 ?? 0;
-        return (Math.Min(weapon?.DamageMin1 ?? 0, max), max);
+        return await _itemTemplateRepository.GetByIdsAsync(instances.Select(i => i.TemplateId), cancellationToken);
     }
 
-    private static CharacterAbilityAmountDto AmountFor(AbilityTemplate t, CharacterStats? stats, uint weaponMin, uint weaponMax)
+    private static CharacterAbilityAmountDto AmountFor(AbilityTemplate t, in AttackerCombat attacker)
     {
-        Network.Packets.Abilities.AbilityAmountKind kind = AbilityAmountMath.KindOf(t.ScriptName, t.Affects, t.Effects);
-        (uint min, uint max) = AbilityAmountMath.Range(kind, t.EffectValue, t.ScalingStat, t.ScalingCoefficient,
-            t.BaseDamageCoefficient, stats?.AttackDamage ?? 0, stats?.AbilityDamage ?? 0, weaponMin, weaponMax);
-        return new CharacterAbilityAmountDto { Kind = (Avalon.Api.Contract.AbilityAmountKind)kind, Min = min, Max = max };
+        AbilityAmount amount = AbilityAmounts.For(attacker, AbilityMetadataMapper.From(t));
+        return new CharacterAbilityAmountDto
+        {
+            Kind = (Avalon.Api.Contract.AbilityAmountKind)amount.Kind,
+            Min = amount.Min,
+            Max = amount.Max,
+        };
     }
 
     private static CharacterAbilityDto MapAbility(
         CharacterAbility row,
         Dictionary<AbilityId, AbilityTemplate> templateById,
-        CharacterStats? stats, uint weaponMin, uint weaponMax)
+        AttackerCombat attacker)
     {
         templateById.TryGetValue(row.AbilityId, out AbilityTemplate? template);
         return new CharacterAbilityDto
         {
             AbilityId = row.AbilityId.Value,
-            Amount = template is null ? null : AmountFor(template, stats, weaponMin, weaponMax),
+            Amount = template is null ? null : AmountFor(template, attacker),
             Template = template is null ? null : new CharacterAbilityTemplateDto
             {
                 Id = template.Id.Value,
@@ -314,7 +333,6 @@ public class CharacterService : ICharacterService
                 CostPowerType = (Avalon.Api.Contract.PowerType)template.CostPowerType,
                 Range = (Avalon.Api.Contract.SpellRange)template.Range,
                 Effects = (Avalon.Api.Contract.SpellEffect)template.Effects,
-                EffectValue = template.EffectValue,
                 AllowedClasses = template.AllowedClasses is null
                     ? []
                     : template.AllowedClasses.ToList(),

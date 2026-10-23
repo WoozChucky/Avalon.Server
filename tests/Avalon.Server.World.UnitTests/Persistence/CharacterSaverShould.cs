@@ -402,7 +402,7 @@ public sealed class CharacterSaverShould : IDisposable
 
         await using CharacterDbContext read = _db.CreateDbContext();
         CharacterStats stored = await read.CharacterStats.AsNoTracking().SingleAsync();
-        Assert.Equal((260u, 8u, 46u), (stored.MaxHealth, stored.Armor, stored.AttackDamage));
+        Assert.Equal((260u, 8u), (stored.MaxHealth, stored.Armor));
         Assert.Equal(260, (await StoredRowAsync(7)).Health);
     }
 

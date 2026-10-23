@@ -28,8 +28,6 @@ internal static class TestKit
     {
         AbilityTemplate row = AbilityTestData.Cone(BasicId.Value, reach: 1.8f, arc: 90f);
         row.Name = "Test basic";
-        row.EffectValue = 0;
-        row.BaseDamageCoefficient = 1.0f;
         row.Cooldown = 2250;
         row.AllowedClasses = [];
         return row;
@@ -159,6 +157,6 @@ internal sealed class CastRig
             : ability.Metadata.Cooldown;
 
         if (_scripts.TryGetValue(caster, out KitCombatScript? script) && script.CurrentTarget is { } target)
-            _context.CombatService.ApplyDamage(caster, target, ability.Metadata.EffectValue, ability);
+            _context.CombatService.ApplyDamage(caster, target, ability);
     }
 }

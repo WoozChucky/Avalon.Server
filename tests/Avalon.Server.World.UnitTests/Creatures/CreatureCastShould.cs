@@ -53,8 +53,6 @@ public class CreatureCastShould
     internal static AbilityTemplate Bite()
     {
         AbilityTemplate row = AbilityTestData.Cone(s_biteId.Value, reach: 1.8f, arc: 90f);
-        row.EffectValue = 0;
-        row.BaseDamageCoefficient = 1.0f;
         row.Cooldown = 2250;
         row.AllowedClasses = [];
         return row;
@@ -64,8 +62,7 @@ public class CreatureCastShould
     private static AbilityTemplate Claw()
     {
         AbilityTemplate row = AbilityTestData.Cone(s_clawId.Value, reach: 2.5f, arc: 90f);
-        row.EffectValue = 0;
-        row.BaseDamageCoefficient = 1.8f;
+        row.DamageEffectiveness = 180f;
         row.Cooldown = 8000;
         row.AllowedClasses = [];
         return row;

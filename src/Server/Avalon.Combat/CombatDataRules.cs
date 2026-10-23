@@ -83,9 +83,6 @@ public static class CombatDataRules
                 RequireUInt(name, nameof(row.FixedPower), fixedPower);
             RequireNonNegative(name, nameof(row.PowerPerIntellect), row.PowerPerIntellect);
             RequireNonNegative(name, nameof(row.PowerPerAgility), row.PowerPerAgility);
-            RequireNonNegative(name, nameof(row.AttackPerStrength), row.AttackPerStrength);
-            RequireNonNegative(name, nameof(row.AttackPerAgility), row.AttackPerAgility);
-            RequireNonNegative(name, nameof(row.AbilityPerIntellect), row.AbilityPerIntellect);
         }
 
         foreach (CharacterClass @class in CharacterClasses.Playable)

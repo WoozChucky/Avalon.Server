@@ -13,7 +13,7 @@ public class ReportsShould
     private static RowResult Row(CharacterClass c, ushort level, double win) =>
         new(new RowKey(c, level, "forest", "normal-3"), 10, win, new Distribution(15, 20, 25), new Distribution(40, 50, 60),
             new Distribution(1, 1.5, 2), new Distribution(2, 3, 4.25), new Dictionary<string, double> { ["Cleave, the \"big\" one"] = 120.5 }, new Dictionary<string, double> { ["Grey Fen Wolf: Bite"] = 80 },
-            new PlayerSnapshot(300, 100, 50, 4, 20, 5, 22, 5, [new AbilityLine("Cleave", "Damage", 30, 36)]));
+            new PlayerSnapshot(300, 100, 20, 5, 22, 5, [new AbilityLine("Cleave", "Damage", 30, 36)]));
 
     private static ReportContext Context(params RowResult[] rows)
     {
@@ -21,7 +21,7 @@ public class ReportsShould
         TargetFile targets = ConfigFileStore.Load(Path.Combine(s_balanceDir, "targets.json"), ConfigFiles.ParseTargets);
         GradeReport grades = Grader.Grade(rows, TestData.Seeded, scenarios, targets);
         return new ReportContext(new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero), "abc1234", 672, 10,
-            new OverrideReport([new AppliedOverride("Ability.201.EffectValue", "25", "18")], ["Ability.200.EffectValue"]),
+            new OverrideReport([new AppliedOverride("Ability.201.Cost", "20", "18")], ["Ability.200.Cost"]),
             rows, grades, scenarios, targets);
     }
 
@@ -68,7 +68,7 @@ public class ReportsShould
         Assert.DoesNotContain("<script", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("http://", html, StringComparison.Ordinal);
         Assert.DoesNotContain("https://", html, StringComparison.Ordinal);
-        foreach (string text in new[] { "abc1234", "Seed 672", "Ability.201.EffectValue", "already applied", "Summary",
+        foreach (string text in new[] { "abc1234", "Seed 672", "Ability.201.Cost", "already applied", "Summary",
                      "normal-3", "Level curves", "<svg", "Cleave, the &quot;big&quot; one", "prefers-color-scheme" })
         {
             Assert.Contains(text, html, StringComparison.Ordinal);

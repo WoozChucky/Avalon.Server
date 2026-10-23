@@ -161,7 +161,7 @@ internal static class EquipTemplates
         StatValue1 = 15,
         StatType2 = StatType.Power,
         StatValue2 = 20,
-        StatType3 = StatType.AttackDamage,
+        StatType3 = StatType.IncreasedFireDamage,
         StatValue3 = 3,
         StatType4 = StatType.CritPct,
         StatValue4 = 2,

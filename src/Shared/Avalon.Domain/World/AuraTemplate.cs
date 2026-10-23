@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using Avalon.Common.ValueObjects;
-using Avalon.World.Public.Abilities;
 
 namespace Avalon.Domain.World;
 
@@ -29,22 +28,10 @@ public class AuraTemplate : IDbEntity<AuraId>
     public AuraPeriodicKind PeriodicKind { get; set; }
 
     /// <summary>
-    /// The total a tick-giving aura deals or heals before scaling, split evenly over its ticks: with ScalingCoefficient
-    /// times the caster's ScalingStat and BaseDamageCoefficient times a roll of its base damage, taken once, when the
-    /// aura is applied.
+    /// The flat part of the total a tick-giving aura deals or heals (#1178), before its source's roll joins it and the
+    /// whole is scaled; split evenly over its ticks, taken once, when the aura is applied. Finite and 0 or more.
     /// </summary>
     public float PeriodicBase { get; set; }
-
-    public ScalingStat ScalingStat { get; set; }
-
-    public float ScalingCoefficient { get; set; }
-
-    /// <summary>
-    /// What one roll of the caster's base damage adds to PeriodicBase, as on abilities: a creature's natural
-    /// DamageMin..DamageMax, a character's main-hand range, none without a weapon. Rolled once, when the aura is
-    /// applied; 0 draws no roll.
-    /// </summary>
-    public float BaseDamageCoefficient { get; set; }
 
     /// <summary>
     /// Percent of its source's base roll a tick-giving aura adds to <see cref="PeriodicBase" /> (#1178): a weapon roll

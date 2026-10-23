@@ -10,7 +10,9 @@ namespace Avalon.World.Characters;
 /// HastePct carries the effective attack speed (#1178) until the sheet carries all three speeds; it and movement speed
 /// (#627) are the values the character's last stats refresh fixed, the ones a cast and the input step use. The evasion
 /// rating, the ward's maximum and the resistances (#1178) come from the same refresh, the resistances capped as a hit caps
-/// them. A value type, so the last one sent can be compared with the current one without allocating.
+/// them. AttackDamage and AbilityDamage are always 0 (#1178): the old damage stats are gone, and the wire drops them with
+/// the offence block's fields. WeaponMin and WeaponMax are the range an Attack rolls, the bare hand's with no weapon.
+/// A value type, so the last one sent can be compared with the current one without allocating.
 /// </summary>
 public readonly record struct CharacterSheet(
     uint Stamina,
@@ -41,10 +43,10 @@ public readonly record struct CharacterSheet(
     /// </summary>
     public static CharacterSheet From(in DerivedCharacterStats s, ushort level, CombatFormula formula, float hastePct,
         float movementSpeed) => new(
-        s.Stamina, s.Strength, s.Agility, s.Intellect, s.Armor, s.AttackDamage, s.AbilityDamage,
+        s.Stamina, s.Strength, s.Agility, s.Intellect, s.Armor, 0u, 0u,
         HitResolver.EffectivePct(s.CritPct, formula.CritCap),
         HitResolver.EffectivePct(s.BlockPct, formula.BlockCap),
-        s.WeaponMin, s.WeaponMax, hastePct, movementSpeed,
+        s.Weapon.Min1, s.Weapon.Max1, hastePct, movementSpeed,
         s.Evasion,
         (float)(HitResolver.EvasionChance(s.Evasion, level, formula) * 100d),
         s.MaxWard,

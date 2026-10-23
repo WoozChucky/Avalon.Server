@@ -101,7 +101,7 @@ public static class AuraRestore
             uint stacks = row.Stacks < 1 ? 1u : Math.Min((uint)row.Stacks, Math.Max(1u, template.MaxStacks));
             kept.Add((row, new ActiveAura(template, Caster(row.CasterGuid), source, stacks,
                 new AuraSnapshot(row.TickAmount, row.CritPct, (ushort)Math.Clamp(row.CasterLevel, 0, ushort.MaxValue),
-                    TypeOf(row.DamageType)),
+                    TypeOf(row.DamageType), CritMultiplierBonus(row.CritMultiplierBonus)),
                 schedule, row.DurationMs, row.AppliedAt)
             {
                 PeriodicCarry = Carry(row.PeriodicCarry),
@@ -150,6 +150,12 @@ public static class AuraRestore
     /// value that is no type at all reads Physical too.
     /// </summary>
     private static DamageType TypeOf(DamageType saved) => Enum.IsDefined(saved) ? saved : DamageType.Physical;
+
+    /// <summary>
+    /// The caster's crit multiplier bonus when the aura was applied (#1178), in points, as saved; a value that is not finite
+    /// starts over at none.
+    /// </summary>
+    private static float CritMultiplierBonus(float saved) => float.IsFinite(saved) ? saved : 0f;
 
     /// <summary>
     /// When a restored aura next rolls to break on its own (#770): on the next whole second of the time it had held when

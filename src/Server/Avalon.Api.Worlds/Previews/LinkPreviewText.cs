@@ -43,7 +43,6 @@ public static partial class LinkPreviewText
         parts.Add(Cost(ability));
         parts.Add(ability.CastTime == 0 ? "Instant" : $"{Seconds(ability.CastTime)} cast");
         if (ability.Cooldown > 0) parts.Add($"{Seconds(ability.Cooldown)} cooldown");
-        if (Amount(ability) is { } amount) parts.Add(amount);
         if (ability.DamageType is { } type) parts.Add($"{type} damage");
         return Cap(string.Join(Separator, parts));
     }
@@ -86,22 +85,6 @@ public static partial class LinkPreviewText
     /// <summary>Milliseconds as <c>1.5 sec</c>, as the tooltip writes them.</summary>
     private static string Seconds(uint ms) =>
         $"{(ms / 1000.0).ToString("0.##", CultureInfo.InvariantCulture)} sec";
-
-    /// <summary>The tooltip's base-and-scaling line (formatAbilityScaling); abilities carry no other text.</summary>
-    private static string? Amount(PublicAbilityDto a)
-    {
-        if (a.AmountKind == AbilityAmountKind.None) return null;
-        List<string> terms = [Num(a.EffectValue)];
-        if (a.ScalingCoefficient > 0)
-            terms.Add($"{Percent(a.ScalingCoefficient)} of {(a.ScalingStat == AbilityScalingStat.Ability ? "Ability" : "Attack")} Damage");
-        if (a.BaseDamageCoefficient > 0) terms.Add($"{Percent(a.BaseDamageCoefficient)} of weapon damage");
-        string line = string.Join(" + ", terms);
-        if (a.AmountKind == AbilityAmountKind.Healing) return $"Heals {line}";
-        return terms.Count == 1 ? $"{line} damage" : line;
-    }
-
-    private static string Percent(float coefficient) =>
-        $"{Math.Round(coefficient * 100, MidpointRounding.AwayFromZero).ToString("0", CultureInfo.InvariantCulture)}%";
 
     private static string Num(uint value) => value.ToString(CultureInfo.InvariantCulture);
 

@@ -3,11 +3,11 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Public;
-using Avalon.World.Public.Abilities;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -19,22 +19,26 @@ namespace Avalon.Server.World.UnitTests.Characters;
 /// </summary>
 public class AbilityAmountsFlusherShould
 {
-    private static DerivedCharacterStats Stats(uint attack = 40, uint ability = 20, uint weaponMin = 24, uint weaponMax = 28,
-        float crit = 5f) =>
-        new(MaxHealth: 240, MaxPower: 100, Stamina: 22, Strength: 23, Agility: 20, Intellect: 21, Armor: 8,
-            BlockPct: 3f, Evasion: 4, CritPct: crit, AttackDamage: attack, AbilityDamage: ability,
-            WeaponMin: weaponMin, WeaponMax: weaponMax);
+    private static DerivedCharacterStats Stats(float physicalAttack = 50f, uint weaponMin = 24, uint weaponMax = 28,
+        float crit = 5f)
+    {
+        OffenceStats offence = default;
+        offence.AddIncreased(OffenceStat.PhysicalAttack, physicalAttack);
+        offence.AddIncreased(OffenceStat.Healing, 25f);
+        return new(MaxHealth: 240, MaxPower: 100, Stamina: 22, Strength: 23, Agility: 20, Intellect: 21, Armor: 8,
+            BlockPct: 3f, Evasion: 4, CritPct: crit,
+            Weapon: new WeaponDamage(weaponMin, weaponMax, DamageType.Physical, 0, 0, null, 800), Offence: offence);
+    }
 
-    /// <summary>A weapon strike (10 + 0.5 × attack + weapon roll) and a heal (40 + 0.5 × ability damage).</summary>
+    /// <summary>
+    /// #1178: a weapon strike (its roll × 1.5 for 50 % increased physical attack damage) and a heal (its 40 spell base ×
+    /// 1.25 for 25 % increased healing).
+    /// </summary>
     private static CharacterEntity Character()
     {
         CharacterEntity character = New();
         AbilityTemplate strike = AbilityTestData.Cone(1);
-        strike.ScalingCoefficient = 0.5f;
-        strike.BaseDamageCoefficient = 1f;
         AbilityTemplate heal = AbilityTestData.HealCircle(2);
-        heal.ScalingStat = ScalingStat.Ability;
-        heal.ScalingCoefficient = 0.5f;
         character.Spells.Load([AbilityTestData.Game(strike), AbilityTestData.Game(heal)]);
         character.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
         return character;
@@ -64,11 +68,11 @@ public class AbilityAmountsFlusherShould
 
         SCharacterAbilityAmountsPacket update = Assert.Single(Updates(sent));
         Assert.Equal([1u, 2u], update.Amounts.Select(a => a.AbilityId));
-        Assert.Equal((AbilityAmountKind.Damage, 54u, 58u), Of(update.Amounts[0]));
+        Assert.Equal((AbilityAmountKind.Damage, 36u, 42u), Of(update.Amounts[0]));
         Assert.Equal((AbilityAmountKind.Healing, 50u, 50u), Of(update.Amounts[1]));
     }
 
-    /// <summary>A new main hand, or more attack damage, reaches the tooltip on the tick it is equipped.</summary>
+    /// <summary>A new main hand, or more physical attack damage, reaches the tooltip on the tick it is equipped.</summary>
     [Fact]
     public void Send_the_new_amounts_after_a_stats_refresh_that_moves_them()
     {
@@ -77,12 +81,12 @@ public class AbilityAmountsFlusherShould
         IWorldConnection connection = Recording(character, sent);
         AbilityAmountsFlusher.Flush(connection);
 
-        character.ApplyStats(Stats(attack: 50, weaponMin: 30, weaponMax: 40), CurrentValues.KeepShare, TestCombat.Formula);
+        character.ApplyStats(Stats(physicalAttack: 60f, weaponMin: 30, weaponMax: 40), CurrentValues.KeepShare, TestCombat.Formula);
         AbilityAmountsFlusher.Flush(connection);
 
         Assert.Equal(2, Updates(sent).Count);
         SCharacterAbilityAmountsPacket update = Updates(sent)[1];
-        Assert.Equal((AbilityAmountKind.Damage, 65u, 75u), Of(update.Amounts[0]));
+        Assert.Equal((AbilityAmountKind.Damage, 48u, 64u), Of(update.Amounts[0]));
         Assert.Equal((AbilityAmountKind.Healing, 50u, 50u), Of(update.Amounts[1]));
     }
 

@@ -32,18 +32,18 @@ public class FuryGainShould
 {
     private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
-    /// <summary>Cleave as seeded: a cone in front, cost 0, 8 Fury per unit damaged.</summary>
+    /// <summary>Cleave as seeded: a cone in front, cost 0, 8 Fury per unit damaged; 10 a unit here.</summary>
     private static AbilityTemplate Cleave()
     {
-        AbilityTemplate cleave = AbilityTestData.Cone(200, reach: 2.5f, arc: 100f);
+        AbilityTemplate cleave = AbilityTestData.Cone(200, reach: 2.5f, arc: 100f).Dealing(10);
         cleave.PowerGainPerHit = 8;
         return cleave;
     }
 
-    /// <summary>Ground Slam as seeded: a circle on the caster, costing 20, gaining nothing.</summary>
+    /// <summary>Ground Slam as seeded: a circle on the caster, costing 20, gaining nothing; 10 a unit here.</summary>
     private static AbilityTemplate GroundSlam()
     {
-        AbilityTemplate slam = AbilityTestData.Circle(201, radius: 3f);
+        AbilityTemplate slam = AbilityTestData.Circle(201, radius: 3f).Dealing(10);
         slam.Cost = 20;
         slam.CostPowerType = PowerType.Fury;
         return slam;
@@ -167,9 +167,9 @@ public class FuryGainShould
 
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 200 });
         GameAbility cleave = AbilityTestData.Game(Cleave());
-        instance.CombatService.ApplyDamage(warrior.Character, npc, 10, cleave);
-        instance.CombatService.ApplyDamage(warrior.Character, corpse, 10, cleave);
-        instance.CombatService.ApplyDamage(warrior.Character, returning, 10, cleave);
+        instance.CombatService.ApplyDamage(warrior.Character, npc, cleave);
+        instance.CombatService.ApplyDamage(warrior.Character, corpse, cleave);
+        instance.CombatService.ApplyDamage(warrior.Character, returning, cleave);
 
         Assert.Empty(warrior.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
         Assert.Equal(50u, npc.CurrentHealth);
@@ -201,7 +201,7 @@ public class FuryGainShould
     public void Gain_Per_Unit_Pierced()
     {
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
-        AbilityTemplate spear = AbilityTestData.Projectile(202, reach: 20f, speed: 20f, pierce: true);
+        AbilityTemplate spear = AbilityTestData.Projectile(202, reach: 20f, speed: 20f, pierce: true).Dealing(10);
         spear.PowerGainPerHit = 4;
         MapInstanceClient warrior = Warrior(instance, 526_161, fury: 0, spear);
         Creature near = AddCreature(instance, 526_961, new Vector3(0f, 0f, 4f));
@@ -302,7 +302,7 @@ public class FuryGainShould
         attacker.Character.Data!.PvpEnabled = true;
         warrior.Character.Data!.PvpEnabled = true;
         warrior.Character.Position = new Vector3(1f, 0f, 0f);
-        attacker.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Circle(201, radius: 3f))]);
+        attacker.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Circle(201, radius: 3f).Dealing(10))]);
 
         handler.Execute(attacker.Connection, new CCastAbilityPacket { AbilityId = 201 });
 

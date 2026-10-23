@@ -26,8 +26,6 @@ public sealed class AbilityMetadata
 
     public SpellEffect Effects { get; init; }
 
-    public uint EffectValue { get; init; }
-
     public float ThreatMultiplier { get; init; } = 1.0f;
     public float HealThreatPerHp { get; init; } = 0.0f;
     public uint TauntDurationMs { get; init; } = 0;
@@ -65,18 +63,6 @@ public sealed class AbilityMetadata
 
     /// <summary>Power the caster gains per unit this ability damages (#526); 0 gains nothing.</summary>
     public int PowerGainPerHit { get; init; }
-
-    /// <summary>The derived damage stat the ability scales with (#506).</summary>
-    public ScalingStat ScalingStat { get; init; } = ScalingStat.Attack;
-
-    /// <summary>Multiplies the caster's <see cref="ScalingStat" /> into the damage or heal (#506).</summary>
-    public float ScalingCoefficient { get; init; }
-
-    /// <summary>
-    /// Multiplies a roll of the caster's base damage into the damage or heal (#506): a character's main-hand
-    /// weapon, a creature's natural DamageMin..DamageMax (#163).
-    /// </summary>
-    public float BaseDamageCoefficient { get; init; }
 
     /// <summary>
     /// The type of damage the ability deals (#1178), or null: the caster's base type (a creature's template's, a
@@ -127,7 +113,6 @@ public sealed class AbilityMetadata
             ScriptName = ScriptName,
             Range = Range,
             Effects = Effects,
-            EffectValue = EffectValue,
             ThreatMultiplier = ThreatMultiplier,
             HealThreatPerHp = HealThreatPerHp,
             TauntDurationMs = TauntDurationMs,
@@ -143,9 +128,6 @@ public sealed class AbilityMetadata
             Pierce = Pierce,
             Affects = Affects,
             PowerGainPerHit = PowerGainPerHit,
-            ScalingStat = ScalingStat,
-            ScalingCoefficient = ScalingCoefficient,
-            BaseDamageCoefficient = BaseDamageCoefficient,
             DamageType = DamageType,
             Tags = Tags,
             DamageEffectiveness = DamageEffectiveness,

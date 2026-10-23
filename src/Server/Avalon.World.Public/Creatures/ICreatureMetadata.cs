@@ -51,6 +51,9 @@ public interface ICreatureMetadata
     /// <summary>The type of damage the creature's basic attack deals, and its abilities that name none (#1178).</summary>
     DamageType DamageType { get; }
 
+    /// <summary>Seconds between the creature's swings with no attack speed (#627, #1178), its natural weapon's pace.</summary>
+    float BaseAttackTime { get; }
+
     /// <summary>Percent, -100 to 100, of fire damage this creature resists (#1178); negative takes more.</summary>
     float FireResistance { get; }
 

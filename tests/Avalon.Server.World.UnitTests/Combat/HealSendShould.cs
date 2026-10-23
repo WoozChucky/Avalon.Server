@@ -27,7 +27,15 @@ public class HealSendShould
     {
         IAbility ability = Substitute.For<IAbility>();
         ability.AbilityId.Returns(new AbilityId(232));
-        ability.Metadata.Returns(new AbilityMetadata { Name = "Mending Circle", ScriptName = "x" });
+        // #1178: a heal's base is its spell base, 25..25, and the healers here have no increased healing.
+        ability.Metadata.Returns(new AbilityMetadata
+        {
+            Name = "Mending Circle",
+            ScriptName = "x",
+            Tags = Avalon.Network.Packets.Abilities.AbilityTags.Heal,
+            SpellBaseMin = 25,
+            SpellBaseMax = 25,
+        });
         return ability;
     }
 
@@ -43,7 +51,7 @@ public class HealSendShould
     private static void GiveCrit(CharacterEntity character)
     {
         character.ApplyStats(new DerivedCharacterStats(MaxHealth: 100, MaxPower: 100, Stamina: 0, Strength: 0, Agility: 0,
-            Intellect: 0, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 50f, AttackDamage: 0, AbilityDamage: 0),
+            Intellect: 0, Armor: 0, BlockPct: 0f, Evasion: 0, CritPct: 50f),
             CurrentValues.Refill, TestCombat.Formula);
     }
 
@@ -53,11 +61,11 @@ public class HealSendShould
     [Fact]
     public void Send_the_restored_amount_and_the_current_health()
     {
-        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain());
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain().Longs(25));
         MapInstanceClient healer = At(instance, 506_501, Vector3.zero);
         MapInstanceClient target = At(instance, 506_502, new Vector3(2f, 0f, 0f), current: 40);
 
-        instance.CombatService.ApplyHeal(healer.Character, target.Character, 25, Heal());
+        instance.CombatService.ApplyHeal(healer.Character, target.Character, Heal());
 
         SUnitHealedPacket heal = Assert.Single(Heals(target));
         Assert.Equal((healer.Character.Guid.RawValue, target.Character.Guid.RawValue, 25u, 65u, (uint?)232u, HitResult.None),
@@ -68,11 +76,11 @@ public class HealSendShould
     [Fact]
     public void Send_only_the_health_restored_when_the_heal_overheals()
     {
-        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain());
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain().Longs(25));
         MapInstanceClient healer = At(instance, 506_511, Vector3.zero);
         MapInstanceClient target = At(instance, 506_512, new Vector3(2f, 0f, 0f), current: 90);
 
-        instance.CombatService.ApplyHeal(healer.Character, target.Character, 25, Heal());
+        instance.CombatService.ApplyHeal(healer.Character, target.Character, Heal());
 
         SUnitHealedPacket heal = Assert.Single(Heals(target));
         Assert.Equal((10u, 100u), (heal.Amount, heal.CurrentHealth));
@@ -81,12 +89,12 @@ public class HealSendShould
     [Fact]
     public void Mark_a_critical_heal_crit()
     {
-        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: new ScriptedCombatRandom(0.0));
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: new ScriptedCombatRandom(0.0).Longs(25));
         MapInstanceClient healer = At(instance, 506_521, Vector3.zero);
         GiveCrit(healer.Character);
         MapInstanceClient target = At(instance, 506_522, new Vector3(2f, 0f, 0f), current: 40);
 
-        instance.CombatService.ApplyHeal(healer.Character, target.Character, 25, Heal());
+        instance.CombatService.ApplyHeal(healer.Character, target.Character, Heal());
 
         SUnitHealedPacket heal = Assert.Single(Heals(target));
         Assert.Equal((37u, 77u, HitResult.Crit), (heal.Amount, heal.CurrentHealth, heal.Result));
@@ -95,11 +103,11 @@ public class HealSendShould
     [Fact]
     public void Send_nothing_for_a_target_at_full_health()
     {
-        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain());
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain().Longs(25));
         MapInstanceClient healer = At(instance, 506_531, Vector3.zero);
         MapInstanceClient target = At(instance, 506_532, new Vector3(2f, 0f, 0f));
 
-        instance.CombatService.ApplyHeal(healer.Character, target.Character, 25, Heal());
+        instance.CombatService.ApplyHeal(healer.Character, target.Character, Heal());
 
         Assert.Empty(Heals(target));
         Assert.Empty(Heals(healer));
@@ -108,13 +116,13 @@ public class HealSendShould
     [Fact]
     public void Send_it_to_a_watcher_near_the_target_and_not_to_one_far_from_it()
     {
-        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain());
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain().Longs(25));
         MapInstanceClient healer = At(instance, 506_541, Vector3.zero);
         MapInstanceClient target = At(instance, 506_542, new Vector3(2f, 0f, 0f), current: 40);
         MapInstanceClient near = At(instance, 506_543, new Vector3(10f, 0f, 0f));
         MapInstanceClient far = At(instance, 506_544, s_far);
 
-        instance.CombatService.ApplyHeal(healer.Character, target.Character, 25, Heal());
+        instance.CombatService.ApplyHeal(healer.Character, target.Character, Heal());
 
         Assert.Single(Heals(near));
         Assert.Empty(far.Sent);
@@ -123,13 +131,13 @@ public class HealSendShould
     [Fact]
     public void Send_it_to_the_healer_and_the_target_however_far_apart()
     {
-        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain());
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: ScriptedCombatRandom.Plain().Longs(25));
         MapInstanceClient target = At(instance, 506_551, Vector3.zero, current: 40);
         MapInstanceClient healer = At(instance, 506_552, s_far);
         // Beside the healer and far from the target: the heal's point is the target.
         MapInstanceClient besideHealer = At(instance, 506_553, s_far + new Vector3(1f, 0f, 0f));
 
-        instance.CombatService.ApplyHeal(healer.Character, target.Character, 25, Heal());
+        instance.CombatService.ApplyHeal(healer.Character, target.Character, Heal());
 
         Assert.Single(Heals(healer));
         Assert.Single(Heals(target));

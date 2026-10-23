@@ -32,7 +32,7 @@ public class CharacterRenameShould
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
             Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
-            Substitute.For<ICharacterAuraRepository>());
+            Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
     }
 
     public static TheoryData<bool> BothPaths => new() { true, false };

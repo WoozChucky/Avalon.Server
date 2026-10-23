@@ -43,19 +43,19 @@ public class AuraCatalogShould
     }
 
     [Fact]
-    public void Refuse_a_negative_base_damage_coefficient_and_load_a_positive_one()
+    public void Refuse_a_negative_periodic_effectiveness_and_load_a_positive_one()
     {
         AuraTemplate bad = AuraTestData.Bleed();
-        bad.BaseDamageCoefficient = -1f;
+        bad.PeriodicEffectiveness = -1f;
         AuraTemplate poison = AuraTestData.Burn();
-        poison.BaseDamageCoefficient = 1f;
+        poison.PeriodicEffectiveness = 100f;
 
         AuraCatalog catalog = Of(bad, poison);
 
-        Assert.Equal("aura 901 'Bleed': BaseDamageCoefficient -1 is not a finite value of 0 or more",
+        Assert.Equal("aura 901 'Bleed': PeriodicEffectiveness -1 is not a finite value of 0 or more",
             Assert.Single(catalog.Refused).ToString());
         Assert.True(catalog.TryGet(new AuraId(902), out AuraTemplate? loaded));
-        Assert.Equal(1f, loaded!.BaseDamageCoefficient);
+        Assert.Equal(100f, loaded!.PeriodicEffectiveness);
     }
 
     private static AbilityTemplate Rend(AuraId? aura)

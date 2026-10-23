@@ -230,8 +230,7 @@ public static class HtmlReport
         PlayerSnapshot s = r.Snapshot;
         sb.Append("<details><summary>").Append(E($"{r.Key.Class} L{r.Key.Level} {r.Key.Gear}")).Append(" &middot; ")
           .Append(V(r.WinRatePct)).Append(" % win</summary><div class=\"scroll\">");
-        sb.Append("<p>Health ").Append(s.Health).Append(" &middot; power ").Append(s.Power).Append(" &middot; attack ").Append(s.AttackDamage)
-          .Append(" &middot; ability ").Append(s.AbilityDamage).Append(" &middot; armour ").Append(s.Armor)
+        sb.Append("<p>Health ").Append(s.Health).Append(" &middot; power ").Append(s.Power).Append(" &middot; armour ").Append(s.Armor)
           .Append(" &middot; crit ").Append(V(s.CritPct)).Append(" % &middot; evasion ").Append(s.Evasion)
           .Append(" &middot; block ").Append(V(s.BlockPct)).Append(" %</p>");
         sb.Append("<table><tr><th>Ability</th><th>Per hit</th></tr>");

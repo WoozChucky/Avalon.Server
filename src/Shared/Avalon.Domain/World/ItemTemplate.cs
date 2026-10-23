@@ -141,7 +141,7 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     public uint? UseValue { get; set; }
 }
 
-/// <summary>A stat an item gives: the stored numbers, so values are only ever appended.</summary>
+/// <summary>A stat an item gives: the stored numbers, the retired ones (8 and 9, the old damage stats) never reused.</summary>
 public enum StatType
 {
     Stamina = 0,
@@ -154,8 +154,6 @@ public enum StatType
     /// <summary>Evasion rating (#1178), formerly the dodge chance.</summary>
     Evasion = 6,
     CritPct = 7,
-    AttackDamage = 8,
-    AbilityDamage = 9,
     Health = 10,
     Power = 11,
     AttackSpeed = 12,

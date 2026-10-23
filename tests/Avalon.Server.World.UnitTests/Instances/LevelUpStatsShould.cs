@@ -66,7 +66,7 @@ public class LevelUpStatsShould
         Assert.Equal(160u + 24u * 5u, killer.Health);
         Assert.Equal(killer.Health, killer.CurrentHealth);
         Assert.Equal(100u, killer.CurrentPower);
-        Assert.Equal(50u, killer.Stats!.Value.AttackDamage);
+        Assert.Equal(87.5f, killer.Stats!.Value.Offence.Increased(Avalon.Network.Packets.Combat.OffenceStat.PhysicalAttack));   // 25 x 3.5
         Assert.True(killer.SaveState.StatsDirty);
         instance.Dispose();
     }

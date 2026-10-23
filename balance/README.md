@@ -33,7 +33,7 @@ desktop; narrow it with `--class`, `--scenario` and `--runs` while iterating. Th
   `Ability.<id>`, `ClassLevelStat.<Class>.<level>`, `ClassStatFactors.<Class>`, `CombatFormula` (no key),
   `CreatureBaseStats.<level>`, `CreatureRarityModifiers.<Rarity>`, `CreatureTemplate.<id>`, `Item.<id>`, `Aura.<id>`,
   `AuraStatModifier.<auraId>.<Stat>`.
-  Example: `{ "Ability.201.EffectValue": 18, "CombatFormula.ArmorBase": 60 }`. An unknown table, key or column stops
+  Example: `{ "Ability.201.Cost": 18, "CombatFormula.ArmorBase": 60 }`. An unknown table, key or column stops
   the run naming it, as does a key given twice or a computed column; a value the server's validators would refuse
   stops it with their message. An override equal to the seed is reported as stale ("already applied"): delete it.
 - `scenarios.json`: runs, seed, the level range `[first, last]`, classes, gear profiles to run, the scenarios (a pack

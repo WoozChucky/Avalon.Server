@@ -2968,7 +2968,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _combatService.ApplyAbilityHit(caster, target, ability);
 
     void IAbilityArena.HealForAbility(IUnit caster, IUnit target, IAbility ability) =>
-        _combatService.ApplyHeal(caster, target, ability.Metadata.EffectValue, ability);
+        _combatService.ApplyHeal(caster, target, ability);
 
     /// <summary>
     /// The aura the ability's live row names, on <paramref name="target" />; who may receive it the shape and Hostility

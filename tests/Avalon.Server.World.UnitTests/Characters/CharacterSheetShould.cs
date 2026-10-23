@@ -5,6 +5,7 @@ using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Reload;
@@ -53,7 +54,7 @@ public class CharacterSheetShould
 
     private static DerivedCharacterStats Stats(float crit = 5f, uint evasion = 150, float block = 3f, uint strength = 23) =>
         new(MaxHealth: 240, MaxPower: 100, Stamina: 22, Strength: strength, Agility: 20, Intellect: 21, Armor: 8,
-            BlockPct: block, Evasion: evasion, CritPct: crit, AttackDamage: 46, AbilityDamage: 12, WeaponMin: 3, WeaponMax: 7);
+            BlockPct: block, Evasion: evasion, CritPct: crit, Weapon: new WeaponDamage(3, 7, DamageType.Physical, 0, 0, null, 792));
 
     [Fact]
     public void Send_one_sheet_with_the_characters_values_once_the_selected_character_is_in_the_world()
@@ -73,7 +74,8 @@ public class CharacterSheetShould
         CharacterSheetFlusher.Flush(connection, s_seeded);
 
         SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
-        Assert.Equal((22u, 23u, 20u, 21u, 8u, 46u, 12u),
+        // #1178: the old damage stats are gone; their fields send 0 until the wire drops them.
+        Assert.Equal((22u, 23u, 20u, 21u, 8u, 0u, 0u),
             (sheet.Stamina, sheet.Strength, sheet.Agility, sheet.Intellect, sheet.Armor, sheet.AttackDamage, sheet.AbilityDamage));
         // #1178: evasion 150 against an attacker of the character's level 1: 150 / (150 + 560 + 40) = 20 %.
         Assert.Equal((5f, 20f, 3f, 3u, 7u), (sheet.CritPct, sheet.EvasionPct, sheet.BlockPct, sheet.WeaponMin, sheet.WeaponMax));

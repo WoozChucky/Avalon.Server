@@ -92,7 +92,7 @@ public class TemplateReadShould
     }
 
     [Fact]
-    public async Task Aura_get_returns_its_periodic_amounts_and_base_damage_coefficient()
+    public async Task Aura_get_returns_its_periodic_amounts()
     {
         IAuraTemplateRepository repository = Substitute.For<IAuraTemplateRepository>();
         var row = new Avalon.Domain.World.AuraTemplate
@@ -105,7 +105,6 @@ public class TemplateReadShould
             TickIntervalMs = 3000,
             PeriodicKind = Avalon.Domain.World.AuraPeriodicKind.Damage,
             PeriodicBase = 3f,
-            BaseDamageCoefficient = 1f,
             Stacking = Avalon.Domain.World.AuraStacking.Stack,
             MaxStacks = 3,
         };
@@ -115,7 +114,7 @@ public class TemplateReadShould
 
         AuraTemplateDto dto = Dto<AuraTemplateDto>(await sut.Get(6, CancellationToken.None));
 
-        Assert.Equal((3f, 0f, 1f), (dto.PeriodicBase, dto.ScalingCoefficient, dto.BaseDamageCoefficient));
+        Assert.Equal(3f, dto.PeriodicBase);
         Assert.Equal((Avalon.Api.Contract.AuraPeriodicKind.Damage, 3000u, Avalon.Api.Contract.AuraStacking.Stack, 3u),
             (dto.PeriodicKind, dto.TickIntervalMs, dto.Stacking, dto.MaxStacks));
     }

@@ -202,13 +202,13 @@ public partial class CharacterEntity : ICharacter
     internal int StatsVersion { get; private set; }
 
     /// <summary>
-    /// What this character attacks with (#506): its level, and the damage stats, crit and main-hand weapon
-    /// range the last stats refresh derived (select, gear change, level-up). World-side and read-only, not
-    /// on ICharacter: the modding API cannot change what a hit deals (#622).
+    /// What this character attacks with (#506, #1178): its level, and the crit, weapon and offence block the last stats
+    /// refresh derived (select, gear change, level-up). World-side and read-only, not on ICharacter: the modding API cannot
+    /// change what a hit deals (#622).
     /// </summary>
     internal AttackerCombat Combat => Stats is { } s
         ? s.AttackerAt(Level)
-        : new AttackerCombat(Level, 0, 0, 0f, 0, 0);
+        : new AttackerCombat(Level, 0f);
 
     /// <summary>
     /// The character sheet this character's client was last sent (#506), null before the first. World-side

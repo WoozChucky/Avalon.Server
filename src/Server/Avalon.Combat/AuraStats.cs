@@ -33,8 +33,6 @@ public static class AuraStats
         MaxHealth = s.MaxHealth == 0 ? 0u : Math.Max(1u, Apply(s.MaxHealth, t, AuraStat.MaxHealth)),
         MaxPower = Apply(s.MaxPower, t, AuraStat.MaxPower),
         Armor = Apply(s.Armor, t, AuraStat.Armor),
-        AttackDamage = Apply(s.AttackDamage, t, AuraStat.AttackDamage),
-        AbilityDamage = Apply(s.AbilityDamage, t, AuraStat.AbilityDamage),
         CritPct = Apply(s.CritPct, t, AuraStat.CritPct),
         Evasion = Apply(s.Evasion, t, AuraStat.Evasion),
         BlockPct = Apply(s.BlockPct, t, AuraStat.BlockPct),
@@ -44,12 +42,11 @@ public static class AuraStats
     };
 
     /// <summary>
-    /// A creature's attack with its auras: its damage stats, crit and offence block. Its natural damage range is unchanged.
+    /// A creature's attack with its auras: its crit and offence block. Its natural damage range is unchanged. Never a
+    /// character's: CharacterStatsCalculator folds a character's auras into its offence block once, already.
     /// </summary>
     public static AttackerCombat Fold(in AttackerCombat a, AuraStatTotals t) => t.IsEmpty ? a : a with
     {
-        AttackDamage = Apply(a.AttackDamage, t, AuraStat.AttackDamage),
-        AbilityDamage = Apply(a.AbilityDamage, t, AuraStat.AbilityDamage),
         CritPct = Apply(a.CritPct, t, AuraStat.CritPct),
         Offence = Fold(a.Offence, t),
     };

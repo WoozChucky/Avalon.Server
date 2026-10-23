@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Inventory;
@@ -265,7 +266,7 @@ public class PeriodicCombatShould
         var dodging = new CombatService(new CombatConfig(), _registry, outcomes: _outcomes, time: _time,
             random: random);
         IAbility ability = Substitute.For<Avalon.World.Public.Abilities.IAbility>();
-        ability.Metadata.Returns(new AbilityMetadata { Name = "Cleave", Effects = SpellEffect.Damage, EffectValue = 10 });
+        ability.Metadata.Returns(new AbilityMetadata { Name = "Cleave", Effects = SpellEffect.Damage, Tags = AbilityTags.Attack });
 
         Assert.Equal(HitOutcome.Dodged, dodging.ApplyAbilityHit(Warrior(), boar, ability));
         boar.Invulnerable = true;
@@ -277,7 +278,7 @@ public class PeriodicCombatShould
         {
             Name = "Cleave",
             Effects = SpellEffect.Damage,
-            EffectValue = 10,
+            Tags = AbilityTags.Attack,
             Flags = AbilityFlags.Unavoidable,
         });
         random.Doubles(0.0, 0.0);

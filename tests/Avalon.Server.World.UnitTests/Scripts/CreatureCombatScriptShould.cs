@@ -139,7 +139,7 @@ public class CreatureCombatScriptShould
 
         script.Update(TimeSpan.FromSeconds(0.1));      // AI scripts tick first...
 
-        combat.Received(1).ApplyDamage(creature, target, Arg.Any<uint>(), Arg.Any<IAbility>());
+        combat.Received(1).ApplyDamage(creature, target, Arg.Any<IAbility>());
 
         locomotion.Update(TimeSpan.FromSeconds(0.1));  // ...then locomotion, same as MapInstance.Update.
 
@@ -367,7 +367,7 @@ public class CreatureCombatScriptShould
 
         script.Update(TimeSpan.FromSeconds(0.1));
 
-        combat.Received(1).ApplyDamage(creature, target, Arg.Any<uint>(), Arg.Any<IAbility>());
+        combat.Received(1).ApplyDamage(creature, target, Arg.Any<IAbility>());
         creature.Received(1).LookAt(targetPosition);
 
         // Next tick: still resting at the same spot, still 0.09 past AttackRange by raw
@@ -439,7 +439,7 @@ public class CreatureCombatScriptShould
         script.Update(TimeSpan.FromSeconds(0.1));
 
         creature.DidNotReceive().LookAt(Arg.Any<Vector3>());
-        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 
     /// <summary>
@@ -460,7 +460,7 @@ public class CreatureCombatScriptShould
 
         script.Update(TimeSpan.FromSeconds(0.1));
 
-        combat.Received(1).ApplyDamage(creature, target, Arg.Any<uint>(), Arg.Any<IAbility>());
+        combat.Received(1).ApplyDamage(creature, target, Arg.Any<IAbility>());
         creature.Received(1).LookAt(Vector3.zero);
         locomotion.DidNotReceive().Stop(creature);
     }
@@ -564,7 +564,7 @@ public class CreatureCombatScriptShould
         for (int i = 0; i < creatures.Count; i++)
         {
             Assert.True(locomotion.HasArrived(creatures[i]), $"Creature {i} never arrived at its slot.");
-            combat.Received().ApplyDamage(creatures[i], target, Arg.Any<uint>(), Arg.Any<IAbility>());
+            combat.Received().ApplyDamage(creatures[i], target, Arg.Any<IAbility>());
         }
 
         const float AgentDiameter = 1.2f;
@@ -674,7 +674,7 @@ public class CreatureCombatScriptShould
             // Every creature — slotted or surplus — must still be dealing damage. A surplus
             // creature stranded at its stand-off point (the exact regression this test exists to
             // catch) would fail this half even while still passing a distance-only check.
-            combat.Received().ApplyDamage(creatures[i], target, Arg.Any<uint>(), Arg.Any<IAbility>());
+            combat.Received().ApplyDamage(creatures[i], target, Arg.Any<IAbility>());
 
             if (hasSlot)
             {
@@ -809,7 +809,7 @@ public class CreatureCombatScriptShould
         // window, not the theoretical maximum, so this has headroom without being toothless.
         for (int i = 0; i < creatures.Count; i++)
         {
-            combat.Received(Quantity.Within(3, int.MaxValue)).ApplyDamage(creatures[i], target, Arg.Any<uint>(), Arg.Any<IAbility>());
+            combat.Received(Quantity.Within(3, int.MaxValue)).ApplyDamage(creatures[i], target, Arg.Any<IAbility>());
         }
     }
 
@@ -919,8 +919,8 @@ public class CreatureCombatScriptShould
         for (int i = 0; i < 12; i++)
             script.Update(TimeSpan.FromSeconds(2.5));
 
-        combat.Received().ApplyDamage(creature, target, Arg.Any<uint>(),
-            Arg.Is<IAbility>(a => a.AbilityId == TestKit.BasicId));
+        combat.Received().ApplyDamage(creature, target,
+                Arg.Is<IAbility>(a => a.AbilityId == TestKit.BasicId));
         combat.DidNotReceive().ApplyDamage(Arg.Any<IUnit>(), Arg.Any<IUnit>(), Arg.Any<uint>());
         Assert.Null(typeof(CreatureCombatScript).GetMethod("RollDamage",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic));
@@ -1069,7 +1069,7 @@ public class CreatureCombatScriptShould
         script.Update(TimeSpan.FromSeconds(0.1));
 
         locomotion.Received(1).MoveTo(creature, Vector3.zero);
-        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, Arg.Any<IAbility>());
         Assert.Equal(100u, creature.CurrentHealth);
         Assert.Equal((object)CreatureCombatScript.CombatState.Returning, script.State);
         Assert.True(SlotsOf(script).TryClaim(target.Guid, new ObjectGuid(ObjectType.Creature, 99),
@@ -1100,7 +1100,7 @@ public class CreatureCombatScriptShould
 
         locomotion.DidNotReceiveWithAnyArgs().MoveTo(default!, default);
         creature.DidNotReceive().MoveState = Arg.Any<MoveState>();
-        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default, default!);
+        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 
     /// <summary>
@@ -1142,10 +1142,10 @@ public class CreatureCombatScriptShould
         script.Update(TimeSpan.FromSeconds(1.0));  // 1.25
         script.Update(TimeSpan.FromSeconds(1.0));  // 0.25
         script.Update(TimeSpan.FromSeconds(0.2));  // 0.05
-        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default, default!);
+        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, Arg.Any<IAbility>());
 
         script.Update(TimeSpan.FromSeconds(0.05)); // 0: swings again
-        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default, default!);
+        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 
     /// <summary>Swings a World-side creature in range of its target for <paramref name="seconds" /> and returns when each swing landed.</summary>
@@ -1156,7 +1156,7 @@ public class CreatureCombatScriptShould
         (CreatureCombatScript script, _, _) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
         var swings = new List<double>();
-        combat.WhenForAnyArgs(c => c.ApplyDamage(default!, default!, default, default!)).Do(_ => swings.Add(_now));
+        combat.WhenForAnyArgs(c => c.ApplyDamage(default!, default!, Arg.Any<IAbility>())).Do(_ => swings.Add(_now));
 
         for (_now = 0; _now < seconds; _now += SwingTick)
         {
@@ -1231,7 +1231,7 @@ public class CreatureCombatScriptShould
         (CreatureCombatScript script, _, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
         script.Update(TimeSpan.FromSeconds(0.1));   // swings, 2.25 s to the next
-        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default, default!);
+        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, Arg.Any<IAbility>());
 
         real.Position = new Vector3(40.5f, 0f, 0f);  // drawn past the 40 m leash
         target.Position.Returns(new Vector3(41f, 0f, 0f));
@@ -1245,7 +1245,7 @@ public class CreatureCombatScriptShould
         script.OnEnteredRange(target);
         script.Update(TimeSpan.FromSeconds(0.1));
 
-        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default, default!);
+        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 
     /// <summary>
@@ -1268,7 +1268,7 @@ public class CreatureCombatScriptShould
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
         var swingTicks = new List<int>();
         int tick = 0;
-        combat.WhenForAnyArgs(c => c.ApplyDamage(default!, default!, default, default!)).Do(_ => swingTicks.Add(tick));
+        combat.WhenForAnyArgs(c => c.ApplyDamage(default!, default!, Arg.Any<IAbility>())).Do(_ => swingTicks.Add(tick));
 
         var step = TimeSpan.FromSeconds(1d / 60d);
         for (tick = 0; tick < 60 * 12; tick++)
@@ -1307,7 +1307,7 @@ public class CreatureCombatScriptShould
         locomotion.HasArrived(real).Returns(true);
         script.Update(TimeSpan.FromSeconds(0.1));
 
-        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default, default!);
+        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 
     /// <summary>
@@ -1342,7 +1342,7 @@ public class CreatureCombatScriptShould
 
         context.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
         context.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
-        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 
     // #606: a target the creature can never reach used to hold it in Combat for good.
@@ -1382,7 +1382,7 @@ public class CreatureCombatScriptShould
         target.Position.Returns(new Vector3(3.5f, 0f, 0f));
         locomotion.HasArrived(creature).Returns(false);
         script.Update(TimeSpan.FromSeconds(0.1));
-        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 
     /// <summary>
@@ -1406,7 +1406,7 @@ public class CreatureCombatScriptShould
             script.Update(TimeSpan.FromSeconds(0.1)); // 20 s settled in the slot
 
         Assert.Equal((object)CreatureCombatScript.CombatState.Combat, script.State);
-        combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default, default!);
+        combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 
     // #606 over the real WaypointLocomotion, with only the navigator faked. The navigator returns a
@@ -1431,7 +1431,7 @@ public class CreatureCombatScriptShould
         fight.Target.Position.Returns(new Vector3(11f, 0f, 0f));
         Assert.Equal(-1, fight.TicksUntilReturning(limit: 200));
 
-        fight.Combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default, default!);
+        fight.Combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 
     /// <summary>
@@ -1451,7 +1451,7 @@ public class CreatureCombatScriptShould
         fight.RouteEndNearTarget = fight.Creature.Position;      // no way on: every route ends here
 
         Assert.InRange(fight.TicksUntilReturning(limit: 70), 49, 55);
-        fight.Combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
+        fight.Combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 
     /// <summary>A route whose end is fixed short of the target, however often it is asked for.</summary>
@@ -1467,7 +1467,7 @@ public class CreatureCombatScriptShould
         Assert.Equal(100u, fight.Creature.CurrentHealth);
         Assert.True(fight.Slots.TryClaim(fight.Target.Guid, new ObjectGuid(ObjectType.Creature, 99),
             fight.Target.Position, fight.Target.Position, out _));
-        fight.Combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
+        fight.Combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 
     /// <summary>
@@ -1482,7 +1482,7 @@ public class CreatureCombatScriptShould
         int ticks = fight.TicksUntilReturning(limit: 200);
 
         Assert.Equal(-1, ticks);
-        fight.Combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default, default!);
+        fight.Combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 
     /// <summary>A route that can reach again before the limit starts the count over.</summary>

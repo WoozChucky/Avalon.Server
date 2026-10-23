@@ -85,7 +85,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         ICombatService combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
         var attackedCreatures = new HashSet<ObjectGuid>();
-        combat.When(c => c.ApplyDamage(Arg.Any<IUnit>(), Arg.Any<IUnit>(), Arg.Any<uint>(), Arg.Any<IAbility>()))
+        combat.When(c => c.ApplyDamage(Arg.Any<IUnit>(), Arg.Any<IUnit>(), Arg.Any<IAbility>()))
             .Do(call => attackedCreatures.Add(call.ArgAt<IUnit>(0).Guid));
 
         // Production default MeleeSlotRadius (== AttackRange), same as every other combat-script
@@ -161,7 +161,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
         }
 
         foreach (ICreature creature in creatures)
-            combat.Received().ApplyDamage(creature, target, Arg.Any<uint>(), Arg.Any<IAbility>());
+            combat.Received().ApplyDamage(creature, target, Arg.Any<IAbility>());
     }
 
     /// <summary>
@@ -244,6 +244,6 @@ public class CreatureCombatScriptCrowdLocomotionShould
         }
 
         Assert.InRange(returningAt, 99, 110); // 5 s of 0.05 s ticks, give or take the first plan
-        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default, default!);
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, Arg.Any<IAbility>());
     }
 }

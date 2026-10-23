@@ -497,14 +497,6 @@
         "value": 7
       },
       {
-        "name": "AttackDamage",
-        "value": 8
-      },
-      {
-        "name": "AbilityDamage",
-        "value": 9
-      },
-      {
         "name": "Health",
         "value": 10
       },

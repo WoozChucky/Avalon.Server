@@ -85,13 +85,13 @@ public class SimulationShould
     public void Apply_overrides_to_a_copy_and_never_touch_the_callers_seed()
     {
         SeedTables seed = TestData.Seed();
-        uint before = seed.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue;
+        uint before = seed.AbilityTemplates.Single(a => a.Id.Value == 201).Cost;
 
-        RunResult result = Simulation.Run(seed, TestData.Config(), Quick(overrides: """{ "Ability.201.EffectValue": 18 }"""), null, CancellationToken.None);
+        RunResult result = Simulation.Run(seed, TestData.Config(), Quick(overrides: """{ "Ability.201.Cost": 18 }"""), null, CancellationToken.None);
 
         Assert.Equal(RunStatus.Done, result.Status);
-        Assert.Equal("Ability.201.EffectValue", Assert.Single(result.Overrides.Applied).Key);
-        Assert.Equal(before, seed.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue);
+        Assert.Equal("Ability.201.Cost", Assert.Single(result.Overrides.Applied).Key);
+        Assert.Equal(before, seed.AbilityTemplates.Single(a => a.Id.Value == 201).Cost);
     }
 
     [Fact]
@@ -99,12 +99,12 @@ public class SimulationShould
     {
         SeedTables original = TestData.Seed();
         SeedTables copy = original.Clone();
-        uint before = original.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue;
+        uint before = original.AbilityTemplates.Single(a => a.Id.Value == 201).Cost;
 
-        Overrides.Apply(copy, JsonDocument.Parse("""{ "Ability.201.EffectValue": 18 }""").RootElement);
+        Overrides.Apply(copy, JsonDocument.Parse("""{ "Ability.201.Cost": 18 }""").RootElement);
 
-        Assert.Equal(18u, copy.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue);
-        Assert.Equal(before, original.AbilityTemplates.Single(a => a.Id.Value == 201).EffectValue);
+        Assert.Equal(18u, copy.AbilityTemplates.Single(a => a.Id.Value == 201).Cost);
+        Assert.Equal(before, original.AbilityTemplates.Single(a => a.Id.Value == 201).Cost);
         Assert.NotSame(original.AbilityTemplates, copy.AbilityTemplates);
         Assert.Equal(original.ItemTemplates.Count, copy.ItemTemplates.Count);
     }

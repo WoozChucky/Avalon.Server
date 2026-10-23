@@ -28,8 +28,8 @@ public class HitResolutionBenchmarks
     private const float SwingBase = 7f;
     private const float TickBase = 12f;
 
-    private readonly AttackerCombat _creature = new(Level: 3, AttackDamage: 0, AbilityDamage: 0, CritPct: 0f,
-        WeaponMin: 5, WeaponMax: 9);
+    private readonly AttackerCombat _creature = new(Level: 3, CritPct: 0f,
+        Weapon: new WeaponDamage(5, 9, null, 0, 0, null, 2250));
 
     private readonly DefenderCombat _character = new(Armor: 20, Evasion: 23, BlockPct: 0f,
         Resistances: new Resistances(Fire: 25f, Cold: 0f, Lightning: 0f, Blight: 0f));

@@ -18,16 +18,9 @@ public sealed class PublicAbilityDto
     public List<CharacterClass> AllowedClasses { get; set; } = [];
     /// <summary>The type of damage the ability deals, or null when it names none (#1178).</summary>
     public DamageType? DamageType { get; set; }
-    /// <summary>None when the ability deals or heals no direct amount; the fields below then mean nothing.</summary>
+    /// <summary>None when the ability deals or heals no direct amount.</summary>
     public AbilityAmountKind AmountKind { get; set; }
-    public uint EffectValue { get; set; }
-    public AbilityScalingStat ScalingStat { get; set; }
-    public float ScalingCoefficient { get; set; }
-    public float BaseDamageCoefficient { get; set; }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum AbilityAmountKind { None, Damage, Healing }
-
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum AbilityScalingStat { Attack, Ability }

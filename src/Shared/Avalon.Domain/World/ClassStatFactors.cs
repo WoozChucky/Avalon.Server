@@ -3,9 +3,9 @@ using Avalon.Common;
 namespace Avalon.Domain.World;
 
 /// <summary>
-/// How one class turns its attributes into power and damage (#506). One row per class, reloaded with the combat area;
+/// How one class turns its attributes into power (#506). One row per class, reloaded with the combat area;
 /// the stats calculator reads it. Health, crit and defence are the same for every class (#1178): the formula's life per
-/// Stamina, base crit and conversions.
+/// Stamina, base crit and conversions, and so is offence: Strength's and Intellect's conversions are the formula's too.
 /// The fractional types are the ones the calculator's constants had, so the seed reproduces them bit for
 /// bit. The whole-number factor is held as long, the bigint the column is, so a row outside the
 /// uint range reaches the load's validation, which refuses it by name, instead of failing EF's read.
@@ -23,10 +23,4 @@ public class ClassStatFactors
     /// 0 to uint.MaxValue when set: a check constraint and the load both refuse others.
     /// </summary>
     public long? FixedPower { get; set; }
-
-    public double AttackPerStrength { get; set; }
-
-    public double AttackPerAgility { get; set; }
-
-    public double AbilityPerIntellect { get; set; }
 }

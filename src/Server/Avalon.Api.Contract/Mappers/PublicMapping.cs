@@ -43,10 +43,6 @@ public static class PublicMapping
         AllowedClasses = t.AllowedClasses?.ToList() ?? [],
         DamageType = (DamageType?)t.DamageType,
         AmountKind = (AbilityAmountKind)AbilityAmountMath.KindOf(t.ScriptName, t.Affects, t.Effects),
-        EffectValue = t.EffectValue,
-        ScalingStat = (AbilityScalingStat)t.ScalingStat,
-        ScalingCoefficient = t.ScalingCoefficient,
-        BaseDamageCoefficient = t.BaseDamageCoefficient,
     };
 
     private static ItemAttunement AttunementOf(DomainFlags flags) =>

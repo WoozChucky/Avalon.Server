@@ -34,8 +34,6 @@ public class AbilityTemplate : IDbEntity<AbilityId>
 
     public SpellEffect Effects { get; set; }
 
-    public uint EffectValue { get; set; }
-
     public List<CharacterClass> AllowedClasses { get; set; } = []; // Default to no classes
 
     [Required] public float ThreatMultiplier { get; set; } = 1.0f;
@@ -82,19 +80,6 @@ public class AbilityTemplate : IDbEntity<AbilityId>
     /// damages (#526). 0 or more; 0 gains nothing.
     /// </summary>
     [Required] public int PowerGainPerHit { get; set; }
-
-    // Damage scaling (#506): EffectValue + ScalingCoefficient x the ScalingStat + BaseDamageCoefficient x a
-    // roll of the caster's base damage: a character's main-hand weapon, a creature's natural DamageMin..DamageMax
-    // (#163). A heal scales the same way.
-
-    /// <summary>Which derived damage stat the coefficient multiplies: AttackDamage or AbilityDamage.</summary>
-    [Required] public ScalingStat ScalingStat { get; set; } = ScalingStat.Attack;
-
-    /// <summary>Finite and 0 or more; 0 adds nothing.</summary>
-    [Required] public float ScalingCoefficient { get; set; }
-
-    /// <summary>Finite and 0 or more; 0 rolls no base damage.</summary>
-    [Required] public float BaseDamageCoefficient { get; set; }
 
     /// <summary>
     /// The aura every unit this ability's shape affects receives from the caster, or null. A Hostile ability applies

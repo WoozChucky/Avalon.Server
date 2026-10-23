@@ -2,12 +2,11 @@ using Avalon.Combat;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
-using Avalon.World.Public.Abilities;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 
 /// <summary>
-/// The hit maths (#506, #1178): the base, then evasion, crit, block and each type's mitigation (armour for physical,
+/// The hit maths (#506, #1178): from the base (OffenceMathShould's), evasion, crit, block and each type's mitigation (armour for physical,
 /// resistance for an element), floored with a minimum of 1. The seeded formula: ArmorBase 50, ArmorPerLevel 10,
 /// ArmorCap 0.75, crit 1.5, block 0.5, crit and block caps 50; the evasion and resistance constants are set here.
 /// </summary>
@@ -25,67 +24,11 @@ public class HitResolverShould
         return f;
     }
 
-    private static AttackerCombat Attacker(uint level = 1, uint attack = 0, uint ability = 0, float crit = 0f,
-        uint weaponMin = 0, uint weaponMax = 0) => new(level, attack, ability, crit, weaponMin, weaponMax);
+    private static AttackerCombat Attacker(uint level = 1, float crit = 0f) => new(level, crit);
 
     private static DefenderCombat Defender(uint armor = 0, uint evasion = 0, float block = 0f) => new(armor, evasion, block);
 
     private static DamageParts Physical(double amount) => DamageParts.Of(DamageType.Physical, amount);
-
-    // ---- the base ----
-
-    [Fact]
-    public void Add_the_scaled_stat_alone_when_the_skill_has_no_weapon_term()
-    {
-        var rng = new ScriptedCombatRandom();
-
-        float b = HitResolver.AbilityBase(Attacker(attack: 46, weaponMin: 4, weaponMax: 7), 12f, ScalingStat.Attack, 0.3f, 0f, rng);
-
-        Assert.Equal(25.8f, b, precision: 4);
-        Assert.Empty(rng.WeaponRolls);
-    }
-
-    [Fact]
-    public void Add_the_weapon_roll_alone_when_the_skill_has_no_scaling()
-    {
-        ScriptedCombatRandom rng = new ScriptedCombatRandom().Longs(6);
-
-        float b = HitResolver.AbilityBase(Attacker(attack: 46, weaponMin: 4, weaponMax: 7), 12f, ScalingStat.Attack, 0f, 1.5f, rng);
-
-        Assert.Equal(21f, b, precision: 4);
-        Assert.Equal([(4L, 7L)], rng.WeaponRolls);
-    }
-
-    [Fact]
-    public void Roll_no_weapon_when_none_is_worn()
-    {
-        var rng = new ScriptedCombatRandom();
-
-        float b = HitResolver.AbilityBase(Attacker(attack: 46), 12f, ScalingStat.Attack, 0.3f, 1f, rng);
-
-        Assert.Equal(25.8f, b, precision: 4);
-        Assert.Empty(rng.WeaponRolls);
-    }
-
-    [Fact]
-    public void Scale_a_spell_with_ability_damage_and_ignore_attack_damage()
-    {
-        var rng = new ScriptedCombatRandom();
-
-        float b = HitResolver.AbilityBase(Attacker(attack: 1000, ability: 69), 12f, ScalingStat.Ability, 0.25f, 0f, rng);
-
-        Assert.Equal(12f + 0.25f * 69f, b, precision: 4);
-    }
-
-    [Fact]
-    public void Add_all_three_terms_for_cleave_with_a_starter_sword()
-    {
-        ScriptedCombatRandom rng = new ScriptedCombatRandom().Longs(5);
-
-        float b = HitResolver.AbilityBase(Attacker(attack: 46, weaponMin: 4, weaponMax: 7), 12f, ScalingStat.Attack, 0.3f, 1f, rng);
-
-        Assert.Equal(30.8f, b, precision: 4);
-    }
 
     // ---- evasion ----
 

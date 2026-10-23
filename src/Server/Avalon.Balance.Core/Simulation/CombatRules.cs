@@ -14,17 +14,15 @@ namespace Avalon.Balance.Core;
 public static class CombatRules
 {
     /// <summary>
-    /// An ability's hit: the base (weapon roll first), then evasion (none for an Unavoidable ability, #1164), crit, block,
-    /// armour. The draw order is HitResolver's. While the simulator is paused (#1183) every hit is one physical part.
+    /// An ability's hit, as CombatService's: the ability's own base (OffenceMath.DirectBase, its rolls first), then evasion
+    /// (none for an Unavoidable ability, #1164), crit, block, mitigation. The draw order is HitResolver's.
     /// </summary>
     public static (uint Damage, HitResult Result) Damage(SimUnit attacker, SimUnit target, SimAbility ability,
         CombatFormula formula, ICombatRandom rng)
     {
         AbilityMetadata m = ability.Metadata;
-        float baseDamage = HitResolver.AbilityBase(attacker.Attack, m.EffectValue, m.ScalingStat, m.ScalingCoefficient,
-            m.BaseDamageCoefficient, rng);
-        HitDamage hit = HitResolver.ResolveDamage(attacker.Attack, target.Defence,
-            DamageParts.Of(DamageType.Physical, baseDamage), formula, rng, IsUnavoidable(m));
+        DamageParts parts = OffenceMath.DirectBase(attacker.Attack, m, rng);
+        HitDamage hit = HitResolver.ResolveDamage(attacker.Attack, target.Defence, parts, formula, rng, IsUnavoidable(m));
         return (hit.Total, hit.Result);
     }
 
@@ -40,9 +38,7 @@ public static class CombatRules
 
     public static (uint Heal, HitResult Result) Heal(SimUnit healer, SimAbility ability, CombatFormula formula, ICombatRandom rng)
     {
-        AbilityMetadata m = ability.Metadata;
-        float baseHeal = HitResolver.AbilityBase(healer.Attack, m.EffectValue, m.ScalingStat, m.ScalingCoefficient,
-            m.BaseDamageCoefficient, rng);
+        double baseHeal = OffenceMath.HealBase(healer.Attack, ability.Metadata, rng);
         return HitResolver.ResolveHeal(healer.Attack, baseHeal, formula, rng);
     }
 

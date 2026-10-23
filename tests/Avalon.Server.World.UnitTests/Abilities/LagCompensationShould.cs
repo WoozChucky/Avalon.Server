@@ -116,7 +116,10 @@ public class LagCompensationShould
         AbilityTemplate selfHeal = AbilityTestData.Circle(SelfHealId, radius: 1f);
         selfHeal.Affects = AbilityAffects.Ally;
         selfHeal.Effects = SpellEffect.Heal;
-        selfHeal.EffectValue = 40;
+        selfHeal.DamageType = null;
+        selfHeal.Tags = AbilityTags.Heal | AbilityTags.Area;
+        selfHeal.SpellBaseMin = 40;
+        selfHeal.SpellBaseMax = 40;
         healer.Character.Spells.Load([AbilityTestData.Game(selfHeal)]);
         healer.Character.Health = 100;
         healer.Character.CurrentHealth = 50;

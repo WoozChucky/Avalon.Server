@@ -121,7 +121,10 @@ public class DodgeWaitShould
         AbilityTemplate row = Nova();
         row.Affects = AbilityAffects.Ally;
         row.Effects = SpellEffect.Heal;
-        row.EffectValue = 40;
+        row.DamageType = null;
+        row.Tags = AbilityTags.Heal | AbilityTags.Area;
+        row.SpellBaseMin = 40;
+        row.SpellBaseMax = 40;
         GameAbility heal = AbilityTestData.Game(row);
         healer.Character.Spells.Load([heal]);
         MapInstanceClient ally = Player(instance, 1082_532, s_inside);

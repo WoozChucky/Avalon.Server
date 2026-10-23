@@ -6,7 +6,11 @@ namespace Avalon.World.Public.Combat;
 
 public interface ICombatService
 {
-    void ApplyDamage(IUnit attacker, IUnit target, uint damage, IAbility ability);
+    /// <summary>
+    /// An ability's hit (#1178): the ability's own base decides what it deals (an Attack its caster's weapon roll, a
+    /// Spell its spell base), scaled by the caster's offence, then the target's defences are rolled.
+    /// </summary>
+    void ApplyDamage(IUnit attacker, IUnit target, IAbility ability);
 
     /// <summary>
     /// Raw-damage entry point for non-ability damage (e.g. creature melee swings). Behaves like
@@ -17,10 +21,11 @@ public interface ICombatService
     void ApplyDamage(IUnit attacker, IUnit target, uint damage);
 
     /// <summary>
-    /// Restores up to <paramref name="amount" /> health to <paramref name="target" />, capped at its
-    /// maximum, and adds heal threat against the hostiles fighting it. A dead unit is never healed.
+    /// Restores the ability's heal (#1178: its spell base, scaled by the healer's increased healing) to
+    /// <paramref name="target" />, capped at its maximum, and adds heal threat against the hostiles fighting it. A dead
+    /// unit is never healed.
     /// </summary>
-    void ApplyHeal(IUnit healer, IUnit target, uint amount, IAbility ability);
+    void ApplyHeal(IUnit healer, IUnit target, IAbility ability);
     void ApplyTaunt(IUnit caster, IUnit target, uint durationMs);
     void EnterCombat(IUnit hostile, IUnit player);
     void DropPlayerFromEncounter(IUnit player);
