@@ -116,7 +116,6 @@ public class ItemTemplateController : BaseController
         SellPrice = t.SellPrice,
         Slot = (Avalon.Api.Contract.ItemSlotType?)t.Slot,
         AllowedClasses = t.AllowedClasses is null ? [] : t.AllowedClasses.ToList(),
-        ItemPower = t.ItemPower,
         RequiredLevel = t.RequiredLevel,
         RequiredStrength = t.RequiredStrength,
         RequiredAgility = t.RequiredAgility,

@@ -119,7 +119,7 @@ public static class ItemSchema
         [
             typeof(ItemRarity), typeof(ItemSlotType), typeof(ItemClass),
             typeof(ItemSubClass), typeof(DamageType), typeof(StatType), typeof(ItemTemplateFlags),
-            typeof(CharacterClass),
+            typeof(CharacterClass), typeof(ItemBaseKind),
         ];
 
         // CharacterClass.None is no class an item can allow (it is what a chat line carries when no character sent

@@ -1,5 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
+using Avalon.Database.Character.Conversions;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
@@ -144,6 +145,8 @@ public partial class CharacterDbContext : DbContext
         builder.Property(i => i.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
         builder.Property(i => i.GiverCharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
         builder.Property(i => i.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
+        // What the item carried when it moved (#1179): its rolls, as ItemInstances stores them, and its flags.
+        builder.Property(i => i.Rolls).HasConversion(new ItemRollsConverter(), ItemRollsConverter.Comparer).IsRequired(false);
         builder.HasIndex(i => i.ItemInstanceId);
     }
 
@@ -314,6 +317,11 @@ public partial class CharacterDbContext : DbContext
                 v => v.Value,
                 v => new ItemTemplateId(v)
             );
+
+        // #1179: what the copy rolled, JSON in one nullable text column; null for a consumable or a quest item.
+        builder.Property(b => b.Rolls)
+            .HasConversion(new ItemRollsConverter(), ItemRollsConverter.Comparer)
+            .IsRequired(false);
 
         builder.HasIndex(b => b.CharacterId);
     }

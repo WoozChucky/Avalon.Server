@@ -21,7 +21,6 @@ public sealed class PublicItemDto
     public ushort? RequiredIntellect { get; set; }
     /// <summary>Milliseconds between a weapon's basic attacks before attack speed (#1178), above 0; null for an item that is not a weapon.</summary>
     public uint? AttackTimeMs { get; set; }
-    public ushort? ItemPower { get; set; }
     /// <summary>Empty when every class may use it.</summary>
     public List<CharacterClass> AllowedClasses { get; set; } = [];
     public uint MaxStackSize { get; set; }

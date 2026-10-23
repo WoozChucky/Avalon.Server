@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Avalon.Api.Contract;
 using Avalon.Common;
+using StatType = Avalon.Api.Contract.StatType;
 
 namespace Avalon.Api.Worlds.Previews;
 
@@ -35,7 +36,6 @@ public static partial class LinkPreviewText
         if (item.RequiredAgility is > 0) parts.Add($"Requires {Num(item.RequiredAgility.Value)} Agility");
         if (item.RequiredIntellect is > 0) parts.Add($"Requires {Num(item.RequiredIntellect.Value)} Intellect");
         if (Restricted(item.AllowedClasses) is { } classes) parts.Add($"Classes: {classes}");
-        if (item.ItemPower is > 0) parts.Add($"Item Power {Num(item.ItemPower.Value)}");
         return Cap(string.Join(Separator, parts));
     }
 

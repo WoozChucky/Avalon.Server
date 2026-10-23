@@ -19,6 +19,9 @@ public enum ItemSubClass
     Gloves = 205,
     Amulet = 206,
     Ring = 207,
+    Shoulders = 208,
+    CasterOffHand = 209,
+    Trinket = 210,
     QuestItem = 300,
     CraftingMaterial = 400,
     JunkItem = 500

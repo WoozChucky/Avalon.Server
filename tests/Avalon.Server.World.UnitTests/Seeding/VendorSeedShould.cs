@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
@@ -13,7 +14,7 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 
 /// <summary>
 /// The three town vendors (spec #432) as the World database seeds them: the NPCs, their dialogue,
-/// the Common starter tier, the Greater Health Potion, and the stock with its one cost row.
+/// the tier-1 bases they sell (#1179), the Greater Health Potion, and the stock with its one cost row.
 /// </summary>
 public class VendorSeedShould
 {
@@ -24,14 +25,13 @@ public class VendorSeedShould
         (14, "Tobin Marrowfield", "Trade Goods"),
     ];
 
-    /// <summary>Each starter piece and the forest piece it is scaled from (#432: each starter piece is 60% of its forest piece).</summary>
-    private static readonly (ulong Starter, ulong Forest)[] s_tiers =
+    /// <summary>Each tier-1 base the town sells and its tier-2 counterpart (#1179).</summary>
+    private static readonly (ulong First, ulong Second)[] s_tiers =
     [
-        (32, 7), (33, 5), (34, 6), (35, 8),
-        (36, 12), (37, 13), (38, 14), (39, 15), (40, 16),
-        (41, 17), (42, 18), (43, 19), (44, 20), (45, 21),
-        (46, 22), (47, 23), (48, 24), (49, 25), (50, 26),
-        (51, 27), (52, 28), (53, 29), (54, 30), (55, 31),
+        (32, 7), (33, 5), (34, 6), (35, 8), (70, 71), (73, 74),
+        (36, 12), (37, 13), (38, 14), (39, 15), (40, 16), (76, 79),
+        (46, 22), (47, 23), (48, 24), (49, 25), (50, 26), (77, 80),
+        (41, 17), (42, 18), (43, 19), (44, 20), (45, 21), (78, 81),
     ];
 
     private static Dictionary<ulong, ItemTemplate> Items(WorldDbContext context) =>
@@ -50,10 +50,6 @@ public class VendorSeedShould
             }
             .Where(s => s.Type is not null)
             .ToDictionary(s => s.Type!.Value, s => s.Value ?? 0);
-
-    /// <summary>The starter-tier scaling (#432): times 0.6, rounded half away from zero, never below 1.</summary>
-    private static uint SixtyPercent(uint value) =>
-        Math.Max(1u, (uint)Math.Round(value * 0.6, MidpointRounding.AwayFromZero));
 
     [Fact]
     public void Seed_the_three_vendors_as_unkillable_town_npcs_that_drop_nothing()
@@ -171,56 +167,64 @@ public class VendorSeedShould
             Assert.Contains(locales, l => l.TextId.Value == id && l.Locale == AccountLocale.ptPT && l.Text.Length > 0);
     }
 
+    /// <summary>
+    /// #1179: what Garrick and Hilde sell is the twenty-four tier-1 bases, Common, level 1, for every class, sellable for
+    /// a quarter of their price (rounded down).
+    /// </summary>
     [Fact]
-    public void Seed_the_starter_tier_as_twenty_four_common_items_one_class_each()
+    public void Seed_the_starter_tier_as_twenty_four_common_tier_one_bases_for_every_class()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         Dictionary<ulong, ItemTemplate> items = Items(context);
+        ulong[] sold = [.. Stock(context).Where(r => r.CreatureTemplateId.Value is 12 or 13).Select(r => r.ItemTemplateId.Value)];
 
-        for (ulong id = 32; id <= 55; id++)
+        Assert.Equal(s_tiers.Select(t => t.First).Order(), sold.Order());
+        foreach (ulong id in sold)
         {
             ItemTemplate item = items[id];
             Assert.Equal(ItemRarity.Common, item.Rarity);
-            Assert.Single(item.AllowedClasses);
-            Assert.Equal(item.BuyPrice, item.SellPrice * 4);
+            Assert.NotEqual(ItemBaseKind.None, item.BaseKind);
+            Assert.Empty(item.AllowedClasses);
+            Assert.Equal(item.BuyPrice / 4, item.SellPrice);
             Assert.False(item.Flags.HasFlag(ItemTemplateFlags.NoSell), $"{item.Name} is marked NoSell");
-            Assert.Equal((1u, (ushort?)1, (ushort?)2), (item.MaxStackSize, item.RequiredLevel, item.ItemPower));
+            Assert.Equal((1u, (ushort?)1), (item.MaxStackSize, item.RequiredLevel));
         }
     }
 
+    /// <summary>
+    /// #1179: each tier-1 base is the same kind as its tier-2 counterpart, with the same lines, and weaker: lower values on
+    /// every line, a lower weapon roll and a lower requirement and price.
+    /// </summary>
     [Fact]
-    public void Make_every_starter_piece_sixty_percent_of_its_forest_piece()
+    public void Make_every_tier_one_base_weaker_than_its_tier_two_counterpart()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         Dictionary<ulong, ItemTemplate> items = Items(context);
 
-        foreach ((ulong starterId, ulong forestId) in s_tiers)
+        foreach ((ulong firstId, ulong secondId) in s_tiers)
         {
-            ItemTemplate starter = items[starterId], forest = items[forestId];
+            ItemTemplate first = items[firstId], second = items[secondId];
 
-            Assert.Equal((forest.Class, forest.SubClass, forest.Slot, forest.AllowedClasses[0]),
-                (starter.Class, starter.SubClass, starter.Slot, starter.AllowedClasses[0]));
+            Assert.Equal((second.BaseKind, second.Class, second.SubClass, second.Slot, second.AttackTimeMs),
+                (first.BaseKind, first.Class, first.SubClass, first.Slot, first.AttackTimeMs));
+            Dictionary<StatType, uint> firstStats = Stats(first), secondStats = Stats(second);
+            Assert.Equal(secondStats.Keys, firstStats.Keys);
+            Assert.All(firstStats, s => Assert.True(s.Value < secondStats[s.Key], $"{first.Name} {s.Key} is not below {second.Name}'s"));
 
-            var expected = Stats(forest).ToDictionary(
-                s => s.Key, s => s.Key == StatType.AttackSpeed ? s.Value : SixtyPercent(s.Value));
-            Assert.Equal(expected, Stats(starter));
-
-            // #506 re-balanced the weapon damage ranges on their own (SeedIntegrityShould pins them), and #1178 (owner
-            // decision D2) re-expressed the forest sword and bow to 5-7 against the starter 4-7, so the starter weapon
-            // only has to roll below its forest counterpart: a lower minimum and a lower average.
-            if (forest.DamageMax1 is { } max)
+            if (second.DamageMax1 is { } max)
             {
-                Assert.True(starter.DamageMin1 < forest.DamageMin1, $"{starter.Name} minimum is not below {forest.Name}'s");
-                Assert.True(starter.DamageMin1 + starter.DamageMax1 < forest.DamageMin1 + max,
-                    $"{starter.Name} average is not below {forest.Name}'s");
-                Assert.Equal(forest.DamageType1, starter.DamageType1);
+                Assert.True(first.DamageMin1 < second.DamageMin1 && first.DamageMax1 < max, $"{first.Name} does not roll below {second.Name}");
+                Assert.Equal(second.DamageType1, first.DamageType1);
             }
             else
             {
-                Assert.Null(starter.DamageMax1);
+                Assert.Null(first.DamageMax1);
             }
+
+            Assert.True(first.RequiredLevel < second.RequiredLevel && first.BuyPrice < second.BuyPrice,
+                $"{first.Name} is not a lower tier than {second.Name}");
         }
     }
 
@@ -251,13 +255,15 @@ public class VendorSeedShould
             .Select(r => r.ItemTemplateId.Value)
             .ToArray();
 
+        // #1179: Garrick the six tier-1 weapon and off-hand bases (sword, mace, staff, bow, shield, caster off-hand);
+        // Hilde the eighteen tier-1 armour bases, plate, leather, cloth, each head, chest, legs, hands, feet, shoulders.
         Assert.Equal(31, rows.Count);
-        Assert.Equal([32UL, 33, 34, 35], ItemsOf(12));
-        Assert.Equal(Enumerable.Range(36, 20).Select(i => (ulong)i).ToArray(), ItemsOf(13));
+        Assert.Equal([32UL, 35, 33, 34, 70, 73], ItemsOf(12));
+        Assert.Equal([36UL, 37, 38, 39, 40, 76, 46, 47, 48, 49, 50, 77, 41, 42, 43, 44, 45, 78], ItemsOf(13));
         Assert.Equal([1UL, 2, 3, 9, 10, 11, 56], ItemsOf(14));
 
         Assert.Equal(
-            [(37UL, 2u, 1800u), (42UL, 2u, 1800u), (47UL, 2u, 1800u), (52UL, 2u, 1800u), (56UL, 5u, 600u)],
+            [(37UL, 2u, 1800u), (42UL, 2u, 1800u), (47UL, 2u, 1800u), (56UL, 5u, 600u)],
             rows.Where(r => r.MaxStock is not null)
                 .OrderBy(r => r.ItemTemplateId.Value)
                 .Select(r => (r.ItemTemplateId.Value, r.MaxStock!.Value, r.RestockSeconds!.Value)));

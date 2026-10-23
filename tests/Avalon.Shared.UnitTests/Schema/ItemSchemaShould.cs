@@ -7,7 +7,7 @@ namespace Avalon.Shared.UnitTests.Schema;
 /// <summary>
 /// Holds the checked-in item schema to the C# it was exported from. The packet carries an
 /// ItemTemplateId and a Rarity as bare numbers; without this file a client has no way to learn
-/// that 3 means Epic, and a reordered enum would change every item's rarity silently.
+/// that 3 means Unique, and a reordered enum would change every item's rarity silently.
 /// </summary>
 public class ItemSchemaShould
 {
@@ -41,7 +41,7 @@ public class ItemSchemaShould
         foreach (string name in new[]
                  {
                      "ItemRarity", "ItemSlotType", "ItemClass", "ItemSubClass",
-                     "DamageType", "StatType", "ItemTemplateFlags", "CharacterClass",
+                     "DamageType", "StatType", "ItemTemplateFlags", "CharacterClass", "ItemBaseKind",
                  })
         {
             Assert.True(enums.TryGetProperty(name, out JsonElement values), $"{name} is missing");
@@ -50,7 +50,7 @@ public class ItemSchemaShould
 
         JsonElement rarity = enums.GetProperty("ItemRarity");
         Assert.Contains(rarity.EnumerateArray(),
-            value => value.GetProperty("name").GetString() == "Epic" && value.GetProperty("value").GetInt64() == 4);
+            value => value.GetProperty("name").GetString() == "Unique" && value.GetProperty("value").GetInt64() == 3);
     }
 
     [Fact]

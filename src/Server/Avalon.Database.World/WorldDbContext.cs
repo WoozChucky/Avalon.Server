@@ -975,13 +975,13 @@ public class WorldDbContext : DbContext
 
         builder.HasData(
             new QuestItemReward { QuestId = 2, ItemTemplateId = 56, Count = 2 },   // Greater Health Potions
-            new QuestItemReward { QuestId = 3, ItemTemplateId = 58, Count = 1 });  // Alpha's Fang Pendant
+            new QuestItemReward { QuestId = 3, ItemTemplateId = 69, Count = 1 });  // Bone Charm, the amulet base
 
         builder.HasData(
             new QuestItemReward { QuestId = 4, ItemTemplateId = 2, Count = 3 },    // Mana Potions
             new QuestItemReward { QuestId = 6, ItemTemplateId = 56, Count = 2 },   // Greater Health Potions
-            new QuestItemReward { QuestId = 7, ItemTemplateId = 64, Count = 1 },   // Heartwood Band
-            new QuestItemReward { QuestId = 8, ItemTemplateId = 65, Count = 1 });  // Thornheart Signet
+            new QuestItemReward { QuestId = 7, ItemTemplateId = 68, Count = 1 },   // Copper Band, the ring base
+            new QuestItemReward { QuestId = 8, ItemTemplateId = 68, Count = 1 });  // Copper Band
 
         builder.HasData(new QuestItemReward { QuestId = 9, ItemTemplateId = 56, Count = 2 });   // Greater Health Potions
     }
@@ -995,19 +995,18 @@ public class WorldDbContext : DbContext
         builder.Property(b => b.ItemTemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
         builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(b => b.ItemTemplateId).OnDelete(DeleteBehavior.Restrict);
 
-        // "The Alpha's Howl": one forest weapon per class, beside its fixed Alpha's Fang Pendant.
+        // "The Alpha's Howl": one weapon base of each type, beside its fixed amulet base (#1179).
         builder.HasData(
-            new QuestItemChoice { QuestId = 3, ItemTemplateId = 5, Count = 1 },    // Thornwood Staff
-            new QuestItemChoice { QuestId = 3, ItemTemplateId = 6, Count = 1 },    // Briarstring Bow
-            new QuestItemChoice { QuestId = 3, ItemTemplateId = 7, Count = 1 },    // Bramblesteel Sword
-            new QuestItemChoice { QuestId = 3, ItemTemplateId = 8, Count = 1 });   // Rootknot Mace
+            new QuestItemChoice { QuestId = 3, ItemTemplateId = 33, Count = 1 },   // Ash Staff
+            new QuestItemChoice { QuestId = 3, ItemTemplateId = 34, Count = 1 },   // Hunter's Shortbow
+            new QuestItemChoice { QuestId = 3, ItemTemplateId = 32, Count = 1 },   // Ironwood Sword
+            new QuestItemChoice { QuestId = 3, ItemTemplateId = 35, Count = 1 });  // Oak Mace
 
-        // "Earn It Fancy": one forest chest piece per class, and no fixed item.
+        // "Earn It Fancy": one chest base of each armour family (plate, leather, cloth), and no fixed item (#1179).
         builder.HasData(
-            new QuestItemChoice { QuestId = 11, ItemTemplateId = 13, Count = 1 },  // Barkplate Chestguard
-            new QuestItemChoice { QuestId = 11, ItemTemplateId = 18, Count = 1 },  // Mossweave Robe
-            new QuestItemChoice { QuestId = 11, ItemTemplateId = 23, Count = 1 },  // Fernstalker Jerkin
-            new QuestItemChoice { QuestId = 11, ItemTemplateId = 28, Count = 1 }); // Dewleaf Vestments
+            new QuestItemChoice { QuestId = 11, ItemTemplateId = 37, Count = 1 },  // Ironbound Chestguard
+            new QuestItemChoice { QuestId = 11, ItemTemplateId = 47, Count = 1 },  // Hide Jerkin
+            new QuestItemChoice { QuestId = 11, ItemTemplateId = 42, Count = 1 }); // Linen Robe
     }
 
     private static void Configure(EntityTypeBuilder<QuestItemDrop> builder)
@@ -1547,11 +1546,35 @@ public class WorldDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<ItemTemplate> builder)
     {
-        // #1178: a weapon's basic attack time is above 0; an item that is not a weapon has none. Each weapon's carries
-        // today's basic pace at level 1 with starter gear, Agility's new attack speed included: a sword 792, a bow 801,
-        // a mace 784 and a staff 800.
+        // #1178: a weapon's basic attack time is above 0; an item that is not a weapon has none. #1179: a template is
+        // Common or Unique (Magic and Rare exist only on an instance's rolls); its base kind is None or one of the 27
+        // kinds; and a line's high end (a range stat's) needs its low end and is not below it.
         builder.ToTable("ItemTemplates", t =>
-            t.HasCheckConstraint("CK_ItemTemplates_AttackTimeMs", "\"AttackTimeMs\" IS NULL OR \"AttackTimeMs\" > 0"));
+        {
+            t.HasCheckConstraint("CK_ItemTemplates_AttackTimeMs", "\"AttackTimeMs\" IS NULL OR \"AttackTimeMs\" > 0");
+            t.HasCheckConstraint("CK_ItemTemplates_Rarity", "\"Rarity\" IN (0, 3)");
+            t.HasCheckConstraint("CK_ItemTemplates_BaseKind", "\"BaseKind\" BETWEEN 0 AND 27");
+            t.HasCheckConstraint("CK_ItemTemplates_StatMax1",
+                "\"StatMax1\" IS NULL OR (\"StatValue1\" IS NOT NULL AND \"StatMax1\" >= \"StatValue1\")");
+            t.HasCheckConstraint("CK_ItemTemplates_StatMax2",
+                "\"StatMax2\" IS NULL OR (\"StatValue2\" IS NOT NULL AND \"StatMax2\" >= \"StatValue2\")");
+            t.HasCheckConstraint("CK_ItemTemplates_StatMax3",
+                "\"StatMax3\" IS NULL OR (\"StatValue3\" IS NOT NULL AND \"StatMax3\" >= \"StatValue3\")");
+            t.HasCheckConstraint("CK_ItemTemplates_StatMax4",
+                "\"StatMax4\" IS NULL OR (\"StatValue4\" IS NOT NULL AND \"StatMax4\" >= \"StatValue4\")");
+            t.HasCheckConstraint("CK_ItemTemplates_StatMax5",
+                "\"StatMax5\" IS NULL OR (\"StatValue5\" IS NOT NULL AND \"StatMax5\" >= \"StatValue5\")");
+            t.HasCheckConstraint("CK_ItemTemplates_StatMax6",
+                "\"StatMax6\" IS NULL OR (\"StatValue6\" IS NOT NULL AND \"StatMax6\" >= \"StatValue6\")");
+            t.HasCheckConstraint("CK_ItemTemplates_StatMax7",
+                "\"StatMax7\" IS NULL OR (\"StatValue7\" IS NOT NULL AND \"StatMax7\" >= \"StatValue7\")");
+            t.HasCheckConstraint("CK_ItemTemplates_StatMax8",
+                "\"StatMax8\" IS NULL OR (\"StatValue8\" IS NOT NULL AND \"StatMax8\" >= \"StatValue8\")");
+            t.HasCheckConstraint("CK_ItemTemplates_StatMax9",
+                "\"StatMax9\" IS NULL OR (\"StatValue9\" IS NOT NULL AND \"StatMax9\" >= \"StatValue9\")");
+            t.HasCheckConstraint("CK_ItemTemplates_StatMax10",
+                "\"StatMax10\" IS NULL OR (\"StatValue10\" IS NOT NULL AND \"StatMax10\" >= \"StatValue10\")");
+        });
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id)
             .HasConversion(
@@ -1616,122 +1639,9 @@ public class WorldDbContext : DbContext
                 UseScript = "TownPortalScroll",
                 UseCastTimeMs = 3000,
                 UseCooldownMs = 30000
-            }, new ItemTemplate
-            {
-                Id = 4,
-                Name = "Rusted Sword",
-                Class = ItemClass.Weapon,
-                SubClass = ItemSubClass.OneHanded,
-                Flags = ItemTemplateFlags.NoSell,
-                MaxStackSize = 1,
-                DisplayId = 4,
-                Rarity = ItemRarity.Common,
-                BuyPrice = 100,
-                SellPrice = 50,
-                Slot = ItemSlotType.MainHand,
-                AllowedClasses = [CharacterClass.Warrior],
-                ItemPower = 2,
-                RequiredLevel = 1,
-                DamageMin1 = 4,
-                DamageMax1 = 6,
-                DamageType1 = DamageType.Physical,
-                AttackTimeMs = 792
-            },
-            // The forest pools (issue #460). Items 5-31 can be sold (owner decision), so they carry no
-            // NoSell. Items 5-8: one weapon per class, the group in loot table 9.
-            // Item 4 is left as it is, since it may become a starting item; item 7 is the forest's own sword.
-            // #1178: a weapon's roll is an attack's whole base now, so each player weapon's range carries its old hits at
-            // its tier: the Rusted Sword rolls 4-6, the Bramblesteel Sword and the Briarstring Bow 5-7. The staff and the
-            // mace keep theirs, which no Attack reads.
-            new ItemTemplate
-            {
-                Id = 5,
-                Name = "Thornwood Staff",
-                Class = ItemClass.Weapon,
-                SubClass = ItemSubClass.TwoHanded,
-                Flags = ItemTemplateFlags.None,
-                MaxStackSize = 1,
-                DisplayId = 5,
-                Rarity = ItemRarity.Uncommon,
-                BuyPrice = 200,
-                SellPrice = 50,
-                Slot = ItemSlotType.MainHand,
-                AllowedClasses = [CharacterClass.Wizard],
-                ItemPower = 3,
-                RequiredLevel = 1,
-                DamageMin1 = 9,
-                DamageMax1 = 14,
-                DamageType1 = DamageType.Physical,
-                AttackTimeMs = 800,
-                StatType1 = StatType.Intellect,
-                StatValue1 = 1
-            }, new ItemTemplate
-            {
-                Id = 6,
-                Name = "Briarstring Bow",
-                Class = ItemClass.Weapon,
-                SubClass = ItemSubClass.Ranged,
-                Flags = ItemTemplateFlags.None,
-                MaxStackSize = 1,
-                DisplayId = 6,
-                Rarity = ItemRarity.Uncommon,
-                BuyPrice = 200,
-                SellPrice = 50,
-                Slot = ItemSlotType.MainHand,
-                AllowedClasses = [CharacterClass.Hunter],
-                ItemPower = 3,
-                RequiredLevel = 1,
-                DamageMin1 = 5,
-                DamageMax1 = 7,
-                DamageType1 = DamageType.Physical,
-                AttackTimeMs = 801,
-                StatType1 = StatType.Agility,
-                StatValue1 = 1
-            }, new ItemTemplate
-            {
-                Id = 7,
-                Name = "Bramblesteel Sword",
-                Class = ItemClass.Weapon,
-                SubClass = ItemSubClass.OneHanded,
-                Flags = ItemTemplateFlags.None,
-                MaxStackSize = 1,
-                DisplayId = 7,
-                Rarity = ItemRarity.Uncommon,
-                BuyPrice = 200,
-                SellPrice = 50,
-                Slot = ItemSlotType.MainHand,
-                AllowedClasses = [CharacterClass.Warrior],
-                ItemPower = 3,
-                RequiredLevel = 1,
-                DamageMin1 = 5,
-                DamageMax1 = 7,
-                DamageType1 = DamageType.Physical,
-                AttackTimeMs = 792,
-                StatType1 = StatType.Strength,
-                StatValue1 = 1
-            }, new ItemTemplate
-            {
-                Id = 8,
-                Name = "Rootknot Mace",
-                Class = ItemClass.Weapon,
-                SubClass = ItemSubClass.OneHanded,
-                Flags = ItemTemplateFlags.None,
-                MaxStackSize = 1,
-                DisplayId = 8,
-                Rarity = ItemRarity.Uncommon,
-                BuyPrice = 200,
-                SellPrice = 50,
-                Slot = ItemSlotType.MainHand,
-                AllowedClasses = [CharacterClass.Cleric],
-                ItemPower = 3,
-                RequiredLevel = 1,
-                DamageMin1 = 7,
-                DamageMax1 = 11,
-                DamageType1 = DamageType.Physical,
-                AttackTimeMs = 784,
-                StatType1 = StatType.Intellect,
-                StatValue1 = 1
-            },
+            });
+
+        builder.HasData(
             // Items 9-11: collectible scrolls, the group in loot table 10. Using one does nothing yet.
             new ItemTemplate
             {
@@ -1774,64 +1684,9 @@ public class WorldDbContext : DbContext
                 Slot = null
             });
 
-        // Items 12-31: the forest armour, one set per class in five slots, each piece its own 2 %
-        // entry in loot table 11. Every piece carries Armor, so no class is unarmoured when
-        // mitigation lands: in each slot cloth (Wizard, Cleric) is below leather (Hunter), which is
-        // below plate (Warrior).
-        builder.HasData(
-            ForestArmourPiece(12, "Barkplate Helm", CharacterClass.Warrior, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Strength, 1), (StatType.Armor, 4), (StatType.Stamina, 1)),
-            ForestArmourPiece(13, "Barkplate Chestguard", CharacterClass.Warrior, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Strength, 2), (StatType.Armor, 8), (StatType.Stamina, 2)),
-            ForestArmourPiece(14, "Barkplate Legguards", CharacterClass.Warrior, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Strength, 2), (StatType.Armor, 6), (StatType.Stamina, 1)),
-            ForestArmourPiece(15, "Barkplate Gauntlets", CharacterClass.Warrior, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Strength, 1), (StatType.Armor, 3), (StatType.Stamina, 1)),
-            ForestArmourPiece(16, "Barkplate Boots", CharacterClass.Warrior, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Strength, 1), (StatType.Armor, 3), (StatType.Stamina, 1)),
-            ForestArmourPiece(17, "Mossweave Hood", CharacterClass.Wizard, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Intellect, 2), (StatType.Armor, 1)),
-            ForestArmourPiece(18, "Mossweave Robe", CharacterClass.Wizard, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Intellect, 3), (StatType.Armor, 3)),
-            ForestArmourPiece(19, "Mossweave Leggings", CharacterClass.Wizard, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Intellect, 3), (StatType.Armor, 2)),
-            ForestArmourPiece(20, "Mossweave Gloves", CharacterClass.Wizard, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Intellect, 1), (StatType.Armor, 1)),
-            ForestArmourPiece(21, "Mossweave Slippers", CharacterClass.Wizard, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Intellect, 1), (StatType.Armor, 1)),
-            ForestArmourPiece(22, "Fernstalker Cap", CharacterClass.Hunter, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Agility, 2), (StatType.Armor, 2)),
-            ForestArmourPiece(23, "Fernstalker Jerkin", CharacterClass.Hunter, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Agility, 3), (StatType.Armor, 5)),
-            ForestArmourPiece(24, "Fernstalker Breeches", CharacterClass.Hunter, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Agility, 3), (StatType.Armor, 4)),
-            ForestArmourPiece(25, "Fernstalker Grips", CharacterClass.Hunter, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Agility, 1), (StatType.Armor, 2)),
-            ForestArmourPiece(26, "Fernstalker Boots", CharacterClass.Hunter, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Agility, 1), (StatType.Armor, 2)),
-            ForestArmourPiece(27, "Dewleaf Circlet", CharacterClass.Cleric, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
-            ForestArmourPiece(28, "Dewleaf Vestments", CharacterClass.Cleric, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Intellect, 2), (StatType.Stamina, 2), (StatType.Armor, 3)),
-            ForestArmourPiece(29, "Dewleaf Leggings", CharacterClass.Cleric, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Intellect, 2), (StatType.Stamina, 1), (StatType.Armor, 2)),
-            ForestArmourPiece(30, "Dewleaf Handwraps", CharacterClass.Cleric, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
-            ForestArmourPiece(31, "Dewleaf Sandals", CharacterClass.Cleric, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)));
-
-        // The Common starter tier (#432), what the town vendors sell: one weapon per class and a
-        // five-slot set per class. Each stat is the matching forest piece's (items 5-8, 12-31) times
-        // 0.6, rounded half away from zero, and at least 1 where the forest piece has it. Weapon
-        // damage is scaled the same way. A weapon's speed is its attack time (#1178), copied by weapon type, never scaled.
-        // Sold, never dropped: no loot table names these.
-        builder.HasData(
-            StarterWeapon(32, "Ironwood Sword", CharacterClass.Warrior, ItemSubClass.OneHanded, attackTimeMs: 792, (StatType.Strength, 1)),
-            StarterWeapon(33, "Ash Staff", CharacterClass.Wizard, ItemSubClass.TwoHanded, attackTimeMs: 800, (StatType.Intellect, 1)),
-            StarterWeapon(34, "Hunter's Shortbow", CharacterClass.Hunter, ItemSubClass.Ranged, attackTimeMs: 801, (StatType.Agility, 1)),
-            StarterWeapon(35, "Oak Mace", CharacterClass.Cleric, ItemSubClass.OneHanded, attackTimeMs: 784, (StatType.Intellect, 1)));
-
-        builder.HasData(
-            StarterArmourPiece(36, "Ironbound Helm", CharacterClass.Warrior, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Strength, 1), (StatType.Armor, 2), (StatType.Stamina, 1)),
-            StarterArmourPiece(37, "Ironbound Chestguard", CharacterClass.Warrior, ItemSubClass.Chest, ItemSlotType.Chest, 100, (StatType.Strength, 1), (StatType.Armor, 5), (StatType.Stamina, 1)),
-            StarterArmourPiece(38, "Ironbound Legguards", CharacterClass.Warrior, ItemSubClass.Legs, ItemSlotType.Legs, 80, (StatType.Strength, 1), (StatType.Armor, 4), (StatType.Stamina, 1)),
-            StarterArmourPiece(39, "Ironbound Gauntlets", CharacterClass.Warrior, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Strength, 1), (StatType.Armor, 2), (StatType.Stamina, 1)),
-            StarterArmourPiece(40, "Ironbound Boots", CharacterClass.Warrior, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Strength, 1), (StatType.Armor, 2), (StatType.Stamina, 1)),
-            StarterArmourPiece(41, "Linen Hood", CharacterClass.Wizard, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Intellect, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(42, "Linen Robe", CharacterClass.Wizard, ItemSubClass.Chest, ItemSlotType.Chest, 100, (StatType.Intellect, 2), (StatType.Armor, 2)),
-            StarterArmourPiece(43, "Linen Leggings", CharacterClass.Wizard, ItemSubClass.Legs, ItemSlotType.Legs, 80, (StatType.Intellect, 2), (StatType.Armor, 1)),
-            StarterArmourPiece(44, "Linen Gloves", CharacterClass.Wizard, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Intellect, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(45, "Linen Slippers", CharacterClass.Wizard, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Intellect, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(46, "Hide Cap", CharacterClass.Hunter, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Agility, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(47, "Hide Jerkin", CharacterClass.Hunter, ItemSubClass.Chest, ItemSlotType.Chest, 100, (StatType.Agility, 2), (StatType.Armor, 3)),
-            StarterArmourPiece(48, "Hide Breeches", CharacterClass.Hunter, ItemSubClass.Legs, ItemSlotType.Legs, 80, (StatType.Agility, 2), (StatType.Armor, 2)),
-            StarterArmourPiece(49, "Hide Grips", CharacterClass.Hunter, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Agility, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(50, "Hide Boots", CharacterClass.Hunter, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Agility, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(51, "Wool Circlet", CharacterClass.Cleric, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(52, "Wool Vestments", CharacterClass.Cleric, ItemSubClass.Chest, ItemSlotType.Chest, 100, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 2)),
-            StarterArmourPiece(53, "Wool Leggings", CharacterClass.Cleric, ItemSubClass.Legs, ItemSlotType.Legs, 80, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(54, "Wool Handwraps", CharacterClass.Cleric, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
-            StarterArmourPiece(55, "Wool Sandals", CharacterClass.Cleric, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)));
+        // The equipment (#1179): 74 bases and 5 uniques, ItemBaseSeed's. Ids 5-8, 12-26 and 32-50 are bases under
+        // their old ids, 58, 64 and 65 uniques, 66-103 new; 4, 27-31 and 51-55 are gone.
+        builder.HasData(ItemBaseSeed.Equipment());
 
         // Item 56 (#432): Tobin's Greater Health Potion, sold for gold plus two Health Potions. A use restores
         // 60 % of the maximum health (item use), sharing the potions' cooldown.
@@ -1859,8 +1714,8 @@ public class WorldDbContext : DbContext
     }
 
     /// <summary>
-    /// The storyline's items (#433). The Boar Tusk drops only for characters collecting it (QuestItemDrops) and is
-    /// never sold; the Alpha's Fang Pendant is quest 3's reward, for any class.
+    /// The storyline's quest item (#433): the Boar Tusk drops only for characters collecting it (QuestItemDrops) and is
+    /// never sold. Quest 3's fixed reward is the amulet base (#1179), seeded with the equipment.
     /// </summary>
     private static void SeedForestStorylineItems(EntityTypeBuilder<ItemTemplate> builder)
     {
@@ -1878,33 +1733,12 @@ public class WorldDbContext : DbContext
                 BuyPrice = 0,
                 SellPrice = 0,
                 Slot = null,
-            },
-            new ItemTemplate
-            {
-                Id = 58,
-                Name = "Alpha's Fang Pendant",
-                Class = ItemClass.Armor,
-                SubClass = ItemSubClass.Amulet,
-                Flags = ItemTemplateFlags.None,
-                MaxStackSize = 1,
-                DisplayId = 58,
-                Rarity = ItemRarity.Uncommon,
-                BuyPrice = 200,
-                SellPrice = 50,
-                Slot = ItemSlotType.Neck,
-                ItemPower = 3,
-                RequiredLevel = 2,
-                StatType1 = StatType.Stamina,
-                StatValue1 = 2,
-                StatType2 = StatType.Armor,
-                StatValue2 = 1,
             });
     }
 
     /// <summary>
     /// Quests 4-8 (forest content pass): five quest items, each dropped only for characters collecting it
-    /// (QuestItemDrops) and never sold, and the chain's two rewards, rings for any class. The rings' numbers follow the
-    /// Alpha's Fang Pendant and are first drafts for the balance tool.
+    /// (QuestItemDrops) and never sold. The chain's rewards are the ring base (#1179), seeded with the equipment.
     /// </summary>
     private static void SeedForestChainItems(EntityTypeBuilder<ItemTemplate> builder)
     {
@@ -1913,47 +1747,7 @@ public class WorldDbContext : DbContext
             ChainQuestItem(60, "Fen Wolf Pelt"),
             ChainQuestItem(61, "Ledger Page"),
             ChainQuestItem(62, "Tuskroot Heartwood"),
-            ChainQuestItem(63, "Bramble Heart"),
-            new ItemTemplate
-            {
-                Id = 64,
-                Name = "Heartwood Band",
-                Class = ItemClass.Armor,
-                SubClass = ItemSubClass.Ring,
-                Flags = ItemTemplateFlags.None,
-                MaxStackSize = 1,
-                DisplayId = 64,
-                Rarity = ItemRarity.Uncommon,
-                BuyPrice = 400,
-                SellPrice = 100,
-                Slot = ItemSlotType.Finger,
-                ItemPower = 5,
-                RequiredLevel = 5,
-                StatType1 = StatType.Stamina,
-                StatValue1 = 3,
-                StatType2 = StatType.Armor,
-                StatValue2 = 2,
-            },
-            new ItemTemplate
-            {
-                Id = 65,
-                Name = "Thornheart Signet",
-                Class = ItemClass.Armor,
-                SubClass = ItemSubClass.Ring,
-                Flags = ItemTemplateFlags.None,
-                MaxStackSize = 1,
-                DisplayId = 65,
-                Rarity = ItemRarity.Rare,
-                BuyPrice = 800,
-                SellPrice = 200,
-                Slot = ItemSlotType.Finger,
-                ItemPower = 7,
-                RequiredLevel = 7,
-                StatType1 = StatType.Stamina,
-                StatValue1 = 5,
-                StatType2 = StatType.Armor,
-                StatValue2 = 4,
-            });
+            ChainQuestItem(63, "Bramble Heart"));
     }
 
     /// <summary>A quest item as the Boar Tusk is: QuestItem and NoSell, stacks to 20, worth nothing.</summary>
@@ -1971,97 +1765,6 @@ public class WorldDbContext : DbContext
         SellPrice = 0,
         Slot = null,
     };
-
-    /// <summary>
-    /// One piece of forest armour: Uncommon, level 1, for one class, with up to three stats. Used by
-    /// the Configure(EntityTypeBuilder&lt;ItemTemplate&gt;) seed only.
-    /// </summary>
-    private static ItemTemplate ForestArmourPiece(
-        ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, ItemSlotType slot,
-        params (StatType Type, uint Value)[] stats) => new()
-        {
-            Id = id,
-            Name = name,
-            Class = ItemClass.Armor,
-            SubClass = subClass,
-            Flags = ItemTemplateFlags.None,
-            MaxStackSize = 1,
-            DisplayId = (uint)id,
-            Rarity = ItemRarity.Uncommon,
-            BuyPrice = 200,
-            SellPrice = 50,
-            Slot = slot,
-            AllowedClasses = [characterClass],
-            ItemPower = 3,
-            RequiredLevel = 1,
-            StatType1 = stats.Length > 0 ? stats[0].Type : null,
-            StatValue1 = stats.Length > 0 ? stats[0].Value : null,
-            StatType2 = stats.Length > 1 ? stats[1].Type : null,
-            StatValue2 = stats.Length > 1 ? stats[1].Value : null,
-            StatType3 = stats.Length > 2 ? stats[2].Type : null,
-            StatValue3 = stats.Length > 2 ? stats[2].Value : null,
-        };
-
-    /// <summary>
-    /// A Common starter weapon (#432): level 1, for one class, main hand. Every one rolls 4-7 (#506),
-    /// and its one stat is an attribute, the forest weapons' shape. Sells for a
-    /// quarter of its 120.
-    /// </summary>
-    private static ItemTemplate StarterWeapon(
-        ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, uint attackTimeMs,
-        (StatType Type, uint Value) stat) => new()
-        {
-            Id = id,
-            Name = name,
-            Class = ItemClass.Weapon,
-            SubClass = subClass,
-            Flags = ItemTemplateFlags.None,
-            MaxStackSize = 1,
-            DisplayId = (uint)id,
-            Rarity = ItemRarity.Common,
-            BuyPrice = 120,
-            SellPrice = 30,
-            Slot = ItemSlotType.MainHand,
-            AllowedClasses = [characterClass],
-            ItemPower = 2,
-            RequiredLevel = 1,
-            DamageMin1 = 4,
-            DamageMax1 = 7,
-            DamageType1 = DamageType.Physical,
-            AttackTimeMs = attackTimeMs,
-            StatType1 = stat.Type,
-            StatValue1 = stat.Value,
-        };
-
-    /// <summary>
-    /// A piece of Common starter armour (#432): level 1, for one class, with up to three stats.
-    /// Sells for a quarter of <paramref name="buyPrice" />.
-    /// </summary>
-    private static ItemTemplate StarterArmourPiece(
-        ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, ItemSlotType slot, uint buyPrice,
-        params (StatType Type, uint Value)[] stats) => new()
-        {
-            Id = id,
-            Name = name,
-            Class = ItemClass.Armor,
-            SubClass = subClass,
-            Flags = ItemTemplateFlags.None,
-            MaxStackSize = 1,
-            DisplayId = (uint)id,
-            Rarity = ItemRarity.Common,
-            BuyPrice = buyPrice,
-            SellPrice = buyPrice / 4,
-            Slot = slot,
-            AllowedClasses = [characterClass],
-            ItemPower = 2,
-            RequiredLevel = 1,
-            StatType1 = stats.Length > 0 ? stats[0].Type : null,
-            StatValue1 = stats.Length > 0 ? stats[0].Value : null,
-            StatType2 = stats.Length > 1 ? stats[1].Type : null,
-            StatValue2 = stats.Length > 1 ? stats[1].Value : null,
-            StatType3 = stats.Length > 2 ? stats[2].Type : null,
-            StatValue3 = stats.Length > 2 ? stats[2].Value : null,
-        };
 
     private static void Configure(EntityTypeBuilder<MapTemplate> builder)
     {
@@ -2935,7 +2638,8 @@ public class WorldDbContext : DbContext
             new LootTable { Id = 10, Name = "Forest scrolls" },
             new LootTable { Id = 11, Name = "Forest armour" },
             new LootTable { Id = 12, Name = "Forest chest" },
-            new LootTable { Id = 13, Name = "Forest barrel" });
+            new LootTable { Id = 13, Name = "Forest barrel" },
+            new LootTable { Id = 14, Name = "Forest jewellery" });
     }
 
     private static void Configure(EntityTypeBuilder<LootTableEntry> builder)
@@ -2968,13 +2672,14 @@ public class WorldDbContext : DbContext
             .HasForeignKey(b => b.ReferenceTableId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Items 1 Health Potion, 2 Mana Potion, 3 Town Portal Scroll; 5-8 the forest weapons, 9-11 the
-        // forest scrolls, 12-31 the forest armour. Every creature table rolls both potions on their
-        // own, then the shared pools: table 1, the weapon group (table 9) at 2 %, the scroll group
-        // (table 10) at 10 %, and the armour table (table 11) on every kill, whose pieces each roll
-        // at 2 %. A group always drops exactly one of its entries when its table rolls, so the chance
-        // a group drops at all is the chance its table is referenced with. Potion and common-table
-        // chances rise with the creature's rarity; the pool references are the same for every creature.
+        // Items 1 Health Potion, 2 Mana Potion, 3 Town Portal Scroll; 9-11 the forest scrolls. Every creature table
+        // rolls both potions on their own, then the shared pools: table 1, the weapon group (table 9) at 2 %, the
+        // scroll group (table 10) at 10 %, the armour table (table 11) and the jewellery table (table 14) on every
+        // kill, whose pieces each roll at 2 %. A group always drops exactly one of its entries when its table rolls, so
+        // the chance a group drops at all is the chance its table is referenced with. Potion and common-table chances
+        // rise with the creature's rarity; the pool references are the same for every creature. #1179: the pools drop
+        // the tier-1 bases exactly as named (rolling the tier by item level comes later), and the three named
+        // creatures drop the uniques from their own entries, a tunable first draft.
         builder.HasData(
             new LootTableEntry { LootTableId = 1, Sequence = 1, ItemTemplateId = 3, Chance = 5f, MinCount = 1, MaxCount = 1 },
             new LootTableEntry { LootTableId = 1, Sequence = 2, ItemTemplateId = 1, Chance = 10f, MinCount = 1, MaxCount = 2 });
@@ -2987,12 +2692,25 @@ public class WorldDbContext : DbContext
         builder.HasData(ForestCreatureTable(7, potion: 60f, potionMax: 3, mana: 40f, manaMax: 2, common: 75f));
         builder.HasData(ForestCreatureTable(8, potion: 100f, potionMax: 4, mana: 100f, manaMax: 3, common: 100f, potionMin: 2));
 
-        // Table 9: one weapon per class, equal weights.
+        // The uniques (#1179), each from the creature its name comes from: the Bramblemaw Alpha (table 6) the Alpha's
+        // Fang Pendant, Old Tuskroot (table 7) the Heartwood Band and the Tuskroot Idol, Mother Bramble (table 8) the
+        // Thornheart Signet and the Bramble Mother's Seed.
         builder.HasData(
-            new LootTableEntry { LootTableId = 9, Sequence = 1, ItemTemplateId = 7, Chance = 25f, GroupId = 1, MinCount = 1, MaxCount = 1 },
-            new LootTableEntry { LootTableId = 9, Sequence = 2, ItemTemplateId = 5, Chance = 25f, GroupId = 1, MinCount = 1, MaxCount = 1 },
-            new LootTableEntry { LootTableId = 9, Sequence = 3, ItemTemplateId = 6, Chance = 25f, GroupId = 1, MinCount = 1, MaxCount = 1 },
-            new LootTableEntry { LootTableId = 9, Sequence = 4, ItemTemplateId = 8, Chance = 25f, GroupId = 1, MinCount = 1, MaxCount = 1 });
+            UniqueEntry(table: 6, sequence: 8, item: 58, chance: 10f),
+            UniqueEntry(table: 7, sequence: 8, item: 64, chance: 10f),
+            UniqueEntry(table: 7, sequence: 9, item: 67, chance: 10f),
+            UniqueEntry(table: 8, sequence: 8, item: 65, chance: 15f),
+            UniqueEntry(table: 8, sequence: 9, item: 66, chance: 15f));
+
+        // Table 9: one tier-1 weapon or off-hand base of each kind, equal weights: sword, mace, staff, bow, shield,
+        // caster off-hand.
+        builder.HasData(
+            WeaponEntry(sequence: 1, item: 32),
+            WeaponEntry(sequence: 2, item: 35),
+            WeaponEntry(sequence: 3, item: 33),
+            WeaponEntry(sequence: 4, item: 34),
+            WeaponEntry(sequence: 5, item: 70),
+            WeaponEntry(sequence: 6, item: 73));
 
         // Table 10: three scrolls, equal weights.
         builder.HasData(
@@ -3000,43 +2718,49 @@ public class WorldDbContext : DbContext
             new LootTableEntry { LootTableId = 10, Sequence = 2, ItemTemplateId = 10, Chance = 33f, GroupId = 1, MinCount = 1, MaxCount = 1 },
             new LootTableEntry { LootTableId = 10, Sequence = 3, ItemTemplateId = 11, Chance = 33f, GroupId = 1, MinCount = 1, MaxCount = 1 });
 
-        // Table 11: twenty armour pieces, each rolled on its own.
+        // Table 11: the eighteen tier-1 armour bases, each rolled on its own: plate, leather and cloth, each in head,
+        // chest, legs, hands, feet and shoulders.
         builder.HasData(
-            ForestArmourEntry(sequence: 1, item: 12),
-            ForestArmourEntry(sequence: 2, item: 13),
-            ForestArmourEntry(sequence: 3, item: 14),
-            ForestArmourEntry(sequence: 4, item: 15),
-            ForestArmourEntry(sequence: 5, item: 16),
-            ForestArmourEntry(sequence: 6, item: 17),
-            ForestArmourEntry(sequence: 7, item: 18),
-            ForestArmourEntry(sequence: 8, item: 19),
-            ForestArmourEntry(sequence: 9, item: 20),
-            ForestArmourEntry(sequence: 10, item: 21),
-            ForestArmourEntry(sequence: 11, item: 22),
-            ForestArmourEntry(sequence: 12, item: 23),
-            ForestArmourEntry(sequence: 13, item: 24),
-            ForestArmourEntry(sequence: 14, item: 25),
-            ForestArmourEntry(sequence: 15, item: 26),
-            ForestArmourEntry(sequence: 16, item: 27),
-            ForestArmourEntry(sequence: 17, item: 28),
-            ForestArmourEntry(sequence: 18, item: 29),
-            ForestArmourEntry(sequence: 19, item: 30),
-            ForestArmourEntry(sequence: 20, item: 31));
+            ForestArmourEntry(sequence: 1, item: 36),
+            ForestArmourEntry(sequence: 2, item: 37),
+            ForestArmourEntry(sequence: 3, item: 38),
+            ForestArmourEntry(sequence: 4, item: 39),
+            ForestArmourEntry(sequence: 5, item: 40),
+            ForestArmourEntry(sequence: 6, item: 76),
+            ForestArmourEntry(sequence: 7, item: 46),
+            ForestArmourEntry(sequence: 8, item: 47),
+            ForestArmourEntry(sequence: 9, item: 48),
+            ForestArmourEntry(sequence: 10, item: 49),
+            ForestArmourEntry(sequence: 11, item: 50),
+            ForestArmourEntry(sequence: 12, item: 77),
+            ForestArmourEntry(sequence: 13, item: 41),
+            ForestArmourEntry(sequence: 14, item: 42),
+            ForestArmourEntry(sequence: 15, item: 43),
+            ForestArmourEntry(sequence: 16, item: 44),
+            ForestArmourEntry(sequence: 17, item: 45),
+            ForestArmourEntry(sequence: 18, item: 78));
 
         // Table 12, the forest chest: richer than a kill. Its own potions, then the creatures' shared pools, the common
-        // table and the armour table every time, the weapon group at 10 % and the scroll group at 25 %.
+        // table, the armour table and the jewellery table every time, the weapon group at 10 % and the scroll group at
+        // 25 %.
         builder.HasData(
             new LootTableEntry { LootTableId = 12, Sequence = 1, ItemTemplateId = 1, Chance = 60f, MinCount = 1, MaxCount = 2 },
             new LootTableEntry { LootTableId = 12, Sequence = 2, ItemTemplateId = 2, Chance = 40f, MinCount = 1, MaxCount = 1 },
             new LootTableEntry { LootTableId = 12, Sequence = 3, ReferenceTableId = 1, Chance = 100f, MinCount = 1, MaxCount = 1 },
             new LootTableEntry { LootTableId = 12, Sequence = 4, ReferenceTableId = 9, Chance = 10f, MinCount = 1, MaxCount = 1 },
             new LootTableEntry { LootTableId = 12, Sequence = 5, ReferenceTableId = 10, Chance = 25f, MinCount = 1, MaxCount = 1 },
-            new LootTableEntry { LootTableId = 12, Sequence = 6, ReferenceTableId = 11, Chance = 100f, MinCount = 1, MaxCount = 1 });
+            new LootTableEntry { LootTableId = 12, Sequence = 6, ReferenceTableId = 11, Chance = 100f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 12, Sequence = 7, ReferenceTableId = 14, Chance = 100f, MinCount = 1, MaxCount = 1 });
 
         // Table 13, the forest barrel: a potion now and then, and nothing else.
         builder.HasData(
             new LootTableEntry { LootTableId = 13, Sequence = 1, ItemTemplateId = 1, Chance = 25f, MinCount = 1, MaxCount = 1 },
             new LootTableEntry { LootTableId = 13, Sequence = 2, ItemTemplateId = 2, Chance = 15f, MinCount = 1, MaxCount = 1 });
+
+        // Table 14, the forest jewellery (#1179): the ring and the amulet base, each rolled on its own at 2 %.
+        builder.HasData(
+            new LootTableEntry { LootTableId = 14, Sequence = 1, ItemTemplateId = 68, Chance = 2f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 14, Sequence = 2, ItemTemplateId = 69, Chance = 2f, MinCount = 1, MaxCount = 1 });
     }
 
     /// <summary>The shape every forest creature's table shares; only the chances and counts differ.</summary>
@@ -3049,10 +2773,17 @@ public class WorldDbContext : DbContext
         new() { LootTableId = table, Sequence = 4, ReferenceTableId = 9, Chance = 2f, MinCount = 1, MaxCount = 1 },
         new() { LootTableId = table, Sequence = 5, ReferenceTableId = 10, Chance = 10f, MinCount = 1, MaxCount = 1 },
         new() { LootTableId = table, Sequence = 6, ReferenceTableId = 11, Chance = 100f, MinCount = 1, MaxCount = 1 },
+        new() { LootTableId = table, Sequence = 7, ReferenceTableId = 14, Chance = 100f, MinCount = 1, MaxCount = 1 },
     ];
+
+    private static LootTableEntry WeaponEntry(int sequence, ulong item) =>
+        new() { LootTableId = 9, Sequence = sequence, ItemTemplateId = item, Chance = 25f, GroupId = 1, MinCount = 1, MaxCount = 1 };
 
     private static LootTableEntry ForestArmourEntry(int sequence, ulong item) =>
         new() { LootTableId = 11, Sequence = sequence, ItemTemplateId = item, Chance = 2f, MinCount = 1, MaxCount = 1 };
+
+    private static LootTableEntry UniqueEntry(int table, int sequence, ulong item, float chance) =>
+        new() { LootTableId = table, Sequence = sequence, ItemTemplateId = item, Chance = chance, MinCount = 1, MaxCount = 1 };
 
     /// <summary>
     /// Vendor stock (#432). Loaded whole into VendorCatalog by the Vendors reload area. Both pairings
@@ -3104,24 +2835,31 @@ public class WorldDbContext : DbContext
             .HasForeignKey(c => c.VendorStockId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Garrick Emberforge (template 12): the four starter weapons, unlimited.
-        builder.HasData(
-            new VendorStock { Id = 1, CreatureTemplateId = 12, Sequence = 1, ItemTemplateId = 32 },
-            new VendorStock { Id = 2, CreatureTemplateId = 12, Sequence = 2, ItemTemplateId = 33 },
-            new VendorStock { Id = 3, CreatureTemplateId = 12, Sequence = 3, ItemTemplateId = 34 },
-            new VendorStock { Id = 4, CreatureTemplateId = 12, Sequence = 4, ItemTemplateId = 35 });
-
-        // Hilde Brassbuckle (template 13): the four starter sets, items 36-55, rows 5-24. Each class's
-        // chest piece is limited to 2 and restocks every 30 minutes; the rest are unlimited.
-        builder.HasData(Enumerable.Range(0, 20).Select(piece =>
+        // Garrick Emberforge (template 12, #1179): the six tier-1 weapon and off-hand bases, unlimited, rows 32-37: sword,
+        // mace, staff, bow, shield, caster off-hand. Rows 1-24, the old starter weapons and sets, are gone.
+        ulong[] garrick = [32, 35, 33, 34, 70, 73];
+        builder.HasData(garrick.Select((item, i) => new VendorStock
         {
-            bool chest = piece % 5 == 1;   // helm, chest, legs, gloves, boots within each set
+            Id = 32 + i,
+            CreatureTemplateId = 12,
+            Sequence = (uint)(1 + i),
+            ItemTemplateId = item,
+        }).ToArray());
+
+        // Hilde Brassbuckle (template 13, #1179): the eighteen tier-1 armour bases, rows 38-55: plate, leather and
+        // cloth, each in head, chest, legs, hands, feet and shoulders. Each chest piece is limited to 2 and restocks
+        // every 30 minutes; the rest are unlimited.
+        ulong[] hilde = [36, 37, 38, 39, 40, 76, 46, 47, 48, 49, 50, 77, 41, 42, 43, 44, 45, 78];
+        ulong[] chests = [37, 47, 42];
+        builder.HasData(hilde.Select((item, i) =>
+        {
+            bool chest = chests.Contains(item);
             return new VendorStock
             {
-                Id = 5 + piece,
+                Id = 38 + i,
                 CreatureTemplateId = 13,
-                Sequence = (uint)(1 + piece),
-                ItemTemplateId = (ulong)(36 + piece),
+                Sequence = (uint)(1 + i),
+                ItemTemplateId = item,
                 MaxStock = chest ? 2u : null,
                 RestockSeconds = chest ? 1800u : null,
             };

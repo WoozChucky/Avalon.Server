@@ -117,7 +117,6 @@ internal static class TemplateFields
         I("sellPrice", e => e.SellPrice, (e, r) => e.SellPrice = r.SellPrice),
         I("slot", e => e.Slot, (e, r) => e.Slot = ConvN(r.Slot, e.Slot)),
         I("allowedClasses", e => e.AllowedClasses, (e, r) => e.AllowedClasses = r.AllowedClasses.ToList()),
-        I("itemPower", e => e.ItemPower, (e, r) => e.ItemPower = r.ItemPower),
         I("requiredLevel", e => e.RequiredLevel, (e, r) => e.RequiredLevel = r.RequiredLevel),
         I("requiredStrength", e => e.RequiredStrength, (e, r) => e.RequiredStrength = r.RequiredStrength),
         I("requiredAgility", e => e.RequiredAgility, (e, r) => e.RequiredAgility = r.RequiredAgility),

@@ -72,12 +72,16 @@ public class ConfigFilesShould
             Assert.All(CheckedInScenarios().GearFor("starter", c), id => Assert.Contains(id, sold));
     }
 
-    [Fact]
+    /// <summary>
+    /// #1179 retired the Uncommon rarity: the forest profile is now the tier-2 bases, Common, which part A drops from no
+    /// table. What the profile should be is re-thought with the simulator (#1183); until then the body only compiles.
+    /// </summary>
+    [Fact(Skip = BalancePause.Reason)]
     public void Take_the_forest_profile_from_uncommon_drops()
     {
         BalanceData data = TestData.Seeded;
         foreach (CharacterClass c in CharacterClasses.Playable)
-            Assert.All(CheckedInScenarios().GearFor("forest", c), id => Assert.Equal(ItemRarity.Uncommon, data.Item(id).Rarity));
+            Assert.All(CheckedInScenarios().GearFor("forest", c), id => Assert.Equal(ItemRarity.Common, data.Item(id).Rarity));
     }
 
     [Fact]

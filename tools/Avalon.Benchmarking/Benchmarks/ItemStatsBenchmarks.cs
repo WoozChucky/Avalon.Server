@@ -15,8 +15,9 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// as a list it reuses, so the benchmark does too; no auras. 0 B expected.
 /// </summary>
 /// <remarks>
-/// The templates are literals of the seed rows as they stood before #1179 part A replaced them with bases, so the
-/// benchmark keeps measuring the same kit once those rows are gone. The gear gives 16 Stamina, so the maximum health is
+/// The templates are literals of the seed rows as they stood before #1179 part A replaced them with bases (their old
+/// rarities and item power have no place in the new vocabulary and play no part in the stats), so the benchmark keeps
+/// measuring the same kit now those rows are gone. The gear gives 16 Stamina, so the maximum health is
 /// 400 + 56 x 5 = 680; setup fails the run if it differs.
 /// </remarks>
 [MemoryDiagnoser]
@@ -51,12 +52,11 @@ public class ItemStatsBenchmarks
             SubClass = ItemSubClass.OneHanded,
             MaxStackSize = 1,
             DisplayId = 7,
-            Rarity = ItemRarity.Uncommon,
+            Rarity = ItemRarity.Common,
             BuyPrice = 200,
             SellPrice = 50,
             Slot = ItemSlotType.MainHand,
             AllowedClasses = [CharacterClass.Warrior],
-            ItemPower = 3,
             RequiredLevel = 1,
             DamageMin1 = 5,
             DamageMax1 = 7,
@@ -65,11 +65,11 @@ public class ItemStatsBenchmarks
             StatType1 = StatType.Strength,
             StatValue1 = 1,
         },
-        Jewellery(58, "Alpha's Fang Pendant", ItemSubClass.Amulet, ItemSlotType.Neck, ItemRarity.Uncommon, 200, 50, 3, 2,
+        Jewellery(58, "Alpha's Fang Pendant", ItemSubClass.Amulet, ItemSlotType.Neck, 200, 50, 2,
             stamina: 2, armor: 1),
-        Jewellery(64, "Heartwood Band", ItemSubClass.Ring, ItemSlotType.Finger, ItemRarity.Uncommon, 400, 100, 5, 5,
+        Jewellery(64, "Heartwood Band", ItemSubClass.Ring, ItemSlotType.Finger, 400, 100, 5,
             stamina: 3, armor: 2),
-        Jewellery(65, "Thornheart Signet", ItemSubClass.Ring, ItemSlotType.Finger, ItemRarity.Rare, 800, 200, 7, 7,
+        Jewellery(65, "Thornheart Signet", ItemSubClass.Ring, ItemSlotType.Finger, 800, 200, 7,
             stamina: 5, armor: 4),
     ];
 
@@ -100,12 +100,11 @@ public class ItemStatsBenchmarks
             SubClass = subClass,
             MaxStackSize = 1,
             DisplayId = (uint)id,
-            Rarity = ItemRarity.Uncommon,
+            Rarity = ItemRarity.Common,
             BuyPrice = 200,
             SellPrice = 50,
             Slot = slot,
             AllowedClasses = [CharacterClass.Warrior],
-            ItemPower = 3,
             RequiredLevel = 1,
             StatType1 = StatType.Strength,
             StatValue1 = strength,
@@ -116,7 +115,7 @@ public class ItemStatsBenchmarks
         };
 
     private static ItemTemplate Jewellery(ulong id, string name, ItemSubClass subClass, ItemSlotType slot,
-        ItemRarity rarity, uint buyPrice, uint sellPrice, ushort itemPower, ushort requiredLevel, uint stamina,
+        uint buyPrice, uint sellPrice, ushort requiredLevel, uint stamina,
         uint armor) => new()
         {
             Id = id,
@@ -125,11 +124,10 @@ public class ItemStatsBenchmarks
             SubClass = subClass,
             MaxStackSize = 1,
             DisplayId = (uint)id,
-            Rarity = rarity,
+            Rarity = ItemRarity.Common,
             BuyPrice = buyPrice,
             SellPrice = sellPrice,
             Slot = slot,
-            ItemPower = itemPower,
             RequiredLevel = requiredLevel,
             StatType1 = StatType.Stamina,
             StatValue1 = stamina,

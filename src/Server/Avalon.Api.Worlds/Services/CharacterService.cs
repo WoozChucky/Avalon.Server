@@ -179,7 +179,6 @@ public class CharacterService : ICharacterService
                 Rarity = (Avalon.Api.Contract.ItemRarity)template.Rarity,
                 DisplayId = template.DisplayId,
                 SlotType = (Avalon.Api.Contract.ItemSlotType?)template.Slot,
-                ItemPower = template.ItemPower ?? 0,
                 RequiredLevel = template.RequiredLevel ?? 0,
             },
         };

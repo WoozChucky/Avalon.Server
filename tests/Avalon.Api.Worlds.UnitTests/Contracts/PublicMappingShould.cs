@@ -16,18 +16,17 @@ public class PublicMappingShould
     {
         Id = new ItemTemplateId(12),
         Name = "Barkplate Helm",
-        Rarity = Avalon.Domain.World.ItemRarity.Uncommon,
+        Rarity = Avalon.Common.ItemRarity.Common,
         Class = Avalon.Domain.World.ItemClass.Armor,
         SubClass = Avalon.Domain.World.ItemSubClass.Helmet,
         Slot = Avalon.Domain.World.ItemSlotType.Head,
         RequiredLevel = 3,
-        ItemPower = 8,
         MaxStackSize = 1,
         SellPrice = 125,
         AllowedClasses = [CharacterClass.Warrior],
-        StatType1 = Avalon.Domain.World.StatType.Strength,
+        StatType1 = Avalon.Common.StatType.Strength,
         StatValue1 = 1,
-        StatType3 = Avalon.Domain.World.StatType.Armor,
+        StatType3 = Avalon.Common.StatType.Armor,
         StatValue3 = 4,
     };
 
@@ -137,11 +136,11 @@ public class PublicMappingShould
     /// member must keep its name across the pair.
     /// </summary>
     [Theory]
-    [InlineData(typeof(Avalon.Domain.World.ItemRarity), typeof(Avalon.Api.Contract.ItemRarity))]
+    [InlineData(typeof(Avalon.Common.ItemRarity), typeof(Avalon.Api.Contract.ItemRarity))]
     [InlineData(typeof(Avalon.Domain.World.ItemClass), typeof(Avalon.Api.Contract.ItemClass))]
     [InlineData(typeof(Avalon.Domain.World.ItemSubClass), typeof(Avalon.Api.Contract.ItemSubClass))]
     [InlineData(typeof(Avalon.Domain.World.ItemSlotType), typeof(Avalon.Api.Contract.ItemSlotType))]
-    [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Api.Contract.StatType))]
+    [InlineData(typeof(Avalon.Common.StatType), typeof(Avalon.Api.Contract.StatType))]
     [InlineData(typeof(Avalon.Network.Packets.Combat.DamageType), typeof(Avalon.Api.Contract.DamageType))]
     [InlineData(typeof(Avalon.Network.Packets.State.PowerType), typeof(Avalon.Api.Contract.PowerType))]
     [InlineData(typeof(Avalon.World.Public.Enums.SpellRange), typeof(Avalon.Api.Contract.SpellRange))]

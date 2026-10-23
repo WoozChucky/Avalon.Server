@@ -50,7 +50,7 @@ public class CharacterServiceShould
         templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<ItemTemplate>
             {
-                new() { Id = new ItemTemplateId(9), Name = "Lantern", Rarity = Avalon.Domain.World.ItemRarity.Rare, DisplayId = 12 },
+                new() { Id = new ItemTemplateId(9), Name = "Lantern", Rarity = Avalon.Common.ItemRarity.Rare, DisplayId = 12 },
             });
 
         var service = new CharacterService(characters, slots, items,
@@ -164,14 +164,15 @@ public class CharacterServiceShould
 
     /// <summary>
     /// #1178 (review focus 5): the worlds service advertises exactly what the world server sends for the same saved
-    /// character. A saved level-1 Warrior wearing the starter sword and armour (Strength 29): Cleave rolls 4..7 at 315 %
-    /// effectiveness and 101.5 % increased physical attack damage, 25..44, the same as AbilityAmounts over the stats
-    /// calculator's attacker for the same row and gear, as the world builds it at select. With the same ring on both
-    /// fingers (10 % increased physical damage each), both count, as in the world: 121.5 %, 27..48.
+    /// character. A saved level-1 Warrior wearing the starter sword and armour (Strength 23: #1179's bases carry no
+    /// attributes): Cleave rolls 4..7 at 315 % effectiveness and 80.5 % increased physical attack damage, 22..39, the same
+    /// as AbilityAmounts over the stats calculator's attacker for the same row and gear, as the world builds it at select.
+    /// With the same ring on both fingers (10 % increased physical damage each), both count, as in the world: 100.5 %,
+    /// 25..44.
     /// </summary>
     [Theory]
-    [InlineData(false, 25u, 44u)]
-    [InlineData(true, 27u, 48u)]
+    [InlineData(false, 22u, 39u)]
+    [InlineData(true, 25u, 44u)]
     public async Task Advertise_the_amounts_the_world_sends_for_the_same_saved_character(bool twoRings, uint min,
         uint max)
     {
@@ -191,7 +192,7 @@ public class CharacterServiceShould
                 Id = new ItemTemplateId(990),
                 Name = "Band of Edges",
                 Slot = Avalon.Domain.World.ItemSlotType.Finger,
-                StatType1 = Avalon.Domain.World.StatType.IncreasedPhysicalDamage,
+                StatType1 = Avalon.Common.StatType.IncreasedPhysicalDamage,
                 StatValue1 = 10,
             };
             worn.AddRange([ring, ring]);
@@ -205,7 +206,7 @@ public class CharacterServiceShould
             .GetAbilitiesAsync(id);
 
         CharacterAbilityAmountDto amount = Assert.Single(result!.Abilities).Amount!;
-        Assert.Equal(29u, stats.Strength);
+        Assert.Equal(23u, stats.Strength);
         Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, min, max), (amount.Kind, amount.Min, amount.Max));
         Assert.Equal(((Avalon.Api.Contract.AbilityAmountKind)sent.Kind, sent.Min, sent.Max),
             (amount.Kind, amount.Min, amount.Max));

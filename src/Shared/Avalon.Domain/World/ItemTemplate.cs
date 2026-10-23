@@ -25,19 +25,75 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
         AllowedClasses.Count == 0 || AllowedClasses.Contains(characterClass);
 
     /// <summary>
-    /// True when every attribute requirement the item sets (#1178) is at most the matching value; an unset one asks
-    /// nothing.
+    /// True when the character meets the item's attribute requirements (#1178): every one it sets, or, when
+    /// <see cref="RequiresAnyAttribute" /> is set (#1179), at least one of them. An unset requirement asks nothing, and an
+    /// item that sets none is always met.
     /// </summary>
-    public bool MeetsAttributes(uint strength, uint agility, uint intellect) =>
-        (RequiredStrength is not { } str || str <= strength)
-        && (RequiredAgility is not { } agi || agi <= agility)
-        && (RequiredIntellect is not { } intl || intl <= intellect);
+    public bool MeetsAttributes(uint strength, uint agility, uint intellect)
+    {
+        if (RequiredStrength is null && RequiredAgility is null && RequiredIntellect is null)
+            return true;
+
+        if (RequiresAnyAttribute)
+        {
+            return (RequiredStrength is { } anyStr && anyStr <= strength)
+                || (RequiredAgility is { } anyAgi && anyAgi <= agility)
+                || (RequiredIntellect is { } anyIntl && anyIntl <= intellect);
+        }
+
+        return (RequiredStrength is not { } str || str <= strength)
+            && (RequiredAgility is not { } agi || agi <= agility)
+            && (RequiredIntellect is not { } intl || intl <= intellect);
+    }
+
+    /// <summary>
+    /// The rolls an instance made from this template outright gets (#1179): a vendor's, a quest's, a starting item's.
+    /// Null for an item that is not worn (no <see cref="Slot" />). A Common template's are the shared plain rolls of its
+    /// required level; a Unique's copy its lines at their drafted values (modifier 0, tier 0), made per call.
+    /// </summary>
+    public ItemRolls? PlainRolls()
+    {
+        if (Slot is null)
+            return null;
+
+        ushort level = RequiredLevel ?? 1;
+        if (Rarity != ItemRarity.Unique)
+            return ItemRolls.Plain(Rarity, level);
+
+        Span<ItemModifierRoll> lines = stackalloc ItemModifierRoll[ItemRolls.MaxModifiers];
+        int count = 0;
+        AddLine(lines, ref count, StatType1, StatValue1, StatMax1);
+        AddLine(lines, ref count, StatType2, StatValue2, StatMax2);
+        AddLine(lines, ref count, StatType3, StatValue3, StatMax3);
+        AddLine(lines, ref count, StatType4, StatValue4, StatMax4);
+        AddLine(lines, ref count, StatType5, StatValue5, StatMax5);
+        AddLine(lines, ref count, StatType6, StatValue6, StatMax6);
+        AddLine(lines, ref count, StatType7, StatValue7, StatMax7);
+        AddLine(lines, ref count, StatType8, StatValue8, StatMax8);
+        AddLine(lines, ref count, StatType9, StatValue9, StatMax9);
+        AddLine(lines, ref count, StatType10, StatValue10, StatMax10);
+        return new ItemRolls(Rarity, level, lines[..count]);
+    }
+
+    private static void AddLine(Span<ItemModifierRoll> lines, ref int count, StatType? type, uint? value, uint? max)
+    {
+        if (type is not { } stat || value is not { } low)
+            return;
+        if (count == lines.Length)
+            throw new InvalidOperationException($"a unique carries at most {ItemRolls.MaxModifiers} stat lines");
+
+        lines[count++] = new ItemModifierRoll(0, 0, stat, (int)low, (int)(max ?? low));
+    }
 
     public uint MaxStackSize { get; set; }
 
     public uint DisplayId { get; set; }
 
+    /// <summary>Common for a base, Unique for a hand-made item (#1179); Magic and Rare exist only on an instance's rolls.</summary>
     public ItemRarity Rarity { get; set; }
+
+    /// <summary>The kind of base this template is (#1179), or None for an item that is no base.</summary>
+    public ItemBaseKind BaseKind { get; set; }
 
     public uint BuyPrice { get; set; }
 
@@ -51,8 +107,6 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     /// </summary>
     public List<CharacterClass> AllowedClasses { get; set; } = [];
 
-    public ushort? ItemPower { get; set; }
-
     public ushort? RequiredLevel { get; set; }
 
     /// <summary>The Strength a character needs to equip the item (#1178), or null for none.</summary>
@@ -63,6 +117,12 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     /// <summary>The Intellect a character needs to equip the item, or null for none.</summary>
     public ushort? RequiredIntellect { get; set; }
+
+    /// <summary>
+    /// When set (#1179), meeting any one attribute requirement is enough, not every one: the mace's Strength or
+    /// Intellect. See <see cref="MeetsAttributes" />.
+    /// </summary>
+    public bool RequiresAnyAttribute { get; set; }
 
     public uint? DamageMin1 { get; set; }
 
@@ -86,41 +146,65 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     public uint? StatValue1 { get; set; }
 
+    /// <summary>
+    /// The high end of a range stat's line (#1179: the added-damage keys, <see cref="StatTypes.IsRange" />), whose
+    /// <see cref="StatValue1" /> is the low end; null on every other line. The same for each StatMaxN.
+    /// </summary>
+    public uint? StatMax1 { get; set; }
+
     public StatType? StatType2 { get; set; }
 
     public uint? StatValue2 { get; set; }
+
+    public uint? StatMax2 { get; set; }
 
     public StatType? StatType3 { get; set; }
 
     public uint? StatValue3 { get; set; }
 
+    public uint? StatMax3 { get; set; }
+
     public StatType? StatType4 { get; set; }
 
     public uint? StatValue4 { get; set; }
+
+    public uint? StatMax4 { get; set; }
 
     public StatType? StatType5 { get; set; }
 
     public uint? StatValue5 { get; set; }
 
+    public uint? StatMax5 { get; set; }
+
     public StatType? StatType6 { get; set; }
 
     public uint? StatValue6 { get; set; }
+
+    public uint? StatMax6 { get; set; }
 
     public StatType? StatType7 { get; set; }
 
     public uint? StatValue7 { get; set; }
 
+    public uint? StatMax7 { get; set; }
+
     public StatType? StatType8 { get; set; }
 
     public uint? StatValue8 { get; set; }
+
+    public uint? StatMax8 { get; set; }
 
     public StatType? StatType9 { get; set; }
 
     public uint? StatValue9 { get; set; }
 
+    public uint? StatMax9 { get; set; }
+
     public StatType? StatType10 { get; set; }
 
     public uint? StatValue10 { get; set; }
+
+    public uint? StatMax10 { get; set; }
 
     /// <summary>
     /// The ItemScript a use runs (item use), by class name, or null for an item a use cannot run. An item
@@ -139,48 +223,6 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     /// <summary>The script's own number: for RestoreHealth and RestorePower, the percentage of the maximum restored.</summary>
     public uint? UseValue { get; set; }
-}
-
-/// <summary>A stat an item gives: the stored numbers, the retired ones (8 and 9, the old damage stats) never reused.</summary>
-public enum StatType
-{
-    Stamina = 0,
-    Strength = 1,
-    Agility = 2,
-    Intellect = 3,
-    Armor = 4,
-    BlockPct = 5,
-
-    /// <summary>Evasion rating (#1178), formerly the dodge chance.</summary>
-    Evasion = 6,
-    CritPct = 7,
-    Health = 10,
-    Power = 11,
-    AttackSpeed = 12,
-    MovementSpeed = 13,
-    Ward = 14,
-    FireResistance = 15,
-    ColdResistance = 16,
-    LightningResistance = 17,
-    BlightResistance = 18,
-
-    // The offence model (#1178): percentages of increased damage or healing, then the crit multiplier and the speeds.
-    IncreasedDamage = 19,
-    IncreasedPhysicalDamage = 20,
-    IncreasedFireDamage = 21,
-    IncreasedColdDamage = 22,
-    IncreasedLightningDamage = 23,
-    IncreasedBlightDamage = 24,
-    IncreasedAttackDamage = 25,
-    IncreasedSpellDamage = 26,
-    IncreasedAreaDamage = 27,
-    IncreasedProjectileDamage = 28,
-    IncreasedMeleeDamage = 29,
-    IncreasedDamageOverTime = 30,
-    IncreasedHealing = 31,
-    CritMultiplier = 32,
-    CastSpeed = 33,
-    CooldownRecovery = 34,
 }
 
 [Flags]
@@ -218,17 +260,10 @@ public enum ItemSlotType : ushort
     Finger,
     Gem,
     MainHand,
-    OffHand
-}
+    OffHand,
 
-public enum ItemRarity
-{
-    Junk,
-    Common,
-    Uncommon,
-    Rare,
-    Epic,
-    Legendary
+    /// <summary>A trinket (#1179), worn in EquipmentSlots.Trinket1 or Trinket2.</summary>
+    Trinket = 11,
 }
 
 public enum ItemClass
@@ -259,11 +294,20 @@ public enum ItemSubClass
     Boots = 204,
     Gloves = 205,
 
-    /// <summary>A neck piece (#433: the Alpha's Fang Pendant). Worn in EquipmentSlots.Neck.</summary>
+    /// <summary>A neck piece (#433; #1179: the amulet base and the Alpha's Fang Pendant). Worn in EquipmentSlots.Neck.</summary>
     Amulet = 206,
 
-    /// <summary>A ring (forest content pass: the Heartwood Band and the Thornheart Signet). Worn in EquipmentSlots.Finger1/Finger2.</summary>
+    /// <summary>A ring (#1179: the ring base and the unique rings). Worn in EquipmentSlots.Finger1/Finger2.</summary>
     Ring = 207,
+
+    /// <summary>A shoulder piece (#1179), the sixth armour slot.</summary>
+    Shoulders = 208,
+
+    /// <summary>An off-hand focus or orb for casters (#1179): Armor class, worn in the off hand.</summary>
+    CasterOffHand = 209,
+
+    /// <summary>A trinket (#1179), only ever a unique.</summary>
+    Trinket = 210,
     // Quest Subclasses
     QuestItem = 300,
     // Crafting Subclasses

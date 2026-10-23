@@ -31,5 +31,11 @@ public class ItemInstance : IDbEntity<ItemInstanceId>
 
     public ItemInstanceFlags Flags { get; set; }
 
+    /// <summary>
+    /// What this copy rolled (#1179): its rarity, item level and modifiers, stored as JSON in one column. Every
+    /// equipment instance has rolls; null for a consumable or a quest item.
+    /// </summary>
+    public ItemRolls? Rolls { get; set; }
+
     public DateTime UpdatedAt { get; set; }
 }

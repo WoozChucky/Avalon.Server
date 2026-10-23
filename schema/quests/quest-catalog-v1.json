@@ -104,25 +104,25 @@
         "gold": 400,
         "items": [
           {
-            "itemTemplateId": 58,
+            "itemTemplateId": 69,
             "count": 1
           }
         ],
         "choices": [
           {
-            "itemTemplateId": 5,
+            "itemTemplateId": 32,
             "count": 1
           },
           {
-            "itemTemplateId": 6,
+            "itemTemplateId": 33,
             "count": 1
           },
           {
-            "itemTemplateId": 7,
+            "itemTemplateId": 34,
             "count": 1
           },
           {
-            "itemTemplateId": 8,
+            "itemTemplateId": 35,
             "count": 1
           }
         ]
@@ -238,7 +238,7 @@
         "gold": 400,
         "items": [
           {
-            "itemTemplateId": 64,
+            "itemTemplateId": 68,
             "count": 1
           }
         ],
@@ -284,7 +284,7 @@
         "gold": 1000,
         "items": [
           {
-            "itemTemplateId": 65,
+            "itemTemplateId": 68,
             "count": 1
           }
         ],
@@ -395,19 +395,15 @@
         "items": [],
         "choices": [
           {
-            "itemTemplateId": 13,
+            "itemTemplateId": 37,
             "count": 1
           },
           {
-            "itemTemplateId": 18,
+            "itemTemplateId": 42,
             "count": 1
           },
           {
-            "itemTemplateId": 23,
-            "count": 1
-          },
-          {
-            "itemTemplateId": 28,
+            "itemTemplateId": 47,
             "count": 1
           }
         ]

@@ -43,4 +43,28 @@ public enum StatType
     CritMultiplier = 32,
     CastSpeed = 33,
     CooldownRecovery = 34,
+
+    // Item modifiers (#1179). Local to the weapon they sit on: added damage by type, a range.
+    AddedPhysicalDamage = 35,
+    AddedFireDamage = 36,
+    AddedColdDamage = 37,
+    AddedLightningDamage = 38,
+    AddedBlightDamage = 39,
+
+    // Local to the item they sit on: a weapon's physical damage and attack speed, a piece's own defence.
+    LocalIncreasedPhysicalDamage = 40,
+    LocalIncreasedArmor = 41,
+    LocalIncreasedEvasion = 42,
+    LocalIncreasedWard = 43,
+    LocalAttackSpeed = 44,
+
+    // Global added damage, a range: to every attack, by type, then to every spell, by element.
+    AddedPhysicalDamageToAttacks = 45,
+    AddedFireDamageToAttacks = 46,
+    AddedColdDamageToAttacks = 47,
+    AddedLightningDamageToAttacks = 48,
+    AddedBlightDamageToAttacks = 49,
+    AddedFireDamageToSpells = 50,
+    AddedColdDamageToSpells = 51,
+    AddedLightningDamageToSpells = 52,
 }

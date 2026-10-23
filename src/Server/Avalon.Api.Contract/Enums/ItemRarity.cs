@@ -5,10 +5,8 @@ namespace Avalon.Api.Contract;
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum ItemRarity
 {
-    Junk,
-    Common,
-    Uncommon,
-    Rare,
-    Epic,
-    Legendary
+    Common = 0,
+    Magic = 1,
+    Rare = 2,
+    Unique = 3,
 }

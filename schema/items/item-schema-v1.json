@@ -52,6 +52,12 @@
       "enum": "ItemRarity"
     },
     {
+      "name": "BaseKind",
+      "type": "enum",
+      "nullable": false,
+      "enum": "ItemBaseKind"
+    },
+    {
       "name": "BuyPrice",
       "type": "uint32",
       "nullable": false
@@ -75,11 +81,6 @@
       "enum": "CharacterClass"
     },
     {
-      "name": "ItemPower",
-      "type": "uint16",
-      "nullable": true
-    },
-    {
       "name": "RequiredLevel",
       "type": "uint16",
       "nullable": true
@@ -98,6 +99,11 @@
       "name": "RequiredIntellect",
       "type": "uint16",
       "nullable": true
+    },
+    {
+      "name": "RequiresAnyAttribute",
+      "type": "bool",
+      "nullable": false
     },
     {
       "name": "DamageMin1",
@@ -148,6 +154,11 @@
       "nullable": true
     },
     {
+      "name": "StatMax1",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
       "name": "StatType2",
       "type": "enum",
       "nullable": true,
@@ -155,6 +166,11 @@
     },
     {
       "name": "StatValue2",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
+      "name": "StatMax2",
       "type": "uint32",
       "nullable": true
     },
@@ -170,6 +186,11 @@
       "nullable": true
     },
     {
+      "name": "StatMax3",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
       "name": "StatType4",
       "type": "enum",
       "nullable": true,
@@ -177,6 +198,11 @@
     },
     {
       "name": "StatValue4",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
+      "name": "StatMax4",
       "type": "uint32",
       "nullable": true
     },
@@ -192,6 +218,11 @@
       "nullable": true
     },
     {
+      "name": "StatMax5",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
       "name": "StatType6",
       "type": "enum",
       "nullable": true,
@@ -199,6 +230,11 @@
     },
     {
       "name": "StatValue6",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
+      "name": "StatMax6",
       "type": "uint32",
       "nullable": true
     },
@@ -214,6 +250,11 @@
       "nullable": true
     },
     {
+      "name": "StatMax7",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
       "name": "StatType8",
       "type": "enum",
       "nullable": true,
@@ -221,6 +262,11 @@
     },
     {
       "name": "StatValue8",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
+      "name": "StatMax8",
       "type": "uint32",
       "nullable": true
     },
@@ -236,6 +282,11 @@
       "nullable": true
     },
     {
+      "name": "StatMax9",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
       "name": "StatType10",
       "type": "enum",
       "nullable": true,
@@ -243,6 +294,11 @@
     },
     {
       "name": "StatValue10",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
+      "name": "StatMax10",
       "type": "uint32",
       "nullable": true
     },
@@ -275,28 +331,20 @@
   "enums": {
     "ItemRarity": [
       {
-        "name": "Junk",
+        "name": "Common",
         "value": 0
       },
       {
-        "name": "Common",
+        "name": "Magic",
         "value": 1
       },
       {
-        "name": "Uncommon",
+        "name": "Rare",
         "value": 2
       },
       {
-        "name": "Rare",
+        "name": "Unique",
         "value": 3
-      },
-      {
-        "name": "Epic",
-        "value": 4
-      },
-      {
-        "name": "Legendary",
-        "value": 5
       }
     ],
     "ItemSlotType": [
@@ -343,6 +391,10 @@
       {
         "name": "OffHand",
         "value": 10
+      },
+      {
+        "name": "Trinket",
+        "value": 11
       }
     ],
     "ItemClass": [
@@ -427,6 +479,18 @@
       {
         "name": "Ring",
         "value": 207
+      },
+      {
+        "name": "Shoulders",
+        "value": 208
+      },
+      {
+        "name": "CasterOffHand",
+        "value": 209
+      },
+      {
+        "name": "Trinket",
+        "value": 210
       },
       {
         "name": "QuestItem",
@@ -595,6 +659,78 @@
       {
         "name": "CooldownRecovery",
         "value": 34
+      },
+      {
+        "name": "AddedPhysicalDamage",
+        "value": 35
+      },
+      {
+        "name": "AddedFireDamage",
+        "value": 36
+      },
+      {
+        "name": "AddedColdDamage",
+        "value": 37
+      },
+      {
+        "name": "AddedLightningDamage",
+        "value": 38
+      },
+      {
+        "name": "AddedBlightDamage",
+        "value": 39
+      },
+      {
+        "name": "LocalIncreasedPhysicalDamage",
+        "value": 40
+      },
+      {
+        "name": "LocalIncreasedArmor",
+        "value": 41
+      },
+      {
+        "name": "LocalIncreasedEvasion",
+        "value": 42
+      },
+      {
+        "name": "LocalIncreasedWard",
+        "value": 43
+      },
+      {
+        "name": "LocalAttackSpeed",
+        "value": 44
+      },
+      {
+        "name": "AddedPhysicalDamageToAttacks",
+        "value": 45
+      },
+      {
+        "name": "AddedFireDamageToAttacks",
+        "value": 46
+      },
+      {
+        "name": "AddedColdDamageToAttacks",
+        "value": 47
+      },
+      {
+        "name": "AddedLightningDamageToAttacks",
+        "value": 48
+      },
+      {
+        "name": "AddedBlightDamageToAttacks",
+        "value": 49
+      },
+      {
+        "name": "AddedFireDamageToSpells",
+        "value": 50
+      },
+      {
+        "name": "AddedColdDamageToSpells",
+        "value": 51
+      },
+      {
+        "name": "AddedLightningDamageToSpells",
+        "value": 52
       }
     ],
     "ItemTemplateFlags": [
@@ -667,6 +803,120 @@
       {
         "name": "Cleric",
         "value": 4
+      }
+    ],
+    "ItemBaseKind": [
+      {
+        "name": "None",
+        "value": 0
+      },
+      {
+        "name": "PlateHead",
+        "value": 1
+      },
+      {
+        "name": "PlateShoulders",
+        "value": 2
+      },
+      {
+        "name": "PlateChest",
+        "value": 3
+      },
+      {
+        "name": "PlateHands",
+        "value": 4
+      },
+      {
+        "name": "PlateLegs",
+        "value": 5
+      },
+      {
+        "name": "PlateFeet",
+        "value": 6
+      },
+      {
+        "name": "LeatherHead",
+        "value": 7
+      },
+      {
+        "name": "LeatherShoulders",
+        "value": 8
+      },
+      {
+        "name": "LeatherChest",
+        "value": 9
+      },
+      {
+        "name": "LeatherHands",
+        "value": 10
+      },
+      {
+        "name": "LeatherLegs",
+        "value": 11
+      },
+      {
+        "name": "LeatherFeet",
+        "value": 12
+      },
+      {
+        "name": "ClothHead",
+        "value": 13
+      },
+      {
+        "name": "ClothShoulders",
+        "value": 14
+      },
+      {
+        "name": "ClothChest",
+        "value": 15
+      },
+      {
+        "name": "ClothHands",
+        "value": 16
+      },
+      {
+        "name": "ClothLegs",
+        "value": 17
+      },
+      {
+        "name": "ClothFeet",
+        "value": 18
+      },
+      {
+        "name": "Sword",
+        "value": 19
+      },
+      {
+        "name": "Mace",
+        "value": 20
+      },
+      {
+        "name": "Staff",
+        "value": 21
+      },
+      {
+        "name": "Bow",
+        "value": 22
+      },
+      {
+        "name": "Shield",
+        "value": 23
+      },
+      {
+        "name": "CasterOffHand",
+        "value": 24
+      },
+      {
+        "name": "Amulet",
+        "value": 25
+      },
+      {
+        "name": "Ring",
+        "value": 26
+      },
+      {
+        "name": "Trinket",
+        "value": 27
       }
     ]
   }

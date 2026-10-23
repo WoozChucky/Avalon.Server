@@ -2,8 +2,8 @@ namespace Avalon.Domain.World;
 
 /// <summary>
 /// The one mapping from an Equipment container slot to the ItemSlotType an item must have to be
-/// worn there (spec #463). The container has 14 slots; 11-13 are reserved and any request naming
-/// one is refused. The numbers are not ItemSlotType's own: Gem is 8 there, but slot 8 is the second
+/// worn there (spec #463). The container has 14 slots; 11 and 12 are the trinkets (#1179) and 13 is
+/// reserved: any request naming it is refused. The numbers are not ItemSlotType's own: Gem is 8 there, but slot 8 is the second
 /// finger, and a gem is a socket item that is never worn. Shared by the world server and the API (#1178), so both
 /// count the same worn items.
 /// </summary>
@@ -20,9 +20,11 @@ public static class EquipmentSlots
     public const byte Finger2 = 8;
     public const byte MainHand = 9;
     public const byte OffHand = 10;
+    public const byte Trinket1 = 11;
+    public const byte Trinket2 = 12;
 
-    /// <summary>The first of the reserved slots, 11, 12 and 13.</summary>
-    public const byte FirstReserved = 11;
+    /// <summary>The first of the reserved slots, 13.</summary>
+    public const byte FirstReserved = 13;
 
     /// <summary>What an item worn in <paramref name="slot" /> must be, or null for a reserved or unknown slot.</summary>
     public static ItemSlotType? TypeOf(byte slot) => slot switch
@@ -37,6 +39,7 @@ public static class EquipmentSlots
         Finger1 or Finger2 => ItemSlotType.Finger,
         MainHand => ItemSlotType.MainHand,
         OffHand => ItemSlotType.OffHand,
+        Trinket1 or Trinket2 => ItemSlotType.Trinket,
         _ => null,
     };
 
@@ -58,10 +61,11 @@ public static class EquipmentSlots
     private static readonly byte[] s_fingers = [Finger1, Finger2];
     private static readonly byte[] s_mainHand = [MainHand];
     private static readonly byte[] s_offHand = [OffHand];
+    private static readonly byte[] s_trinkets = [Trinket1, Trinket2];
 
     /// <summary>
     /// The slots an item whose template Slot is <paramref name="type" /> is worn in, in the order a use fills them
-    /// (item use): both fingers for a ring, none for a gem or an item with no slot. The one mapping a use reads.
+    /// (item use): both fingers for a ring, both trinket slots for a trinket, none for a gem or an item with no slot. The one mapping a use reads.
     /// </summary>
     public static IReadOnlyList<byte> SlotsFor(ItemSlotType? type) => type switch
     {
@@ -75,6 +79,7 @@ public static class EquipmentSlots
         ItemSlotType.Finger => s_fingers,
         ItemSlotType.MainHand => s_mainHand,
         ItemSlotType.OffHand => s_offHand,
+        ItemSlotType.Trinket => s_trinkets,
         _ => s_noSlots,
     };
 }

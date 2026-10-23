@@ -15,4 +15,5 @@ public readonly record struct InventoryItem(
     uint Count,
     uint Durability,
     ItemInstanceFlags Flags,
-    uint Charges = 0);
+    uint Charges = 0,
+    ItemRolls? Rolls = null);

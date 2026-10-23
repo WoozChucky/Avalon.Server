@@ -103,7 +103,7 @@ public class InventoryMoveShould
             Eq(EquipmentSlots.MainHand), Bag(0), null, ItemRequestResult.WrongEquipSlot),
         new("Refuse a slot past the container", [At(Bag(0), Potion, 5)], Bag(0), Bag(30), null, ItemRequestResult.InvalidSlot),
         new("Refuse the same slot twice", [At(Bag(0), Potion, 5)], Bag(0), Bag(0), null, ItemRequestResult.InvalidSlot),
-        new("Refuse a reserved equipment slot as the target", [At(Bag(0), Band)], Bag(0), Eq(11), null,
+        new("Refuse a reserved equipment slot as the target", [At(Bag(0), Band)], Bag(0), Eq(13), null,
             ItemRequestResult.InvalidSlot),
         new("Refuse a reserved equipment slot as the source", [], Eq(13), Bag(0), null, ItemRequestResult.InvalidSlot),
         new("Refuse a count of zero", [At(Bag(0), Potion, 5)], Bag(0), Bag(1), 0, ItemRequestResult.InvalidCount),
@@ -268,7 +268,7 @@ public class InventoryMoveShould
         ["Refuse a count above the stack", At(Bag(0), Potion, 5), Bag(0), 6u, false, ItemRequestResult.InvalidCount, 0u],
         ["Refuse an item that cannot be destroyed", At(Bag(0), Heirloom), Bag(0), null, false, ItemRequestResult.CannotDestroy, 0u],
         ["Refuse the bank while it is closed", At(Vault(4), Potion, 5), Vault(4), null, false, ItemRequestResult.BankClosed, 0u],
-        ["Refuse a reserved equipment slot", At(Bag(0), Potion, 5), Eq(12), null, false, ItemRequestResult.InvalidSlot, 0u],
+        ["Refuse a reserved equipment slot", At(Bag(0), Potion, 5), Eq(13), null, false, ItemRequestResult.InvalidSlot, 0u],
         ["Refuse a slot past the container", At(Bag(0), Potion, 5), Bag(30), null, false, ItemRequestResult.InvalidSlot, 0u],
     ];
 

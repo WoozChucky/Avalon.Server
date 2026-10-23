@@ -92,7 +92,7 @@ public class QuestCatalogExportShould
         Assert.Empty(quests.Single(q => q.GetProperty("id").GetInt32() == 1).GetProperty("rewards").GetProperty("items").EnumerateArray());
 
         // #711: the choose-one set beside the fixed items, empty on a quest without one.
-        Assert.Equal([(5L, 1), (6L, 1), (7L, 1), (8L, 1)], quests.Single(q => q.GetProperty("id").GetInt32() == 3)
+        Assert.Equal([(32L, 1), (33L, 1), (34L, 1), (35L, 1)], quests.Single(q => q.GetProperty("id").GetInt32() == 3)
             .GetProperty("rewards").GetProperty("choices").EnumerateArray()
             .Select(i => (i.GetProperty("itemTemplateId").GetInt64(), i.GetProperty("count").GetInt32())));
         Assert.Empty(quests.Single(q => q.GetProperty("id").GetInt32() == 1).GetProperty("rewards").GetProperty("choices").EnumerateArray());

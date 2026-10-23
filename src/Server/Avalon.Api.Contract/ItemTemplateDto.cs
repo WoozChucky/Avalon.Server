@@ -18,7 +18,6 @@ public sealed class ItemTemplateDto
     public ItemSlotType? Slot { get; set; }
     /// <summary>The classes that may equip the item; empty when every class may (#1171).</summary>
     public List<CharacterClass> AllowedClasses { get; set; } = [];
-    public ushort? ItemPower { get; set; }
     public ushort? RequiredLevel { get; set; }
     /// <summary>The Strength a character needs to equip the item, or null for none (#1178).</summary>
     public ushort? RequiredStrength { get; set; }

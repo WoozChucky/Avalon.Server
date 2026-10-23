@@ -24,6 +24,5 @@ public sealed class CharacterInventoryItemTemplateDto
     public uint DisplayId { get; set; }
     /// <summary>The slot the item is worn in; null for an item that is not worn, such as a potion.</summary>
     public ItemSlotType? SlotType { get; set; }
-    public ushort ItemPower { get; set; }
     public ushort RequiredLevel { get; set; }
 }

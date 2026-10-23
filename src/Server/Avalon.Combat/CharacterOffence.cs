@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 

@@ -19,7 +19,6 @@ public static class PublicMapping
         RequiredAgility = t.RequiredAgility,
         RequiredIntellect = t.RequiredIntellect,
         AttackTimeMs = t.AttackTimeMs,
-        ItemPower = t.ItemPower,
         AllowedClasses = t.AllowedClasses?.ToList() ?? [],
         MaxStackSize = t.MaxStackSize,
         SellPrice = t.SellPrice,
@@ -83,14 +82,14 @@ public static class PublicMapping
 
     private static IEnumerable<PublicItemStatDto> StatsOf(ItemTemplate t)
     {
-        (Avalon.Domain.World.StatType? Type, uint? Value)[] pairs =
+        (Avalon.Common.StatType? Type, uint? Value)[] pairs =
         [
             (t.StatType1, t.StatValue1), (t.StatType2, t.StatValue2), (t.StatType3, t.StatValue3),
             (t.StatType4, t.StatValue4), (t.StatType5, t.StatValue5), (t.StatType6, t.StatValue6),
             (t.StatType7, t.StatValue7), (t.StatType8, t.StatValue8), (t.StatType9, t.StatValue9),
             (t.StatType10, t.StatValue10),
         ];
-        foreach ((Avalon.Domain.World.StatType? type, uint? value) in pairs)
+        foreach ((Avalon.Common.StatType? type, uint? value) in pairs)
         {
             if (type is { } statType && value is > 0)
                 yield return new PublicItemStatDto { Type = (StatType)statType, Value = value.Value };
