@@ -18,6 +18,7 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
 
     public async Task<bool> DiscoverAsync(StoredCrashObject source, DateTimeOffset now, CancellationToken ct)
     {
+        long startedAt = _timeProvider.GetTimestamp();
         ArgumentException.ThrowIfNullOrWhiteSpace(source.Key);
         ArgumentException.ThrowIfNullOrWhiteSpace(source.ETag);
         if (Encoding.UTF8.GetByteCount(source.Key) > 1024 || source.ETag.Length > 1024 || source.Size < 0)
@@ -26,11 +27,14 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
         now = now.ToUniversalTime();
         DateTimeOffset receivedAt = source.LastModified.ToUniversalTime();
         DateTimeOffset expiresAt = receivedAt.AddDays(90);
-        if (expiresAt <= now)
+        if (expiresAt <= CurrentTime(now, startedAt))
             return false;
 
         await using CrashesDbContext db = await factory.CreateDbContextAsync(ct);
         await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct);
+        if (expiresAt <= CurrentTime(now, startedAt))
+            return false;
+
         var id = Guid.NewGuid();
         string status = source.Size > CrashLimits.ArchiveBytes ? "rejected" : "pending";
         string? reason = source.Size > CrashLimits.ArchiveBytes ? "archive_too_large" : null;
@@ -42,32 +46,48 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
         if (inserted == 0)
         {
             CrashReport existing = await db.Reports.FromSql($"SELECT * FROM crash_reports WHERE object_key = {source.Key} FOR UPDATE").SingleAsync(ct);
+            if (existing.ExpiresAt <= CurrentTime(now, startedAt))
+                return false;
+
             if (IsActive(existing.Status) && !MatchesSource(existing, source))
             {
                 FinishWithoutInput(existing, CrashReportStatus.Rejected, CrashFailureCode.ObjectChanged, null);
                 await db.SaveChangesAsync(ct);
             }
         }
+        if (expiresAt <= CurrentTime(now, startedAt))
+            return false;
+
         await transaction.CommitAsync(ct);
-        return inserted == 1;
+        return inserted == 1 && expiresAt > CurrentTime(now, startedAt);
     }
 
     public async Task<CrashLease?> ClaimAsync(DateTimeOffset now, CancellationToken ct)
     {
+        long startedAt = _timeProvider.GetTimestamp();
         now = now.ToUniversalTime();
         await using CrashesDbContext db = await factory.CreateDbContextAsync(ct);
         while (true)
         {
             await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(ct);
+            DateTimeOffset current = CurrentTime(now, startedAt);
             CrashReport? report = await db.Reports.FromSql($"""
                 SELECT * FROM crash_reports
-                WHERE expires_at > {now} AND
-                    (status = 'pending' OR (status = 'retry_wait' AND next_attempt_at <= {now}) OR (status = 'processing' AND lease_until <= {now}))
+                WHERE expires_at > {current} AND
+                    (status = 'pending' OR (status = 'retry_wait' AND next_attempt_at <= {current}) OR (status = 'processing' AND lease_until <= {current}))
                 ORDER BY COALESCE(next_attempt_at, received_at), id
                 LIMIT 1 FOR UPDATE SKIP LOCKED
                 """).SingleOrDefaultAsync(ct);
             if (report is null)
                 return null;
+
+            current = CurrentTime(now, startedAt);
+            if (report.ExpiresAt <= current)
+            {
+                await transaction.RollbackAsync(ct);
+                db.ChangeTracker.Clear();
+                continue;
+            }
 
             if (report.Status == CrashReportStatus.Processing)
             {
@@ -75,25 +95,40 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
                 report.ConsecutiveToolFailures++;
                 report.ReasonCode = CrashFailureCode.ResourceLimit;
             }
-            if (report.ConsecutiveToolFailures >= 3 || report.RetryCampaignStartedAt + s_retryHorizon <= now)
+            if (report.ConsecutiveToolFailures >= 3 || report.RetryCampaignStartedAt + s_retryHorizon <= current)
             {
                 FinishWithoutInput(report, CrashReportStatus.Failed, report.ReasonCode ?? CrashFailureCode.ResourceLimit, null);
                 await db.SaveChangesAsync(ct);
-                await transaction.CommitAsync(ct);
+                if (report.ExpiresAt <= CurrentTime(now, startedAt))
+                    await transaction.RollbackAsync(ct);
+                else
+                    await transaction.CommitAsync(ct);
                 db.ChangeTracker.Clear();
                 continue;
             }
 
             report.Status = CrashReportStatus.Processing;
             report.AttemptCount++;
-            report.FirstAttemptAt ??= now;
-            report.RetryCampaignStartedAt ??= now;
+            report.FirstAttemptAt ??= current;
+            report.RetryCampaignStartedAt ??= current;
             report.NextAttemptAt = null;
             report.LeaseOwner = Guid.NewGuid();
-            report.LeaseUntil = Min(now + s_leaseDuration, report.ExpiresAt);
+            report.LeaseUntil = Min(current + s_leaseDuration, report.ExpiresAt);
             report.CompletionToken = null;
             await db.SaveChangesAsync(ct);
+            DateTimeOffset deadline = Min(report.LeaseUntil.Value, report.RetryCampaignStartedAt.Value + s_retryHorizon);
+            if (deadline <= CurrentTime(now, startedAt))
+            {
+                await transaction.RollbackAsync(ct);
+                db.ChangeTracker.Clear();
+                continue;
+            }
             await transaction.CommitAsync(ct);
+            if (deadline <= CurrentTime(now, startedAt))
+            {
+                db.ChangeTracker.Clear();
+                continue;
+            }
             return new CrashLease(report.Id, report.LeaseOwner.Value,
                 new StoredCrashObject(report.ObjectKey, report.SourceETag, report.SourceSize, report.ReceivedAt),
                 report.AttemptCount, report.ConsecutiveToolFailures, report.FirstAttemptAt.Value,
@@ -286,7 +321,8 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
         }
         else
         {
-            driver = analysis.Modules.FirstOrDefault(x => CrashModuleRules.IsGpuDriver(x.Name));
+            CrashModule[] candidates = analysis.Modules.Where(x => CrashModuleRules.IsGpuDriver(x.Name)).Take(2).ToArray();
+            driver = candidates.Length == 1 ? candidates[0] : null;
             report.GpuDriverModule = driver?.Name;
             report.GpuDriverVersion = driver?.Version;
             report.GpuDriverSource = driver is null ? "unknown" : "loaded_module";
