@@ -1743,6 +1743,34 @@ row was re-run alone after that change, out of process with the default job, the
 folds anything: the two creature rows
 differ by what they read back from the 192 B attacker (a more factor against the crit), not by a fold.
 
+### Item stats — `Benchmarks/ItemStatsBenchmarks.cs` (#1179)
+
+The stats calculation a stats refresh runs, once per gear, level or aura change, never per tick or per hit, measured
+before and after the instance modifiers of #1179 (part A). `Calculate` is `CharacterStatsCalculator.Calculate` for a
+level-10 Warrior (the seeded row: BaseHp 400, Stamina 40, Strength 41, Agility 33, Intellect 20) on the seeded formula
+and the Warrior's factors, wearing the forest kit as it was seeded before part A: the five Barkplate pieces (items
+12-16), the Bramblesteel Sword (7), the Alpha's Fang Pendant (58), the Heartwood Band (64) and the Thornheart Signet
+(65). The templates are literals of those rows, since part A deletes or replaces them; the worn list is a `List` reused
+across calls, as the world's refresh passes it; no auras. Setup fails the run unless the maximum health is 680
+(400 + (40 + 16 from gear) x 5). The `OffenceBenchmarks` rows run alongside, to see whether part A's changes to the
+offence block move a hit's base.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemStatsBenchmarks*" "*OffenceBenchmarks*" --warmupCount 10 --iterationCount 20
+```
+
+Out of process (BenchmarkDotNet's default toolchain), ten warmups and twenty measured iterations: BenchmarkDotNet
+0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, Release. Before is `bb15418f5` with this benchmark
+added and nothing else changed, 2026-10-23:
+
+| Operation | Before (#1179 part A) | Allocated |
+|---|---:|---:|
+| `ItemStatsBenchmarks.Calculate` | 234.4 ns (± 1.13 ns, error ± 0.98 ns) | 0 B |
+| `OffenceBenchmarks.AttackBase` | 14.50 ns (± 0.02 ns, error ± 0.02 ns) | 0 B |
+| `OffenceBenchmarks.ConvertedAttackBase` | 14.54 ns (± 0.02 ns, error ± 0.01 ns) | 0 B |
+| `OffenceBenchmarks.SpellBase` | 16.55 ns (± 0.05 ns, error ± 0.05 ns) | 0 B |
+| `OffenceBenchmarks.DamageOverTimeSnapshot` | 9.59 ns (± 0.07 ns, error ± 0.06 ns) | 0 B |
+
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
 Measures the production `WorldConnection` arrival, session/map filtering and handler dispatch paths. Each operation
