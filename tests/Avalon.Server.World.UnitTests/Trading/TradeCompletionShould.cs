@@ -1,11 +1,20 @@
 using Avalon.Common;
+using Avalon.Database;
+using Avalon.Database.Character;
+using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Trade;
+using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.Server.World.UnitTests.Persistence;
+using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Characters;
 using Avalon.World.Trading;
+using Microsoft.EntityFrameworkCore;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
+using static Avalon.Server.World.UnitTests.Inventory.TestModifiers;
 
 namespace Avalon.Server.World.UnitTests.Trading;
 
@@ -21,22 +30,29 @@ public class TradeCompletionShould
     [InlineData("unknown, record found", true)]
     [InlineData("unknown, record absent", false)]
     [InlineData("unknown, lookup fails once, then found", true)]
-    public void Move_items_and_gold_only_once_the_paired_save_is_known_to_have_committed(string row, bool swapped)
+    public async Task Move_items_and_gold_only_once_the_paired_save_is_known_to_have_committed(string row, bool swapped)
     {
         (TradeTestWorld w, Trader a, Trader b, InventoryItem sword, InventoryItem potion) = Confirmed();
+        string modifiers = Describe(a.Character.ItemModifiers.Of(sword.InstanceId));
+        string rolls = DescribeRolls(a.Character.ItemModifiers.Of(sword.InstanceId));
 
         Assert.True(a.States().Last().Completing);
         (TradeSidePlan first, TradeSidePlan second, TradeRecord record) = w.Saver.Trades.Single();
-        Assert.Equal([sword.InstanceId],
-            record.Items.Where(i => i.GiverCharacterId == a.Character.Data!.Id).Select(i => i.ItemInstanceId));
+        TradeRecordItem given = Assert.Single(record.Items, i => i.GiverCharacterId == a.Character.Data!.Id);
+        Assert.Equal((sword.InstanceId, ItemRarity.Magic, (ushort)7), (given.ItemInstanceId, given.Rarity, given.ItemLevel));
+        Assert.Equal(rolls, DescribeRolls(given.Modifiers));
         Assert.Equal((30UL, 0UL), (record.FirstGold, record.SecondGold));
         Assert.Equal(sword.InstanceId, At(a, 0).InstanceId);          // memory unchanged while the save is in flight
         Assert.Equal(TradeResult.Completing, w.Trades.Cancel(a.Id));
         Assert.Equal(TradeResult.Completing, w.Trades.SetGold(b.Id, 1));
-        Assert.True(b.Character.Locks.IsReserved(second.Incoming[0].Slot));
+        Assert.True(b.Character.Locks.IsReserved(second.Incoming[0].Item.Slot));
         w.Saver.AtRelease = () =>
-            b.Character.Container(InventoryType.Bag).TryGet(second.Incoming[0].Slot, out InventoryItem held)
+            b.Character.Container(InventoryType.Bag).TryGet(second.Incoming[0].Item.Slot, out InventoryItem held)
             && held.InstanceId == sword.InstanceId;
+
+        // The paired save as SaveTrade builds it (memory has not moved since), to write to a database below.
+        using SqliteDatabase<CharacterDbContext> db = await StoredAsync(a, b);
+        CharacterSaveBatch[] paired = [PairedBatch(a, first), PairedBatch(b, second)];
 
         w.Saver.Finish(row switch
         {
@@ -69,13 +85,35 @@ public class TradeCompletionShould
 
         if (swapped)
         {
-            Assert.Equal(sword.InstanceId, At(b, second.Incoming[0].Slot).InstanceId);
-            Assert.Equal(potion.InstanceId, At(a, first.Incoming[0].Slot).InstanceId);
+            Assert.Equal(sword.InstanceId, At(b, second.Incoming[0].Item.Slot).InstanceId);
+            Assert.Equal(potion.InstanceId, At(a, first.Incoming[0].Item.Slot).InstanceId);
             Assert.Equal((70UL, 30UL), (a.Character.Data!.Gold, b.Character.Data!.Gold));
+
+            // #1179: the sword was never saved, so the receiver's half of the paired save is what writes it and its
+            // modifiers, under their own ids, and the record keeps its own copy. The giver's next save names neither.
+            Assert.Equal(modifiers, Describe(b.Character.ItemModifiers.Of(sword.InstanceId)));
+            Assert.Empty(a.Character.ItemModifiers.Of(sword.InstanceId));
+            await new CharacterSaveRepository(new DbTransactionRunner<CharacterDbContext>(db)).WriteTradeAsync(paired, record);
+            await using (CharacterDbContext read = db.CreateDbContext())
+            {
+                ItemInstance stored = await read.ItemInstances.AsNoTracking()
+                    .Include(i => i.Modifiers).ThenInclude(m => m.Values).SingleAsync(i => i.Id == sword.InstanceId);
+                Assert.Equal(b.Character.Data.Id, stored.CharacterId);
+                Assert.Equal(modifiers, Describe([.. stored.Modifiers.OrderBy(m => m.Ordinal)]));
+                TradeRecordItem kept = await read.TradeRecordItems.AsNoTracking()
+                    .Include(i => i.Modifiers).ThenInclude(m => m.Values).SingleAsync(i => i.ItemInstanceId == sword.InstanceId);
+                Assert.Equal((ItemRarity.Magic, (ushort)7), (kept.Rarity, kept.ItemLevel));
+                Assert.Equal(rolls, DescribeRolls(kept.Modifiers));
+            }
+
+            CharacterSaveBatch next = CharacterSaveSnapshot.Take(a.Character).Batch;
+            Assert.DoesNotContain(sword.InstanceId, next.UpsertItems.Select(i => i.Id).Concat(next.DeleteItems));
+            Assert.Null(next.Modifiers);
         }
         else
         {
             Assert.Equal(sword.InstanceId, At(a, 0).InstanceId);
+            Assert.Equal(modifiers, Describe(a.Character.ItemModifiers.Of(sword.InstanceId)));
             Assert.Equal(potion.InstanceId, At(b, 0).InstanceId);
             Assert.Equal((100UL, 0UL), (a.Character.Data!.Gold, b.Character.Data!.Gold));
         }
@@ -142,23 +180,28 @@ public class TradeCompletionShould
         w.Saver.Finish(SaveOutcome.Committed);
         await settle.WaitAsync(TimeSpan.FromSeconds(30));
 
-        Assert.Equal(sword.InstanceId, At(b, second.Incoming[0].Slot).InstanceId);   // no Tick ran
+        Assert.Equal(sword.InstanceId, At(b, second.Incoming[0].Item.Slot).InstanceId);   // no Tick ran
         Assert.Equal([a.Character.Data!.Id, b.Character.Data!.Id], w.Saver.Released);
     }
 
     /// <summary>
     /// A holds the Sword at Bag 0 and 100 gold and offers both and 30 gold; B offers its Potion ×5 at Bag 0; both
-    /// confirm the current revision, so the paired save is in flight.
+    /// confirm the current revision, so the paired save is in flight. The Sword is Magic, item level 7, with two
+    /// modifiers, and was added this session: New, its modifiers marked, never saved (#1179).
     /// </summary>
     internal static (TradeTestWorld W, Trader A, Trader B, InventoryItem Sword, InventoryItem Potion) Confirmed()
     {
         var w = new TradeTestWorld();
         Trader a = w.Online(1, gold: 100);
         Trader b = w.Online(2);
-        InventoryItem sword = Item(0, Sword);
+        InventoryItem sword = Item(0, Sword) with { Rarity = ItemRarity.Magic, ItemLevel = 7 };
         InventoryItem potion = Item(0, Potion, count: 5);
-        a.Character.Container(InventoryType.Bag).Load([sword]);
         b.Character.Container(InventoryType.Bag).Load([potion]);
+        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(sword,
+        [
+            Modifier(sword.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5)),
+            Modifier(sword.InstanceId, 10103, 1, (0, StatType.Strength, 8, null), (1, StatType.Armor, 3, null)),
+        ])));
         w.Open(a, b);
         Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, 0, 0));
         Assert.Equal(TradeResult.Ok, w.Trades.SetGold(a.Id, 30));
@@ -172,4 +215,24 @@ public class TradeCompletionShould
 
     private static InventoryItem At(Trader trader, byte bagSlot) =>
         TestCharacters.At(trader.Character, InventoryType.Bag, bagSlot);
+
+    /// <summary>The traders stored, as the paired save's fence needs them, and bound to their account's write authority.</summary>
+    private static async Task<SqliteDatabase<CharacterDbContext>> StoredAsync(params Trader[] traders)
+    {
+        var db = SqliteDatabase.Characters();
+        await using (CharacterDbContext context = db.CreateDbContext())
+            await context.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON;");
+
+        foreach (Trader trader in traders)
+        {
+            await new CharacterRepository(db).CreateAsync(trader.Character.Data!.Copy());
+            await AdmittedCharacter.BindAsync(db, trader.Character);
+        }
+
+        return db;
+    }
+
+    /// <summary>One side's half of the paired save, as <see cref="CharacterSaver.SaveTrade" /> builds it.</summary>
+    private static CharacterSaveBatch PairedBatch(Trader trader, TradeSidePlan side) =>
+        TradeSaveBatch.Apply(CharacterSaveSnapshot.Take(trader.Character).Batch, side, DateTime.UtcNow);
 }

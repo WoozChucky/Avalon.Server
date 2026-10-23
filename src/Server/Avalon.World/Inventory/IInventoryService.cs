@@ -1,13 +1,13 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Character;
-using Avalon.World.Public.Characters;
 
 namespace Avalon.World.Inventory;
 
 /// <summary>
 /// Changes one character's items. Tick thread only. All or nothing: if the whole
 /// count cannot be applied, nothing changes. Lives in Avalon.World,
-/// not the modding API; ICharacterInventory there stays read-only.
+/// not the modding API; ICharacterInventory there stays read-only. The one writer of the character's
+/// <see cref="ItemModifierStore" /> (#1179): an item's modifiers enter and leave it with the item.
 /// </summary>
 public interface IInventoryService
 {
@@ -17,8 +17,9 @@ public interface IInventoryService
     /// <summary>
     /// Fills existing Bag stacks of the template up to its MaxStackSize in slot order, then the lowest
     /// free Bag slots, one new instance per stack. Never adds to Equipment or the Bank, nor to a stack
-    /// offered in a trade (#1175), nor to a Bag slot a completing trade reserved; a Unique template counts
-    /// the copies that trade is about to add. A count of 0 is Ok and changes nothing.
+    /// offered in a trade (#1175), nor to one carrying modifiers (#1179), nor to a Bag slot a completing trade
+    /// reserved; a Unique template counts the copies that trade is about to add. A count of 0 is Ok and
+    /// changes nothing.
     /// </summary>
     InventoryAddResult TryAdd(ItemTemplateId templateId, uint count);
 
@@ -44,32 +45,35 @@ public interface IInventoryService
 
     /// <summary>
     /// Takes <paramref name="count" /> out of one slot and returns what left. A whole stack returns
-    /// the instance itself, with the item and its slot marked Removed. Part of a stack shrinks it
-    /// (the item is marked Changed) and returns a copy of <paramref name="count" /> with a new id
-    /// from IItemIdAllocator. The copy is in no container and carries no mark. A vendor sale
+    /// the instance itself, with the item and its slot marked Removed, and its modifiers, which leave
+    /// the store with it (#1179). Part of a stack shrinks it (the item is marked Changed) and returns a
+    /// copy of <paramref name="count" /> with a new id from IItemIdAllocator and no modifiers: an item
+    /// carrying them never stacks. The copy is in no container and carries no mark. A vendor sale
     /// (spec #432) keeps what this returns for buyback. Throws when the slot is empty or holds fewer
     /// than <paramref name="count" />, or when the count is 0: callers decide first.
     /// </summary>
-    InventoryItem TakeOut(SlotRef slot, uint count);
+    CarriedItem TakeOut(SlotRef slot, uint count);
 
     /// <summary>
-    /// Puts this exact instance (same id, count, durability, flags, charges) in the lowest free Bag
-    /// slot. It is never merged into a stack. The item is marked New, whatever mark it had before,
-    /// so the next save upserts it. InventoryFull when no Bag slot is free (a slot a completing trade
-    /// reserved, #1175, is not). UniqueAlreadyOwned when its template is Unique and the character would
+    /// Puts this exact instance (same id, count, durability, flags, charges, rarity, item level and
+    /// modifiers) in the lowest free Bag slot. It is never merged into a stack. The item is marked New,
+    /// whatever mark it had before, so the next save upserts it, and, when it has modifiers, they are
+    /// marked too, so that save writes them (#1179): its rows may have been deleted since it left.
+    /// InventoryFull when no Bag slot is free (a slot a completing trade reserved, #1175, is not). UniqueAlreadyOwned when its template is Unique and the character would
     /// then hold more than one copy anywhere, counting the copies a completing trade is about to add;
     /// an instance whose template is gone is still the player's own, and is added. Throws when the
     /// instance is already held: a vendor buyback (spec #432) only ever adds one that TakeOut
     /// handed over.
     /// </summary>
-    InventoryAddResult TryAddInstance(InventoryItem item);
+    InventoryAddResult TryAddInstance(CarriedItem item);
 
     /// <summary>
     /// A completing trade's own add (#1175): this exact instance in exactly <paramref name="bagSlot" />,
-    /// never merged, marked New. InventoryFull when the slot is occupied; a slot the trade reserved is
+    /// never merged, marked New, with its modifiers, which are not marked: the paired save wrote them
+    /// (#1179). InventoryFull when the slot is occupied; a slot the trade reserved is
     /// not refused, since it is what the reservation was for. UniqueAlreadyOwned, and the throw for an
     /// instance already held, as <see cref="TryAddInstance" /> answers them, counting only what the
     /// character holds. Throws when the slot is past the Bag: the trade plans the slot first.
     /// </summary>
-    InventoryAddResult TryAddInstanceAt(InventoryItem item, byte bagSlot);
+    InventoryAddResult TryAddInstanceAt(CarriedItem item, byte bagSlot);
 }

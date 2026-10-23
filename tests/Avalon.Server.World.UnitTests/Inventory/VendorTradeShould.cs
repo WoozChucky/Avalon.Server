@@ -86,7 +86,7 @@ public class VendorTradeShould
         Assert.Equal(SaveState.Removed, character.SaveState.ItemState(blade.InstanceId));
         Assert.Equal(SaveState.Removed, character.SaveState.SlotState(InventoryType.Bag, 4));
         BuybackEntry entry = Assert.Single(character.Buyback.Entries);
-        Assert.Equal(blade, entry.Item);
+        Assert.Equal(blade, entry.Item.Item);
         Assert.Equal(25UL, entry.Price);
         Assert.True(character.VendorListOwed);
         Assert.True(character.ClientChanges.GoldChanged);
@@ -104,7 +104,7 @@ public class VendorTradeShould
         Assert.Equal(8UL, character.Data!.Gold);
         Assert.Equal(tonics with { Count = 3 }, At(character, 2));
         Assert.Equal(SaveState.Changed, character.SaveState.ItemState(tonics.InstanceId));
-        InventoryItem copy = Assert.Single(character.Buyback.Entries).Item;
+        InventoryItem copy = Assert.Single(character.Buyback.Entries).Item.Item;
         Assert.NotEqual(tonics.InstanceId, copy.InstanceId);
         Assert.Equal((2u, (byte)2, Tonic.Id), (copy.Count, copy.Slot, copy.TemplateId));
         Assert.Equal(8UL, character.Buyback.Entries[0].Price);

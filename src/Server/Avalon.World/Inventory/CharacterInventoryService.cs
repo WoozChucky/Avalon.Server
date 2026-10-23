@@ -10,10 +10,12 @@ namespace Avalon.World.Inventory;
 /// <summary>
 /// <see cref="IInventoryService" /> over one character's containers. The one writer of a
 /// character's items: every change it makes marks <see cref="CharacterEntity.SaveState" /> and
-/// <see cref="CharacterEntity.ClientChanges" />. A stack offered in a trade (<see cref="CharacterEntity.Locks" />, #1175)
-/// is left alone: adds never fill it, removals by template never see it, and removing it by id is Locked. While a trade
-/// completes, every add but its own (<see cref="TryAddInstanceAt" />) treats the Bag slots it reserved as taken and
-/// counts the copies it is about to add toward Unique.
+/// <see cref="CharacterEntity.ClientChanges" />, and it alone writes <see cref="CharacterEntity.ItemModifiers" /> after
+/// select (#1179), beside the container, so an item's entry lives exactly as long as the item is held. A stack offered
+/// in a trade (<see cref="CharacterEntity.Locks" />, #1175) is left alone: adds never fill it, removals by template
+/// never see it, and removing it by id is Locked. While a trade completes, every add but its own
+/// (<see cref="TryAddInstanceAt" />) treats the Bag slots it reserved as taken and counts the copies it is about to add
+/// toward Unique.
 /// </summary>
 public sealed class CharacterInventoryService(
     CharacterEntity owner,
@@ -153,7 +155,7 @@ public sealed class CharacterInventoryService(
         return ItemRequestResult.Ok;
     }
 
-    public InventoryItem TakeOut(SlotRef slot, uint count)
+    public CarriedItem TakeOut(SlotRef slot, uint count)
     {
         if (count == 0
             || !owner.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item)
@@ -164,17 +166,15 @@ public sealed class CharacterInventoryService(
         }
 
         if (count == item.Count)
-        {
-            Delete(slot.Container, item);
-            return item;
-        }
+            return new CarriedItem(item, Delete(slot.Container, item));
 
         Replace(slot.Container, item with { Count = item.Count - count });
-        return item with { InstanceId = itemIds.Next(), Count = count };
+        return new CarriedItem(item with { InstanceId = itemIds.Next(), Count = count }, []);
     }
 
-    public InventoryAddResult TryAddInstance(InventoryItem item)
+    public InventoryAddResult TryAddInstance(CarriedItem carried)
     {
+        InventoryItem item = carried.Item;
         ThrowIfHeld(item);
 
         CharacterInventoryContainer bag = Bag;
@@ -197,12 +197,19 @@ public sealed class CharacterInventoryService(
         if (IsUnique(item.TemplateId) && OwnedOrIncoming(item.TemplateId) + item.Count > 1)
             return InventoryAddResult.UniqueAlreadyOwned;
 
-        Create(InventoryType.Bag, item with { Slot = slot });
+        Create(InventoryType.Bag, item with { Slot = slot }, carried.Modifiers);
+
+        // Its rows may be gone (a sale saved before the buyback deleted them, modifiers and all), so the save that
+        // upserts it writes its modifiers again.
+        if (carried.Modifiers.Count > 0)
+            owner.SaveState.ItemModifiersChanged(item.InstanceId);
+
         return InventoryAddResult.Ok;
     }
 
-    public InventoryAddResult TryAddInstanceAt(InventoryItem item, byte bagSlot)
+    public InventoryAddResult TryAddInstanceAt(CarriedItem carried, byte bagSlot)
     {
+        InventoryItem item = carried.Item;
         ThrowIfHeld(item);
 
         CharacterInventoryContainer bag = Bag;
@@ -216,7 +223,8 @@ public sealed class CharacterInventoryService(
         if (IsUnique(item.TemplateId) && OwnedCount(item.TemplateId) + item.Count > 1)
             return InventoryAddResult.UniqueAlreadyOwned;
 
-        Create(InventoryType.Bag, item with { Slot = bagSlot });
+        // Its modifiers unmarked: the paired save wrote them as this character's.
+        Create(InventoryType.Bag, item with { Slot = bagSlot }, carried.Modifiers);
         return InventoryAddResult.Ok;
     }
 
@@ -341,11 +349,12 @@ public sealed class CharacterInventoryService(
         OwnedCount(templateId) + (owner.Locks.Any ? owner.Locks.IncomingCount(templateId) : 0);
 
     /// <summary>
-    /// A stack of the item below the maximum, and not offered in a trade. One already above it (a lowered template) is
-    /// left alone.
+    /// A stack of the item below the maximum, not offered in a trade, and carrying no modifiers (#1179): an item with
+    /// them is one of a kind. One already above the maximum (a lowered template) is left alone.
     /// </summary>
     private bool IsFillable(InventoryItem item, ItemTemplateId templateId, uint maxStack) =>
-        item.TemplateId == templateId && item.Count < maxStack && !IsLocked(item);
+        item.TemplateId == templateId && item.Count < maxStack && !IsLocked(item)
+        && owner.ItemModifiers.Of(item.InstanceId).Count == 0;
 
     /// <summary>Offered in a trade (#1175). One bool read while nothing is.</summary>
     private bool IsLocked(InventoryItem item) => owner.Locks.IsLocked(item.InstanceId);
@@ -364,9 +373,13 @@ public sealed class CharacterInventoryService(
             Replace(container, item with { Count = item.Count - count });
     }
 
-    private void Create(InventoryType container, InventoryItem item)
+    /// <summary>A new instance, or one arriving, in the slot: <paramref name="modifiers" /> enter the store with it.</summary>
+    private void Create(InventoryType container, InventoryItem item, IReadOnlyList<ItemInstanceModifier>? modifiers = null)
     {
         owner.Container(container).Put(item);
+        if (modifiers is not null)
+            owner.ItemModifiers.Put(item.InstanceId, modifiers);
+
         owner.SaveState.ItemCreated(item.InstanceId);
         owner.SaveState.SlotChanged(container, item.Slot, occupiedBefore: false, occupiedAfter: true);
         owner.ClientChanges.RecordSlot(container, item.Slot);
@@ -380,11 +393,13 @@ public sealed class CharacterInventoryService(
         owner.ClientChanges.RecordSlot(container, item.Slot);
     }
 
-    private void Delete(InventoryType container, InventoryItem item)
+    /// <summary>The instance leaves the character: its modifiers leave the store with it, and are returned.</summary>
+    private IReadOnlyList<ItemInstanceModifier> Delete(InventoryType container, InventoryItem item)
     {
         owner.Container(container).Remove(item.Slot);
         owner.SaveState.ItemRemoved(item.InstanceId);
         owner.SaveState.SlotChanged(container, item.Slot, occupiedBefore: true, occupiedAfter: false);
         owner.ClientChanges.RecordSlot(container, item.Slot);
+        return owner.ItemModifiers.Take(item.InstanceId);
     }
 }

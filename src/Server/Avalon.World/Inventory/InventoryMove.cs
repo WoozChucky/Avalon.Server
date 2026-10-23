@@ -84,7 +84,9 @@ public static class InventoryMove
 
         ItemTemplate? sourceTemplate = findTemplate(source.TemplateId);
         bool whole = moving == source.Count;
-        uint maxStack = sourceTemplate is null ? 1u : MaxStack(sourceTemplate);
+        // #1179: an item carrying modifiers is one of a kind, whatever its template allows: it neither splits nor merges,
+        // and nothing merges into it.
+        uint maxStack = sourceTemplate is null || IsOneOfAKind(character, source) ? 1u : MaxStack(sourceTemplate);
 
         if (!character.Container(to.Container).TryGet(to.Slot, out InventoryItem target))
         {
@@ -103,6 +105,9 @@ public static class InventoryMove
                 ? MoveDecision.Refused(ItemRequestResult.Blocked)
                 : MoveDecision.Accept(MoveKind.Move, from, to, moving);
         }
+
+        if (IsOneOfAKind(character, target))
+            maxStack = 1;
 
         // Two whole copies of an item that does not stack trade places, as two different items do.
         if (target.TemplateId == source.TemplateId && !(maxStack == 1 && whole))
@@ -184,6 +189,9 @@ public static class InventoryMove
     public static bool IsUsable(CharacterEntity character, SlotRef slot) =>
         slot.Slot < character.Container(slot.Container).Capacity
         && !(slot.Container == InventoryType.Equipment && EquipmentSlots.IsReserved(slot.Slot));
+
+    private static bool IsOneOfAKind(CharacterEntity character, InventoryItem item) =>
+        character.ItemModifiers.Of(item.InstanceId).Count > 0;
 
     /// <summary>A MaxStackSize of 0 is read as 1, as CharacterInventoryService reads it.</summary>
     public static uint MaxStack(ItemTemplate template) => Math.Max(1u, template.MaxStackSize);

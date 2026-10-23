@@ -90,7 +90,7 @@ public class InventoryLocksShould
         Assert.Equal(InventoryAddResult.Ok, inventory.TryAdd(Potion.Id, 20));
         Assert.Equal(Potion.Id, At(character, InventoryType.Bag, 29).TemplateId);
         Assert.Equal(InventoryAddResult.InventoryFull, inventory.CanAdd(Potion.Id, 1));
-        Assert.Equal(InventoryAddResult.InventoryFull, inventory.TryAddInstance(Item(0, Sword)));
+        Assert.Equal(InventoryAddResult.InventoryFull, inventory.TryAddInstance(TestCharacters.Carried(Item(0, Sword))));
         Assert.Equal(ItemRequestResult.Locked, inventory.TryMove(Bag(0), Bag(28), null, false));
         character.Locks.ExpectIncoming(Relic.Id, 1);
         Assert.Equal(InventoryAddResult.UniqueAlreadyOwned, inventory.TryAdd(Relic.Id, 1));
@@ -101,7 +101,7 @@ public class InventoryLocksShould
 
         character.Locks.Clear();
         InventoryItem traded = Item(0, Sword);
-        Assert.Equal(InventoryAddResult.Ok, inventory.TryAddInstanceAt(traded, 28));
+        Assert.Equal(InventoryAddResult.Ok, inventory.TryAddInstanceAt(TestCharacters.Carried(traded), 28));
         Assert.Equal(traded.InstanceId, At(character, InventoryType.Bag, 28).InstanceId);
     }
 }

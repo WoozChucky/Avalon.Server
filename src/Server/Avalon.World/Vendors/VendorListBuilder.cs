@@ -52,13 +52,13 @@ public static class VendorListBuilder
         List<VendorBuybackDto> buyback = new(sold.Count);
         for (int index = 0; index < sold.Count; index++)
         {
-            if (FindTemplate(data, sold[index].Item.TemplateId) is { } template && !VendorRules.IsStockable(template))
+            if (FindTemplate(data, sold[index].Item.Item.TemplateId) is { } template && !VendorRules.IsStockable(template))
                 continue;
 
             buyback.Add(new VendorBuybackDto
             {
                 Index = (uint)index,
-                Item = ItemSlotDtoMapper.ToDto(InventoryType.Bag, sold[index].Item),
+                Item = ItemSlotDtoMapper.ToDto(InventoryType.Bag, sold[index].Item.Item),
                 Price = sold[index].Price,
             });
         }

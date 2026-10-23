@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
 using Avalon.World.Trading;
 
@@ -15,10 +16,12 @@ namespace Avalon.World.Persistence;
 public static class TradeSaveBatch
 {
     /// <summary>
-    /// Each outgoing item is deleted (and no longer upserted), and its Bag slot deleted unless an incoming item lands
-    /// there. Each incoming item is upserted as this character's, stamped <paramref name="now" />, with a slot row at its
-    /// destination. The row is a new copy with the gold given and received. Each item id and each slot key appears at
-    /// most once, as the repository requires.
+    /// A trade changes an item's owner (#1179), so an outgoing item is never deleted: this side drops its Bag slot
+    /// (unless an incoming item lands there) and whatever its snapshot held for the item, its row or its modifier write,
+    /// and the receiver's side writes it. Each incoming item is upserted as this character's (an update of its owner when
+    /// the row exists, an insert when it was never saved), stamped <paramref name="now" />, with a slot row at its
+    /// destination and its whole modifier set, copied here on the tick. The row is a new copy with the gold given and
+    /// received. Each item id and each slot key appears at most once, as the repository requires.
     /// </summary>
     /// <exception cref="OverflowException">The side gives more gold than the row holds: the plan was not checked.</exception>
     public static CharacterSaveBatch Apply(CharacterSaveBatch batch, TradeSidePlan side, DateTime now)
@@ -28,16 +31,16 @@ public static class TradeSaveBatch
 
         HashSet<ItemInstanceId> touchedItems = [];
         HashSet<(InventoryType Container, byte Slot)> touchedSlots = [];
-        foreach (InventoryItem item in side.Outgoing)
+        foreach (CarriedItem carried in side.Outgoing)
         {
-            touchedItems.Add(item.InstanceId);
-            touchedSlots.Add((InventoryType.Bag, item.Slot));
+            touchedItems.Add(carried.Item.InstanceId);
+            touchedSlots.Add((InventoryType.Bag, carried.Item.Slot));
         }
 
-        foreach (InventoryItem item in side.Incoming)
+        foreach (CarriedItem carried in side.Incoming)
         {
-            touchedItems.Add(item.InstanceId);
-            touchedSlots.Add((InventoryType.Bag, item.Slot));
+            touchedItems.Add(carried.Item.InstanceId);
+            touchedSlots.Add((InventoryType.Bag, carried.Item.Slot));
         }
 
         // Whatever the snapshot said about a key the trade touches is replaced by what the trade makes of it.
@@ -45,24 +48,16 @@ public static class TradeSaveBatch
         List<ItemInstanceId> deleteItems = [.. batch.DeleteItems.Where(id => !touchedItems.Contains(id))];
         List<CharacterInventory> upsertSlots = [.. batch.UpsertSlots.Where(s => !touchedSlots.Contains((s.Container, s.Slot)))];
         List<(InventoryType Container, byte Slot)> deleteSlots = [.. batch.DeleteSlots.Where(k => !touchedSlots.Contains(k))];
+        var modifiers = new ModifierRows();
+        if (batch.Modifiers is { } write)
+            modifiers.AddAllBut(write, touchedItems);
 
         HashSet<byte> landing = [];
-        foreach (InventoryItem item in side.Incoming)
+        foreach (CarriedItem carried in side.Incoming)
         {
+            InventoryItem item = carried.Item;
             landing.Add(item.Slot);
-            upsertItems.Add(new ItemInstance
-            {
-                Id = item.InstanceId,
-                TemplateId = item.TemplateId,
-                CharacterId = row.Id,
-                Count = item.Count,
-                Durability = item.Durability,
-                Charges = item.Charges,
-                Flags = item.Flags,
-                Rarity = item.Rarity,
-                ItemLevel = item.ItemLevel,
-                UpdatedAt = now,
-            });
+            upsertItems.Add(CharacterSaveSnapshot.ItemRow(item, row.Id, now));
             upsertSlots.Add(new CharacterInventory
             {
                 CharacterId = row.Id,
@@ -70,13 +65,16 @@ public static class TradeSaveBatch
                 Slot = item.Slot,
                 ItemId = item.InstanceId,
             });
+
+            // Every incoming item, one without modifiers too: its set as the giver holds it, which the giver's own saves
+            // may not have written yet.
+            modifiers.Add(item.InstanceId, carried.Modifiers);
         }
 
-        foreach (InventoryItem item in side.Outgoing)
+        foreach (CarriedItem carried in side.Outgoing)
         {
-            deleteItems.Add(item.InstanceId);
-            if (!landing.Contains(item.Slot))
-                deleteSlots.Add((InventoryType.Bag, item.Slot));
+            if (!landing.Contains(carried.Item.Slot))
+                deleteSlots.Add((InventoryType.Bag, carried.Item.Slot));
         }
 
         return batch with
@@ -86,6 +84,7 @@ public static class TradeSaveBatch
             DeleteItems = deleteItems,
             UpsertSlots = upsertSlots,
             DeleteSlots = deleteSlots,
+            Modifiers = modifiers.ToWrite(),
         };
     }
 }

@@ -655,6 +655,7 @@ public class CharacterSelectHandler(
         entity[InventoryType.Equipment].Load(assembled[InventoryType.Equipment]);
         entity[InventoryType.Bag].Load(assembled[InventoryType.Bag]);
         entity[InventoryType.Bank].Load(assembled[InventoryType.Bank]);
+        entity.ItemModifiers.Load(instances);
 
         // #434: stats follow the class, the level and what is worn. No current health or power is
         // stored, so the character enters full at the new maximum, as it always has, except that a

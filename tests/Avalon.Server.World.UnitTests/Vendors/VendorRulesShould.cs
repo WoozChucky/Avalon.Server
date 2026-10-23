@@ -409,7 +409,7 @@ public class VendorRulesShould
         BuybackCase row = s_buybackCases.Single(c => c.Name == name);
         CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead, reserved: row.Reserved);
         foreach ((ItemTemplate template, uint count, ulong price) in row.Sold)
-            character.Buyback.Push(new BuybackEntry(TestCharacters.Item(0, template, count), price));
+            character.Buyback.Push(new BuybackEntry(TestCharacters.Carried(TestCharacters.Item(0, template, count)), price));
 
         BuybackDecision decision = VendorRules.DecideBuyback(character, row.Shop, row.Index, Find);
 
@@ -436,7 +436,7 @@ public class VendorRulesShould
     public void Answer_NotFound_to_buying_back_an_item_a_reload_made_a_quest_item()
     {
         CharacterEntity character = Arrange([], 1000, dead: false);
-        character.Buyback.Push(new BuybackEntry(TestCharacters.Item(0, Tonic, 5), 20));
+        character.Buyback.Push(new BuybackEntry(TestCharacters.Carried(TestCharacters.Item(0, Tonic, 5)), 20));
         var flagged = new ItemTemplate
         {
             Id = Tonic.Id,

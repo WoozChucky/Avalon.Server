@@ -336,6 +336,12 @@ public partial class CharacterEntity : ICharacter
     /// </summary>
     internal (ICharacterEconomy? Economy, IInventoryService? Service) EconomyInventory { get; set; }
 
+    /// <summary>
+    /// The modifiers of every item this character holds (#1179), by item id. World-side, never on ICharacter: the
+    /// modding API sees an item only as its InventoryItem. Loaded at select; written only by the inventory service.
+    /// </summary>
+    public ItemModifierStore ItemModifiers { get; } = new();
+
     /// <summary>Slots and gold the client must be told about at the end of this tick.</summary>
     public InventoryClientChanges ClientChanges { get; } = new();
 

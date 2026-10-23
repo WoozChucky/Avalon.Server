@@ -203,7 +203,7 @@ public static class VendorRules
             return new BuybackDecision(VendorResult.ShopClosed, null);
 
         if (!character.Buyback.TryGet(index, out BuybackEntry? entry)
-            || (findTemplate(entry.Item.TemplateId) is { } flagged && !IsStockable(flagged)))
+            || (findTemplate(entry.Item.Item.TemplateId) is { } flagged && !IsStockable(flagged)))
         {
             return new BuybackDecision(VendorResult.NotFound, null);
         }
@@ -214,9 +214,9 @@ public static class VendorRules
         if (character.Locks.FreeSlotCount(character.Container(InventoryType.Bag)) == 0)
             return new BuybackDecision(VendorResult.InventoryFull, null);
 
-        if (findTemplate(entry.Item.TemplateId) is { } template
+        if (findTemplate(entry.Item.Item.TemplateId) is { } template
             && (template.Flags & ItemTemplateFlags.Unique) != 0
-            && HeldAnywhere(character, template.Id) + Incoming(character, template.Id) + entry.Item.Count > 1)
+            && HeldAnywhere(character, template.Id) + Incoming(character, template.Id) + entry.Item.Item.Count > 1)
         {
             return new BuybackDecision(VendorResult.UniqueAlreadyOwned, null);
         }
