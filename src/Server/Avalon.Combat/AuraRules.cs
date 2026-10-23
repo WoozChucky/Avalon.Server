@@ -59,8 +59,12 @@ public static class AuraRules
             if (!Enum.IsDefined(m.Stat)) return $"unknown stat {(int)m.Stat}";
             if (!Enum.IsDefined(m.Kind)) return $"unknown modifier kind {(int)m.Kind} on {m.Stat}";
             if (!float.IsFinite(m.Value)) return FormattableString.Invariant($"{m.Stat} modifier {m.Value} is not finite");
-            // A percentage at or below -100 would take the whole stat, or turn it negative.
-            if (m.Kind == AuraModifierKind.Increased && m.Value <= -100f) return FormattableString.Invariant($"{m.Stat} modifier {m.Value} % would take the whole stat");
+            // An Increased or a More at or below -100 would take the whole stat, or turn it negative.
+            if (m.Kind is AuraModifierKind.Increased or AuraModifierKind.More && m.Value <= -100f)
+                return FormattableString.Invariant($"{m.Stat} modifier {m.Value} % would take the whole stat");
+            // The Increased keys are percentages already: "+X % increased" is Flat and "X % more" is More.
+            if (m.Kind == AuraModifierKind.Increased && m.Stat is >= AuraStat.IncreasedDamage and <= AuraStat.IncreasedHealing)
+                return $"{m.Stat} is already a percentage: it takes Flat or More, never Increased";
             if (!seen.Add(m.Stat)) return $"{m.Stat} is modified twice";
         }
 

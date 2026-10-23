@@ -4,7 +4,7 @@ using Avalon.Domain.World;
 
 namespace Avalon.Combat.UnitTests;
 
-/// <summary>How aura modifiers fold into stats: flat added, then percent scaled, each times the stacks held.</summary>
+/// <summary>How aura modifiers fold into stats: flat added, then scaled by the increased sum and by each more, every modifier held once per stack.</summary>
 public class AuraStatsShould
 {
     private static AuraStatModifier Mod(AuraStat stat, AuraModifierKind kind, float value) =>
@@ -22,13 +22,28 @@ public class AuraStatsShould
         Assert.Equal(stats, AuraStats.Fold(stats, AuraStatTotals.Empty));
     }
 
-    /// <summary>Fortified: armour +20 % on 30 is 36; Sundered on top (-25 %) gives 30 x (1 + (20 - 25) / 100) = 28.5, 29.</summary>
-    [Fact]
-    public void Scale_armour_by_the_sum_of_every_percent_held()
+    public static TheoryData<uint, (AuraModifierKind Kind, float Value, uint Stacks)[], uint> ArmourFolds() => new()
     {
-        Assert.Equal(36u, AuraStats.Apply(30u, Of((Mod(AuraStat.Armor, AuraModifierKind.Increased, 20f), 1)), AuraStat.Armor));
-        Assert.Equal(29u, AuraStats.Apply(30u, Of((Mod(AuraStat.Armor, AuraModifierKind.Increased, 20f), 1),
-            (Mod(AuraStat.Armor, AuraModifierKind.Increased, -25f), 1)), AuraStat.Armor));
+        // Fortified: +20 % increased on 30 is 36; Sundered on top (-25 %) sums to 30 x (1 + (20 - 25) / 100) = 28.5, 29.
+        { 30u, [(AuraModifierKind.Increased, 20f, 1u)], 36u },
+        { 30u, [(AuraModifierKind.Increased, 20f, 1u), (AuraModifierKind.Increased, -25f, 1u)], 29u },
+        // Each More multiplies on its own: (100 + 20) x 1.5 x 1.2 x 1.1 = 237.6, 238.
+        { 100u, [(AuraModifierKind.Flat, 20f, 1u), (AuraModifierKind.Increased, 50f, 1u), (AuraModifierKind.More, 20f, 1u),
+            (AuraModifierKind.More, 10f, 1u)], 238u },
+        // A stacked More multiplies once per stack: 100 x 1.1 x 1.1 = 121.
+        { 100u, [(AuraModifierKind.More, 10f, 2u)], 121u },
+    };
+
+    /// <summary>A stat folds as <c>(base + flat) x (1 + increased / 100) x each (1 + more / 100)</c>, one aura per modifier.</summary>
+    [Theory]
+    [MemberData(nameof(ArmourFolds))]
+    public void Fold_armour_as_base_plus_flat_times_the_increased_sum_times_each_more(uint armour,
+        (AuraModifierKind Kind, float Value, uint Stacks)[] auras, uint expected)
+    {
+        var totals = AuraStatTotals.Of(auras,
+            static a => ((IReadOnlyList<AuraStatModifier>)[Mod(AuraStat.Armor, a.Kind, a.Value)], a.Stacks));
+
+        Assert.Equal(expected, AuraStats.Apply(armour, totals, AuraStat.Armor));
     }
 
     /// <summary>Crippled: movement speed is in points, so Flat -30 slows a gearless unit by 30 %.</summary>

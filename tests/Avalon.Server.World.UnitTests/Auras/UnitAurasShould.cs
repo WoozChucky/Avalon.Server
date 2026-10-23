@@ -103,7 +103,7 @@ public class UnitAurasShould
 
         Assert.True(auras.StatTotals.IsEmpty);
         auras.Add(fortified, s_t0);
-        Assert.Equal(20f, auras.StatTotals.Percent(AuraStat.Armor));
+        Assert.Equal(20f, auras.StatTotals.Increased(AuraStat.Armor));
         auras.Remove(fortified, s_t0);
         Assert.True(auras.StatTotals.IsEmpty);
     }

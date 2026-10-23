@@ -74,7 +74,6 @@ public class AuraRulesShould
         { "unknown stat 0", t => t.Modifiers.Add(new AuraStatModifier { Stat = 0, Kind = AuraModifierKind.Flat, Value = 1f }) },
         { "unknown modifier kind 0 on Armor", t => t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Value = 1f }) },
         { FormattableString.Invariant($"Armor modifier {float.PositiveInfinity} is not finite"), t => t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Flat, Value = float.PositiveInfinity }) },
-        { "Armor modifier -100 % would take the whole stat", t => t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Increased, Value = -100f }) },
         { "Armor is modified twice", t =>
             {
                 t.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.Armor, Kind = AuraModifierKind.Flat, Value = 1f });
@@ -112,6 +111,25 @@ public class AuraRulesShould
         breakIt(t);
 
         Assert.Equal(reason, AuraRules.Problem(t));
+    }
+
+    /// <summary>
+    /// An Increased or a More at or below -100 would take the whole stat; the thirteen Increased keys are percentages
+    /// already, so they take Flat ("+X % increased") or More ("X % more"), never Increased.
+    /// </summary>
+    [Theory]
+    [InlineData(AuraStat.Armor, AuraModifierKind.More, -100f, "Armor modifier -100 % would take the whole stat")]
+    [InlineData(AuraStat.Armor, AuraModifierKind.Increased, -100f, "Armor modifier -100 % would take the whole stat")]
+    [InlineData(AuraStat.IncreasedFireDamage, AuraModifierKind.Increased, 10f,
+        "IncreasedFireDamage is already a percentage: it takes Flat or More, never Increased")]
+    [InlineData(AuraStat.IncreasedFireDamage, AuraModifierKind.More, 20f, null)]
+    public void Refuse_a_modifier_that_does_not_fit_its_stat(AuraStat stat, AuraModifierKind kind, float value,
+        string? expected)
+    {
+        AuraTemplate t = Bleed();
+        t.Modifiers.Add(new AuraStatModifier { Stat = stat, Kind = kind, Value = value });
+
+        Assert.Equal(expected, AuraRules.Problem(t));
     }
 
     [Theory]
