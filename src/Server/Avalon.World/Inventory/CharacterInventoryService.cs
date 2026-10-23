@@ -60,7 +60,8 @@ public sealed class CharacterInventoryService(
 
             uint take = Math.Min(maxStack, remaining);
             Create(InventoryType.Bag, new InventoryItem(slot, itemIds.Next(), templateId, take,
-                ItemInstanceDefaults.InitialDurability(template!), ItemInstanceFlags.None));
+                ItemInstanceDefaults.InitialDurability(template!), ItemInstanceFlags.None, template!.Rarity,
+                ItemInstanceDefaults.InitialItemLevel(template)));
             remaining -= take;
             if (remaining == 0)
                 return InventoryAddResult.Ok;

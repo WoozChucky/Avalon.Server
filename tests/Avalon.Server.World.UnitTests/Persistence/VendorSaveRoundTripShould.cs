@@ -56,6 +56,8 @@ public sealed class VendorSaveRoundTripShould : IDisposable
                     Count = item.Count,
                     Durability = item.Durability,
                     Flags = item.Flags,
+                    Rarity = item.Rarity,
+                    ItemLevel = item.ItemLevel,
                     UpdatedAt = DateTime.UtcNow,
                 });
                 context.CharacterInventory.Add(new CharacterInventory

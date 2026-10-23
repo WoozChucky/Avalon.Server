@@ -47,7 +47,7 @@ public class InventoryFlushBenchmarks
         for (byte slot = 0; slot < Slots; slot++)
         {
             held[slot] = new InventoryItem(slot, new ItemInstanceId(Guid.CreateVersion7()), new ItemTemplateId(1), 5, 0,
-                ItemInstanceFlags.None);
+                ItemInstanceFlags.None, ItemRarity.Common, 1);
         }
 
         _character.Container(InventoryType.Bag).Load(held);

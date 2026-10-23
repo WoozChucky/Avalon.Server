@@ -114,7 +114,7 @@ public class ItemRequestBenchmarks
     };
 
     private static InventoryItem Stack(byte slot, uint count) =>
-        new(slot, new ItemInstanceId(Guid.CreateVersion7()), s_potion.Id, count, 0, ItemInstanceFlags.None);
+        new(slot, new ItemInstanceId(Guid.CreateVersion7()), s_potion.Id, count, 0, ItemInstanceFlags.None, ItemRarity.Common, 1);
 
     private sealed class OneCharacterEconomy(IInventoryService inventory) : ICharacterEconomy
     {

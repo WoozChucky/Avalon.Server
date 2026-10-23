@@ -61,6 +61,8 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
                     Durability = item.Durability,
                     Charges = item.Charges,
                     Flags = item.Flags,
+                    Rarity = item.Rarity,
+                    ItemLevel = item.ItemLevel,
                     UpdatedAt = now,
                 });
             }

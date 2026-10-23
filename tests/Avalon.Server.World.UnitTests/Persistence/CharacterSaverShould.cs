@@ -623,6 +623,8 @@ public sealed class CharacterSaverShould : IDisposable
                 Durability = i.Durability,
                 Charges = i.Charges,
                 Flags = i.Flags,
+                Rarity = i.Rarity,
+                ItemLevel = i.ItemLevel,
                 UpdatedAt = DateTime.UtcNow,
             }).ToList());
             await new CharacterInventoryRepository(_db).CreateAsync(stored.Select(i => new CharacterInventory

@@ -505,6 +505,8 @@ public sealed partial class TradeService
                 GiverCharacterId = giver,
                 TemplateId = item.TemplateId,
                 Count = item.Count,
+                Rarity = item.Rarity,
+                ItemLevel = item.ItemLevel,
             });
         }
     }

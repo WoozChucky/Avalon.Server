@@ -59,6 +59,8 @@ public static class TradeSaveBatch
                 Durability = item.Durability,
                 Charges = item.Charges,
                 Flags = item.Flags,
+                Rarity = item.Rarity,
+                ItemLevel = item.ItemLevel,
                 UpdatedAt = now,
             });
             upsertSlots.Add(new CharacterInventory

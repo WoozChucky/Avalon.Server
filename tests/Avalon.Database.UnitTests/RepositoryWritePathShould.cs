@@ -252,6 +252,7 @@ public class RepositoryWritePathShould
         TemplateId = new ItemTemplateId(1),
         CharacterId = owner,
         Count = 1,
+        ItemLevel = 1,
         UpdatedAt = DateTime.UtcNow,
     };
 

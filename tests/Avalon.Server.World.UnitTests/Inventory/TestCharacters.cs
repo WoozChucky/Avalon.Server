@@ -52,7 +52,7 @@ internal static class TestCharacters
         "Tester" + string.Concat(id.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(d => (char)(d - '0' + 'a')));
 
     public static InventoryItem Item(byte slot, ItemTemplate template, uint count = 1, uint durability = 0, uint charges = 0) =>
-        new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None, charges);
+        new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None, template.Rarity, 1, charges);
 
     /// <summary>An inventory over this catalogue, or over <paramref name="find" /> when given one.</summary>
     public static CharacterInventoryService InventoryFor(

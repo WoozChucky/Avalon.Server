@@ -48,7 +48,8 @@ public partial class CharacterSaveRepository
                 (batch.Quests is { } quests && (quests.Active.Any(q => q.CharacterId != batch.Row.Id) ||
                     quests.Objectives.Any(q => q.CharacterId != batch.Row.Id) || quests.Completed.Any(q => q.CharacterId != batch.Row.Id))) ||
                 (batch.Auras is { } auras && auras.Rows.Any(a => a.CharacterId != batch.Row.Id)) ||
-                (batch.Ignores is { } ignores && ignores.Insert.Any(i => i.CharacterId != batch.Row.Id)))
+                (batch.Ignores is { } ignores && ignores.Insert.Any(i => i.CharacterId != batch.Row.Id)) ||
+                (batch.Modifiers is { } modifiers && !ModifiersFollowTheirItems(batch, modifiers)))
             {
                 throw new GameplayWriteRejectedException();
             }
@@ -62,6 +63,22 @@ public partial class CharacterSaveRepository
             throw new GameplayWriteRejectedException();
         return guards.ToArray();
     }
+
+    /// <summary>
+    /// #1179: one save mark per item keeps an item and its modifiers in the same save, so a modifier write names only items
+    /// its own batch upserts (which <see cref="GuardAsync" /> holds to the batch's character), each modifier sits on one
+    /// of them, and each value row on one of those modifiers.
+    /// </summary>
+    private static bool ModifiersFollowTheirItems(CharacterSaveBatch batch, ItemModifierWrite write)
+    {
+        var upserted = batch.UpsertItems.Select(i => i.Id).ToHashSet();
+        var items = write.Items.ToHashSet();
+        var modifiers = write.Modifiers.Select(m => m.Id).ToHashSet();
+        return items.All(upserted.Contains) &&
+            write.Modifiers.All(m => items.Contains(m.ItemInstanceId)) &&
+            write.Values.All(v => modifiers.Contains(v.ItemInstanceModifierId));
+    }
+
     private async Task CheckDeadlineAsync(CharacterDbContext db, AccountGameplayFence[] guards, CancellationToken cancellationToken)
     {
         DateTime now = await GameplayFenceRepository.NowAsync(db, clock, cancellationToken);

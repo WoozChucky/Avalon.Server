@@ -36,6 +36,7 @@ public sealed class CharacterConsolidationShould
             CharacterId = new CharacterId(1),
             TemplateId = new ItemTemplateId(1),
             Count = 3,
+            ItemLevel = 1,
             UpdatedAt = _clock.GetUtcNow().UtcDateTime
         });
         db.CharacterQuests.Add(new CharacterQuest { CharacterId = new CharacterId(1), QuestId = 42, Stage = 2, AcceptedAt = _clock.GetUtcNow().UtcDateTime });
