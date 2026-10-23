@@ -33,7 +33,7 @@ namespace Avalon.Server.World.UnitTests.Characters;
 /// </summary>
 public class CharacterSheetShould
 {
-    private static readonly CombatFormula s_seeded = CombatSeed.Formula();
+    private static readonly CombatPatch s_seeded = TestCombat.Seeded();
 
     private static readonly ClassLevelStat[] s_warriorRows =
     [
@@ -84,7 +84,7 @@ public class CharacterSheetShould
     public void Carry_the_effective_haste_and_the_movement_speed()
     {
         CharacterEntity character = New();
-        character.ApplyStats(Stats() with { HastePct = 80f, MovementSpeedPct = 10f }, CurrentValues.EnterWorld, s_seeded);
+        character.ApplyStats(Stats() with { HastePct = 80f, MovementSpeedPct = 10f }, CurrentValues.EnterWorld, s_seeded.Formula);
         var sent = new List<OutboundPacket>();
 
         CharacterSheetFlusher.Flush(Recording(character, sent), s_seeded);
@@ -101,12 +101,12 @@ public class CharacterSheetShould
     public void Send_a_sheet_when_only_the_haste_or_only_the_movement_speed_changes(float haste, float movement)
     {
         CharacterEntity character = New();
-        character.ApplyStats(Stats(), CurrentValues.EnterWorld, s_seeded);
+        character.ApplyStats(Stats(), CurrentValues.EnterWorld, s_seeded.Formula);
         var sent = new List<OutboundPacket>();
         IWorldConnection connection = Recording(character, sent);
         CharacterSheetFlusher.Flush(connection, s_seeded);
 
-        character.ApplyStats(Stats() with { HastePct = haste, MovementSpeedPct = movement }, CurrentValues.KeepShare, s_seeded);
+        character.ApplyStats(Stats() with { HastePct = haste, MovementSpeedPct = movement }, CurrentValues.KeepShare, s_seeded.Formula);
         CharacterSheetFlusher.Flush(connection, s_seeded);
 
         List<SCharacterStatsPacket> sheets = Sheets(sent);
@@ -132,7 +132,7 @@ public class CharacterSheetShould
         BankerWorld w = await BankerWorld.CreateAsync();
         var move = new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, w.World, new CharacterEconomy(w.World, new ItemIdAllocator()));
         w.Character.Container(InventoryType.Bag).Load([Item(0, EquipTemplates.Chestguard), Item(1, EquipTemplates.Band)]);
-        CharacterSheetFlusher.Flush(w.Connection, w.Data.Combat.Formula);
+        CharacterSheetFlusher.Flush(w.Connection, w.Data.Combat);
         uint armourBefore = Assert.Single(w.Read<SCharacterStatsPacket>(NetworkPacketType.SMSG_CHARACTER_STATS)).Armor;
         w.Sent.Clear();
 
@@ -144,7 +144,7 @@ public class CharacterSheetShould
             ToContainer = InventoryType.Equipment,
             ToSlot = EquipmentSlots.Finger1,
         });
-        CharacterSheetFlusher.Flush(w.Connection, w.Data.Combat.Formula);
+        CharacterSheetFlusher.Flush(w.Connection, w.Data.Combat);
         Assert.Empty(w.Read<SCharacterStatsPacket>(NetworkPacketType.SMSG_CHARACTER_STATS));
 
         move.Execute(w.Connection, new CItemMovePacket
@@ -155,7 +155,7 @@ public class CharacterSheetShould
             ToContainer = InventoryType.Equipment,
             ToSlot = EquipmentSlots.Chest,
         });
-        CharacterSheetFlusher.Flush(w.Connection, w.Data.Combat.Formula);
+        CharacterSheetFlusher.Flush(w.Connection, w.Data.Combat);
 
         SCharacterStatsPacket sheet = Assert.Single(w.Read<SCharacterStatsPacket>(NetworkPacketType.SMSG_CHARACTER_STATS));
         Assert.Equal(armourBefore + 8u, sheet.Armor);
@@ -181,7 +181,7 @@ public class CharacterSheetShould
         CharacterStatsRefresh.Apply(killer, data, CurrentValues.EnterWorld);
         var sent = new List<OutboundPacket>();
         IWorldConnection connection = Recording(killer, sent);
-        CharacterSheetFlusher.Flush(connection, data.Combat.Formula);
+        CharacterSheetFlusher.Flush(connection, data.Combat);
         Assert.Equal(23u, Assert.Single(Sheets(sent)).Strength);
         sent.Clear();
 
@@ -193,7 +193,7 @@ public class CharacterSheetShould
         };
         instance.AddCreature(creature);
         instance.ReportKill(creature, killer);
-        CharacterSheetFlusher.Flush(connection, data.Combat.Formula);
+        CharacterSheetFlusher.Flush(connection, data.Combat);
 
         SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
         Assert.Equal((24u, 25u, 21u), (sheet.Stamina, sheet.Strength, sheet.Agility));
@@ -209,7 +209,7 @@ public class CharacterSheetShould
         CharacterSheetFlusher.Flush(Recording(character, sent), s_seeded);
 
         SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
-        Assert.Equal((s_seeded.CritCap, s_seeded.EvasionCap, s_seeded.BlockCap), (sheet.CritPct, sheet.EvasionPct, sheet.BlockPct));
+        Assert.Equal((s_seeded.Formula.CritCap, s_seeded.Formula.EvasionCap, s_seeded.Formula.BlockCap), (sheet.CritPct, sheet.EvasionPct, sheet.BlockPct));
         Assert.Equal((50f, 30f, 50f), (sheet.CritPct, sheet.EvasionPct, sheet.BlockPct));
     }
 
@@ -233,7 +233,7 @@ public class CharacterSheetShould
             CurrentValues.EnterWorld, formula);
         var sent = new List<OutboundPacket>();
 
-        CharacterSheetFlusher.Flush(Recording(character, sent), formula);
+        CharacterSheetFlusher.Flush(Recording(character, sent), CombatPatch.Build([formula], CombatSeed.ClassFactors()));
 
         SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
         Assert.Equal((20u, 12u), (sheet.Evasion, sheet.MaxWard));
@@ -256,8 +256,8 @@ public class CharacterSheetShould
         var dullSent = new List<OutboundPacket>();
         IWorldConnection keenConnection = Recording(keen, keenSent);
         IWorldConnection dullConnection = Recording(dull, dullSent);
-        CharacterSheetFlusher.Flush(keenConnection, data.Combat.Formula);
-        CharacterSheetFlusher.Flush(dullConnection, data.Combat.Formula);
+        CharacterSheetFlusher.Flush(keenConnection, data.Combat);
+        CharacterSheetFlusher.Flush(dullConnection, data.Combat);
         keenSent.Clear();
         dullSent.Clear();
 
@@ -265,8 +265,8 @@ public class CharacterSheetShould
         Task applied = data.ApplyOnNextTickAsync(await data.PrepareAsync(ReloadArea.Combat));
         data.ApplyPending();
         await applied;
-        CharacterSheetFlusher.Flush(keenConnection, data.Combat.Formula);
-        CharacterSheetFlusher.Flush(dullConnection, data.Combat.Formula);
+        CharacterSheetFlusher.Flush(keenConnection, data.Combat);
+        CharacterSheetFlusher.Flush(dullConnection, data.Combat);
 
         Assert.Equal(20f, Assert.Single(Sheets(keenSent)).CritPct);
         Assert.Empty(dullSent);

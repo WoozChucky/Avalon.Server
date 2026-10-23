@@ -78,8 +78,11 @@ internal sealed class CreatureScheduler
 
     private TimeSpan _clock;
 
-    // The instance's time on this step (#1178), which a ward recharges by.
+    // The instance's clock, and its time on this step (#1178), which a ward recharges by: read once, and only when a
+    // creature that runs has a ward to recharge, so a step with none reads no clock.
+    private TimeProvider _time = TimeProvider.System;
     private DateTime _stepTime;
+    private bool _stepTimeRead;
 
     private SearchCohort[] _cohorts = new SearchCohort[CohortCapacity];
     private int[] _freeCohorts = new int[CohortCapacity];
@@ -202,12 +205,13 @@ internal sealed class CreatureScheduler
     /// <summary>
     /// The instance's creature step (#979): the clock is the instance's creature clock with this tick's delta in it.
     /// Every cohort's timer and the timed waits first, then each creature that runs, in the instance's order.
-    /// <paramref name="now" /> is the instance's time, which a creature's ward recharges by as it runs (#1178).
+    /// <paramref name="time" /> is the instance's clock, which a creature's ward recharges by as it runs (#1178).
     /// </summary>
-    public void Step(TimeSpan deltaTime, TimeSpan clock, DateTime now)
+    public void Step(TimeSpan deltaTime, TimeSpan clock, TimeProvider time)
     {
         _clock = clock;
-        _stepTime = now;
+        _time = time;
+        _stepTimeRead = false;
         if (_rosterStale)
             ReadRoster();
 
@@ -235,6 +239,18 @@ internal sealed class CreatureScheduler
         {
             _running = -1;
         }
+    }
+
+    /// <summary>The instance's time on this step, read from its clock the first time a ward needs it.</summary>
+    private DateTime StepTime()
+    {
+        if (!_stepTimeRead)
+        {
+            _stepTime = _time.GetUtcNow().UtcDateTime;
+            _stepTimeRead = true;
+        }
+
+        return _stepTime;
     }
 
     /// <summary>How many creatures run on every step now: the active ones. For tests and benchmarks.</summary>
@@ -270,9 +286,9 @@ internal sealed class CreatureScheduler
                 return;
         }
 
-        // #1178: a creature's ward recharges as it runs, only for one that has a ward.
-        if (scheduled.MaxWard > 0)
-            scheduled.AdvanceWard(_stepTime);
+        // #1178: a creature's ward recharges as it runs, only for one whose ward is not full.
+        if (scheduled.Ward < scheduled.MaxWard)
+            scheduled.AdvanceWard(StepTime());
 
         script.Update(deltaTime);
 

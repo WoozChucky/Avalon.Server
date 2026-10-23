@@ -19,6 +19,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Avalon.World.Quests;
+using Avalon.World.Reload;
 using Avalon.World.Social;
 using Avalon.World.Threading;
 using Avalon.World.Vendors;
@@ -192,8 +193,12 @@ public partial class CharacterEntity : ICharacter
         MovementSpeed = CharacterMovement.SpeedFor(stats.MovementSpeedPct, formula);
 
         Stats = stats;
+        StatsVersion++;
         SaveState.StatsChanged();
     }
+
+    /// <summary>Counts the stats refreshes (<see cref="ApplyStats" />), so the sheet flush can tell nothing moved without rebuilding the sheet.</summary>
+    internal int StatsVersion { get; private set; }
 
     /// <summary>
     /// What this character attacks with (#506): its level, and the damage stats, crit and main-hand weapon
@@ -209,6 +214,17 @@ public partial class CharacterEntity : ICharacter
     /// and never saved: a new session starts with none, so it is sent the whole sheet again.
     /// </summary>
     public CharacterSheet? SheetSent { get; internal set; }
+
+    /// <summary>
+    /// What the last sheet the flush built was worked out from (#1178): the stats refresh, the level, the combat
+    /// generation (every combat reload publishes a new one) and the movement speed. The flush rebuilds the sheet only when
+    /// one of them moved, so an unchanged tick derives no evasion chance and no capped resistance.
+    /// </summary>
+    internal (int StatsVersion, ushort Level, CombatPatch? Combat, float MovementSpeed) SheetInputs
+    {
+        get;
+        set;
+    }
 
     /// <summary>
     /// The per-hit ability amounts this character's client was last told (#669), in ability load order, and
@@ -814,8 +830,8 @@ public partial class CharacterEntity : ICharacter
     {
         Spells.Update(deltaTime);
 
-        // #1178: a ward with a maximum recharges by the clock; a dead character's does not.
-        if (!IsDead && _ward.Max > 0)
+        // #1178: a ward that is not full recharges by the clock; a dead character's does not. A full one reads no clock.
+        if (!IsDead && _ward.Current < _ward.Max)
             AdvanceWard(_time.GetUtcNow().UtcDateTime);
 
         // Track cast-suppression window: as long as a spell is casting, keep refreshing the timer.

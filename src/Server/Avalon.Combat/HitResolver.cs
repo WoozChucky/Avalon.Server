@@ -165,8 +165,11 @@ public static class HitResolver
             result |= HitResult.Blocked;
         }
 
-        DamageParts mitigated = default;
+        // One pass: the sum, the largest mitigated part (a tie going to the lower type) and the blight part.
         double sum = 0d;
+        double largest = 0d;
+        double blight = 0d;
+        DamageType primary = fallback;
         for (int i = 0; i < DamageTypes.Count; i++)
         {
             var type = (DamageType)i;
@@ -174,13 +177,18 @@ public static class HitResolver
             if (part == 0d) continue;
 
             double dealt = part * scale * Mitigation(type, a, d, f);
-            mitigated.Set(type, dealt);
             sum += dealt;
+            if (dealt > largest)
+            {
+                largest = dealt;
+                primary = type;
+            }
+
+            if (type == DamageType.Blight) blight = dealt;
         }
 
         uint total = Math.Max(1u, Floor(sum));
-        return new HitDamage(total, result, mitigated.Primary(fallback), types,
-            Absorbable(total, mitigated.Get(DamageType.Blight), sum));
+        return new HitDamage(total, result, primary, types, Absorbable(total, blight, sum));
     }
 
     /// <summary>

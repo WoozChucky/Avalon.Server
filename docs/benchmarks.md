@@ -1594,29 +1594,32 @@ whose every roll comes up just under 1, so nothing procs and every iteration tak
 (floor(5.6 + 3.75 + 3)), of which a ward may take 9.
 
 ```bash
-dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*HitResolutionBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*HitResolutionBenchmarks*" --warmupCount 10 --iterationCount 20
 ```
 
-Each measured once, BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, Release, in-process,
-affinity 1, three warmups and five measured iterations; before on 2026-10-22, after on 2026-10-23:
+Out of process (BenchmarkDotNet's default toolchain, its own process per benchmark), ten warmups and twenty measured
+iterations, each side measured once: BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13,
+Release. Before is `64d6f2f4d` (this benchmark added, no maths changed yet), after is #1178 with the fix below, both
+on 2026-10-23:
 
 | Operation | Before (#1178) | After (#1178) | Allocated |
 |---|---:|---:|---:|
-| `ResolveCreatureHitOnArmouredCharacter` | 70.26 ns (± 4.36 ns, error ± 16.79 ns) | 186.73 ns (± 3.25 ns, error ± 20.98 ns) | 0 B |
-| `ResolveDamageTick` | 12.27 ns (± 0.22 ns, error ± 0.85 ns) | 25.98 ns (± 11.49 ns, error ± 44.25 ns; median 34.17 ns) | 0 B |
-| `ResolveMixedHit` | – | 122.10 ns (± 7.53 ns, error ± 28.98 ns) | 0 B |
+| `ResolveCreatureHitOnArmouredCharacter` | 9.30 ns (± 0.13 ns, error ± 0.12 ns) | 16.37 ns (± 0.18 ns, error ± 0.16 ns) | 0 B |
+| `ResolveDamageTick` | 3.88 ns (± 0.10 ns, error ± 0.08 ns) | 3.91 ns (± 0.06 ns, error ± 0.05 ns) | 0 B |
+| `ResolveMixedHit` | – | 30.47 ns (± 0.43 ns, error ± 0.39 ns) | 0 B |
 
 None allocates, before or after: both sides of a hit are value structs passed `in`, the parts of a hit are a
 `DamageParts` value on the stack, and the result is a value struct (`HitDamage`) or a value tuple. The hit's three draws
 and the tick's one go through the `ICombatRandom` interface.
 
-The single physical hit reads 2.7 times its before figure, far outside the before run's error (± 16.8 ns, about 24 %),
-and the tick about twice its own, though that row's spread is wide. The after figures are not consistent with each
-other: the mixed hit does strictly more work than the single physical one (the same three draws, then three mitigated
-parts instead of one, a resistance among them, and the ward's share) and reads 65 ns less, which points at the run (the
-first row measured, on one shared core, with three warmups) rather than at the code. The budget allows one run before
-and one after, so this is recorded as measured, not explained; a longer run (more warmups and iterations, rows
-reordered) settles which it is. Either way a hit stays well under a microsecond.
+The first cut of #1178 measured the single hit at 41.12 ns and the mixed hit at 61.32 ns the same way. `DamageParts.Get`
+and `Set` were a `switch` over five fields with a `throw` arm, which the JIT does not inline (the throw boxes the enum),
+and `ResolveDamage` walked the parts three times (the primary type of the base, the mitigation loop into a second
+`DamageParts`, then the primary type of that). The fix backs `DamageParts` with an `[InlineArray(5)]` field, so `Get` and
+`Set` are a range check and an index with the throw in a `[DoesNotReturn]` helper, and resolves the hit in one pass that
+tracks the sum, the largest mitigated part and the blight part. What remains over the base, about 7 ns on the single
+hit, is the work #1178 adds: the evasion chance (a division where the dodge was a comparison) and the per-part loop with
+its type dispatch. The tick is unchanged. A hit stays well under a microsecond.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 

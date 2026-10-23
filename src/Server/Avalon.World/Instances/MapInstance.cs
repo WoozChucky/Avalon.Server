@@ -1894,16 +1894,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _creatureClock += deltaTime;
         if (_scheduleCreatures)
         {
-            _scheduler.Step(deltaTime, _creatureClock, _time.GetUtcNow().UtcDateTime);
+            _scheduler.Step(deltaTime, _creatureClock, _time);
             return;
         }
 
-        DateTime now = _time.GetUtcNow().UtcDateTime;
+        // #1178: a creature's ward recharges as it runs, only for one whose ward is not full; the clock is read once, and
+        // only when one needs it.
+        DateTime? now = null;
         foreach (ICreature creature in _creatures.Values)
         {
-            // #1178: a creature's ward recharges as it runs, only for one that has a ward.
-            if (creature is Creature { MaxWard: > 0 } warded)
-                warded.AdvanceWard(now);
+            if (creature is Creature warded && warded.Ward < warded.MaxWard)
+                warded.AdvanceWard(now ??= _time.GetUtcNow().UtcDateTime);
             creature.Script?.Update(deltaTime);
         }
     }

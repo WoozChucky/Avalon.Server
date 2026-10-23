@@ -86,9 +86,9 @@ public sealed class ScenarioWorld : IDisposable
 
     private static readonly DateTimeOffset s_start = new(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
 
-    // The sheet flusher's formula argument, as WorldServer passes it, in a world without reference data to take it
+    // The sheet flusher's combat generation, as WorldServer passes it, in a world without reference data to take it
     // from. That world's characters have no Stats, so the flusher returns at its first check and never reads the caps.
-    private static readonly CombatFormula s_formula = new();
+    private static readonly CombatPatch s_combat = new(new CombatFormula(), new Dictionary<CharacterClass, ClassStatFactors>());
 
     // How far a walker must have moved between MarkProgress and a check: well above float noise, well below the
     // 20 m it walks in five windows.
@@ -105,7 +105,7 @@ public sealed class ScenarioWorld : IDisposable
 
     private readonly ScenarioWorldHost _world;
     private readonly ScenarioReferenceData? _reference;
-    private readonly CombatFormula _formula;
+    private readonly CombatPatch _combat;
     private readonly CreaturePlacementService? _placement;
     private readonly PortalPlacementService _portals = new();
     private readonly DoodadPlacementService? _doodads;
@@ -169,7 +169,7 @@ public sealed class ScenarioWorld : IDisposable
         _world = new ScenarioWorldHost(configuration, reference?.Data, _templates, _registry);
 
         _reference = reference;
-        _formula = reference?.Data.Combat.Formula ?? s_formula;
+        _combat = reference?.Data.Combat ?? s_combat;
         if (reference is not null)
         {
             // As World attaches it once its registry exists: a party's forest is found through the registry.
@@ -354,7 +354,7 @@ public sealed class ScenarioWorld : IDisposable
             for (int i = 0; i < _connections.Count; i++)
                 InventoryUpdateFlusher.Flush(_connections[i]);
             for (int i = 0; i < _connections.Count; i++)
-                CharacterSheetFlusher.Flush(_connections[i], _formula);
+                CharacterSheetFlusher.Flush(_connections[i], _combat);
             for (int i = 0; i < _connections.Count; i++)
                 AbilityAmountsFlusher.Flush(_connections[i]);
 

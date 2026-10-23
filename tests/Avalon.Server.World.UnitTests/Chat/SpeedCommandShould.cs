@@ -9,6 +9,7 @@ using Avalon.World.Characters;
 using Avalon.World.Chat;
 using Avalon.World.Entities;
 using Avalon.World.Public;
+using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ProtoBuf;
@@ -109,6 +110,8 @@ public class SpeedCommandShould
 
     private sealed class Fixture
     {
+        private static readonly CombatPatch s_combat = TestCombat.Seeded();
+
         private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
         private readonly List<OutboundPacket> _sent = [];
         private readonly CommandDispatcher _dispatcher;
@@ -132,7 +135,7 @@ public class SpeedCommandShould
             new DerivedCharacterStats { MaxHealth = 100, MovementSpeedPct = speedPct },
             CurrentValues.KeepShare, TestCombat.Formula);
 
-        public void Flush() => CharacterSheetFlusher.Flush(_connection, TestCombat.Formula);
+        public void Flush() => CharacterSheetFlusher.Flush(_connection, s_combat);
 
         public bool Dispatch(string message) => _dispatcher.Dispatch(_connection,
             new CChatMessagePacket { Message = message, DateTime = DateTime.UtcNow });
