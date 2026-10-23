@@ -102,3 +102,60 @@ CFI, inline records and correct identity, with its test digest updated) exited 1
 `FAIL: source-resolution gate failed: Application.cpp`. No successful stack data
 is fabricated. This native proof does not establish persistence, grouping,
 retention or public-system-symbol behavior; later tasks test those separately.
+
+## Worker symbol resolver
+
+`CrashSymbolResolver` resolves the dump's exact runtime image/debug identity before
+best-effort system symbols. It uses the locked `dump_syms --inlines --check-cfi
+<adjacent-pair>/runtime.pdb` invocation through `ICrashToolRunner`; tools never
+execute downloaded images. Original keys preserve their source case and timestamp,
+image-size and GUID/age formatting. Only converted symbols are uploaded to
+`symbols-sym`; the `symbols` source bucket remains read-only.
+
+Register one `CrashWorkspace`, `SymbolCache`, `PublicSymbolClient` and
+`CrashSymbolResolver` per worker. The reusable local cache must be a dedicated
+per-worker directory disjoint from the shared scratch root, not a shared volume
+between worker processes. Cache entries verify full source identity, converter and
+cache versions, byte length, SHA-256, MODULE, useful FUNC and x64 CFI records.
+Publication uses temporary files and atomic renames; incomplete/mismatched pairs
+are misses. Metadata and symbol files are evicted as one LRU entry within the
+4 GiB cap. A PostgreSQL transaction advisory lock uses a separate context/connection
+and the full module/cache identity; the resolver rechecks local and remote caches
+under that lock. Local completed symbols survive remote upload failure; later local
+cache demand retries the upload and exposes `CacheUploadFailed` for telemetry.
+
+The caller supplies its eight-minute attempt cancellation token and one
+`SymbolDownloadBudget`, charged for the already downloaded crash archive. The same
+budget follows all private/public/converted downloads and retries. Each network
+operation has one linked 30-second deadline spanning SDK retries/redirects and
+response-body streaming. Source artifacts are capped at 256 MiB and cumulative
+attempt downloads at 1 GiB. All conversion leases use the same scratch manager and
+2 GiB quota as the main attempt. A failed converter deletes only its own lease;
+the caller still owns the main report lease through parsing and disposal.
+
+The 60-second optional-symbol phase includes cache lookups, advisory-lock waits,
+HTTP downloads, pair validation, conversion, materialization and upload, with at
+most 16 module attempts. Its deadline cancels native work through the runner's
+process-tree cleanup. The required runtime phase is outside that budget. Missing
+optional symbols set `MissingSystemSymbols` and preserve module/range identities.
+The v1 public allowlist pairs matching DLL/PDB stems for `ntdll`, `kernel32`,
+`kernelbase`, `ucrtbase`, `vcruntime140`, `vcruntime140_1` and `msvcp140`. Runtime
+names and runtime debug identities are excluded even when paired with a system
+module name. No Vulkan loader or GPU-driver publication is assumed.
+
+The default public origin is `https://msdl.microsoft.com/download/symbols/`.
+Redirects are manual, capped at three, and stay at that origin or explicitly
+configured HTTPS redirect origins (none by default). Automatic decompression,
+cookies and credentials are disabled. CAB/SZDD compressed files and encoded HTTP
+responses are deliberately unsupported: no decompression is attempted. An ordinary
+404, unsupported compression or invalid pair is a 24-hour negative cache entry;
+transient errors use one-minute backoff. The adapter does not probe underscore
+compressed filenames after a 404. This negative cache is process-local, capped at
+4,096 entries, and is lost on restart or capacity eviction.
+
+`CrashSymbolResolverNativeShould` is the opt-in protected-fixture acceptance gate.
+It requires Linux, `AVALON_CRASHES_INTEGRATION=1`,
+`AVALON_CRASHES_PRIVATE_PAIR` and `AVALON_CRASHES_PRIVATE_FIXTURE`; missing inputs
+fail in explicit integration mode. It invokes the actual resolver and pinned tools,
+then requires `Application.cpp`/`main.cpp` source lines, CFI and inline entries.
+It never publishes raw pairs, dumps or raw stackwalk output.
