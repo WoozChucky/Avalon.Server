@@ -1,8 +1,11 @@
+using Avalon.Combat;
 using Avalon.Common;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -98,7 +101,7 @@ public class CharacterStatsRefreshShould
         [
             Item(EquipmentSlots.Chest, EquipTemplates.Chestguard),   // fits: counts
             Item(EquipmentSlots.Finger2, EquipTemplates.Ruby),       // a gem in slot 8: does not
-            Item(12, EquipTemplates.Longsword),                      // a reserved slot: does not
+            Item(EquipmentSlots.FirstReserved, EquipTemplates.Longsword),   // a reserved slot: does not
             Item(EquipmentSlots.Head, EquipTemplates.Ghost),         // template gone: does not
         ]);
         character.Container(InventoryType.Bag).Load([Item(0, EquipTemplates.Greatsword)]);
@@ -108,6 +111,42 @@ public class CharacterStatsRefreshShould
         Assert.Equal(25u, character.Stats!.Value.Strength);
         Assert.Equal(24u, character.Stats.Value.Stamina);
         Assert.Equal(8u + 2u, character.Stats.Value.Armor);   // and Strength 25 x 0.1 (#1178)
+    }
+
+    /// <summary>
+    /// Review Focus 3 (#1179): a base edited live while a copy is worn. Each refresh reads the template the lookup holds
+    /// now and the modifiers the copy rolled, so the seeded Ironbound Helm's 5 armour becomes 9 while the copy's
+    /// 10 health stays.
+    /// </summary>
+    [Fact]
+    public void Read_base_stats_from_the_current_template_and_modifiers_from_the_instance()
+    {
+        ItemTemplate seeded = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 36);
+        ItemTemplate edited = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 36);
+        Assert.Equal((StatType.Armor, 5u), (seeded.StatType1, seeded.StatValue1));
+        edited.StatValue1 = 9;
+
+        CharacterEntity bare = New();
+        CharacterStatsRefresh.Apply(bare, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
+        CharacterEntity character = New();
+        InventoryItem helm = Item(EquipmentSlots.Head, seeded);
+        character.ItemModifiers.Load([new ItemInstance
+        {
+            Id = helm.InstanceId,
+            TemplateId = seeded.Id,
+            Modifiers = [TestModifiers.Modifier(helm.InstanceId, 1, 0, (0, StatType.Health, 10, null))],
+        }]);
+        character.Container(InventoryType.Equipment).Load([helm]);
+
+        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, id => id == seeded.Id ? seeded : null,
+            CurrentValues.Refill, TestCombat.Formula);
+        (uint Armor, uint Health) before = (character.Stats!.Value.Armor, character.Stats.Value.MaxHealth);
+        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, id => id == edited.Id ? edited : null,
+            CurrentValues.Refill, TestCombat.Formula);
+
+        DerivedCharacterStats none = bare.Stats!.Value;
+        Assert.Equal((none.Armor + 5u, none.MaxHealth + 10u), before);
+        Assert.Equal((none.Armor + 9u, none.MaxHealth + 10u), (character.Stats.Value.Armor, character.Stats.Value.MaxHealth));
     }
 
     [Fact]

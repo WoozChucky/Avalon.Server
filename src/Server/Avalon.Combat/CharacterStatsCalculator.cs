@@ -88,8 +88,11 @@ public static class CharacterStatsCalculator
         return (uint)Math.Clamp(scaled, 1UL, newMax);
     }
 
-    /// <summary>The first worn item for the main hand, or null.</summary>
-    private static WornItem? MainHandOf(IReadOnlyList<WornItem> worn)
+    /// <summary>
+    /// The first worn item for the main hand, or null: the weapon the calculation rolls, and the one the worlds API words an
+    /// ability's amount with, so both read the same item.
+    /// </summary>
+    public static WornItem? MainHandOf(IReadOnlyList<WornItem> worn)
     {
         for (int i = 0; i < worn.Count; i++)
         {
