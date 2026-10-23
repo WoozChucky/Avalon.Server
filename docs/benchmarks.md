@@ -381,6 +381,25 @@ on entry, though only a refusal runs the query); a refusal paid those 96 B and 8
 top of its entries. What a refusal allocates now is its entries: 216 B for two slots holding items, 64 B for one
 empty slot.
 
+**Since #1179 an `ItemSlotDto` is 72 B, not 56 B**: it carries the copy's rarity and item level, and a list of its
+modifiers only when it rolled any (null otherwise, so an item without modifiers costs no list). Every row that builds
+an item entry grows by 16 B per item and nothing else moves. The same commands, one `--job short` run pinned to one
+core (`--affinity 4`; BenchmarkDotNet runs the benchmark process at high priority), 2026-10-23, at `2c38298b7`:
+
+| Row | Allocated before #1179 | Allocated after | Mean / min / median after |
+|---|---:|---:|---:|
+| `Flusher`, 0 slots (gold only) | 0 B | 0 B | 111.5 / – / – ns |
+| `Flusher`, 1 slot | 120 B | 136 B | 1,028.5 / 956 / 964 ns |
+| `Flusher`, 8 slots | 792 B | 920 B | 1,438.8 / 1,387 / 1,433 ns |
+| `Flusher`, 30 slots | 2,904 B | 3,384 B | 15,948 / 15,344 / 15,459 ns |
+| `Accepted_move` | 0 B | 0 B | 781.0 / 626.9 / 856.4 ns |
+| `Refused_move` (two slots holding items) | 216 B | 248 B | 1,190.5 / 1,176 / 1,195 ns |
+| `Refused_destroy` (one empty slot) | 64 B | 64 B | 887.0 / 694.5 / 859.0 ns |
+
+The allocations are exact. A short job's three iterations leave the means wide (an error of ±2-17 µs on the 1- and
+30-slot rows), so they back no claim beyond the allocations; the `Queried` rows are unchanged in shape (448, 888,
+1,704 and 4,392 B, each the old query's cost plus the larger entries).
+
 `InventoryAllocationShould` pins both paths in the World suite: a gold-only flush and an accepted reply at 0 B, and
 a flush of changed slots and a refusal at exactly what building their entries costs, measured in the test rather
 than written down. It runs in the collection that runs alone in the assembly, and reads the fewest of three windows:
@@ -1777,24 +1796,32 @@ added and nothing else changed, 2026-10-23:
 | `OffenceBenchmarks.SpellBase` | 16.55 ns (± 0.05 ns, error ± 0.05 ns) | 0 B |
 | `OffenceBenchmarks.DamageOverTimeSnapshot` | 9.59 ns (± 0.07 ns, error ± 0.06 ns) | 0 B |
 
-After is `f09d1ea68` with `CalculateModified` added, the same command, machine and toolchain, one run, 2026-10-23:
+After is `2c38298b7`, the same command plus `--affinity 4` (the process pinned to one core; BenchmarkDotNet runs it at
+high priority), on a quiet machine (about 7 % CPU before the run), one run, 2026-10-23:
 
-| Operation | After (#1179 part A) | Allocated |
+| Operation | After (#1179 part A): mean / min / median | Allocated |
 |---|---:|---:|
-| `ItemStatsBenchmarks.Calculate` | 732.1 ns (± 186.8 ns, error ± 162.2 ns; median 598.2 ns) | 0 B |
-| `ItemStatsBenchmarks.CalculateModified` | 1,353.6 ns (± 208.0 ns, error ± 180.6 ns; median 1,360.1 ns) | 0 B |
-| `OffenceBenchmarks.AttackBase` | 43.19 ns (± 10.76 ns, error ± 9.35 ns) | 0 B |
-| `OffenceBenchmarks.ConvertedAttackBase` | 47.72 ns (± 12.15 ns, error ± 10.55 ns) | 0 B |
-| `OffenceBenchmarks.SpellBase` | 33.10 ns (± 0.73 ns, error ± 0.68 ns) | 0 B |
-| `OffenceBenchmarks.DamageOverTimeSnapshot` | 39.75 ns (± 2.07 ns, error ± 1.86 ns) | 0 B |
+| `ItemStatsBenchmarks.Calculate` | 415.9 / 412.5 / 415.9 ns (± 1.71 ns) | 0 B |
+| `ItemStatsBenchmarks.CalculateModified` | 944.4 / 930.0 / 946.2 ns (± 8.54 ns) | 0 B |
+| `OffenceBenchmarks.AttackBase` | 19.23 / 19.03 / 19.16 ns (± 0.15 ns) | 0 B |
+| `OffenceBenchmarks.ConvertedAttackBase` | 23.63 / 23.08 / 23.64 ns (± 0.25 ns) | 0 B |
+| `OffenceBenchmarks.SpellBase` | 14.64 / 14.34 / 14.64 ns (± 0.13 ns) | 0 B |
+| `OffenceBenchmarks.DamageOverTimeSnapshot` | 10.49 / 10.35 / 10.46 ns (± 0.09 ns) | 0 B |
 
-Nothing allocates, with or without modifiers. The after run is not comparable with the before one: it ran on a loaded
-machine (a local world server, browsers and Docker running, about 28 % CPU), BenchmarkDotNet called `Calculate`
-bimodal (its iterations sit near 565 ns and near 950 ns), and the rows whose code part A barely touched slowed as much
-as the others (`DamageOverTimeSnapshot` 4.1 times, `SpellBase` 2.0 times). Within the run, six modifiers on each of nine
-pieces cost about 1.8 times the stats calculation without them (1,354 ns against 732 ns by mean, 1,360 ns against 598
-ns by median), a cost paid once per gear, level or aura change. A before and after on a quiet machine is still owed
-for the offence rows.
+Nothing allocates, with or without modifiers. The before run was not pinned, so a ratio against it carries that
+difference too. The stats calculation without modifiers costs about 1.8 times what it did (416 ns against 234 ns):
+every worn item's lines now go through `ItemLines` in three folds (the gear totals with each item's own defence, the
+offence block with the added damage, the main hand's local lines), once per gear, level or aura change, never per tick
+or per hit. Six modifiers on each of nine pieces cost about 2.3 times the calculation without them (944 ns against
+416 ns).
+
+A hit's base: a Spell is faster than before (14.6 ns against 16.6 ns), since it skips its added-damage loop when the
+caster adds nothing (`DamageRanges.Mask`). An Attack costs 19.2 ns against 14.5 ns, and a converted one 23.6 ns against
+14.5 ns. `AttackBase` copies the weapon, which now holds its own added damage, and copies the added damage again to
+read its mask. A probe of the world's whole read (the attacker built from the character's stats, then the base) cost
+the same before part A and now, about 64 ns: building the 344 B attacker dominates. Making the weapon and the two added
+ranges fields of `AttackerCombat`, read in place, brought `AttackBase` alone to 12.7-14 ns in the same probe. It
+made building the attacker slower, though, and the whole read rose to 75-78 ns, so the properties stay.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
