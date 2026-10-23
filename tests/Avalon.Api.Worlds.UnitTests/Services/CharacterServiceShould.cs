@@ -22,7 +22,8 @@ public class CharacterServiceShould
 {
     /// <summary>
     /// Instances live in the Character database and templates in the World database, so the
-    /// template is looked up by id rather than joined. The DTO the endpoint returns is unchanged.
+    /// template is looked up by id rather than joined. The copy's own rarity, item level and modifiers come from the
+    /// instance (#1179), in the order the item shows them, whatever order the rows were read in.
     /// </summary>
     [Fact]
     public async Task Look_up_each_items_template_in_the_world_database()
@@ -43,14 +44,35 @@ public class CharacterServiceShould
         IItemInstanceRepository items = Substitute.For<IItemInstanceRepository>();
         items.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<ItemInstance>
         {
-            new() { Id = itemId, TemplateId = new ItemTemplateId(9), CharacterId = id, Count = 4, Durability = 7 },
+            new()
+            {
+                Id = itemId, TemplateId = new ItemTemplateId(9), CharacterId = id, Count = 4, Durability = 7,
+                Rarity = Avalon.Common.ItemRarity.Magic, ItemLevel = 7,
+                Modifiers =
+                [
+                    new ItemInstanceModifier
+                    {
+                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = 204, Ordinal = 1,
+                        Values = [new ItemInstanceModifierValue { Index = 0, Stat = Avalon.Domain.World.StatType.AddedColdDamage, Value = 2, Value2 = 5 }],
+                    },
+                    new ItemInstanceModifier
+                    {
+                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = 10103, Ordinal = 0,
+                        Values =
+                        [
+                            new ItemInstanceModifierValue { Index = 1, Stat = Avalon.Domain.World.StatType.Armor, Value = 3 },
+                            new ItemInstanceModifierValue { Index = 0, Stat = Avalon.Domain.World.StatType.Strength, Value = 8 },
+                        ],
+                    },
+                ],
+            },
         });
 
         IItemTemplateRepository templates = Substitute.For<IItemTemplateRepository>();
         templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<ItemTemplate>
             {
-                new() { Id = new ItemTemplateId(9), Name = "Lantern", Rarity = Avalon.Common.ItemRarity.Rare, DisplayId = 12 },
+                new() { Id = new ItemTemplateId(9), Name = "Lantern", Rarity = Avalon.Common.ItemRarity.Common, DisplayId = 12 },
             });
 
         var service = new CharacterService(characters, slots, items,
@@ -68,6 +90,11 @@ public class CharacterServiceShould
         Assert.Equal(9ul, item.Template!.Id);
         Assert.Equal("Lantern", item.Template.Name);
         Assert.Equal(12u, item.Template.DisplayId);
+        Assert.Equal((Avalon.Api.Contract.ItemRarity.Magic, (ushort)7), (item.Rarity, item.ItemLevel));
+        Assert.Equal(
+            "10103 [Strength 8 , Armor 3 ] 204 [AddedColdDamage 2 5]",
+            string.Join(' ', item.Modifiers.Select(m =>
+                $"{m.ModifierId} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value} {v.Value2}"))}]")));
     }
 
     /// <summary>

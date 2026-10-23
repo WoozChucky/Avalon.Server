@@ -33,9 +33,7 @@ public static partial class LinkPreviewText
         parts.AddRange(item.Stats.Where(s => s.Type == StatType.Armor).Select(s => FormatStat(s.Type, s.Value)));
         parts.AddRange(item.Stats.Where(s => s.Type != StatType.Armor).Select(s => FormatStat(s.Type, s.Value)));
         if (item.RequiredLevel is > 0) parts.Add($"Requires Level {Num(item.RequiredLevel.Value)}");
-        if (item.RequiredStrength is > 0) parts.Add($"Requires {Num(item.RequiredStrength.Value)} Strength");
-        if (item.RequiredAgility is > 0) parts.Add($"Requires {Num(item.RequiredAgility.Value)} Agility");
-        if (item.RequiredIntellect is > 0) parts.Add($"Requires {Num(item.RequiredIntellect.Value)} Intellect");
+        if (Attributes(item) is { } attributes) parts.Add(attributes);
         if (Restricted(item.AllowedClasses) is { } classes) parts.Add($"Classes: {classes}");
         return Cap(string.Join(Separator, parts));
     }
@@ -103,6 +101,22 @@ public static partial class LinkPreviewText
 
     /// <summary>A name or description as one line.</summary>
     public static string OneLine(string text) => Whitespace().Replace(text, " ").Trim();
+
+    /// <summary>
+    /// The attribute requirements, or null for none: each its own part (<c>Requires 12 Strength · Requires 8 Agility</c>),
+    /// or, when any one is enough (#1179), one part (<c>Requires 30 Strength or 30 Intellect</c>).
+    /// </summary>
+    private static string? Attributes(PublicItemDto item)
+    {
+        List<string> required = [];
+        if (item.RequiredStrength is > 0) required.Add($"{Num(item.RequiredStrength.Value)} Strength");
+        if (item.RequiredAgility is > 0) required.Add($"{Num(item.RequiredAgility.Value)} Agility");
+        if (item.RequiredIntellect is > 0) required.Add($"{Num(item.RequiredIntellect.Value)} Intellect");
+        if (required.Count == 0) return null;
+        return item.RequiresAnyAttribute
+            ? $"Requires {string.Join(" or ", required)}"
+            : string.Join(Separator, required.Select(r => $"Requires {r}"));
+    }
 
     /// <summary>The classes as a list, or null when every class (or none listed) may use it.</summary>
     private static string? Restricted(List<CharacterClass> allowed)

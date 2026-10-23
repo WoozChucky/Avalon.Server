@@ -18,6 +18,7 @@ public static class PublicMapping
         RequiredStrength = t.RequiredStrength,
         RequiredAgility = t.RequiredAgility,
         RequiredIntellect = t.RequiredIntellect,
+        RequiresAnyAttribute = t.RequiresAnyAttribute,
         AttackTimeMs = t.AttackTimeMs,
         AllowedClasses = t.AllowedClasses?.ToList() ?? [],
         MaxStackSize = t.MaxStackSize,

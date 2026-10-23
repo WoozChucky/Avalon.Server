@@ -140,6 +140,7 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.Domain.World.ItemClass), typeof(Avalon.Api.Contract.ItemClass))]
     [InlineData(typeof(Avalon.Domain.World.ItemSubClass), typeof(Avalon.Api.Contract.ItemSubClass))]
     [InlineData(typeof(Avalon.Domain.World.ItemSlotType), typeof(Avalon.Api.Contract.ItemSlotType))]
+    [InlineData(typeof(Avalon.Domain.World.ItemBaseKind), typeof(Avalon.Api.Contract.ItemBaseKind))]
     [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Api.Contract.StatType))]
     [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Network.Packets.Items.ItemStat))]
     [InlineData(typeof(Avalon.Network.Packets.Combat.DamageType), typeof(Avalon.Api.Contract.DamageType))]

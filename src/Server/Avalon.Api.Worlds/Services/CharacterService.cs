@@ -172,6 +172,9 @@ public class CharacterService : ICharacterService
             Slot = row.Slot,
             Count = instance?.Count ?? 0,
             Durability = instance?.Durability ?? 0,
+            Rarity = (Avalon.Api.Contract.ItemRarity)(instance?.Rarity ?? default),
+            ItemLevel = instance?.ItemLevel ?? 0,
+            Modifiers = instance is null ? [] : ModifiersOf(instance),
             Template = template is null ? null : new CharacterInventoryItemTemplateDto
             {
                 Id = template.Id.Value,
@@ -183,6 +186,28 @@ public class CharacterService : ICharacterService
             },
         };
     }
+
+    /// <summary>
+    /// The copy's modifiers in the order the item shows them, by ordinal, each with its values in the order of the
+    /// catalog's stat lines: the read loads the rows in no particular order.
+    /// </summary>
+    private static List<CharacterInventoryModifierDto> ModifiersOf(ItemInstance instance) =>
+        instance.Modifiers
+            .OrderBy(m => m.Ordinal)
+            .Select(m => new CharacterInventoryModifierDto
+            {
+                ModifierId = m.ModifierId,
+                Values = m.Values
+                    .OrderBy(v => v.Index)
+                    .Select(v => new CharacterInventoryModifierValueDto
+                    {
+                        Stat = (Avalon.Api.Contract.StatType)v.Stat,
+                        Value = v.Value,
+                        Value2 = v.Value2,
+                    })
+                    .ToList(),
+            })
+            .ToList();
 
     public async Task<CharacterStatsDto?> GetStatsAsync(CharacterId id, CancellationToken cancellationToken = default)
     {

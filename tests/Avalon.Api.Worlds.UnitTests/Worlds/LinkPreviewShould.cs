@@ -75,6 +75,8 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
             SubClass = ItemSubClass.Helmet,
             RequiredLevel = 5,
             RequiredStrength = 12,
+            RequiredIntellect = 12,
+            RequiresAnyAttribute = true,   // either is enough (#1179)
             StatType1 = StatType.Armor,
             StatValue1 = 8,
             StatType2 = StatType.Strength,
@@ -216,7 +218,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         Assert.Equal("https://avalon.example/item/14", Meta(html, "og:url"));
         Assert.Equal("#C084FC", Meta(html, "theme-color"));
         Assert.Equal("summary", Meta(html, "twitter:card"));
-        Assert.Equal("Magic · Head · Helmet · 8 Armor · +3 Strength · +2% Crit · Requires Level 5 · Requires 12 Strength",
+        Assert.Equal("Magic · Head · Helmet · 8 Armor · +3 Strength · +2% Crit · Requires Level 5 · Requires 12 Strength or 12 Intellect",
             Decoded(html, "og:description"));
         Assert.Contains("<title>Barkplate Helm</title>", html, StringComparison.Ordinal);
         Assert.Contains("<body><a href=\"https://avalon.example/item/14\">Barkplate Helm</a></body>", html,

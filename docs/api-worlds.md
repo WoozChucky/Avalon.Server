@@ -270,7 +270,7 @@ reads admit the owner or a game master (`CharacterReadHandler`), character write
 |---|---|---|---|
 | `/world/{worldId}/character/paginate` | GET | GameMaster | |
 | `/world/{worldId}/character/{id}` | GET, PATCH | Player | Owner, or game master (read) or admin (write) |
-| `/world/{worldId}/character/{id}/inventory`, `/abilities`, `/stats`, `/quests`, `/auras` | GET | Player | Owner or game master |
+| `/world/{worldId}/character/{id}/inventory`, `/abilities`, `/stats`, `/quests`, `/auras` | GET | Player | Owner or game master. An inventory item carries its copy's `rarity`, `itemLevel` and `modifiers` (each `modifierId` with its `values`: `stat`, `value` and, on an "adds X to Y" line, `value2`), in the order the item shows them (#1179) |
 | `/world/{worldId}/map-template`, `/{id}` | GET | Player | |
 | `/world/{worldId}/map-template/{id}/preview-layout` | GET | GameMaster | Runs the procedural generator against that world's data; see [Map Generation](map-generation.md) |
 | `/world/{worldId}/map-template/chunk-asset/{*filename}` | GET | GameMaster | Whitelisted against the world's `ChunkTemplate.GeometryFile` values; the bytes come from the API's own copy of `Maps/` (`Application:MapAssets:ChunkAssetRoot`), not from the world |
@@ -345,8 +345,9 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   world. With no `PublicSiteUrl`, `og:url` is left out and the link is relative.
 - **The description** (`LinkPreviewText.Describe`) reads like the site's tooltips: for an item its rarity, slot,
   subclass, damage, a weapon's attack time after its damage (`0.78 sec attack time`, before attack speed, #1189),
-  armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178),
-  allowed classes (only when restricted to some; an empty list means every class, #1171) and item power; for an
+  armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178; one part, `Requires 30
+  Strength or 30 Intellect`, when any one is enough, #1179) and allowed classes (only when restricted to some; an
+  empty list means every class, #1171); for an
   ability its classes, cost, cast time, cooldown and what one hit deals or heals (#1178): an Attack as its weapon
   damage (`315 % of weapon damage`, then `converts 50 % to cold` or `adds 2-4 blight damage`; a creature's, with no
   classes, as its natural damage, and any attack's type when it is not physical: `240 % of its natural damage, blight
@@ -469,7 +470,7 @@ or distribution ignores `worlds`, and the checks below apply to the parts a rele
 | `Application:PublicSiteUrl` | none (blank) | The public site's base URL, e.g. `https://avalon.example`: an absolute http or https URL with no query or fragment, trailing slash dropped (`PublicSiteSettings.Create`); anything else stops startup, naming the setting. Helm `publicSiteUrl`; the AppHost sets `http://localhost:5173` |
 | `Application:Previews:SiteName` | `Avalon` | `og:site_name` and the not-found title; left out when empty |
 | `Application:Previews:AbilityColour` | `#BC8A4E` | An ability's `theme-color` |
-| `Application:Previews:RarityColours:<Rarity>` | Junk `#988F81`, Common `#E9E2D8`, Uncommon `#34D399`, Rare `#38BDF8`, Epic `#C084FC`, Legendary `#FBBF24` | An item's `theme-color` by rarity name (any case) |
+| `Application:Previews:RarityColours:<Rarity>` | Common `#E9E2D8`, Magic `#38BDF8`, Rare `#FBBF24`, Unique `#F97316` (#1179) | An item's `theme-color` by rarity name (any case) |
 
 The preview colours mirror the Dashboard's `rarity.ts` and the public site's primary accent; change them together.
 
