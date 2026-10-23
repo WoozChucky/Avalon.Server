@@ -1,3 +1,4 @@
+using System.Reflection;
 using Avalon.Crashes.Worker.Processing;
 using Xunit;
 
@@ -32,6 +33,55 @@ public sealed class CrashWorkspaceShould
         Assert.False(File.Exists(Path.Combine(second.DirectoryPath, "two")));
         await first.DisposeAsync();
         await second.WriteAsync("two", new byte[12], default);
+    }
+
+    [Fact]
+    public async Task Count_writer_completing_between_measurement_and_competing_reservation()
+    {
+        using var root = new TestRoot();
+        using var resumeScan = new ManualResetEventSlim();
+        var scanPaused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completeWriter = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool pauseNextScan = false;
+        Func<string, long> measure = directory =>
+        {
+            long measuredBytes = Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories).Sum(path => new FileInfo(path).Length);
+            if (pauseNextScan)
+            {
+                scanPaused.SetResult();
+                Assert.True(resumeScan.Wait(TimeSpan.FromSeconds(10)), "Competing scan was not resumed.");
+            }
+            return measuredBytes;
+        };
+        ConstructorInfo constructor = typeof(CrashWorkspace).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic,
+            binder: null, [typeof(CrashToolOptions), typeof(Func<string, long>)], modifiers: null)!;
+        var manager = (CrashWorkspace)constructor.Invoke([new CrashToolOptions { ScratchRoot = root.Path, ScratchLimitBytes = 12 }, measure]);
+        await using CrashAttemptWorkspace writing = await manager.CreateAsync(Guid.NewGuid(), default);
+        await using CrashAttemptWorkspace competing = await manager.CreateAsync(Guid.NewGuid(), default);
+        Task<string> writer = writing.WriteExternalAsync("completing", 8, async (destination, _, ct) =>
+        {
+            await completeWriter.Task.WaitAsync(ct);
+            await File.WriteAllBytesAsync(destination, new byte[8], ct);
+        }, default);
+
+        pauseNextScan = true;
+        Task<string> competitor = Task.Run(() => competing.WriteAsync("competing", new byte[8], default));
+        try
+        {
+            await scanPaused.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            completeWriter.SetResult();
+            string completedPath = await writer.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(8, new FileInfo(completedPath).Length);
+        }
+        finally
+        {
+            completeWriter.TrySetResult();
+            resumeScan.Set();
+        }
+
+        await Assert.ThrowsAsync<CrashScratchLimitException>(() => competitor);
+        Assert.False(File.Exists(Path.Combine(competing.DirectoryPath, "competing")));
+        Assert.Equal(8, Directory.EnumerateFiles(root.Path, "*", SearchOption.AllDirectories).Sum(path => new FileInfo(path).Length));
     }
 
     [Fact]

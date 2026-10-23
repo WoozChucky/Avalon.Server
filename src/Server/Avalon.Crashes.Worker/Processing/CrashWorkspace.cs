@@ -6,15 +6,20 @@ public sealed class CrashWorkspace
     private readonly string _root;
     private readonly long _limit;
     private readonly SemaphoreSlim _quotaLock = new(1, 1);
+    private readonly Func<string, long> _measure;
     private long _reserved;
 
     public CrashWorkspace(CrashToolOptions options)
     {
         _root = Path.GetFullPath(options.ScratchRoot);
         _limit = options.ScratchLimitBytes;
+        _measure = Measure;
         if (_root == Path.GetPathRoot(_root) || _limit is <= 0 or > 2L * 1024 * 1024 * 1024)
             throw new ArgumentException("Scratch requires a dedicated root and a positive limit at most 2 GiB.", nameof(options));
     }
+
+    // Deterministic quota-race tests can pause a physical scan; production always measures the real scratch tree.
+    internal CrashWorkspace(CrashToolOptions options, Func<string, long> measure) : this(options) => _measure = measure;
 
     public Task<CrashAttemptWorkspace> CreateAsync(CrashReportId reportId, CancellationToken ct)
     {
@@ -157,7 +162,10 @@ public sealed class CrashWorkspace
             string destination = Path.Combine(directory, name);
             if (File.Exists(destination) || Directory.Exists(destination))
                 throw new IOException("Scratch destination already exists.");
-            if (maxBytes > _limit - Measure(_root) - Interlocked.Read(ref _reserved))
+            // Acquisitions are serialized here. Snapshot reservations before scanning: a writer may flush and
+            // release during the scan, but its bytes remain represented by this snapshot even if the scan missed them.
+            long reserved = Interlocked.Read(ref _reserved);
+            if (maxBytes > _limit - _measure(_root) - reserved)
                 throw new CrashScratchLimitException();
             Interlocked.Add(ref _reserved, maxBytes);
             return destination;
