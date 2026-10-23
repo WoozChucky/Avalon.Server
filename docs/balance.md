@@ -7,7 +7,10 @@ The balance simulator library and tool, and the in-cluster service that runs it 
 **Paused (#1183).** The simulator is paused during the itemization and build overhaul (#1182). It keeps compiling with
 today's maths, and no new mechanic is mirrored into it. Its parity guards (`SimulatorParityShould`,
 `CreatureKitParityShould`) and the balance tests that stop holding are skipped with `BalancePause.Reason`, never
-deleted, and the API's `/balance` endpoints serve the old maths until the re-sync, see #1183.
+deleted. Until the re-sync (#1183) the API's `/balance` endpoints serve a mix, not the old maths: the new evasion and the
+class-neutral defences reach it through the shared `Avalon.Combat` stats (evasion from Agility, no class base dodge or
+block, armour from Strength, the creatures' evasion seed), but every hit is one physical part, so elements still meet
+armour there, and it has no ward and no resistances.
 
 The simulator is a library with a thin tool on top. `Avalon.Balance.Core` (`src/Server/`) is the simulator, grader and
 run contract; it references `Avalon.Combat` and `Avalon.Domain` only, no `Avalon.World`, no `Avalon.Database*`, no EF,

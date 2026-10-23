@@ -29,12 +29,15 @@ public class CharacterStats
     /// <summary>The ward a full recharge reaches (#1178).</summary>
     public uint MaxWard { get; set; }
 
-    /// <summary>The resistances (#1178), in percent, before any cap.</summary>
+    /// <summary>The fire resistance (#1178), in percent, before any cap.</summary>
     public float FireResistance { get; set; }
 
+    /// <summary>The cold resistance (#1178), in percent, before any cap.</summary>
     public float ColdResistance { get; set; }
 
+    /// <summary>The lightning resistance (#1178), in percent, before any cap.</summary>
     public float LightningResistance { get; set; }
 
+    /// <summary>The blight resistance (#1178), in percent, before any cap.</summary>
     public float BlightResistance { get; set; }
 }

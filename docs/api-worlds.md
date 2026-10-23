@@ -141,7 +141,9 @@ singletons as in every host. Only their context factories differ in the API, whi
   worse. The stored item damage types move to the new numbering (Poison 1 became Blight 4, Fire 2 became 1); no
   seeded item deals anything but Physical, so no row the API reads changes. The worlds go first: each migrates at its
   next start (start any stopped world once, so it migrates too), and only then is an API release with the change cut.
-  An older API reading a migrated world ignores the new columns; an API with the change reading a world that has not
+  An older API reading a migrated world ignores the new columns, an ability's `DamageType` among them, and serves the
+  migrated seed as it is: ability 210 renamed Spark Bolt (it was Arcane Bolt), and creatures 6 and 10 with `dmgSchool` 4
+  (Blight), a value it reads but does nothing with. An API with the change reading a world that has not
   migrated fails that world's reads of the three template tables, a character's stats and its auras. To roll a world
   back to a build without the change, first run `dotnet ef database update RenameRewardMoneyToRewardGold` against its
   World database and `dotnet ef database update AddTradeRecords` against its Character database; the World rollback

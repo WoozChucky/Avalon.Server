@@ -237,7 +237,7 @@ public static class ObjectStateWriter
         }
 
         // The ward and its maximum travel together (#1178): a change to either sends both, so a client always holds the pair
-        // its ward bar is drawn from. A unit with no ward pays only on its add and when it loses its ward.
+        // its ward bar is drawn from. A unit with no ward pays only on its add and when its ward or its maximum changes.
         if (Has(fields, GameEntityFields.Ward) || Has(fields, GameEntityFields.MaxWard))
         {
             (uint ward, uint maxWard) = WardOf(unit);

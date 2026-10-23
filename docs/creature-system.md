@@ -45,7 +45,7 @@ then asks `CreatureStatDeriver.Derive` for the stats that level gives:
    seeded 1.0. Each chance is a percentage from 0 to 100 (#1145): `CreatureTemplateRules.ValidateRarities`
    refuses a row with one outside that range, or not finite, at world load, on `/reload creatures` and in
    the balance simulator, and the check constraints `CK_CreatureRarityModifiers_CritPct` and
-   `_BlockPct` refuse it in the database (`_DefenceMultiplier` only refuses one that is not finite, and
+   `_BlockPct` refuse it in the database (`_DefenceMultiplier` refuses one that is negative or not finite, and
    `CK_CreatureTemplates_FireResistance` and its siblings, `_EvasionModifier` and `_WardModifier` hold
    the template's). `CreatureSpawner` copies them onto the World-side
    `Creature`, init-only and not on `ICreature`, so a `/reload creatures` reaches only creatures spawned

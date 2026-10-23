@@ -23,7 +23,10 @@ public class SCharacterDamagePacket : Packet
     /// <summary>The aura whose tick this was (auras); absent for every other hit.</summary>
     [ProtoMember(7)] public uint? AuraId { get; set; }
 
-    /// <summary>The hit's damage type (#1178): the part that dealt the most. A dodge names the type it would have dealt.</summary>
+    /// <summary>
+    /// The hit's damage type (#1178): the part that dealt the most after mitigation, a tie going to the lower type. A dodge
+    /// names the type it would have dealt.
+    /// </summary>
     [ProtoMember(8)] public DamageType Type { get; set; }
 
     /// <summary>Every damage type the hit carried (#1178), its parts above 0 before mitigation; None for a hit of nothing.</summary>

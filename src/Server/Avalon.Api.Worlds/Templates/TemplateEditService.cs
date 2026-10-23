@@ -94,8 +94,8 @@ public sealed class TemplateEditService(
                 TemplateValidation.ScriptKnown(errors, row.ScriptName, stored, catalog, c => c.Ability);
                 // The aura must exist (its foreign key) and be one the world loads, fit what the ability affects, and find
                 // a damage type on a class ability when it deals damage over time (#1178), as the world's ability catalog
-                // checks the link. A concurrent edit of that aura's Kind can still race
-                // this check (it reads the aura, not a lock on it); the world's catalog then refuses the link and logs it.
+                // checks the link. A concurrent edit of that aura's Kind can still race this check (it reads the aura, not
+                // a lock on it); the world's catalog then refuses the link and logs it.
                 if (row.AuraId is { } auraId)
                 {
                     AuraTemplate? aura = await db.AuraTemplates.AsNoTracking().Include(a => a.Modifiers)
