@@ -17,7 +17,8 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// 34): the physical half <c>roll / 2 × 4.95 × 1.735</c> and the cold half <c>roll / 2 × 4.95</c>, which Strength never
 /// boosts.
 /// <see cref="SpellBase" />: <see cref="OffenceMath.SpellBase" /> for Spark Bolt (210, a 14..20 lightning spell base)
-/// cast by a level-1 starter Wizard (Intellect 31, so 108.5 % increased spell damage): <c>roll × 2.085</c>, no weapon.
+/// cast by a level-1 starter Wizard (Intellect 31, so 108.5 % increased spell damage, the Ash Staff, item 33):
+/// <c>roll × 2.085</c>, the staff unread.
 /// <see cref="DamageOverTimeSnapshot" />: <see cref="AuraRules.Snapshot" /> of Bleed (aura 1, 12 s ticking every 3 s,
 /// PeriodicBase 12, 21 % of its source's roll) from Rend (203, an Attack) cast by the Warrior:
 /// <c>(12 + 0.21 × roll) × 2.015 / 4</c> per tick. 0 B expected on every row.
@@ -43,7 +44,8 @@ public class OffenceBenchmarks
         Weapon: new WeaponDamage(4, 7, DamageType.Physical, 0, 0, null, 801),
         Offence: Increased(OffenceStat.PhysicalAttack, 73.5f));
 
-    private readonly AttackerCombat _wizard = new(Level: 1, CritPct: 5f, Weapon: s_starterSword,
+    private readonly AttackerCombat _wizard = new(Level: 1, CritPct: 5f,
+        Weapon: new WeaponDamage(4, 7, DamageType.Physical, 0, 0, null, 800),
         Offence: Increased(OffenceStat.Spell, 108.5f));
 
     private readonly AbilityMetadata _cleave = new()

@@ -1662,12 +1662,14 @@ None allocates, before or after: the attacker is a value struct passed `in`, the
 and the snapshot are value structs. Before, the spell base was two float operations on fields with no draw, which the
 JIT inlined into the benchmark method, so it measured as nothing over BenchmarkDotNet's empty-method overhead; a spell
 now draws its roll as an attack does, so its after number compares with the attack base's one-draw cost before
-(1.78 ns), not with that 0.00 ns. Every base now costs about 32 to 40 ns, about twenty times the old attack base: the
-offence block is a 128 B value (`OffenceStats`) that each base copies once, and each part above 0 is scaled on its own
-over the keys its type and the ability's tags name; the attack base also walks the five damage types and converts.
-`AttackerCombat` grew from 44 B to 192 B (the 128 B offence block and the 36 B `WeaponDamage`), and
-`DerivedCharacterStats` to 228 B, which `with` copies and the per-tick sheet and amounts comparisons read. A hit's
-base and its resolution together stay well under a tenth of a microsecond.
+(1.78 ns), not with that 0.00 ns. Every base now costs about 32 to 40 ns, about twenty times the old attack base. The
+likely causes, not yet profiled: each base copies the offence block, a 128 B value (`OffenceStats`), once, and scales
+each part above 0 on its own over the keys its type and the ability's tags name; the attack base also walks the five
+damage types and converts. `AttackerCombat` grew from 44 B to 192 B (the 128 B offence block and the 36 B
+`WeaponDamage`), and `DerivedCharacterStats` to 228 B, which `with` copies and the per-tick sheet and amounts
+comparisons read. With the hit resolution measured above (16 to 30 ns), a hit's base and its resolution together stay
+under a tenth of a microsecond; that resolution figure predates `AttackerCombat`'s growth to 192 B
+(`HitResolutionBenchmarks` was not re-run).
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 

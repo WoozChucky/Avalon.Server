@@ -469,7 +469,9 @@ creature sets to its target's position. The arcs and projectile speeds are the v
 | 313 | Old Tuskroot | Thorn Volley | Projectile | 12 | – | – | 16 | yes | 0 | 10 s | 160 % |
 | 314 | Mother Bramble | Bramble Lash (basic) | Cone | 2.5 | – | 90 | – | – | 0 | swing | 100 % |
 | 315 | Mother Bramble | Bramble Nova | Circle | 0 | 6 | – | – | – | 1.2 s | 16 s | 250 % |
-| 316 | Mother Bramble | Thornspray | Cone | 5 | – | 120 | – | – | 0 | 8 s | 180 % |Damage types (#1178): Rotting Burst (307), Earthsplitter (312) and Thorn Volley (313) name Blight; every other
+| 316 | Mother Bramble | Thornspray | Cone | 5 | – | 120 | – | – | 0 | 8 s | 180 % |
+
+Damage types (#1178): Rotting Burst (307), Earthsplitter (312) and Thorn Volley (313) name Blight; every other
 leaves `DamageType` null and deals its creature's base type, Blight for the Blightfly Swarmling and Mother Bramble
 and Physical for the rest.
 
