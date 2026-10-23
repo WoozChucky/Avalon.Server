@@ -100,7 +100,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         return HitOutcome.Dodged;
     }
 
-    /// <summary>A raw hit, such as a creature's swing (#506): <paramref name="damage" /> is the base the defences reduce.</summary>
+    /// <summary>
+    /// A raw hit with no ability (#506), such as an item script's damage (ItemUseContext): <paramref name="damage" /> is the
+    /// base the defences reduce, one part of the attacker's base type.
+    /// </summary>
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage)
     {
         // Every target a hit passes over (IgnoresHits) is refused here, before anything is drawn or changed.
@@ -625,7 +628,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         DamageType type = hit.Snapshot.Type;
         (double amount, HitResult result) =
-            HitResolver.ResolvePeriodic(hit.Snapshot.Attacker, DefenderOf(target), type, hit.BaseAmount,
+            HitResolver.ResolvePeriodic(hit.Snapshot, DefenderOf(target), hit.BaseAmount,
                 _formula(), _random);
         uint points = AuraRules.TakeTick(amount, ref carry, lastTick);
 
@@ -741,7 +744,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             return 0;
 
         (double amount, HitResult result) =
-            HitResolver.ResolvePeriodicHeal(hit.Snapshot.Attacker, hit.BaseAmount, _formula(), _random);
+            HitResolver.ResolvePeriodicHeal(hit.Snapshot, hit.BaseAmount, _formula(), _random);
         uint points = AuraRules.TakeTick(amount, ref carry, lastTick);
 
         uint before = target.CurrentHealth;

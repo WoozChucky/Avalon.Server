@@ -18,8 +18,9 @@ public static class CharacterStatsCalculator
     /// Weapon is the main hand's damage and attack time (the bare hand's with none) and Offence the offence block (#1178),
     /// each attribute with gear. <paramref name="auras" />, when given, is folded in after gear: the result is what the
     /// character has now. The offence block takes them through CharacterOffence alone, so they count once there.
+    /// <paramref name="worn" /> is read by index, so a refresh allocates nothing here.
     /// </summary>
-    public static DerivedCharacterStats Calculate(ClassLevelStat row, IEnumerable<ItemTemplate> worn,
+    public static DerivedCharacterStats Calculate(ClassLevelStat row, IReadOnlyList<ItemTemplate> worn,
         ClassStatFactors factors, CombatFormula formula, AuraStatTotals? auras = null)
     {
         var gear = GearTotals.Of(worn);
@@ -40,7 +41,7 @@ public static class CharacterStatsCalculator
         long ward = gear.Ward + (long)(intellect * (double)formula.WardPerIntellect);
 
         // #506, #1178: the main hand, what an Attack rolls; the bare hand's range with none.
-        ItemTemplate? weapon = worn.FirstOrDefault(t => t.Slot == ItemSlotType.MainHand);
+        ItemTemplate? weapon = MainHandOf(worn);
 
         DerivedCharacterStats derived = new(
             MaxHealth: Clamp(maxHealth),
@@ -84,6 +85,17 @@ public static class CharacterStatsCalculator
         return (uint)Math.Clamp(scaled, 1UL, newMax);
     }
 
+    /// <summary>The first worn template for the main hand, or null.</summary>
+    private static ItemTemplate? MainHandOf(IReadOnlyList<ItemTemplate> worn)
+    {
+        for (int i = 0; i < worn.Count; i++)
+        {
+            if (worn[i].Slot == ItemSlotType.MainHand) return worn[i];
+        }
+
+        return null;
+    }
+
     /// <summary>Stats are summed in long, so no amount of authored gear can wrap a uint.</summary>
     private static uint Clamp(long value) => (uint)Math.Clamp(value, 0L, uint.MaxValue);
 
@@ -93,20 +105,32 @@ public static class CharacterStatsCalculator
         public float BlockPct, CritPct, MovementSpeedPct;
         public float FireResistance, ColdResistance, LightningResistance, BlightResistance;
 
-        public static GearTotals Of(IEnumerable<ItemTemplate> worn)
+        /// <summary>Every stat pair with both a type and a value of every template, read by index: nothing is allocated.</summary>
+        public static GearTotals Of(IReadOnlyList<ItemTemplate> worn)
         {
             GearTotals totals = default;
-            foreach (ItemTemplate template in worn)
+            for (int i = 0; i < worn.Count; i++)
             {
-                foreach ((StatType type, uint value) in StatsOf(template))
-                    totals.Add(type, value);
+                ItemTemplate t = worn[i];
+                totals.Add(t.StatType1, t.StatValue1);
+                totals.Add(t.StatType2, t.StatValue2);
+                totals.Add(t.StatType3, t.StatValue3);
+                totals.Add(t.StatType4, t.StatValue4);
+                totals.Add(t.StatType5, t.StatValue5);
+                totals.Add(t.StatType6, t.StatValue6);
+                totals.Add(t.StatType7, t.StatValue7);
+                totals.Add(t.StatType8, t.StatValue8);
+                totals.Add(t.StatType9, t.StatValue9);
+                totals.Add(t.StatType10, t.StatValue10);
             }
 
             return totals;
         }
 
-        private void Add(StatType type, uint value)
+        private void Add(StatType? statType, uint? statValue)
         {
+            if (statType is not { } type || statValue is not { } value) return;
+
             switch (type)
             {
                 case StatType.Stamina: Stamina += value; break;
@@ -128,24 +152,6 @@ public static class CharacterStatsCalculator
                 case StatType.LightningResistance: LightningResistance += value; break;
                 case StatType.BlightResistance: BlightResistance += value; break;
                 default: break;
-            }
-        }
-
-        /// <summary>The template's stat pairs that have both a type and a value.</summary>
-        private static IEnumerable<(StatType Type, uint Value)> StatsOf(ItemTemplate t)
-        {
-            (StatType? Type, uint? Value)[] pairs =
-            [
-                (t.StatType1, t.StatValue1), (t.StatType2, t.StatValue2), (t.StatType3, t.StatValue3),
-                (t.StatType4, t.StatValue4), (t.StatType5, t.StatValue5), (t.StatType6, t.StatValue6),
-                (t.StatType7, t.StatValue7), (t.StatType8, t.StatValue8), (t.StatType9, t.StatValue9),
-                (t.StatType10, t.StatValue10),
-            ];
-
-            foreach ((StatType? type, uint? value) in pairs)
-            {
-                if (type is { } statType && value is { } statValue)
-                    yield return (statType, statValue);
             }
         }
     }

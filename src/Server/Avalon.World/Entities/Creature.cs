@@ -263,14 +263,21 @@ public class Creature : ICreature
     // The party scaling its maximum health was last given, which the health aura composes with.
     private double _healthFactor = 1d;
 
+    // Its crit with its auras and the offence block they give it (#1178), folded when they change, read by Combat.
+    private float _auraCritPct;
+    private OffenceStats _auraOffence;
+
     /// <summary>
     /// Takes the auras' totals: its attack speed, cast speed and cooldown recovery (from none, since nothing else sets
-    /// one), its maximum health and its maximum ward (#1178, keeping its share from <paramref name="now" />); its attack,
-    /// defence and speed read them as they go.
+    /// one), its crit and offence block (#1178), its maximum health and its maximum ward (#1178, keeping its share from
+    /// <paramref name="now" />); its defence and speed read them as they go.
     /// </summary>
     public void ApplyAuraStats(AuraStatTotals totals, DateTime now)
     {
         AuraTotals = totals;
+        AttackerCombat folded = AuraStats.Fold(new AttackerCombat(Level, CritPct), totals);
+        _auraCritPct = folded.CritPct;
+        _auraOffence = folded.Offence;
         AttackSpeedPct = AuraStats.Apply(0f, totals, AuraStat.AttackSpeed);
         CastSpeedPct = AuraStats.Apply(0f, totals, AuraStat.CastSpeed);
         CooldownRecoveryPct = AuraStats.Apply(0f, totals, AuraStat.CooldownRecovery);
@@ -332,10 +339,13 @@ public class Creature : ICreature
     /// What this creature attacks with (#506, #1178): its level, its crit, its natural damage range as an untyped weapon
     /// at its BaseAttackTime (#163) and its base damage type, with its auras folded in (its offence block is theirs alone).
     /// </summary>
-    internal AttackerCombat Combat => AuraStats.Fold(
-        new AttackerCombat(Level, CritPct,
-            new WeaponDamage(DamageMin, DamageMax, null, 0, 0, null, CreatureStatDeriver.AttackTimeMs(BaseAttackTime)),
-            default, DamageType), AuraTotals);
+    /// <remarks>
+    /// The crit and the offence block its auras give are folded once, by <see cref="ApplyAuraStats" />, whenever the auras
+    /// change, never on a read: every hit and every cast reads this.
+    /// </remarks>
+    internal AttackerCombat Combat => new(Level, AuraTotals.IsEmpty ? CritPct : _auraCritPct,
+        new WeaponDamage(DamageMin, DamageMax, null, 0, 0, null, CreatureStatDeriver.AttackTimeMs(BaseAttackTime)),
+        _auraOffence, DamageType);
 
     /// <summary>What this creature defends with (#506), its resistances (#1178) and its auras folded in.</summary>
     internal DefenderCombat Defence =>

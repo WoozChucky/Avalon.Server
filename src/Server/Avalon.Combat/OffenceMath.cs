@@ -27,26 +27,40 @@ public static class OffenceMath
     /// increased sum <c>Damage + type + Attack (+ PhysicalAttack for physical) + Spell + Area + Projectile + Melee +
     /// DamageOverTime</c> over the tags present, as <c>max(0, 1 + sum / 100)</c>, times the more product of the same keys.
     /// </summary>
-    public static double Scale(DamageType type, AbilityTags tags, in OffenceStats o)
+    public static double Scale(DamageType type, AbilityTags tags, in OffenceStats o) =>
+        PartScale(type, tags, o, TermsOf(tags, o));
+
+    /// <summary>
+    /// <see cref="Scale(DamageType, AbilityTags, in OffenceStats)" /> from the <paramref name="terms" /> every part of the
+    /// ability shares, adding only the part's own type key (and PhysicalAttack for an Attack's physical part), so a base
+    /// with several parts sums the tag keys once.
+    /// </summary>
+    private static double PartScale(DamageType type, AbilityTags tags, in OffenceStats o, in ScaleTerms terms)
     {
         OffenceStat typeKey = KeyOf(type);
-        double increased = o.Increased(OffenceStat.Damage) + (double)o.Increased(typeKey);
-        double more = o.More(OffenceStat.Damage) * o.More(typeKey);
+        double increased = terms.Increased + o.Increased(typeKey);
+        double more = terms.More * o.More(typeKey);
+        if (type == DamageType.Physical && (tags & AbilityTags.Attack) != 0)
+            Add(o, OffenceStat.PhysicalAttack, ref increased, ref more);
 
-        if ((tags & AbilityTags.Attack) != 0)
-        {
-            Add(o, OffenceStat.Attack, ref increased, ref more);
-            if (type == DamageType.Physical) Add(o, OffenceStat.PhysicalAttack, ref increased, ref more);
-        }
+        return Math.Max(0d, 1d + (increased / 100d)) * more;
+    }
 
+    /// <summary>The increased sum and more product of Damage and of each tag key the ability has, whatever the part's type.</summary>
+    private static ScaleTerms TermsOf(AbilityTags tags, in OffenceStats o)
+    {
+        double increased = o.Increased(OffenceStat.Damage);
+        double more = o.More(OffenceStat.Damage);
+        if ((tags & AbilityTags.Attack) != 0) Add(o, OffenceStat.Attack, ref increased, ref more);
         if ((tags & AbilityTags.Spell) != 0) Add(o, OffenceStat.Spell, ref increased, ref more);
         if ((tags & AbilityTags.Area) != 0) Add(o, OffenceStat.Area, ref increased, ref more);
         if ((tags & AbilityTags.Projectile) != 0) Add(o, OffenceStat.Projectile, ref increased, ref more);
         if ((tags & AbilityTags.Melee) != 0) Add(o, OffenceStat.Melee, ref increased, ref more);
         if ((tags & AbilityTags.DamageOverTime) != 0) Add(o, OffenceStat.DamageOverTime, ref increased, ref more);
-
-        return Math.Max(0d, 1d + (increased / 100d)) * more;
+        return new ScaleTerms(increased, more);
     }
+
+    private readonly record struct ScaleTerms(double Increased, double More);
 
     /// <summary>What a heal is multiplied by: <c>max(0, 1 + Healing / 100) × More(Healing)</c>; nothing else boosts a heal.</summary>
     public static double HealScale(in OffenceStats o) =>
@@ -73,6 +87,8 @@ public static class OffenceMath
         if (builtIn > 0) Add(ref parts, ability.AddedType ?? hitType, builtIn);
 
         OffenceStats o = a.Offence;
+        AbilityTags tags = ability.Tags;
+        ScaleTerms terms = TermsOf(tags, o);
         double effectiveness = NonNegative(ability.DamageEffectiveness);
         for (int i = 0; i < DamageTypes.Count; i++)
         {
@@ -80,7 +96,7 @@ public static class OffenceMath
             double part = parts.Get(type);
             if (part == 0d) continue;
 
-            parts.Set(type, part * effectiveness / 100d * Scale(type, ability.Tags, o));
+            parts.Set(type, part * effectiveness / 100d * PartScale(type, tags, o, terms));
         }
 
         return parts;
@@ -100,14 +116,16 @@ public static class OffenceMath
         long builtIn = ability.AddedMax > 0 ? Roll(ability.AddedMin, ability.AddedMax, rng) : 0;
 
         OffenceStats o = a.Offence;
+        AbilityTags tags = ability.Tags;
+        ScaleTerms terms = TermsOf(tags, o);
         double effectiveness = NonNegative(ability.DamageEffectiveness);
         DamageParts parts = default;
-        if (spell > 0d) Add(ref parts, hitType, spell * Scale(hitType, ability.Tags, o));
-        if (addedRoll > 0) Add(ref parts, added.Type, addedRoll * effectiveness / 100d * Scale(added.Type, ability.Tags, o));
+        if (spell > 0d) Add(ref parts, hitType, spell * PartScale(hitType, tags, o, terms));
+        if (addedRoll > 0) Add(ref parts, added.Type, addedRoll * effectiveness / 100d * PartScale(added.Type, tags, o, terms));
         if (builtIn > 0)
         {
             DamageType builtInType = ability.AddedType ?? hitType;
-            Add(ref parts, builtInType, builtIn * effectiveness / 100d * Scale(builtInType, ability.Tags, o));
+            Add(ref parts, builtInType, builtIn * effectiveness / 100d * PartScale(builtInType, tags, o, terms));
         }
 
         return parts;
@@ -120,7 +138,10 @@ public static class OffenceMath
         return heal > 0d ? heal * HealScale(a.Offence) : 0d;
     }
 
-    /// <summary>An ability's direct damage: <see cref="AttackBase" /> for an Attack, <see cref="SpellBase" /> otherwise.</summary>
+    /// <summary>
+    /// An ability's direct damage: <see cref="AttackBase" /> for an Attack, <see cref="SpellBase" /> for a Spell. Only a
+    /// damaging ability's: a heal goes through <see cref="HealBase" />.
+    /// </summary>
     public static DamageParts DirectBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng) =>
         (ability.Tags & AbilityTags.Attack) != 0 ? AttackBase(a, ability, rng) : SpellBase(a, ability, rng);
 

@@ -16,7 +16,8 @@ internal struct OffenceStatValues
 /// What a unit's offence adds to its damage, healing and speeds (#1178): per <see cref="OffenceStat" />, the increased
 /// percentage points and the product of every more, plus the crit multiplier bonus and the three speeds as raw totals,
 /// before their caps. Inline arrays rather than managed ones, so it is a value that never allocates; its equality is
-/// written by hand because <see cref="AttackerCombat" /> and the character sheet compare it every tick.
+/// written by hand because the ability amounts' flush compares it, inside <see cref="AttackerCombat" />, after every stats
+/// refresh.
 /// </summary>
 public struct OffenceStats : IEquatable<OffenceStats>
 {

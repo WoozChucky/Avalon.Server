@@ -1,7 +1,6 @@
 using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
-using Avalon.Network.Packets.Combat;
 
 namespace Avalon.World.Characters;
 
@@ -12,8 +11,9 @@ namespace Avalon.World.Characters;
 /// cast and the input step use, each already bounded; AttackTimeMs is the main hand's (the bare hand's with none) before
 /// attack speed, and CritMultiplier what a crit multiplies by. The evasion rating, the ward's maximum and the resistances
 /// (#1178) come from the same refresh, the resistances capped as a hit caps them. WeaponMin and WeaponMax are the range an
-/// Attack rolls, the bare hand's with no weapon. Offence is the whole offence block, whose increased points the packet
-/// carries. A value type, so the last one sent can be compared with the current one without allocating.
+/// Attack rolls, the bare hand's with no weapon. Increased is the offence block's increased points, the only part of it
+/// the sheet shows. Only what is sent is kept, so a change the client is not shown sends nothing. A value type, so the
+/// last one sent can be compared with the current one without allocating.
 /// </summary>
 public readonly record struct CharacterSheet(
     uint Stamina,
@@ -38,8 +38,14 @@ public readonly record struct CharacterSheet(
     float CastSpeedPct,
     float CooldownRecoveryPct,
     uint AttackTimeMs,
-    OffenceStats Offence)
+    IncreasedPoints Increased)
 {
+    // The one array every sheet's increased points are written into: a sheet is encoded on the tick thread as soon as it
+    // is built (SCharacterStatsPacket.Create), so the packet never outlives the next sheet. Per thread, for the tests.
+#pragma warning disable IDE1006
+    [ThreadStatic] private static float[]? t_increased;
+#pragma warning restore IDE1006
+
     /// <summary>
     /// <paramref name="level" /> is the character's own: EvasionPct carries the chance to evade an attacker of that level
     /// (#1178), in percentage points. No source raises the maximum resistance yet, so each resistance is capped at the
@@ -58,16 +64,19 @@ public readonly record struct CharacterSheet(
         HitResolver.EffectiveResistance(s.Resistances.Cold, 0f, formula),
         HitResolver.EffectiveResistance(s.Resistances.Lightning, 0f, formula),
         HitResolver.EffectiveResistance(s.Resistances.Blight, 0f, formula),
-        (float)HitResolver.CritMultiplier(s.AttackerAt(level), formula),
+        (float)HitResolver.CritMultiplier(s.Offence.CritMultiplierBonus, formula),
         pace.AttackSpeedPct, pace.CastSpeedPct, pace.CooldownRecoveryPct,
         s.Weapon.AttackTimeMs,
-        s.Offence);
+        IncreasedPoints.Of(s.Offence));
 
+    /// <summary>
+    /// The packet, to be encoded before the next sheet is built: its increased points are the calling thread's one array,
+    /// which the next sheet overwrites.
+    /// </summary>
     public SCharacterStatsPacket ToPacket()
     {
-        float[] increased = new float[OffenceStats.Count];
-        for (int i = 0; i < increased.Length; i++)
-            increased[i] = Offence.Increased((OffenceStat)i);
+        float[] increased = t_increased ??= new float[OffenceStats.Count];
+        Increased.CopyTo(increased);
 
         return new SCharacterStatsPacket
         {

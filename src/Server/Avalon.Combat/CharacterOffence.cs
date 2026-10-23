@@ -11,10 +11,9 @@ public static class CharacterOffence
     /// gear. Strength gives increased physical attack damage, Intellect increased spell damage and increased healing,
     /// Agility attack speed, each by <paramref name="f" />'s rate; the gear worn adds its Increased… keys, crit multiplier,
     /// attack speed, cast speed and cooldown recovery flat; then <paramref name="auras" /> fold on top (a Flat adds, a More
-    /// multiplies). Runs on a stats refresh, never per hit: enumerating <paramref name="worn" /> through the interface
-    /// costs one enumerator for a list.
+    /// multiplies). Runs on a stats refresh, never per hit, and allocates nothing: <paramref name="worn" /> is read by index.
     /// </summary>
-    public static OffenceStats Of(uint strength, uint agility, uint intellect, IEnumerable<ItemTemplate> worn,
+    public static OffenceStats Of(uint strength, uint agility, uint intellect, IReadOnlyList<ItemTemplate> worn,
         CombatFormula f, AuraStatTotals? auras = null)
     {
         OffenceStats o = default;
@@ -23,8 +22,9 @@ public static class CharacterOffence
         o.AddIncreased(OffenceStat.Healing, (float)(intellect * (double)f.IncreasedHealingPerIntellect));
         o.AttackSpeedPct = (float)(agility * (double)f.AttackSpeedPerAgility);
 
-        foreach (ItemTemplate t in worn)
+        for (int i = 0; i < worn.Count; i++)
         {
+            ItemTemplate t = worn[i];
             Add(ref o, t.StatType1, t.StatValue1);
             Add(ref o, t.StatType2, t.StatValue2);
             Add(ref o, t.StatType3, t.StatValue3);

@@ -32,6 +32,11 @@ public enum CurrentValues
 /// </summary>
 public static class CharacterStatsRefresh
 {
+    // The worn templates of the refresh running on this thread (the tick's, or a test's).
+#pragma warning disable IDE1006
+    [ThreadStatic] private static List<ItemTemplate>? t_worn;
+#pragma warning restore IDE1006
+
     /// <summary>
     /// False, changing nothing, when there is no ClassLevelStat row for the character's class and
     /// level, or no ClassStatFactors row for its class (#506). A worn item counts only when its template exists and the slot it is in accepts it, so
@@ -52,7 +57,8 @@ public static class CharacterStatsRefresh
     /// in the Equipment container's own order, as they always were; neither is found through a query any more (#883):
     /// the row lookup was a closure, a delegate and an enumerator per refresh, and so was each worn item's template
     /// over the current reference data, which walked every item template for it besides. The list of worn templates
-    /// stays: it is what the calculator, shared with the simulator and the API, is handed.
+    /// stays: it is what the calculator, shared with the simulator and the API, is handed. It is the calling thread's one
+    /// list (#1178), emptied after each refresh, so a refresh allocates nothing for it.
     /// </summary>
     private static bool Apply(
         CharacterEntity character,
@@ -66,17 +72,25 @@ public static class CharacterStatsRefresh
         if (row is null || !classFactors.TryGetValue(character.Class, out ClassStatFactors? factors))
             return false;
 
-        List<ItemTemplate> worn = [];
-        foreach (InventoryItem item in character.Container(InventoryType.Equipment).Held)
+        List<ItemTemplate> worn = t_worn ??= [];
+        try
         {
-            if (templates.Find(item.TemplateId) is { } template && EquipmentSlots.Accepts(item.Slot, template.Slot))
-                worn.Add(template);
+            foreach (InventoryItem item in character.Container(InventoryType.Equipment).Held)
+            {
+                if (templates.Find(item.TemplateId) is { } template && EquipmentSlots.Accepts(item.Slot, template.Slot))
+                    worn.Add(template);
+            }
+
+            // Auras: whatever the character holds now is folded in, so every refresh (select, gear, level-up, an aura)
+            // agrees with every other.
+            character.ApplyStats(CharacterStatsCalculator.Calculate(row, worn, factors, formula, character.Auras.StatTotals),
+                current, formula);
+        }
+        finally
+        {
+            worn.Clear();
         }
 
-        // Auras: whatever the character holds now is folded in, so every refresh (select, gear, level-up, an aura)
-        // agrees with every other.
-        character.ApplyStats(CharacterStatsCalculator.Calculate(row, worn, factors, formula, character.Auras.StatTotals), current,
-            formula);
         return true;
     }
 

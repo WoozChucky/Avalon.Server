@@ -25,7 +25,7 @@ public class CharacterStatsCalculatorShould
         return context.ClassLevelStats.AsNoTracking().ToList().Single(s => s.Class == @class && s.Level == level);
     }
 
-    private static DerivedCharacterStats Calc(ClassLevelStat row, IEnumerable<ItemTemplate> worn)
+    private static DerivedCharacterStats Calc(ClassLevelStat row, IReadOnlyList<ItemTemplate> worn)
         => CharacterStatsCalculator.Calculate(row, worn, TestCombat.FactorsOf(row.Class), TestCombat.Formula);
 
     [Theory]

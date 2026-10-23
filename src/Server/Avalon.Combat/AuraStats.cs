@@ -1,5 +1,4 @@
 using Avalon.Domain.World;
-using Avalon.Network.Packets.Combat;
 
 namespace Avalon.Combat;
 
@@ -63,9 +62,13 @@ public static class AuraStats
         OffenceStats folded = o;
         for (AuraStat stat = AuraStat.IncreasedDamage; stat <= AuraStat.IncreasedHealing; stat++)
         {
-            var key = (OffenceStat)(stat - AuraStat.IncreasedDamage);
-            folded.AddIncreased(key, t.Flat(stat));
-            folded.MultiplyMore(key, t.More(stat));
+            if (OffenceStats.KeyOf(stat) is not { } key) continue;
+
+            // A key no aura names (flat 0, more 1) is left as it is.
+            float flat = t.Flat(stat);
+            double more = t.More(stat);
+            if (flat != 0f) folded.AddIncreased(key, flat);
+            if (more != 1d) folded.MultiplyMore(key, more);
         }
 
         folded.CritMultiplierBonus = Apply(o.CritMultiplierBonus, t, AuraStat.CritMultiplier);

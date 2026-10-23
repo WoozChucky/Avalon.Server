@@ -198,6 +198,14 @@ public partial class CharacterEntity : ICharacter
         SaveState.StatsChanged();
     }
 
+    /// <summary>
+    /// Select's fallback when no stats refresh could run (#1178: no class row for the class and level): the pace a bare
+    /// hand gives, the formula's unarmed attack time with no speed, so a basic attack is never free. A later refresh
+    /// replaces it.
+    /// </summary>
+    internal void UseBareHandPace(Avalon.Domain.World.CombatFormula formula) =>
+        Pace = new CasterPace(0f, 0f, 0f, formula.UnarmedAttackTimeMs / 1000f);
+
     /// <summary>Counts the stats refreshes (<see cref="ApplyStats" />), so the sheet flush can tell nothing moved without rebuilding the sheet.</summary>
     internal int StatsVersion { get; private set; }
 
@@ -235,6 +243,12 @@ public partial class CharacterEntity : ICharacter
     internal AbilityAmount[]? AbilityAmountsSent { get; set; }
 
     internal (AttackerCombat Combat, CasterPace Pace)? AbilityAmountsSentFor { get; set; }
+
+    /// <summary>
+    /// The stats refresh and the level the ability amounts were last checked at (#1178), so the flush compares two counts
+    /// on a tick where neither moved, not the whole combat stats and pace.
+    /// </summary>
+    internal (int StatsVersion, ushort Level) AbilityAmountsInputs { get; set; }
 
     /// <summary>What this character defends with (#506): armour, evasion, block and resistances, from the last stats refresh.</summary>
     internal DefenderCombat Defence => Stats is { } s ? s.Defence : default;

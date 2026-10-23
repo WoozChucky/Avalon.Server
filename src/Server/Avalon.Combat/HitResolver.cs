@@ -27,7 +27,7 @@ public readonly record struct DefenderCombat(uint Armor, uint Evasion, float Blo
 /// <remarks>
 /// A damage hit draws, in this order: an evasion roll (none for an Unavoidable ability, #1164); then, when not evaded,
 /// a crit roll and a block roll. The order of the draws is part of the contract. The steps are: base, evasion (0, and
-/// nothing else is drawn), crit (× <see cref="CritMultiplier" />), block (× BlockMultiplier), then each damage type's
+/// nothing else is drawn), crit (× <see cref="CritMultiplier(in AttackerCombat, CombatFormula)" />), block (× BlockMultiplier), then each damage type's
 /// part on its own × its mitigation (<see cref="Mitigation" />: armour for physical, resistance for an element), then the
 /// sum floored with a minimum of 1. Each chance is clamped to its cap, and one that is not a finite value of 0 or more counts as 0.
 /// </remarks>
@@ -101,9 +101,13 @@ public static class HitResolver
     /// (<c>1 − ArmorReduction</c>), an element its resistance less the attacker's penetration.
     /// </summary>
     public static double Mitigation(DamageType type, in AttackerCombat a, in DefenderCombat d, CombatFormula f) =>
+        MitigationOf(type, a.Level, a.Penetration.Of(type), d, f);
+
+    private static double MitigationOf(DamageType type, uint attackerLevel, float penetration, in DefenderCombat d,
+        CombatFormula f) =>
         type == DamageType.Physical
-            ? 1d - ArmorReduction(d.Armor, a.Level, f)
-            : ResistanceMultiplier(d.Resistances.Of(type), d.MaxResistanceBonus.Of(type), a.Penetration.Of(type), f);
+            ? 1d - ArmorReduction(d.Armor, attackerLevel, f)
+            : ResistanceMultiplier(d.Resistances.Of(type), d.MaxResistanceBonus.Of(type), penetration, f);
 
     /// <summary>
     /// A damage hit (#1178): <paramref name="baseDamage" /> split by type, each part mitigated on its own after the
@@ -201,47 +205,74 @@ public static class HitResolver
     /// the fraction from tick to tick (<see cref="AuraRules.TakeTick" />), so its ticks add up to its total.
     /// </summary>
     public static (double Damage, HitResult Result) ResolvePeriodic(in AttackerCombat a, in DefenderCombat d,
-        DamageType type, double baseDamage, CombatFormula f, ICombatRandom rng)
-    {
-        double damage = NonNegative(baseDamage);
-        HitResult result = HitResult.None;
+        DamageType type, double baseDamage, CombatFormula f, ICombatRandom rng) =>
+        Periodic(a.Level, a.CritPct, a.Offence.CritMultiplierBonus, a.Penetration.Of(type), d, type, baseDamage, f, rng);
 
-        if (rng.NextDouble() < Chance(a.CritPct, f.CritCap))
-        {
-            damage *= CritMultiplier(a, f);
-            result |= HitResult.Crit;
-        }
-
-        damage *= Mitigation(type, a, d, f);
-
-        return (damage, result);
-    }
+    /// <summary>
+    /// The same tick from the aura's own <paramref name="snapshot" /> (#1178): its caster's level, crit chance and crit
+    /// multiplier bonus, and the type its ticks deal, with no penetration. What a ticking aura resolves with: it reads
+    /// four values, so no attacker is built per tick.
+    /// </summary>
+    public static (double Damage, HitResult Result) ResolvePeriodic(in AuraSnapshot snapshot, in DefenderCombat d,
+        double baseDamage, CombatFormula f, ICombatRandom rng) =>
+        Periodic(snapshot.CasterLevel, snapshot.CritPct, snapshot.CritMultiplierBonus, 0f, d, snapshot.Type, baseDamage,
+            f, rng);
 
     /// <summary>
     /// A heal before flooring: the base, then a crit roll (the one draw). An aura's heal tick takes it as it is and
     /// carries the fraction (<see cref="AuraRules.TakeTick" />); <see cref="ResolveHeal" /> floors it.
     /// </summary>
     public static (double Heal, HitResult Result) ResolvePeriodicHeal(in AttackerCombat a, double baseHeal,
-        CombatFormula f, ICombatRandom rng)
-    {
-        double heal = NonNegative(baseHeal);
-        HitResult result = HitResult.None;
+        CombatFormula f, ICombatRandom rng) =>
+        PeriodicHeal(a.CritPct, a.Offence.CritMultiplierBonus, baseHeal, f, rng);
 
-        if (rng.NextDouble() < Chance(a.CritPct, f.CritCap))
-        {
-            heal *= CritMultiplier(a, f);
-            result |= HitResult.Crit;
-        }
-
-        return (heal, result);
-    }
+    /// <summary>The same heal tick from the aura's own <paramref name="snapshot" />: its caster's crit chance and crit multiplier bonus.</summary>
+    public static (double Heal, HitResult Result) ResolvePeriodicHeal(in AuraSnapshot snapshot, double baseHeal,
+        CombatFormula f, ICombatRandom rng) =>
+        PeriodicHeal(snapshot.CritPct, snapshot.CritMultiplierBonus, baseHeal, f, rng);
 
     /// <summary>
     /// What a crit multiplies by (#1178): the formula's <c>CritMultiplier</c> plus the attacker's crit multiplier bonus,
     /// in points, as <c>max(0, CritMultiplier + bonus / 100)</c>. A value that is not finite counts as 0.
     /// </summary>
     public static double CritMultiplier(in AttackerCombat a, CombatFormula f) =>
-        NonNegative(Finite(f.CritMultiplier) + (Finite(a.Offence.CritMultiplierBonus) / 100d));
+        CritMultiplier(a.Offence.CritMultiplierBonus, f);
+
+    /// <summary>The same from the crit multiplier bonus alone, in points.</summary>
+    public static double CritMultiplier(float critMultiplierBonus, CombatFormula f) =>
+        NonNegative(Finite(f.CritMultiplier) + (Finite(critMultiplierBonus) / 100d));
+
+    private static (double Damage, HitResult Result) Periodic(uint level, float critPct, float critMultiplierBonus,
+        float penetration, in DefenderCombat d, DamageType type, double baseDamage, CombatFormula f, ICombatRandom rng)
+    {
+        double damage = NonNegative(baseDamage);
+        HitResult result = HitResult.None;
+
+        if (rng.NextDouble() < Chance(critPct, f.CritCap))
+        {
+            damage *= CritMultiplier(critMultiplierBonus, f);
+            result |= HitResult.Crit;
+        }
+
+        damage *= MitigationOf(type, level, penetration, d, f);
+
+        return (damage, result);
+    }
+
+    private static (double Heal, HitResult Result) PeriodicHeal(float critPct, float critMultiplierBonus, double baseHeal,
+        CombatFormula f, ICombatRandom rng)
+    {
+        double heal = NonNegative(baseHeal);
+        HitResult result = HitResult.None;
+
+        if (rng.NextDouble() < Chance(critPct, f.CritCap))
+        {
+            heal *= CritMultiplier(critMultiplierBonus, f);
+            result |= HitResult.Crit;
+        }
+
+        return (heal, result);
+    }
 
     /// <summary>
     /// The share of a hit armour takes, 0 with no armour, never above ArmorCap. The load refuses a formula

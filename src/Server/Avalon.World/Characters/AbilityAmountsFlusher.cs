@@ -19,16 +19,23 @@ public static class AbilityAmountsFlusher
     /// <summary>
     /// The amounts follow only the character's combat stats (#1178: its level, weapon and offence block), its pace (the
     /// speeds, bounded by the formula its last refresh read, and its weapon's attack time) and the abilities it learned at
-    /// select. So they are worked out again only when those differ from the ones last used, and sent, whole, only when an
-    /// amount or a pace actually changed: a change that moves neither sends nothing. The amounts at select travel in
-    /// SCharacterAbilitiesPacket, which records them here, so nothing is sent again on the tick the character enters the
-    /// world. A new session builds a new entity, which starts from that session's select.
+    /// select. Both are fixed by a stats refresh and the level, so most ticks compare those two counts
+    /// (<see cref="CharacterEntity.AbilityAmountsInputs" />) and read nothing else. Once one moved, the combat stats and the
+    /// pace are compared with the ones last used, so a refresh that changed neither (an aura with no offence) works nothing
+    /// out; the amounts are then worked out again and sent, whole, only when an amount or a pace actually changed. The
+    /// amounts at select travel in SCharacterAbilitiesPacket, which records them here, so nothing is sent again on the tick
+    /// the character enters the world. A new session builds a new entity, which starts from that session's select.
     /// </summary>
     public static void Flush(IWorldConnection connection)
     {
         if (connection.Character is not CharacterEntity { Spells: CharacterAbilityContainer spells } character)
             return;
 
+        (int StatsVersion, ushort Level) inputs = (character.StatsVersion, character.Level);
+        if (character.AbilityAmountsSentFor is not null && character.AbilityAmountsInputs == inputs)
+            return;
+
+        character.AbilityAmountsInputs = inputs;
         AttackerCombat combat = character.Combat;
         CasterPace pace = character.Pace;
         if (character.AbilityAmountsSentFor is { } sentFor && sentFor.Combat == combat && sentFor.Pace == pace)

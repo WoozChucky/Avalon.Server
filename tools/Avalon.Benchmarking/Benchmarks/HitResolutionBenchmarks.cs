@@ -10,7 +10,8 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// The hit maths every damaging hit and every periodic damage tick runs (#1178). <see cref="ResolveCreatureHitOnArmouredCharacter" />:
 /// <see cref="HitResolver.ResolveDamage" /> for a level-3 creature (the seeded level-3 natural range, 5..9, no crit
 /// chance) swinging a physical 7 at a level-3 character with armour 20, evasion 23 and no block: the evasion, crit and
-/// block draws, then armour. <see cref="ResolveDamageTick" />: <see cref="HitResolver.ResolvePeriodic" /> for a physical
+/// block draws, then armour. <see cref="ResolveDamageTick" />: <see cref="HitResolver.ResolvePeriodic(in AuraSnapshot, in DefenderCombat, double, CombatFormula, ICombatRandom)" />,
+/// as a ticking aura resolves from its snapshot (the caster's level, crit and crit multiplier bonus), for a physical
 /// 12.0 tick of that creature's aura on the same character: the crit draw, then armour. <see cref="ResolveMixedHit" />:
 /// the same swing split into physical 7, fire 5 and blight 3 against a character that also resists fire by 25 %: the
 /// three draws, then each part's own mitigation and the ward's share. 0 B expected on every row.
@@ -30,6 +31,8 @@ public class HitResolutionBenchmarks
 
     private readonly AttackerCombat _creature = new(Level: 3, CritPct: 0f,
         Weapon: new WeaponDamage(5, 9, null, 0, 0, null, 2250));
+
+    private readonly AuraSnapshot _creaturesAura = new(PerTickPerStack: TickBase, CritPct: 0f, CasterLevel: 3);
 
     private readonly DefenderCombat _character = new(Armor: 20, Evasion: 23, BlockPct: 0f,
         Resistances: new Resistances(Fire: 25f, Cold: 0f, Lightning: 0f, Blight: 0f));
@@ -53,7 +56,7 @@ public class HitResolutionBenchmarks
             throw new InvalidOperationException($"The swing dealt {swing.Total} ({swing.Result}), not 5 with nothing procced.");
 
         (double tick, HitResult tickResult) =
-            HitResolver.ResolvePeriodic(_creature, _character, DamageType.Physical, TickBase, _formula, _random);
+            HitResolver.ResolvePeriodic(_creaturesAura, _character, TickBase, _formula, _random);
         if (Math.Abs(tick - 9.6) > 1e-6 || tickResult != HitResult.None)
             throw new InvalidOperationException($"The tick dealt {tick} ({tickResult}), not 9.6 with nothing procced.");
 
@@ -71,7 +74,7 @@ public class HitResolutionBenchmarks
 
     [Benchmark]
     public double ResolveDamageTick() =>
-        HitResolver.ResolvePeriodic(_creature, _character, DamageType.Physical, TickBase, _formula, _random).Damage;
+        HitResolver.ResolvePeriodic(_creaturesAura, _character, TickBase, _formula, _random).Damage;
 
     [Benchmark]
     public uint ResolveMixedHit() =>

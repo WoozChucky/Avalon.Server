@@ -115,7 +115,8 @@ public static class AuraRules
 
     /// <summary>
     /// The whole points one tick deals or heals: <paramref name="amount" /> (an unfloored
-    /// <see cref="HitResolver.ResolvePeriodic" /> or <see cref="HitResolver.ResolvePeriodicHeal" />) is added to the aura's
+    /// <see cref="HitResolver.ResolvePeriodic(in AuraSnapshot, in DefenderCombat, double, CombatFormula, ICombatRandom)" /> or
+    /// <see cref="HitResolver.ResolvePeriodicHeal(in AuraSnapshot, double, CombatFormula, ICombatRandom)" />) is added to the aura's
     /// <paramref name="carry" /> and the whole points are taken out, as regeneration takes them
     /// (<see cref="PowerRegen.TakeWholePoints" />), the fraction left for the next tick. There is no minimum of 1: a tick
     /// below a point gives nothing until the carry reaches one. On the <paramref name="lastTick" /> the leftover is
