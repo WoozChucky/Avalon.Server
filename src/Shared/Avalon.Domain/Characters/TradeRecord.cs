@@ -49,12 +49,21 @@ public class TradeRecordItem
     public List<TradeRecordItemModifier> Modifiers { get; set; } = [];
 }
 
-/// <summary>One modifier of a traded item, as it was when the trade completed (#1179). Keyed by its item and its place.</summary>
+/// <summary>
+/// One modifier of a traded item, as it was when the trade completed (#1179). Keyed by the trade and the modifier's own
+/// id (<see cref="ItemInstanceModifier.Id" />), which stays the modifier's whatever its place on the item becomes.
+/// </summary>
 public class TradeRecordItemModifier
 {
     public Guid TradeId { get; set; }
+
+    /// <summary>The id of the item's modifier row (<see cref="ItemInstanceModifier.Id" />).</summary>
+    public Guid ItemInstanceModifierId { get; set; }
+
     public ItemInstanceId ItemInstanceId { get; set; } = default!;
     public byte Ordinal { get; set; }
+
+    /// <summary>The catalog modifier (<see cref="ItemInstanceModifier.ModifierId" />).</summary>
     public ushort ModifierId { get; set; }
     public List<TradeRecordItemModifierValue> Values { get; set; } = [];
 }
@@ -63,8 +72,7 @@ public class TradeRecordItemModifier
 public class TradeRecordItemModifierValue
 {
     public Guid TradeId { get; set; }
-    public ItemInstanceId ItemInstanceId { get; set; } = default!;
-    public byte Ordinal { get; set; }
+    public Guid ItemInstanceModifierId { get; set; }
     public byte Index { get; set; }
     public StatType Stat { get; set; }
     public int Value { get; set; }

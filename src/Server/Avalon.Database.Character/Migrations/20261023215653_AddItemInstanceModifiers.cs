@@ -8,9 +8,9 @@ namespace Avalon.Database.Character.Migrations
     /// <summary>
     /// #1179: every item instance gets its own rarity and item level, and its modifiers as rows (ItemInstanceModifiers,
     /// their rolled numbers in ItemInstanceModifierValues, both cascading from the item); a trade record keeps its own
-    /// copy of what moved (TradeRecordItems' two columns, TradeRecordItemModifiers, TradeRecordItemModifierValues). The
-    /// rows already stored (consumables and quest items, whose level nothing reads) take Rarity 0 and ItemLevel 1: the
-    /// ItemLevel default is 1, not the generated 0, so the new check holds for them.
+    /// copy of what moved (TradeRecordItems' two columns, TradeRecordItemModifiers keyed by the modifier's own id,
+    /// TradeRecordItemModifierValues). The rows already stored (consumables and quest items, whose level nothing reads)
+    /// take Rarity 0 and ItemLevel 1: the ItemLevel default is 1, not the generated 0, so the new check holds for them.
     /// </summary>
     public partial class AddItemInstanceModifiers : Migration
     {
@@ -70,13 +70,14 @@ namespace Avalon.Database.Character.Migrations
                 columns: table => new
                 {
                     TradeId = table.Column<Guid>(type: "uuid", nullable: false),
+                    ItemInstanceModifierId = table.Column<Guid>(type: "uuid", nullable: false),
                     ItemInstanceId = table.Column<Guid>(type: "uuid", nullable: false),
                     Ordinal = table.Column<byte>(type: "smallint", nullable: false),
                     ModifierId = table.Column<short>(type: "smallint", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_TradeRecordItemModifiers", x => new { x.TradeId, x.ItemInstanceId, x.Ordinal });
+                    table.PrimaryKey("PK_TradeRecordItemModifiers", x => new { x.TradeId, x.ItemInstanceModifierId });
                     table.ForeignKey(
                         name: "FK_TradeRecordItemModifiers_TradeRecordItems_TradeId_ItemInsta~",
                         columns: x => new { x.TradeId, x.ItemInstanceId },
@@ -112,8 +113,7 @@ namespace Avalon.Database.Character.Migrations
                 columns: table => new
                 {
                     TradeId = table.Column<Guid>(type: "uuid", nullable: false),
-                    ItemInstanceId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Ordinal = table.Column<byte>(type: "smallint", nullable: false),
+                    ItemInstanceModifierId = table.Column<Guid>(type: "uuid", nullable: false),
                     Index = table.Column<byte>(type: "smallint", nullable: false),
                     Stat = table.Column<short>(type: "smallint", nullable: false),
                     Value = table.Column<int>(type: "integer", nullable: false),
@@ -121,12 +121,12 @@ namespace Avalon.Database.Character.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_TradeRecordItemModifierValues", x => new { x.TradeId, x.ItemInstanceId, x.Ordinal, x.Index });
+                    table.PrimaryKey("PK_TradeRecordItemModifierValues", x => new { x.TradeId, x.ItemInstanceModifierId, x.Index });
                     table.ForeignKey(
                         name: "FK_TradeRecordItemModifierValues_TradeRecordItemModifiers_Trad~",
-                        columns: x => new { x.TradeId, x.ItemInstanceId, x.Ordinal },
+                        columns: x => new { x.TradeId, x.ItemInstanceModifierId },
                         principalTable: "TradeRecordItemModifiers",
-                        principalColumns: new[] { "TradeId", "ItemInstanceId", "Ordinal" },
+                        principalColumns: new[] { "TradeId", "ItemInstanceModifierId" },
                         onDelete: ReferentialAction.Cascade);
                 });
 
@@ -144,6 +144,11 @@ namespace Avalon.Database.Character.Migrations
                 name: "IX_ItemInstanceModifiers_ItemInstanceId",
                 table: "ItemInstanceModifiers",
                 column: "ItemInstanceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TradeRecordItemModifiers_TradeId_ItemInstanceId",
+                table: "TradeRecordItemModifiers",
+                columns: new[] { "TradeId", "ItemInstanceId" });
         }
 
         /// <inheritdoc />

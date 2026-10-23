@@ -162,20 +162,20 @@ public partial class CharacterDbContext : DbContext
     private static void Configure(EntityTypeBuilder<TradeRecordItemModifier> builder)
     {
         builder.ToTable("TradeRecordItemModifiers");
-        builder.HasKey(m => new { m.TradeId, m.ItemInstanceId, m.Ordinal });
+        // Keyed by the modifier's own id, not its place: a modifier keeps its id when its item's modifiers are reordered.
+        builder.HasKey(m => new { m.TradeId, m.ItemInstanceModifierId });
         builder.Property(m => m.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
         builder.Property(m => m.ModifierId).HasColumnType("smallint");
         builder.HasMany(m => m.Values)
             .WithOne()
-            .HasForeignKey(v => new { v.TradeId, v.ItemInstanceId, v.Ordinal })
+            .HasForeignKey(v => new { v.TradeId, v.ItemInstanceModifierId })
             .OnDelete(DeleteBehavior.Cascade);
     }
 
     private static void Configure(EntityTypeBuilder<TradeRecordItemModifierValue> builder)
     {
         builder.ToTable("TradeRecordItemModifierValues");
-        builder.HasKey(v => new { v.TradeId, v.ItemInstanceId, v.Ordinal, v.Index });
-        builder.Property(v => v.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
+        builder.HasKey(v => new { v.TradeId, v.ItemInstanceModifierId, v.Index });
         builder.Property(v => v.Stat).HasColumnType("smallint");
     }
 

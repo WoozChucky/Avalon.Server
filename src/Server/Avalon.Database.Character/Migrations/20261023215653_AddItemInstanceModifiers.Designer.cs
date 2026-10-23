@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.Character.Migrations
 {
     [DbContext(typeof(CharacterDbContext))]
-    [Migration("20261023190614_AddItemInstanceModifiers")]
+    [Migration("20261023215653_AddItemInstanceModifiers")]
     partial class AddItemInstanceModifiers
     {
         /// <inheritdoc />
@@ -504,16 +504,21 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<Guid>("TradeId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ItemInstanceId")
+                    b.Property<Guid>("ItemInstanceModifierId")
                         .HasColumnType("uuid");
 
-                    b.Property<byte>("Ordinal")
-                        .HasColumnType("smallint");
+                    b.Property<Guid>("ItemInstanceId")
+                        .HasColumnType("uuid");
 
                     b.Property<short>("ModifierId")
                         .HasColumnType("smallint");
 
-                    b.HasKey("TradeId", "ItemInstanceId", "Ordinal");
+                    b.Property<byte>("Ordinal")
+                        .HasColumnType("smallint");
+
+                    b.HasKey("TradeId", "ItemInstanceModifierId");
+
+                    b.HasIndex("TradeId", "ItemInstanceId");
 
                     b.ToTable("TradeRecordItemModifiers", (string)null);
                 });
@@ -523,11 +528,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<Guid>("TradeId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ItemInstanceId")
+                    b.Property<Guid>("ItemInstanceModifierId")
                         .HasColumnType("uuid");
-
-                    b.Property<byte>("Ordinal")
-                        .HasColumnType("smallint");
 
                     b.Property<byte>("Index")
                         .HasColumnType("smallint");
@@ -541,7 +543,7 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<int?>("Value2")
                         .HasColumnType("integer");
 
-                    b.HasKey("TradeId", "ItemInstanceId", "Ordinal", "Index");
+                    b.HasKey("TradeId", "ItemInstanceModifierId", "Index");
 
                     b.ToTable("TradeRecordItemModifierValues", (string)null);
                 });
@@ -748,7 +750,7 @@ namespace Avalon.Database.Character.Migrations
                 {
                     b.HasOne("Avalon.Domain.Characters.TradeRecordItemModifier", null)
                         .WithMany("Values")
-                        .HasForeignKey("TradeId", "ItemInstanceId", "Ordinal")
+                        .HasForeignKey("TradeId", "ItemInstanceModifierId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

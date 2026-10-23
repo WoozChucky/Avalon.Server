@@ -518,6 +518,7 @@ public sealed partial class TradeService
                 var copy = new TradeRecordItemModifier
                 {
                     TradeId = record.Id,
+                    ItemInstanceModifierId = modifier.Id,
                     ItemInstanceId = item.InstanceId,
                     Ordinal = modifier.Ordinal,
                     ModifierId = modifier.ModifierId,
@@ -528,8 +529,7 @@ public sealed partial class TradeService
                     copy.Values.Add(new TradeRecordItemModifierValue
                     {
                         TradeId = record.Id,
-                        ItemInstanceId = item.InstanceId,
-                        Ordinal = modifier.Ordinal,
+                        ItemInstanceModifierId = modifier.Id,
                         Index = value.Index,
                         Stat = value.Stat,
                         Value = value.Value,

@@ -221,6 +221,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             Batch(b, upsertItems: [Item(b.Id, count: 1, id: sword.Id)], upsertSlots: [Slot(b.Id, 3, sword.Id)], authority: authorityB),
         ];
         var tradeId = Guid.CreateVersion7();
+        var modifierId = Guid.CreateVersion7();
         var record = new TradeRecord
         {
             Id = tradeId,
@@ -245,15 +246,16 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
                         new TradeRecordItemModifier
                         {
                             TradeId = tradeId,
+                            ItemInstanceModifierId = modifierId,
                             ItemInstanceId = sword.Id,
                             Ordinal = 0,
                             ModifierId = 202,
                             Values =
                             [
                                 new TradeRecordItemModifierValue
-                                { TradeId = tradeId, ItemInstanceId = sword.Id, Ordinal = 0, Index = 0, Stat = StatType.AddedFireDamage, Value = 2, Value2 = 5 },
+                                { TradeId = tradeId, ItemInstanceModifierId = modifierId, Index = 0, Stat = StatType.AddedFireDamage, Value = 2, Value2 = 5 },
                                 new TradeRecordItemModifierValue
-                                { TradeId = tradeId, ItemInstanceId = sword.Id, Ordinal = 0, Index = 1, Stat = StatType.Strength, Value = 4 },
+                                { TradeId = tradeId, ItemInstanceModifierId = modifierId, Index = 1, Stat = StatType.Strength, Value = 4 },
                             ],
                         },
                     ],
@@ -277,7 +279,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
                 .SingleAsync(i => i.TradeId == record.Id);
             Assert.Equal((sword.Id, ItemRarity.Rare, (ushort)9), (moved.ItemInstanceId, moved.Rarity, moved.ItemLevel));
             TradeRecordItemModifier modifier = Assert.Single(moved.Modifiers);
-            Assert.Equal(((byte)0, (ushort)202), (modifier.Ordinal, modifier.ModifierId));
+            Assert.Equal((modifierId, (byte)0, (ushort)202), (modifier.ItemInstanceModifierId, modifier.Ordinal, modifier.ModifierId));
             Assert.Equal([(StatType.AddedFireDamage, 2, (int?)5), (StatType.Strength, 4, null)],
                 modifier.Values.OrderBy(v => v.Index).Select(v => (v.Stat, v.Value, v.Value2)));
         }
