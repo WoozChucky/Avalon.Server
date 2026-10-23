@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.Metrics;
+using System.Diagnostics.Metrics;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
@@ -495,15 +495,18 @@ public sealed class CharacterSaverShould : IDisposable
 
     /// <summary>
     /// Save first, then swap (#1175): the paired save writes both characters as they will be after the trade, with its
-    /// record, in one transaction, while memory stays as it is. A refused write leaves both rows and the record out.
+    /// record, in one transaction, while memory stays as it is. A refused write leaves both rows and the record out. The
+    /// sword's modifier was never saved (#1179): the receiver's half writes it, with the copy's rarity and item level.
     /// </summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Write_both_sides_of_a_trade_and_its_record_in_one_transaction_or_neither(bool refused)
     {
-        InventoryItem sword = Item(0, Sword), potion = Item(0, Potion, count: 5);
+        InventoryItem sword = Item(0, Sword) with { Rarity = ItemRarity.Magic, ItemLevel = 7 }, potion = Item(0, Potion, count: 5);
         CharacterEntity a = await SeedAsync(7, stored: [sword], gold: 100);
+        ItemInstanceModifier fire = Modifier(sword.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5));
+        a.ItemModifiers.Load([new ItemInstance { Id = sword.InstanceId, TemplateId = sword.TemplateId, Modifiers = [fire] }]);
         CharacterEntity b;
         if (refused)
         {
@@ -537,6 +540,11 @@ public sealed class CharacterSaverShould : IDisposable
             Assert.Equal((plan.First.Incoming[0].Item.Slot, potion.InstanceId), (slotA.Slot, slotA.ItemId));
             CharacterInventory slotB = Assert.Single(await StoredSlotsAsync(8));
             Assert.Equal((plan.Second.Incoming[0].Item.Slot, sword.InstanceId), (slotB.Slot, slotB.ItemId));
+            await using CharacterDbContext read = _db.CreateDbContext();
+            ItemInstance given = await read.ItemInstances.AsNoTracking().Include(i => i.Modifiers).ThenInclude(m => m.Values)
+                .SingleAsync(i => i.Id == sword.InstanceId);
+            Assert.Equal((ItemRarity.Magic, (ushort)7), (given.Rarity, given.ItemLevel));
+            Assert.Equal(Describe(fire), Describe([.. given.Modifiers]));
         }
 
         // Memory never changes either way: the trade applies the swap itself, once it knows the outcome.

@@ -1,13 +1,9 @@
 using Avalon.Common;
-using Avalon.Database;
-using Avalon.Database.Character;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Trade;
-using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Inventory;
-using Avalon.Server.World.UnitTests.Persistence;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Characters;
@@ -50,10 +46,6 @@ public class TradeCompletionShould
             b.Character.Container(InventoryType.Bag).TryGet(second.Incoming[0].Item.Slot, out InventoryItem held)
             && held.InstanceId == sword.InstanceId;
 
-        // The paired save as SaveTrade builds it (memory has not moved since), to write to a database below.
-        using SqliteDatabase<CharacterDbContext> db = await StoredAsync(a, b);
-        CharacterSaveBatch[] paired = [PairedBatch(a, first), PairedBatch(b, second)];
-
         w.Saver.Finish(row switch
         {
             "committed" => SaveOutcome.Committed,
@@ -89,23 +81,10 @@ public class TradeCompletionShould
             Assert.Equal(potion.InstanceId, At(a, first.Incoming[0].Item.Slot).InstanceId);
             Assert.Equal((70UL, 30UL), (a.Character.Data!.Gold, b.Character.Data!.Gold));
 
-            // #1179: the sword was never saved, so the receiver's half of the paired save is what writes it and its
-            // modifiers, under their own ids, and the record keeps its own copy. The giver's next save names neither.
+            // #1179: the receiver holds the sword's modifiers under their own ids, and the giver's next save names neither
+            // (CharacterSaverShould writes the paired save itself).
             Assert.Equal(modifiers, Describe(b.Character.ItemModifiers.Of(sword.InstanceId)));
             Assert.Empty(a.Character.ItemModifiers.Of(sword.InstanceId));
-            await new CharacterSaveRepository(new DbTransactionRunner<CharacterDbContext>(db)).WriteTradeAsync(paired, record);
-            await using (CharacterDbContext read = db.CreateDbContext())
-            {
-                ItemInstance stored = await read.ItemInstances.AsNoTracking()
-                    .Include(i => i.Modifiers).ThenInclude(m => m.Values).SingleAsync(i => i.Id == sword.InstanceId);
-                Assert.Equal(b.Character.Data.Id, stored.CharacterId);
-                Assert.Equal(modifiers, Describe([.. stored.Modifiers.OrderBy(m => m.Ordinal)]));
-                TradeRecordItem kept = await read.TradeRecordItems.AsNoTracking()
-                    .Include(i => i.Modifiers).ThenInclude(m => m.Values).SingleAsync(i => i.ItemInstanceId == sword.InstanceId);
-                Assert.Equal((ItemRarity.Magic, (ushort)7), (kept.Rarity, kept.ItemLevel));
-                Assert.Equal(rolls, DescribeRolls(kept.Modifiers));
-            }
-
             CharacterSaveBatch next = CharacterSaveSnapshot.Take(a.Character).Batch;
             Assert.DoesNotContain(sword.InstanceId, next.UpsertItems.Select(i => i.Id).Concat(next.DeleteItems));
             Assert.Null(next.Modifiers);
@@ -215,24 +194,4 @@ public class TradeCompletionShould
 
     private static InventoryItem At(Trader trader, byte bagSlot) =>
         TestCharacters.At(trader.Character, InventoryType.Bag, bagSlot);
-
-    /// <summary>The traders stored, as the paired save's fence needs them, and bound to their account's write authority.</summary>
-    private static async Task<SqliteDatabase<CharacterDbContext>> StoredAsync(params Trader[] traders)
-    {
-        var db = SqliteDatabase.Characters();
-        await using (CharacterDbContext context = db.CreateDbContext())
-            await context.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON;");
-
-        foreach (Trader trader in traders)
-        {
-            await new CharacterRepository(db).CreateAsync(trader.Character.Data!.Copy());
-            await AdmittedCharacter.BindAsync(db, trader.Character);
-        }
-
-        return db;
-    }
-
-    /// <summary>One side's half of the paired save, as <see cref="CharacterSaver.SaveTrade" /> builds it.</summary>
-    private static CharacterSaveBatch PairedBatch(Trader trader, TradeSidePlan side) =>
-        TradeSaveBatch.Apply(CharacterSaveSnapshot.Take(trader.Character).Batch, side, DateTime.UtcNow);
 }

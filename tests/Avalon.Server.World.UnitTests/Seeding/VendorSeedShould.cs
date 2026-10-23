@@ -1,4 +1,3 @@
-using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
@@ -39,17 +38,6 @@ public class VendorSeedShould
 
     private static List<VendorStock> Stock(WorldDbContext context) =>
         context.VendorStocks.AsNoTracking().Include(s => s.Costs).ToList();
-
-    private static Dictionary<StatType, uint> Stats(ItemTemplate t) =>
-        new (StatType? Type, uint? Value)[]
-            {
-                (t.StatType1, t.StatValue1), (t.StatType2, t.StatValue2), (t.StatType3, t.StatValue3),
-                (t.StatType4, t.StatValue4), (t.StatType5, t.StatValue5), (t.StatType6, t.StatValue6),
-                (t.StatType7, t.StatValue7), (t.StatType8, t.StatValue8), (t.StatType9, t.StatValue9),
-                (t.StatType10, t.StatValue10),
-            }
-            .Where(s => s.Type is not null)
-            .ToDictionary(s => s.Type!.Value, s => s.Value ?? 0);
 
     [Fact]
     public void Seed_the_three_vendors_as_unkillable_town_npcs_that_drop_nothing()
@@ -168,11 +156,11 @@ public class VendorSeedShould
     }
 
     /// <summary>
-    /// #1179: what Garrick and Hilde sell is the twenty-four tier-1 bases, Common, level 1, for every class, sellable for
-    /// a quarter of their price (rounded down).
+    /// #1179: what Garrick and Hilde sell is the twenty-four tier-1 bases, and each sells back (the bases' own values are
+    /// pinned row by row in SeedIntegrityShould).
     /// </summary>
     [Fact]
-    public void Seed_the_starter_tier_as_twenty_four_common_tier_one_bases_for_every_class()
+    public void Sell_the_twenty_four_tier_one_bases_and_buy_each_back()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
@@ -180,52 +168,8 @@ public class VendorSeedShould
         ulong[] sold = [.. Stock(context).Where(r => r.CreatureTemplateId.Value is 12 or 13).Select(r => r.ItemTemplateId.Value)];
 
         Assert.Equal(s_tiers.Select(t => t.First).Order(), sold.Order());
-        foreach (ulong id in sold)
-        {
-            ItemTemplate item = items[id];
-            Assert.Equal(ItemRarity.Common, item.Rarity);
-            Assert.NotNull(item.BaseKind);
-            Assert.Empty(item.AllowedClasses);
-            Assert.Equal(item.BuyPrice / 4, item.SellPrice);
-            Assert.False(item.Flags.HasFlag(ItemTemplateFlags.NoSell), $"{item.Name} is marked NoSell");
-            Assert.Equal((1u, (ushort?)1), (item.MaxStackSize, item.RequiredLevel));
-        }
-    }
-
-    /// <summary>
-    /// #1179: each tier-1 base is the same kind as its tier-2 counterpart, with the same lines, and weaker: lower values on
-    /// every line, a lower weapon roll and a lower requirement and price.
-    /// </summary>
-    [Fact]
-    public void Make_every_tier_one_base_weaker_than_its_tier_two_counterpart()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-        Dictionary<ulong, ItemTemplate> items = Items(context);
-
-        foreach ((ulong firstId, ulong secondId) in s_tiers)
-        {
-            ItemTemplate first = items[firstId], second = items[secondId];
-
-            Assert.Equal((second.BaseKind, second.Class, second.SubClass, second.Slot, second.AttackTimeMs),
-                (first.BaseKind, first.Class, first.SubClass, first.Slot, first.AttackTimeMs));
-            Dictionary<StatType, uint> firstStats = Stats(first), secondStats = Stats(second);
-            Assert.Equal(secondStats.Keys, firstStats.Keys);
-            Assert.All(firstStats, s => Assert.True(s.Value < secondStats[s.Key], $"{first.Name} {s.Key} is not below {second.Name}'s"));
-
-            if (second.DamageMax1 is { } max)
-            {
-                Assert.True(first.DamageMin1 < second.DamageMin1 && first.DamageMax1 < max, $"{first.Name} does not roll below {second.Name}");
-                Assert.Equal(second.DamageType1, first.DamageType1);
-            }
-            else
-            {
-                Assert.Null(first.DamageMax1);
-            }
-
-            Assert.True(first.RequiredLevel < second.RequiredLevel && first.BuyPrice < second.BuyPrice,
-                $"{first.Name} is not a lower tier than {second.Name}");
-        }
+        Assert.All(sold, id => Assert.True(!items[id].Flags.HasFlag(ItemTemplateFlags.NoSell) && items[id].SellPrice > 0,
+            $"{items[id].Name} does not sell back"));
     }
 
     [Fact]

@@ -1,11 +1,10 @@
 namespace Avalon.Domain.World;
 
 /// <summary>
-/// The one mapping from an Equipment container slot to the ItemSlotType an item must have to be
-/// worn there (spec #463). The container has 14 slots; 11 and 12 are the trinkets (#1179) and 13 is
-/// reserved: any request naming it is refused. The numbers are not ItemSlotType's own: Gem is 8 there, but slot 8 is the second
-/// finger, and a gem is a socket item that is never worn. Shared by the world server and the API (#1178), so both
-/// count the same worn items.
+/// The one mapping from an Equipment container slot to the ItemSlotType an item must have to be worn there (spec #463).
+/// The container has 14 slots; 11 and 12 are the trinkets (#1179) and 13 is reserved: any request naming it is refused.
+/// The numbers are not ItemSlotType's own: Gem is 8 there, but slot 8 is the second finger, and a gem is a socket item
+/// that is never worn. Shared by the world server and the API (#1178), so both count the same worn items.
 /// </summary>
 public static class EquipmentSlots
 {
@@ -64,8 +63,9 @@ public static class EquipmentSlots
     private static readonly byte[] s_trinkets = [Trinket1, Trinket2];
 
     /// <summary>
-    /// The slots an item whose template Slot is <paramref name="type" /> is worn in, in the order a use fills them
-    /// (item use): both fingers for a ring, both trinket slots for a trinket, none for a gem or an item with no slot. The one mapping a use reads.
+    /// The slots an item whose template Slot is <paramref name="type" /> is worn in, in the order a use fills them (item
+    /// use): both fingers for a ring, both trinket slots for a trinket, none for a gem or an item with no slot. The one
+    /// mapping a use reads.
     /// </summary>
     public static IReadOnlyList<byte> SlotsFor(ItemSlotType? type) => type switch
     {

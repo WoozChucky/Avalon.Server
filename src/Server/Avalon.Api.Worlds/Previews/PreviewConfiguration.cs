@@ -5,9 +5,9 @@ namespace Avalon.Api.Worlds.Previews;
 
 /// <summary>
 /// <c>Application:Previews</c>: how a link preview looks. The defaults are in appsettings.json. The
-/// rarity colours mirror Avalon.Dashboard apps/public/src/components/game/rarity.ts (Tailwind colours; Junk
-/// and Common are the site's dark-theme muted-foreground and foreground), and the ability colour is the
-/// site's primary accent (text-primary, the tooltip's name colour); change them together.
+/// rarity colours mirror Avalon.Dashboard apps/public/src/components/game/rarity.ts (Tailwind colours; Common
+/// is the site's dark-theme foreground), and the ability colour is the site's primary accent (text-primary,
+/// the tooltip's name colour); change them together.
 /// A missing or malformed colour leaves the page without a <c>theme-color</c>; it never fails a request.
 /// </summary>
 public sealed partial class PreviewConfiguration

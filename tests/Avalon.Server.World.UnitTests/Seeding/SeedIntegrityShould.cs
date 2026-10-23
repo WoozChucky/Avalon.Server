@@ -267,9 +267,6 @@ public class SeedIntegrityShould
 
     private static readonly LootTableId s_forestJewellery = new(14);
 
-    /// <summary>The eleven ids #1179 deleted: the Rusted Sword, the Cleric's forest set and the Cleric's starter set.</summary>
-    private static readonly ulong[] s_deletedItems = [4, 27, 28, 29, 30, 31, 51, 52, 53, 54, 55];
-
     /// <summary>
     /// Issue #460: every creature a player can kill drops something, and nothing drops from a town
     /// NPC, which cannot die. A new hostile template without a table would be a creature worth nothing.
@@ -485,39 +482,6 @@ public class SeedIntegrityShould
             Assert.False(item.Flags.HasFlag(ItemTemplateFlags.NoSell), $"{item.Name} is marked NoSell");
             Assert.True(item.SellPrice > 0, $"{item.Name} sells for nothing");
         });
-    }
-
-    /// <summary>
-    /// #1179: in each armour slot and tier there is one base of each family, plate giving armour and asking Strength,
-    /// leather evasion and Agility, cloth ward and Intellect, and nothing else.
-    /// </summary>
-    [Fact]
-    public void Armour_each_slot_and_tier_with_plate_armour_leather_evasion_and_cloth_ward()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        var bases = context.ItemTemplates.AsNoTracking().ToList()
-            .Where(i => i.BaseKind is >= ItemBaseKind.PlateHead and <= ItemBaseKind.ClothFeet).ToList();
-        Assert.Equal(54, bases.Count);
-
-        foreach (ItemTemplate piece in bases)
-        {
-            int family = ((int)piece.BaseKind!.Value - 1) / 6;   // plate, leather, cloth
-            (StatType defence, ushort? strength, ushort? agility, ushort? intellect) = family switch
-            {
-                0 => (StatType.Armor, piece.RequiredStrength, piece.RequiredAgility, piece.RequiredIntellect),
-                1 => (StatType.Evasion, piece.RequiredAgility, piece.RequiredStrength, piece.RequiredIntellect),
-                _ => (StatType.Ward, piece.RequiredIntellect, piece.RequiredStrength, piece.RequiredAgility),
-            };
-
-            Assert.Equal(new StatType?[] { defence }, StatTypesOf(piece).Where(t => t is not null));
-            Assert.True(piece.StatValue1 > 0, $"{piece.Name} has no {defence}");
-            Assert.True(strength is null == (piece.RequiredLevel == 1), $"{piece.Name} asks its family's attribute only from tier 2");
-            Assert.Equal(((ushort?)null, (ushort?)null), (agility, intellect));
-        }
-
-        Assert.Equal(54, bases.Select(b => (b.BaseKind, b.RequiredLevel)).Distinct().Count());
     }
 
     /// <summary>
@@ -1021,32 +985,6 @@ public class SeedIntegrityShould
             Assert.True(drift < Avalon.World.Characters.CharacterMovement.ClientSnapThreshold,
                 $"aura {m.AuraId.Value} moves a character {drift} m over a round trip");
         }
-    }
-
-    /// <summary>
-    /// #1179: every weapon base rolls one physical range by tier, 4-7 at level 1, 7-11 at level 5 and 11-17 at level 10,
-    /// whatever its type; the type sets only its attack time.
-    /// </summary>
-    [Fact]
-    public void Seed_the_weapon_damage_ranges()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        var weapons = context.ItemTemplates.AsNoTracking().ToList().Where(i => i.Class == ItemClass.Weapon).ToList();
-
-        Assert.Equal(12, weapons.Count);
-        Assert.All(weapons, w => Assert.Equal(
-            w.RequiredLevel switch
-            {
-                1 => ((uint?)4u, (uint?)7u),
-                5 => (7u, 11u),
-                _ => (11u, 17u),
-            },
-            (w.DamageMin1, w.DamageMax1)));
-        Assert.All(weapons, w => Assert.Equal(
-            ((DamageType?)DamageType.Physical, (uint?)null, (uint?)null),
-            (w.DamageType1, w.DamageMin2, w.DamageMax2)));
     }
 
     /// <summary>
@@ -1632,21 +1570,6 @@ public class SeedIntegrityShould
         Assert.DoesNotContain(context.VendorStocks.AsNoTracking().ToList(), s => s.ItemTemplateId.Value == 57);
     }
 
-    /// <summary>#1179: the Alpha's Fang Pendant is a unique neck piece for every class, never flagged own-one-copy.</summary>
-    [Fact]
-    public void Seed_the_alphas_fang_pendant_as_a_unique_neck_piece_for_every_class()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-        ItemTemplate pendant = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == 58);
-
-        Assert.Equal("Alpha's Fang Pendant", pendant.Name);
-        Assert.Equal((ItemClass.Armor, ItemSubClass.Amulet, ItemSlotType.Neck, ItemRarity.Unique),
-            (pendant.Class, pendant.SubClass, pendant.Slot, pendant.Rarity));
-        Assert.Empty(pendant.AllowedClasses);
-        Assert.False(pendant.Flags.HasFlag(ItemTemplateFlags.Unique));
-    }
-
     /// <summary>Forest content pass, quests 4-8: five quest items that drop only for characters collecting them and are never sold.</summary>
     [Theory]
     [InlineData(59ul, "Blightfly Wing")]
@@ -1671,23 +1594,20 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// The rings (#1179): the chain's reward, the Copper Band base, and the two unique rings, for every class, in a finger
-    /// slot, never flagged own-one-copy (a reward must always fit, and a player may wear two of one ring).
+    /// The chain's reward ring (#1179), the Copper Band base, for every class, in a finger slot, never flagged own-one-copy
+    /// (a reward must always fit, and a player may wear two of one ring). The unique rings are pinned with the uniques.
     /// </summary>
-    [Theory]
-    [InlineData(68ul, "Copper Band", ItemRarity.Common, (ushort)1)]
-    [InlineData(64ul, "Heartwood Band", ItemRarity.Unique, (ushort)4)]
-    [InlineData(65ul, "Thornheart Signet", ItemRarity.Unique, (ushort)5)]
-    public void Seed_the_chains_rings_for_every_class(ulong id, string name, ItemRarity rarity, ushort level)
+    [Fact]
+    public void Seed_the_chains_reward_ring_for_every_class()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        ItemTemplate ring = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
+        ItemTemplate ring = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == 68);
 
-        Assert.Equal(name, ring.Name);
-        Assert.Equal((ItemClass.Armor, ItemSubClass.Ring, ItemSlotType.Finger, rarity, ItemBaseKind.Ring),
+        Assert.Equal("Copper Band", ring.Name);
+        Assert.Equal((ItemClass.Armor, ItemSubClass.Ring, ItemSlotType.Finger, ItemRarity.Common, ItemBaseKind.Ring),
             (ring.Class, ring.SubClass, ring.Slot, ring.Rarity, ring.BaseKind));
-        Assert.Equal(level, ring.RequiredLevel);
+        Assert.Equal((ushort)1, ring.RequiredLevel);
         Assert.Empty(ring.AllowedClasses);
         Assert.False(ring.Flags.HasFlag(ItemTemplateFlags.Unique));
         Assert.Equal(1u, ring.MaxStackSize);
@@ -1882,10 +1802,10 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #1179: the jewellery table as drafted; no loot table, vendor row, quest reward, quest choice or starting item names
-    /// a deleted item; every worn template is a base kind that never stacks, and nothing else has a base kind. The weapon
-    /// and armour tables, the vendors' lines and the quests' rewards are pinned by their own tests above and in
-    /// VendorSeedShould.
+    /// #1179: the jewellery table as drafted; every loot table, vendor row, quest reward, quest choice and starting item
+    /// names a template that exists; every worn template is a base kind, worn in its kind's slot, that never stacks, and
+    /// nothing else has a base kind. The weapon and armour tables, the vendors' lines and the quests' rewards are pinned
+    /// by their own tests above and in VendorSeedShould.
     /// </summary>
     [Fact]
     public void Seed_vendors_loot_and_quest_rewards_on_the_bases()
@@ -1907,11 +1827,11 @@ public class SeedIntegrityShould
             .Concat(context.QuestItemChoices.AsNoTracking().ToList().Select(c => c.ItemTemplateId.Value))
             .Concat(context.CharacterCreateInfos.AsNoTracking().ToList().SelectMany(c => c.StartingItems).Select(i => i.Value));
         Assert.All(named, id => Assert.Contains(id, items.Keys));
-        Assert.DoesNotContain(named, s_deletedItems.Contains);
-
         Assert.All(items.Values.Where(i => i.Slot is not null), i => Assert.Equal(1u, i.MaxStackSize));
-        Assert.All(items.Values, i => Assert.True(i.Slot is null == i.BaseKind is null,
+        Assert.All(items.Values, i => Assert.True((i.Slot is null) == (i.BaseKind is null),
             $"{i.Name}: a worn template is a base kind, and nothing else is"));
+        Assert.All(items.Values.Where(i => i.BaseKind is not null),
+            i => Assert.Equal(ItemBaseKindSlots.SlotOf(i.BaseKind!.Value), i.Slot));
     }
 
     /// <summary>An item for every class lists none (#1171): a list names classes only to restrict the item to some.</summary>

@@ -52,9 +52,8 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         AbilityColour = "#BC8A4E",
         RarityColours = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["Magic"] = "#C084FC",
-            ["Rare"] = "#38BDF8",
-            ["Unique"] = "#FBBF24",
+            ["Common"] = "#E9E2D8",
+            ["Unique"] = "#C084FC",
         },
     };
 
@@ -70,7 +69,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         {
             Id = new ItemTemplateId(14),
             Name = "Barkplate Helm",
-            Rarity = ItemRarity.Magic,
+            Rarity = ItemRarity.Unique,
             Slot = ItemSlotType.Head,
             SubClass = ItemSubClass.Helmet,
             RequiredLevel = 5,
@@ -84,7 +83,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
             StatType3 = StatType.CritPct,
             StatValue3 = 2,
         });
-        Item(OtherOpen, new ItemTemplate { Id = new ItemTemplateId(14), Name = "Other World Helm", Rarity = ItemRarity.Rare });
+        Item(OtherOpen, new ItemTemplate { Id = new ItemTemplateId(14), Name = "Other World Helm", Rarity = ItemRarity.Unique });
         Item(Staff, new ItemTemplate { Id = new ItemTemplateId(14), Name = "Staff Helm" });
         Item(Open, new ItemTemplate { Id = new ItemTemplateId(15), Name = "Tricky <script>\"&", Rarity = ItemRarity.Common });
         Item(Open, new ItemTemplate
@@ -218,7 +217,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         Assert.Equal("https://avalon.example/item/14", Meta(html, "og:url"));
         Assert.Equal("#C084FC", Meta(html, "theme-color"));
         Assert.Equal("summary", Meta(html, "twitter:card"));
-        Assert.Equal("Magic · Head · Helmet · 8 Armor · +3 Strength · +2% Crit · Requires Level 5 · Requires 12 Strength or 12 Intellect",
+        Assert.Equal("Unique · Head · Helmet · 8 Armor · +3 Strength · +2% Crit · Requires Level 5 · Requires 12 Strength or 12 Intellect",
             Decoded(html, "og:description"));
         Assert.Contains("<title>Barkplate Helm</title>", html, StringComparison.Ordinal);
         Assert.Contains("<body><a href=\"https://avalon.example/item/14\">Barkplate Helm</a></body>", html,
@@ -369,7 +368,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         {
             Id = new ItemTemplateId(30),
             Name = "Ember Blade",
-            Rarity = ItemRarity.Rare,
+            Rarity = ItemRarity.Unique,
             Slot = ItemSlotType.MainHand,
             SubClass = ItemSubClass.OneHanded,
             AttackTimeMs = 784,
@@ -384,7 +383,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         };
 
         Assert.Equal(
-            "Rare · Main Hand · One Handed · 12 – 18 Physical Damage · 3 – 5 Fire Damage · 0.78 sec attack time · " +
+            "Unique · Main Hand · One Handed · 12 – 18 Physical Damage · 3 – 5 Fire Damage · 0.78 sec attack time · " +
             "+10% increased Fire Damage",
             LinkPreviewText.Describe(weapon.ToPublicDto()));
     }
@@ -444,7 +443,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     public async Task Use_a_configured_colour()
     {
         PreviewConfiguration previews = Previews();
-        previews.RarityColours["magic"] = "#112233";
+        previews.RarityColours["unique"] = "#112233";
         previews.AbilityColour = "#AABBCC";
         await using ApiTestHost host = await Start(null, previews);
 
@@ -462,8 +461,8 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     public async Task Leave_theme_color_out_for_a_rarity_with_no_valid_colour(string? colour)
     {
         PreviewConfiguration previews = Previews();
-        previews.RarityColours.Remove("Magic");
-        if (colour is not null) previews.RarityColours["Magic"] = colour;
+        previews.RarityColours.Remove("Unique");
+        if (colour is not null) previews.RarityColours["Unique"] = colour;
         previews.AbilityColour = colour;
         await using ApiTestHost host = await Start(null, previews);
 
