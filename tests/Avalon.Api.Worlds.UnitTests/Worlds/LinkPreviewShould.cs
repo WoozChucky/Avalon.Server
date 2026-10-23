@@ -245,8 +245,9 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     }
 
     /// <summary>
-    /// What a seeded ability deals or heals (#1178), one part of its description: an attack by its weapon damage, its
-    /// conversion and its added damage; a spell or a heal by its own base and its growth per level.
+    /// What a seeded ability deals or heals (#1178), one part of its description: an attack by its weapon damage (a
+    /// creature's by its natural damage, with its type when not physical), its conversion and its added damage; a spell
+    /// or a heal by its own base and its growth per level.
     /// </summary>
     [Theory]
     [InlineData(200u, "315 % of weapon damage")]
@@ -254,6 +255,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     [InlineData(224u, "168 % of weapon damage, adds 2-4 blight damage")]
     [InlineData(210u, "14-20 lightning damage, +0.7 % per level")]
     [InlineData(232u, "Heals 30-44")]
+    [InlineData(312u, "240 % of its natural damage, blight damage")]
     public void Describe_what_a_seeded_ability_deals_or_heals(uint id, string expected)
     {
         using var sqlite = new SqliteWorlds(Open);

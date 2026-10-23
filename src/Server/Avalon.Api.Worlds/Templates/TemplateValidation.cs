@@ -218,12 +218,17 @@ public static class TemplateValidation
             errors.Add(field, $"Unknown script '{scriptName}' on this world");
     }
 
-    private static string AbilityField(string problem) => problem switch
+    /// <summary>
+    /// The field an <see cref="AbilityRules.Problem"/> refusal is about, keyed by its wording; <c>template</c> for a column
+    /// an edit cannot reach.
+    /// </summary>
+    public static string AbilityField(string problem) => problem switch
     {
         _ when problem.Contains("must use", StringComparison.Ordinal) => "scriptName",
         _ when problem.Contains("power type", StringComparison.OrdinalIgnoreCase) => "costPowerType",
         _ when problem.StartsWith("Cost ", StringComparison.Ordinal) => "costPowerType",
         _ when problem.StartsWith("the ability does nothing", StringComparison.Ordinal) => "effects",
+        _ when problem.StartsWith("unknown AddedType", StringComparison.Ordinal) => "addedType",
         _ when problem.Contains("damage type", StringComparison.Ordinal) => "damageType",
         // The offence model (#1178): AbilityRules' wording, keyed by the editable field each refusal is about.
         _ when problem.StartsWith("a class attack deals its weapon's physical damage", StringComparison.Ordinal) => "damageType",
@@ -271,7 +276,8 @@ public static class TemplateValidation
         _ => "template",
     };
 
-    private static string AuraField(string problem) => problem switch
+    /// <summary>The field an <see cref="AuraRules.Problem"/> refusal is about, keyed by its wording.</summary>
+    public static string AuraField(string problem) => problem switch
     {
         _ when problem.StartsWith("unknown kind", StringComparison.Ordinal) => "kind",
         _ when problem.StartsWith("unknown periodic kind", StringComparison.Ordinal) => "periodicKind",
@@ -287,7 +293,8 @@ public static class TemplateValidation
         _ when problem.StartsWith("PeriodicBase", StringComparison.Ordinal) => "periodicBase",
         _ when problem.StartsWith("PeriodicEffectiveness", StringComparison.Ordinal) => "periodicEffectiveness",
         _ when problem.Contains("cannot heal", StringComparison.Ordinal) || problem.Contains("cannot deal", StringComparison.Ordinal) => "periodicKind",
-        _ when problem.Contains("modif", StringComparison.Ordinal) || problem.StartsWith("unknown stat", StringComparison.Ordinal) => "modifiers",
+        _ when problem.Contains("modif", StringComparison.Ordinal) || problem.StartsWith("unknown stat", StringComparison.Ordinal)
+               || problem.Contains("is already a percentage", StringComparison.Ordinal) => "modifiers",
         _ => "template",
     };
 

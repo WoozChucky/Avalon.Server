@@ -6,6 +6,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
@@ -27,6 +28,7 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
@@ -596,12 +598,15 @@ public class CharacterSelectHandlerShould
     /// <summary>
     /// Regression guard: a class and level with no ClassLevelStat row keeps the stored maximums and
     /// derives nothing (select once patched Stamina from a row that is not there), and a warrior still
-    /// enters with no Fury (#526).
+    /// enters with no Fury (#526). With no refresh to fix its pace, its basic attack waits the bare hand's attack time,
+    /// never nothing (#1178).
     /// </summary>
     [Fact]
     public async Task Keep_the_stored_maximums_and_enter_with_no_fury_when_the_class_and_level_have_no_row()
     {
-        Fixture f = await BuildAsync(storedHealth: 150, storedPower: 100);
+        AbilityTemplate basic = AbilityTestData.Cone(1);
+        basic.Flags = AbilityFlags.Basic;
+        Fixture f = await BuildAsync(storedHealth: 150, storedPower: 100, abilityTemplates: [basic]);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
@@ -610,6 +615,12 @@ public class CharacterSelectHandlerShould
         Assert.Equal((100u, 0u), (entity.Power, entity.CurrentPower));
         Assert.Null(entity.Stats);
         Assert.Equal(0u, entity.Stamina);
+
+        OutboundPacket sent = Assert.Single(
+            f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
+        using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
+        AbilityInfo info = Assert.Single(Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities);
+        Assert.Equal(CombatSeed.Formula().UnarmedAttackTimeMs, info.CooldownMs);
     }
 
     /// <summary>#526: Game:FuryDecayPerSecond reaches the character select builds: at 30, a second out of combat loses 30.</summary>

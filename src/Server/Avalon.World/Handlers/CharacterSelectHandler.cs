@@ -664,6 +664,9 @@ public class CharacterSelectHandler(
             logger.LogWarning(
                 "No class stats for {Class} level {Level}; character {CharacterId} keeps its stored maximums",
                 character.Class, character.Level, character.Id);
+
+            // #1178: no refresh fixed a pace, so the basic attack waits the bare hand's time rather than none.
+            entity.UseBareHandPace(world.Data.Combat.Formula);
         }
 
         // The bank is loaded but not sent: opening it is a separate interaction, and a client

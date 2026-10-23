@@ -226,7 +226,8 @@ public class StaticDataRulesShould
         { "a basic attack is paced by its weapon: its Cooldown is 0",
             () => AbilityRules.Problem(Seeded(220, t => (t.Flags, t.Cooldown) = (AbilityFlags.Basic, 800u))) },
         { "ConvertPct 150 is not a percentage from 0 to 100", () => AbilityRules.Problem(Seeded(223, t => t.ConvertPct = 150f)) },
-        { "a conversion names an element to convert to", () => AbilityRules.Problem(Seeded(223, t => t.ConvertToType = null)) },
+        { "a conversion names an element to convert to",
+            () => AbilityRules.Problem(Seeded(223, t => (t.ConvertPct, t.ConvertToType) = (0f, DamageType.Physical))) },
         { "a Spell or a Heal that deals or heals needs a SpellBaseMax above 0",
             () => AbilityRules.Problem(Seeded(210, t => t.SpellBaseMin = t.SpellBaseMax = 0)) },
         { "added damage names its type", () => AbilityRules.Problem(Seeded(224, t => t.AddedType = null)) },
@@ -241,8 +242,8 @@ public class StaticDataRulesShould
         Assert.Equal(message, problem());
 
     /// <summary>
-    /// The seeded ability <paramref name="id" /> as the offence model authors it, with <paramref name="change" /> made: the
-    /// columns the rules read, each as the World seed has them.
+    /// The seeded ability <paramref name="id" /> as the offence model authors it, with <paramref name="change" /> made: a
+    /// copy of the World seed's columns the rules read, not the seed itself.
     /// </summary>
     private static AbilityTemplate Seeded(uint id, Action<AbilityTemplate> change)
     {
@@ -278,7 +279,8 @@ public class StaticDataRulesShould
             223 => (495f, 0u, 0u, 0f),
             224 => (168f, 0u, 0u, 0f),
             232 => (100f, 30u, 44u, 0f),
-            _ => (100f, 19u, 28u, 0f),
+            233 => (100f, 19u, 28u, 0f),
+            _ => throw new ArgumentOutOfRangeException(nameof(id), id, "not a row these cases use"),
         };
         if (id == 223) (t.ConvertToType, t.ConvertPct) = (DamageType.Cold, 50f);
         if (id == 224) (t.AddedType, t.AddedMin, t.AddedMax) = (DamageType.Blight, 2u, 4u);

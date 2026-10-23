@@ -123,12 +123,14 @@ public static class AbilityRules
 
         if (!(t.ConvertPct >= 0f && t.ConvertPct <= 100f))
             return FormattableString.Invariant($"ConvertPct {t.ConvertPct} is not a percentage from 0 to 100");
-        if (t.ConvertPct > 0f && t.ConvertToType is not (DamageType.Fire or DamageType.Cold or DamageType.Lightning or DamageType.Blight))
+        // A conversion is a share or a target: either one set makes the row convert, as the database's check reads it.
+        bool converts = t.ConvertPct > 0f || t.ConvertToType is not null;
+        if (converts && t.ConvertToType is not (DamageType.Fire or DamageType.Cold or DamageType.Lightning or DamageType.Blight))
             return "a conversion names an element to convert to";
-        if (t.ConvertPct > 0f && !attack) return "only an Attack converts its weapon's physical damage";
+        if (converts && !attack) return "only an Attack converts its weapon's physical damage";
 
         if (t.AddedMin > t.AddedMax) return $"AddedMin {t.AddedMin} is above AddedMax {t.AddedMax}";
-        if (t.AddedType is { } added && !Enum.IsDefined(added)) return $"unknown damage type {(int)added}";
+        if (t.AddedType is { } added && !Enum.IsDefined(added)) return $"unknown AddedType {(int)added}";
         if (t.AddedMax > 0 && t.AddedType is null) return "added damage names its type";
 
         if (t.SpellBaseMin > t.SpellBaseMax) return $"SpellBaseMin {t.SpellBaseMin} is above SpellBaseMax {t.SpellBaseMax}";

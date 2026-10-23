@@ -347,11 +347,12 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   subclass, damage, armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178),
   allowed classes (only when restricted to some; an empty list means every class, #1171) and item power; for an
   ability its classes, cost, cast time, cooldown and what one hit deals or heals (#1178): an Attack as its weapon
-  damage (`315 % of weapon damage`, then `converts 50 % to cold` or `adds 2-4 blight damage`), a Spell or a Heal as
-  its level-1 base and growth (`14-20 lightning damage, +0.7 % per level`, `Heals 30-44`); an ability with no direct
-  amount (one that only applies an aura) shows its damage type instead (`Fire damage`). Templates have no
-  description or flavour text. Parts are joined by ` · `, collapsed to one line and capped
-  at 200 characters with an ellipsis.
+  damage (`315 % of weapon damage`, then `converts 50 % to cold` or `adds 2-4 blight damage`; a creature's, with no
+  classes, as its natural damage, and any attack's type when it is not physical: `240 % of its natural damage, blight
+  damage`), a Spell or a Heal as its level-1 base and growth (`14-20 lightning damage, +0.7 % per level`, `Heals 30-44`);
+  an ability with no direct amount (one that only applies an aura) shows its damage type instead (`Fire damage`).
+  Templates have no description or flavour text. Parts are joined by ` · `, collapsed to one line and capped at 200
+  characters with an ellipsis.
 - **Colours:** an item's `theme-color` is its rarity's colour, an ability's `AbilityColour`. A missing or malformed
   colour leaves `theme-color` out; it never fails the request.
 - **Not-found and unavailable pages** are titled "Not found · {SiteName}" and "Unavailable · {SiteName}" (or just

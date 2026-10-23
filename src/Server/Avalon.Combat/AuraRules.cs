@@ -60,9 +60,15 @@ public static class AuraRules
             // An Increased or a More at or below -100 would take the whole stat, or turn it negative.
             if (m.Kind is AuraModifierKind.Increased or AuraModifierKind.More && m.Value <= -100f)
                 return FormattableString.Invariant($"{m.Stat} modifier {m.Value} % would take the whole stat");
-            // The Increased keys are percentages already: "+X % increased" is Flat and "X % more" is More.
-            if (m.Kind == AuraModifierKind.Increased && m.Stat is >= AuraStat.IncreasedDamage and <= AuraStat.IncreasedHealing)
+            // The Increased keys, the crit multiplier and the three speeds are percentages already: "+X %" is Flat and
+            // "X % more" is More, so nothing reads "increased increased".
+            if (m.Kind == AuraModifierKind.Increased
+                && m.Stat is (>= AuraStat.IncreasedDamage and <= AuraStat.IncreasedHealing)
+                    or AuraStat.CritMultiplier or AuraStat.AttackSpeed or AuraStat.CastSpeed or AuraStat.CooldownRecovery)
+            {
                 return $"{m.Stat} is already a percentage: it takes Flat or More, never Increased";
+            }
+
             if (!seen.Add(m.Stat)) return $"{m.Stat} is modified twice";
         }
 

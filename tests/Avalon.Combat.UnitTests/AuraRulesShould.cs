@@ -111,14 +111,16 @@ public class AuraRulesShould
     }
 
     /// <summary>
-    /// An Increased or a More at or below -100 would take the whole stat; the thirteen Increased keys are percentages
-    /// already, so they take Flat ("+X % increased") or More ("X % more"), never Increased.
+    /// An Increased or a More at or below -100 would take the whole stat; the thirteen Increased keys, the crit multiplier
+    /// and the three speeds are percentages already, so they take Flat ("+X %") or More ("X % more"), never Increased.
     /// </summary>
     [Theory]
     [InlineData(AuraStat.Armor, AuraModifierKind.More, -100f, "Armor modifier -100 % would take the whole stat")]
     [InlineData(AuraStat.Armor, AuraModifierKind.Increased, -100f, "Armor modifier -100 % would take the whole stat")]
     [InlineData(AuraStat.IncreasedFireDamage, AuraModifierKind.Increased, 10f,
         "IncreasedFireDamage is already a percentage: it takes Flat or More, never Increased")]
+    [InlineData(AuraStat.AttackSpeed, AuraModifierKind.Increased, 10f,
+        "AttackSpeed is already a percentage: it takes Flat or More, never Increased")]
     [InlineData(AuraStat.IncreasedFireDamage, AuraModifierKind.More, 20f, null)]
     public void Refuse_a_modifier_that_does_not_fit_its_stat(AuraStat stat, AuraModifierKind kind, float value,
         string? expected)

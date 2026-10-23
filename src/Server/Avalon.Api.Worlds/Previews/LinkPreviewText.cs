@@ -51,14 +51,18 @@ public static partial class LinkPreviewText
     /// <summary>
     /// What one hit deals or heals (#1178), or null for an ability with no direct amount (it only applies an aura) or no
     /// kind to say it by: an Attack as its weapon damage (<c>315 % of weapon damage, converts 50 % to cold</c>, <c>adds
-    /// 2-4 blight damage</c>), a Spell or a Heal as its level-1 base and its growth (<c>14-20 lightning damage, +0.7 % per
-    /// level</c>, <c>Heals 30-44</c>).
+    /// 2-4 blight damage</c>), or a creature's (no classes) as its natural damage, with its type when that is not
+    /// physical (<c>240 % of its natural damage, blight damage</c>); a Spell or a Heal as its level-1 base and its growth
+    /// (<c>14-20 lightning damage, +0.7 % per level</c>, <c>Heals 30-44</c>).
     /// </summary>
     private static string? Amount(PublicAbilityDto ability)
     {
         if (ability.AmountKind == AbilityAmountKind.Damage && ability.Tags.HasFlag(AbilityTags.Attack))
         {
-            List<string> attack = [$"{Number(ability.DamageEffectiveness)} % of weapon damage"];
+            string of = ability.AllowedClasses.Count == 0 ? "of its natural damage" : "of weapon damage";
+            List<string> attack = [$"{Number(ability.DamageEffectiveness)} % {of}"];
+            if (ability.DamageType is { } type && type != DamageType.Physical)
+                attack.Add($"{Lower(type)} damage");
             if (ability.ConvertPct > 0f && ability.ConvertToType is { } to)
                 attack.Add($"converts {Number(ability.ConvertPct)} % to {Lower(to)}");
             if (ability.AddedMax > 0 && ability.AddedType is { } added)
