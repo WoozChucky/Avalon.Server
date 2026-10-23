@@ -285,18 +285,22 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
 
     /// <summary>
     /// An item's modifiers change over its life (crafting, #1180): its save leaves exactly the set it carries, a row kept
-    /// by id updated in place under that id, and every other row gone with its values.
+    /// by id updated in place under that id, and every other row gone with its values. An item the save does not rewrite
+    /// keeps its modifiers and their values.
     /// </summary>
     [Fact]
     public async Task Replace_an_items_modifier_rows_by_id_in_its_save()
     {
         CharacterRow row = await SeedCharacterAsync(1);
         ItemInstance item = Item(row.Id, count: 1, rarity: ItemRarity.Magic, itemLevel: 7);
+        ItemInstance untouched = Item(row.Id, count: 1, rarity: ItemRarity.Magic, itemLevel: 4);
         ItemInstanceModifier a = Modifier(item.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5));
         ItemInstanceModifier b = Modifier(item.Id, 10103, 1, Value(0, StatType.Strength, 8, null));
-        await _saves.WriteAsync([Batch(row, upsertItems: [item], upsertSlots: [Slot(row.Id, 0, item.Id)], modifiers: Write(a, b))]);
+        ItemInstanceModifier other = Modifier(untouched.Id, 10103, 0, Value(0, StatType.Strength, 5, null));
+        await _saves.WriteAsync([Batch(row, upsertItems: [item, untouched],
+            upsertSlots: [Slot(row.Id, 0, item.Id), Slot(row.Id, 1, untouched.Id)], modifiers: Write(a, b, other))]);
 
-        ItemInstance saved = Assert.Single(await new ItemInstanceRepository(_database).GetByCharacterIdAsync(row.Id));
+        ItemInstance saved = await SavedAsync(row.Id, item.Id);
         Assert.Equal((ItemRarity.Magic, (ushort)7), (saved.Rarity, saved.ItemLevel));
         Assert.Equal(Describe(a, b), Describe([.. saved.Modifiers]));
 
@@ -305,16 +309,18 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         ItemInstance again = Item(row.Id, count: 1, item.Id, ItemRarity.Magic, 7);
         await _saves.WriteAsync([Batch(row, upsertItems: [again], modifiers: Write(kept, added))]);
 
-        saved = Assert.Single(await new ItemInstanceRepository(_database).GetByCharacterIdAsync(row.Id));
-        Assert.Equal(Describe(added, kept), Describe([.. saved.Modifiers]));
+        Assert.Equal(Describe(added, kept), Describe([.. (await SavedAsync(row.Id, item.Id)).Modifiers]));
+        Assert.Equal(Describe(other), Describe([.. (await SavedAsync(row.Id, untouched.Id)).Modifiers]));
         await using CharacterDbContext read = _database.CreateDbContext();
-        Assert.Equal(new[] { added.Id, kept.Id }.Order(), (await read.Set<ItemInstanceModifierValue>().AsNoTracking().ToListAsync())
+        Assert.Equal(new[] { added.Id, kept.Id, other.Id }.Order(), (await read.Set<ItemInstanceModifierValue>().AsNoTracking().ToListAsync())
             .Select(v => v.ItemInstanceModifierId).Order());
     }
 
     /// <summary>
     /// One save mark per item keeps an item and its modifiers in the same save, so a modifier write for an item the batch
-    /// does not upsert, another character's or one of its own left unchanged, is refused, and nothing is written.
+    /// does not upsert, another character's or one of its own left unchanged, is refused, and nothing is written. So are a
+    /// modifier on no item the write names, a value row for a modifier it does not carry, and a modifier id already stored
+    /// under another item, which would otherwise move that row.
     /// </summary>
     [Fact]
     public async Task Refuse_a_modifier_write_for_an_item_its_batch_does_not_upsert()
@@ -323,20 +329,36 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         CharacterRow other = await SeedCharacterAsync(2);
         ItemInstance own = Item(row.Id, count: 1);
         ItemInstance theirs = Item(other.Id, count: 1);
+        ItemInstanceModifier stored = Modifier(theirs.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5));
         await _saves.WriteAsync([Batch(row, upsertItems: [own], upsertSlots: [Slot(row.Id, 0, own.Id)])]);
-        await _saves.WriteAsync([Batch(other, upsertItems: [theirs], upsertSlots: [Slot(other.Id, 0, theirs.Id)])]);
+        await _saves.WriteAsync([Batch(other, upsertItems: [theirs], upsertSlots: [Slot(other.Id, 0, theirs.Id)], modifiers: Write(stored))]);
         row.Gold = 99;
 
-        foreach (ItemInstanceId target in new[] { theirs.Id, own.Id })
-        {
-            ItemModifierWrite write = Write(Modifier(target, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5)));
-            await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => _saves.WriteAsync([Batch(row, modifiers: write)]));
-        }
+        ItemModifierWrite onOwn = Write(Modifier(own.Id, 203, 0, Value(0, StatType.Strength, 4, null)));
+        CharacterSaveBatch[] refused =
+        [
+            Batch(row, modifiers: Write(Modifier(theirs.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5)))),
+            Batch(row, modifiers: onOwn),
+            Batch(row, upsertItems: [Item(row.Id, count: 1, own.Id)], modifiers: onOwn with
+            {
+                Modifiers = [new ItemInstanceModifier { Id = onOwn.Modifiers[0].Id, ItemInstanceId = theirs.Id, ModifierId = 203 }],
+            }),
+            Batch(row, upsertItems: [Item(row.Id, count: 1, own.Id)], modifiers: onOwn with
+            {
+                Values = [new ItemInstanceModifierValue { ItemInstanceModifierId = Guid.CreateVersion7(), Stat = StatType.Strength, Value = 4 }],
+            }),
+            Batch(row, upsertItems: [Item(row.Id, count: 1, own.Id)],
+                modifiers: Write(Modifier(own.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5), stored.Id))),
+        ];
+
+        foreach (CharacterSaveBatch batch in refused)
+            await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => _saves.WriteAsync([batch]));
 
         await using CharacterDbContext read = _database.CreateDbContext();
         Assert.Equal(0UL, (await read.Characters.AsNoTracking().SingleAsync(c => c.Id == row.Id)).Gold);
-        Assert.Empty(await read.Set<ItemInstanceModifier>().AsNoTracking().ToListAsync());
-        Assert.Empty(await read.Set<ItemInstanceModifierValue>().AsNoTracking().ToListAsync());
+        ItemInstanceModifier left = Assert.Single(await read.Set<ItemInstanceModifier>().AsNoTracking().ToListAsync());
+        Assert.Equal((stored.Id, theirs.Id), (left.Id, left.ItemInstanceId));
+        Assert.Equal(stored.Id, Assert.Single(await read.Set<ItemInstanceModifierValue>().AsNoTracking().ToListAsync()).ItemInstanceModifierId);
     }
 
     [Fact]
@@ -432,6 +454,10 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         [.. modifiers.Select(m => m.ItemInstanceId).Distinct()],
         [.. modifiers.Select(m => new ItemInstanceModifier { Id = m.Id, ItemInstanceId = m.ItemInstanceId, ModifierId = m.ModifierId, Ordinal = m.Ordinal })],
         [.. modifiers.SelectMany(m => m.Values)]);
+
+    /// <summary>The saved item, with its modifiers and their values, as the character's items are read.</summary>
+    private async Task<ItemInstance> SavedAsync(CharacterId owner, ItemInstanceId id) =>
+        (await new ItemInstanceRepository(_database).GetByCharacterIdAsync(owner)).Single(i => i.Id == id);
 
     /// <summary>Modifiers in ordinal order, each with its values in index order.</summary>
     private static string Describe(params ItemInstanceModifier[] modifiers) =>

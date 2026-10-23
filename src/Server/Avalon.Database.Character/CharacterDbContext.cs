@@ -367,7 +367,8 @@ public partial class CharacterDbContext : DbContext
     /// <summary>
     /// An item's modifiers (#1179). Keyed by an id the world server allocates, so a modifier kept across saves is updated
     /// in place. No unique index on the item and the ordinal: a reorder saved row by row would trip it. ModifierId names
-    /// a catalog row in the World database, so it has no foreign key, as an item's TemplateId has none.
+    /// a catalog row in the World database, so it has no foreign key, as an item's TemplateId has none. The column is
+    /// smallint, so catalog modifier ids stay at or below 32767.
     /// </summary>
     private static void Configure(EntityTypeBuilder<ItemInstanceModifier> builder)
     {

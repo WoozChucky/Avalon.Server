@@ -27,6 +27,12 @@ public sealed record CharacterQuestWrite(
 /// <paramref name="Values" />' rows for it. A modifier here carries no values of its own (its <c>Values</c> is empty):
 /// every value row is in <paramref name="Values" />. Every item named must be one its batch upserts.
 /// </summary>
+/// <remarks>
+/// Single use, like the batch that carries it. While the write tracks these rows, EF's relationship fix-up adds the
+/// modifiers to the batch's <see cref="ItemInstance.Modifiers" /> and the values to each
+/// <see cref="ItemInstanceModifier.Values" />. A second write of the same objects would then reach those rows through a
+/// navigation, and the repository's one-row rule refuses that. Build fresh rows for every save, as the snapshot does.
+/// </remarks>
 public sealed record ItemModifierWrite(
     IReadOnlyList<ItemInstanceId> Items,
     IReadOnlyList<ItemInstanceModifier> Modifiers,
