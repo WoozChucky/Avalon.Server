@@ -26,7 +26,6 @@ public static class CombatDataRules
         RequireNonNegative("CombatFormula 1", nameof(f.BlockMultiplier), f.BlockMultiplier);
         RequireRange("CombatFormula 1", nameof(f.ArmorCap), f.ArmorCap, 0f, 1f);
         RequireRange("CombatFormula 1", nameof(f.CritCap), f.CritCap, 0f, 100f);
-        RequireRange("CombatFormula 1", nameof(f.DodgeCap), f.DodgeCap, 0f, 100f);
         RequireRange("CombatFormula 1", nameof(f.BlockCap), f.BlockCap, 0f, 100f);
         if (!(f.ArmorBase + f.ArmorPerLevel > 0f))
             throw new InvalidDataException("CombatFormula 1: ArmorBase + ArmorPerLevel must be above 0");
@@ -70,8 +69,6 @@ public static class CombatDataRules
             RequireNonNegative(name, nameof(row.AttackPerStrength), row.AttackPerStrength);
             RequireNonNegative(name, nameof(row.AttackPerAgility), row.AttackPerAgility);
             RequireNonNegative(name, nameof(row.AbilityPerIntellect), row.AbilityPerIntellect);
-            RequireNonNegative(name, nameof(row.BaseBlock), row.BaseBlock);
-            RequireNonNegative(name, nameof(row.BaseDodge), row.BaseDodge);
             RequireNonNegative(name, nameof(row.BaseCrit), row.BaseCrit);
         }
 

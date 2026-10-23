@@ -15,11 +15,13 @@ public class PeriodicHitShould
         CritMultiplier = 1.5f,
         BlockMultiplier = 0.5f,
         CritCap = 50f,
-        DodgeCap = 30f,
         BlockCap = 50f,
         HasteCap = 50f,
         MoveSpeedCap = 35f,
         MoveSpeedFloor = -50f,
+        EvasionBase = 560f,
+        EvasionPerLevel = 40f,
+        EvasionCap = 30f,
     };
 
     private sealed class Rolls(params double[] doubles) : ICombatRandom

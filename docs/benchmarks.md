@@ -3975,7 +3975,8 @@ with the committed figure, in every build (Debug and Release, see below) and for
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (13,805 B per window since #1168, which merges two fights a character and a
+  `forest-combat` is the largest figure (14,447 B per window since #1178, whose evasion and creature defences change
+  which hits land, so the fight goes differently; 13,805 B from #1168, which merges two fights a character and a
   creature bring together, moving their threat lists with nothing seeded, so the fight goes differently; 13,649 B from
   #1165, which keeps a creature and a pair in one encounter; 14,323 B from #1164, whose dodgeable hostile abilities changed the fight, measured at #1165 and never
   committed; 14,349 B from #1162, whose player projectiles fly at half their
@@ -4540,7 +4541,19 @@ pickups in the minute). `ForestCombatScenarioShould` runs the scenario twice in 
 outcome (every count above) and the same bytes per window, and kills and deaths in it; the second run's creatures
 carry higher ids (the process-wide object id counter), which changes neither.
 
-**Gate.** Committed at **13,805 B per window** (19.2 B per player per tick, 230 B per tick) since #1168, 156 B over the
+**Gate.** Committed at **14,447 B per window** (20.1 B per player per tick, 241 B per tick) since #1178, 642 B over the
+13,805 B before it and outside the gate (which then failed above 14,061 B): the combat foundation's first part changes
+which hits land. Every character evades by its Agility instead of its class's base dodge, and has no base block; the
+creatures' blight hits and the wizards' and clerics' spells pass armour; and the forest's creatures are given their
+defences by type, the Blightfly, the Elite, the Rare and the Boss evading, Mother Bramble holding a ward, and some
+resisting fire or blight. Measured with the creature evasion forced to 0 and nothing else changed, the fight reads
+13,964 B, what the branch read before the creature defences were seeded, so the resistances and the ward add no byte;
+the 483 B the creature evasion adds are the fight's, as evaded hits change which creatures die and when (over the run
+120 kills against 125, 3 deaths against 1, 20 heals with 19 landed against 20 with 20, 74 kill credits against 69, 21
+completions against 18, 217 pickups against 220, 112 slots destroyed against 108 and no drop given up, as before). The
+other 159 B, from 13,805 to 13,964, came earlier on the branch the same way, from the characters' evasion and ward; the
+hit itself allocates nothing (`HitResolutionBenchmarks`, 0 B). Debug reads the same. Before it, committed at 13,805 B
+(19.2 B per player per tick, 230 B per tick) since #1168, 156 B over the
 13,649 B before it and inside the gate (which then failed above 13,905 B): two fights a character and a creature bring
 together become one encounter, every threat list moved as it stood and no threat seeded, and a creature that strikes
 first no longer takes a character's encounter past the cap. No merge falls in the measured minute (three a run, all in
@@ -4675,8 +4688,10 @@ summary.
 | Every hostile ability dodgeable (#1164, PGO on), measured at #1165, not committed | 14,323 |
 | A creature and a pair kept in one encounter (#1165, PGO on) | 13,649 |
 | Debug, then | 13,649 |
-| Two fights merged into one encounter, nothing seeded (#1168, PGO on), now | 13,805 |
-| Debug, now | 13,805 |
+| Two fights merged into one encounter, nothing seeded (#1168, PGO on) | 13,805 |
+| Debug, then | 13,805 |
+| Evasion for everyone, the forest's creature defences by type (#1178, PGO on), now | 14,447 |
+| Debug, now | 14,447 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
@@ -4686,7 +4701,7 @@ fighters cost about as much per tick as `town-walk`'s 30 walkers (measured befor
 since #1109 the scenario's mean tick is 0.045 ms, see "The forest since #1109"): most creatures are far from any
 player, and an idle creature's AI looks for players once a second rather than every tick. The minute allocated 0.62 MB
 on the tick thread before #972, about 0.86 MB from #972, about 1.36 MB from #1109's tree walls and seed 33, and about
-0.93 MB from #1113, about 0.88 MB from #1157 and #711, about 0.86 MB from #1162 and #1164, about 0.82 MB from #1165, and about 0.83 MB since #1168 (13,805 B per window over the
+0.93 MB from #1113, about 0.88 MB from #1157 and #711, about 0.86 MB from #1162 and #1164, about 0.82 MB from #1165, about 0.83 MB from #1168, and about 0.87 MB since #1178 (14,447 B per window over the
 minute's 60 windows).
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool

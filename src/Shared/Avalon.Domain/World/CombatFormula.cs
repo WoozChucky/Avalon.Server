@@ -5,7 +5,8 @@ namespace Avalon.Domain.World;
 /// </summary>
 /// <remarks>
 /// Armour reduces a hit by <c>min(A / (A + ArmorBase + ArmorPerLevel × attackerLevel), ArmorCap)</c>.
-/// The caps are percentage points: a unit's crit, dodge and block chances are clamped to them.
+/// The caps are percentage points: a unit's crit and block chances are clamped to them, and the chance to evade to
+/// <see cref="EvasionCap" />.
 /// </remarks>
 public class CombatFormula
 {
@@ -26,8 +27,6 @@ public class CombatFormula
     public float BlockMultiplier { get; set; }
 
     public float CritCap { get; set; }
-
-    public float DodgeCap { get; set; }
 
     public float BlockCap { get; set; }
 

@@ -19,7 +19,6 @@ public static class CombatSeed
         CritMultiplier = 1.5f,
         BlockMultiplier = 0.5f,
         CritCap = 50f,
-        DodgeCap = 30f,
         BlockCap = 50f,
         // #627: haste counts up to 50 %, and gear moves a character between half and 1.35 times the base
         // 4 m/s. The cap is owner-set to keep a whole change from the base under the client's snap:
@@ -47,13 +46,13 @@ public static class CombatSeed
         {
             Class = CharacterClass.Warrior, HpPerStamina = 10, PowerPerIntellect = 0, PowerPerAgility = 0, FixedPower = 100,
             AttackPerStrength = 2, AttackPerAgility = 0, AbilityPerIntellect = 0.2,
-            BaseBlock = 5.0f, BaseDodge = 3.664f, BaseCrit = 5.0f,
+            BaseCrit = 5.0f,
         },
         new()
         {
             Class = CharacterClass.Wizard, HpPerStamina = 5, PowerPerIntellect = 15, PowerPerAgility = 0, FixedPower = null,
             AttackPerStrength = 0.5, AttackPerAgility = 0, AbilityPerIntellect = 3,
-            BaseBlock = 0f, BaseDodge = 3.25f, BaseCrit = 1.85f,
+            BaseCrit = 1.85f,
         },
         // 0.8 per agility and 2 per intellect: what the old base-power helper's
         // (agility * 0.8) + (intellect * 0.2) * 10 computed, kept as it was (#506 owner decision).
@@ -61,13 +60,13 @@ public static class CombatSeed
         {
             Class = CharacterClass.Hunter, HpPerStamina = 8, PowerPerIntellect = 2, PowerPerAgility = 0.8, FixedPower = null,
             AttackPerStrength = 0.5, AttackPerAgility = 1.5, AbilityPerIntellect = 0.5,
-            BaseBlock = 0f, BaseDodge = 4.35f, BaseCrit = 5.0f,
+            BaseCrit = 5.0f,
         },
         new()
         {
             Class = CharacterClass.Cleric, HpPerStamina = 7, PowerPerIntellect = 12, PowerPerAgility = 0, FixedPower = null,
             AttackPerStrength = 0.5, AttackPerAgility = 0, AbilityPerIntellect = 2,
-            BaseBlock = 0f, BaseDodge = 3.25f, BaseCrit = 1.85f,
+            BaseCrit = 1.85f,
         },
     ];
 }

@@ -22,7 +22,7 @@ public class CreatureStatDeriverShould
         new() { Rarity = CreatureRarity.Elite,  HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f,
             DefenceMultiplier = 1.2f },
         new() { Rarity = CreatureRarity.Boss,   HealthMultiplier = 8.0f, DamageMultiplier = 2.0f, ExperienceMultiplier = 15.0f,
-            CritPct = 10f, DodgePct = 5f, BlockPct = 10f },
+            CritPct = 10f, BlockPct = 10f },
     ];
 
     private static CreatureStatDeriver NewDeriver() =>

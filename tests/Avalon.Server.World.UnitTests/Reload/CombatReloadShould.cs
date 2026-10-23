@@ -105,7 +105,7 @@ public class CombatReloadShould
         { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).FixedPower = -5 },
         { "ClassStatFactors Hunter", r => r.Factors.Single(f => f.Class == CharacterClass.Hunter).FixedPower = 5_000_000_000 },
         { "CombatFormula 1", r => r.Formulas[0].ArmorCap = 2f },
-        { "CombatFormula 1", r => r.Formulas[0].DodgeCap = 101f },
+        { "CombatFormula 1", r => r.Formulas[0].EvasionCap = 101f },
         { "CombatFormula 1", r => r.Formulas[0].CritMultiplier = float.PositiveInfinity },
         { "CombatFormula 1", r => { r.Formulas[0].ArmorBase = 0f; r.Formulas[0].ArmorPerLevel = 0f; } },
         { "CombatFormula 1", r => r.Formulas[0].ArmorPerLevel = -10f },

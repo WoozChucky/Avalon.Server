@@ -214,7 +214,8 @@ public class WorldDbContext : DbContext
     /// Normal kills per level across 1-10, rather than being chosen arbitrarily.
     /// </summary>
     /// <remarks>
-    /// Armour (#506) rises linearly from 0 at level 1 to 30 at level 10, round(30 x (L - 1) / 9).
+    /// Armour (#506) rises linearly from 0 at level 1 to 30 at level 10, round(30 x (L - 1) / 9). Evasion is 10 and
+    /// ward 8 per level (#1178), which a template has only where its EvasionModifier or WardModifier is above 0.
     /// Seeded to level 10 while the only banded map reaches 5, so the next zone needs no migration.
     /// These numbers are provisional: they were calibrated against a player who had 100 health and
     /// never grew. Players now derive health and power from <see cref="ClassLevelStat" /> by level plus
@@ -225,30 +226,30 @@ public class WorldDbContext : DbContext
         builder.HasKey(b => b.Level);
 
         builder.HasData(
-            new CreatureBaseStat { Level = 1, Health = 40, DamageMin = 3, DamageMax = 5, Experience = 15, Armor = 0 },
-            new CreatureBaseStat { Level = 2, Health = 52, DamageMin = 4, DamageMax = 7, Experience = 25, Armor = 3 },
-            new CreatureBaseStat { Level = 3, Health = 66, DamageMin = 5, DamageMax = 9, Experience = 40, Armor = 7 },
-            new CreatureBaseStat { Level = 4, Health = 84, DamageMin = 7, DamageMax = 11, Experience = 60, Armor = 10 },
-            new CreatureBaseStat { Level = 5, Health = 106, DamageMin = 9, DamageMax = 14, Experience = 85, Armor = 13 },
-            new CreatureBaseStat { Level = 6, Health = 133, DamageMin = 11, DamageMax = 17, Experience = 115, Armor = 17 },
-            new CreatureBaseStat { Level = 7, Health = 166, DamageMin = 14, DamageMax = 21, Experience = 150, Armor = 20 },
-            new CreatureBaseStat { Level = 8, Health = 206, DamageMin = 17, DamageMax = 26, Experience = 195, Armor = 23 },
-            new CreatureBaseStat { Level = 9, Health = 254, DamageMin = 21, DamageMax = 32, Experience = 250, Armor = 27 },
-            new CreatureBaseStat { Level = 10, Health = 312, DamageMin = 26, DamageMax = 39, Experience = 320, Armor = 30 });
+            new CreatureBaseStat { Level = 1, Health = 40, DamageMin = 3, DamageMax = 5, Experience = 15, Armor = 0, Evasion = 10, Ward = 8 },
+            new CreatureBaseStat { Level = 2, Health = 52, DamageMin = 4, DamageMax = 7, Experience = 25, Armor = 3, Evasion = 20, Ward = 16 },
+            new CreatureBaseStat { Level = 3, Health = 66, DamageMin = 5, DamageMax = 9, Experience = 40, Armor = 7, Evasion = 30, Ward = 24 },
+            new CreatureBaseStat { Level = 4, Health = 84, DamageMin = 7, DamageMax = 11, Experience = 60, Armor = 10, Evasion = 40, Ward = 32 },
+            new CreatureBaseStat { Level = 5, Health = 106, DamageMin = 9, DamageMax = 14, Experience = 85, Armor = 13, Evasion = 50, Ward = 40 },
+            new CreatureBaseStat { Level = 6, Health = 133, DamageMin = 11, DamageMax = 17, Experience = 115, Armor = 17, Evasion = 60, Ward = 48 },
+            new CreatureBaseStat { Level = 7, Health = 166, DamageMin = 14, DamageMax = 21, Experience = 150, Armor = 20, Evasion = 70, Ward = 56 },
+            new CreatureBaseStat { Level = 8, Health = 206, DamageMin = 17, DamageMax = 26, Experience = 195, Armor = 23, Evasion = 80, Ward = 64 },
+            new CreatureBaseStat { Level = 9, Health = 254, DamageMin = 21, DamageMax = 32, Experience = 250, Armor = 27, Evasion = 90, Ward = 72 },
+            new CreatureBaseStat { Level = 10, Health = 312, DamageMin = 26, DamageMax = 39, Experience = 320, Armor = 30, Evasion = 100, Ward = 80 });
     }
 
     /// <summary>
     /// What each rarity tier multiplies a creature's base stats by. A table rather than a switch so a
     /// tier is retuned as data alongside the base stats themselves. The crowd-control duration percentages
-    /// (#770) are 0 (immune) to 100 (the full duration), and the crit, dodge and block chances (#1145)
-    /// percentages from 0 to 100, as CreatureTemplateRules.ValidateRarities refuses anything else.
+    /// (#770) are 0 (immune) to 100 (the full duration), and the crit and block chances (#1145) percentages
+    /// from 0 to 100, as CreatureTemplateRules.ValidateRarities refuses anything else. A tier's dodge is gone
+    /// (#1178): the forest's Elite, Rare and Boss carry it as their templates' evasion.
     /// </summary>
     private static void Configure(EntityTypeBuilder<CreatureRarityModifier> builder)
     {
         builder.ToTable("CreatureRarityModifiers", t =>
         {
             t.HasCheckConstraint("CK_CreatureRarityModifiers_CritPct", Percentage("CritPct"));
-            t.HasCheckConstraint("CK_CreatureRarityModifiers_DodgePct", Percentage("DodgePct"));
             t.HasCheckConstraint("CK_CreatureRarityModifiers_BlockPct", Percentage("BlockPct"));
             t.HasCheckConstraint("CK_CreatureRarityModifiers_StunDurationPct", Percentage("StunDurationPct"));
             t.HasCheckConstraint("CK_CreatureRarityModifiers_RootDurationPct", Percentage("RootDurationPct"));
@@ -258,14 +259,16 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_CreatureRarityModifiers_DefenceMultiplier", Finite("DefenceMultiplier"));
         });
         builder.HasKey(b => b.Rarity);
+        // #1178: a row inserted without the multiplier scales by 1, as the property's default does.
+        builder.Property(b => b.DefenceMultiplier).HasDefaultValue(1f);
 
         // Crowd-control durations (#770): Normal and Elite take the full duration (the properties' default of 100),
         // Rare half of each, and a Boss is immune to stun and silence and takes half a root or slow.
         builder.HasData(
-            new CreatureRarityModifier { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f, CritPct = 0f, DodgePct = 0f, BlockPct = 0f },
-            new CreatureRarityModifier { Rarity = CreatureRarity.Elite, HealthMultiplier = 2.5f, DamageMultiplier = 1.4f, ExperienceMultiplier = 3.0f, CritPct = 5f, DodgePct = 3f, BlockPct = 0f },
-            new CreatureRarityModifier { Rarity = CreatureRarity.Rare, HealthMultiplier = 4.0f, DamageMultiplier = 1.7f, ExperienceMultiplier = 6.0f, CritPct = 8f, DodgePct = 5f, BlockPct = 5f, StunDurationPct = 50f, RootDurationPct = 50f, SilenceDurationPct = 50f, SlowDurationPct = 50f },
-            new CreatureRarityModifier { Rarity = CreatureRarity.Boss, HealthMultiplier = 8.0f, DamageMultiplier = 2.2f, ExperienceMultiplier = 15.0f, CritPct = 10f, DodgePct = 5f, BlockPct = 10f, StunDurationPct = 0f, RootDurationPct = 50f, SilenceDurationPct = 0f, SlowDurationPct = 50f });
+            new CreatureRarityModifier { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f, CritPct = 0f, BlockPct = 0f },
+            new CreatureRarityModifier { Rarity = CreatureRarity.Elite, HealthMultiplier = 2.5f, DamageMultiplier = 1.4f, ExperienceMultiplier = 3.0f, CritPct = 5f, BlockPct = 0f },
+            new CreatureRarityModifier { Rarity = CreatureRarity.Rare, HealthMultiplier = 4.0f, DamageMultiplier = 1.7f, ExperienceMultiplier = 6.0f, CritPct = 8f, BlockPct = 5f, StunDurationPct = 50f, RootDurationPct = 50f, SilenceDurationPct = 50f, SlowDurationPct = 50f },
+            new CreatureRarityModifier { Rarity = CreatureRarity.Boss, HealthMultiplier = 8.0f, DamageMultiplier = 2.2f, ExperienceMultiplier = 15.0f, CritPct = 10f, BlockPct = 10f, StunDurationPct = 0f, RootDurationPct = 50f, SilenceDurationPct = 0f, SlowDurationPct = 50f });
     }
 
     private static void Configure(EntityTypeBuilder<CharacterLevelExperience> builder)
@@ -1102,7 +1105,11 @@ public class WorldDbContext : DbContext
         // added for issue #431.
         //
         // Damage types (#1178): the Blightfly Swarmling (6) and Mother Bramble (10) deal blight, every other template
-        // physical. The resistances and the evasion and ward modifiers stay 0 until the creature defences are authored.
+        // physical. Defences (#1178) are authored by creature type, carrying today's numbers over: armour is unchanged;
+        // the Elite, Rare and Boss carry their tier's former dodge as evasion (Alpha 0.55, about 3 % at level 4;
+        // Tuskroot and Mother Bramble 0.8, 5 % at level 5); the critter Blightfly gets a little evasion (0.5) and
+        // resists blight (25); the undead Husk takes a quarter more from fire and resists blight (50); and the elemental
+        // Mother Bramble holds a ward (1.0, 40 at level 5) and resists blight (40). The town NPCs have none.
         builder.HasData(new CreatureTemplate
         {
             Id = 1,
@@ -1298,6 +1305,8 @@ public class WorldDbContext : DbContext
             HealthModifier = 0.6f,
             ManaModifier = 1,
             ArmorModifier = 1,
+            EvasionModifier = 0.5f,
+            BlightResistance = 25f,
             ExperienceModifier = 1,
             RegenHealth = 1,
             DamageType = DamageType.Blight,
@@ -1332,6 +1341,8 @@ public class WorldDbContext : DbContext
             HealthModifier = 1.3f,
             ManaModifier = 1,
             ArmorModifier = 1,
+            FireResistance = -25f,
+            BlightResistance = 50f,
             ExperienceModifier = 1,
             RegenHealth = 1,
             DamageType = DamageType.Physical,
@@ -1366,6 +1377,7 @@ public class WorldDbContext : DbContext
             HealthModifier = 1.0f,
             ManaModifier = 1,
             ArmorModifier = 1,
+            EvasionModifier = 0.55f,
             ExperienceModifier = 1,
             RegenHealth = 1,
             DamageType = DamageType.Physical,
@@ -1400,6 +1412,7 @@ public class WorldDbContext : DbContext
             HealthModifier = 1.2f,
             ManaModifier = 1,
             ArmorModifier = 1,
+            EvasionModifier = 0.8f,
             ExperienceModifier = 1,
             RegenHealth = 1,
             DamageType = DamageType.Physical,
@@ -1434,6 +1447,9 @@ public class WorldDbContext : DbContext
             HealthModifier = 1.0f,
             ManaModifier = 1,
             ArmorModifier = 1,
+            EvasionModifier = 0.8f,
+            WardModifier = 1f,
+            BlightResistance = 40f,
             ExperienceModifier = 1,
             RegenHealth = 1,
             DamageType = DamageType.Blight,
@@ -3517,7 +3533,6 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_CombatFormula_CritMultiplier", Finite("CritMultiplier"));
             t.HasCheckConstraint("CK_CombatFormula_BlockMultiplier", Finite("BlockMultiplier"));
             t.HasCheckConstraint("CK_CombatFormula_CritCap", Percentage("CritCap"));
-            t.HasCheckConstraint("CK_CombatFormula_DodgeCap", Percentage("DodgeCap"));
             t.HasCheckConstraint("CK_CombatFormula_BlockCap", Percentage("BlockCap"));
 
             // #627: haste caps at 0 or more; movement speed stays above -100 %, so it never reaches 0,
@@ -3549,8 +3564,8 @@ public class WorldDbContext : DbContext
     }
 
     /// <summary>
-    /// One row per class (#506): how its attributes become health, power and damage, and its base block,
-    /// dodge and crit. Every fractional factor finite and 0 or more.
+    /// One row per class (#506): how its attributes become health, power and damage, and its base crit.
+    /// Every fractional factor finite and 0 or more. Defence is class-neutral (#1178), on the formula.
     /// </summary>
     private static void Configure(EntityTypeBuilder<ClassStatFactors> builder)
     {
@@ -3559,7 +3574,7 @@ public class WorldDbContext : DbContext
             foreach (string column in new[]
                      {
                          "PowerPerIntellect", "PowerPerAgility", "AttackPerStrength", "AttackPerAgility",
-                         "AbilityPerIntellect", "BaseBlock", "BaseDodge", "BaseCrit",
+                         "AbilityPerIntellect", "BaseCrit",
                      })
             {
                 t.HasCheckConstraint($"CK_ClassStatFactors_{column}", Finite(column));

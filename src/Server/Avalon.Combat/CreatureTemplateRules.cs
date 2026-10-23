@@ -48,7 +48,7 @@ public static class CreatureTemplateRules
 
     /// <summary>
     /// #770: refuses the whole area, naming the tier, when a crowd-control duration percentage is not a finite value
-    /// from 0 (immune) to 100 (the full duration). #1145: the same for the tier's crit, dodge and block chances.
+    /// from 0 (immune) to 100 (the full duration). #1145: the same for the tier's crit and block chances.
     /// #1178: and for a defence multiplier that is not finite and 0 or more.
     /// </summary>
     /// <exception cref="InvalidDataException">A tier is out of range; the message names it.</exception>
@@ -58,7 +58,6 @@ public static class CreatureTemplateRules
         {
             string row = $"CreatureRarityModifier {r.Rarity}";
             RequirePercentage(row, nameof(r.CritPct), r.CritPct);
-            RequirePercentage(row, nameof(r.DodgePct), r.DodgePct);
             RequirePercentage(row, nameof(r.BlockPct), r.BlockPct);
             RequirePercentage(row, nameof(r.StunDurationPct), r.StunDurationPct);
             RequirePercentage(row, nameof(r.RootDurationPct), r.RootDurationPct);

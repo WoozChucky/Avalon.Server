@@ -32,7 +32,6 @@ public class StaticDataRulesShould
         CritMultiplier = 1.5f,
         BlockMultiplier = 0.5f,
         CritCap = 50f,
-        DodgeCap = 30f,
         BlockCap = 50f,
         HasteCap = 50f,
         MoveSpeedCap = 35f,
@@ -58,8 +57,6 @@ public class StaticDataRulesShould
             AttackPerStrength = 2,
             AttackPerAgility = 0,
             AbilityPerIntellect = 0.2,
-            BaseBlock = 5f,
-            BaseDodge = 3f,
             BaseCrit = 5f,
         })
         .ToArray();
@@ -129,8 +126,8 @@ public class StaticDataRulesShould
             () => CreatureTemplateRules.ValidateRarities([new CreatureRarityModifier { Rarity = CreatureRarity.Rare, SilenceDurationPct = -1f }]) },
         { "CreatureRarityModifier Elite: CritPct must be between 0 and 100, not 101",
             () => CreatureTemplateRules.ValidateRarities([new CreatureRarityModifier { Rarity = CreatureRarity.Elite, CritPct = 101f }]) },
-        { "CreatureRarityModifier Boss: DodgePct must be between 0 and 100, not NaN",
-            () => CreatureTemplateRules.ValidateRarities([new CreatureRarityModifier { Rarity = CreatureRarity.Boss, DodgePct = float.NaN }]) },
+        { "CreatureRarityModifier Boss: BlockPct must be between 0 and 100, not NaN",
+            () => CreatureTemplateRules.ValidateRarities([new CreatureRarityModifier { Rarity = CreatureRarity.Boss, BlockPct = float.NaN }]) },
     };
 
     [Theory]
@@ -144,7 +141,7 @@ public class StaticDataRulesShould
         CreatureTemplateRules.Validate([new CreatureTemplate { Id = 7UL, StunDurationPct = 0f, RootDurationPct = 100f }]);
         CreatureTemplateRules.ValidateRarities([new CreatureRarityModifier
         {
-            Rarity = CreatureRarity.Boss, CritPct = 100f, DodgePct = 0f, BlockPct = 10f,
+            Rarity = CreatureRarity.Boss, CritPct = 100f, BlockPct = 10f,
             StunDurationPct = 0f, RootDurationPct = 50f, SilenceDurationPct = 0f, SlowDurationPct = 100f,
         }]);
     }
