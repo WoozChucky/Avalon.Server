@@ -46,6 +46,12 @@ internal static class Exports
                 Path.Combine(root, ItemSchema.DirectoryName, ItemSchema.FileName),
                 ItemSchema.Generate())),
 
+        new("stat-wording", StatWordingExport.DirectoryName + "/" + StatWordingExport.FileName,
+            "how item stats and attack time read in the link preview and the public tooltip",
+            root => Lf.WriteReporting(
+                Path.Combine(root, StatWordingExport.DirectoryName, StatWordingExport.FileName),
+                StatWordingExport.Render())),
+
         new("rotation", VectorsDirectory + "/" + ChunkRotationVectors.FileName,
             "known-answer vectors for ChunkRotation.LocalToWorld",
             root => ChunkRotationVectors.Write(

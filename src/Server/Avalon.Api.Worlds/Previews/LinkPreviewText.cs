@@ -17,6 +17,8 @@ public static partial class LinkPreviewText
 
     private const string Separator = " · ";
 
+    private const string Increased = "Increased";
+
     public static string Describe(PublicItemDto item)
     {
         List<string> parts = [SplitWords(item.Rarity.ToString())];
@@ -25,8 +27,9 @@ public static partial class LinkPreviewText
         parts.AddRange(item.Damage.Select(d =>
             string.Join(' ', new[] { d.Min == d.Max ? Num(d.Max) : $"{Num(d.Min)} – {Num(d.Max)}", d.Type?.ToString(), "Damage" }
                 .Where(p => !string.IsNullOrEmpty(p)))));
-        parts.AddRange(item.Stats.Where(s => s.Type == StatType.Armor).Select(s => $"{Num(s.Value)} Armor"));
-        parts.AddRange(item.Stats.Where(s => s.Type != StatType.Armor).Select(FormatStat));
+        if (item.AttackTimeMs is > 0) parts.Add(AttackTime(item.AttackTimeMs.Value));
+        parts.AddRange(item.Stats.Where(s => s.Type == StatType.Armor).Select(s => FormatStat(s.Type, s.Value)));
+        parts.AddRange(item.Stats.Where(s => s.Type != StatType.Armor).Select(s => FormatStat(s.Type, s.Value)));
         if (item.RequiredLevel is > 0) parts.Add($"Requires Level {Num(item.RequiredLevel.Value)}");
         if (item.RequiredStrength is > 0) parts.Add($"Requires {Num(item.RequiredStrength.Value)} Strength");
         if (item.RequiredAgility is > 0) parts.Add($"Requires {Num(item.RequiredAgility.Value)} Agility");
@@ -105,13 +108,32 @@ public static partial class LinkPreviewText
             : string.Join(", ", distinct);
     }
 
-    private static string FormatStat(PublicItemStatDto stat)
+    /// <summary>
+    /// One item stat as the tooltip writes it (#1189): armour as a plain <c>8 Armor</c>; the <c>…Pct</c> stats, the
+    /// resistances, the crit multiplier and the speeds as percent points (<c>+2% Crit</c>, <c>+5% Fire Resistance</c>,
+    /// <c>+5% Cast Speed</c>); the <c>Increased…</c> stats as <c>+10% increased Fire Damage</c>; every other stat, Evasion
+    /// and Ward included, as a plain rating (<c>+12 Evasion</c>). schema/items/stat-wording-v1.json holds a row for every
+    /// stat, which the public site's tooltip tests against too.
+    /// </summary>
+    public static string FormatStat(StatType type, uint value)
     {
-        string type = stat.Type.ToString();
-        if (type.EndsWith("Pct", StringComparison.Ordinal))
-            return $"+{Num(stat.Value)}% {SplitWords(type[..^3])}";
-        return $"+{Num(stat.Value)} {SplitWords(type)}";
+        string name = type.ToString();
+        string amount = Num(value);
+        if (type == StatType.Armor) return $"{amount} Armor";
+        if (name.EndsWith("Pct", StringComparison.Ordinal)) return $"+{amount}% {SplitWords(name[..^3])}";
+        if (name.EndsWith("Resistance", StringComparison.Ordinal) || IsPercentPoints(type))
+            return $"+{amount}% {SplitWords(name)}";
+        if (name.StartsWith(Increased, StringComparison.Ordinal) && name.Length > Increased.Length)
+            return $"+{amount}% increased {SplitWords(name[Increased.Length..])}";
+        return $"+{amount} {SplitWords(name)}";
     }
+
+    /// <summary>A weapon's pace before attack speed (#1178) as <c>2.6 sec attack time</c>, on its damage line.</summary>
+    public static string AttackTime(uint ms) => $"{Seconds(ms)} attack time";
+
+    /// <summary>The stats that are percentages already (#1178) and keep their own name.</summary>
+    private static bool IsPercentPoints(StatType type) =>
+        type is StatType.CritMultiplier or StatType.AttackSpeed or StatType.CastSpeed or StatType.CooldownRecovery;
 
     private static string Cost(PublicAbilityDto ability) =>
         ability.Cost == 0

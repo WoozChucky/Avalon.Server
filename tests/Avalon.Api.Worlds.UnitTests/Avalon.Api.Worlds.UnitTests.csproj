@@ -41,6 +41,8 @@
     <!-- ApiTestHost, which runs every service the API runs, and the SQLite auth and world databases. -->
     <ProjectReference Include="..\Avalon.Api.Testing\Avalon.Api.Testing.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Api.Worlds\Avalon.Api.Worlds.csproj"/>
+    <!-- StatWordingExport, which writes the stat wording the link preview and the public tooltip share (#1189). -->
+    <ProjectReference Include="..\..\tools\Avalon.Exporter\Avalon.Exporter.csproj"/>
   </ItemGroup>
 
 </Project>

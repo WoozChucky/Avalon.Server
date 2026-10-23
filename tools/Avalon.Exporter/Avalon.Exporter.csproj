@@ -26,6 +26,10 @@
          columns could drift from it with nothing to notice. -->
     <ProjectReference Include="..\..\src\Server\Avalon.Database.World\Avalon.Database.World.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Configuration\Avalon.Configuration.csproj"/>
+
+    <!-- StatWordingExport.cs runs the link preview's own wording (LinkPreviewText), which lives in the worlds API
+         service; the site's tooltip tests against what it writes. -->
+    <ProjectReference Include="..\..\src\Server\Avalon.Api.Worlds\Avalon.Api.Worlds.csproj"/>
   </ItemGroup>
 
 </Project>

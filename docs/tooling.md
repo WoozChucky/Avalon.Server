@@ -41,6 +41,7 @@ dotnet run --project tools/Avalon.Exporter -- all --out /tmp  # somewhere other 
 | `object-guid` | `schema/vectors/object-guid-v1.txt` | `ObjectGuid`'s own shifts and masks |
 | `navmesh` | `schema/vectors/navmesh-v1.txt` | the DotRecast bake and movement queries from the real generator |
 | `item-schema` | `schema/items/item-schema-v1.json` | `ItemTemplate` and its eight enumerations |
+| `stat-wording` | `schema/items/stat-wording-v1.json` | the link preview's `LinkPreviewText.FormatStat` and `AttackTime` (#1189): one row per `StatType` member (`stat` name, `id`, sample `value`, `text`) and the attack-time cases (`attackTimeMs`, `text`), which the public site's tooltip tests against; `StatWordingShould` (tests/Avalon.Api.Worlds.UnitTests) fails when it is stale |
 | `item-catalog` | `schema/items/item-catalog-v1.json` | the item template rows, a weapon's `attackTimeMs` (#1178, before attack speed) included, and since #1178 the stat types 19-34 (the thirteen increased damage and healing percentages, crit multiplier, cast speed and cooldown recovery; 8 and 9, the old damage stats, retired) — **needs a World database** |
 | `ability-catalog` | `schema/abilities/ability-catalog-v1.json` | every ability row a client names and draws, creatures' included (#163), with its `auraId`, `basic` (a class's basic attack, which a silence does not stop, #770) and `damageType` (#1178: 0 physical, 1 fire, 2 cold, 3 lightning, 4 blight, `null` for none, which a creature's own ability leaves to its creature's base type) and `tags` (#1178, flags: 1 attack, 2 spell, 4 heal, 8 area, 16 projectile, 32 melee); `castTimeMs` is before cast speed and `cooldownMs` before cooldown recovery, and a basic attack's pace is its weapon's (`attackTimeMs` in item-catalog) — **needs a World database** |
 | `aura-catalog` | `schema/auras/aura-catalog-v1.json` | every aura's name, icon, kind, timing, stacking, crowd control (`control` flags) and break chances, and stat modifiers (since #1178 `stat` 5 is evasion, 11-15 the four resistances and max ward, 16-28 the increased damage and healing percentages, 29 the crit multiplier and 30-32 attack speed, cast speed and cooldown recovery, 2, 3 and 7 retired; `kind` 1 flat, 2 increased, 3 more); what a periodic aura deals stays on the server — **needs a World database** |
@@ -64,9 +65,9 @@ Two rules the tool keeps, because both failures are silent ones:
   the same line from the other side.
 
 The exporter is two projects: `Avalon.Exporter.Emitters` holds everything derived from the code
-alone and is what the drift tests reference, and `Avalon.Exporter` adds the CLI and the exports
-that read a database. The split keeps EF Core and Npgsql out of the shared unit tests, which
-reference the emitters only.
+alone and is what the drift tests reference, and `Avalon.Exporter` adds the CLI, the exports
+that read a database, and `stat-wording`, which runs the worlds API service's link preview text. The split keeps EF
+Core, Npgsql and the API out of the shared unit tests, which reference the emitters only.
 
 Nothing is exported from a transcription. Each artifact runs the server's own type, because a
 re-typed constant agrees with whatever it was typed from — which is the failure these files exist

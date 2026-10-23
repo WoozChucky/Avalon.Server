@@ -351,10 +351,39 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         (_, string html) = await Get("/public/preview/item/16");
 
         string description = Decoded(html, "og:description");
-        Assert.Equal(LinkPreviewText.MaxDescriptionLength, description.Length);
+        // One short of the cap when the cut lands after a space, which is trimmed before the ellipsis.
+        Assert.InRange(description.Length, LinkPreviewText.MaxDescriptionLength - 1, LinkPreviewText.MaxDescriptionLength);
         Assert.EndsWith("…", description, StringComparison.Ordinal);
         Assert.DoesNotContain('\n', description);
         Assert.StartsWith("Legendary", description, StringComparison.Ordinal);
+    }
+
+    /// <summary>A weapon's attack time follows its damage, as on the tooltip's damage line (#1189).</summary>
+    [Fact]
+    public void Put_a_weapons_attack_time_after_its_damage()
+    {
+        var weapon = new ItemTemplate
+        {
+            Id = new ItemTemplateId(30),
+            Name = "Ember Blade",
+            Rarity = ItemRarity.Rare,
+            Slot = ItemSlotType.MainHand,
+            SubClass = ItemSubClass.OneHanded,
+            AttackTimeMs = 784,
+            DamageMin1 = 12,
+            DamageMax1 = 18,
+            DamageType1 = DamageType.Physical,
+            DamageMin2 = 3,
+            DamageMax2 = 5,
+            DamageType2 = DamageType.Fire,
+            StatType1 = StatType.IncreasedFireDamage,
+            StatValue1 = 10,
+        };
+
+        Assert.Equal(
+            "Rare · Main Hand · One Handed · 12 – 18 Physical Damage · 3 – 5 Fire Damage · 0.78 sec attack time · " +
+            "+10% increased Fire Damage",
+            LinkPreviewText.Describe(weapon.ToPublicDto()));
     }
 
     [Fact]
