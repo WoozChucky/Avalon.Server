@@ -129,6 +129,25 @@ singletons as in every host. Only their context factories differ in the API, whi
   run `dotnet ef database update TrackRepeatedQuestCompletions` against that world's Character database and
   `dotnet ef database update ItemsAllowEveryClassWhenEmpty` against its World database; both rename the columns back
   with their values. No world or API does that by itself.
+  **Release order, #1178 (part A).** Damage types and the defence layers change only additively what the API reads. A
+  world's World database migrates through `AddDefenceLayers` and then `ReexpressForestDefences`: `AbilityTemplates`
+  gains `DamageType`, `CreatureTemplates` gains the four resistances, `EvasionModifier` and `WardModifier` (its base
+  damage type stays in the `DmgSchool` column the API already maps), and `ItemTemplates` gains `RequiredStrength`,
+  `RequiredAgility` and `RequiredIntellect`; the columns the migrations drop or rename (`CombatFormula`,
+  `ClassStatFactors`, `CreatureRarityModifiers`) are on tables only the world reads. Its Character database migrates
+  through `AddDefenceStats`: `CharacterStats` gains `Evasion`, `MaxWard` and the four resistances, and `CharacterAuras`
+  gains `DamageType`. `CharacterStats.DodgePct` is retired but kept, still mapped: the world writes it 0 and the API no
+  longer returns it (`CharacterStatsDto` drops `dodgePct`), so an older API reading a migrated world shows a dodge of 0, nothing
+  worse. The stored item damage types move to the new numbering (Poison 1 became Blight 4, Fire 2 became 1); no
+  seeded item deals anything but Physical, so no row the API reads changes. The worlds go first: each migrates at its
+  next start (start any stopped world once, so it migrates too), and only then is an API release with the change cut.
+  An older API reading a migrated world ignores the new columns; an API with the change reading a world that has not
+  migrated fails that world's reads of the three template tables, a character's stats and its auras. To roll a world
+  back to a build without the change, first run `dotnet ef database update RenameRewardMoneyToRewardGold` against its
+  World database and `dotnet ef database update AddTradeRecords` against its Character database; the World rollback
+  restores the dropped columns with their old seed values, and its `CK_AuraStatModifiers_Stat` again allows only stats
+  1 to 10, so an aura modifier on a stat from 11 to 15 (none is seeded) must be removed first. No world or API does
+  that by itself.
 
 ## How a request reaches its world
 

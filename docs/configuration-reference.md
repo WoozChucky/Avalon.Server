@@ -26,7 +26,7 @@ Hosts: **API** is `Avalon.Api`, with the API services that read the class in par
 | `GameAdmissionOptions`      | `Avalon.World.GameAuth`            | `World:Admission` (`ApiUrl`, `ServerId`, `ClientCertificatePath`, `ClientCertificatePassword`, `ApiCertificateSha256`; `WorldId` from `Game:WorldId`) | World | `ValidateOnStart`: a fixed HTTPS origin, a server id, the workload client certificate and the API leaf's SHA-256 pin. See [game server admission](steam-authentication-workloads.md#world-transport-and-coordinated-protocol-cutover) |
 | `AdmissionSourceOptions`    | `Avalon.World.GameAuth`            | `World:Admission` (`MaxInFlightPerSource`, `MaxInFlightPerIPv6Block`, `MaxPerSourcePerMinute`, `MaxPerIPv6BlockPerMinute`, `ExemptSources`), the per-source budget on admissions (#1052) | World | `ValidateOnStart`: the caps 1 to 128, the rates 1 to 60,000 and 240,000, each IPv6 block limit at least the source's; each exempt entry by `AdmissionSourceValidation`. See [World Admission Budget](#world-admission-budget) |
 | `GameConfiguration`         | `Avalon.World.Configuration`       | `Game` | World | `ValidateOnStart` (`WorldId` also required by a post-configure step) |
-| `RegenConfiguration`        | `Avalon.World.Configuration`       | `Regen` | World | `ValidateOnStart` |
+| `RegenConfiguration`        | `Avalon.Combat`                    | `Regen` | World | `ValidateOnStart` (each key in its range). See [Regeneration and Ward](#regeneration-and-ward-regenconfiguration) |
 | `WorldShutdownConfiguration` | `Avalon.World.Configuration`     | `World:Shutdown` | World | `ValidateOnStart` (both required; `DrainTime` 0 to 1 h, `SaveMargin` 21 s to 1 h). See [World Shutdown Drain](#world-shutdown-drain) |
 | `TokenValidationConfig`     | `Avalon.Api.Hosting.Config`        | `Application:Authentication`: `SigningKey`, `SigningKeyId`, `ValidationKeys`, `Issuer`, `Audience`, `ValidateIssuer`, `ValidateAudience`, `ClockSkewInMinutes` | API (every service) | By hand while the host is built: the token keys (`JwtKeys.Create`, see [REST API JWT Signing Key](#rest-api-jwt-signing-key)) |
 | `ApplicationConfig`         | `Avalon.Api.Identity.Config`       | `Application` | API (identity) | Not as a whole; its sections below |
@@ -343,6 +343,39 @@ character stat scaling exist to compensate.
 `MeleeSlotRadius` **must not exceed the creature attack range** (`CreatureCombatScript.AttackRange`, currently `1.5`). Set it higher and creatures walk to their slot, arrive, and stand outside attack range dealing no damage. The range attribute permits it, so the World server logs a warning at instance construction naming both values.
 
 The slot count is bounded by the ring's circumference. At radius `1.5` there are about `9.42` units of ring; with a `1.2` agent diameter (twice the default `CreatureAgentRadius`), six slots leave `1.57` between adjacent centres, while eight leave `1.18` — narrower than one creature.
+
+---
+
+## Regeneration and Ward (`RegenConfiguration`)
+
+Section in `appsettings.json`: `"Regen"` (World server only). Times are seconds; the rules are in
+[World simulation](world-simulation.md) ("Regeneration carries the fraction of a point" and, for the ward, "Combat
+reads the derived stats").
+
+| Key                                 | Type  | Default | Description |
+|-------------------------------------|-------|---------|-------------|
+| `CombatLeaveDelaySeconds`           | float | `5`     | Seconds after the last hit received before a character counts as out of combat. Range `0.1`–`300` |
+| `HealthRegenOutOfCombatPerStamina`  | float | `0.5`   | Health a second per point of Stamina, out of combat only. Range `0`–`1000` |
+| `PowerRegenOutOfCombatPerStat`      | float | `0.3`   | Mana or Energy a second per point of the class's stat (Intellect or Agility), out of combat. Range `0`–`1000` |
+| `PowerRegenInCombatPerStat`         | float | `0.05`  | The same, in combat. Range `0`–`1000` |
+| `PowerRegenCastSuppressSeconds`     | float | `5`     | Seconds after a cast during which power does not regenerate. Range `0`–`60` |
+| `WardRechargeDelaySeconds`          | float | `4`     | Seconds without any damage taken before a ward starts to recharge (#1178), for characters and creatures. Any damage restarts it, damage the ward did not take included. Range `0`–`60` |
+| `WardRechargeSeconds`               | float | `2`     | Seconds a recharging ward takes from empty to full (#1178); it refills linearly from where it stood. `0` fills it at once when the delay ends. Range `0`–`60` |
+
+```json
+"Regen": {
+  "CombatLeaveDelaySeconds": 5.0,
+  "HealthRegenOutOfCombatPerStamina": 0.5,
+  "PowerRegenOutOfCombatPerStat": 0.3,
+  "PowerRegenInCombatPerStat": 0.05,
+  "PowerRegenCastSuppressSeconds": 5.0,
+  "WardRechargeDelaySeconds": 4.0,
+  "WardRechargeSeconds": 2.0
+}
+```
+
+The section is read once at startup (`IOptions<RegenConfiguration>`), so a change needs a restart; a character takes
+the values at select and a creature at its spawn.
 
 ---
 

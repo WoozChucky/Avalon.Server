@@ -20,8 +20,9 @@ break chances and stat modifiers come from `schema/auras/aura-catalog-v1.json`, 
 enumeration written as a number and listed in its `$comment` (`kind` 1 helpful, 2 harmful; `periodicKind` 0 none,
 1 damage, 2 heal; `stacking` 1 refresh, 2 stack up to `maxStacks`, 3 one per caster; `control` flags 1 stun, 2 root,
 4 silence, 0 none; `breakOnDamagePct` and `breakPerSecondPct` in percent; modifier `stat` 1 armor, 2 attack damage,
-3 ability damage, 4 crit %, 5 dodge %, 6 block %, 7 haste %, 8 movement speed %, 9 max health, 10 max power;
-modifier `kind` 1 flat, 2 percent). The catalog's `control` is for tooltips only: a unit's crowd control is read from
+3 ability damage, 4 crit %, 5 evasion, 6 block %, 7 haste %, 8 movement speed %, 9 max health, 10 max power,
+11 fire resistance, 12 cold resistance, 13 lightning resistance, 14 blight resistance, 15 max ward; modifier `kind`
+1 flat, 2 percent). The catalog's `control` is for tooltips only: a unit's crowd control is read from
 each aura entry's `Control` (section 10), which also carries the slow and stays right after a live edit. In
 `schema/abilities/ability-catalog-v1.json`, an ability's `auraId` names the aura it applies, or is `null`, and
 `basic` marks a class's basic attack, which a silence does not stop (section 10).
@@ -111,8 +112,10 @@ target. The attacker (or healer) is the aura's caster while it is alive in the t
 (nobody applied it, or its caster died, left the instance or logged out: the aura keeps ticking on what it took from
 the caster when it was applied).
 
-Ticks are never dodged or blocked; a tick can crit (`Result` `Crit`), and a damage tick is reduced by the target's
-armour. **A tick that comes to nothing sends nothing:** a damage tick worth less than a whole point (the fraction is
+Ticks are never evaded or blocked; a tick can crit (`Result` `Crit`), and a damage tick is reduced by the target's
+armour (a physical tick) or its resistance (an element) (#1178). A damage tick carries the aura's damage type in
+`Type`, the same in `Types`, and what the target's ward took in `WardAbsorbed`; a blight tick or a physical one (a
+bleed) passes the ward. `Damage` is the whole tick, the ward's part included. **A tick that comes to nothing sends nothing:** a damage tick worth less than a whole point (the fraction is
 carried to the next tick, so the ticks add up to the aura's total), and a heal tick that restored no health (a target
 at full health). A killing tick is sent like any killing hit, before `SMSG_UNIT_DEATH`.
 
@@ -130,10 +133,11 @@ at full health). A killing tick is sent like any killing hit, before `SMSG_UNIT_
   amounts and the stat modifiers.
 - **A unit holds at most `Game:MaxAurasPerUnit` auras** (32 by default); past that a new aura is not applied. A copy
   the unit already holds still refreshes or stacks.
-- **A dodged hit applies no aura.** Every hostile ability rolls whether it lands on each unit it affects, whether it
-  deals damage or not (#1164): a dodged one applies no aura and is sent as a dodge (a hit of 0 marked `Dodged`, naming
-  the ability), and a landed one with no damage sends only the aura, no damage number. An ability flagged
-  `Unavoidable` is never dodged (none is seeded). Heals, helpful auras and aura ticks are never dodged. A target that
+- **An evaded hit applies no aura.** Every hostile ability rolls whether it lands on each unit it affects, whether it
+  deals damage or not (#1164): an evaded one applies no aura and is sent as a hit of 0 marked `Dodged` (which means
+  evaded), naming the ability and its type, and a landed one with no damage sends only the aura, no damage number. An
+  ability flagged `Unavoidable` is never evaded (none is seeded). Heals, helpful auras and aura ticks are never
+  evaded. A target that
   takes no hits (an invulnerable town creature, a corpse, a creature walking home) gets no harmful aura; crowd control
   an `Unavoidable` ability puts on a creature walking home is answered "Immune" (section 10).
 - **A harmful aura starts combat**, as a hit does: the creature engages its caster, and both are in combat.

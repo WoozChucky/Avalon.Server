@@ -22,30 +22,48 @@ setters. Per-creature state lives on `ICreature`.
 unless a procedural map's depth band chooses the level (`ICreatureSpawner.Spawn(CreatureInfo, ushort level)`),
 then asks `CreatureStatDeriver.Derive` for the stats that level gives:
 
-1. Look up the `CreatureBaseStats` row for the level: `Health`, `DamageMin`, `DamageMax` and
-   `Experience`. A level with no row logs a warning and uses the highest seeded level.
+1. Look up the `CreatureBaseStats` row for the level: `Health`, `DamageMin`, `DamageMax`,
+   `Experience`, `Armor`, `Evasion` and `Ward`. A level with no row logs a warning and uses the highest seeded level.
 2. Scale health by the template's `HealthModifier`, damage by `DamageModifier`, and experience by
    `ExperienceModifier`.
 3. Scale again by the template's `Rarity`, through its `CreatureRarityModifiers` row
    (`HealthMultiplier`, `DamageMultiplier`, `ExperienceMultiplier`). A rarity with no row logs a
    warning and is not scaled.
 4. Floor health and minimum damage at 1, and keep the maximum damage at or above the minimum.
-5. Armour (#506) is the level's `Armor` scaled by the template's `ArmorModifier`, rounded. There is no
-   rarity armour multiplier yet. The creature's crit, dodge and block chances, in percentage points,
-   are its rarity row's `CritPct`, `DodgePct` and `BlockPct` (Normal 0/0/0, Elite 5/3/0, Rare 8/5/5,
-   Boss 10/5/10). Each is a percentage from 0 to 100 (#1145): `CreatureTemplateRules.ValidateRarities`
+5. Defences (#506, #1178). Armour is the level's `Armor` scaled by the template's `ArmorModifier` and
+   the rarity row's `DefenceMultiplier`, rounded. The evasion rating and the ward are the level's
+   `Evasion` and `Ward` scaled the same way by the template's `EvasionModifier` and `WardModifier` and
+   the same `DefenceMultiplier`, except that a template modifier that is not above 0 gives none
+   (`ScaleDefence`): a creature evades or holds a ward only where its template says so, and both
+   modifiers default to 0. The four resistances, `FireResistance`, `ColdResistance`,
+   `LightningResistance` and `BlightResistance` (percent, -100 to 100, default 0, negative taking
+   more), are the template's as authored, never scaled by rarity. The template's `DamageType`
+   (Physical 0 to Blight 4, stored in the `DmgSchool` column) is the type of a hit whose ability names
+   none (see [World simulation](world-simulation.md), "Combat reads the derived stats"). The
+   creature's crit and block chances, in percentage points, are its rarity row's `CritPct` and
+   `BlockPct` (Normal 0/0, Elite 5/0, Rare 8/5, Boss 10/10); every rarity's `DefenceMultiplier` is
+   seeded 1.0. Each chance is a percentage from 0 to 100 (#1145): `CreatureTemplateRules.ValidateRarities`
    refuses a row with one outside that range, or not finite, at world load, on `/reload creatures` and in
-   the balance simulator, and the check constraints `CK_CreatureRarityModifiers_CritPct`, `_DodgePct` and
-   `_BlockPct` refuse it in the database. `CreatureSpawner` copies all four onto the World-side
+   the balance simulator, and the check constraints `CK_CreatureRarityModifiers_CritPct` and
+   `_BlockPct` refuse it in the database (`_DefenceMultiplier` only refuses one that is not finite, and
+   `CK_CreatureTemplates_FireResistance` and its siblings, `_EvasionModifier` and `_WardModifier` hold
+   the template's). `CreatureSpawner` copies them onto the World-side
    `Creature`, init-only and not on `ICreature`, so a `/reload creatures` reaches only creatures spawned
    after it. Its crowd-control resistance (#770, `Creature.ControlResistance`) is fixed the same way:
    for each of stun, root, silence and slow, the template's nullable `StunDurationPct`, `RootDurationPct`,
    `SilenceDurationPct` or `SlowDurationPct` where set, else the rarity row's (Normal and Elite 100
    each, Rare 50 each, Boss 0 stun, 50 root, 0 silence, 50 slow), else 100: the percentage of such an
    aura's duration it takes, 0 immune (see [Auras](auras.md#crowd-control-770)). No template overrides
-   it yet. Seeded armour rises from 0 at level 1 to 30 at level 10, `round(30 x (L - 1) / 9)`.
+   it yet. Seeded armour rises from 0 at level 1 to 30 at level 10, `round(30 x (L - 1) / 9)`; seeded
+   evasion is `10 x L` and ward `8 x L`. The forest's templates carry their defences by creature type
+   (#1178; modifiers, then resistances in percent): the Blightfly Swarmling (critter) evasion 0.5 and
+   blight 25, the Husk of the Wold (undead) fire -25 and blight 50, Bramblemaw Alpha evasion 0.55, Old
+   Tuskroot evasion 0.8, and Mother Bramble (elemental) evasion 0.8, ward 1.0 and blight 40; the boar and the wolf have none, and every
+   `ArmorModifier` is 1. A creature's ward recharges, empties at its death and fills at its spawn and
+   its reset at home (see [World simulation](world-simulation.md), "Combat reads the derived stats").
 
-A modifier or multiplier of 0 or less counts as 1, so a zero in seed data does not zero a stat.
+A modifier or multiplier of 0 or less counts as 1, so a zero in seed data does not zero a stat;
+evasion's and ward's template modifiers are the exception above.
 
 | Rarity | Value |
 |---|---|
@@ -179,7 +197,7 @@ it gets "not found" rather than a script that fails to construct.
 The range detector searches once its accumulated tick time reaches one second. While waiting, the plain
 `AggroDefendScript` and the seven sealed forest scripts advance only that same timer when combat is idle;
 they skip the detector/combat chain until it has work. The due tick still searches and can begin combat in
-that tick. Hits and dodged attacks change combat state immediately, so the next update runs combat even
+that tick. Hits and evaded attacks change combat state immediately, so the next update runs combat even
 when the search timer is not due. Active combat, returns home and re-arming detection keep their cadence.
 
 Custom subclasses keep the original chain dispatch. The timer-only shortcut is an internal opt-in for
@@ -251,8 +269,9 @@ contracts.
 - Every attack is an ability (#163; the raw swing is gone), cast through the instance's cast system and
   resolved by its shape script, so its damage goes through `ICombatService.ApplyDamage` with the ability:
   `BaseDamageCoefficient` times a roll of the creature's `DamageMin..DamageMax`, inclusive, through
-  `ICombatRandom` (#506), then the target's dodge, block and armour and the creature's own crit; see
-  `CombatService` below. The first attack lands as soon as an ability reaches the target.
+  `ICombatRandom` (#506), of the ability's damage type or else the template's (#1178), then the
+  target's evasion, the creature's own crit, the target's block, and its armour or resistance, then its
+  ward; see `CombatService` below. The first attack lands as soon as an ability reaches the target.
 - The cadence (#627): the basic ability's cooldown is one `Creature.SwingInterval`. The interval is the
   template's `BaseAttackTime` in seconds (2.25 for every seeded template; a check constraint and the
   Creatures reload area refuse anything below 0.5 or not finite), divided by
@@ -357,14 +376,16 @@ Every hit, a creature's ability or a player's skill, goes through the instance's
    `ApplyHeal` splits a heal's threat only across the encounter's creatures that are not walking
    home.
 3. The hit is resolved (#506): its base (an ability's effect value plus the caster's scaled stat and
-   base-damage roll: a character's weapon, a creature's natural range, #163), then the target's dodge, the attacker's crit, the
-   target's block, and the target's armour against the attacker's level, floored with a minimum of
-   1. A dodged hit deals 0: the encounter still forms, the creature gets threat for the base, and
-   both sides are tagged in combat, and its script is told through `AiScript.OnAttacked`, so it
-   engages the attacker as a hit would; but the script is not hit, and the dodge is sent to watchers
-   as a hit of 0 marked `Dodged`. A killing blow is sent as a hit, at 0 health, before the death. A player's armour reduces a creature's ability exactly as a creature's
-   armour reduces a player's hit.
-4. The attacker and the target join an encounter. Threat is added, from the resolved damage, when
+   base-damage roll: a character's weapon, a creature's natural range, #163), then the target's evasion against the
+   attacker's level, the attacker's crit, the target's block, and each damage type's part on its own (#1178): physical
+   by the target's armour against the attacker's level, an element by the target's resistance; floored with a minimum
+   of 1. The target's ward then takes all but the blight share, and health the rest. An evaded hit deals 0: the
+   encounter still forms, the creature gets threat for the base, and both sides are tagged in combat, and its script is
+   told through `AiScript.OnAttacked`, so it engages the attacker as a hit would; but the script is not hit, and the
+   evaded hit is sent to watchers as a hit of 0 marked `Dodged`. A killing blow is sent as a hit, at 0 health, before
+   the death. A player's armour and resistances reduce a creature's ability exactly as a creature's reduce a player's
+   hit. A creature's script `OnHit` is handed the part its health took, and its broadcast the whole hit.
+4. The attacker and the target join an encounter. Threat is added, from the resolved damage (ward included), when
    the target is a creature.
 5. The hit is applied. When a creature goes from above 0 health to 0, the service reports it, once,
    to its instance through `ICombatOutcomes.CreatureKilled`.
@@ -473,8 +494,8 @@ These `CreatureTemplate` fields are deliberately unread. Do not assume any of th
 | `ManaModifier` | A creature's casts are free, and it has no pool (#163). |
 | `RegenHealth` | Creatures do not regenerate health. |
 
-`RangeAttackTime`, `DmgSchool`, `MovementType`, `MovementId` and `Family` are not read by
-the world server either.
+`RangeAttackTime`, `MovementType`, `MovementId` and `Family` are not read by the world server
+either. `DmgSchool` is read since #1178, as the template's `DamageType`.
 
 ---
 

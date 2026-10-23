@@ -43,7 +43,7 @@ interval, a creature's level range) and the fight's event order are pinned by `S
 `CombatService`, the cast system and `CharacterEntity.Update`. Hits follow `AbilityEffect.Apply`: every Hostile
 ability rolls whether it lands, damage or not (#1164, `CombatRules.Lands` for one without `Damage`; none for an
 `Unavoidable` one), and its aura lands only where it landed, so an aura-only ability's simulated output (Ignite,
-Sundering Howl) drops with the target's dodge chance. It steps at the server's tick (1/60 s) so cooldowns,
+Sundering Howl) drops with the target's chance to evade it. It steps at the server's tick (1/60 s) so cooldowns,
 casts and the event order count as the server's do. Mana and Energy regenerate `stat x coefficient x dt` a tick with
 the fraction of a point carried between ticks (`PowerRegen.Amount`, the caller owning the carry), dropped while a cast
 suppresses regen or the pool cannot regenerate (full included).
@@ -56,7 +56,7 @@ projectile travel time, continuous combat, wind-ups always land, no crowd contro
 **Crowd control is not modelled in fights** (owner decision, #770): nothing stuns, roots, silences, resists,
 diminishes or breaks early there. The seed's crowd-control columns are still read and validated with the world's rules
 (an aura's `Control` and break chances through `AuraRules.Problem`, the creature and rarity duration percentages and
-the rarity's crit, dodge and block chances (#1145) through `CreatureTemplateRules.Validate` and `ValidateRarities`), so
+the rarity's crit and block chances (#1145) through `CreatureTemplateRules.Validate` and `ValidateRarities`), so
 an override the world would refuse is refused here too, and the overrides reach them like any column. The four crowd-control abilities (204, 214, 224, 235) are in each class's
 kit but in no rotation in `balance/rotations.json`.
 
