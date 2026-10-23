@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalon.Combat;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Serialization;
@@ -31,10 +32,22 @@ public static class AbilityAmountsFlusher
         if (connection.Character is not CharacterEntity { Spells: CharacterAbilityContainer spells } character)
             return;
 
+        // The amounts sent (an array, set with what they were worked out from) say a first flush or select has run.
         (int StatsVersion, ushort Level) inputs = (character.StatsVersion, character.Level);
-        if (character.AbilityAmountsSentFor is not null && character.AbilityAmountsInputs == inputs)
+        if (character.AbilityAmountsSent is not null && character.AbilityAmountsInputs == inputs)
             return;
 
+        FlushChanged(connection, character, spells, inputs);
+    }
+
+    /// <summary>
+    /// The rare path, once the stats refresh or the level moved. Kept out of <see cref="Flush" /> so the unchanged tick
+    /// reserves and zeroes no frame for the 192 B attacker and the tuples this path copies.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void FlushChanged(IWorldConnection connection, CharacterEntity character,
+        CharacterAbilityContainer spells, (int StatsVersion, ushort Level) inputs)
+    {
         character.AbilityAmountsInputs = inputs;
         AttackerCombat combat = character.Combat;
         CasterPace pace = character.Pace;

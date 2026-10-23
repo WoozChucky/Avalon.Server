@@ -1729,13 +1729,18 @@ the default job, SDK 10.0.402 / runtime 10.0.13, 2026-10-23:
 
 | Operation | Before (review probe) | After the perf fixes | Allocated |
 |---|---:|---:|---:|
-| `AbilityAmountsFlushUnchanged` | 73.9 ns (the comparison alone) | 19.33 ns (± 0.27 ns, error ± 0.29 ns), the whole flush | 0 B |
+| `AbilityAmountsFlushUnchanged` | 73.9 ns (the comparison alone) | 0.68 ns (± 0.01 ns, error ± 0.01 ns), the whole flush | 0 B |
 | `CreatureCombatWithAura` | 41.1 ns (the fold alone) | 15.15 ns (± 0.11 ns, error ± 0.11 ns), the whole read | 0 B |
 | `CreatureCombatNoAura` | 0.6 ns (the fold alone) | 9.71 ns (± 1.60 ns, error ± 0.55 ns), the whole read | 0 B |
 
-At 1,800 players the flush's comparison cost about 133 us a tick; the unchanged flush now costs about 35 us a tick, of
-which the counts' comparison is a fraction of a nanosecond (the probe measured 0.28 ns) and the rest the connection's
-character and its type check, which every flusher pays. A creature's read no longer folds anything: the two creature rows
+At 1,800 players the flush's comparison cost about 133 us a tick; the unchanged flush now costs about 1.2 us a tick. A
+first cut of the count check, with the recompute in the same method, measured 19.33 ns: the JIT gave every call the
+frame of the rarely taken path, whose 192 B attacker and 200-odd byte tuples made each call reserve about 1.8 KB of stack
+and zero about 1.1 KB of it before the gate (the re-check's disassembly). The recompute now lives in its own
+`[MethodImpl(MethodImplOptions.NoInlining)]` method (`FlushChanged`), so `Flush` is the type check and the counts'
+comparison alone; the gate reads the amounts array rather than the nullable attacker tuple, so it copies nothing. This
+row was re-run alone after that change, out of process with the default job, the same day. A creature's read no longer
+folds anything: the two creature rows
 differ by what they read back from the 192 B attacker (a more factor against the crit), not by a fold.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
