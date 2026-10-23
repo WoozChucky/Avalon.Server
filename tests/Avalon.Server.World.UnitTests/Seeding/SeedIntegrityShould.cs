@@ -1372,7 +1372,9 @@ public class SeedIntegrityShould
     /// the ability's base with every roll at its low and at its high end (<see cref="RollEnds" />): an Attack's or a Spell's
     /// <see cref="OffenceMath.DirectBase" />, a Heal's <see cref="OffenceMath.HealBase" />, or, through its aura, the
     /// whole of <see cref="OffenceMath.PeriodicTotal" /> (Rend's Bleed, Ignite's Burn, Renew). Today's average is the old
-    /// <c>EffectValue + coefficient × damage stat + weapon coefficient × roll</c>, the tolerance its table's.
+    /// <c>EffectValue + coefficient × damage stat + weapon coefficient × roll</c>, the tolerance its table's. The re-expressed
+    /// weapons (owner decision D2) carry their tiers over too: the balance tool's forest profile (the Bramblesteel Sword
+    /// and the Briarstring Bow, 7-11 then, 5-7 now) and the starter Warrior with the Rusted Sword (1-3 then, 4-6 now).
     /// </summary>
     [Theory]
     [InlineData(200u, (ushort)1, 34.9, 1.0)]       // Cleave
@@ -1415,8 +1417,14 @@ public class SeedIntegrityShould
     [InlineData(233u, (ushort)10, 61.6, 1.0, true)]
     [InlineData(203u, (ushort)1, 26.5, 1.0, true)]   // Rend's Bleed, the whole total
     [InlineData(203u, (ushort)10, 35.5, 2.5, true)]
+    [InlineData(200u, (ushort)1, 39.6, 1.0, false, "forest")]    // Cleave, Bramblesteel Sword
+    [InlineData(200u, (ushort)10, 50.4, 2.0, false, "forest")]   // tolerance: the closest whole-number range's measured gap (D2)
+    [InlineData(220u, (ushort)1, 39.3, 4.0, false, "forest")]    // Quick Shot, Briarstring Bow; tolerance: the closest whole-number range's measured gap (D2)
+    [InlineData(220u, (ushort)10, 48.9, 1.5, false, "forest")]
+    [InlineData(200u, (ushort)1, 30.8, 1.5, false, "rusted")]    // Cleave, Rusted Sword; tolerance: the closest whole-number range's measured gap (D2)
+    [InlineData(200u, (ushort)10, 41.6, 1.5, false, "rusted")]   // tolerance: the closest whole-number range's measured gap (D2)
     public void Carry_todays_ability_numbers_over_at_levels_one_and_ten(uint id, ushort level, double todayAvg,
-        double tolerancePct, bool viaAura = false)
+        double tolerancePct, bool viaAura = false, string gear = "starter")
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
@@ -1426,9 +1434,9 @@ public class SeedIntegrityShould
         CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
         ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().AsEnumerable().Single(f => f.Class == c);
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
-        ulong[] starter = s_starterProfile[c];
+        ulong[] profile = s_gearProfiles[gear][c];
         var worn = context.ItemTemplates.AsNoTracking().AsEnumerable()
-            .Where(i => starter.Contains(i.Id.Value)).ToList();
+            .Where(i => profile.Contains(i.Id.Value)).ToList();
         Assert.Equal(6, worn.Count);
 
         AttackerCombat caster = CharacterStatsCalculator.Calculate(row, worn, factors, formula).AttackerAt(level);
@@ -1449,13 +1457,25 @@ public class SeedIntegrityShould
             FormattableString.Invariant($"ability {id} at level {level}: {average:0.###} against today's {todayAvg}"));
     }
 
-    /// <summary>The balance tool's starter profile: each class's starter weapon and its five starter armour pieces.</summary>
-    private static readonly Dictionary<CharacterClass, ulong[]> s_starterProfile = new()
+    /// <summary>
+    /// The balance tool's starter and forest profiles (each class's weapon and its five armour pieces), and the starter
+    /// Warrior with the Rusted Sword in place of its starter sword.
+    /// </summary>
+    private static readonly Dictionary<string, Dictionary<CharacterClass, ulong[]>> s_gearProfiles = new()
     {
-        [CharacterClass.Warrior] = [32, 36, 37, 38, 39, 40],
-        [CharacterClass.Wizard] = [33, 41, 42, 43, 44, 45],
-        [CharacterClass.Hunter] = [34, 46, 47, 48, 49, 50],
-        [CharacterClass.Cleric] = [35, 51, 52, 53, 54, 55],
+        ["starter"] = new()
+        {
+            [CharacterClass.Warrior] = [32, 36, 37, 38, 39, 40],
+            [CharacterClass.Wizard] = [33, 41, 42, 43, 44, 45],
+            [CharacterClass.Hunter] = [34, 46, 47, 48, 49, 50],
+            [CharacterClass.Cleric] = [35, 51, 52, 53, 54, 55],
+        },
+        ["forest"] = new()
+        {
+            [CharacterClass.Warrior] = [7, 12, 13, 14, 15, 16],
+            [CharacterClass.Hunter] = [6, 22, 23, 24, 25, 26],
+        },
+        ["rusted"] = new() { [CharacterClass.Warrior] = [4, 36, 37, 38, 39, 40] },
     };
 
     private static StatType?[] StatTypesOf(ItemTemplate i) =>
