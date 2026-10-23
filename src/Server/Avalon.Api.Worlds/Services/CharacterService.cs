@@ -179,7 +179,6 @@ public class CharacterService : ICharacterService
             {
                 Id = template.Id.Value,
                 Name = template.Name ?? string.Empty,
-                Rarity = (Avalon.Api.Contract.ItemRarity)template.Rarity,
                 DisplayId = template.DisplayId,
                 SlotType = (Avalon.Api.Contract.ItemSlotType?)template.Slot,
                 RequiredLevel = template.RequiredLevel ?? 0,

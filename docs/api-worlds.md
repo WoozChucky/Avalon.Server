@@ -270,7 +270,7 @@ reads admit the owner or a game master (`CharacterReadHandler`), character write
 |---|---|---|---|
 | `/world/{worldId}/character/paginate` | GET | GameMaster | |
 | `/world/{worldId}/character/{id}` | GET, PATCH | Player | Owner, or game master (read) or admin (write) |
-| `/world/{worldId}/character/{id}/inventory`, `/abilities`, `/stats`, `/quests`, `/auras` | GET | Player | Owner or game master. An inventory item carries its copy's `rarity`, `itemLevel` and `modifiers` (each `modifierId` with its `values`: `stat`, `value` and, on an "adds X to Y" line, `value2`), in the order the item shows them (#1179) |
+| `/world/{worldId}/character/{id}/inventory`, `/abilities`, `/stats`, `/quests`, `/auras` | GET | Player | Owner or game master. An inventory item carries its copy's `rarity`, `itemLevel` and `modifiers` (each `modifierId` with its `values`: `stat`, `value` and, on an "adds X to Y" line, `value2`), in the order the item shows them (#1179); that is the only rarity the read shows, and its `template` carries none |
 | `/world/{worldId}/map-template`, `/{id}` | GET | Player | |
 | `/world/{worldId}/map-template/{id}/preview-layout` | GET | GameMaster | Runs the procedural generator against that world's data; see [Map Generation](map-generation.md) |
 | `/world/{worldId}/map-template/chunk-asset/{*filename}` | GET | GameMaster | Whitelisted against the world's `ChunkTemplate.GeometryFile` values; the bytes come from the API's own copy of `Maps/` (`Application:MapAssets:ChunkAssetRoot`), not from the world |
