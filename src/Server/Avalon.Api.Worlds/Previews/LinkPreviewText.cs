@@ -27,7 +27,7 @@ public static partial class LinkPreviewText
         parts.AddRange(item.Damage.Select(d =>
             string.Join(' ', new[] { d.Min == d.Max ? Num(d.Max) : $"{Num(d.Min)} – {Num(d.Max)}", d.Type?.ToString(), "Damage" }
                 .Where(p => !string.IsNullOrEmpty(p)))));
-        if (item.AttackTimeMs is > 0) parts.Add(AttackTime(item.AttackTimeMs.Value));
+        if (AttackTime(item.AttackTimeMs) is { } attackTime) parts.Add(attackTime);
         parts.AddRange(item.Stats.Where(s => s.Type == StatType.Armor).Select(s => FormatStat(s.Type, s.Value)));
         parts.AddRange(item.Stats.Where(s => s.Type != StatType.Armor).Select(s => FormatStat(s.Type, s.Value)));
         if (item.RequiredLevel is > 0) parts.Add($"Requires Level {Num(item.RequiredLevel.Value)}");
@@ -117,23 +117,28 @@ public static partial class LinkPreviewText
     /// resistances, the crit multiplier, attack, cast and movement speed and cooldown recovery as percent points
     /// (<c>+2% Crit</c>, <c>+5% Fire Resistance</c>, <c>+5% Movement Speed</c>); the <c>Increased…</c> stats as
     /// <c>+10% increased Fire Damage</c>; the rest, Evasion and Ward among them, as a plain rating (<c>+12 Evasion</c>).
-    /// schema/items/stat-wording-v1.json holds a row for every stat, which the public site's tooltip tests against too.
+    /// A negative value keeps its own sign (<c>-3% Cold Resistance</c>), and armour never gets a plus. The Dashboard's
+    /// packages/shared/src/items/stat-wording.json holds a row for every stat; both sides test against it (#460).
     /// </summary>
-    public static string FormatStat(StatType type, uint value)
+    public static string FormatStat(StatType type, long value)
     {
         string name = type.ToString();
-        string amount = Num(value);
+        string amount = value.ToString(CultureInfo.InvariantCulture);
         if (type == StatType.Armor) return $"{amount} Armor";
-        if (name.EndsWith("Pct", StringComparison.Ordinal)) return $"+{amount}% {SplitWords(name[..^3])}";
+        string signed = value >= 0 ? $"+{amount}" : amount;
+        if (name.EndsWith("Pct", StringComparison.Ordinal)) return $"{signed}% {SplitWords(name[..^3])}";
         if (name.EndsWith("Resistance", StringComparison.Ordinal) || IsPercentPoints(type))
-            return $"+{amount}% {SplitWords(name)}";
+            return $"{signed}% {SplitWords(name)}";
         if (name.StartsWith(Increased, StringComparison.Ordinal) && name.Length > Increased.Length)
-            return $"+{amount}% increased {SplitWords(name[Increased.Length..])}";
-        return $"+{amount} {SplitWords(name)}";
+            return $"{signed}% increased {SplitWords(name[Increased.Length..])}";
+        return $"{signed} {SplitWords(name)}";
     }
 
-    /// <summary>A weapon's pace before attack speed (#1178) as <c>2.6 sec attack time</c>, on its damage line.</summary>
-    public static string AttackTime(uint ms) => $"{Seconds(ms)} attack time";
+    /// <summary>
+    /// A weapon's pace before attack speed (#1178) as <c>2.6 sec attack time</c>, on its damage line; null, so left out,
+    /// for no attack time or 0.
+    /// </summary>
+    public static string? AttackTime(uint? ms) => ms is > 0 ? $"{Seconds(ms.Value)} attack time" : null;
 
     /// <summary>
     /// The stats without a <c>Pct</c> or <c>Resistance</c> in their name that the world adds as percent points (#1178;

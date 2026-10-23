@@ -43,4 +43,9 @@
     <ProjectReference Include="..\..\src\Server\Avalon.Api.Worlds\Avalon.Api.Worlds.csproj"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The item wording shared with the public site's tooltip (#1189), a copy of the Dashboard's; StatWordingShould. -->
+    <None Update="Worlds\stat-wording.json" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
 </Project>

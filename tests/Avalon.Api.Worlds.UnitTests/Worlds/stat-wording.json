@@ -1,0 +1,82 @@
+{
+  "$comment": "The shared wording of item stats and attack time, for the public item tooltip (packages/shared/src/items/format.ts) and the server's link preview (Avalon.Server#1189, LinkPreviewText). Both test against this file; change the text here and in both formatters together (Dashboard #460).",
+  "value": 5,
+  "stats": {
+    "Stamina": "+5 Stamina",
+    "Strength": "+5 Strength",
+    "Agility": "+5 Agility",
+    "Intellect": "+5 Intellect",
+    "Armor": "5 Armor",
+    "BlockPct": "+5% Block",
+    "Evasion": "+5 Evasion",
+    "CritPct": "+5% Crit",
+    "Health": "+5 Health",
+    "Power": "+5 Power",
+    "AttackSpeed": "+5% Attack Speed",
+    "MovementSpeed": "+5% Movement Speed",
+    "Ward": "+5 Ward",
+    "FireResistance": "+5% Fire Resistance",
+    "ColdResistance": "+5% Cold Resistance",
+    "LightningResistance": "+5% Lightning Resistance",
+    "BlightResistance": "+5% Blight Resistance",
+    "IncreasedDamage": "+5% increased Damage",
+    "IncreasedPhysicalDamage": "+5% increased Physical Damage",
+    "IncreasedFireDamage": "+5% increased Fire Damage",
+    "IncreasedColdDamage": "+5% increased Cold Damage",
+    "IncreasedLightningDamage": "+5% increased Lightning Damage",
+    "IncreasedBlightDamage": "+5% increased Blight Damage",
+    "IncreasedAttackDamage": "+5% increased Attack Damage",
+    "IncreasedSpellDamage": "+5% increased Spell Damage",
+    "IncreasedAreaDamage": "+5% increased Area Damage",
+    "IncreasedProjectileDamage": "+5% increased Projectile Damage",
+    "IncreasedMeleeDamage": "+5% increased Melee Damage",
+    "IncreasedDamageOverTime": "+5% increased Damage Over Time",
+    "IncreasedHealing": "+5% increased Healing",
+    "CritMultiplier": "+5% Crit Multiplier",
+    "CastSpeed": "+5% Cast Speed",
+    "CooldownRecovery": "+5% Cooldown Recovery"
+  },
+  "negative": [
+    {
+      "type": "ColdResistance",
+      "value": -3,
+      "text": "-3% Cold Resistance"
+    },
+    {
+      "type": "Strength",
+      "value": -2,
+      "text": "-2 Strength"
+    },
+    {
+      "type": "IncreasedFireDamage",
+      "value": -10,
+      "text": "-10% increased Fire Damage"
+    }
+  ],
+  "attackTime": [
+    {
+      "ms": 2600,
+      "text": "2.6 sec attack time"
+    },
+    {
+      "ms": 1500,
+      "text": "1.5 sec attack time"
+    },
+    {
+      "ms": 2000,
+      "text": "2 sec attack time"
+    },
+    {
+      "ms": 1234,
+      "text": "1.23 sec attack time"
+    },
+    {
+      "ms": 0,
+      "text": null
+    },
+    {
+      "ms": null,
+      "text": null
+    }
+  ]
+}

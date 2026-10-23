@@ -6,51 +6,37 @@ using Xunit;
 namespace Avalon.Api.Worlds.UnitTests.Worlds;
 
 /// <summary>
-/// schema/items/stat-wording-v1.json is the agreement between the link preview and the public site's tooltip (#1189):
-/// one row per stat type and the attack times, each with the text the preview writes. The site tests its formatter
-/// against the same file, so a stat added here, or a change to the preview's wording, fails until the file is
-/// re-exported and the site writes it the same.
+/// The link preview writes item stats and attack time as the public site's tooltip does (#1189). stat-wording.json
+/// beside this file is a verbatim copy of the Dashboard's packages/shared/src/items/stat-wording.json (Dashboard #460),
+/// which the site's formatter tests against too; refresh the copy from there, never edit it here. A new stat type fails
+/// here until the shared file has its row and the preview writes it.
 /// </summary>
 public class StatWordingShould
 {
-    private const string FileName = "stat-wording-v1.json";
-    private const string RegenerateCommand = "dotnet run --project tools/Avalon.Exporter -- stat-wording";
-
     [Fact]
-    public void Hold_a_row_for_every_stat_type_with_the_text_the_preview_writes()
+    public void Write_every_row_of_the_shared_wording_file()
     {
-        string path = Path.Combine(RepositoryRoot(), "schema", "items", FileName);
-        Assert.True(File.Exists(path), $"schema/items/{FileName} is missing. Create it with: {RegenerateCommand}");
-        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Worlds", "stat-wording.json")));
         JsonElement root = document.RootElement;
+        long value = root.GetProperty("value").GetInt64();
 
-        List<(string Stat, int Id, uint Value, string Text)> stats = [.. root.GetProperty("stats").EnumerateArray()
-            .Select(row => (row.GetProperty("stat").GetString()!, row.GetProperty("id").GetInt32(),
-                row.GetProperty("value").GetUInt32(), row.GetProperty("text").GetString()!))];
-        string[] names = Enum.GetNames<StatType>();
-        Assert.True(names.SequenceEqual(stats.Select(row => row.Stat)),
-            $"schema/items/{FileName} does not hold one row per StatType member in value order (missing: " +
-            $"{string.Join(", ", names.Except(stats.Select(row => row.Stat)))}; not a stat: " +
-            $"{string.Join(", ", stats.Select(row => row.Stat).Except(names))}). Re-export it with {RegenerateCommand}.");
+        List<string> rows = [.. root.GetProperty("stats").EnumerateObject().Select(row => row.Name)];
+        Assert.Equal(Enum.GetNames<StatType>().Order(StringComparer.Ordinal), rows.Order(StringComparer.Ordinal));
 
-        // Each row the preview no longer writes as committed. Re-export the file (RegenerateCommand), and make the public
-        // site's tooltip write the same.
-        List<string> differing = [.. stats
-            .Select(row => (row, Type: Enum.Parse<StatType>(row.Stat)))
-            .Where(r => r.row.Id != (int)r.Type || r.row.Text != LinkPreviewText.FormatStat(r.Type, r.row.Value))
-            .Select(r => $"{r.row.Stat} ({(int)r.Type}): the preview writes \"{LinkPreviewText.FormatStat(r.Type, r.row.Value)}\"")
-            .Concat(root.GetProperty("attackTimes").EnumerateArray()
-                .Select(row => (Ms: row.GetProperty("attackTimeMs").GetUInt32(), Text: row.GetProperty("text").GetString()!))
-                .Where(row => row.Text != LinkPreviewText.AttackTime(row.Ms))
-                .Select(row => $"{row.Ms} ms: the preview writes \"{LinkPreviewText.AttackTime(row.Ms)}\""))];
+        // Each row the preview does not write as the shared file does.
+        List<string> differing = [.. root.GetProperty("stats").EnumerateObject()
+            .Select(row => (Type: Enum.Parse<StatType>(row.Name), Value: value, Text: row.Value.GetString()))
+            .Concat(root.GetProperty("negative").EnumerateArray().Select(row =>
+                (Type: Enum.Parse<StatType>(row.GetProperty("type").GetString()!), Value: row.GetProperty("value").GetInt64(),
+                    Text: row.GetProperty("text").GetString())))
+            .Where(row => LinkPreviewText.FormatStat(row.Type, row.Value) != row.Text)
+            .Select(row => $"{row.Type} {row.Value}: the preview writes \"{LinkPreviewText.FormatStat(row.Type, row.Value)}\"")
+            .Concat(root.GetProperty("attackTime").EnumerateArray()
+                .Select(row => (Ms: row.GetProperty("ms") is { ValueKind: JsonValueKind.Number } ms ? ms.GetUInt32() : (uint?)null,
+                    Text: row.GetProperty("text").GetString()))
+                .Where(row => LinkPreviewText.AttackTime(row.Ms) != row.Text)
+                .Select(row => $"attack time {row.Ms?.ToString() ?? "null"}: the preview writes " +
+                               $"{LinkPreviewText.AttackTime(row.Ms) ?? "nothing"}"))];
         Assert.Empty(differing);
-    }
-
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Avalon.sln")))
-            directory = directory.Parent;
-        return directory?.FullName ?? throw new InvalidOperationException("No Avalon.sln above the test output.");
     }
 }
