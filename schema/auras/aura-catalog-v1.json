@@ -168,6 +168,16 @@
           "stat": 3,
           "kind": 2,
           "value": 10
+        },
+        {
+          "stat": 16,
+          "kind": 1,
+          "value": 10
+        },
+        {
+          "stat": 28,
+          "kind": 1,
+          "value": 10
         }
       ]
     },

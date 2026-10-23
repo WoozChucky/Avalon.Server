@@ -1,5 +1,7 @@
+using System.Numerics;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
@@ -33,6 +35,8 @@ public static class AbilityRules
                      ("ThreatMultiplier", t.ThreatMultiplier), ("HealThreatPerHp", t.HealThreatPerHp),
                      // #506. A negative or NaN coefficient would turn a hit into a heal or a NaN damage.
                      ("ScalingCoefficient", t.ScalingCoefficient), ("BaseDamageCoefficient", t.BaseDamageCoefficient),
+                     // #1178: a negative effectiveness or growth would turn a hit into a heal.
+                     ("DamageEffectiveness", t.DamageEffectiveness), ("SpellBasePerLevelPct", t.SpellBasePerLevelPct),
                  })
         {
             if (!float.IsFinite(value) || value < 0f)
@@ -69,6 +73,8 @@ public static class AbilityRules
             return "a class ability that deals damage names its damage type";
         }
 
+        if (OffenceProblem(t) is { } offence) return offence;
+
         // With neither a direct amount nor an aura the ability would spend its cost and change nothing.
         if (!HasDirectEffect(t.Effects, t.Affects) && t.AuraId is null)
         {
@@ -79,6 +85,66 @@ public static class AbilityRules
 
         return ShapeProblem(t);
     }
+
+    /// <summary>Every tag <see cref="AbilityTags" /> names.</summary>
+    private const AbilityTags KnownTags = AbilityTags.Attack | AbilityTags.Spell | AbilityTags.Heal | AbilityTags.Area
+                                          | AbilityTags.Projectile | AbilityTags.Melee | AbilityTags.DamageOverTime;
+
+    /// <summary>What an ability is: an Attack, a Spell or a Heal.</summary>
+    private const AbilityTags Kinds = AbilityTags.Attack | AbilityTags.Spell | AbilityTags.Heal;
+
+    /// <summary>
+    /// The offence model's checks (#1178), or null when they pass: the tags fit what the row affects, deals and is
+    /// shaped as; a class attack deals its weapon's physical damage, an element arriving only by its conversion or added
+    /// damage; and the amounts a hit rolls are in order.
+    /// </summary>
+    private static string? OffenceProblem(AbilityTemplate t)
+    {
+        AbilityTags tags = t.Tags;
+        if ((tags & ~KnownTags) != AbilityTags.None) return $"Tags {(int)tags} names an unknown tag";
+        if (BitOperations.PopCount((uint)(tags & Kinds)) > 1) return "an ability is at most one of Attack, Spell and Heal";
+        if (Has(tags, AbilityTags.DamageOverTime)) return "DamageOverTime is an aura's tag, never an ability's";
+
+        bool ally = t.Affects == AbilityAffects.Ally;
+        if (ally ? Has(tags, AbilityTags.Attack | AbilityTags.Spell) : Has(tags, AbilityTags.Heal))
+            return "only a Hostile ability is an Attack or a Spell, and only an Ally ability a Heal";
+
+        bool direct = HasDirectEffect(t.Effects, t.Affects);
+        if (direct && !ally && !Has(tags, AbilityTags.Attack | AbilityTags.Spell))
+            return "a Hostile ability that deals damage is an Attack or a Spell";
+        if (direct && ally && !Has(tags, AbilityTags.Heal)) return "an Ally ability that heals is a Heal";
+
+        if (Has(tags, AbilityTags.Projectile) != (t.Shape == AbilityShape.Projectile))
+            return "Projectile is the tag of a projectile, and only of one";
+        if (Has(tags, AbilityTags.Melee) && !Has(tags, AbilityTags.Attack)) return "only an Attack is Melee";
+
+        bool attack = Has(tags, AbilityTags.Attack);
+        if (attack && t.AllowedClasses is { Count: > 0 } && t.DamageType is { } type && type != DamageType.Physical)
+            return "a class attack deals its weapon's physical damage: an element comes from its conversion or added damage";
+
+        if (!(t.ConvertPct >= 0f && t.ConvertPct <= 100f))
+            return FormattableString.Invariant($"ConvertPct {t.ConvertPct} is not a percentage from 0 to 100");
+        if (t.ConvertPct > 0f && t.ConvertToType is not (DamageType.Fire or DamageType.Cold or DamageType.Lightning or DamageType.Blight))
+            return "a conversion names an element to convert to";
+        if (t.ConvertPct > 0f && !attack) return "only an Attack converts its weapon's physical damage";
+
+        if (t.AddedMin > t.AddedMax) return $"AddedMin {t.AddedMin} is above AddedMax {t.AddedMax}";
+        if (t.AddedType is { } added && !Enum.IsDefined(added)) return $"unknown damage type {(int)added}";
+        if (t.AddedMax > 0 && t.AddedType is null) return "added damage names its type";
+
+        if (t.SpellBaseMin > t.SpellBaseMax) return $"SpellBaseMin {t.SpellBaseMin} is above SpellBaseMax {t.SpellBaseMax}";
+        if (direct && Has(tags, AbilityTags.Spell | AbilityTags.Heal) && t.SpellBaseMax == 0) return NoSpellBase;
+        if (direct && attack && !(t.DamageEffectiveness > 0f))
+            return "an Attack that deals damage needs a DamageEffectiveness above 0";
+
+        return null;
+    }
+
+    /// <summary>The refusal of a Spell or a Heal with nothing to roll, shared with <see cref="AuraRules.SourceProblem" />.</summary>
+    internal const string NoSpellBase = "a Spell or a Heal that deals or heals needs a SpellBaseMax above 0";
+
+    /// <summary>Whether <paramref name="tags" /> has any of <paramref name="any" />.</summary>
+    internal static bool Has(AbilityTags tags, AbilityTags any) => (tags & any) != AbilityTags.None;
 
     /// <summary>The checks of the row's own shape, or null when they pass.</summary>
     private static string? ShapeProblem(AbilityTemplate t)

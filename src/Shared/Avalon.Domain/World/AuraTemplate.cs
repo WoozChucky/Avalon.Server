@@ -46,6 +46,12 @@ public class AuraTemplate : IDbEntity<AuraId>
     /// </summary>
     public float BaseDamageCoefficient { get; set; }
 
+    /// <summary>
+    /// Percent of its source's base roll a tick-giving aura adds to <see cref="PeriodicBase" /> (#1178): a weapon roll
+    /// for an Attack, the spell base for a Spell or a Heal. Finite and 0 or more; 0 adds none.
+    /// </summary>
+    public float PeriodicEffectiveness { get; set; }
+
     public AuraStacking Stacking { get; set; }
 
     /// <summary>The most stacks a Stack aura reaches; 1 for every other.</summary>

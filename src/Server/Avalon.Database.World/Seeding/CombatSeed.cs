@@ -38,6 +38,22 @@ public static class CombatSeed
         ArmorPerStrength = 0.1f,
         EvasionPerAgility = 1.125f,
         WardPerIntellect = 0.25f,
+        // #1178, offence: 3.5 % per point of Strength (physical attacks) and of Intellect (spells, healing) keeps a point's
+        // marginal worth near today's; 5 life per Stamina is the largest rate that keeps the Wizard's base health 0 or
+        // more. Every speed counts up to 50 %. The bare hand rolls 3-6 every 816 ms, which carries today's bare hits and
+        // basic pace over with a level-1 Warrior's Agility.
+        IncreasedPhysicalAttackPerStrength = 3.5f,
+        AttackSpeedPerAgility = 0.1f,
+        IncreasedSpellPerIntellect = 3.5f,
+        IncreasedHealingPerIntellect = 3.5f,
+        LifePerStamina = 5,
+        BaseCritPct = 5f,
+        AttackSpeedCap = 50f,
+        CastSpeedCap = 50f,
+        CooldownRecoveryCap = 50f,
+        UnarmedDamageMin = 3,
+        UnarmedDamageMax = 6,
+        UnarmedAttackTimeMs = 816,
     };
 
     public static ClassStatFactors[] ClassFactors() =>

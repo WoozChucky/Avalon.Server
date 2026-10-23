@@ -26,6 +26,15 @@ namespace Avalon.Database.World.Migrations
                     b.Property<long>("Id")
                         .HasColumnType("bigint");
 
+                    b.Property<long>("AddedMax")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("AddedMin")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("AddedType")
+                        .HasColumnType("integer");
+
                     b.Property<byte>("Affects")
                         .HasColumnType("smallint");
 
@@ -54,6 +63,12 @@ namespace Avalon.Database.World.Migrations
                     b.Property<long>("CastTime")
                         .HasColumnType("bigint");
 
+                    b.Property<float>("ConvertPct")
+                        .HasColumnType("real");
+
+                    b.Property<int?>("ConvertToType")
+                        .HasColumnType("integer");
+
                     b.Property<long>("Cooldown")
                         .HasColumnType("bigint");
 
@@ -62,6 +77,9 @@ namespace Avalon.Database.World.Migrations
 
                     b.Property<int>("CostPowerType")
                         .HasColumnType("integer");
+
+                    b.Property<float>("DamageEffectiveness")
+                        .HasColumnType("real");
 
                     b.Property<int?>("DamageType")
                         .HasColumnType("integer");
@@ -113,6 +131,18 @@ namespace Avalon.Database.World.Migrations
                     b.Property<byte>("Shape")
                         .HasColumnType("smallint");
 
+                    b.Property<long>("SpellBaseMax")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("SpellBaseMin")
+                        .HasColumnType("bigint");
+
+                    b.Property<float>("SpellBasePerLevelPct")
+                        .HasColumnType("real");
+
+                    b.Property<int>("Tags")
+                        .HasColumnType("integer");
+
                     b.Property<long>("TauntDurationMs")
                         .HasColumnType("bigint");
 
@@ -125,9 +155,19 @@ namespace Avalon.Database.World.Migrations
 
                     b.ToTable("AbilityTemplates", null, t =>
                         {
+                            t.HasCheckConstraint("CK_AbilityTemplates_Added", "\"AddedMin\" <= \"AddedMax\"");
+
+                            t.HasCheckConstraint("CK_AbilityTemplates_AddedType", "\"AddedType\" IS NULL OR \"AddedType\" BETWEEN 0 AND 4");
+
                             t.HasCheckConstraint("CK_AbilityTemplates_BaseDamageCoefficient_NonNegative", "\"BaseDamageCoefficient\" >= 0 AND \"BaseDamageCoefficient\" < 'Infinity'");
 
+                            t.HasCheckConstraint("CK_AbilityTemplates_ConvertPct", "\"ConvertPct\" >= 0 AND \"ConvertPct\" <= 100");
+
+                            t.HasCheckConstraint("CK_AbilityTemplates_ConvertToType", "\"ConvertToType\" IS NULL OR \"ConvertToType\" BETWEEN 1 AND 4");
+
                             t.HasCheckConstraint("CK_AbilityTemplates_CostPowerType", "\"CostPowerType\" BETWEEN 0 AND 3 AND (\"Cost\" = 0 OR \"CostPowerType\" <> 0)");
+
+                            t.HasCheckConstraint("CK_AbilityTemplates_DamageEffectiveness", "\"DamageEffectiveness\" >= 0 AND \"DamageEffectiveness\" < 'Infinity'");
 
                             t.HasCheckConstraint("CK_AbilityTemplates_DamageType", "\"DamageType\" IS NULL OR \"DamageType\" BETWEEN 0 AND 4");
 
@@ -137,6 +177,12 @@ namespace Avalon.Database.World.Migrations
 
                             t.HasCheckConstraint("CK_AbilityTemplates_ScalingCoefficient_NonNegative", "\"ScalingCoefficient\" >= 0 AND \"ScalingCoefficient\" < 'Infinity'");
 
+                            t.HasCheckConstraint("CK_AbilityTemplates_SpellBase", "\"SpellBaseMin\" <= \"SpellBaseMax\"");
+
+                            t.HasCheckConstraint("CK_AbilityTemplates_SpellBasePerLevelPct", "\"SpellBasePerLevelPct\" >= 0 AND \"SpellBasePerLevelPct\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_AbilityTemplates_Tags", "\"Tags\" BETWEEN 0 AND 127");
+
                             t.HasCheckConstraint("CK_AbilityTemplates_ThreatMultiplier_NonNegative", "\"ThreatMultiplier\" >= 0 AND \"ThreatMultiplier\" < 'Infinity'");
                         });
 
@@ -144,6 +190,8 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 200L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[] { 1 },
@@ -152,9 +200,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 100f,
                             BaseDamageCoefficient = 1f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 800L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 315f,
                             DamageType = 0,
                             EffectValue = 12L,
                             Effects = 1,
@@ -171,12 +221,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 201L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[] { 1 },
@@ -185,9 +241,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 1.5f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 5000L,
                             Cost = 20L,
                             CostPowerType = 2,
+                            DamageEffectiveness = 614f,
                             DamageType = 0,
                             EffectValue = 25L,
                             Effects = 1,
@@ -204,12 +262,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 202L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 1 },
@@ -218,9 +282,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 1f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 3000L,
                             Cost = 10L,
                             CostPowerType = 2,
+                            DamageEffectiveness = 492f,
                             DamageType = 0,
                             EffectValue = 20L,
                             Effects = 1,
@@ -237,12 +303,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ProjectileAbilityScript",
                             Shape = (byte)2,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 17,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 210L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 2 },
@@ -251,9 +323,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 0f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 800L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 100f,
                             DamageType = 3,
                             EffectValue = 12L,
                             Effects = 1,
@@ -270,12 +344,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)1,
                             ScriptName = "ProjectileAbilityScript",
                             Shape = (byte)2,
+                            SpellBaseMax = 20L,
+                            SpellBaseMin = 14L,
+                            SpellBasePerLevelPct = 0.7f,
+                            Tags = 18,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 211L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 2 },
@@ -284,9 +364,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 0f,
                             CastTime = 600L,
+                            ConvertPct = 0f,
                             Cooldown = 5000L,
                             Cost = 25L,
                             CostPowerType = 1,
+                            DamageEffectiveness = 100f,
                             DamageType = 1,
                             EffectValue = 18L,
                             Effects = 1,
@@ -303,12 +385,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)1,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 32L,
+                            SpellBaseMin = 21L,
+                            SpellBasePerLevelPct = 0.75f,
+                            Tags = 10,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 212L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 2 },
@@ -317,9 +405,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 60f,
                             BaseDamageCoefficient = 0f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 4000L,
                             Cost = 15L,
                             CostPowerType = 1,
+                            DamageEffectiveness = 100f,
                             DamageType = 2,
                             EffectValue = 22L,
                             Effects = 1,
@@ -336,12 +426,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)1,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 40L,
+                            SpellBaseMin = 26L,
+                            SpellBasePerLevelPct = 0.8f,
+                            Tags = 10,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 220L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 3 },
@@ -350,9 +446,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 1f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 800L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 363f,
                             DamageType = 0,
                             EffectValue = 12L,
                             Effects = 1,
@@ -369,12 +467,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ProjectileAbilityScript",
                             Shape = (byte)2,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 17,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 221L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 3 },
@@ -383,9 +487,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 1.2f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 4000L,
                             Cost = 15L,
                             CostPowerType = 3,
+                            DamageEffectiveness = 690f,
                             DamageType = 0,
                             EffectValue = 25L,
                             Effects = 1,
@@ -402,12 +508,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ProjectileAbilityScript",
                             Shape = (byte)2,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 17,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 222L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 3 },
@@ -416,9 +528,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 45f,
                             BaseDamageCoefficient = 0.8f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 4000L,
                             Cost = 20L,
                             CostPowerType = 3,
+                            DamageEffectiveness = 516f,
                             DamageType = 0,
                             EffectValue = 22L,
                             Effects = 1,
@@ -435,12 +549,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 9,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 230L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 4 },
@@ -449,9 +569,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 0f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 800L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 100f,
                             DamageType = 3,
                             EffectValue = 12L,
                             Effects = 1,
@@ -468,12 +590,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)1,
                             ScriptName = "ProjectileAbilityScript",
                             Shape = (byte)2,
+                            SpellBaseMax = 17L,
+                            SpellBaseMin = 12L,
+                            SpellBasePerLevelPct = 0.45f,
+                            Tags = 18,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 231L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[] { 4 },
@@ -482,9 +610,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 0f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 5000L,
                             Cost = 20L,
                             CostPowerType = 1,
+                            DamageEffectiveness = 100f,
                             DamageType = 3,
                             EffectValue = 22L,
                             Effects = 1,
@@ -501,12 +631,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)1,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 31L,
+                            SpellBaseMin = 20L,
+                            SpellBasePerLevelPct = 0.35f,
+                            Tags = 10,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 232L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)1,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 4 },
@@ -515,9 +651,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 0f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 8000L,
                             Cost = 25L,
                             CostPowerType = 1,
+                            DamageEffectiveness = 100f,
                             EffectValue = 40L,
                             Effects = 2,
                             Flags = 0L,
@@ -533,12 +671,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)1,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 44L,
+                            SpellBaseMin = 30L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 12,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 203L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[] { 1 },
@@ -548,9 +692,11 @@ namespace Avalon.Database.World.Migrations
                             AuraId = 1L,
                             BaseDamageCoefficient = 0.5f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 6000L,
                             Cost = 10L,
                             CostPowerType = 2,
+                            DamageEffectiveness = 202f,
                             DamageType = 0,
                             EffectValue = 8L,
                             Effects = 1,
@@ -567,12 +713,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 213L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 2 },
@@ -582,9 +734,11 @@ namespace Avalon.Database.World.Migrations
                             AuraId = 2L,
                             BaseDamageCoefficient = 0f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 6000L,
                             Cost = 20L,
                             CostPowerType = 1,
+                            DamageEffectiveness = 100f,
                             DamageType = 1,
                             EffectValue = 0L,
                             Effects = 8,
@@ -601,12 +755,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)1,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 46L,
+                            SpellBaseMin = 31L,
+                            SpellBasePerLevelPct = 0.9f,
+                            Tags = 10,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 223L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 3 },
@@ -616,9 +776,12 @@ namespace Avalon.Database.World.Migrations
                             AuraId = 3L,
                             BaseDamageCoefficient = 0.6f,
                             CastTime = 0L,
+                            ConvertPct = 50f,
+                            ConvertToType = 2,
                             Cooldown = 8000L,
                             Cost = 15L,
                             CostPowerType = 3,
+                            DamageEffectiveness = 495f,
                             DamageType = 0,
                             EffectValue = 14L,
                             Effects = 1,
@@ -635,12 +798,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ProjectileAbilityScript",
                             Shape = (byte)2,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 17,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 233L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)1,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 4 },
@@ -650,9 +819,11 @@ namespace Avalon.Database.World.Migrations
                             AuraId = 4L,
                             BaseDamageCoefficient = 0f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 6000L,
                             Cost = 15L,
                             CostPowerType = 1,
+                            DamageEffectiveness = 100f,
                             EffectValue = 0L,
                             Effects = 4,
                             Flags = 0L,
@@ -668,12 +839,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)1,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 28L,
+                            SpellBaseMin = 19L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 12,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 234L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)1,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[] { 4 },
@@ -683,9 +860,11 @@ namespace Avalon.Database.World.Migrations
                             AuraId = 5L,
                             BaseDamageCoefficient = 0f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 20000L,
                             Cost = 20L,
                             CostPowerType = 1,
+                            DamageEffectiveness = 100f,
                             EffectValue = 0L,
                             Effects = 4,
                             Flags = 0L,
@@ -701,12 +880,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)1,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 8,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 204L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[] { 1 },
@@ -716,9 +901,11 @@ namespace Avalon.Database.World.Migrations
                             AuraId = 12L,
                             BaseDamageCoefficient = 0.3f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 15000L,
                             Cost = 15L,
                             CostPowerType = 2,
+                            DamageEffectiveness = 148f,
                             DamageType = 0,
                             EffectValue = 6L,
                             Effects = 1,
@@ -735,12 +922,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 214L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 2 },
@@ -750,9 +943,11 @@ namespace Avalon.Database.World.Migrations
                             AuraId = 14L,
                             BaseDamageCoefficient = 0f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 20000L,
                             Cost = 25L,
                             CostPowerType = 1,
+                            DamageEffectiveness = 100f,
                             DamageType = 2,
                             EffectValue = 6L,
                             Effects = 1,
@@ -769,12 +964,19 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)1,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 9L,
+                            SpellBaseMin = 6L,
+                            SpellBasePerLevelPct = 0.45f,
+                            Tags = 10,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 224L,
+                            AddedMax = 4L,
+                            AddedMin = 2L,
+                            AddedType = 4,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 3 },
@@ -784,9 +986,11 @@ namespace Avalon.Database.World.Migrations
                             AuraId = 13L,
                             BaseDamageCoefficient = 0.3f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 15000L,
                             Cost = 20L,
                             CostPowerType = 3,
+                            DamageEffectiveness = 168f,
                             DamageType = 0,
                             EffectValue = 8L,
                             Effects = 1,
@@ -803,12 +1007,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ProjectileAbilityScript",
                             Shape = (byte)2,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 17,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 235L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[] { 4 },
@@ -818,9 +1028,11 @@ namespace Avalon.Database.World.Migrations
                             AuraId = 15L,
                             BaseDamageCoefficient = 0f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 20000L,
                             Cost = 20L,
                             CostPowerType = 1,
+                            DamageEffectiveness = 100f,
                             EffectValue = 0L,
                             Effects = 8,
                             Flags = 0L,
@@ -836,12 +1048,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)1,
                             ScriptName = "ProjectileAbilityScript",
                             Shape = (byte)2,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 16,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 300L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -850,9 +1068,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 90f,
                             BaseDamageCoefficient = 1f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 2250L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 100f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -868,12 +1088,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 301L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -882,9 +1108,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 1.6f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 10000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 160f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -900,12 +1128,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 9,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 302L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -914,9 +1148,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 90f,
                             BaseDamageCoefficient = 1f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 2250L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 100f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -932,12 +1168,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 303L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -946,9 +1188,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 90f,
                             BaseDamageCoefficient = 1.8f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 8000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 180f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -964,12 +1208,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 304L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -978,9 +1228,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 90f,
                             BaseDamageCoefficient = 1f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 2250L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 100f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -996,12 +1248,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 305L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[0],
@@ -1010,9 +1268,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 1.4f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 6000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 140f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1028,12 +1288,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ProjectileAbilityScript",
                             Shape = (byte)2,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 17,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 306L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -1042,9 +1308,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 90f,
                             BaseDamageCoefficient = 1f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 2250L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 100f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1060,12 +1328,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 307L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -1074,9 +1348,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 1.5f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 12000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 150f,
                             DamageType = 4,
                             EffectValue = 0L,
                             Effects = 1,
@@ -1093,12 +1369,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 9,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 308L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -1107,9 +1389,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 90f,
                             BaseDamageCoefficient = 1f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 2250L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 100f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1125,12 +1409,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 309L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -1139,9 +1429,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 100f,
                             BaseDamageCoefficient = 1.8f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 9000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 180f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1157,12 +1449,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 310L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -1171,9 +1469,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 2f,
                             CastTime = 1000L,
+                            ConvertPct = 0f,
                             Cooldown = 15000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 200f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1189,12 +1489,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 9,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 311L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -1203,9 +1509,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 90f,
                             BaseDamageCoefficient = 1f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 2250L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 100f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1221,12 +1529,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 312L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -1235,9 +1549,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 60f,
                             BaseDamageCoefficient = 2.4f,
                             CastTime = 1200L,
+                            ConvertPct = 0f,
                             Cooldown = 14000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 240f,
                             DamageType = 4,
                             EffectValue = 0L,
                             Effects = 1,
@@ -1254,12 +1570,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 9,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 313L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[0],
@@ -1268,9 +1590,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 1.6f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 10000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 160f,
                             DamageType = 4,
                             EffectValue = 0L,
                             Effects = 1,
@@ -1287,12 +1611,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ProjectileAbilityScript",
                             Shape = (byte)2,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 17,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 314L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -1301,9 +1631,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 90f,
                             BaseDamageCoefficient = 1f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 2250L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 100f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1319,12 +1651,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 41,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 315L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -1333,9 +1671,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 0f,
                             BaseDamageCoefficient = 2.5f,
                             CastTime = 1200L,
+                            ConvertPct = 0f,
                             Cooldown = 16000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 250f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1351,12 +1691,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 9,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 316L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -1365,9 +1711,11 @@ namespace Avalon.Database.World.Migrations
                             ArcDegrees = 120f,
                             BaseDamageCoefficient = 1.8f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 8000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 180f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1383,12 +1731,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ConeAbilityScript",
                             Shape = (byte)1,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 9,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 317L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
                             AllowedClasses = new byte[0],
@@ -1398,9 +1752,11 @@ namespace Avalon.Database.World.Migrations
                             AuraId = 6L,
                             BaseDamageCoefficient = 0.6f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 8000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 60f,
                             EffectValue = 0L,
                             Effects = 1,
                             Flags = 0L,
@@ -1416,12 +1772,18 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "ProjectileAbilityScript",
                             Shape = (byte)2,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 17,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         },
                         new
                         {
                             Id = 318L,
+                            AddedMax = 0L,
+                            AddedMin = 0L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
                             AllowedClasses = new byte[0],
@@ -1431,9 +1793,11 @@ namespace Avalon.Database.World.Migrations
                             AuraId = 7L,
                             BaseDamageCoefficient = 0f,
                             CastTime = 0L,
+                            ConvertPct = 0f,
                             Cooldown = 18000L,
                             Cost = 0L,
                             CostPowerType = 0,
+                            DamageEffectiveness = 0f,
                             EffectValue = 0L,
                             Effects = 8,
                             Flags = 0L,
@@ -1449,6 +1813,10 @@ namespace Avalon.Database.World.Migrations
                             ScalingStat = (byte)0,
                             ScriptName = "CircleAbilityScript",
                             Shape = (byte)0,
+                            SpellBaseMax = 0L,
+                            SpellBaseMin = 0L,
+                            SpellBasePerLevelPct = 0f,
+                            Tags = 9,
                             TauntDurationMs = 0L,
                             ThreatMultiplier = 1f
                         });
@@ -1472,9 +1840,9 @@ namespace Avalon.Database.World.Migrations
 
                     b.ToTable("AuraStatModifiers", null, t =>
                         {
-                            t.HasCheckConstraint("CK_AuraStatModifiers_Kind", "\"Kind\" IN (1, 2)");
+                            t.HasCheckConstraint("CK_AuraStatModifiers_Kind", "\"Kind\" IN (1, 2, 3)");
 
-                            t.HasCheckConstraint("CK_AuraStatModifiers_Stat", "\"Stat\" BETWEEN 1 AND 15");
+                            t.HasCheckConstraint("CK_AuraStatModifiers_Stat", "\"Stat\" BETWEEN 1 AND 32");
 
                             t.HasCheckConstraint("CK_AuraStatModifiers_Value", "\"Value\" > -1000000 AND \"Value\" < 'Infinity' AND (\"Kind\" = 1 OR \"Value\" > -100)");
                         });
@@ -1520,6 +1888,20 @@ namespace Avalon.Database.World.Migrations
                             AuraId = 9L,
                             Stat = (byte)3,
                             Kind = (byte)2,
+                            Value = 10f
+                        },
+                        new
+                        {
+                            AuraId = 9L,
+                            Stat = (byte)16,
+                            Kind = (byte)1,
+                            Value = 10f
+                        },
+                        new
+                        {
+                            AuraId = 9L,
+                            Stat = (byte)28,
+                            Kind = (byte)1,
                             Value = 10f
                         },
                         new
@@ -1577,6 +1959,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("PeriodicBase")
                         .HasColumnType("real");
 
+                    b.Property<float>("PeriodicEffectiveness")
+                        .HasColumnType("real");
+
                     b.Property<byte>("PeriodicKind")
                         .HasColumnType("smallint");
 
@@ -1618,6 +2003,8 @@ namespace Avalon.Database.World.Migrations
 
                             t.HasCheckConstraint("CK_AuraTemplates_PeriodicBase", "\"PeriodicBase\" >= 0 AND \"PeriodicBase\" < 'Infinity'");
 
+                            t.HasCheckConstraint("CK_AuraTemplates_PeriodicEffectiveness", "\"PeriodicEffectiveness\" >= 0 AND \"PeriodicEffectiveness\" < 'Infinity'");
+
                             t.HasCheckConstraint("CK_AuraTemplates_PeriodicFitsKind", "(\"Kind\" = 2 OR \"PeriodicKind\" <> 1) AND (\"Kind\" = 1 OR \"PeriodicKind\" <> 2)");
 
                             t.HasCheckConstraint("CK_AuraTemplates_PeriodicKind", "\"PeriodicKind\" IN (0, 1, 2)");
@@ -1645,6 +2032,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 3L,
                             Name = "Bleed",
                             PeriodicBase = 12f,
+                            PeriodicEffectiveness = 21f,
                             PeriodicKind = (byte)1,
                             ScalingCoefficient = 0.25f,
                             ScalingStat = (byte)0,
@@ -1664,6 +2052,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Burn",
                             PeriodicBase = 24f,
+                            PeriodicEffectiveness = 100f,
                             PeriodicKind = (byte)1,
                             ScalingCoefficient = 0.6f,
                             ScalingStat = (byte)1,
@@ -1683,6 +2072,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Crippled",
                             PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
                             ScalingStat = (byte)0,
@@ -1702,6 +2092,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Renew",
                             PeriodicBase = 24f,
+                            PeriodicEffectiveness = 100f,
                             PeriodicKind = (byte)2,
                             ScalingCoefficient = 0.4f,
                             ScalingStat = (byte)1,
@@ -1721,6 +2112,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Fortified",
                             PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
                             ScalingStat = (byte)0,
@@ -1740,6 +2132,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 3L,
                             Name = "Poison",
                             PeriodicBase = 3f,
+                            PeriodicEffectiveness = 100f,
                             PeriodicKind = (byte)1,
                             ScalingCoefficient = 0f,
                             ScalingStat = (byte)0,
@@ -1759,6 +2152,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Sundered",
                             PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
                             ScalingStat = (byte)0,
@@ -1778,6 +2172,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Blessed",
                             PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
                             ScalingStat = (byte)0,
@@ -1797,6 +2192,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Emboldened",
                             PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
                             ScalingStat = (byte)0,
@@ -1816,6 +2212,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Hexed",
                             PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
                             ScalingStat = (byte)0,
@@ -1835,6 +2232,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Arrival Protection",
                             PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
                             ScalingStat = (byte)0,
@@ -1854,6 +2252,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Stunned",
                             PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
                             ScalingStat = (byte)0,
@@ -1873,6 +2272,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Bound",
                             PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
                             ScalingStat = (byte)0,
@@ -1892,6 +2292,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Frozen",
                             PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
                             ScalingStat = (byte)0,
@@ -1911,6 +2312,7 @@ namespace Avalon.Database.World.Migrations
                             MaxStacks = 1L,
                             Name = "Silenced",
                             PeriodicBase = 0f,
+                            PeriodicEffectiveness = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
                             ScalingStat = (byte)0,
@@ -3102,10 +3504,25 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("ArmorPerStrength")
                         .HasColumnType("real");
 
+                    b.Property<float>("AttackSpeedCap")
+                        .HasColumnType("real");
+
+                    b.Property<float>("AttackSpeedPerAgility")
+                        .HasColumnType("real");
+
+                    b.Property<float>("BaseCritPct")
+                        .HasColumnType("real");
+
                     b.Property<float>("BlockCap")
                         .HasColumnType("real");
 
                     b.Property<float>("BlockMultiplier")
+                        .HasColumnType("real");
+
+                    b.Property<float>("CastSpeedCap")
+                        .HasColumnType("real");
+
+                    b.Property<float>("CooldownRecoveryCap")
                         .HasColumnType("real");
 
                     b.Property<float>("CritCap")
@@ -3129,6 +3546,18 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("HasteCap")
                         .HasColumnType("real");
 
+                    b.Property<float>("IncreasedHealingPerIntellect")
+                        .HasColumnType("real");
+
+                    b.Property<float>("IncreasedPhysicalAttackPerStrength")
+                        .HasColumnType("real");
+
+                    b.Property<float>("IncreasedSpellPerIntellect")
+                        .HasColumnType("real");
+
+                    b.Property<long>("LifePerStamina")
+                        .HasColumnType("bigint");
+
                     b.Property<float>("MoveSpeedCap")
                         .HasColumnType("real");
 
@@ -3140,6 +3569,15 @@ namespace Avalon.Database.World.Migrations
 
                     b.Property<float>("ResistanceFloor")
                         .HasColumnType("real");
+
+                    b.Property<long>("UnarmedAttackTimeMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("UnarmedDamageMax")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("UnarmedDamageMin")
+                        .HasColumnType("bigint");
 
                     b.Property<float>("WardPerIntellect")
                         .HasColumnType("real");
@@ -3158,9 +3596,19 @@ namespace Avalon.Database.World.Migrations
 
                             t.HasCheckConstraint("CK_CombatFormula_ArmorTermsPositive", "\"ArmorBase\" + \"ArmorPerLevel\" > 0");
 
+                            t.HasCheckConstraint("CK_CombatFormula_AttackSpeedCap", "\"AttackSpeedCap\" >= 0 AND \"AttackSpeedCap\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_AttackSpeedPerAgility", "\"AttackSpeedPerAgility\" >= 0 AND \"AttackSpeedPerAgility\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_BaseCritPct", "\"BaseCritPct\" >= 0 AND \"BaseCritPct\" <= 100");
+
                             t.HasCheckConstraint("CK_CombatFormula_BlockCap", "\"BlockCap\" >= 0 AND \"BlockCap\" <= 100");
 
                             t.HasCheckConstraint("CK_CombatFormula_BlockMultiplier", "\"BlockMultiplier\" >= 0 AND \"BlockMultiplier\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_CastSpeedCap", "\"CastSpeedCap\" >= 0 AND \"CastSpeedCap\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_CooldownRecoveryCap", "\"CooldownRecoveryCap\" >= 0 AND \"CooldownRecoveryCap\" < 'Infinity'");
 
                             t.HasCheckConstraint("CK_CombatFormula_CritCap", "\"CritCap\" >= 0 AND \"CritCap\" <= 100");
 
@@ -3178,6 +3626,14 @@ namespace Avalon.Database.World.Migrations
 
                             t.HasCheckConstraint("CK_CombatFormula_HasteCap", "\"HasteCap\" >= 0 AND \"HasteCap\" < 'Infinity'");
 
+                            t.HasCheckConstraint("CK_CombatFormula_IncreasedHealingPerIntellect", "\"IncreasedHealingPerIntellect\" >= 0 AND \"IncreasedHealingPerIntellect\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_IncreasedPhysicalAttackPerStrength", "\"IncreasedPhysicalAttackPerStrength\" >= 0 AND \"IncreasedPhysicalAttackPerStrength\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_IncreasedSpellPerIntellect", "\"IncreasedSpellPerIntellect\" >= 0 AND \"IncreasedSpellPerIntellect\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_LifePerStamina", "\"LifePerStamina\" >= 0 AND \"LifePerStamina\" <= 4294967295");
+
                             t.HasCheckConstraint("CK_CombatFormula_MoveSpeedCap", "\"MoveSpeedCap\" > -100 AND \"MoveSpeedCap\" < 'Infinity'");
 
                             t.HasCheckConstraint("CK_CombatFormula_MoveSpeedFloor", "\"MoveSpeedFloor\" > -100 AND \"MoveSpeedFloor\" <= \"MoveSpeedCap\"");
@@ -3187,6 +3643,10 @@ namespace Avalon.Database.World.Migrations
                             t.HasCheckConstraint("CK_CombatFormula_ResistanceFloor", "\"ResistanceFloor\" >= -100 AND \"ResistanceFloor\" <= 0");
 
                             t.HasCheckConstraint("CK_CombatFormula_SingleRow", "\"Id\" = 1");
+
+                            t.HasCheckConstraint("CK_CombatFormula_Unarmed", "\"UnarmedDamageMin\" <= \"UnarmedDamageMax\"");
+
+                            t.HasCheckConstraint("CK_CombatFormula_UnarmedAttackTimeMs", "\"UnarmedAttackTimeMs\" > 0");
 
                             t.HasCheckConstraint("CK_CombatFormula_WardPerIntellect", "\"WardPerIntellect\" >= 0 AND \"WardPerIntellect\" < 'Infinity'");
                         });
@@ -3199,8 +3659,13 @@ namespace Avalon.Database.World.Migrations
                             ArmorCap = 0.75f,
                             ArmorPerLevel = 10f,
                             ArmorPerStrength = 0.1f,
+                            AttackSpeedCap = 50f,
+                            AttackSpeedPerAgility = 0.1f,
+                            BaseCritPct = 5f,
                             BlockCap = 50f,
                             BlockMultiplier = 0.5f,
+                            CastSpeedCap = 50f,
+                            CooldownRecoveryCap = 50f,
                             CritCap = 50f,
                             CritMultiplier = 1.5f,
                             EvasionBase = 560f,
@@ -3208,10 +3673,17 @@ namespace Avalon.Database.World.Migrations
                             EvasionPerAgility = 1.125f,
                             EvasionPerLevel = 40f,
                             HasteCap = 50f,
+                            IncreasedHealingPerIntellect = 3.5f,
+                            IncreasedPhysicalAttackPerStrength = 3.5f,
+                            IncreasedSpellPerIntellect = 3.5f,
+                            LifePerStamina = 5L,
                             MoveSpeedCap = 35f,
                             MoveSpeedFloor = -50f,
                             ResistanceCap = 75f,
                             ResistanceFloor = -100f,
+                            UnarmedAttackTimeMs = 816L,
+                            UnarmedDamageMax = 6L,
+                            UnarmedDamageMin = 3L,
                             WardPerIntellect = 0.25f
                         });
                 });
@@ -4943,6 +5415,9 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired()
                         .HasColumnType("smallint[]");
 
+                    b.Property<long?>("AttackTimeMs")
+                        .HasColumnType("bigint");
+
                     b.Property<long>("BuyPrice")
                         .HasColumnType("bigint");
 
@@ -5084,7 +5559,10 @@ namespace Avalon.Database.World.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ItemTemplates");
+                    b.ToTable("ItemTemplates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemTemplates_AttackTimeMs", "\"AttackTimeMs\" IS NULL OR \"AttackTimeMs\" > 0");
+                        });
 
                     b.HasData(
                         new
@@ -5144,6 +5622,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 4m,
                             AllowedClasses = new byte[] { 1 },
+                            AttackTimeMs = 792L,
                             BuyPrice = 100L,
                             Class = 1,
                             DamageMax1 = 3L,
@@ -5166,6 +5645,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 5m,
                             AllowedClasses = new byte[] { 2 },
+                            AttackTimeMs = 800L,
                             BuyPrice = 200L,
                             Class = 1,
                             DamageMax1 = 14L,
@@ -5190,6 +5670,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 6m,
                             AllowedClasses = new byte[] { 3 },
+                            AttackTimeMs = 801L,
                             BuyPrice = 200L,
                             Class = 1,
                             DamageMax1 = 11L,
@@ -5214,6 +5695,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 7m,
                             AllowedClasses = new byte[] { 1 },
+                            AttackTimeMs = 792L,
                             BuyPrice = 200L,
                             Class = 1,
                             DamageMax1 = 11L,
@@ -5238,6 +5720,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 8m,
                             AllowedClasses = new byte[] { 4 },
+                            AttackTimeMs = 784L,
                             BuyPrice = 200L,
                             Class = 1,
                             DamageMax1 = 11L,
@@ -5744,6 +6227,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 32m,
                             AllowedClasses = new byte[] { 1 },
+                            AttackTimeMs = 792L,
                             BuyPrice = 120L,
                             Class = 1,
                             DamageMax1 = 7L,
@@ -5768,6 +6252,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 33m,
                             AllowedClasses = new byte[] { 2 },
+                            AttackTimeMs = 800L,
                             BuyPrice = 120L,
                             Class = 1,
                             DamageMax1 = 7L,
@@ -5792,6 +6277,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 34m,
                             AllowedClasses = new byte[] { 3 },
+                            AttackTimeMs = 801L,
                             BuyPrice = 120L,
                             Class = 1,
                             DamageMax1 = 7L,
@@ -5816,6 +6302,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 35m,
                             AllowedClasses = new byte[] { 4 },
+                            AttackTimeMs = 784L,
                             BuyPrice = 120L,
                             Class = 1,
                             DamageMax1 = 7L,

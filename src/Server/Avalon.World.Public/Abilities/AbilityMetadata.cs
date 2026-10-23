@@ -84,6 +84,38 @@ public sealed class AbilityMetadata
     /// </summary>
     public DamageType? DamageType { get; init; }
 
+    // The offence model (#1178), copied from the template.
+
+    /// <summary>What the ability is: Attack, Spell or Heal, and its delivery (Area, Projectile, Melee).</summary>
+    public AbilityTags Tags { get; init; }
+
+    /// <summary>Percent an Attack's weapon roll, and a Spell's added damage, count for; 100 counts them whole.</summary>
+    public float DamageEffectiveness { get; init; } = 100f;
+
+    /// <summary>The lowest a Spell or a Heal rolls at level 1, inclusive.</summary>
+    public uint SpellBaseMin { get; init; }
+
+    /// <summary>The highest a Spell or a Heal rolls at level 1, inclusive.</summary>
+    public uint SpellBaseMax { get; init; }
+
+    /// <summary>Percent of the level-1 spell base added for each level above 1.</summary>
+    public float SpellBasePerLevelPct { get; init; }
+
+    /// <summary>The element an Attack converts part of its weapon's physical damage to, or null.</summary>
+    public DamageType? ConvertToType { get; init; }
+
+    /// <summary>Percent of an Attack's physical damage converted to <see cref="ConvertToType" />.</summary>
+    public float ConvertPct { get; init; }
+
+    /// <summary>The type of the ability's built-in added damage, or null for none.</summary>
+    public DamageType? AddedType { get; init; }
+
+    /// <summary>The lowest built-in added damage, inclusive.</summary>
+    public uint AddedMin { get; init; }
+
+    /// <summary>The highest built-in added damage, inclusive; 0 adds none.</summary>
+    public uint AddedMax { get; init; }
+
     public AbilityMetadata Clone() =>
         new()
         {
@@ -115,5 +147,15 @@ public sealed class AbilityMetadata
             ScalingCoefficient = ScalingCoefficient,
             BaseDamageCoefficient = BaseDamageCoefficient,
             DamageType = DamageType,
+            Tags = Tags,
+            DamageEffectiveness = DamageEffectiveness,
+            SpellBaseMin = SpellBaseMin,
+            SpellBaseMax = SpellBaseMax,
+            SpellBasePerLevelPct = SpellBasePerLevelPct,
+            ConvertToType = ConvertToType,
+            ConvertPct = ConvertPct,
+            AddedType = AddedType,
+            AddedMin = AddedMin,
+            AddedMax = AddedMax,
         };
 }

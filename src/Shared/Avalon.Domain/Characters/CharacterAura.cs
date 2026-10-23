@@ -45,6 +45,12 @@ public class CharacterAura
     public DamageType DamageType { get; set; }
 
     /// <summary>
+    /// The caster's crit multiplier bonus at application (#1178), added to the formula's multiplier when a tick crits;
+    /// a row saved before the column existed restores with none.
+    /// </summary>
+    public float CritMultiplierBonus { get; set; }
+
+    /// <summary>
     /// The fraction of a point its ticks had earned but not yet dealt or healed, so its remaining ticks add up to what
     /// they would have had it never left the world.
     /// </summary>

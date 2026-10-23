@@ -211,6 +211,9 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<int>("CasterLevel")
                         .HasColumnType("integer");
 
+                    b.Property<float>("CritMultiplierBonus")
+                        .HasColumnType("real");
+
                     b.Property<float>("CritPct")
                         .HasColumnType("real");
 

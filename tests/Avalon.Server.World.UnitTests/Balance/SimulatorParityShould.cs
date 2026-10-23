@@ -610,7 +610,7 @@ public class SimulatorParityShould
             MaxStacks = 1,
             Modifiers =
             [
-                new AuraStatModifier { AuraId = new Avalon.Common.ValueObjects.AuraId(9905), Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 20f },
+                new AuraStatModifier { AuraId = new Avalon.Common.ValueObjects.AuraId(9905), Stat = AuraStat.Armor, Kind = AuraModifierKind.Increased, Value = 20f },
                 new AuraStatModifier { AuraId = new Avalon.Common.ValueObjects.AuraId(9905), Stat = AuraStat.CritPct, Kind = AuraModifierKind.Flat, Value = 3f },
                 new AuraStatModifier { AuraId = new Avalon.Common.ValueObjects.AuraId(9905), Stat = AuraStat.MaxHealth, Kind = AuraModifierKind.Flat, Value = 25f },
             ],

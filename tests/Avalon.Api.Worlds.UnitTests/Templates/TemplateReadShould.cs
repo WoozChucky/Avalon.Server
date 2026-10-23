@@ -74,7 +74,7 @@ public class TemplateReadShould
             DurationMs = 30000,
             Stacking = Avalon.Domain.World.AuraStacking.Refresh,
             MaxStacks = 1,
-            Modifiers = [new Avalon.Domain.World.AuraStatModifier { AuraId = new AuraId(5), Stat = Avalon.Domain.World.AuraStat.Armor, Kind = Avalon.Domain.World.AuraModifierKind.Percent, Value = 20f }],
+            Modifiers = [new Avalon.Domain.World.AuraStatModifier { AuraId = new AuraId(5), Stat = Avalon.Domain.World.AuraStat.Armor, Kind = Avalon.Domain.World.AuraModifierKind.Increased, Value = 20f }],
         };
         repository.FindByIdAsync(Arg.Any<AuraId>(), Arg.Any<CancellationToken>()).Returns(row);
         var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(s_options))
@@ -84,7 +84,7 @@ public class TemplateReadShould
 
         Assert.Equal(("Fortified", Avalon.Api.Contract.AuraKind.Helpful, 30000u), (dto.Name, dto.Kind, dto.DurationMs));
         AuraStatModifierDto modifier = Assert.Single(dto.Modifiers);
-        Assert.Equal((Avalon.Api.Contract.AuraStat.Armor, Avalon.Api.Contract.AuraModifierKind.Percent, 20f),
+        Assert.Equal((Avalon.Api.Contract.AuraStat.Armor, Avalon.Api.Contract.AuraModifierKind.Increased, 20f),
             (modifier.Stat, modifier.Kind, modifier.Value));
         Assert.Equal(TemplateVersion.Of(row), dto.Version);
         Assert.Equal($"\"{dto.Version}\"", sut.Response.Headers.ETag.ToString());

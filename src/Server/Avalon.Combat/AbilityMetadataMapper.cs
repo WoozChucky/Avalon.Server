@@ -36,5 +36,15 @@ public static class AbilityMetadataMapper
         ScalingCoefficient = template.ScalingCoefficient,
         BaseDamageCoefficient = template.BaseDamageCoefficient,
         DamageType = template.DamageType,
+        Tags = template.Tags,
+        DamageEffectiveness = template.DamageEffectiveness,
+        SpellBaseMin = template.SpellBaseMin,
+        SpellBaseMax = template.SpellBaseMax,
+        SpellBasePerLevelPct = template.SpellBasePerLevelPct,
+        ConvertToType = template.ConvertToType,
+        ConvertPct = template.ConvertPct,
+        AddedType = template.AddedType,
+        AddedMin = template.AddedMin,
+        AddedMax = template.AddedMax,
     };
 }

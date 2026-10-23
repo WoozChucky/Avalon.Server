@@ -22,7 +22,7 @@ public class AuraTemplateSchemaShould
         ScalingStat = ScalingStat.Attack,
         Stacking = AuraStacking.Refresh,
         MaxStacks = 1,
-        Modifiers = [new AuraStatModifier { AuraId = new AuraId(id), Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 20f }],
+        Modifiers = [new AuraStatModifier { AuraId = new AuraId(id), Stat = AuraStat.Armor, Kind = AuraModifierKind.Increased, Value = 20f }],
     };
 
     [Fact]
@@ -40,7 +40,7 @@ public class AuraTemplateSchemaShould
 
         Assert.Equal(("Fortified", AuraKind.Helpful, 30000u), (read.Name, read.Kind, read.DurationMs));
         AuraStatModifier armour = Assert.Single(read.Modifiers);
-        Assert.Equal((AuraStat.Armor, AuraModifierKind.Percent, 20f), (armour.Stat, armour.Kind, armour.Value));
+        Assert.Equal((AuraStat.Armor, AuraModifierKind.Increased, 20f), (armour.Stat, armour.Kind, armour.Value));
         Assert.Contains(await repository.GetAllAsync(), a => a.Id.Value == 900 && a.Modifiers.Count == 1);
         Assert.Contains((await repository.PaginateAsync(1, 50)).Items, a => a.Id.Value == 900);
     }

@@ -52,6 +52,25 @@ public static class CombatDataRules
         RequireNonNegative("CombatFormula 1", nameof(f.EvasionPerAgility), f.EvasionPerAgility);
         RequireNonNegative("CombatFormula 1", nameof(f.WardPerIntellect), f.WardPerIntellect);
 
+        // #1178, offence: the attributes' conversions and the speed caps are finite and 0 or more, the base crit chance
+        // percentage points, and the bare hand rolls an ordered range at a pace above 0.
+        RequireNonNegative("CombatFormula 1", nameof(f.IncreasedPhysicalAttackPerStrength), f.IncreasedPhysicalAttackPerStrength);
+        RequireNonNegative("CombatFormula 1", nameof(f.AttackSpeedPerAgility), f.AttackSpeedPerAgility);
+        RequireNonNegative("CombatFormula 1", nameof(f.IncreasedSpellPerIntellect), f.IncreasedSpellPerIntellect);
+        RequireNonNegative("CombatFormula 1", nameof(f.IncreasedHealingPerIntellect), f.IncreasedHealingPerIntellect);
+        RequireNonNegative("CombatFormula 1", nameof(f.AttackSpeedCap), f.AttackSpeedCap);
+        RequireNonNegative("CombatFormula 1", nameof(f.CastSpeedCap), f.CastSpeedCap);
+        RequireNonNegative("CombatFormula 1", nameof(f.CooldownRecoveryCap), f.CooldownRecoveryCap);
+        RequireRange("CombatFormula 1", nameof(f.BaseCritPct), f.BaseCritPct, 0f, 100f);
+        if (f.UnarmedDamageMin > f.UnarmedDamageMax)
+        {
+            throw new InvalidDataException(
+                $"CombatFormula 1: UnarmedDamageMin {f.UnarmedDamageMin} is above UnarmedDamageMax {f.UnarmedDamageMax}");
+        }
+
+        if (f.UnarmedAttackTimeMs == 0)
+            throw new InvalidDataException("CombatFormula 1: UnarmedAttackTimeMs must be above 0");
+
         var byClass = new Dictionary<CharacterClass, ClassStatFactors>();
         foreach (ClassStatFactors row in factors)
         {

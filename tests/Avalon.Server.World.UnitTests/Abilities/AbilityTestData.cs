@@ -37,6 +37,7 @@ internal static class AbilityTestData
         EffectValue = 10,
         AllowedClasses = [CharacterClass.Warrior],
         DamageType = DamageType.Physical,
+        Tags = AbilityTags.Attack | AbilityTags.Area,
     };
 
     public static AbilityTemplate AimedCircle(uint id, float reach = 15f, float radius = 3f) => new()
@@ -53,6 +54,7 @@ internal static class AbilityTestData
         EffectValue = 10,
         AllowedClasses = [CharacterClass.Wizard],
         DamageType = DamageType.Physical,
+        Tags = AbilityTags.Attack | AbilityTags.Area,
     };
 
     public static AbilityTemplate HealCircle(uint id, float reach = 15f, float radius = 4f) => new()
@@ -70,6 +72,9 @@ internal static class AbilityTestData
         EffectValue = 40,
         HealThreatPerHp = 0.5f,
         AllowedClasses = [CharacterClass.Cleric],
+        Tags = AbilityTags.Heal | AbilityTags.Area,
+        SpellBaseMin = 40,
+        SpellBaseMax = 40,
     };
 
     public static AbilityTemplate Cone(uint id, float reach = 3f, float arc = 90f,
@@ -86,6 +91,7 @@ internal static class AbilityTestData
             EffectValue = 10,
             AllowedClasses = [CharacterClass.Warrior],
             DamageType = DamageType.Physical,
+            Tags = AbilityTags.Attack | AbilityTags.Area,
         };
 
     public static AbilityTemplate Projectile(uint id, float reach = 20f, float speed = 20f, bool pierce = false) => new()
@@ -102,5 +108,6 @@ internal static class AbilityTestData
         EffectValue = 10,
         AllowedClasses = [CharacterClass.Hunter],
         DamageType = DamageType.Physical,
+        Tags = AbilityTags.Attack | AbilityTags.Projectile,
     };
 }

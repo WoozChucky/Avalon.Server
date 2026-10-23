@@ -69,7 +69,8 @@ public sealed class AbilityCatalog
 
     /// <summary>
     /// Why the ability's aura link cannot load, or null: the aura must exist, fit what the ability affects, and, when it
-    /// deals damage over time, have a damage type to deal (#1178). Nothing to say without a catalog to check against.
+    /// deals damage over time, have a damage type to deal, and the ability must be a source the aura can scale with
+    /// (#1178). Nothing to say without a catalog to check against.
     /// </summary>
     private static string? AuraProblem(AbilityTemplate t, AuraCatalog? auras)
     {
@@ -77,7 +78,7 @@ public sealed class AbilityCatalog
 
         return AuraRules.LinkProblem(t.Affects, t.AuraId, id => auras.TryGet(id, out AuraTemplate? aura) ? aura : null)
                ?? (t.AuraId is { } auraId && auras.TryGet(auraId, out AuraTemplate? linked)
-                   ? AuraRules.DamageTypeProblem(t, linked)
+                   ? AuraRules.DamageTypeProblem(t, linked) ?? AuraRules.SourceProblem(t, linked)
                    : null);
     }
 }

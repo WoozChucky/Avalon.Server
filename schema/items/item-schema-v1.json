@@ -132,6 +132,11 @@
       "enum": "DamageType"
     },
     {
+      "name": "AttackTimeMs",
+      "type": "uint32",
+      "nullable": true
+    },
+    {
       "name": "StatType1",
       "type": "enum",
       "nullable": true,
@@ -534,6 +539,70 @@
       {
         "name": "BlightResistance",
         "value": 18
+      },
+      {
+        "name": "IncreasedDamage",
+        "value": 19
+      },
+      {
+        "name": "IncreasedPhysicalDamage",
+        "value": 20
+      },
+      {
+        "name": "IncreasedFireDamage",
+        "value": 21
+      },
+      {
+        "name": "IncreasedColdDamage",
+        "value": 22
+      },
+      {
+        "name": "IncreasedLightningDamage",
+        "value": 23
+      },
+      {
+        "name": "IncreasedBlightDamage",
+        "value": 24
+      },
+      {
+        "name": "IncreasedAttackDamage",
+        "value": 25
+      },
+      {
+        "name": "IncreasedSpellDamage",
+        "value": 26
+      },
+      {
+        "name": "IncreasedAreaDamage",
+        "value": 27
+      },
+      {
+        "name": "IncreasedProjectileDamage",
+        "value": 28
+      },
+      {
+        "name": "IncreasedMeleeDamage",
+        "value": 29
+      },
+      {
+        "name": "IncreasedDamageOverTime",
+        "value": 30
+      },
+      {
+        "name": "IncreasedHealing",
+        "value": 31
+      },
+      {
+        "name": "CritMultiplier",
+        "value": 32
+      },
+      {
+        "name": "CastSpeed",
+        "value": 33
+      },
+      {
+        "name": "CooldownRecovery",
+        "value": 34
       }
     ],
     "ItemTemplateFlags": [

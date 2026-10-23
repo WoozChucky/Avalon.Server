@@ -26,9 +26,9 @@ public class AuraStatsShould
     [Fact]
     public void Scale_armour_by_the_sum_of_every_percent_held()
     {
-        Assert.Equal(36u, AuraStats.Apply(30u, Of((Mod(AuraStat.Armor, AuraModifierKind.Percent, 20f), 1)), AuraStat.Armor));
-        Assert.Equal(29u, AuraStats.Apply(30u, Of((Mod(AuraStat.Armor, AuraModifierKind.Percent, 20f), 1),
-            (Mod(AuraStat.Armor, AuraModifierKind.Percent, -25f), 1)), AuraStat.Armor));
+        Assert.Equal(36u, AuraStats.Apply(30u, Of((Mod(AuraStat.Armor, AuraModifierKind.Increased, 20f), 1)), AuraStat.Armor));
+        Assert.Equal(29u, AuraStats.Apply(30u, Of((Mod(AuraStat.Armor, AuraModifierKind.Increased, 20f), 1),
+            (Mod(AuraStat.Armor, AuraModifierKind.Increased, -25f), 1)), AuraStat.Armor));
     }
 
     /// <summary>Crippled: movement speed is in points, so Flat -30 slows a gearless unit by 30 %.</summary>
@@ -61,12 +61,12 @@ public class AuraStatsShould
     public void Fold_every_stat_an_aura_names_on_a_character()
     {
         AuraStatTotals all = Of(
-            (Mod(AuraStat.Armor, AuraModifierKind.Flat, 10f), 1), (Mod(AuraStat.AttackDamage, AuraModifierKind.Percent, 50f), 1),
+            (Mod(AuraStat.Armor, AuraModifierKind.Flat, 10f), 1), (Mod(AuraStat.AttackDamage, AuraModifierKind.Increased, 50f), 1),
             (Mod(AuraStat.AbilityDamage, AuraModifierKind.Flat, 1f), 1), (Mod(AuraStat.CritPct, AuraModifierKind.Flat, 2f), 1),
             (Mod(AuraStat.Evasion, AuraModifierKind.Flat, 3f), 1), (Mod(AuraStat.BlockPct, AuraModifierKind.Flat, 4f), 1),
             (Mod(AuraStat.HastePct, AuraModifierKind.Flat, 10f), 1), (Mod(AuraStat.MovementSpeed, AuraModifierKind.Flat, -30f), 1),
-            (Mod(AuraStat.MaxHealth, AuraModifierKind.Percent, 10f), 1), (Mod(AuraStat.MaxPower, AuraModifierKind.Flat, 5f), 1),
-            (Mod(AuraStat.MaxWard, AuraModifierKind.Percent, 50f), 1), (Mod(AuraStat.FireResistance, AuraModifierKind.Flat, -30f), 1));
+            (Mod(AuraStat.MaxHealth, AuraModifierKind.Increased, 10f), 1), (Mod(AuraStat.MaxPower, AuraModifierKind.Flat, 5f), 1),
+            (Mod(AuraStat.MaxWard, AuraModifierKind.Increased, 50f), 1), (Mod(AuraStat.FireResistance, AuraModifierKind.Flat, -30f), 1));
         var stats = new DerivedCharacterStats(500, 100, 20, 20, 20, 20, 30, 5f, 3, 5f, 46, 9, 4, 7, 3f, 0f,
             MaxWard: 40, Resistances: new Resistances(10f, 0f, 0f, 0f));
 
@@ -82,7 +82,7 @@ public class AuraStatsShould
     [Fact]
     public void Fold_a_creatures_attack_and_defence()
     {
-        AuraStatTotals sundered = Of((Mod(AuraStat.Armor, AuraModifierKind.Percent, -25f), 1),
+        AuraStatTotals sundered = Of((Mod(AuraStat.Armor, AuraModifierKind.Increased, -25f), 1),
             (Mod(AuraStat.CritPct, AuraModifierKind.Flat, 5f), 1), (Mod(AuraStat.FireResistance, AuraModifierKind.Flat, -30f), 1));
 
         Assert.Equal(new DefenderCombat(30, 2, 1f, new Resistances(-20f, 0f, 0f, 50f)),
@@ -100,7 +100,7 @@ public class AuraStatsShould
         var plate = new ItemTemplate { Name = "Plate", Slot = ItemSlotType.Chest, StatType1 = StatType.Armor, StatValue1 = 24 };
 
         DerivedCharacterStats folded = CharacterStatsCalculator.Calculate(row, [plate], factors, new CombatFormula(),
-            Of((Mod(AuraStat.Armor, AuraModifierKind.Percent, 20f), 1)));
+            Of((Mod(AuraStat.Armor, AuraModifierKind.Increased, 20f), 1)));
 
         Assert.Equal(29u, folded.Armor);
         Assert.Equal(CharacterStatsCalculator.Calculate(row, [plate], factors, new CombatFormula()).AttackDamage, folded.AttackDamage);

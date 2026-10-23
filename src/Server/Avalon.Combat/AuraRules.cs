@@ -32,6 +32,7 @@ public static class AuraRules
                  {
                      ("PeriodicBase", t.PeriodicBase), ("ScalingCoefficient", t.ScalingCoefficient),
                      ("BaseDamageCoefficient", t.BaseDamageCoefficient),
+                     ("PeriodicEffectiveness", t.PeriodicEffectiveness),
                  })
         {
             if (!float.IsFinite(value) || value < 0f)
@@ -59,7 +60,7 @@ public static class AuraRules
             if (!Enum.IsDefined(m.Kind)) return $"unknown modifier kind {(int)m.Kind} on {m.Stat}";
             if (!float.IsFinite(m.Value)) return FormattableString.Invariant($"{m.Stat} modifier {m.Value} is not finite");
             // A percentage at or below -100 would take the whole stat, or turn it negative.
-            if (m.Kind == AuraModifierKind.Percent && m.Value <= -100f) return FormattableString.Invariant($"{m.Stat} modifier {m.Value} % would take the whole stat");
+            if (m.Kind == AuraModifierKind.Increased && m.Value <= -100f) return FormattableString.Invariant($"{m.Stat} modifier {m.Value} % would take the whole stat");
             if (!seen.Add(m.Stat)) return $"{m.Stat} is modified twice";
         }
 
@@ -176,4 +177,31 @@ public static class AuraRules
         ability.DamageType is null && ability.AllowedClasses is { Count: > 0 } && aura.PeriodicKind == AuraPeriodicKind.Damage
             ? "a class ability that applies a damaging aura names its damage type"
             : null;
+
+    /// <summary>
+    /// Why <paramref name="ability" /> cannot be the source of <paramref name="aura" /> under the offence model (#1178), or
+    /// null: a damage-over-time aura scales with its source's tags, so a class ability applying a damaging aura is an
+    /// Attack or a Spell and an Ally ability applying a healing aura is a Heal; and a Spell or a Heal whose aura ticks
+    /// has a spell base for the aura to draw on, as one dealing or healing directly must.
+    /// </summary>
+    public static string? SourceProblem(AbilityTemplate ability, AuraTemplate aura)
+    {
+        AbilityTags tags = ability.Tags;
+        if (aura.PeriodicKind == AuraPeriodicKind.Damage && ability.AllowedClasses is { Count: > 0 }
+            && !AbilityRules.Has(tags, AbilityTags.Attack | AbilityTags.Spell))
+        {
+            return "a class ability that applies a damaging aura is an Attack or a Spell";
+        }
+
+        if (aura.PeriodicKind == AuraPeriodicKind.Heal && ability.Affects == AbilityAffects.Ally
+            && !AbilityRules.Has(tags, AbilityTags.Heal))
+        {
+            return "an Ally ability that applies a healing aura is a Heal";
+        }
+
+        return aura.PeriodicKind != AuraPeriodicKind.None && AbilityRules.Has(tags, AbilityTags.Spell | AbilityTags.Heal)
+               && ability.SpellBaseMax == 0
+            ? AbilityRules.NoSpellBase
+            : null;
+    }
 }

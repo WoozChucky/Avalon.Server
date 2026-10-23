@@ -23,4 +23,23 @@ public enum AuraStat
     LightningResistance = 13,
     BlightResistance = 14,
     MaxWard = 15,
+
+    // The offence model (#1178): percentages of increased damage or healing, then the crit multiplier and the speeds.
+    IncreasedDamage = 16,
+    IncreasedPhysicalDamage = 17,
+    IncreasedFireDamage = 18,
+    IncreasedColdDamage = 19,
+    IncreasedLightningDamage = 20,
+    IncreasedBlightDamage = 21,
+    IncreasedAttackDamage = 22,
+    IncreasedSpellDamage = 23,
+    IncreasedAreaDamage = 24,
+    IncreasedProjectileDamage = 25,
+    IncreasedMeleeDamage = 26,
+    IncreasedDamageOverTime = 27,
+    IncreasedHealing = 28,
+    CritMultiplier = 29,
+    AttackSpeed = 30,
+    CastSpeed = 31,
+    CooldownRecovery = 32,
 }

@@ -60,6 +60,7 @@ public class AuraSimulationShould
         AuraId = new AuraId(9901),
         DamageType = DamageType.Physical,
         ThreatMultiplier = 1f,
+        Tags = AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area,
     };
 
     private static BalanceData Data(AuraTemplate? bleed = null, Action<SeedTables>? change = null)
@@ -214,7 +215,7 @@ public class AuraSimulationShould
         ward.Modifiers =
         [
             new AuraStatModifier { AuraId = ward.Id, Stat = AuraStat.Armor, Kind = AuraModifierKind.Flat, Value = 50f },
-            new AuraStatModifier { AuraId = ward.Id, Stat = AuraStat.MaxHealth, Kind = AuraModifierKind.Percent, Value = 100f },
+            new AuraStatModifier { AuraId = ward.Id, Stat = AuraStat.MaxHealth, Kind = AuraModifierKind.Increased, Value = 100f },
         ];
 
         boar.Auras.Add(new SimAura(ward, boar, 1, default, AuraSchedule.Start(FightSimulator.Epoch, 30000, 0), 0));

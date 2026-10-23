@@ -90,7 +90,7 @@ internal static class AuraTestData
         DurationMs = 30000,
         Stacking = AuraStacking.Refresh,
         MaxStacks = 1,
-        Modifiers = [new AuraStatModifier { AuraId = new AuraId(id), Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 20f }],
+        Modifiers = [new AuraStatModifier { AuraId = new AuraId(id), Stat = AuraStat.Armor, Kind = AuraModifierKind.Increased, Value = 20f }],
     };
 
     /// <summary>A harmful aura each caster keeps its own copy of: 2 a tick for 6 s.</summary>

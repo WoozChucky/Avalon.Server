@@ -27,4 +27,22 @@ public enum StatType
     ColdResistance = 16,
     LightningResistance = 17,
     BlightResistance = 18,
+
+    // The offence model (#1178): percentages of increased damage or healing, then the crit multiplier and the speeds.
+    IncreasedDamage = 19,
+    IncreasedPhysicalDamage = 20,
+    IncreasedFireDamage = 21,
+    IncreasedColdDamage = 22,
+    IncreasedLightningDamage = 23,
+    IncreasedBlightDamage = 24,
+    IncreasedAttackDamage = 25,
+    IncreasedSpellDamage = 26,
+    IncreasedAreaDamage = 27,
+    IncreasedProjectileDamage = 28,
+    IncreasedMeleeDamage = 29,
+    IncreasedDamageOverTime = 30,
+    IncreasedHealing = 31,
+    CritMultiplier = 32,
+    CastSpeed = 33,
+    CooldownRecovery = 34,
 }

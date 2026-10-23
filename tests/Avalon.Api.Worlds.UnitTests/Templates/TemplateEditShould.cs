@@ -71,7 +71,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
                     new Avalon.Domain.World.AuraStatModifier
                     {
                         AuraId = new Avalon.Common.ValueObjects.AuraId(TestWard), Stat = Avalon.Domain.World.AuraStat.Armor,
-                        Kind = Avalon.Domain.World.AuraModifierKind.Percent, Value = 10f,
+                        Kind = Avalon.Domain.World.AuraModifierKind.Increased, Value = 10f,
                     },
                 ],
             });
@@ -658,7 +658,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         ulong id = FirstId("aura");
         (JsonObject json, string version) = await ReadAsync("aura", id);
         json["modifiers"] = new JsonArray(
-            new JsonObject { ["stat"] = "Armor", ["value"] = 15f, ["kind"] = "Percent" },
+            new JsonObject { ["stat"] = "Armor", ["value"] = 15f, ["kind"] = "Increased" },
             new JsonObject { ["stat"] = "Evasion", ["value"] = 2f, ["kind"] = "Flat" });
 
         HttpResponseMessage response = await PutAsync(Editable, "aura", id, json, Tag(version));
@@ -666,7 +666,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         (JsonObject saved, string newVersion) = await ReadAsync("aura", id);
         Assert.NotEqual(version, newVersion);
-        Assert.Equal(["Armor:Percent:15", "Evasion:Flat:2"], saved["modifiers"]!.AsArray()
+        Assert.Equal(["Armor:Increased:15", "Evasion:Flat:2"], saved["modifiers"]!.AsArray()
             .Select(m => $"{m!["stat"]}:{m["kind"]}:{m["value"]}"));
     }
 
@@ -704,7 +704,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         (JsonObject json, string version) = await ReadAsync("aura", TestWard);
         json["modifiers"] = new JsonArray(
             new JsonObject { ["stat"] = "Armor", ["value"] = 5f, ["kind"] = "Flat" },
-            new JsonObject { ["stat"] = "Armor", ["value"] = 5f, ["kind"] = "Percent" });
+            new JsonObject { ["stat"] = "Armor", ["value"] = 5f, ["kind"] = "Increased" });
         HttpResponseMessage twice = await PutAsync(Editable, "aura", TestWard, json, Tag(version));
 
         json["modifiers"] = new JsonArray(new JsonObject { ["stat"] = "Armor", ["value"] = -1_000_000f, ["kind"] = "Flat" });

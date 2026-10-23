@@ -31,9 +31,10 @@ public sealed class TemplateErrors
 /// afterwards. The field rules run on the request, the "world rules" on the row as it would be stored (they cover
 /// the columns an edit cannot reach too, so an already-bad row is refused rather than re-saved). Rules that the
 /// shared <c>Avalon.Combat</c> loaders own are called, not copied: <see cref="AbilityRules.Problem"/>,
-/// <see cref="AuraRules.Problem"/>, <see cref="AuraRules.LinkProblem"/>, <see cref="AuraRules.DamageTypeProblem"/> and
-/// <see cref="CreatureTemplateRules.Validate"/>. The world loads items with no validation of its own and the
-/// ItemTemplates table has no check constraint, so items get sanity rules only.
+/// <see cref="AuraRules.Problem"/>, <see cref="AuraRules.LinkProblem"/>, <see cref="AuraRules.DamageTypeProblem"/>,
+/// <see cref="AuraRules.SourceProblem"/> and <see cref="CreatureTemplateRules.Validate"/>. The world loads items with no
+/// validation of its own, and the ItemTemplates table checks only a weapon's attack time (which an edit cannot reach),
+/// so items get sanity rules only.
 /// </summary>
 public static class TemplateValidation
 {

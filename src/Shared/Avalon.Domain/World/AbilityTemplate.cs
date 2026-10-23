@@ -109,4 +109,42 @@ public class AbilityTemplate : IDbEntity<AbilityId>
     /// directly or through a damaging aura, must name one (<c>AbilityRules</c>, <c>AuraRules.DamageTypeProblem</c>).
     /// </summary>
     public DamageType? DamageType { get; set; }
+
+    // The offence model (#1178). An Attack deals its weapon's roll times DamageEffectiveness; a Spell or a Heal its own
+    // spell base, grown by the caster's level. AbilityRules holds the rows to the model.
+
+    /// <summary>What the ability is: Attack, Spell or Heal, and its delivery (Area, Projectile, Melee).</summary>
+    public AbilityTags Tags { get; set; }
+
+    /// <summary>
+    /// Percent: what an Attack's weapon roll, and a Spell's added damage, count for. Finite and 0 or more; 100 counts
+    /// them whole.
+    /// </summary>
+    public float DamageEffectiveness { get; set; } = 100f;
+
+    /// <summary>The lowest a Spell or a Heal rolls at level 1, inclusive; at most <see cref="SpellBaseMax" />.</summary>
+    public uint SpellBaseMin { get; set; }
+
+    /// <summary>The highest a Spell or a Heal rolls at level 1, inclusive; above 0 for one that deals or heals.</summary>
+    public uint SpellBaseMax { get; set; }
+
+    /// <summary>
+    /// Percent of the level-1 spell base added for each level above 1 (linear). Finite and 0 or more.
+    /// </summary>
+    public float SpellBasePerLevelPct { get; set; }
+
+    /// <summary>The element an Attack converts <see cref="ConvertPct" /> of its weapon's physical damage to, or null.</summary>
+    public DamageType? ConvertToType { get; set; }
+
+    /// <summary>Percent of an Attack's physical damage converted to <see cref="ConvertToType" />, 0 to 100.</summary>
+    public float ConvertPct { get; set; }
+
+    /// <summary>The type of the ability's built-in added damage, or null for none.</summary>
+    public DamageType? AddedType { get; set; }
+
+    /// <summary>The lowest built-in added damage, inclusive; at most <see cref="AddedMax" />.</summary>
+    public uint AddedMin { get; set; }
+
+    /// <summary>The highest built-in added damage, inclusive; 0 adds none.</summary>
+    public uint AddedMax { get; set; }
 }

@@ -56,7 +56,7 @@ public sealed class AuraStatTotals
                 continue;
 
             float value = m.Value * Math.Max(1u, stacks);
-            if (m.Kind == AuraModifierKind.Percent) _percent[i] += value;
+            if (m.Kind == AuraModifierKind.Increased) _percent[i] += value;
             else if (m.Kind == AuraModifierKind.Flat) _flat[i] += value;
             else continue;
 
