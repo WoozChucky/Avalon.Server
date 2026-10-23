@@ -37,7 +37,7 @@ public class ItemStatsBenchmarks
         Intellect = 20,
     };
 
-    private readonly List<ItemTemplate> _worn =
+    private static readonly List<ItemTemplate> s_kit =
     [
         ForestArmourPiece(12, "Barkplate Helm", ItemSubClass.Helmet, ItemSlotType.Head, strength: 1, armor: 4, stamina: 1),
         ForestArmourPiece(13, "Barkplate Chestguard", ItemSubClass.Chest, ItemSlotType.Chest, strength: 2, armor: 8, stamina: 2),
@@ -72,6 +72,9 @@ public class ItemStatsBenchmarks
         Jewellery(65, "Thornheart Signet", ItemSubClass.Ring, ItemSlotType.Finger, 800, 200, 7,
             stamina: 5, armor: 4),
     ];
+
+    // Each piece as a copy that rolled no modifiers, as the kit was measured before #1179.
+    private readonly List<WornItem> _worn = [.. s_kit.Select(t => new WornItem(t, []))];
 
     private readonly ClassStatFactors _factors = CombatSeed.ClassFactors()[0];
     private readonly CombatFormula _formula = CombatSeed.Formula();

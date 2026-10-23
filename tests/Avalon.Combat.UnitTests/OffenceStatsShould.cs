@@ -4,7 +4,8 @@ namespace Avalon.Combat.UnitTests;
 
 /// <summary>
 /// The offence block's hand-written equality (#1178), which the ability amounts' flush compares after every stats
-/// refresh: any one value that differs makes two blocks differ, and equal blocks hash alike.
+/// refresh: any one value that differs, the added damage ranges too (#1179), makes two blocks differ, and equal blocks
+/// hash alike.
 /// </summary>
 public class OffenceStatsShould
 {
@@ -17,6 +18,7 @@ public class OffenceStatsShould
         o.AttackSpeedPct = 2f;
         o.CastSpeedPct = 3f;
         o.CooldownRecoveryPct = 4f;
+        o.AddedToAttacks = Added(DamageType.Fire, 1, 3);
         return o;
     }
 
@@ -29,6 +31,8 @@ public class OffenceStatsShould
     [InlineData("attack speed", false)]
     [InlineData("cast speed", false)]
     [InlineData("cooldown recovery", false)]
+    [InlineData("added to attacks", false)]
+    [InlineData("added to spells", false)]
     public void Differ_by_any_one_value_and_hash_equal_blocks_alike(string change, bool equal)
     {
         OffenceStats other = Block();
@@ -41,11 +45,20 @@ public class OffenceStatsShould
             case "attack speed": other.AttackSpeedPct += 1f; break;
             case "cast speed": other.CastSpeedPct += 1f; break;
             case "cooldown recovery": other.CooldownRecoveryPct += 1f; break;
+            case "added to attacks": other.AddedToAttacks = Added(DamageType.Fire, 1, 4); break;
+            case "added to spells": other.AddedToSpells = Added(DamageType.Cold, 1, 1); break;
             default: break;
         }
 
         Assert.Equal(equal, Block() == other);
         Assert.Equal(equal, Block().Equals((object)other));
         if (equal) Assert.Equal(Block().GetHashCode(), other.GetHashCode());
+    }
+
+    private static DamageRanges Added(DamageType type, uint min, uint max)
+    {
+        DamageRanges ranges = default;
+        ranges.Add(type, min, max);
+        return ranges;
     }
 }

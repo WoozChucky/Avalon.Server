@@ -15,9 +15,9 @@ internal struct OffenceStatValues
 /// <summary>
 /// What a unit's offence adds to its damage, healing and speeds (#1178): per <see cref="OffenceStat" />, the increased
 /// percentage points and the product of every more, plus the crit multiplier bonus and the three speeds as raw totals,
-/// before their caps. Inline arrays rather than managed ones, so it is a value that never allocates; its equality is
-/// written by hand because the ability amounts' flush compares it, inside <see cref="AttackerCombat" />, after every stats
-/// refresh.
+/// before their caps, and the added damage every attack and every spell rolls (#1179). Inline arrays rather than managed
+/// ones, so it is a value that never allocates; its equality is written by hand because the ability amounts' flush
+/// compares it, inside <see cref="AttackerCombat" />, after every stats refresh.
 /// </summary>
 public struct OffenceStats : IEquatable<OffenceStats>
 {
@@ -37,6 +37,12 @@ public struct OffenceStats : IEquatable<OffenceStats>
 
     /// <summary>The raw total, before <see cref="CombatFormula.CooldownRecoveryCap" />, as the two speeds are.</summary>
     public float CooldownRecoveryPct { readonly get; set; }
+
+    /// <summary>Added damage by type every Attack rolls after its weapon's own (#1179): the sum of every worn item's lines.</summary>
+    public DamageRanges AddedToAttacks { readonly get; set; }
+
+    /// <summary>Added damage by type every Spell rolls after its spell base (#1179): the sum of every worn item's lines.</summary>
+    public DamageRanges AddedToSpells { readonly get; set; }
 
     /// <summary>The increased percentage points of <paramref name="stat" />.</summary>
     public readonly float Increased(OffenceStat stat) => _increased[Index(stat)];
@@ -82,7 +88,8 @@ public struct OffenceStats : IEquatable<OffenceStats>
     public readonly bool Equals(OffenceStats other)
     {
         if (!CritMultiplierBonus.Equals(other.CritMultiplierBonus) || !AttackSpeedPct.Equals(other.AttackSpeedPct)
-            || !CastSpeedPct.Equals(other.CastSpeedPct) || !CooldownRecoveryPct.Equals(other.CooldownRecoveryPct))
+            || !CastSpeedPct.Equals(other.CastSpeedPct) || !CooldownRecoveryPct.Equals(other.CooldownRecoveryPct)
+            || !AddedToAttacks.Equals(other.AddedToAttacks) || !AddedToSpells.Equals(other.AddedToSpells))
         {
             return false;
         }
@@ -104,6 +111,8 @@ public struct OffenceStats : IEquatable<OffenceStats>
         hash.Add(AttackSpeedPct);
         hash.Add(CastSpeedPct);
         hash.Add(CooldownRecoveryPct);
+        hash.Add(AddedToAttacks.GetHashCode());
+        hash.Add(AddedToSpells.GetHashCode());
         for (int i = 0; i < Count; i++)
         {
             hash.Add(_increased[i]);

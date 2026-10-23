@@ -12,13 +12,15 @@ namespace Avalon.Combat;
 /// the rolls come from <see cref="ICombatRandom" />, the modifiers from the attacker's <see cref="OffenceStats" />.
 /// </summary>
 /// <remarks>
-/// An Attack rolls its weapon: main-hand range 1, range 2 when it has one, the global added roll when given, the
-/// ability's built-in added roll when it has one, in that order (the contract). Then part of the physical damage is
-/// converted (the ability's <c>ConvertPct</c> to its <c>ConvertToType</c>), then the built-in added damage joins, never
-/// converted. A Spell rolls its spell base (grown by the caster's level), then the global and built-in added rolls. Each
-/// part is then scaled on its own by <see cref="Scale" /> of its own type, so converted damage takes the modifiers of the
-/// type it became and never its original type's. An Attack's every part, and a Spell's added damage only, count for the
-/// ability's damage effectiveness, computed as <c>roll × effectiveness / 100</c> so whole percentages stay exact.
+/// An Attack rolls its weapon: main-hand range 1, range 2 when it has one, the weapon's own added damage by type
+/// (Physical to Blight), the attacker's added damage to attacks by type, the ability's built-in added roll when it has
+/// one, in that order (the contract, #1179). Then part of the physical damage, all of it whatever rolled it, is converted
+/// (the ability's <c>ConvertPct</c> to its <c>ConvertToType</c>), then the built-in added damage joins, never converted. A
+/// Spell rolls its spell base (grown by the caster's level), then the attacker's added damage to spells by type, then the
+/// built-in added roll. Each part is then scaled on its own by <see cref="Scale" /> of its own type, so converted damage
+/// takes the modifiers of the type it became and never its original type's. An Attack's every part, and a Spell's added
+/// damage only, count for the ability's damage effectiveness, computed as <c>roll × effectiveness / 100</c> so whole
+/// percentages stay exact.
 /// </remarks>
 public static class OffenceMath
 {
@@ -67,26 +69,26 @@ public static class OffenceMath
         Math.Max(0d, 1d + (o.Increased(OffenceStat.Healing) / 100d)) * o.More(OffenceStat.Healing);
 
     /// <summary>
-    /// An Attack's parts: its weapon's ranges (each typed by the weapon, else the hit's type), the global
-    /// <paramref name="added" /> damage, the conversion of the physical part, the built-in added damage, each part times
-    /// its scale and the ability's damage effectiveness.
+    /// An Attack's parts: its weapon's ranges (each typed by the weapon, else the hit's type), the weapon's added damage,
+    /// the attacker's added damage to attacks, the conversion of the physical part, the built-in added damage, each part
+    /// times its scale and the ability's damage effectiveness.
     /// </summary>
-    public static DamageParts AttackBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng,
-        in AddedDamage added = default)
+    public static DamageParts AttackBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng)
     {
         DamageType hitType = HitResolver.TypeOf(ability.DamageType, a);
         WeaponDamage weapon = a.Weapon;
+        OffenceStats o = a.Offence;
         DamageParts parts = default;
 
         if (weapon.Max1 > 0) AddRoll(ref parts, weapon.Type1 ?? hitType, weapon.Min1, weapon.Max1, rng);
         if (weapon.Max2 > 0) AddRoll(ref parts, weapon.Type2 ?? hitType, weapon.Min2, weapon.Max2, rng);
-        if (added.Max > 0) AddRoll(ref parts, added.Type, added.Min, added.Max, rng);
+        AddRolls(ref parts, weapon.Added, rng);
+        AddRolls(ref parts, o.AddedToAttacks, rng);
         long builtIn = ability.AddedMax > 0 ? Roll(ability.AddedMin, ability.AddedMax, rng) : 0;
 
         Convert(ref parts, ability);
         if (builtIn > 0) Add(ref parts, ability.AddedType ?? hitType, builtIn);
 
-        OffenceStats o = a.Offence;
         AbilityTags tags = ability.Tags;
         ScaleTerms terms = TermsOf(tags, o);
         double effectiveness = NonNegative(ability.DamageEffectiveness);
@@ -103,25 +105,31 @@ public static class OffenceMath
     }
 
     /// <summary>
-    /// A Spell's parts: its spell base grown by the caster's level, in the hit's type, times its scale; then the global
-    /// <paramref name="added" /> and the built-in added damage, each times its scale and the ability's damage
-    /// effectiveness. No conversion.
+    /// A Spell's parts: its spell base grown by the caster's level, in the hit's type, times its scale; then the
+    /// attacker's added damage to spells by type and the built-in added damage, each times its scale and the ability's
+    /// damage effectiveness. No conversion.
     /// </summary>
-    public static DamageParts SpellBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng,
-        in AddedDamage added = default)
+    public static DamageParts SpellBase(in AttackerCombat a, AbilityMetadata ability, ICombatRandom rng)
     {
         DamageType hitType = HitResolver.TypeOf(ability.DamageType, a);
+        OffenceStats o = a.Offence;
         double spell = SpellRoll(a.Level, ability, rng);
-        long addedRoll = added.Max > 0 ? Roll(added.Min, added.Max, rng) : 0;
+        DamageParts added = default;
+        AddRolls(ref added, o.AddedToSpells, rng);
         long builtIn = ability.AddedMax > 0 ? Roll(ability.AddedMin, ability.AddedMax, rng) : 0;
 
-        OffenceStats o = a.Offence;
         AbilityTags tags = ability.Tags;
         ScaleTerms terms = TermsOf(tags, o);
         double effectiveness = NonNegative(ability.DamageEffectiveness);
         DamageParts parts = default;
         if (spell > 0d) Add(ref parts, hitType, spell * PartScale(hitType, tags, o, terms));
-        if (addedRoll > 0) Add(ref parts, added.Type, addedRoll * effectiveness / 100d * PartScale(added.Type, tags, o, terms));
+        for (int i = 0; i < DamageTypes.Count; i++)
+        {
+            var type = (DamageType)i;
+            double roll = added.Get(type);
+            if (roll > 0d) Add(ref parts, type, roll * effectiveness / 100d * PartScale(type, tags, o, terms));
+        }
+
         if (builtIn > 0)
         {
             DamageType builtInType = ability.AddedType ?? hitType;
@@ -208,6 +216,17 @@ public static class OffenceMath
 
     private static void AddRoll(ref DamageParts parts, DamageType type, uint min, uint max, ICombatRandom rng) =>
         Add(ref parts, type, Roll(min, max, rng));
+
+    /// <summary>Each type's range of <paramref name="ranges" /> that adds anything, rolled in type order, Physical to Blight.</summary>
+    private static void AddRolls(ref DamageParts parts, in DamageRanges ranges, ICombatRandom rng)
+    {
+        for (int i = 0; i < DamageTypes.Count; i++)
+        {
+            var type = (DamageType)i;
+            uint max = ranges.Max(type);
+            if (max > 0) AddRoll(ref parts, type, ranges.Min(type), max, rng);
+        }
+    }
 
     private static long Roll(uint min, uint max, ICombatRandom rng) => rng.NextInt64(Math.Min(min, max), max);
 

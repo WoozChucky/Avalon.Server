@@ -199,7 +199,7 @@ public class ClassStatFactorsGoldenShould
         {
             foreach (bool geared in new[] { false, true })
             {
-                DerivedCharacterStats s = CharacterStatsCalculator.Calculate(row, geared ? s_gear : [], factors[row.Class], formula);
+                DerivedCharacterStats s = CharacterStatsCalculator.Calculate(row, geared ? Worn.Of(s_gear) : [], factors[row.Class], formula);
                 string actual = string.Join(",", s.MaxHealth, s.MaxPower, s.Stamina, s.Strength, s.Agility, s.Intellect,
                     s.Armor, BitConverter.SingleToInt32Bits(s.BlockPct), s.Evasion, s.MaxWard,
                     BitConverter.SingleToInt32Bits(s.CritPct), Bits(s.Offence.Increased(OffenceStat.PhysicalAttack)),

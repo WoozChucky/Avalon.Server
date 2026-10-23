@@ -1254,7 +1254,7 @@ public class SeedIntegrityShould
         AbilityTemplate basic = context.AbilityTemplates.AsNoTracking().AsEnumerable()
             .Single(a => (a.Flags & AbilityFlags.Basic) != 0 && a.AllowedClasses!.Contains(c));
 
-        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, factors, formula);
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, Worn.Of([.. worn]), factors, formula);
         var pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, formula);
         double paceMs = AbilityPace.Cooldown(AbilityMetadataMapper.From(basic), pace) * 1000d;
 
@@ -1332,7 +1332,7 @@ public class SeedIntegrityShould
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
         List<ItemTemplate> worn = RetiredGearProfiles.For(gear, c);
 
-        AttackerCombat caster = CharacterStatsCalculator.Calculate(row, worn, factors, formula).AttackerAt(level);
+        AttackerCombat caster = CharacterStatsCalculator.Calculate(row, Worn.Of([.. worn]), factors, formula).AttackerAt(level);
         AbilityMetadata metadata = AbilityMetadataMapper.From(ability);
         AuraTemplate? aura = viaAura
             ? context.AuraTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == ability.AuraId!.Value)

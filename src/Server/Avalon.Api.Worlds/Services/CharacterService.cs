@@ -275,12 +275,14 @@ public class CharacterService : ICharacterService
     private async Task<AttackerCombat> AttackerAsync(Character character, CancellationToken cancellationToken)
     {
         CharacterStats? stats = await _statsRepository.GetByCharacterIdAsync(character.Id, cancellationToken);
-        IReadOnlyList<ItemTemplate> worn = await WornTemplatesAsync(character.Id, cancellationToken);
+        IReadOnlyList<ItemTemplate> templates = await WornTemplatesAsync(character.Id, cancellationToken);
+        List<WornItem> worn = [.. templates.Select(t => new WornItem(t, []))];
         CombatFormula formula = (await _combatDataRepository.GetFormulasAsync(cancellationToken))
             .FirstOrDefault(f => f.Id == CombatFormula.SingletonId)
             ?? throw new InvalidOperationException("The world has no combat formula row.");
 
-        ItemTemplate? mainHand = worn.FirstOrDefault(t => t.Slot == Avalon.Domain.World.ItemSlotType.MainHand);
+        WornItem? mainHand = worn.Where(w => w.Template.Slot == Avalon.Domain.World.ItemSlotType.MainHand)
+            .Select(w => (WornItem?)w).FirstOrDefault();
         OffenceStats offence = CharacterOffence.Of(stats?.Strength ?? 0, stats?.Agility ?? 0, stats?.Intellect ?? 0, worn,
             formula);
         return new AttackerCombat(character.Level, stats?.CritPct ?? 0f, WeaponDamage.Of(mainHand, formula), offence);

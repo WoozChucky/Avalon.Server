@@ -58,6 +58,61 @@ public class OffenceMathShould
         Assert.Equal(added > 0 ? [(10L, 20L), (added, added)] : [(10L, 20L)], rng.WeaponRolls);
     }
 
+    /// <summary>
+    /// #1179, A-R14, the contract: range 1, the weapon's added damage by type, then the added damage to attacks by type,
+    /// each drawn in that order; conversion then takes the whole physical part, whatever rolled it.
+    /// </summary>
+    [Theory]
+    [InlineData(0f, 12d, 3d, 1d)]
+    [InlineData(50f, 6d, 3d, 7d)]   // half of 10 + 2 physical converts to cold
+    public void Roll_weapon_and_global_added_damage_in_the_contract_order(float convertPct, double physical, double fire,
+        double cold)
+    {
+        DamageRanges weaponAdded = default;
+        weaponAdded.Add(DamageType.Physical, 2, 2);
+        weaponAdded.Add(DamageType.Fire, 3, 3);
+        DamageRanges toAttacks = default;
+        toAttacks.Add(DamageType.Cold, 1, 1);
+        var weapon = new WeaponDamage(10, 10, DamageType.Physical, 0, 0, null, 800, weaponAdded);
+        var ability = new AbilityMetadata
+        {
+            Tags = AbilityTags.Attack | AbilityTags.Melee,
+            DamageType = DamageType.Physical,
+            DamageEffectiveness = 100f,
+            ConvertToType = DamageType.Cold,
+            ConvertPct = convertPct,
+        };
+        ScriptedCombatRandom rng = new ScriptedCombatRandom().Longs(10, 2, 3, 1);
+
+        DamageParts parts = OffenceMath.AttackBase(Attacker(new OffenceStats { AddedToAttacks = toAttacks }, weapon),
+            ability, rng);
+
+        Assert.Equal((physical, fire, cold),
+            (parts.Get(DamageType.Physical), parts.Get(DamageType.Fire), parts.Get(DamageType.Cold)));
+        Assert.Equal([(10L, 10L), (2L, 2L), (3L, 3L), (1L, 1L)], rng.WeaponRolls);
+    }
+
+    /// <summary>#1179: a Spell rolls its base, then the added damage to spells, counted by its damage effectiveness.</summary>
+    [Fact]
+    public void Add_added_to_spells_to_a_spell()
+    {
+        DamageRanges toSpells = default;
+        toSpells.Add(DamageType.Lightning, 2, 2);
+        var spell = new AbilityMetadata
+        {
+            Tags = AbilityTags.Spell,
+            DamageType = DamageType.Fire,
+            DamageEffectiveness = 100f,
+            SpellBaseMin = 10,
+            SpellBaseMax = 10,
+        };
+
+        DamageParts parts = OffenceMath.SpellBase(Attacker(new OffenceStats { AddedToSpells = toSpells }), spell,
+            new ScriptedCombatRandom().Longs(10, 2));
+
+        Assert.Equal((10d, 2d), (parts.Get(DamageType.Fire), parts.Get(DamageType.Lightning)));
+    }
+
     [Theory]
     [InlineData(DamageType.Fire, AbilityTags.Spell | AbilityTags.Area, 3.6)]
     [InlineData(DamageType.Fire, AbilityTags.Attack, 2.34)]

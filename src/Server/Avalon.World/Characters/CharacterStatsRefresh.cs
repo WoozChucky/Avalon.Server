@@ -32,9 +32,9 @@ public enum CurrentValues
 /// </summary>
 public static class CharacterStatsRefresh
 {
-    // The worn templates of the refresh running on this thread (the tick's, or a test's).
+    // The worn items of the refresh running on this thread (the tick's, or a test's).
 #pragma warning disable IDE1006
-    [ThreadStatic] private static List<ItemTemplate>? t_worn;
+    [ThreadStatic] private static List<WornItem>? t_worn;
 #pragma warning restore IDE1006
 
     /// <summary>
@@ -72,13 +72,13 @@ public static class CharacterStatsRefresh
         if (row is null || !classFactors.TryGetValue(character.Class, out ClassStatFactors? factors))
             return false;
 
-        List<ItemTemplate> worn = t_worn ??= [];
+        List<WornItem> worn = t_worn ??= [];
         try
         {
             foreach (InventoryItem item in character.Container(InventoryType.Equipment).Held)
             {
                 if (templates.Find(item.TemplateId) is { } template && EquipmentSlots.Accepts(item.Slot, template.Slot))
-                    worn.Add(template);
+                    worn.Add(new WornItem(template, []));
             }
 
             // Auras: whatever the character holds now is folded in, so every refresh (select, gear, level-up, an aura)
