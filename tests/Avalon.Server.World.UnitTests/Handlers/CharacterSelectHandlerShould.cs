@@ -12,6 +12,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Characters;
@@ -419,13 +420,16 @@ public class CharacterSelectHandlerShould
     }
 
     /// <summary>
-    /// #669: each ability's per-hit amount travels with it at select, from the stats the select chain
-    /// refreshed, and the entity records it, so the first tick in the world sends no update on top.
+    /// #669, #1178: each ability's per-hit amount, tags and pace travel with it at select, from the stats the select chain
+    /// refreshed, and the entity records them, so the first tick in the world sends no update on top.
     /// </summary>
     [Fact]
     public async Task Send_each_abilitys_amount_at_select_and_record_it_on_the_character()
     {
-        Fixture f = await BuildAsync(abilityTemplates: [AbilityTestData.Cone(1).Dealing(10), AbilityTestData.HealCircle(2)]);
+        AbilityTemplate cone = AbilityTestData.Cone(1).Dealing(10);
+        cone.Cooldown = 3000;
+        cone.CastTime = 500;
+        Fixture f = await BuildAsync(abilityTemplates: [cone, AbilityTestData.HealCircle(2)]);
         ICharacter? built = null;
         f.Connection.When(c => c.SetPendingSpawn(Arg.Any<ICharacter>(), Arg.Any<IMapInstance>(), Arg.Any<long>()))
             .Do(ci => built = ci.Arg<ICharacter>());
@@ -436,8 +440,10 @@ public class CharacterSelectHandlerShould
             f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
         using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         AbilityInfo[] abilities = Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities;
-        AbilityInfo cone = Assert.Single(abilities, a => a.AbilityId == 1);
-        Assert.Equal((AbilityAmountKind.Damage, 10u, 10u), (cone.AmountKind, cone.AmountMin, cone.AmountMax));
+        AbilityInfo coneInfo = Assert.Single(abilities, a => a.AbilityId == 1);
+        Assert.Equal((AbilityAmountKind.Damage, 10u, 10u), (coneInfo.AmountKind, coneInfo.AmountMin, coneInfo.AmountMax));
+        Assert.Equal((AbilityTags.Spell | AbilityTags.Area, DamageTypeMask.Physical, 3000u, 500u),
+            (coneInfo.Tags, coneInfo.AmountTypes, coneInfo.CooldownMs, coneInfo.CastTimeMs));
         AbilityInfo heal = Assert.Single(abilities, a => a.AbilityId == 2);
         Assert.Equal((AbilityAmountKind.Healing, 40u, 40u), (heal.AmountKind, heal.AmountMin, heal.AmountMax));
 

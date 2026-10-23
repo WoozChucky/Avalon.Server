@@ -198,7 +198,7 @@ public class CharacterServiceShould
 
         AbilityTemplate cleave = world.AbilityTemplates.AsEnumerable().Single(a => a.Id.Value == 200);
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, factors, formula);
-        AbilityAmount sent = AbilityAmounts.For(stats.AttackerAt(1), AbilityMetadataMapper.From(cleave));
+        AbilityAmount sent = AbilityAmounts.For(stats.AttackerAt(1), AbilityMetadataMapper.From(cleave), default);
 
         CharacterAbilitiesDto? result = await AbilityService(id, cleave, stats.ToRow(id), worn, formula)
             .GetAbilitiesAsync(id);

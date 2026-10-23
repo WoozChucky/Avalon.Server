@@ -718,11 +718,12 @@ public class CharacterSelectHandler(
 
         entity.Spells.Load(gameAbilities);
 
-        // #669: each ability's per-hit amount from the stats the select chain has already refreshed, recorded
-        // on the entity so AbilityAmountsFlusher sends an update only once one of them changes.
+        // #669, #1178: each ability's per-hit amount and pace from the stats the select chain has already refreshed,
+        // recorded on the entity so AbilityAmountsFlusher sends an update only once one of them changes.
         AttackerCombat combat = entity.Combat;
-        AbilityAmount[] amounts = gameAbilities.Select(a => AbilityAmounts.For(combat, a.Metadata)).ToArray();
-        entity.AbilityAmountsSentFor = combat;
+        CasterPace pace = entity.Pace;
+        AbilityAmount[] amounts = gameAbilities.Select(a => AbilityAmounts.For(combat, a.Metadata, pace)).ToArray();
+        entity.AbilityAmountsSentFor = (combat, pace);
         entity.AbilityAmountsSent = amounts;
 
         AbilityInfo[] abilityInfos = gameAbilities.Select((s, i) => new AbilityInfo
@@ -746,6 +747,10 @@ public class CharacterSelectHandler(
             AmountKind = amounts[i].Kind,
             AmountMin = amounts[i].Min,
             AmountMax = amounts[i].Max,
+            Tags = s.Metadata.Tags,
+            AmountTypes = amounts[i].Types,
+            CooldownMs = amounts[i].CooldownMs,
+            CastTimeMs = amounts[i].CastTimeMs,
         }).ToArray();
 
         connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, PacketEncoder.Shared));

@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.State;
 using ProtoBuf;
@@ -28,8 +29,12 @@ public class AbilityInfo
 {
     [ProtoMember(1)] public uint AbilityId { get; set; }
     [ProtoMember(2)] public string Name { get; set; }
+    /// <summary>Seconds, the row's own, before any speed; <see cref="CooldownMs" /> is what a cast waits.</summary>
     [ProtoMember(3)] public float Cooldown { get; set; }
+
+    /// <summary>Seconds, the row's own, before cast speed; <see cref="CastTimeMs" /> is what a cast takes.</summary>
     [ProtoMember(4)] public float CastTime { get; set; }
+
     [ProtoMember(5)] public uint Cost { get; set; }
     [ProtoMember(6)] public ushort Range { get; set; }
 
@@ -61,11 +66,30 @@ public class AbilityInfo
     [ProtoMember(18)] public AbilityAmountKind AmountKind { get; set; }
 
     /// <summary>
-    /// The normal amount per unit hit, at the low and high end of the caster's weapon roll (#669): its base
-    /// (effect value, scaled stat and weapon roll, as combat computes it) floored, before crit, dodge, block and
-    /// the target's armour. Damage has a minimum of 1, healing none. With no weapon term the two are equal.
+    /// The normal amount per unit hit, with every roll at the low and then the high end of its range (#669, #1178): its
+    /// base (an Attack's weapon roll, a Spell's or a Heal's spell base, scaled by the caster's offence, as combat computes
+    /// it) floored, before crit, evasion, block and the target's defences. Damage has a minimum of 1, healing none.
     /// </summary>
     [ProtoMember(19)] public uint AmountMin { get; set; }
 
     [ProtoMember(20)] public uint AmountMax { get; set; }
+
+    /// <summary>What the ability is (#1178): the tags its damage and healing scale by.</summary>
+    [ProtoMember(21)] public AbilityTags Tags { get; set; }
+
+    /// <summary>
+    /// The damage types the amount is dealt as (#1178): every type a hit at the high end of its rolls has a part of. None
+    /// for a heal, for no direct amount, or for a hit with nothing to roll.
+    /// </summary>
+    [ProtoMember(22)] public DamageTypeMask AmountTypes { get; set; }
+
+    /// <summary>
+    /// Milliseconds, rounded to the nearest (#1178): the cooldown a cast sets now, worked out by the server from the
+    /// caster's speeds (a basic attack's from its weapon's attack time), so a client never applies the rules itself. Kept
+    /// current after select by SCharacterAbilityAmountsPacket.
+    /// </summary>
+    [ProtoMember(23)] public uint CooldownMs { get; set; }
+
+    /// <summary>Milliseconds, rounded to the nearest (#1178): the cast time over the caster's cast speed.</summary>
+    [ProtoMember(24)] public uint CastTimeMs { get; set; }
 }

@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Combat;
 using ProtoBuf;
 using Xunit;
 
@@ -44,6 +45,16 @@ public class AbilityAmountPacketsShould
         Assert.Equal("a00101", Hex(new AbilityInfo { AmountMax = 1 }));
     }
 
+    /// <summary>#1178: the tags, the amount's damage types and the effective pace the server computed, on 21 to 24.</summary>
+    [Fact]
+    public void Carry_the_tags_types_and_pace_on_ability_info_in_fields_21_to_24()
+    {
+        Assert.Equal("a80101", Hex(new AbilityInfo { Tags = AbilityTags.Attack }));
+        Assert.Equal("b00101", Hex(new AbilityInfo { AmountTypes = DamageTypeMask.Physical }));
+        Assert.Equal("b801a006", Hex(new AbilityInfo { CooldownMs = 800 }));
+        Assert.Equal("c00101", Hex(new AbilityInfo { CastTimeMs = 1 }));
+    }
+
     [Fact]
     public void Carry_each_update_entrys_fields_in_order()
     {
@@ -51,6 +62,9 @@ public class AbilityAmountPacketsShould
         Assert.Equal("1002", Hex(new AbilityAmountInfo { Kind = AbilityAmountKind.Healing }));
         Assert.Equal("182c", Hex(new AbilityAmountInfo { Min = 44 }));
         Assert.Equal("2030", Hex(new AbilityAmountInfo { Max = 48 }));
+        Assert.Equal("2804", Hex(new AbilityAmountInfo { Types = DamageTypeMask.Cold }));
+        Assert.Equal("30a006", Hex(new AbilityAmountInfo { CooldownMs = 800 }));
+        Assert.Equal("3801", Hex(new AbilityAmountInfo { CastTimeMs = 1 }));
         Assert.Equal("0a020801", Hex(new SCharacterAbilityAmountsPacket { Amounts = [new AbilityAmountInfo { AbilityId = 1 }] }));
     }
 }

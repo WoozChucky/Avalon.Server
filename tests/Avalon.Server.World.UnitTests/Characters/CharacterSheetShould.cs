@@ -74,36 +74,46 @@ public class CharacterSheetShould
         CharacterSheetFlusher.Flush(connection, s_seeded);
 
         SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
-        // #1178: the old damage stats are gone; their fields send 0 until the wire drops them.
-        Assert.Equal((22u, 23u, 20u, 21u, 8u, 0u, 0u),
-            (sheet.Stamina, sheet.Strength, sheet.Agility, sheet.Intellect, sheet.Armor, sheet.AttackDamage, sheet.AbilityDamage));
+        Assert.Equal((22u, 23u, 20u, 21u, 8u), (sheet.Stamina, sheet.Strength, sheet.Agility, sheet.Intellect, sheet.Armor));
         // #1178: evasion 150 against an attacker of the character's level 1: 150 / (150 + 560 + 40) = 20 %.
         Assert.Equal((5f, 20f, 3f, 3u, 7u), (sheet.CritPct, sheet.EvasionPct, sheet.BlockPct, sheet.WeaponMin, sheet.WeaponMax));
     }
 
     /// <summary>
-    /// #627, #1178: the sheet shows the attack speed a basic attack actually uses, capped (in its HastePct field until the
-    /// sheet carries all three speeds), and the speed the input step moves at.
+    /// #627, #1178: the sheet shows the crit multiplier a crit actually multiplies by (1.5 + 25 / 100), the speeds a cast
+    /// actually uses, each capped (attack speed 80 → 50), the main hand's attack time before speed, the offence block's
+    /// increased points indexed by OffenceStat, and the speed the input step moves at.
     /// </summary>
     [Fact]
-    public void Carry_the_effective_attack_speed_and_the_movement_speed()
+    public void Send_the_offence_block_the_speeds_and_the_weapons_pace()
     {
+        var offence = new OffenceStats { CritMultiplierBonus = 25f, AttackSpeedPct = 80f, CastSpeedPct = 5f };
+        offence.AddIncreased(OffenceStat.PhysicalAttack, 101.5f);
+        offence.AddIncreased(OffenceStat.Fire, 12f);
         CharacterEntity character = New();
-        character.ApplyStats(Stats() with { Offence = new OffenceStats { AttackSpeedPct = 80f }, MovementSpeedPct = 10f }, CurrentValues.EnterWorld, s_seeded.Formula);
+        character.ApplyStats(Stats() with { Offence = offence, MovementSpeedPct = 10f }, CurrentValues.EnterWorld, s_seeded.Formula);
         var sent = new List<OutboundPacket>();
 
         CharacterSheetFlusher.Flush(Recording(character, sent), s_seeded);
 
         SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
-        Assert.Equal(50f, sheet.HastePct);
+        Assert.Equal((1.75f, 50f, 5f, 0f, 792u),
+            (sheet.CritMultiplier, sheet.AttackSpeedPct, sheet.CastSpeedPct, sheet.CooldownRecoveryPct, sheet.AttackTimeMs));
+        Assert.Equal(OffenceStats.Count, sheet.IncreasedPct.Length);
+        Assert.Equal((101.5f, 12f, 0f), (sheet.IncreasedPct[13], sheet.IncreasedPct[2], sheet.IncreasedPct[0]));
         Assert.Equal(4.4f, sheet.MovementSpeed, precision: 5);
     }
 
-    /// <summary>#627: a refresh that moves only the attack speed, or only the movement speed, is a change the owner is sent.</summary>
+    /// <summary>
+    /// #627, #1178: a refresh that moves exactly one value the sheet shows (a speed, the movement speed, one increased key,
+    /// the crit multiplier bonus) is a change the owner is sent.
+    /// </summary>
     [Theory]
-    [InlineData(3f, 0f)]
-    [InlineData(0f, 10f)]
-    public void Send_a_sheet_when_only_the_attack_speed_or_only_the_movement_speed_changes(float attackSpeed, float movement)
+    [InlineData("attack speed")]
+    [InlineData("movement speed")]
+    [InlineData("increased")]
+    [InlineData("crit multiplier")]
+    public void Send_a_sheet_when_exactly_one_shown_value_changes(string change)
     {
         CharacterEntity character = New();
         character.ApplyStats(Stats(), CurrentValues.EnterWorld, s_seeded.Formula);
@@ -111,14 +121,23 @@ public class CharacterSheetShould
         IWorldConnection connection = Recording(character, sent);
         CharacterSheetFlusher.Flush(connection, s_seeded);
 
-        character.ApplyStats(Stats() with { Offence = new OffenceStats { AttackSpeedPct = attackSpeed }, MovementSpeedPct = movement }, CurrentValues.KeepShare, s_seeded.Formula);
+        var offence = new OffenceStats
+        {
+            AttackSpeedPct = change == "attack speed" ? 3f : 0f,
+            CritMultiplierBonus = change == "crit multiplier" ? 10f : 0f,
+        };
+        if (change == "increased") offence.AddIncreased(OffenceStat.Cold, 4f);
+        character.ApplyStats(Stats() with { Offence = offence, MovementSpeedPct = change == "movement speed" ? 10f : 0f },
+            CurrentValues.KeepShare, s_seeded.Formula);
         CharacterSheetFlusher.Flush(connection, s_seeded);
 
         List<SCharacterStatsPacket> sheets = Sheets(sent);
         Assert.Equal(2, sheets.Count);
-        Assert.Equal((0f, 4f), (sheets[0].HastePct, sheets[0].MovementSpeed));
-        Assert.Equal(attackSpeed, sheets[1].HastePct);
-        Assert.Equal(4f * (1f + movement / 100f), sheets[1].MovementSpeed, precision: 5);
+        SCharacterStatsPacket after = sheets[1];
+        Assert.Equal(change == "attack speed" ? 3f : 0f, after.AttackSpeedPct);
+        Assert.Equal(change == "movement speed" ? 4.4f : 4f, after.MovementSpeed, precision: 5);
+        Assert.Equal(change == "increased" ? 4f : 0f, after.IncreasedPct[(int)OffenceStat.Cold]);
+        Assert.Equal(change == "crit multiplier" ? 1.6f : 1.5f, after.CritMultiplier, precision: 5);
     }
 
     [Fact]

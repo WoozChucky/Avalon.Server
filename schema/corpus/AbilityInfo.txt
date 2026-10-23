@@ -36,6 +36,10 @@ variant absent
   field 18 AmountKind : AbilityAmountKind = None (0)
   field 19 AmountMin : uint = 0
   field 20 AmountMax : uint = 0
+  field 21 Tags : AbilityTags = None (0)
+  field 22 AmountTypes : DamageTypeMask = None (0)
+  field 23 CooldownMs : uint = 0
+  field 24 CastTimeMs : uint = 0
   bytes 0
 
 variant empty
@@ -59,6 +63,10 @@ variant empty
   field 18 AmountKind : AbilityAmountKind = None (0)
   field 19 AmountMin : uint = 0
   field 20 AmountMax : uint = 0
+  field 21 Tags : AbilityTags = None (0)
+  field 22 AmountTypes : DamageTypeMask = None (0)
+  field 23 CooldownMs : uint = 0
+  field 24 CastTimeMs : uint = 0
   bytes 2
     12 00
 
@@ -83,13 +91,18 @@ variant populated
   field 18 AmountKind : AbilityAmountKind = Healing (2)
   field 19 AmountMin : uint = 19
   field 20 AmountMax : uint = 300
-  bytes 89
+  field 21 Tags : AbilityTags = Heal (4)
+  field 22 AmountTypes : DamageTypeMask = Blight (16)
+  field 23 CooldownMs : uint = 300
+  field 24 CastTimeMs : uint = 300
+  bytes 103
     08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1 20 ce
     94 ce 95 ce 9b ce a4 ce 91 1d b0 0f a1 b3 25 f9
     02 15 50 28 ac 02 30 2a 3d db 0f 49 40 40 01 48
     01 50 01 5d 00 00 c0 3f 65 00 00 10 c0 6d b0 0f
     a1 b3 75 00 00 10 c0 78 01 80 01 01 88 01 02 90
-    01 02 98 01 13 a0 01 ac 02
+    01 02 98 01 13 a0 01 ac 02 a8 01 04 b0 01 10 b8
+    01 ac 02 c0 01 ac 02
 
 variant maxima
   field 1 AbilityId : uint = 4294967295
@@ -112,7 +125,11 @@ variant maxima
   field 18 AmountKind : AbilityAmountKind = Healing (2)
   field 19 AmountMin : uint = 4294967295
   field 20 AmountMax : uint = 4294967295
-  bytes 217
+  field 21 Tags : AbilityTags = DamageOverTime (64)
+  field 22 AmountTypes : DamageTypeMask = Blight (16)
+  field 23 CooldownMs : uint = 4294967295
+  field 24 CastTimeMs : uint = 4294967295
+  bytes 237
     08 ff ff ff ff 0f 12 84 01 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -126,7 +143,8 @@ variant maxima
     03 3d ff ff 7f 7f 40 01 48 02 50 01 5d ff ff 7f
     7f 65 ff ff 7f 7f 6d ff ff 7f 7f 75 ff ff 7f 7f
     78 01 80 01 01 88 01 03 90 01 02 98 01 ff ff ff
-    ff 0f a0 01 ff ff ff ff 0f
+    ff 0f a0 01 ff ff ff ff 0f a8 01 40 b0 01 10 b8
+    01 ff ff ff ff 0f c0 01 ff ff ff ff 0f
 
 variant minima
   field 1 AbilityId : uint = 0
@@ -149,6 +167,10 @@ variant minima
   field 18 AmountKind : AbilityAmountKind = None (0)
   field 19 AmountMin : uint = 0
   field 20 AmountMax : uint = 0
+  field 21 Tags : AbilityTags = None (0)
+  field 22 AmountTypes : DamageTypeMask = None (0)
+  field 23 CooldownMs : uint = 0
+  field 24 CastTimeMs : uint = 0
   bytes 38
     12 01 01 1d ff ff 7f ff 25 ff ff 7f ff 3d ff ff
     7f ff 5d ff ff 7f ff 65 ff ff 7f ff 6d ff ff 7f
@@ -175,7 +197,11 @@ variant varint-edges
   field 18 AmountKind : AbilityAmountKind = <not a declared member> (3)
   field 19 AmountMin : uint = 128
   field 20 AmountMax : uint = 268435456
-  bytes 203
+  field 21 Tags : AbilityTags = Attack, DamageOverTime (65)
+  field 22 AmountTypes : DamageTypeMask = Physical, Blight (17)
+  field 23 CooldownMs : uint = 2097151
+  field 24 CastTimeMs : uint = 2097152
+  bytes 220
     08 ff ff 7f 12 80 01 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
@@ -188,7 +214,8 @@ variant varint-edges
     00 28 7f 30 ff 7f 3d 00 00 80 00 40 02 48 03 50
     02 5d 00 00 80 00 65 00 00 80 00 6d 00 00 80 00
     75 00 00 80 00 78 01 80 01 02 88 01 04 90 01 03
-    98 01 80 01 a0 01 80 80 80 80 01
+    98 01 80 01 a0 01 80 80 80 80 01 a8 01 41 b0 01
+    11 b8 01 ff ff 7f c0 01 80 80 80 01
 
 variant float-specials
   field 1 AbilityId : uint = 42
@@ -211,10 +238,15 @@ variant float-specials
   field 18 AmountKind : AbilityAmountKind = Healing (2)
   field 19 AmountMin : uint = 19
   field 20 AmountMax : uint = 300
-  bytes 84
+  field 21 Tags : AbilityTags = Heal (4)
+  field 22 AmountTypes : DamageTypeMask = Blight (16)
+  field 23 CooldownMs : uint = 300
+  field 24 CastTimeMs : uint = 300
+  bytes 98
     08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1 20 ce
     94 ce 95 ce 9b ce a4 ce 91 1d 01 00 00 00 28 ac
     02 30 2a 3d ff ff 7f 00 40 01 48 01 50 01 5d 01
     00 c0 7f 65 00 00 c0 ff 6d 00 00 80 ff 75 ff ff
     7f 7f 78 01 80 01 01 88 01 02 90 01 02 98 01 13
-    a0 01 ac 02
+    a0 01 ac 02 a8 01 04 b0 01 10 b8 01 ac 02 c0 01
+    ac 02

@@ -48,24 +48,27 @@ public class AbilityAmountsShould
         AbilityMetadata mend = Ability(AbilityTags.Heal | AbilityTags.Area, baseMin: 20, baseMax: 30,
             affects: AbilityAffects.Ally, script: "CircleAbilityScript");
 
-        Assert.Equal(new AbilityAmount(AbilityAmountKind.Healing, 30, 45), AbilityAmounts.For(Caster(offence: healing), mend));
-        Assert.Equal(new AbilityAmount(AbilityAmountKind.Healing, 0, 0),
-            AbilityAmounts.For(Caster(), Ability(AbilityTags.Heal, affects: AbilityAffects.Ally, script: "CircleAbilityScript")));
+        Assert.Equal(new AbilityAmount(AbilityAmountKind.Healing, 30, 45, DamageTypeMask.None, 0, 0),
+            AbilityAmounts.For(Caster(offence: healing), mend, default));
+        Assert.Equal(new AbilityAmount(AbilityAmountKind.Healing, 0, 0, DamageTypeMask.None, 0, 0),
+            AbilityAmounts.For(Caster(), Ability(AbilityTags.Heal, affects: AbilityAffects.Ally, script: "CircleAbilityScript"),
+                default));
     }
 
     /// <summary>A hit never deals less than 1, so an ability with nothing to roll still says 1.</summary>
     [Fact]
     public void Floor_damage_at_one_as_a_hit_does()
     {
-        Assert.Equal(new AbilityAmount(AbilityAmountKind.Damage, 1, 1), AbilityAmounts.For(Caster(), Ability()));
+        Assert.Equal(new AbilityAmount(AbilityAmountKind.Damage, 1, 1, DamageTypeMask.None, 0, 0),
+            AbilityAmounts.For(Caster(), Ability(), default));
     }
 
     /// <summary>An ability run by any script other than the shape scripts gets no fabricated amount.</summary>
     [Fact]
     public void State_no_amount_for_a_script_that_does_not_apply_one_directly()
     {
-        Assert.Equal(AbilityAmount.None,
-            AbilityAmounts.For(Caster(10, 20), Ability(effectiveness: 300f, script: "SomeCustomScript")));
+        Assert.Equal(new AbilityAmount(AbilityAmountKind.None, 0, 0, DamageTypeMask.None, 0, 0),
+            AbilityAmounts.For(Caster(10, 20), Ability(effectiveness: 300f, script: "SomeCustomScript"), default));
     }
 
     /// <summary>
@@ -81,7 +84,7 @@ public class AbilityAmountsShould
         CombatFormula formula = Avalon.Database.World.Seeding.CombatSeed.Formula();
 
         AbilityMetadata hit = Ability(effectiveness: 130f);
-        AbilityAmount amount = AbilityAmounts.For(caster, hit);
+        AbilityAmount amount = AbilityAmounts.For(caster, hit, default);
 
         foreach ((long roll, uint expected) in new[] { (9L, amount.Min), (14L, amount.Max) })
         {

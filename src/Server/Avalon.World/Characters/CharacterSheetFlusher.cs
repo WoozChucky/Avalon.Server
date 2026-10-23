@@ -40,7 +40,7 @@ public static class CharacterSheetFlusher
 
         character.SheetInputs = (character.StatsVersion, character.Level, combat, movementSpeed);
         var sheet = CharacterSheet.From(character.Stats.GetValueOrDefault(), character.Level, combat.Formula,
-            character.Pace.AttackSpeedPct, movementSpeed);
+            character.Pace, movementSpeed);
         if (character.SheetSent == sheet)
             return;
 

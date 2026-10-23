@@ -187,14 +187,10 @@ Server → the player's own client only. The character sheet (#506), always whol
 | `Agility` | 3 | `uint` | |
 | `Intellect` | 4 | `uint` | |
 | `Armor` | 5 | `uint` | |
-| `AttackDamage` | 6 | `uint` | |
-| `AbilityDamage` | 7 | `uint` | |
 | `CritPct` | 8 | `float` | Percentage points, already clamped to the formula's `CritCap`. |
-| _(reserved)_ | 9 | | The retired `DodgePct` (#1178); never reused. |
 | `BlockPct` | 10 | `float` | Percentage points, already clamped to `BlockCap`. |
-| `WeaponMin` | 11 | `uint` | The main-hand weapon's damage range; both 0 with no weapon. |
+| `WeaponMin` | 11 | `uint` | The range an attack rolls: the main hand's first range, the bare hand's with no weapon (#1178). |
 | `WeaponMax` | 12 | `uint` | |
-| `HastePct` | 13 | `float` | The effective haste, in percentage points (#627). |
 | `MovementSpeed` | 14 | `float` | The speed the server steps the character at, m/s (#627). |
 | `Evasion` | 15 | `uint` | The evasion rating (#1178). |
 | `EvasionPct` | 16 | `float` | The chance that rating gives to evade an attacker of the character's own level, percentage points, already capped at the formula's `EvasionCap`. |
@@ -203,22 +199,36 @@ Server → the player's own client only. The character sheet (#506), always whol
 | `ColdResistance` | 19 | `float` | As `FireResistance`. |
 | `LightningResistance` | 20 | `float` | As `FireResistance`. |
 | `BlightResistance` | 21 | `float` | As `FireResistance`. |
+| `CritMultiplier` | 22 | `float` | What a crit multiplies a hit or a heal by: the formula's `CritMultiplier` plus the crit multiplier bonus / 100 (#1178). |
+| `AttackSpeedPct` | 23 | `float` | Effective attack speed, percentage points from 0 to `AttackSpeedCap`: a basic attack waits `AttackTimeMs / (1 + it / 100)`. |
+| `CastSpeedPct` | 24 | `float` | Effective cast speed, 0 to `CastSpeedCap`: divides every cast time and a basic spell's use time. |
+| `CooldownRecoveryPct` | 25 | `float` | Effective cooldown recovery, 0 to `CooldownRecoveryCap`: divides every other cooldown. |
+| `AttackTimeMs` | 26 | `uint` | The main hand's time between basic attacks, the bare hand's with none, before attack speed. |
+| `IncreasedPct` | 27 | `repeated float` (not packed) | The offence block's increased percentage points, one per `OffenceStat`, indexed by its number: `Damage` 0, `Physical` 1, `Fire` 2, `Cold` 3, `Lightning` 4, `Blight` 5, `Attack` 6, `Spell` 7, `Area` 8, `Projectile` 9, `Melee` 10, `DamageOverTime` 11, `Healing` 12, `PhysicalAttack` 13 (Strength's physical attack damage). For display; each ability's own amount and pace come worked out (below). |
+
+Fields 6, 7 (`AttackDamage`, `AbilityDamage`), 9 (`DodgePct`) and 13 (`HastePct`) were deleted by #1178; nothing reads them.
 
 ### Ability amounts for tooltips (#669)
 
-What each learned ability deals or heals per unit hit, worked out by the server from the character's current stats, so a tooltip can say `Damage: 44–48` without copying the combat formula.
+What each learned ability deals or heals per unit hit, and how long its cooldown and cast take (#1178), worked out by the server from the character's current stats, so a tooltip can say `Damage: 44–48` and a cooldown bar can run without copying the combat formula or the speed rules.
 
 **At select**, every `AbilityInfo` in `SCharacterAbilitiesPacket` (`SMSG_CHARACTER_ABILITIES`) carries:
 
 | Field | Proto # | Type | Notes |
 |---|---|---|---|
 | `AmountKind` | 18 | `AbilityAmountKind` | `None` 0, `Damage` 1, `Healing` 2. `None` means the ability has no direct amount to state: show no line (it is not an amount of 0). |
-| `AmountMin` | 19 | `uint` | At the low end of the weapon roll. |
-| `AmountMax` | 20 | `uint` | At the high end. Equal to `AmountMin` for an ability with no weapon term. |
+| `AmountMin` | 19 | `uint` | With every roll at the low end of its range. |
+| `AmountMax` | 20 | `uint` | With every roll at the high end. |
+| `Tags` | 21 | `AbilityTags` | Flags: `Attack` 1, `Spell` 2, `Heal` 4, `Area` 8, `Projectile` 16, `Melee` 32 (`DamageOverTime` 64 is an aura's, never an ability's). |
+| `AmountTypes` | 22 | `DamageTypeMask` | The damage types the amount is dealt as (`Physical` 1, `Fire` 2, `Cold` 4, `Lightning` 8, `Blight` 16): every type a hit at the high end has a part of. `None` for a heal or no amount. |
+| `CooldownMs` | 23 | `uint` | The cooldown a cast sets now, ms rounded to the nearest: a basic attack's weapon attack time over attack speed, a basic spell's row over cast speed, any other row over cooldown recovery. |
+| `CastTimeMs` | 24 | `uint` | The cast time over cast speed, ms rounded to the nearest; 0 for an instant. |
 
-**Afterwards**, `SCharacterAbilityAmountsPacket` (`SMSG_CHARACTER_ABILITY_AMOUNTS = 0x302C`, encrypted, TCP, the player's own client only) carries `Amounts` (field 1), one `AbilityAmountInfo` per learned ability: `AbilityId` 1, `Kind` 2, `Min` 3, `Max` 4, with the meanings above. It is sent, whole, whenever a stats refresh (a gear change, a level-up) moves any amount, in the same tick's flush as the `SCharacterStatsPacket` showing the new stats, and never when nothing moved. Replace every ability's amount with it. Its lifetime is the character's session: a character switch (Change Character, #663) or a new login selects again, and the new select's `SMSG_CHARACTER_ABILITIES` starts over.
+`Cooldown` (3) and `CastTime` (4) stay the row's own seconds, before any speed (a basic attack's row cooldown is 0).
 
-**What the numbers are.** The ability's base, exactly as combat computes it: `EffectValue + ScalingCoefficient × (AttackDamage or AbilityDamage) + BaseDamageCoefficient × weapon roll`, the roll uniform and inclusive over the main hand's `WeaponMin..WeaponMax` (only when the coefficient and the weapon are above 0). Then floored as a normal hit resolves it: **before evasion, crit, block and the target's armour or resistance** (a target with no armour takes exactly this from a normal physical hit, and one with no resistance from an elemental one). Damage has a minimum of 1; healing has none, and a heal on a unit at full health restores less. The kind follows `Affects`: `Ally` is healing, anything else damage. Only the three shape scripts (circle, cone, projectile) apply an amount directly; an ability run by any other script is `None`.
+**Afterwards**, `SCharacterAbilityAmountsPacket` (`SMSG_CHARACTER_ABILITY_AMOUNTS = 0x302C`, encrypted, TCP, the player's own client only) carries `Amounts` (field 1), one `AbilityAmountInfo` per learned ability: `AbilityId` 1, `Kind` 2, `Min` 3, `Max` 4, `Types` 5, `CooldownMs` 6, `CastTimeMs` 7, with the meanings above. It is sent, whole, whenever a stats refresh (a gear change, a level-up) moves any amount or pace, in the same tick's flush as the `SCharacterStatsPacket` showing the new stats, and never when nothing moved. Replace every ability's amount with it. Its lifetime is the character's session: a character switch (Change Character, #663) or a new login selects again, and the new select's `SMSG_CHARACTER_ABILITIES` starts over.
+
+**What the numbers are.** The ability's base, exactly as combat computes it (#1178): an Attack's weapon roll times its damage effectiveness, a Spell's or a Heal's own spell base grown by level, with conversion and added damage, each part scaled by the caster's offence block. Then floored as a normal hit resolves it: **before evasion, crit, block and the target's armour or resistance** (a target with no armour takes exactly this from a normal physical hit, and one with no resistance from an elemental one). Damage has a minimum of 1; healing has none, and a heal on a unit at full health restores less. The kind follows `Affects`: `Ally` is healing, anything else damage. Only the three shape scripts (circle, cone, projectile) apply an amount directly; an ability run by any other script is `None`.
 
 ## 5. Cast Pipeline Expectations (Client Side)
 

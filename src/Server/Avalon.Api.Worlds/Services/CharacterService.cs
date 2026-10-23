@@ -323,7 +323,8 @@ public class CharacterService : ICharacterService
 
     private static CharacterAbilityAmountDto AmountFor(AbilityTemplate t, in AttackerCombat attacker)
     {
-        AbilityAmount amount = AbilityAmounts.For(attacker, AbilityMetadataMapper.From(t));
+        // The DTO states the amount alone, which no speed moves, so no pace is worked out for it.
+        AbilityAmount amount = AbilityAmounts.For(attacker, AbilityMetadataMapper.From(t), default);
         return new CharacterAbilityAmountDto
         {
             Kind = (Avalon.Api.Contract.AbilityAmountKind)amount.Kind,

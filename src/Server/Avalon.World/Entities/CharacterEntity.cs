@@ -228,13 +228,13 @@ public partial class CharacterEntity : ICharacter
     }
 
     /// <summary>
-    /// The per-hit ability amounts this character's client was last told (#669), in ability load order, and
-    /// the combat stats they were worked out from. World-side and never saved. Set at select, where the
+    /// The per-hit ability amounts and paces this character's client was last told (#669, #1178), in ability load order,
+    /// and the combat stats and pace they were worked out from. World-side and never saved. Set at select, where the
     /// abilities packet carries them, and by <c>AbilityAmountsFlusher</c> whenever they change.
     /// </summary>
     internal AbilityAmount[]? AbilityAmountsSent { get; set; }
 
-    internal AttackerCombat? AbilityAmountsSentFor { get; set; }
+    internal (AttackerCombat Combat, CasterPace Pace)? AbilityAmountsSentFor { get; set; }
 
     /// <summary>What this character defends with (#506): armour, evasion, block and resistances, from the last stats refresh.</summary>
     internal DefenderCombat Defence => Stats is { } s ? s.Defence : default;
