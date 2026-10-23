@@ -20,24 +20,50 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     public bool Stackable => MaxStackSize > 1;
 
+    /// <summary>
+    /// True for a weapon held in both hands, which leaves the off hand empty (#1179): a two-handed weapon or a ranged one
+    /// (a bow).
+    /// </summary>
+    public bool IsTwoHanded => SubClass is ItemSubClass.TwoHanded or ItemSubClass.Ranged;
+
     /// <summary>True when a character of this class may equip the item: the list is empty or names the class.</summary>
     public bool AllowsClass(CharacterClass characterClass) =>
         AllowedClasses.Count == 0 || AllowedClasses.Contains(characterClass);
 
     /// <summary>
-    /// True when every attribute requirement the item sets (#1178) is at most the matching value; an unset one asks
-    /// nothing.
+    /// True when the character meets the item's attribute requirements (#1178): every one it sets, or, when
+    /// <see cref="RequiresAnyAttribute" /> is set (#1179), at least one of them. An unset requirement asks nothing, and an
+    /// item that sets none is always met.
     /// </summary>
-    public bool MeetsAttributes(uint strength, uint agility, uint intellect) =>
-        (RequiredStrength is not { } str || str <= strength)
-        && (RequiredAgility is not { } agi || agi <= agility)
-        && (RequiredIntellect is not { } intl || intl <= intellect);
+    public bool MeetsAttributes(uint strength, uint agility, uint intellect)
+    {
+        if (RequiredStrength is null && RequiredAgility is null && RequiredIntellect is null)
+            return true;
+
+        if (RequiresAnyAttribute)
+        {
+            return (RequiredStrength is { } anyStr && anyStr <= strength)
+                || (RequiredAgility is { } anyAgi && anyAgi <= agility)
+                || (RequiredIntellect is { } anyIntl && anyIntl <= intellect);
+        }
+
+        return (RequiredStrength is not { } str || str <= strength)
+            && (RequiredAgility is not { } agi || agi <= agility)
+            && (RequiredIntellect is not { } intl || intl <= intellect);
+    }
 
     public uint MaxStackSize { get; set; }
 
     public uint DisplayId { get; set; }
 
+    /// <summary>Common for a base, Unique for a hand-made item (#1179); Magic and Rare exist only on an instance.</summary>
     public ItemRarity Rarity { get; set; }
+
+    /// <summary>
+    /// The kind of base this template is (#1179): an armour family in one of its slots, a weapon, an off-hand, a piece of
+    /// jewellery or a trinket. Null for an item that is no base (a consumable, a quest item).
+    /// </summary>
+    public ItemBaseKind? BaseKind { get; set; }
 
     public uint BuyPrice { get; set; }
 
@@ -51,8 +77,6 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     /// </summary>
     public List<CharacterClass> AllowedClasses { get; set; } = [];
 
-    public ushort? ItemPower { get; set; }
-
     public ushort? RequiredLevel { get; set; }
 
     /// <summary>The Strength a character needs to equip the item (#1178), or null for none.</summary>
@@ -63,6 +87,12 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     /// <summary>The Intellect a character needs to equip the item, or null for none.</summary>
     public ushort? RequiredIntellect { get; set; }
+
+    /// <summary>
+    /// When set (#1179), meeting any one attribute requirement is enough, not every one: the mace's Strength or
+    /// Intellect. See <see cref="MeetsAttributes" />.
+    /// </summary>
+    public bool RequiresAnyAttribute { get; set; }
 
     public uint? DamageMin1 { get; set; }
 
@@ -181,6 +211,30 @@ public enum StatType
     CritMultiplier = 32,
     CastSpeed = 33,
     CooldownRecovery = 34,
+
+    // Item modifiers (#1179). Local to the weapon they sit on: added damage by type, a range.
+    AddedPhysicalDamage = 35,
+    AddedFireDamage = 36,
+    AddedColdDamage = 37,
+    AddedLightningDamage = 38,
+    AddedBlightDamage = 39,
+
+    // Local to the item they sit on: a weapon's physical damage and attack speed, a piece's own defence.
+    LocalIncreasedPhysicalDamage = 40,
+    LocalIncreasedArmor = 41,
+    LocalIncreasedEvasion = 42,
+    LocalIncreasedWard = 43,
+    LocalAttackSpeed = 44,
+
+    // Global added damage, a range: to every attack, by type, then to every spell, by element.
+    AddedPhysicalDamageToAttacks = 45,
+    AddedFireDamageToAttacks = 46,
+    AddedColdDamageToAttacks = 47,
+    AddedLightningDamageToAttacks = 48,
+    AddedBlightDamageToAttacks = 49,
+    AddedFireDamageToSpells = 50,
+    AddedColdDamageToSpells = 51,
+    AddedLightningDamageToSpells = 52,
 }
 
 [Flags]
@@ -218,17 +272,10 @@ public enum ItemSlotType : ushort
     Finger,
     Gem,
     MainHand,
-    OffHand
-}
+    OffHand,
 
-public enum ItemRarity
-{
-    Junk,
-    Common,
-    Uncommon,
-    Rare,
-    Epic,
-    Legendary
+    /// <summary>A trinket (#1179), worn in EquipmentSlots.Trinket1 or Trinket2.</summary>
+    Trinket = 11,
 }
 
 public enum ItemClass
@@ -259,11 +306,20 @@ public enum ItemSubClass
     Boots = 204,
     Gloves = 205,
 
-    /// <summary>A neck piece (#433: the Alpha's Fang Pendant). Worn in EquipmentSlots.Neck.</summary>
+    /// <summary>A neck piece (#433; #1179: the amulet base and the Alpha's Fang Pendant). Worn in EquipmentSlots.Neck.</summary>
     Amulet = 206,
 
-    /// <summary>A ring (forest content pass: the Heartwood Band and the Thornheart Signet). Worn in EquipmentSlots.Finger1/Finger2.</summary>
+    /// <summary>A ring (#1179: the ring base and the unique rings). Worn in EquipmentSlots.Finger1/Finger2.</summary>
     Ring = 207,
+
+    /// <summary>A shoulder piece (#1179), the sixth armour slot.</summary>
+    Shoulders = 208,
+
+    /// <summary>An off-hand focus or orb for casters (#1179): Armor class, worn in the off hand.</summary>
+    CasterOffHand = 209,
+
+    /// <summary>A trinket (#1179), only ever a unique.</summary>
+    Trinket = 210,
     // Quest Subclasses
     QuestItem = 300,
     // Crafting Subclasses

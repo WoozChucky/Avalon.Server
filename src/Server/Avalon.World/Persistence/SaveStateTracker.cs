@@ -15,8 +15,11 @@ public enum SaveState : byte
     Removed,
 }
 
-/// <summary>An entry's state and the version it was given when last marked.</summary>
-public readonly record struct SaveMark(SaveState State, long Version);
+/// <summary>
+/// An entry's state and the version it was given when last marked. <paramref name="Modifiers" />, on an item's mark
+/// only (#1179): its modifiers changed, so the save that upserts it rewrites them all.
+/// </summary>
+public readonly record struct SaveMark(SaveState State, long Version, bool Modifiers);
 
 /// <summary>
 /// What one save carried, taken on the tick thread. Acknowledging it clears exactly these entries,
@@ -68,25 +71,34 @@ public sealed class SaveStateTracker
     public SaveState SlotState(InventoryType container, byte slot) =>
         _slots.TryGetValue((container, slot), out SaveMark mark) ? mark.State : SaveState.Unchanged;
 
-    public void ItemCreated(ItemInstanceId id) => _items[id] = new SaveMark(SaveState.New, ++_version);
+    /// <summary>The modifiers flag stays as it was (#1179), as it does on every item mark: see <see cref="ItemModifiersChanged" />.</summary>
+    public void ItemCreated(ItemInstanceId id) => _items[id] = new SaveMark(SaveState.New, ++_version, ModifiersMarked(id));
 
     /// <summary>A New item stays New: it has never been written, and its first write carries the change.</summary>
     public void ItemChanged(ItemInstanceId id)
     {
-        SaveState next = ItemState(id) == SaveState.New ? SaveState.New : SaveState.Changed;
-        _items[id] = new SaveMark(next, ++_version);
+        SaveMark current = _items.GetValueOrDefault(id);
+        _items[id] = new SaveMark(ChangedFrom(current.State), ++_version, current.Modifiers);
     }
+
+    /// <summary>
+    /// The item's modifiers changed, were added or removed (#1179): marked as <see cref="ItemChanged" /> marks it, and the
+    /// save that upserts it rewrites its whole current set. Every later mark of the item keeps the flag until a save that
+    /// carried it is acknowledged; a save that deletes the item writes none, its rows going with the item's.
+    /// </summary>
+    public void ItemModifiersChanged(ItemInstanceId id) =>
+        _items[id] = new SaveMark(ChangedFrom(ItemState(id)), ++_version, Modifiers: true);
 
     /// <summary>
     /// Removed even when the item was New and never saved: its insert may already be in flight, and
     /// deleting a row that never landed does nothing.
     /// </summary>
-    public void ItemRemoved(ItemInstanceId id) => _items[id] = new SaveMark(SaveState.Removed, ++_version);
+    public void ItemRemoved(ItemInstanceId id) => _items[id] = new SaveMark(SaveState.Removed, ++_version, ModifiersMarked(id));
 
     /// <summary>
-    /// Forgets the item's mark (#1175). A trade calls it after taking the item out of the giver: the paired save already
-    /// deleted it from the giver and wrote it as the receiver's, and the fence would refuse any later save of the giver
-    /// that still named it.
+    /// Forgets the item's whole mark, its modifiers flag with it (#1175, #1179). A trade calls it after taking the item out
+    /// of the giver: the paired save already wrote it, and its modifiers, as the receiver's, and the fence would refuse any
+    /// later save of the giver that still named it.
     /// </summary>
     public void ItemHandedOver(ItemInstanceId id) => _items.Remove(id);
 
@@ -106,7 +118,7 @@ public sealed class SaveStateTracker
         };
 
         if (next is { } state)
-            _slots[(container, slot)] = new SaveMark(state, ++_version);
+            _slots[(container, slot)] = new SaveMark(state, ++_version, Modifiers: false);
     }
 
     public void GoldChanged()
@@ -134,13 +146,17 @@ public sealed class SaveStateTracker
     }
 
     /// <summary>A quest's row changed, was added, removed or completed (#433): the next save rewrites that quest.</summary>
-    public void QuestChanged(uint questId) => _quests[questId] = new SaveMark(SaveState.Changed, ++_version);
+    public void QuestChanged(uint questId) => _quests[questId] = new SaveMark(SaveState.Changed, ++_version, Modifiers: false);
 
     /// <summary>
     /// The ignore entry naming this character was added or removed (#723): the next save rewrites it from memory.
     /// </summary>
     public void IgnoreChanged(uint ignoredCharacterId) =>
-        _ignores[ignoredCharacterId] = new SaveMark(SaveState.Changed, ++_version);
+        _ignores[ignoredCharacterId] = new SaveMark(SaveState.Changed, ++_version, Modifiers: false);
+
+    private static SaveState ChangedFrom(SaveState state) => state == SaveState.New ? SaveState.New : SaveState.Changed;
+
+    private bool ModifiersMarked(ItemInstanceId id) => _items.TryGetValue(id, out SaveMark mark) && mark.Modifiers;
 
     /// <summary>A copy of every non-Unchanged entry. Later changes do not reach it.</summary>
     public SaveMarks TakeMarks() => new(

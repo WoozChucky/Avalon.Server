@@ -42,6 +42,31 @@ variant populated
         field 5 Count : uint = 42
         field 6 Durability : uint = 300
         field 7 Flags : uint = 300
+        field 8 Rarity : ItemRarity = Magic (1)
+        field 9 ItemLevel : uint = 1000000
+        field 10 Modifiers : List<ItemModifierDto> = 2 elements
+          element 0
+            field 1 ModifierId : uint = 7
+            field 2 Values : List<ItemModifierValueDto> = 2 elements
+              element 0
+                field 1 Stat : ItemStat = CritMultiplier (32)
+                field 2 Value : int = 70000
+                field 3 Value2 : int? = -9
+              element 1
+                field 1 Stat : ItemStat = MovementSpeed (13)
+                field 2 Value : int = 1000
+                field 3 Value2 : int? = -3
+          element 1
+            field 1 ModifierId : uint = 1000000
+            field 2 Values : List<ItemModifierValueDto> = 2 elements
+              element 0
+                field 1 Stat : ItemStat = CritMultiplier (32)
+                field 2 Value : int = 70000
+                field 3 Value2 : int? = -9
+              element 1
+                field 1 Stat : ItemStat = MovementSpeed (13)
+                field 2 Value : int = 1000
+                field 3 Value2 : int? = -3
     element 1
       field 1 Container : InventoryType = Bank (2)
       field 2 Slot : byte = 42
@@ -53,13 +78,50 @@ variant populated
         field 5 Count : uint = 19
         field 6 Durability : uint = 42
         field 7 Flags : uint = 42
-  bytes 96
-    08 80 d0 ac f3 0e 10 07 1a 2c 08 01 10 13 1a 26
-    08 01 10 13 18 80 d0 ac f3 0e 22 12 09 5b ad 8f
-    0f cb d9 9f 46 11 a1 65 70 86 77 28 95 0e 28 2a
-    30 ac 02 38 ac 02 1a 28 08 02 10 2a 1a 22 08 02
-    10 2a 18 c0 84 3d 22 12 09 04 03 02 01 06 05 08
-    07 11 09 0a 0b 0c 0d 0e 0f 10 28 13 30 2a 38 2a
+        field 8 Rarity : ItemRarity = Unique (3)
+        field 9 ItemLevel : uint = 4000000000
+        field 10 Modifiers : List<ItemModifierDto> = 2 elements
+          element 0
+            field 1 ModifierId : uint = 7
+            field 2 Values : List<ItemModifierValueDto> = 2 elements
+              element 0
+                field 1 Stat : ItemStat = CritMultiplier (32)
+                field 2 Value : int = 70000
+                field 3 Value2 : int? = -9
+              element 1
+                field 1 Stat : ItemStat = MovementSpeed (13)
+                field 2 Value : int = 1000
+                field 3 Value2 : int? = -3
+          element 1
+            field 1 ModifierId : uint = 1000000
+            field 2 Values : List<ItemModifierValueDto> = 2 elements
+              element 0
+                field 1 Stat : ItemStat = CritMultiplier (32)
+                field 2 Value : int = 70000
+                field 3 Value2 : int? = -9
+              element 1
+                field 1 Stat : ItemStat = MovementSpeed (13)
+                field 2 Value : int = 1000
+                field 3 Value2 : int? = -3
+  bytes 281
+    08 80 d0 ac f3 0e 10 07 1a 87 01 08 01 10 13 1a
+    80 01 08 01 10 13 18 80 d0 ac f3 0e 22 12 09 5b
+    ad 8f 0f cb d9 9f 46 11 a1 65 70 86 77 28 95 0e
+    28 2a 30 ac 02 38 ac 02 40 01 48 c0 84 3d 52 27
+    08 07 12 11 08 20 10 f0 a2 04 18 f7 ff ff ff ff
+    ff ff ff ff 01 12 10 08 0d 10 e8 07 18 fd ff ff
+    ff ff ff ff ff ff 01 52 29 08 c0 84 3d 12 11 08
+    20 10 f0 a2 04 18 f7 ff ff ff ff ff ff ff ff 01
+    12 10 08 0d 10 e8 07 18 fd ff ff ff ff ff ff ff
+    ff 01 1a 84 01 08 02 10 2a 1a 7e 08 02 10 2a 18
+    c0 84 3d 22 12 09 04 03 02 01 06 05 08 07 11 09
+    0a 0b 0c 0d 0e 0f 10 28 13 30 2a 38 2a 40 03 48
+    80 d0 ac f3 0e 52 27 08 07 12 11 08 20 10 f0 a2
+    04 18 f7 ff ff ff ff ff ff ff ff 01 12 10 08 0d
+    10 e8 07 18 fd ff ff ff ff ff ff ff ff 01 52 29
+    08 c0 84 3d 12 11 08 20 10 f0 a2 04 18 f7 ff ff
+    ff ff ff ff ff ff 01 12 10 08 0d 10 e8 07 18 fd
+    ff ff ff ff ff ff ff ff 01
 
 variant maxima
   field 1 RequestId : uint = 4294967295
@@ -76,6 +138,54 @@ variant maxima
         field 5 Count : uint = 4294967295
         field 6 Durability : uint = 4294967295
         field 7 Flags : uint = 4294967295
+        field 8 Rarity : ItemRarity = Unique (3)
+        field 9 ItemLevel : uint = 4294967295
+        field 10 Modifiers : List<ItemModifierDto> = 3 elements
+          element 0
+            field 1 ModifierId : uint = 4294967295
+            field 2 Values : List<ItemModifierValueDto> = 3 elements
+              element 0
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 1
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 2
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+          element 1
+            field 1 ModifierId : uint = 4294967295
+            field 2 Values : List<ItemModifierValueDto> = 3 elements
+              element 0
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 1
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 2
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+          element 2
+            field 1 ModifierId : uint = 4294967295
+            field 2 Values : List<ItemModifierValueDto> = 3 elements
+              element 0
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 1
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 2
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
     element 1
       field 1 Container : InventoryType = Bank (2)
       field 2 Slot : byte = 255
@@ -87,6 +197,54 @@ variant maxima
         field 5 Count : uint = 4294967295
         field 6 Durability : uint = 4294967295
         field 7 Flags : uint = 4294967295
+        field 8 Rarity : ItemRarity = Unique (3)
+        field 9 ItemLevel : uint = 4294967295
+        field 10 Modifiers : List<ItemModifierDto> = 3 elements
+          element 0
+            field 1 ModifierId : uint = 4294967295
+            field 2 Values : List<ItemModifierValueDto> = 3 elements
+              element 0
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 1
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 2
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+          element 1
+            field 1 ModifierId : uint = 4294967295
+            field 2 Values : List<ItemModifierValueDto> = 3 elements
+              element 0
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 1
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 2
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+          element 2
+            field 1 ModifierId : uint = 4294967295
+            field 2 Values : List<ItemModifierValueDto> = 3 elements
+              element 0
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 1
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 2
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
     element 2
       field 1 Container : InventoryType = Bank (2)
       field 2 Slot : byte = 255
@@ -98,20 +256,101 @@ variant maxima
         field 5 Count : uint = 4294967295
         field 6 Durability : uint = 4294967295
         field 7 Flags : uint = 4294967295
-  bytes 197
-    08 ff ff ff ff 0f 10 0f 1a 3d 08 02 10 ff 01 1a
-    36 08 02 10 ff 01 18 ff ff ff ff ff ff ff ff ff
-    01 22 12 09 ff ff ff ff ff ff ff ff 11 ff ff ff
-    ff ff ff ff ff 28 ff ff ff ff 0f 30 ff ff ff ff
-    0f 38 ff ff ff ff 0f 1a 3d 08 02 10 ff 01 1a 36
-    08 02 10 ff 01 18 ff ff ff ff ff ff ff ff ff 01
-    22 12 09 ff ff ff ff ff ff ff ff 11 ff ff ff ff
-    ff ff ff ff 28 ff ff ff ff 0f 30 ff ff ff ff 0f
-    38 ff ff ff ff 0f 1a 3d 08 02 10 ff 01 1a 36 08
-    02 10 ff 01 18 ff ff ff ff ff ff ff ff ff 01 22
-    12 09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff
-    ff ff ff 28 ff ff ff ff 0f 30 ff ff ff ff 0f 38
-    ff ff ff ff 0f
+        field 8 Rarity : ItemRarity = Unique (3)
+        field 9 ItemLevel : uint = 4294967295
+        field 10 Modifiers : List<ItemModifierDto> = 3 elements
+          element 0
+            field 1 ModifierId : uint = 4294967295
+            field 2 Values : List<ItemModifierValueDto> = 3 elements
+              element 0
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 1
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 2
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+          element 1
+            field 1 ModifierId : uint = 4294967295
+            field 2 Values : List<ItemModifierValueDto> = 3 elements
+              element 0
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 1
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 2
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+          element 2
+            field 1 ModifierId : uint = 4294967295
+            field 2 Values : List<ItemModifierValueDto> = 3 elements
+              element 0
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 1
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+              element 2
+                field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+                field 2 Value : int = 2147483647
+                field 3 Value2 : int? = 2147483647
+  bytes 731
+    08 ff ff ff ff 0f 10 0f 1a ee 01 08 02 10 ff 01
+    1a e6 01 08 02 10 ff 01 18 ff ff ff ff ff ff ff
+    ff ff 01 22 12 09 ff ff ff ff ff ff ff ff 11 ff
+    ff ff ff ff ff ff ff 28 ff ff ff ff 0f 30 ff ff
+    ff ff 0f 38 ff ff ff ff 0f 40 03 48 ff ff ff ff
+    0f 52 36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 52 36 08 ff ff ff ff
+    0f 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff
+    07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff
+    07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff
+    07 52 36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 1a ee 01 08 02 10 ff
+    01 1a e6 01 08 02 10 ff 01 18 ff ff ff ff ff ff
+    ff ff ff 01 22 12 09 ff ff ff ff ff ff ff ff 11
+    ff ff ff ff ff ff ff ff 28 ff ff ff ff 0f 30 ff
+    ff ff ff 0f 38 ff ff ff ff 0f 40 03 48 ff ff ff
+    ff 0f 52 36 08 ff ff ff ff 0f 12 0e 08 34 10 ff
+    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff
+    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff
+    ff ff ff 07 18 ff ff ff ff 07 52 36 08 ff ff ff
+    ff 0f 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff
+    ff 07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff
+    ff 07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff
+    ff 07 52 36 08 ff ff ff ff 0f 12 0e 08 34 10 ff
+    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff
+    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff
+    ff ff ff 07 18 ff ff ff ff 07 1a ee 01 08 02 10
+    ff 01 1a e6 01 08 02 10 ff 01 18 ff ff ff ff ff
+    ff ff ff ff 01 22 12 09 ff ff ff ff ff ff ff ff
+    11 ff ff ff ff ff ff ff ff 28 ff ff ff ff 0f 30
+    ff ff ff ff 0f 38 ff ff ff ff 0f 40 03 48 ff ff
+    ff ff 0f 52 36 08 ff ff ff ff 0f 12 0e 08 34 10
+    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10
+    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10
+    ff ff ff ff 07 18 ff ff ff ff 07 52 36 08 ff ff
+    ff ff 0f 12 0e 08 34 10 ff ff ff ff 07 18 ff ff
+    ff ff 07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff
+    ff ff 07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff
+    ff ff 07 52 36 08 ff ff ff ff 0f 12 0e 08 34 10
+    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10
+    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10
+    ff ff ff ff 07 18 ff ff ff ff 07
 
 variant minima
   field 1 RequestId : uint = 0
@@ -128,8 +367,19 @@ variant minima
         field 5 Count : uint = 0
         field 6 Durability : uint = 0
         field 7 Flags : uint = 0
-  bytes 4
-    1a 02 1a 00
+        field 8 Rarity : ItemRarity = Common (0)
+        field 9 ItemLevel : uint = 0
+        field 10 Modifiers : List<ItemModifierDto> = 1 element
+          element 0
+            field 1 ModifierId : uint = 0
+            field 2 Values : List<ItemModifierValueDto> = 1 element
+              element 0
+                field 1 Stat : ItemStat = Stamina (0)
+                field 2 Value : int = -2147483648
+                field 3 Value2 : int? = -2147483648
+  bytes 30
+    1a 1c 1a 1a 52 18 12 16 10 80 80 80 80 f8 ff ff
+    ff ff 01 18 80 80 80 80 f8 ff ff ff ff 01
 
 variant varint-edges
   field 1 RequestId : uint = 268435455
@@ -146,6 +396,31 @@ variant varint-edges
         field 5 Count : uint = 268435455
         field 6 Durability : uint = 2097151
         field 7 Flags : uint = 268435455
+        field 8 Rarity : ItemRarity = <not a declared member> (4)
+        field 9 ItemLevel : uint = 268435455
+        field 10 Modifiers : List<ItemModifierDto> = 2 elements
+          element 0
+            field 1 ModifierId : uint = 16383
+            field 2 Values : List<ItemModifierValueDto> = 2 elements
+              element 0
+                field 1 Stat : ItemStat = <not a declared member> (53)
+                field 2 Value : int = 268435455
+                field 3 Value2 : int? = 2097151
+              element 1
+                field 1 Stat : ItemStat = <not a declared member> (53)
+                field 2 Value : int = 2097152
+                field 3 Value2 : int? = 16384
+          element 1
+            field 1 ModifierId : uint = 2097152
+            field 2 Values : List<ItemModifierValueDto> = 2 elements
+              element 0
+                field 1 Stat : ItemStat = <not a declared member> (53)
+                field 2 Value : int = 268435455
+                field 3 Value2 : int? = 2097151
+              element 1
+                field 1 Stat : ItemStat = <not a declared member> (53)
+                field 2 Value : int = 2097152
+                field 3 Value2 : int? = 16384
     element 1
       field 1 Container : InventoryType = <not a declared member> (3)
       field 2 Slot : byte = 127
@@ -157,11 +432,45 @@ variant varint-edges
         field 5 Count : uint = 128
         field 6 Durability : uint = 268435456
         field 7 Flags : uint = 128
-  bytes 105
-    08 ff ff ff 7f 10 10 1a 31 08 03 10 80 01 1a 2a
+        field 8 Rarity : ItemRarity = <not a declared member> (4)
+        field 9 ItemLevel : uint = 128
+        field 10 Modifiers : List<ItemModifierDto> = 2 elements
+          element 0
+            field 1 ModifierId : uint = 16383
+            field 2 Values : List<ItemModifierValueDto> = 2 elements
+              element 0
+                field 1 Stat : ItemStat = <not a declared member> (53)
+                field 2 Value : int = 268435455
+                field 3 Value2 : int? = 2097151
+              element 1
+                field 1 Stat : ItemStat = <not a declared member> (53)
+                field 2 Value : int = 2097152
+                field 3 Value2 : int? = 16384
+          element 1
+            field 1 ModifierId : uint = 2097152
+            field 2 Values : List<ItemModifierValueDto> = 2 elements
+              element 0
+                field 1 Stat : ItemStat = <not a declared member> (53)
+                field 2 Value : int = 268435455
+                field 3 Value2 : int? = 2097151
+              element 1
+                field 1 Stat : ItemStat = <not a declared member> (53)
+                field 2 Value : int = 2097152
+                field 3 Value2 : int? = 16384
+  bytes 245
+    08 ff ff ff 7f 10 10 1a 78 08 03 10 80 01 1a 71
     08 03 10 80 01 18 80 01 22 12 09 04 03 02 01 06
     05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28 ff ff ff
-    7f 30 ff ff 7f 38 ff ff ff 7f 1a 2d 08 03 10 7f
-    1a 27 08 03 10 7f 18 ff 7f 22 12 09 04 03 02 01
-    06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28 80 01
-    30 80 80 80 80 01 38 80 01
+    7f 30 ff ff 7f 38 ff ff ff 7f 40 04 48 ff ff ff
+    7f 52 1d 08 ff 7f 12 0b 08 35 10 ff ff ff 7f 18
+    ff ff 7f 12 0b 08 35 10 80 80 80 01 18 80 80 01
+    52 1f 08 80 80 80 01 12 0b 08 35 10 ff ff ff 7f
+    18 ff ff 7f 12 0b 08 35 10 80 80 80 01 18 80 80
+    01 1a 72 08 03 10 7f 1a 6c 08 03 10 7f 18 ff 7f
+    22 12 09 04 03 02 01 06 05 08 07 11 09 0a 0b 0c
+    0d 0e 0f 10 28 80 01 30 80 80 80 80 01 38 80 01
+    40 04 48 80 01 52 1d 08 ff 7f 12 0b 08 35 10 ff
+    ff ff 7f 18 ff ff 7f 12 0b 08 35 10 80 80 80 01
+    18 80 80 01 52 1f 08 80 80 80 01 12 0b 08 35 10
+    ff ff ff 7f 18 ff ff 7f 12 0b 08 35 10 80 80 80
+    01 18 80 80 01

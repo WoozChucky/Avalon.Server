@@ -32,16 +32,18 @@ public enum CurrentValues
 /// </summary>
 public static class CharacterStatsRefresh
 {
-    // The worn templates of the refresh running on this thread (the tick's, or a test's).
+    // The worn items of the refresh running on this thread (the tick's, or a test's).
 #pragma warning disable IDE1006
-    [ThreadStatic] private static List<ItemTemplate>? t_worn;
+    [ThreadStatic] private static List<WornItem>? t_worn;
 #pragma warning restore IDE1006
 
     /// <summary>
-    /// False, changing nothing, when there is no ClassLevelStat row for the character's class and
-    /// level, or no ClassStatFactors row for its class (#506). A worn item counts only when its template exists and the slot it is in accepts it, so
-    /// a row that put a gem in slot 8 or anything in 11-13 adds nothing. <paramref name="formula" /> bounds
-    /// the speeds (#1178) and movement speed (#627), and is required: the caller passes the generation it read.
+    /// False, changing nothing, when there is no ClassLevelStat row for the character's class and level, or no
+    /// ClassStatFactors row for its class (#506). A worn item counts only when its template exists and the slot it is in
+    /// accepts it, so a row that put a gem in slot 8 or anything in the reserved slot 13 adds nothing. Each counts the
+    /// template the lookup holds now and the modifiers its copy rolled (#1179), so a base edited live reaches a worn copy
+    /// and leaves its modifiers as they were. <paramref name="formula" /> bounds the speeds (#1178) and movement speed
+    /// (#627), and is required: the caller passes the generation it read.
     /// </summary>
     public static bool Apply(
         CharacterEntity character,
@@ -56,9 +58,10 @@ public static class CharacterStatsRefresh
     /// The refresh itself. The class row is the first of the character's class and level, and the worn items are read
     /// in the Equipment container's own order, as they always were; neither is found through a query any more (#883):
     /// the row lookup was a closure, a delegate and an enumerator per refresh, and so was each worn item's template
-    /// over the current reference data, which walked every item template for it besides. The list of worn templates
+    /// over the current reference data, which walked every item template for it besides. The list of worn items
     /// stays: it is what the calculator, shared with the simulator and the API, is handed. It is the calling thread's one
-    /// list (#1178), emptied after each refresh, so a refresh allocates nothing for it.
+    /// list (#1178), emptied after each refresh, so a refresh allocates nothing for it; each item's modifiers are the
+    /// character's store's own list (#1179), null for an item without any, so they allocate nothing either.
     /// </summary>
     private static bool Apply(
         CharacterEntity character,
@@ -72,13 +75,13 @@ public static class CharacterStatsRefresh
         if (row is null || !classFactors.TryGetValue(character.Class, out ClassStatFactors? factors))
             return false;
 
-        List<ItemTemplate> worn = t_worn ??= [];
+        List<WornItem> worn = t_worn ??= [];
         try
         {
             foreach (InventoryItem item in character.Container(InventoryType.Equipment).Held)
             {
                 if (templates.Find(item.TemplateId) is { } template && EquipmentSlots.Accepts(item.Slot, template.Slot))
-                    worn.Add(template);
+                    worn.Add(new WornItem(template, character.ItemModifiers.ListOf(item.InstanceId)));
             }
 
             // Auras: whatever the character holds now is folded in, so every refresh (select, gear, level-up, an aura)

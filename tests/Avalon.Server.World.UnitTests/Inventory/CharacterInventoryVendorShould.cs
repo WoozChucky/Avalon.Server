@@ -22,7 +22,7 @@ public class CharacterInventoryVendorShould
         InventoryItem potion = Item(2, Potion, count: 5, charges: 3);
         character.Container(InventoryType.Bag).Load([potion]);
 
-        InventoryItem taken = InventoryFor(character).TakeOut(new SlotRef(InventoryType.Bag, 2), 2);
+        InventoryItem taken = InventoryFor(character).TakeOut(new SlotRef(InventoryType.Bag, 2), 2).Item;
 
         Assert.NotEqual(potion.InstanceId, taken.InstanceId);
         Assert.Equal(potion with { InstanceId = taken.InstanceId, Count = 2 }, taken);
@@ -56,7 +56,7 @@ public class CharacterInventoryVendorShould
         InventoryItem stack = Item(0, Potion, count: 3);
         character.Container(InventoryType.Bag).Load([stack]);
 
-        InventoryFor(character).TryAddInstance(Item(5, Potion, count: 2));
+        InventoryFor(character).TryAddInstance(Carried(Item(5, Potion, count: 2)));
 
         Assert.Equal(3u, At(character, InventoryType.Bag, 0).Count);
         Assert.Equal(2u, At(character, InventoryType.Bag, 1).Count);
@@ -70,7 +70,7 @@ public class CharacterInventoryVendorShould
         character.Container(InventoryType.Bag).Load([sword]);
         CharacterInventoryService inventory = InventoryFor(character);
 
-        InventoryItem taken = inventory.TakeOut(new SlotRef(InventoryType.Bag, 4), 1);
+        CarriedItem taken = inventory.TakeOut(new SlotRef(InventoryType.Bag, 4), 1);
         Assert.Equal(SaveState.Removed, character.SaveState.ItemState(sword.InstanceId));
 
         inventory.TryAddInstance(taken);
@@ -88,7 +88,7 @@ public class CharacterInventoryVendorShould
         CharacterEntity character = New();
         character.Container(InventoryType.Bag).Load(Enumerable.Range(0, 30).Select(s => Item((byte)s, Sword)).ToList());
 
-        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character).TryAddInstance(Item(0, Potion)));
+        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character).TryAddInstance(Carried(Item(0, Potion))));
 
         Assert.False(character.SaveState.HasChanges);
         Assert.False(character.ClientChanges.HasChanges);
@@ -104,7 +104,7 @@ public class CharacterInventoryVendorShould
         CharacterEntity character = New();
         character.Container(InventoryType.Bank).Load([Item(3, Relic)]);
 
-        Assert.Equal(InventoryAddResult.UniqueAlreadyOwned, InventoryFor(character).TryAddInstance(Item(0, Relic)));
+        Assert.Equal(InventoryAddResult.UniqueAlreadyOwned, InventoryFor(character).TryAddInstance(Carried(Item(0, Relic))));
 
         Assert.Empty(character.Container(InventoryType.Bag).Items);
         Assert.False(character.SaveState.HasChanges);
@@ -117,7 +117,7 @@ public class CharacterInventoryVendorShould
         CharacterEntity character = New();
         InventoryItem relic = Item(9, Relic);
 
-        Assert.Equal(InventoryAddResult.Ok, InventoryFor(character).TryAddInstance(relic));
+        Assert.Equal(InventoryAddResult.Ok, InventoryFor(character).TryAddInstance(Carried(relic)));
 
         Assert.Equal(relic with { Slot = 0 }, At(character, InventoryType.Bag, 0));
     }
@@ -127,9 +127,9 @@ public class CharacterInventoryVendorShould
     public void Add_an_instance_whose_template_is_gone()
     {
         CharacterEntity character = New();
-        var orphan = new InventoryItem(0, new ItemInstanceId(Guid.CreateVersion7()), new ItemTemplateId(9999), 1, 0, ItemInstanceFlags.None);
+        var orphan = new InventoryItem(0, new ItemInstanceId(Guid.CreateVersion7()), new ItemTemplateId(9999), 1, 0, ItemInstanceFlags.None, ItemRarity.Common, 1);
 
-        Assert.Equal(InventoryAddResult.Ok, InventoryFor(character).TryAddInstance(orphan));
+        Assert.Equal(InventoryAddResult.Ok, InventoryFor(character).TryAddInstance(Carried(orphan)));
 
         Assert.Equal(orphan, At(character, InventoryType.Bag, 0));
     }
@@ -141,7 +141,7 @@ public class CharacterInventoryVendorShould
         InventoryItem banked = Item(3, Sword);
         character.Container(InventoryType.Bank).Load([banked]);
 
-        Assert.Throws<InvalidOperationException>(() => InventoryFor(character).TryAddInstance(banked));
+        Assert.Throws<InvalidOperationException>(() => InventoryFor(character).TryAddInstance(Carried(banked)));
         Assert.False(character.SaveState.HasChanges);
     }
 }

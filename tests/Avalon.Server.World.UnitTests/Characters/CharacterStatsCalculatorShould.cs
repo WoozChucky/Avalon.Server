@@ -25,8 +25,8 @@ public class CharacterStatsCalculatorShould
         return context.ClassLevelStats.AsNoTracking().ToList().Single(s => s.Class == @class && s.Level == level);
     }
 
-    private static DerivedCharacterStats Calc(ClassLevelStat row, IReadOnlyList<ItemTemplate> worn)
-        => CharacterStatsCalculator.Calculate(row, worn, TestCombat.FactorsOf(row.Class), TestCombat.Formula);
+    private static DerivedCharacterStats Calc(ClassLevelStat row, ItemTemplate[] worn)
+        => CharacterStatsCalculator.Calculate(row, Worn.Of(worn), TestCombat.FactorsOf(row.Class), TestCombat.Formula);
 
     [Theory]
     [InlineData(CharacterClass.Warrior, 1, 240u, 100u)]
@@ -127,7 +127,7 @@ public class CharacterStatsCalculatorShould
         };
 
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Warrior, 1),
-            geared ? [robe] : [], TestCombat.FactorsOf(CharacterClass.Warrior), formula);
+            geared ? Worn.Of(robe) : [], TestCombat.FactorsOf(CharacterClass.Warrior), formula);
 
         Assert.Equal((armor, evasion, ward, 0f), (stats.Armor, stats.Evasion, stats.MaxWard, stats.BlockPct));
         Assert.Equal(new Resistances(fire, 0f, 0f, 0f), stats.Resistances);
@@ -224,6 +224,82 @@ public class CharacterStatsCalculatorShould
         };
 
         Assert.Equal(3u + 2u, Calc(SeededRow(CharacterClass.Hunter, 1), [trinket]).Armor);   // and Strength 21 x 0.1
+    }
+
+    /// <summary>
+    /// Review Focus 4 (#1179, A-R13, A-R14): a local line counts only on the item it sits on. The head's 50 % increased
+    /// armour scales its own 5 + 3 to 12, never the chest's 8, and the gloves' 100 % scales no armour of theirs; the main
+    /// hand's added damage, 40 % increased physical damage and 10 % attack speed are its own (4-7 to 6-10, added physical
+    /// 1-2 to 1-3, 792 ms to 720), never the offence block's; the ring's added damage to attacks and to spells is global.
+    /// The boots' 25 evasion at 82 % is exactly 45.5, rounded half away from zero to 46 in whole numbers (a double gives
+    /// 45.49999… from 25 x (1 + 0.82)).
+    /// </summary>
+    [Theory]
+    [InlineData("armor", 20d)]
+    [InlineData("evasion", 46d)]
+    [InlineData("weapon min1", 6d)]
+    [InlineData("weapon max1", 10d)]
+    [InlineData("weapon added physical min", 1d)]
+    [InlineData("weapon added physical max", 3d)]
+    [InlineData("weapon added fire max", 5d)]
+    [InlineData("attack time", 720d)]
+    [InlineData("attacks physical max", 3d)]
+    [InlineData("spells cold max", 2d)]
+    [InlineData("global increased physical", 0d)]
+    public void Keep_local_modifiers_on_the_item_they_sit_on(string what, double expected)
+    {
+        var formula = new CombatFormula { ArmorPerStrength = 0f };
+        var head = new ItemTemplate { Name = "Head", Slot = ItemSlotType.Head, StatType1 = StatType.Armor, StatValue1 = 5 };
+        var chest = new ItemTemplate { Name = "Chest", Slot = ItemSlotType.Chest, StatType1 = StatType.Armor, StatValue1 = 8 };
+        var mainHand = new ItemTemplate
+        {
+            Name = "Sword",
+            Slot = ItemSlotType.MainHand,
+            DamageMin1 = 4,
+            DamageMax1 = 7,
+            DamageType1 = DamageType.Physical,
+            AttackTimeMs = 792,
+        };
+        var ring = new ItemTemplate { Name = "Ring", Slot = ItemSlotType.Finger };
+        var gloves = new ItemTemplate { Name = "Gloves", Slot = ItemSlotType.Hands };
+        var boots = new ItemTemplate { Name = "Boots", Slot = ItemSlotType.Feet, StatType1 = StatType.Evasion, StatValue1 = 25 };
+        WornItem[] worn =
+        [
+            Rolled(head, (StatType.Armor, 3, null), (StatType.LocalIncreasedArmor, 50, null)),
+            Rolled(chest),
+            Rolled(mainHand, (StatType.AddedPhysicalDamage, 1, 2), (StatType.LocalIncreasedPhysicalDamage, 40, null),
+                (StatType.AddedFireDamage, 2, 5), (StatType.LocalAttackSpeed, 10, null)),
+            Rolled(ring, (StatType.AddedPhysicalDamageToAttacks, 1, 3), (StatType.AddedColdDamageToSpells, 1, 2)),
+            Rolled(gloves, (StatType.LocalIncreasedArmor, 100, null)),
+            Rolled(boots, (StatType.LocalIncreasedEvasion, 82, null)),
+        ];
+
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Warrior, 1), worn,
+            TestCombat.FactorsOf(CharacterClass.Warrior), formula);
+
+        double actual = what switch
+        {
+            "armor" => stats.Armor,
+            "evasion" => stats.Evasion,
+            "weapon min1" => stats.Weapon.Min1,
+            "weapon max1" => stats.Weapon.Max1,
+            "weapon added physical min" => stats.Weapon.Added.Min(DamageType.Physical),
+            "weapon added physical max" => stats.Weapon.Added.Max(DamageType.Physical),
+            "weapon added fire max" => stats.Weapon.Added.Max(DamageType.Fire),
+            "attack time" => stats.Weapon.AttackTimeMs,
+            "attacks physical max" => stats.AddedToAttacks.Max(DamageType.Physical),
+            "spells cold max" => stats.AddedToSpells.Max(DamageType.Cold),
+            _ => stats.Offence.Increased(OffenceStat.Physical),
+        };
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>A copy of <paramref name="template" /> whose modifiers hold <paramref name="values" />, two to a modifier.</summary>
+    private static WornItem Rolled(ItemTemplate template, params (StatType Stat, int Value, int? Value2)[] values)
+    {
+        var item = new ItemInstanceId(Guid.CreateVersion7());
+        return new WornItem(template, [.. values.Chunk(2).Select((pair, ordinal) => TestModifiers.Modifier(item, 1,
+            (byte)ordinal, [.. pair.Select((v, i) => ((byte)i, v.Stat, v.Value, v.Value2))]))]);
     }
 
     [Fact]

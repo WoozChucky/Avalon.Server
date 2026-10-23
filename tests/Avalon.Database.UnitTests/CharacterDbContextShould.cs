@@ -74,6 +74,7 @@ public class CharacterDbContextShould
                 Durability = 33,
                 Charges = 2,
                 Flags = ItemInstanceFlags.Broken,
+                ItemLevel = 1,
                 UpdatedAt = DateTime.UtcNow,
             });
             write.CharacterInventory.Add(new CharacterInventory
@@ -162,6 +163,7 @@ public class CharacterDbContextShould
                     TemplateId = new ItemTemplateId(4242),
                     CharacterId = holder,
                     Count = 1,
+                    ItemLevel = 1,
                     UpdatedAt = DateTime.UtcNow,
                 });
                 write.CharacterInventory.Add(new CharacterInventory

@@ -34,7 +34,25 @@
     "IncreasedHealing": "+5% increased Healing",
     "CritMultiplier": "+5% Crit Multiplier",
     "CastSpeed": "+5% Cast Speed",
-    "CooldownRecovery": "+5% Cooldown Recovery"
+    "CooldownRecovery": "+5% Cooldown Recovery",
+    "AddedPhysicalDamage": "Adds 5 Physical Damage",
+    "AddedFireDamage": "Adds 5 Fire Damage",
+    "AddedColdDamage": "Adds 5 Cold Damage",
+    "AddedLightningDamage": "Adds 5 Lightning Damage",
+    "AddedBlightDamage": "Adds 5 Blight Damage",
+    "LocalIncreasedPhysicalDamage": "+5% increased Physical Damage",
+    "LocalIncreasedArmor": "+5% increased Armor",
+    "LocalIncreasedEvasion": "+5% increased Evasion",
+    "LocalIncreasedWard": "+5% increased Ward",
+    "LocalAttackSpeed": "+5% increased Attack Speed",
+    "AddedPhysicalDamageToAttacks": "Adds 5 Physical Damage to Attacks",
+    "AddedFireDamageToAttacks": "Adds 5 Fire Damage to Attacks",
+    "AddedColdDamageToAttacks": "Adds 5 Cold Damage to Attacks",
+    "AddedLightningDamageToAttacks": "Adds 5 Lightning Damage to Attacks",
+    "AddedBlightDamageToAttacks": "Adds 5 Blight Damage to Attacks",
+    "AddedFireDamageToSpells": "Adds 5 Fire Damage to Spells",
+    "AddedColdDamageToSpells": "Adds 5 Cold Damage to Spells",
+    "AddedLightningDamageToSpells": "Adds 5 Lightning Damage to Spells"
   },
   "negative": [
     {

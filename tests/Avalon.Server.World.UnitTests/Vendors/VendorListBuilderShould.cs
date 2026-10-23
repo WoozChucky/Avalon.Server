@@ -98,8 +98,8 @@ public class VendorListBuilderShould : IAsyncLifetime
     public void List_the_buyback_newest_first_with_what_each_sold_for()
     {
         CharacterEntity character = _w.Main.Character;
-        character.Buyback.Push(new BuybackEntry(TestCharacters.Item(3, Tonic, count: 5), 20));
-        character.Buyback.Push(new BuybackEntry(TestCharacters.Item(4, Blade, durability: 42), 25));
+        character.Buyback.Push(new BuybackEntry(TestCharacters.Carried(TestCharacters.Item(3, Tonic, count: 5)), 20));
+        character.Buyback.Push(new BuybackEntry(TestCharacters.Carried(TestCharacters.Item(4, Blade, durability: 42)), 25));
 
         SVendorListPacket list = Build();
 
@@ -129,8 +129,8 @@ public class VendorListBuilderShould : IAsyncLifetime
             SellPrice = Tonic.SellPrice,
         };
         CharacterEntity character = _w.Main.Character;
-        character.Buyback.Push(new BuybackEntry(TestCharacters.Item(3, Blade, durability: 42), 25));
-        character.Buyback.Push(new BuybackEntry(TestCharacters.Item(4, Tonic, count: 5), 20));
+        character.Buyback.Push(new BuybackEntry(TestCharacters.Carried(TestCharacters.Item(3, Blade, durability: 42)), 25));
+        character.Buyback.Push(new BuybackEntry(TestCharacters.Carried(TestCharacters.Item(4, Tonic, count: 5)), 20));
         _w.Data.Apply(new ItemsPatch(Items.Select(i => i.Id == Tonic.Id ? flagged : i).ToList()));
 
         SVendorListPacket list = Build();
@@ -159,7 +159,7 @@ public class VendorListBuilderShould : IAsyncLifetime
     public void Send_the_list_when_the_buyback_changed_and_forget_it_once_sent()
     {
         _w.OpenShop();
-        _w.Main.Character.Buyback.Push(new BuybackEntry(TestCharacters.Item(3, Tonic), 4));
+        _w.Main.Character.Buyback.Push(new BuybackEntry(TestCharacters.Carried(TestCharacters.Item(3, Tonic)), 4));
         _w.Main.Character.VendorListOwed = true;
 
         _w.EndOfTick();

@@ -63,7 +63,7 @@ public static class ItemRequestReply
                 Container = slot.Container,
                 Slot = slot.Slot,
                 Item = character.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item)
-                    ? ItemSlotDtoMapper.ToDto(slot.Container, item)
+                    ? ItemSlotDtoMapper.ToDto(slot.Container, item, character.ItemModifiers.Of(item.InstanceId))
                     : null,
             };
         }

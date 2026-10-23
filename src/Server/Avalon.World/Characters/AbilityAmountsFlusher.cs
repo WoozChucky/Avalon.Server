@@ -42,7 +42,7 @@ public static class AbilityAmountsFlusher
 
     /// <summary>
     /// The rare path, once the stats refresh or the level moved. Kept out of <see cref="Flush" /> so the unchanged tick
-    /// reserves and zeroes no frame for the 192 B attacker and the tuples this path copies.
+    /// reserves and zeroes no frame for the 344 B attacker and the tuples this path copies.
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void FlushChanged(IWorldConnection connection, CharacterEntity character,

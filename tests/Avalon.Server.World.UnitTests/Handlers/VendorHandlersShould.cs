@@ -8,7 +8,6 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
-using Avalon.World.Public.Characters;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -114,11 +113,11 @@ public class VendorHandlersShould : IAsyncLifetime
     {
         _w.OpenShop();
         Me.Container(InventoryType.Bag).Load([TestCharacters.Item(0, Tonic, count: 5)]);
-        Me.Buyback.Push(new BuybackEntry(TestCharacters.Item(3, Tonic, count: 1), 4));
+        Me.Buyback.Push(new BuybackEntry(TestCharacters.Carried(TestCharacters.Item(3, Tonic, count: 1)), 4));
 
         IInventoryService inventory = Substitute.For<IInventoryService>();
         inventory.TryAdd(Arg.Any<ItemTemplateId>(), Arg.Any<uint>()).Returns(InventoryAddResult.InventoryFull);
-        inventory.TryAddInstance(Arg.Any<InventoryItem>()).Returns(InventoryAddResult.InventoryFull);
+        inventory.TryAddInstance(Arg.Any<CarriedItem>()).Returns(InventoryAddResult.InventoryFull);
         inventory.TakeOut(Arg.Any<SlotRef>(), Arg.Any<uint>()).Returns(_ => throw new InvalidOperationException("boom"));
         IWallet wallet = new CharacterEconomy(_w.World, new ItemIdAllocator()).WalletOf(Me);
         ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();

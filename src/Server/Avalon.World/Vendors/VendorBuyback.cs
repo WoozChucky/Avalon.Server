@@ -1,13 +1,14 @@
 using System.Diagnostics.CodeAnalysis;
-using Avalon.World.Public.Characters;
+using Avalon.World.Inventory;
 
 namespace Avalon.World.Vendors;
 
 /// <summary>
 /// One sale that can be undone: the exact instance sold (same id, count, durability, flags,
-/// charges), and the gold it sold for, which is the price to buy it back.
+/// charges, rarity, item level) with its modifiers (#1179), and the gold it sold for, which is the
+/// price to buy it back.
 /// </summary>
-public sealed record BuybackEntry(InventoryItem Item, ulong Price);
+public sealed record BuybackEntry(CarriedItem Item, ulong Price);
 
 /// <summary>
 /// A session's last <see cref="Capacity" /> sales, newest at index 0 (spec #432). The eleventh

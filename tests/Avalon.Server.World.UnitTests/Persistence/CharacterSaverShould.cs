@@ -20,6 +20,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
+using static Avalon.Server.World.UnitTests.Inventory.TestModifiers;
 
 namespace Avalon.Server.World.UnitTests.Persistence;
 
@@ -308,6 +309,40 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.Equal(3u, (await StoredItemAsync(wand.InstanceId))!.Charges);
     }
 
+    /// <summary>
+    /// #1179: rarity, item level and modifiers are facts of the instance, so they outlive a sale saved while the item sits
+    /// in the buyback list (its rows, modifiers included, are deleted then), the buyback, its save and a reload: the
+    /// bought-back item carries its modifiers back to the database under their own ids.
+    /// </summary>
+    [Fact]
+    public async Task Keep_an_items_rarity_level_and_modifiers_through_a_sale_buyback_save_and_reload()
+    {
+        InventoryItem x = Item(4, Vendors.VendorTestData.Blade, durability: 42) with { Rarity = ItemRarity.Magic, ItemLevel = 7 };
+        ItemInstanceModifier a = Modifier(x.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5));
+        ItemInstanceModifier b = Modifier(x.InstanceId, 10103, 1, (0, StatType.Strength, 8, null), (1, StatType.Armor, 3, null));
+        await SeedAsync(7, stored: [x], modifiers: [b, a]);
+        CharacterEntity character = await LoadAsync(7);
+        Assert.Equal(Describe(a, b), Describe(character.ItemModifiers.Of(x.InstanceId)));
+        var vendor = new VendorTrade(character, InventoryFor(character, Vendors.VendorTestData.Find),
+            new CharacterWallet(character, ulong.MaxValue), Vendors.VendorTestData.Find, ulong.MaxValue);
+        CharacterSaver saver = Saver();
+
+        Assert.Equal(Avalon.Network.Packets.Vendor.VendorResult.Ok, vendor.TrySell(shopOpen: true, 4, null));
+        Assert.Empty(character.ItemModifiers.Of(x.InstanceId));
+        Assert.True(await saver.Save(_connection, character).WaitAsync(s_limit));
+        await PumpAsync();
+        Assert.Null(await StoredItemAsync(x.InstanceId));
+
+        Assert.Equal(Avalon.Network.Packets.Vendor.VendorResult.Ok, vendor.TryBuyback(shopOpen: true, 0));
+        Assert.True(await saver.Save(_connection, character).WaitAsync(s_limit));
+        await PumpAsync();
+
+        CharacterEntity reloaded = await LoadAsync(7);
+        InventoryItem back = Assert.Single(reloaded.Container(InventoryType.Bag).Items);
+        Assert.Equal((x.InstanceId, ItemRarity.Magic, (ushort)7), (back.InstanceId, back.Rarity, back.ItemLevel));
+        Assert.Equal(Describe(a, b), Describe(reloaded.ItemModifiers.Of(x.InstanceId)));
+    }
+
     [Fact]
     public async Task Survive_a_move_to_an_empty_slot_through_a_save()
     {
@@ -460,15 +495,18 @@ public sealed class CharacterSaverShould : IDisposable
 
     /// <summary>
     /// Save first, then swap (#1175): the paired save writes both characters as they will be after the trade, with its
-    /// record, in one transaction, while memory stays as it is. A refused write leaves both rows and the record out.
+    /// record, in one transaction, while memory stays as it is. A refused write leaves both rows and the record out. The
+    /// sword's modifier was never saved (#1179): the receiver's half writes it, with the copy's rarity and item level.
     /// </summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Write_both_sides_of_a_trade_and_its_record_in_one_transaction_or_neither(bool refused)
     {
-        InventoryItem sword = Item(0, Sword), potion = Item(0, Potion, count: 5);
+        InventoryItem sword = Item(0, Sword) with { Rarity = ItemRarity.Magic, ItemLevel = 7 }, potion = Item(0, Potion, count: 5);
         CharacterEntity a = await SeedAsync(7, stored: [sword], gold: 100);
+        ItemInstanceModifier fire = Modifier(sword.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5));
+        a.ItemModifiers.Load([new ItemInstance { Id = sword.InstanceId, TemplateId = sword.TemplateId, Modifiers = [fire] }]);
         CharacterEntity b;
         if (refused)
         {
@@ -499,9 +537,14 @@ public sealed class CharacterSaverShould : IDisposable
             Assert.Equal(new CharacterId(7), (await StoredItemAsync(potion.InstanceId))!.CharacterId);
             Assert.Equal((60UL, 40UL), ((await StoredRowAsync(7)).Gold, (await StoredRowAsync(8)).Gold));
             CharacterInventory slotA = Assert.Single(await StoredSlotsAsync(7));
-            Assert.Equal((plan.First.Incoming[0].Slot, potion.InstanceId), (slotA.Slot, slotA.ItemId));
+            Assert.Equal((plan.First.Incoming[0].Item.Slot, potion.InstanceId), (slotA.Slot, slotA.ItemId));
             CharacterInventory slotB = Assert.Single(await StoredSlotsAsync(8));
-            Assert.Equal((plan.Second.Incoming[0].Slot, sword.InstanceId), (slotB.Slot, slotB.ItemId));
+            Assert.Equal((plan.Second.Incoming[0].Item.Slot, sword.InstanceId), (slotB.Slot, slotB.ItemId));
+            await using CharacterDbContext read = _db.CreateDbContext();
+            ItemInstance given = await read.ItemInstances.AsNoTracking().Include(i => i.Modifiers).ThenInclude(m => m.Values)
+                .SingleAsync(i => i.Id == sword.InstanceId);
+            Assert.Equal((ItemRarity.Magic, (ushort)7), (given.Rarity, given.ItemLevel));
+            Assert.Equal(Describe(fire), Describe([.. given.Modifiers]));
         }
 
         // Memory never changes either way: the trade applies the swap itself, once it knows the outcome.
@@ -542,12 +585,12 @@ public sealed class CharacterSaverShould : IDisposable
         // The swap, as the trade applies it.
         a.Locks.Clear();
         b.Locks.Clear();
-        InventoryItem givenSword = InventoryFor(a).TakeOut(new SlotRef(InventoryType.Bag, 0), 1);
-        a.SaveState.ItemHandedOver(givenSword.InstanceId);
-        InventoryItem givenPotion = InventoryFor(b).TakeOut(new SlotRef(InventoryType.Bag, 0), 5);
-        b.SaveState.ItemHandedOver(givenPotion.InstanceId);
-        Assert.Equal(InventoryAddResult.Ok, InventoryFor(b).TryAddInstanceAt(givenSword, plan.Second.Incoming[0].Slot));
-        Assert.Equal(InventoryAddResult.Ok, InventoryFor(a).TryAddInstanceAt(givenPotion, plan.First.Incoming[0].Slot));
+        CarriedItem givenSword = InventoryFor(a).TakeOut(new SlotRef(InventoryType.Bag, 0), 1);
+        a.SaveState.ItemHandedOver(givenSword.Item.InstanceId);
+        CarriedItem givenPotion = InventoryFor(b).TakeOut(new SlotRef(InventoryType.Bag, 0), 5);
+        b.SaveState.ItemHandedOver(givenPotion.Item.InstanceId);
+        Assert.Equal(InventoryAddResult.Ok, InventoryFor(b).TryAddInstanceAt(givenSword, plan.Second.Incoming[0].Item.Slot));
+        Assert.Equal(InventoryAddResult.Ok, InventoryFor(a).TryAddInstanceAt(givenPotion, plan.First.Incoming[0].Item.Slot));
         Assert.Equal(WalletResult.Ok, walletA.TrySpend(40));
         Assert.Equal(WalletResult.Ok, walletB.TryAddGold(40));
 
@@ -558,7 +601,7 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.Equal(65UL, (await StoredRowAsync(7)).Gold);   // 100 - 40 + 5, never 105
         Assert.Equal(new CharacterId(8), (await StoredItemAsync(sword.InstanceId))!.CharacterId);
         CharacterInventory slotA = Assert.Single(await StoredSlotsAsync(7));   // the potion, never the sword back
-        Assert.Equal((plan.First.Incoming[0].Slot, potion.InstanceId), (slotA.Slot, slotA.ItemId));
+        Assert.Equal((plan.First.Incoming[0].Item.Slot, potion.InstanceId), (slotA.Slot, slotA.ItemId));
         if (!despawn)
             Assert.True(await saver.Save(_connection, a).WaitAsync(s_limit));   // the giver's next save is not fenced out
         Assert.True(await saver.Save(_connection, b).WaitAsync(s_limit));
@@ -604,10 +647,15 @@ public sealed class CharacterSaverShould : IDisposable
         _queued.Clear();
     }
 
-    /// <summary>Stores the character and <paramref name="stored" /> in Bag slots, and loads <paramref name="held" /> (default: the same) into memory.</summary>
-    private async Task<CharacterEntity> SeedAsync(uint id, InventoryItem[]? stored = null, InventoryItem[]? held = null, ulong gold = 0)
+    /// <summary>
+    /// Stores the character and <paramref name="stored" /> in Bag slots, with <paramref name="modifiers" /> on their items,
+    /// and loads <paramref name="held" /> (default: the same) into memory.
+    /// </summary>
+    private async Task<CharacterEntity> SeedAsync(uint id, InventoryItem[]? stored = null, InventoryItem[]? held = null, ulong gold = 0,
+        ItemInstanceModifier[]? modifiers = null)
     {
         stored ??= [];
+        modifiers ??= [];
         CharacterEntity character = New(id, gold);
         CharacterId owner = character.Data!.Id;
 
@@ -623,6 +671,8 @@ public sealed class CharacterSaverShould : IDisposable
                 Durability = i.Durability,
                 Charges = i.Charges,
                 Flags = i.Flags,
+                Rarity = i.Rarity,
+                ItemLevel = i.ItemLevel,
                 UpdatedAt = DateTime.UtcNow,
             }).ToList());
             await new CharacterInventoryRepository(_db).CreateAsync(stored.Select(i => new CharacterInventory
@@ -634,7 +684,31 @@ public sealed class CharacterSaverShould : IDisposable
             }).ToList());
         }
 
+        if (modifiers.Length > 0)
+        {
+            // Rows of their own, not the caller's objects: the context's fix-up would otherwise fill them in.
+            await using CharacterDbContext context = _db.CreateDbContext();
+            context.AddRange(modifiers.Select(m => m.Copy()));
+            await context.SaveChangesAsync();
+        }
+
         character.Container(InventoryType.Bag).Load(held ?? stored);
+        await AdmittedCharacter.BindAsync(_db, character);
+        return character;
+    }
+
+    /// <summary>A new entity for the stored character, its containers and modifiers loaded from the database as the select loads them.</summary>
+    private async Task<CharacterEntity> LoadAsync(uint id)
+    {
+        CharacterId owner = new(id);
+        CharacterEntity character = New(id);
+        character.Data!.Gold = (await StoredRowAsync(id)).Gold;
+        IReadOnlyList<ItemInstance> instances = await new ItemInstanceRepository(_db).GetByCharacterIdAsync(owner);
+        IReadOnlyDictionary<InventoryType, List<InventoryItem>> assembled = InventoryAssembler.Assemble(
+            await new CharacterInventoryRepository(_db).GetByCharacterIdAsync(owner), [.. instances], NullLogger.Instance);
+        foreach (InventoryType container in new[] { InventoryType.Equipment, InventoryType.Bag, InventoryType.Bank })
+            character.Container(container).Load(assembled[container]);
+        character.ItemModifiers.Load([.. instances]);
         await AdmittedCharacter.BindAsync(_db, character);
         return character;
     }

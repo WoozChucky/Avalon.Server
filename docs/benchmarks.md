@@ -381,6 +381,25 @@ on entry, though only a refusal runs the query); a refusal paid those 96 B and 8
 top of its entries. What a refusal allocates now is its entries: 216 B for two slots holding items, 64 B for one
 empty slot.
 
+**Since #1179 an `ItemSlotDto` is 72 B, not 56 B**: it carries the copy's rarity and item level, and a list of its
+modifiers only when it rolled any (null otherwise, so an item without modifiers costs no list). Every row that builds
+an item entry grows by 16 B per item and nothing else moves. The same commands, one `--job short` run pinned to one
+core (`--affinity 4`; BenchmarkDotNet runs the benchmark process at high priority), 2026-10-23, at `2c38298b7`:
+
+| Row | Allocated before #1179 | Allocated after | Mean / min / median after |
+|---|---:|---:|---:|
+| `Flusher`, 0 slots (gold only) | 0 B | 0 B | 111.5 / – / – ns |
+| `Flusher`, 1 slot | 120 B | 136 B | 1,028.5 / 956 / 964 ns |
+| `Flusher`, 8 slots | 792 B | 920 B | 1,438.8 / 1,387 / 1,433 ns |
+| `Flusher`, 30 slots | 2,904 B | 3,384 B | 15,948 / 15,344 / 15,459 ns |
+| `Accepted_move` | 0 B | 0 B | 781.0 / 626.9 / 856.4 ns |
+| `Refused_move` (two slots holding items) | 216 B | 248 B | 1,190.5 / 1,176 / 1,195 ns |
+| `Refused_destroy` (one empty slot) | 64 B | 64 B | 887.0 / 694.5 / 859.0 ns |
+
+The allocations are exact. A short job's three iterations leave the means wide (an error of ±2-17 µs on the 1- and
+30-slot rows), so they back no claim beyond the allocations; the `Queried` rows are unchanged in shape (448, 888,
+1,704 and 4,392 B, each the old query's cost plus the larger entries).
+
 `InventoryAllocationShould` pins both paths in the World suite: a gold-only flush and an accepted reply at 0 B, and
 a flush of changed slots and a refusal at exactly what building their entries costs, measured in the test rather
 than written down. It runs in the collection that runs alone in the assembly, and reads the fewest of three windows:
@@ -1742,6 +1761,90 @@ comparison alone; the gate reads the amounts array rather than the nullable atta
 row was re-run alone after that change, out of process with the default job, the same day. A creature's read no longer
 folds anything: the two creature rows
 differ by what they read back from the 192 B attacker (a more factor against the crit), not by a fold.
+
+### Item stats — `Benchmarks/ItemStatsBenchmarks.cs` (#1179)
+
+The stats calculation a stats refresh runs, once per gear, level or aura change, never per tick or per hit, measured
+before and after the instance modifiers of #1179 (part A). `Calculate` is `CharacterStatsCalculator.Calculate` for a
+level-10 Warrior (the seeded row: BaseHp 400, Stamina 40, Strength 41, Agility 33, Intellect 20) on the seeded formula
+and the Warrior's factors, wearing the forest kit as it was seeded before part A: the five Barkplate pieces (items
+12-16), the Bramblesteel Sword (7), the Alpha's Fang Pendant (58), the Heartwood Band (64) and the Thornheart Signet
+(65). The templates are literals of those rows, since part A deletes or replaces them; the worn list is a `List` reused
+across calls, as the world's refresh passes it; no auras. Setup fails the run unless the maximum health is 680
+(400 + (40 + 16 from gear) x 5). `CalculateModified`, added with part A, wears the same nine pieces as `WornItem`s with
+six modifiers each, local and global lines mixed: the sword's added physical and fire damage, local increased
+physical damage, local attack speed and increased attack damage; each armour piece's flat armour, local increased
+armour, fire resistance, added physical damage to attacks and crit; each jewellery piece's added cold damage to
+attacks, added lightning damage to spells, cold resistance, cast speed and Strength; and 2 Stamina on every piece, so
+setup also asks for a maximum health of 770. `Calculate` wears them with no modifiers, so it is the like-for-like row.
+The Warrior's factors row is selected by its class. The `OffenceBenchmarks` rows run alongside, to see whether part
+A's changes to the offence block move a hit's base.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemStatsBenchmarks*" "*OffenceBenchmarks*" --warmupCount 10 --iterationCount 20
+```
+
+Out of process (BenchmarkDotNet's default toolchain), ten warmups and twenty measured iterations: BenchmarkDotNet
+0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, Release. Before is `bb15418f5` with this benchmark
+added and nothing else changed, 2026-10-23:
+
+| Operation | Before (#1179 part A) | Allocated |
+|---|---:|---:|
+| `ItemStatsBenchmarks.Calculate` | 234.4 ns (± 1.13 ns, error ± 0.98 ns) | 0 B |
+| `OffenceBenchmarks.AttackBase` | 14.50 ns (± 0.02 ns, error ± 0.02 ns) | 0 B |
+| `OffenceBenchmarks.ConvertedAttackBase` | 14.54 ns (± 0.02 ns, error ± 0.01 ns) | 0 B |
+| `OffenceBenchmarks.SpellBase` | 16.55 ns (± 0.05 ns, error ± 0.05 ns) | 0 B |
+| `OffenceBenchmarks.DamageOverTimeSnapshot` | 9.59 ns (± 0.07 ns, error ± 0.06 ns) | 0 B |
+
+After is `2c38298b7`, the same command plus `--affinity 4` (the process pinned to one core; BenchmarkDotNet runs it at
+high priority), on a quiet machine (about 7 % CPU before the run), one run, 2026-10-23:
+
+| Operation | After (#1179 part A): mean / min / median | Allocated |
+|---|---:|---:|
+| `ItemStatsBenchmarks.Calculate` | 415.9 / 412.5 / 415.9 ns (± 1.71 ns) | 0 B |
+| `ItemStatsBenchmarks.CalculateModified` | 944.4 / 930.0 / 946.2 ns (± 8.54 ns) | 0 B |
+| `OffenceBenchmarks.AttackBase` | 19.23 / 19.03 / 19.16 ns (± 0.15 ns) | 0 B |
+| `OffenceBenchmarks.ConvertedAttackBase` | 23.63 / 23.08 / 23.64 ns (± 0.25 ns) | 0 B |
+| `OffenceBenchmarks.SpellBase` | 14.64 / 14.34 / 14.64 ns (± 0.13 ns) | 0 B |
+| `OffenceBenchmarks.DamageOverTimeSnapshot` | 10.49 / 10.35 / 10.46 ns (± 0.09 ns) | 0 B |
+
+Nothing allocates, with or without modifiers. The before run was not pinned, so a ratio against it carries that
+difference too. The stats calculation without modifiers costs about 1.8 times what it did (416 ns against 234 ns):
+every worn item's lines now go through `ItemLines` in three folds (the gear totals with each item's own defence, the
+offence block with the added damage, the main hand's local lines), once per gear, level or aura change, never per tick
+or per hit. Six modifiers on each of nine pieces cost about 2.3 times the calculation without them (944 ns against
+416 ns).
+
+A hit's base: a Spell is faster than before (14.6 ns against 16.6 ns), since it skips its added-damage loop when the
+caster adds nothing (`DamageRanges.Mask`). An Attack costs 19.2 ns against 14.5 ns, and a converted one 23.6 ns against
+14.5 ns. `AttackBase` copies the weapon, which now holds its own added damage, and copies the added damage again to
+read its mask. A probe of the world's whole read (the attacker built from the character's stats, then the base) cost
+the same before part A and now, about 64 ns: building the 344 B attacker dominates. Making the weapon and the two added
+ranges fields of `AttackerCombat`, read in place, brought `AttackBase` alone to 12.7-14 ns in the same probe. It
+made building the attacker slower, though, and the whole read rose to 75-78 ns, so the properties stay.
+
+**Then, at `c51022b97`** (figures from the review's probe, Release, pinned to one core at high priority, best of
+seven rounds, two runs each; no BenchmarkDotNet run):
+
+- A unit keeps the attacker it hands to every hit and builds it again only after one of its inputs changes. That is a
+  stats refresh or a level for a character, and a level, damage range or aura change for a creature.
+  - A character's read and Cleave's base went from 63-64 ns to 35-37 ns.
+  - A creature's went from 28.5 ns to 22-24.5 ns (23.2 ns before part A).
+  - `AttackBase` alone stays about 20 ns.
+- Reading the weapon in place inside `AttackBase`, rather than copying it, was measured and left out. It is faster on
+  an attacker that was not just written (13.3 ns alone). But every real caller has just copied the attacker into a
+  local, and there the narrow reads ran slower: a creature's freshly built attacker 39.5 ns against 28.5 ns, a cached
+  one 19.8-33.4 ns against 22 ns.
+- The stats calculation walks each worn item's lines once, feeding the gear totals and the offence block together.
+  - `Calculate` went from 366 ns to 267-283 ns.
+  - With six modifiers on each piece it went from 970 ns to 686-727 ns.
+  - The attributes' terms now join the offence sums after the gear's lines, in both the calculation and the API's
+    `CharacterOffence.Of`.
+- **The allocation gate's `forest-combat` baseline is lowered from 14,447 B to 13,983 B per window**. Since
+  `f67626c78` an item entry no longer builds a details object and an empty modifier list, the one change of the
+  final wave that allocates less. The value was regenerated with the scenario runner (`dotnet run -c Release
+  --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json`), and the
+  Release gate then read 13,991 B (+0.06 %, within).
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
@@ -4546,7 +4649,7 @@ the real `PartyService` and joined at the forest's entry (15, 1, 15). The harnes
 instances, so players start in the forest. Since #972 the classes cycle over all four across the roster rather than per
 party slot (warrior, wizard, hunter; cleric, warrior, wizard; hunter, cleric, warrior; wizard, hunter, cleric), as the
 load test's parties of three do, so three parties in four carry a cleric. Each character starts with 28 of its 30 bag
-slots holding a piece of forest armour (item 12, which does not stack), added through its inventory service: a level 1
+slots holding a Barkplate Helm (item 12, a tier-2 plate base, which does not stack), added through its inventory service: a level 1
 bag fills far slower than a minute's fight, and this stands for a character that has played a while, so the item
 destroy path runs in every minute.
 

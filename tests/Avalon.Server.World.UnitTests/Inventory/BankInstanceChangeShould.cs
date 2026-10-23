@@ -38,7 +38,7 @@ public class BankInstanceChangeShould
         Assert.True(BankAccess.TryUse(w.Connection, w.Character, w.World));
         w.Character.OpenShopNpc = BankerWorld.BankerGuid;   // as if the banker also kept a shop
         w.Character.VendorListOwed = true;
-        w.Character.Buyback.Push(new BuybackEntry(Item(0, Sword), 25));
+        w.Character.Buyback.Push(new BuybackEntry(Carried(Item(0, Sword)), 25));
         Avalon.World.World world = await RealWorldAsync();
 
         world.TransferPlayer(w.Connection, Elsewhere());
@@ -78,7 +78,7 @@ public class BankInstanceChangeShould
         OpenBankThroughTheDialogue(w);
         w.Character.OpenShopNpc = BankerWorld.BankerGuid;
         w.Character.VendorListOwed = true;
-        w.Character.Buyback.Push(new BuybackEntry(Item(0, Sword), 25));
+        w.Character.Buyback.Push(new BuybackEntry(Carried(Item(0, Sword)), 25));
         Avalon.World.World world = await RealWorldAsync();
 
         await world.DeSpawnPlayerAsync(w.Connection);

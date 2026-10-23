@@ -69,7 +69,9 @@ public static class BankAccess
             {
                 Container = InventoryType.Bank,
                 Slot = slot,
-                Item = bank.TryGet(slot, out InventoryItem item) ? ItemSlotDtoMapper.ToDto(InventoryType.Bank, item) : null,
+                Item = bank.TryGet(slot, out InventoryItem item)
+                    ? ItemSlotDtoMapper.ToDto(InventoryType.Bank, item, character.ItemModifiers.Of(item.InstanceId))
+                    : null,
             };
         }
 

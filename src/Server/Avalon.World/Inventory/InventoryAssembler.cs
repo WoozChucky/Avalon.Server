@@ -68,6 +68,8 @@ public static class InventoryAssembler
                 instance.Count,
                 instance.Durability,
                 instance.Flags,
+                instance.Rarity,
+                instance.ItemLevel,
                 instance.Charges));
         }
 

@@ -358,6 +358,12 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "ability", "tags", "Area", "tags" },                              // on Ignite: its burning aura needs a Spell source
         { "aura", "periodicEffectiveness", -1, "periodicEffectiveness" },   // on Bleed
         { "item", "attackTimeMs", 0, "attackTimeMs" },                      // on the starter sword
+        { "item", "maxStackSize", 5, "maxStackSize" },                      // on a plate chest: equipment never stacks (#1179)
+        { "item", "baseKind", "Sword", "baseKind" },                        // on a potion, which has no slot (#1179)
+        { "item", "baseKind", "PlateChest", "baseKind" },                   // on the starter sword: a chest kind in the main hand (#1179)
+        { "item", "requiredLevel", 40000, "requiredLevel" },                // past the copy's smallint item level (#1179)
+        { "item", "rarity", "Magic", "rarity" },                            // a template is Common or Unique (#1179)
+        { "item", "damageType1", null, "damageType1" },                     // on the starter sword: a damage range is typed (#1179)
     };
 
     [Theory]
@@ -395,7 +401,9 @@ public sealed class TemplateEditShould : IAsyncLifetime
             ("ability", "convertPct") => 223UL,
             ("ability", "tags") => value is "Area" ? 213UL : 210UL,
             ("aura", "periodicEffectiveness") => 1UL,
-            ("item", "attackTimeMs") => 32UL,
+            ("item", "attackTimeMs" or "damageType1") => 32UL,
+            ("item", "maxStackSize") when value is 5 => 37UL,
+            ("item", "baseKind") => value is "PlateChest" ? 32UL : 1UL,
             ("ability", _) => 200UL,
             ("creature", "fireResistance" or "wardModifier") => 7UL,
             ("aura", "control") => TestWard,
@@ -772,6 +780,8 @@ public sealed class TemplateEditShould : IAsyncLifetime
         item["requiredAgility"] = 11;
         item["requiredIntellect"] = 12;
         item["attackTimeMs"] = 900;
+        item["baseKind"] = "Mace";       // the sword's base kind and the mace's "any one attribute" (#1179)
+        item["requiresAnyAttribute"] = true;
 
         foreach ((string kind, ulong id, JsonObject body) in new[]
                  {
@@ -788,6 +798,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
                          "damageType", "fireResistance", "coldResistance", "lightningResistance", "blightResistance",
                          "evasionModifier", "wardModifier", "requiredStrength", "requiredAgility", "requiredIntellect",
                          "attackTimeMs", "tags", "damageEffectiveness", "addedMin", "addedMax", "periodicEffectiveness",
+                         "baseKind", "requiresAnyAttribute",
                      }.Where(body.ContainsKey))
             {
                 Assert.Equal(body[field]!.ToJsonString(), stored[field]?.ToJsonString());

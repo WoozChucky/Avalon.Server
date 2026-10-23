@@ -203,9 +203,10 @@ no answer.
 | 14 | Frozen (`frozen`) | Harmful | 2 500 ms, no ticks | | Refresh | none; root |
 | 15 | Silenced (`silenced`) | Harmful | 3 000 ms, no ticks | | Refresh | none; silence |
 
-The periodic amount is the total per stack, split over the ticks. At level 1 with starter gear (a Warrior's Strength
-29 and its 4-7 sword, a Wizard's Intellect 31, a Cleric's 29) that is 25.9-27.1 for Bleed (from Rend), 64.6-95.9 for
-Burn (from Ignite) and 38.3-56.4 for Renew. Armour auras are increased modifiers: they scale the armour a unit already has and do nothing to a unit with none. Crippled (3) and Hexed (10)
+The periodic amount is the total per stack, split over the ticks. At level 1 with the starter gear #1179 retired (a
+Warrior's Strength 29 and its 4-7 sword, a Wizard's Intellect 31, a Cleric's 29) that was 25.9-27.1 for Bleed (from
+Rend), 64.6-95.9 for Burn (from Ignite) and 38.3-56.4 for Renew; the bases that replaced it give no attributes, so each
+amount is somewhat lower in them. Armour auras are increased modifiers: they scale the armour a unit already has and do nothing to a unit with none. Crippled (3) and Hexed (10)
 are slows. Break chances (on damage / on its own, per second): Stunned 10 % / 0.5 %, Bound and Frozen 25 % / 0.5 %,
 Silenced never, Crippled and Hexed 0 % / 0.5 %.
 

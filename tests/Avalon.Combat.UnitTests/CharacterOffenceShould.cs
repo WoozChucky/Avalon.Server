@@ -37,7 +37,7 @@ public class CharacterOffenceShould
         ];
         var auras = AuraStatTotals.Of(modifiers, static m => ((IReadOnlyList<AuraStatModifier>)[m], 1u));
 
-        OffenceStats o = CharacterOffence.Of(30, 40, 50, [item], formula, auras);
+        OffenceStats o = CharacterOffence.Of(30, 40, 50, Worn.Of(item), formula, out _, out _, auras);
 
         Assert.Equal(105f, o.Increased(OffenceStat.PhysicalAttack), precision: 4);
         Assert.Equal(175f, o.Increased(OffenceStat.Spell), precision: 4);

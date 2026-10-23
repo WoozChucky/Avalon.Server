@@ -31,5 +31,17 @@ public class ItemInstance : IDbEntity<ItemInstanceId>
 
     public ItemInstanceFlags Flags { get; set; }
 
+    /// <summary>This copy's rarity: a template's own (Common or Unique) for an item made from it outright.</summary>
+    public ItemRarity Rarity { get; set; }
+
+    /// <summary>This copy's item level, at least 1: the template's required level for an item made from it outright.</summary>
+    public ushort ItemLevel { get; set; }
+
     public DateTime UpdatedAt { get; set; }
+
+    /// <summary>
+    /// What the read fills (<c>GetByCharacterIdAsync</c>). A save never writes them through here: they go as their own
+    /// rows (<c>ItemModifierWrite</c>), so an item row handed to a save carries none.
+    /// </summary>
+    public List<ItemInstanceModifier> Modifiers { get; set; } = [];
 }

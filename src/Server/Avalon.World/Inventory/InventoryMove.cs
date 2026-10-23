@@ -84,7 +84,9 @@ public static class InventoryMove
 
         ItemTemplate? sourceTemplate = findTemplate(source.TemplateId);
         bool whole = moving == source.Count;
-        uint maxStack = sourceTemplate is null ? 1u : MaxStack(sourceTemplate);
+        // #1179: an item carrying modifiers is one of a kind, whatever its template allows: it neither splits nor merges,
+        // and nothing merges into it.
+        uint maxStack = sourceTemplate is null || IsOneOfAKind(character, source) ? 1u : MaxStack(sourceTemplate);
 
         if (!character.Container(to.Container).TryGet(to.Slot, out InventoryItem target))
         {
@@ -103,6 +105,9 @@ public static class InventoryMove
                 ? MoveDecision.Refused(ItemRequestResult.Blocked)
                 : MoveDecision.Accept(MoveKind.Move, from, to, moving);
         }
+
+        if (IsOneOfAKind(character, target))
+            maxStack = 1;
 
         // Two whole copies of an item that does not stack trade places, as two different items do.
         if (target.TemplateId == source.TemplateId && !(maxStack == 1 && whole))
@@ -185,6 +190,9 @@ public static class InventoryMove
         slot.Slot < character.Container(slot.Container).Capacity
         && !(slot.Container == InventoryType.Equipment && EquipmentSlots.IsReserved(slot.Slot));
 
+    private static bool IsOneOfAKind(CharacterEntity character, InventoryItem item) =>
+        character.ItemModifiers.Of(item.InstanceId).Count > 0;
+
     /// <summary>A MaxStackSize of 0 is read as 1, as CharacterInventoryService reads it.</summary>
     public static uint MaxStack(ItemTemplate template) => Math.Max(1u, template.MaxStackSize);
 
@@ -229,9 +237,9 @@ public static class InventoryMove
     }
 
     /// <summary>
-    /// True when, after the move, a two-handed weapon would be in the main hand while the off hand
-    /// holds anything. Asked only of a move that changes one of the two hands, so a conflict an old
-    /// row loaded does not freeze the rest of the equipment, and taking the off hand off is allowed.
+    /// True when, after the move, a weapon held in both hands (<see cref="ItemTemplate.IsTwoHanded" />, a bow too) would be
+    /// in the main hand while the off hand holds anything. Asked only of a move that changes one of the two hands, so a
+    /// conflict an old row loaded does not freeze the rest of the equipment, and taking the off hand off is allowed.
     /// </summary>
     private static bool TwoHandConflict(
         CharacterEntity character,
@@ -252,7 +260,7 @@ public static class InventoryMove
 
         return mainAfter is { } main
                && offAfter is not null
-               && findTemplate(main.TemplateId) is { SubClass: ItemSubClass.TwoHanded };
+               && findTemplate(main.TemplateId) is { IsTwoHanded: true };
     }
 
     /// <summary>What <paramref name="slot" /> holds once a Move or Swap from <paramref name="from" /> to <paramref name="to" /> is applied.</summary>

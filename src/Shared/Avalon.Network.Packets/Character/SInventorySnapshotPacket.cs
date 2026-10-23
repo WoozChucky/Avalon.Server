@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 
@@ -63,4 +64,16 @@ public class ItemSlotDto
 
     /// <summary>ItemInstanceFlags.</summary>
     [ProtoMember(7)] public uint Flags { get; set; }
+
+    /// <summary>The copy's rarity (#1179).</summary>
+    [ProtoMember(8)] public ItemRarity Rarity { get; set; }
+
+    /// <summary>The copy's item level (#1179).</summary>
+    [ProtoMember(9)] public uint ItemLevel { get; set; }
+
+    /// <summary>
+    /// The modifiers the copy rolled (#1179), in the order it shows them; null for an item without any, which is what an
+    /// empty repeated field reads back as.
+    /// </summary>
+    [ProtoMember(10)] public List<ItemModifierDto>? Modifiers { get; set; }
 }

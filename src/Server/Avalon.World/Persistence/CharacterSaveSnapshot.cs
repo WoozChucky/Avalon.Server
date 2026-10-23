@@ -47,22 +47,17 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
 
         List<ItemInstance> upsertItems = [];
         List<ItemInstanceId> deleteItems = [];
+        ModifierRows? modifiers = null;
         foreach ((ItemInstanceId id, SaveMark mark) in marks.Items)
         {
             // Memory is authoritative: an item no longer held is deleted, whatever its mark says.
             if (mark.State != SaveState.Removed && held.TryGetValue(id, out InventoryItem item))
             {
-                upsertItems.Add(new ItemInstance
-                {
-                    Id = item.InstanceId,
-                    TemplateId = item.TemplateId,
-                    CharacterId = row.Id,
-                    Count = item.Count,
-                    Durability = item.Durability,
-                    Charges = item.Charges,
-                    Flags = item.Flags,
-                    UpdatedAt = now,
-                });
+                upsertItems.Add(ItemRow(item, row.Id, now));
+
+                // #1179: only an item this batch upserts carries its modifiers, so a deleted one never names them.
+                if (mark.Modifiers)
+                    (modifiers ??= new ModifierRows()).Add(id, character.ItemModifiers.Of(id));
             }
             else
             {
@@ -140,10 +135,25 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
 
         return new CharacterSaveSnapshot(
             new CharacterSaveBatch(row.Copy(), upsertItems, deleteItems, upsertSlots, deleteSlots, stats, quests,
-                IgnoresOf(character, row.Id, marks), AurasOf(character, row.Id, marks))
+                IgnoresOf(character, row.Id, marks), AurasOf(character, row.Id, marks), modifiers?.ToWrite())
             { Authority = authority },
             marks);
     }
+
+    /// <summary>The item's row as <paramref name="owner" />'s, with its current values.</summary>
+    internal static ItemInstance ItemRow(InventoryItem item, CharacterId owner, DateTime now) => new()
+    {
+        Id = item.InstanceId,
+        TemplateId = item.TemplateId,
+        CharacterId = owner,
+        Count = item.Count,
+        Durability = item.Durability,
+        Charges = item.Charges,
+        Flags = item.Flags,
+        Rarity = item.Rarity,
+        ItemLevel = item.ItemLevel,
+        UpdatedAt = now,
+    };
 
     /// <summary>
     /// Every save of a character holding an aura rewrites them all, with the time each has left on the character's
@@ -226,4 +236,61 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
 
         return new CharacterIgnoreWrite(rewrite, insert);
     }
+}
+
+/// <summary>
+/// The flat rows of one save's <see cref="ItemModifierWrite" /> (#1179), built on the tick from deep copies of the live
+/// modifiers, so the write shares no object the tick changes, and each save has rows of its own (a write is single use).
+/// </summary>
+internal sealed class ModifierRows
+{
+    private readonly List<ItemInstanceId> _items = [];
+    private readonly List<ItemInstanceModifier> _modifiers = [];
+    private readonly List<ItemInstanceModifierValue> _values = [];
+
+    public bool IsEmpty => _items.Count == 0;
+
+    /// <summary>The item's whole current set, empty when it has none: its stored modifiers not in it are deleted.</summary>
+    public void Add(ItemInstanceId item, IReadOnlyList<ItemInstanceModifier> modifiers)
+    {
+        _items.Add(item);
+        foreach (ItemInstanceModifier modifier in modifiers)
+        {
+            ItemInstanceModifier copy = modifier.Copy();
+            _values.AddRange(copy.Values);
+            copy.Values = [];
+            _modifiers.Add(copy);
+        }
+    }
+
+    /// <summary>
+    /// What a snapshot's write says about every item but <paramref name="replaced" />: its rows are already the snapshot's
+    /// own copies, and are kept as they are.
+    /// </summary>
+    public void AddAllBut(ItemModifierWrite write, IReadOnlySet<ItemInstanceId> replaced)
+    {
+        foreach (ItemInstanceId item in write.Items)
+        {
+            if (!replaced.Contains(item))
+                _items.Add(item);
+        }
+
+        HashSet<Guid> kept = [];
+        foreach (ItemInstanceModifier modifier in write.Modifiers)
+        {
+            if (replaced.Contains(modifier.ItemInstanceId))
+                continue;
+
+            kept.Add(modifier.Id);
+            _modifiers.Add(modifier);
+        }
+
+        foreach (ItemInstanceModifierValue value in write.Values)
+        {
+            if (kept.Contains(value.ItemInstanceModifierId))
+                _values.Add(value);
+        }
+    }
+
+    public ItemModifierWrite? ToWrite() => IsEmpty ? null : new ItemModifierWrite(_items, _modifiers, _values);
 }

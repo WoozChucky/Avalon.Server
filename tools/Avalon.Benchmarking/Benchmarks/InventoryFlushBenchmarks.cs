@@ -47,7 +47,7 @@ public class InventoryFlushBenchmarks
         for (byte slot = 0; slot < Slots; slot++)
         {
             held[slot] = new InventoryItem(slot, new ItemInstanceId(Guid.CreateVersion7()), new ItemTemplateId(1), 5, 0,
-                ItemInstanceFlags.None);
+                ItemInstanceFlags.None, ItemRarity.Common, 1);
         }
 
         _character.Container(InventoryType.Bag).Load(held);
@@ -102,7 +102,7 @@ public class InventoryFlushBenchmarks
                 Container = s.Container,
                 Slot = s.Slot,
                 Item = character.Container(s.Container).TryGet(s.Slot, out InventoryItem item)
-                    ? ItemSlotDtoMapper.ToDto(s.Container, item)
+                    ? ItemSlotDtoMapper.ToDto(s.Container, item, character.ItemModifiers.Of(item.InstanceId))
                     : null,
             })
             .ToArray();

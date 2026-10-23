@@ -221,6 +221,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             Batch(b, upsertItems: [Item(b.Id, count: 1, id: sword.Id)], upsertSlots: [Slot(b.Id, 3, sword.Id)], authority: authorityB),
         ];
         var tradeId = Guid.CreateVersion7();
+        var modifierId = Guid.CreateVersion7();
         var record = new TradeRecord
         {
             Id = tradeId,
@@ -229,7 +230,37 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             FirstGold = 0,
             SecondGold = 0,
             CompletedAt = DateTime.UtcNow,
-            Items = [new TradeRecordItem { TradeId = tradeId, ItemInstanceId = sword.Id, GiverCharacterId = a.Id, TemplateId = sword.TemplateId, Count = 1 }],
+            Items =
+            [
+                new TradeRecordItem
+                {
+                    TradeId = tradeId,
+                    ItemInstanceId = sword.Id,
+                    GiverCharacterId = a.Id,
+                    TemplateId = sword.TemplateId,
+                    Count = 1,
+                    Rarity = ItemRarity.Rare,
+                    ItemLevel = 9,
+                    Modifiers =
+                    [
+                        new TradeRecordItemModifier
+                        {
+                            TradeId = tradeId,
+                            ItemInstanceModifierId = modifierId,
+                            ItemInstanceId = sword.Id,
+                            Ordinal = 0,
+                            ModifierId = 202,
+                            Values =
+                            [
+                                new TradeRecordItemModifierValue
+                                { TradeId = tradeId, ItemInstanceModifierId = modifierId, Index = 0, Stat = StatType.AddedFireDamage, Value = 2, Value2 = 5 },
+                                new TradeRecordItemModifierValue
+                                { TradeId = tradeId, ItemInstanceModifierId = modifierId, Index = 1, Stat = StatType.Strength, Value = 4 },
+                            ],
+                        },
+                    ],
+                },
+            ],
         };
         var saves = new CharacterSaveRepository(new ScriptedTransactions(_database, row));
 
@@ -243,9 +274,93 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             (await read.ItemInstances.AsNoTracking().SingleAsync(i => i.Id == sword.Id)).CharacterId.Value);
         if (stored)
         {
-            Assert.Equal([sword.Id], await read.TradeRecordItems.AsNoTracking()
-                .Where(i => i.TradeId == record.Id).Select(i => i.ItemInstanceId).ToListAsync());
+            TradeRecordItem moved = await read.TradeRecordItems.AsNoTracking()
+                .Include(i => i.Modifiers).ThenInclude(m => m.Values)
+                .SingleAsync(i => i.TradeId == record.Id);
+            Assert.Equal((sword.Id, ItemRarity.Rare, (ushort)9), (moved.ItemInstanceId, moved.Rarity, moved.ItemLevel));
+            TradeRecordItemModifier modifier = Assert.Single(moved.Modifiers);
+            Assert.Equal((modifierId, (byte)0, (ushort)202), (modifier.ItemInstanceModifierId, modifier.Ordinal, modifier.ModifierId));
+            Assert.Equal([(StatType.AddedFireDamage, 2, (int?)5), (StatType.Strength, 4, null)],
+                modifier.Values.OrderBy(v => v.Index).Select(v => (v.Stat, v.Value, v.Value2)));
         }
+    }
+
+    /// <summary>
+    /// An item's modifiers change over its life (crafting, #1180): its save leaves exactly the set it carries, a row kept
+    /// by id updated in place under that id, and every other row gone with its values. An item the save does not rewrite
+    /// keeps its modifiers and their values.
+    /// </summary>
+    [Fact]
+    public async Task Replace_an_items_modifier_rows_by_id_in_its_save()
+    {
+        CharacterRow row = await SeedCharacterAsync(1);
+        ItemInstance item = Item(row.Id, count: 1, rarity: ItemRarity.Magic, itemLevel: 7);
+        ItemInstance untouched = Item(row.Id, count: 1, rarity: ItemRarity.Magic, itemLevel: 4);
+        ItemInstanceModifier a = Modifier(item.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5));
+        ItemInstanceModifier b = Modifier(item.Id, 10103, 1, Value(0, StatType.Strength, 8, null));
+        ItemInstanceModifier other = Modifier(untouched.Id, 10103, 0, Value(0, StatType.Strength, 5, null));
+        await _saves.WriteAsync([Batch(row, upsertItems: [item, untouched],
+            upsertSlots: [Slot(row.Id, 0, item.Id), Slot(row.Id, 1, untouched.Id)], modifiers: Write(a, b, other))]);
+
+        ItemInstance saved = await SavedAsync(row.Id, item.Id);
+        Assert.Equal((ItemRarity.Magic, (ushort)7), (saved.Rarity, saved.ItemLevel));
+        Assert.Equal(Describe(a, b), Describe([.. saved.Modifiers]));
+
+        ItemInstanceModifier kept = Modifier(item.Id, 202, 1, Value(0, StatType.AddedFireDamage, 3, 6), a.Id);
+        ItemInstanceModifier added = Modifier(item.Id, 203, 0, Value(0, StatType.AddedColdDamage, 1, 4));
+        ItemInstance again = Item(row.Id, count: 1, item.Id, ItemRarity.Magic, 7);
+        await _saves.WriteAsync([Batch(row, upsertItems: [again], modifiers: Write(kept, added))]);
+
+        Assert.Equal(Describe(added, kept), Describe([.. (await SavedAsync(row.Id, item.Id)).Modifiers]));
+        Assert.Equal(Describe(other), Describe([.. (await SavedAsync(row.Id, untouched.Id)).Modifiers]));
+        await using CharacterDbContext read = _database.CreateDbContext();
+        Assert.Equal(new[] { added.Id, kept.Id, other.Id }.Order(), (await read.Set<ItemInstanceModifierValue>().AsNoTracking().ToListAsync())
+            .Select(v => v.ItemInstanceModifierId).Order());
+    }
+
+    /// <summary>
+    /// One save mark per item keeps an item and its modifiers in the same save, so a modifier write for an item the batch
+    /// does not upsert, another character's or one of its own left unchanged, is refused, and nothing is written. So are a
+    /// modifier on no item the write names, a value row for a modifier it does not carry, and a modifier id already stored
+    /// under another item, which would otherwise move that row.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_a_modifier_write_for_an_item_its_batch_does_not_upsert()
+    {
+        CharacterRow row = await SeedCharacterAsync(1);
+        CharacterRow other = await SeedCharacterAsync(2);
+        ItemInstance own = Item(row.Id, count: 1);
+        ItemInstance theirs = Item(other.Id, count: 1);
+        ItemInstanceModifier stored = Modifier(theirs.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5));
+        await _saves.WriteAsync([Batch(row, upsertItems: [own], upsertSlots: [Slot(row.Id, 0, own.Id)])]);
+        await _saves.WriteAsync([Batch(other, upsertItems: [theirs], upsertSlots: [Slot(other.Id, 0, theirs.Id)], modifiers: Write(stored))]);
+        row.Gold = 99;
+
+        ItemModifierWrite onOwn = Write(Modifier(own.Id, 203, 0, Value(0, StatType.Strength, 4, null)));
+        CharacterSaveBatch[] refused =
+        [
+            Batch(row, modifiers: Write(Modifier(theirs.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5)))),
+            Batch(row, modifiers: onOwn),
+            Batch(row, upsertItems: [Item(row.Id, count: 1, own.Id)], modifiers: onOwn with
+            {
+                Modifiers = [new ItemInstanceModifier { Id = onOwn.Modifiers[0].Id, ItemInstanceId = theirs.Id, ModifierId = 203 }],
+            }),
+            Batch(row, upsertItems: [Item(row.Id, count: 1, own.Id)], modifiers: onOwn with
+            {
+                Values = [new ItemInstanceModifierValue { ItemInstanceModifierId = Guid.CreateVersion7(), Stat = StatType.Strength, Value = 4 }],
+            }),
+            Batch(row, upsertItems: [Item(row.Id, count: 1, own.Id)],
+                modifiers: Write(Modifier(own.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5), stored.Id))),
+        ];
+
+        foreach (CharacterSaveBatch batch in refused)
+            await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => _saves.WriteAsync([batch]));
+
+        await using CharacterDbContext read = _database.CreateDbContext();
+        Assert.Equal(0UL, (await read.Characters.AsNoTracking().SingleAsync(c => c.Id == row.Id)).Gold);
+        ItemInstanceModifier left = Assert.Single(await read.Set<ItemInstanceModifier>().AsNoTracking().ToListAsync());
+        Assert.Equal((stored.Id, theirs.Id), (left.Id, left.ItemInstanceId));
+        Assert.Equal(stored.Id, Assert.Single(await read.Set<ItemInstanceModifierValue>().AsNoTracking().ToListAsync()).ItemInstanceModifierId);
     }
 
     [Fact]
@@ -310,15 +425,46 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         return row;
     }
 
-    private static ItemInstance Item(CharacterId owner, uint count, ItemInstanceId? id = null) => new()
+    private static ItemInstance Item(CharacterId owner, uint count, ItemInstanceId? id = null,
+        ItemRarity rarity = ItemRarity.Common, ushort itemLevel = 1) =>
+        new()
+        {
+            Id = id ?? new ItemInstanceId(Guid.CreateVersion7()),
+            TemplateId = new ItemTemplateId(1),
+            CharacterId = owner,
+            Count = count,
+            Flags = ItemInstanceFlags.None,
+            Rarity = rarity,
+            ItemLevel = itemLevel,
+            UpdatedAt = DateTime.UtcNow,
+        };
+
+    /// <summary>A modifier with its one value row, under a new id unless one is given.</summary>
+    private static ItemInstanceModifier Modifier(ItemInstanceId item, ushort modifierId, byte ordinal,
+        ItemInstanceModifierValue value, Guid? id = null)
     {
-        Id = id ?? new ItemInstanceId(Guid.CreateVersion7()),
-        TemplateId = new ItemTemplateId(1),
-        CharacterId = owner,
-        Count = count,
-        Flags = ItemInstanceFlags.None,
-        UpdatedAt = DateTime.UtcNow,
-    };
+        Guid modifier = id ?? Guid.CreateVersion7();
+        value.ItemInstanceModifierId = modifier;
+        return new ItemInstanceModifier { Id = modifier, ItemInstanceId = item, ModifierId = modifierId, Ordinal = ordinal, Values = [value] };
+    }
+
+    private static ItemInstanceModifierValue Value(byte index, StatType stat, int value, int? value2) =>
+        new() { Index = index, Stat = stat, Value = value, Value2 = value2 };
+
+    /// <summary>The flat rows a save writes for <paramref name="modifiers" />: each item's whole set, then every value row.</summary>
+    private static ItemModifierWrite Write(params ItemInstanceModifier[] modifiers) => new(
+        [.. modifiers.Select(m => m.ItemInstanceId).Distinct()],
+        [.. modifiers.Select(m => new ItemInstanceModifier { Id = m.Id, ItemInstanceId = m.ItemInstanceId, ModifierId = m.ModifierId, Ordinal = m.Ordinal })],
+        [.. modifiers.SelectMany(m => m.Values)]);
+
+    /// <summary>The saved item, with its modifiers and their values, as the character's items are read.</summary>
+    private async Task<ItemInstance> SavedAsync(CharacterId owner, ItemInstanceId id) =>
+        (await new ItemInstanceRepository(_database).GetByCharacterIdAsync(owner)).Single(i => i.Id == id);
+
+    /// <summary>Modifiers in ordinal order, each with its values in index order.</summary>
+    private static string Describe(params ItemInstanceModifier[] modifiers) =>
+        string.Join("; ", modifiers.OrderBy(m => m.Ordinal).Select(m => $"{m.Id} {m.ModifierId}@{m.Ordinal}: " +
+            string.Join(", ", m.Values.OrderBy(v => v.Index).Select(v => $"{v.Index} {v.Stat} {v.Value}-{v.Value2}"))));
 
     private static CharacterInventory Slot(CharacterId owner, byte slot, ItemInstanceId item,
         InventoryType container = InventoryType.Bag) =>
@@ -339,8 +485,10 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         IReadOnlyList<CharacterInventory>? upsertSlots = null,
         IReadOnlyList<(InventoryType Container, byte Slot)>? deleteSlots = null,
         CharacterStats? stats = null,
-        GameplayWriteAuthority? authority = null) =>
-        new(row, upsertItems ?? [], deleteItems ?? [], upsertSlots ?? [], deleteSlots ?? [], stats) { Authority = authority ?? s_authority };
+        GameplayWriteAuthority? authority = null,
+        ItemModifierWrite? modifiers = null) =>
+        new(row, upsertItems ?? [], deleteItems ?? [], upsertSlots ?? [], deleteSlots ?? [], stats, Modifiers: modifiers)
+        { Authority = authority ?? s_authority };
 
     /// <summary>
     /// Runs the work in a real transaction over the test database, then ends it as <c>row</c> says: the commit lands

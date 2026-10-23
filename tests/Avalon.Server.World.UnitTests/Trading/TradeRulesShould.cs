@@ -52,10 +52,10 @@ public class TradeRulesShould
         TradeDecision d = TradeRules.Plan(new TradeOffer(a, [sword], 40), new TradeOffer(b, [potion, pebble], 0), Find, NoCap);
 
         Assert.Equal(TradeResult.Ok, d.Result);
-        Assert.Equal([3, 29], d.Plan!.First.Incoming.Select(i => (int)i.Slot));
-        Assert.Equal(potion.InstanceId, d.Plan.First.Incoming[0].InstanceId);
-        Assert.Equal(5u, d.Plan.First.Incoming[0].Count);
-        Assert.Equal([0], d.Plan.Second.Incoming.Select(i => (int)i.Slot));
+        Assert.Equal([3, 29], d.Plan!.First.Incoming.Select(i => (int)i.Item.Slot));
+        Assert.Equal(potion.InstanceId, d.Plan.First.Incoming[0].Item.InstanceId);
+        Assert.Equal(5u, d.Plan.First.Incoming[0].Item.Count);
+        Assert.Equal([0], d.Plan.Second.Incoming.Select(i => (int)i.Item.Slot));
         Assert.Equal((40UL, 0UL), (d.Plan.First.GoldOut, d.Plan.First.GoldIn));
         Assert.Equal((0UL, 40UL), (d.Plan.Second.GoldOut, d.Plan.Second.GoldIn));
     }

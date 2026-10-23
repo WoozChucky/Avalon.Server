@@ -7,7 +7,7 @@ namespace Avalon.Server.World.UnitTests.Vendors;
 /// <summary>The last ten sales of a session, newest first (spec #432).</summary>
 public class VendorBuybackShould
 {
-    private static BuybackEntry Sold(ulong price) => new(Item(0, Tonic), price);
+    private static BuybackEntry Sold(ulong price) => new(Carried(Item(0, Tonic)), price);
 
     [Fact]
     public void Push_the_oldest_sale_out_on_the_eleventh()

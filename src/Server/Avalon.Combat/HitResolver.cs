@@ -8,9 +8,13 @@ namespace Avalon.Combat;
 /// character's main hand (the bare hand's range with none), a creature's natural DamageMin..DamageMax (#163). Offence is
 /// the attacker's offence block, read by <see cref="OffenceMath" /> and the crit multiplier. BaseType is the type of a hit
 /// whose ability names none: a creature's template's, a character's Physical. Penetration has no data source yet.
+/// AddedToAttacks and AddedToSpells (#1179) are the added damage by type every Attack rolls after its weapon's own, and
+/// every Spell after its spell base: the sums of every worn item's lines. They sit beside the offence block, not in it,
+/// so a hit that copies the block copies no ranges, and rolls them only when their mask says they add anything.
 /// </summary>
 public readonly record struct AttackerCombat(uint Level, float CritPct, WeaponDamage Weapon = default,
-    OffenceStats Offence = default, DamageType BaseType = DamageType.Physical, Penetration Penetration = default);
+    OffenceStats Offence = default, DamageRanges AddedToAttacks = default, DamageRanges AddedToSpells = default,
+    DamageType BaseType = DamageType.Physical, Penetration Penetration = default);
 
 /// <summary>
 /// What the defending side of a hit brings (#506, #1178). Evasion is a rating, weighed against the attacker's level;

@@ -87,8 +87,18 @@ public class Creature : ICreature
 
     // No dirty-field tracking on these three, unlike Health and Level: none is broadcast in entity
     // state. The client learns damage from combat packets and never sees a creature's experience value.
-    public uint DamageMin { get; set; }
-    public uint DamageMax { get; set; }
+    public uint DamageMin
+    {
+        get => _damageMin;
+        set { _damageMin = value; _combatStale = true; }
+    }
+
+    public uint DamageMax
+    {
+        get => _damageMax;
+        set { _damageMax = value; _combatStale = true; }
+    }
+
     public uint Experience { get; set; }
 
     /// <summary>
@@ -267,6 +277,13 @@ public class Creature : ICreature
     private float _auraCritPct;
     private OffenceStats _auraOffence;
 
+    // The attacker Combat hands out, built again only after one of its inputs changed (its level, damage range or
+    // auras; the rest are init-only), so a hit copies it rather than building 344 B anew (#1179).
+    private uint _damageMin;
+    private uint _damageMax;
+    private AttackerCombat _combat;
+    private bool _combatStale = true;
+
     /// <summary>
     /// Takes the auras' totals: its attack speed, cast speed and cooldown recovery (from none, since nothing else sets
     /// one), its crit and offence block (#1178), its maximum health and its maximum ward (#1178, keeping its share from
@@ -278,6 +295,7 @@ public class Creature : ICreature
         AttackerCombat folded = AuraStats.Fold(new AttackerCombat(Level, CritPct), totals);
         _auraCritPct = folded.CritPct;
         _auraOffence = folded.Offence;
+        _combatStale = true;
         AttackSpeedPct = AuraStats.Apply(0f, totals, AuraStat.AttackSpeed);
         CastSpeedPct = AuraStats.Apply(0f, totals, AuraStat.CastSpeed);
         CooldownRecoveryPct = AuraStats.Apply(0f, totals, AuraStat.CooldownRecovery);
@@ -341,11 +359,24 @@ public class Creature : ICreature
     /// </summary>
     /// <remarks>
     /// The crit and the offence block its auras give are folded once, by <see cref="ApplyAuraStats" />, whenever the auras
-    /// change, never on a read: every hit and every cast reads this.
+    /// change, never on a read: every hit and every cast reads this. The attacker itself is built only when its level,
+    /// damage range or auras changed since the last read. Tick thread only.
     /// </remarks>
-    internal AttackerCombat Combat => new(Level, AuraTotals.IsEmpty ? CritPct : _auraCritPct,
-        new WeaponDamage(DamageMin, DamageMax, null, 0, 0, null, CreatureStatDeriver.AttackTimeMs(BaseAttackTime)),
-        _auraOffence, DamageType);
+    internal AttackerCombat Combat
+    {
+        get
+        {
+            if (_combatStale)
+            {
+                uint attackTime = CreatureStatDeriver.AttackTimeMs(BaseAttackTime);
+                _combat = new AttackerCombat(Level, AuraTotals.IsEmpty ? CritPct : _auraCritPct,
+                    new WeaponDamage(DamageMin, DamageMax, null, 0, 0, null, attackTime), _auraOffence, BaseType: DamageType);
+                _combatStale = false;
+            }
+
+            return _combat;
+        }
+    }
 
     /// <summary>What this creature defends with (#506), its resistances (#1178) and its auras folded in.</summary>
     internal DefenderCombat Defence =>
@@ -429,7 +460,7 @@ public class Creature : ICreature
     public ushort Level
     {
         get => _level;
-        set { _level = value; _dirtyFields |= GameEntityFields.Level; }
+        set { _level = value; _dirtyFields |= GameEntityFields.Level; _combatStale = true; }
     }
 
     public Vector3 Position

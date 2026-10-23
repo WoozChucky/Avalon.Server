@@ -33,8 +33,8 @@ public sealed class TemplateErrors
 /// shared <c>Avalon.Combat</c> loaders own are called, not copied: <see cref="AbilityRules.Problem"/>,
 /// <see cref="AuraRules.Problem"/>, <see cref="AuraRules.LinkProblem"/>, <see cref="AuraRules.DamageTypeProblem"/>,
 /// <see cref="AuraRules.SourceProblem"/> and <see cref="CreatureTemplateRules.Validate"/>. The world loads items with no
-/// validation of its own, and the ItemTemplates table checks only a weapon's attack time (#1178, checked here as its
-/// request field), so items get sanity rules only.
+/// validation of its own, so items get sanity rules, plus the ItemTemplates table's checks as request fields (a weapon's
+/// attack time, #1178; a template's rarity and base kind, #1179), so a bad value is a 400 rather than a database error.
 /// </summary>
 public static class TemplateValidation
 {
@@ -47,10 +47,34 @@ public static class TemplateValidation
         Name(e, r.Name);
         Defined(e, "class", r.Class);
         Defined(e, "subClass", r.SubClass);
-        Defined(e, "rarity", r.Rarity);
+        // CK_ItemTemplates_Rarity (#1179): Magic and Rare are rolled on a copy, never a template's own.
+        if (r.Rarity is not (Contract.ItemRarity.Common or Contract.ItemRarity.Unique))
+            e.Add("rarity", "A template is Common or Unique; Magic and Rare are rolled on a copy.");
         if (r.Slot is { } slot) Defined(e, "slot", slot);
+        if (r.BaseKind is { } baseKind)
+        {
+            Defined(e, "baseKind", baseKind);
+            if (r.Slot is null)
+            {
+                e.Add("baseKind", "A base kind needs the slot it is worn in.");
+            }
+            else if (Enum.IsDefined(baseKind)
+                     && ItemBaseKindSlots.SlotOf((Domain.World.ItemBaseKind)baseKind) is var wornIn
+                     && wornIn != (Domain.World.ItemSlotType)r.Slot.Value)
+            {
+                // A base kind and its slot agree (#1179): what rolls on a base is read by its kind.
+                e.Add("baseKind", $"A {baseKind} base is worn in the {wornIn} slot, not {r.Slot.Value}.");
+            }
+        }
+
+        // ItemInstances.ItemLevel (#1179, smallint, CK_ItemInstances_ItemLevel): a copy made from the template takes its
+        // required level as its item level, so a level above the column's range could never be stored.
+        if (r.RequiredLevel > short.MaxValue)
+            e.Add("requiredLevel", $"Required level must be at most {short.MaxValue}: a copy's item level is taken from it.");
+
         Flags(e, "flags", r.Flags);
         if (r.MaxStackSize < 1) e.Add("maxStackSize", "Max stack size must be at least 1.");
+        else if (r.Slot is not null && r.MaxStackSize > 1) e.Add("maxStackSize", "Equipment never stacks: its max stack size is 1.");
         Classes(e, r.AllowedClasses);
 
         Damage(e, 1, r.DamageMin1, r.DamageMax1, r.DamageType1);
@@ -329,6 +353,8 @@ public static class TemplateValidation
     private static void Damage(TemplateErrors e, int n, uint? min, uint? max, Contract.DamageType? type)
     {
         if (type is { } t) Defined(e, $"damageType{n}", t);
+        // A weapon's damage is always typed (#1179): its local physical scaling applies to its Physical ranges only.
+        else if (min is not null || max is not null) e.Add($"damageType{n}", $"Damage {n} needs a damage type.");
         if (min is null != max is null)
             e.Add(min is null ? $"damageMin{n}" : $"damageMax{n}", $"Damage {n} needs both a minimum and a maximum.");
         else if (min > max)

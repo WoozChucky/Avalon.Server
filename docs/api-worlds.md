@@ -180,6 +180,30 @@ singletons as in every host. Only their context factories differ in the API, whi
   `_Kind` only Flat and Percent, so an aura modifier on a stat from 16 to 32 or of kind More added by hand (the seeded
   ones are handled) must be removed first; the Character rollback restores the three stats columns at 0 until each
   character's next save. No world or API does that by itself.
+  **Migration order, #1179 (part A).** Bases and instance modifiers are not additive either (no backward
+  compatibility, owner, 2026-10-23). A world's World database migrates through `ReplaceItemsWithBases`:
+  `ItemTemplates.Rarity` becomes a `smallint` in the new numbering (`Common` 0, `Unique` 3, the only two a template may
+  hold, `CK_ItemTemplates_Rarity`), `BaseKind` (`CK_ItemTemplates_BaseKind`) and `RequiresAnyAttribute` are added,
+  `ItemPower` is dropped, and the equipment is reseeded as 74 bases and 5 uniques (items 4, 27-31 and 51-55 deleted,
+  38 new rows 66-103), with the loot entries (table 14 new), vendor rows and quest rewards that name it. Its Character
+  database migrates through `WipeOwnedEquipment`, which deletes every instance of the old equipment templates wherever
+  it is (bags, banks and worn; slot rows by cascade; consumables and quest items stay), and then
+  `AddItemInstanceModifiers` (`ItemInstances` gains `Rarity` and `ItemLevel`, existing rows 0 and 1; the tables
+  `ItemInstanceModifiers` and `ItemInstanceModifierValues`; `TradeRecordItems` gains `Rarity` and `ItemLevel`; the
+  tables `TradeRecordItemModifiers` and `TradeRecordItemModifierValues`). Each world applies them in that order at its
+  start. The order is: the worlds go first, each migrating at its next start (start any stopped world once, so it
+  migrates too), and then the API release with the change is cut. The released API is broken in between, which the
+  owner accepted: an older API reading a migrated world fails with Postgres 42703 on the dropped `ItemPower`, so every
+  item template read fails (the worlds service's item template list, get and `PUT`, the public item tooltips and link
+  previews, a character's inventory as soon as it holds an item, and its abilities once it wears one). An API with the
+  change reading a world that has not migrated fails the same way on the new columns: every item template read, and a
+  character's inventory and abilities on the instance columns and the modifier tables. To roll a world back to a build
+  without the change, first run `dotnet ef database update RetireOldOffence` against its World database and
+  `dotnet ef database update DropRetiredCharacterStats` against its Character database. The World rollback restores the
+  old items with `ItemPower` and the old rarity numbers, and the loot, vendor and quest rows that named them, and
+  deletes items 66-103; the Character rollback drops the modifier tables and the new columns, and every modifier with
+  them. The wiped equipment never comes back (`WipeOwnedEquipment` restores nothing), and an item of a template the
+  World rollback deleted stays as a row whose template is gone. No world or API does that by itself.
 
 ## How a request reaches its world
 
@@ -270,7 +294,7 @@ reads admit the owner or a game master (`CharacterReadHandler`), character write
 |---|---|---|---|
 | `/world/{worldId}/character/paginate` | GET | GameMaster | |
 | `/world/{worldId}/character/{id}` | GET, PATCH | Player | Owner, or game master (read) or admin (write) |
-| `/world/{worldId}/character/{id}/inventory`, `/abilities`, `/stats`, `/quests`, `/auras` | GET | Player | Owner or game master |
+| `/world/{worldId}/character/{id}/inventory`, `/abilities`, `/stats`, `/quests`, `/auras` | GET | Player | Owner or game master. An inventory item carries its copy's `rarity`, `itemLevel` and `modifiers` (each `modifierId` with its `values`: `stat`, `value` and, on an "adds X to Y" line, `value2`), in the order the item shows them (#1179); that is the only rarity the read shows, and its `template` carries none |
 | `/world/{worldId}/map-template`, `/{id}` | GET | Player | |
 | `/world/{worldId}/map-template/{id}/preview-layout` | GET | GameMaster | Runs the procedural generator against that world's data; see [Map Generation](map-generation.md) |
 | `/world/{worldId}/map-template/chunk-asset/{*filename}` | GET | GameMaster | Whitelisted against the world's `ChunkTemplate.GeometryFile` values; the bytes come from the API's own copy of `Maps/` (`Application:MapAssets:ChunkAssetRoot`), not from the world |
@@ -345,12 +369,13 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   world. With no `PublicSiteUrl`, `og:url` is left out and the link is relative.
 - **The description** (`LinkPreviewText.Describe`) reads like the site's tooltips: for an item its rarity, slot,
   subclass, damage, a weapon's attack time after its damage (`0.78 sec attack time`, before attack speed, #1189),
-  armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178),
-  allowed classes (only when restricted to some; an empty list means every class, #1171) and item power; for an
-  ability its classes, cost, cast time, cooldown and what one hit deals or heals (#1178): an Attack as its weapon
-  damage (`315 % of weapon damage`, then `converts 50 % to cold` or `adds 2-4 blight damage`; a creature's, with no
-  classes, as its natural damage, and any attack's type when it is not physical: `240 % of its natural damage, blight
-  damage`), a Spell or a Heal as its level-1 base and growth (`14-20 lightning damage, +0.7 % per level`, `Heals 30-44`);
+  armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178; one part, `Requires 30
+  Strength or 30 Intellect`, when any one is enough, #1179) and allowed classes (only when restricted to some; an
+  empty list means every class, #1171); for an ability its classes, cost, cast time, cooldown and what one hit deals
+  or heals (#1178): an Attack as its weapon damage (`315 % of weapon damage`, then `converts 50 % to cold` or `adds
+  2-4 blight damage`; a creature's, with no classes, as its natural damage, and any attack's type when it is not
+  physical: `240 % of its natural damage, blight damage`), a Spell or a Heal as its level-1 base and growth (`14-20
+  lightning damage, +0.7 % per level`, `Heals 30-44`);
   an ability with no direct amount (one that only applies an aura) shows its damage type instead (`Fire damage`).
   Templates have no description or flavour text. Parts are joined by ` · `, collapsed to one line and capped at 200
   characters with an ellipsis.
@@ -469,7 +494,7 @@ or distribution ignores `worlds`, and the checks below apply to the parts a rele
 | `Application:PublicSiteUrl` | none (blank) | The public site's base URL, e.g. `https://avalon.example`: an absolute http or https URL with no query or fragment, trailing slash dropped (`PublicSiteSettings.Create`); anything else stops startup, naming the setting. Helm `publicSiteUrl`; the AppHost sets `http://localhost:5173` |
 | `Application:Previews:SiteName` | `Avalon` | `og:site_name` and the not-found title; left out when empty |
 | `Application:Previews:AbilityColour` | `#BC8A4E` | An ability's `theme-color` |
-| `Application:Previews:RarityColours:<Rarity>` | Junk `#988F81`, Common `#E9E2D8`, Uncommon `#34D399`, Rare `#38BDF8`, Epic `#C084FC`, Legendary `#FBBF24` | An item's `theme-color` by rarity name (any case) |
+| `Application:Previews:RarityColours:<Rarity>` | Common `#E9E2D8`, Magic `#38BDF8`, Rare `#FBBF24`, Unique `#F97316` (#1179) | An item's `theme-color` by rarity name (any case) |
 
 The preview colours mirror the Dashboard's `rarity.ts` and the public site's primary accent; change them together.
 

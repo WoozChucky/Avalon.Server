@@ -19,7 +19,8 @@ namespace Avalon.Server.World.UnitTests.Vendors;
 /// </summary>
 public class VendorRulesShould
 {
-    public sealed record Held(SlotRef At, ItemTemplate Template, uint Count = 1, uint Durability = 0, bool Locked = false);
+    public sealed record Held(SlotRef At, ItemTemplate Template, uint Count = 1, uint Durability = 0, bool Locked = false,
+        bool Rolled = false);
 
     private static SlotRef Bag(byte slot) => new(InventoryType.Bag, slot);
 
@@ -27,8 +28,9 @@ public class VendorRulesShould
 
     private static SlotRef Eq(byte slot) => new(InventoryType.Equipment, slot);
 
-    private static Held At(SlotRef slot, ItemTemplate template, uint count = 1, uint durability = 0, bool locked = false) =>
-        new(slot, template, count, durability, locked);
+    private static Held At(SlotRef slot, ItemTemplate template, uint count = 1, uint durability = 0, bool locked = false,
+        bool rolled = false) =>
+        new(slot, template, count, durability, locked, rolled);
 
     /// <summary>Keepsakes in Bag slots 0-28: one slot, 29, is free.</summary>
     private static Held[] AllButLastSlot => Enumerable.Range(0, 29).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
@@ -36,9 +38,9 @@ public class VendorRulesShould
     private static Held[] FullBag => Enumerable.Range(0, 30).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
 
     /// <summary>
-    /// A Held marked Locked is offered in a trade (#1175); <paramref name="heldGold" /> is gold offered. A completing
-    /// trade reserves <paramref name="reserved" /> and expects <paramref name="incomingGold" /> and one
-    /// <paramref name="incoming" />.
+    /// A Held marked Locked is offered in a trade (#1175), and one marked Rolled carries a modifier (#1179);
+    /// <paramref name="heldGold" /> is gold offered. A completing trade reserves <paramref name="reserved" /> and
+    /// expects <paramref name="incomingGold" /> and one <paramref name="incoming" />.
     /// </summary>
     private static CharacterEntity Arrange(IReadOnlyCollection<Held> held, ulong gold, bool dead, ulong heldGold = 0,
         byte? reserved = null, ulong incomingGold = 0, ItemTemplate? incoming = null)
@@ -55,6 +57,17 @@ public class VendorRulesShould
             Assert.True(character.Container(h.At.Container).TryGet(h.At.Slot, out InventoryItem item));
             character.Locks.Lock(item.InstanceId);
         }
+
+        character.ItemModifiers.Load([.. held.Where(h => h.Rolled).Select(h =>
+        {
+            Assert.True(character.Container(h.At.Container).TryGet(h.At.Slot, out InventoryItem item));
+            return new ItemInstance
+            {
+                Id = item.InstanceId,
+                TemplateId = item.TemplateId,
+                Modifiers = [TestModifiers.Modifier(item.InstanceId, 1, 0, (0, StatType.Health, 10, null))],
+            };
+        })]);
 
         character.Locks.HeldGold = heldGold;
         if (reserved is { } slot)
@@ -328,6 +341,7 @@ public class VendorRulesShould
         // 6. The count.
         new("Refuse a count of 0", [At(Bag(0), Tonic, 5)], 0, 0, VendorResult.InvalidCount),
         new("Refuse a count above the stack", [At(Bag(0), Tonic, 5)], 0, 6, VendorResult.InvalidCount),
+        new("Refuse part of a stack that carries modifiers", [At(Bag(0), Tonic, 5, rolled: true)], 0, 2, VendorResult.InvalidCount),
 
         // 7. The gold cap.
         new("Reach the gold cap exactly", [At(Bag(0), Tonic, 5)], 0, null, VendorResult.Ok, Payment: 20, Gold: 980, MaxGold: 1000),
@@ -409,7 +423,7 @@ public class VendorRulesShould
         BuybackCase row = s_buybackCases.Single(c => c.Name == name);
         CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead, reserved: row.Reserved);
         foreach ((ItemTemplate template, uint count, ulong price) in row.Sold)
-            character.Buyback.Push(new BuybackEntry(TestCharacters.Item(0, template, count), price));
+            character.Buyback.Push(new BuybackEntry(TestCharacters.Carried(TestCharacters.Item(0, template, count)), price));
 
         BuybackDecision decision = VendorRules.DecideBuyback(character, row.Shop, row.Index, Find);
 
@@ -436,7 +450,7 @@ public class VendorRulesShould
     public void Answer_NotFound_to_buying_back_an_item_a_reload_made_a_quest_item()
     {
         CharacterEntity character = Arrange([], 1000, dead: false);
-        character.Buyback.Push(new BuybackEntry(TestCharacters.Item(0, Tonic, 5), 20));
+        character.Buyback.Push(new BuybackEntry(TestCharacters.Carried(TestCharacters.Item(0, Tonic, 5)), 20));
         var flagged = new ItemTemplate
         {
             Id = Tonic.Id,

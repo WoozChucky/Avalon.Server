@@ -16,12 +16,11 @@ public class PublicMappingShould
     {
         Id = new ItemTemplateId(12),
         Name = "Barkplate Helm",
-        Rarity = Avalon.Domain.World.ItemRarity.Uncommon,
+        Rarity = Avalon.Common.ItemRarity.Common,
         Class = Avalon.Domain.World.ItemClass.Armor,
         SubClass = Avalon.Domain.World.ItemSubClass.Helmet,
         Slot = Avalon.Domain.World.ItemSlotType.Head,
         RequiredLevel = 3,
-        ItemPower = 8,
         MaxStackSize = 1,
         SellPrice = 125,
         AllowedClasses = [CharacterClass.Warrior],
@@ -133,15 +132,17 @@ public class PublicMappingShould
     }
 
     /// <summary>
-    /// The API casts these from the stored enums by ordinal (the public tooltips, the templates, the quest log), so each
-    /// member must keep its name across the pair.
+    /// The API casts these from the stored enums by ordinal (the public tooltips, the templates, the quest log), as the
+    /// world casts an item modifier's stat to the wire's, so each member must keep its name across the pair.
     /// </summary>
     [Theory]
-    [InlineData(typeof(Avalon.Domain.World.ItemRarity), typeof(Avalon.Api.Contract.ItemRarity))]
+    [InlineData(typeof(Avalon.Common.ItemRarity), typeof(Avalon.Api.Contract.ItemRarity))]
     [InlineData(typeof(Avalon.Domain.World.ItemClass), typeof(Avalon.Api.Contract.ItemClass))]
     [InlineData(typeof(Avalon.Domain.World.ItemSubClass), typeof(Avalon.Api.Contract.ItemSubClass))]
     [InlineData(typeof(Avalon.Domain.World.ItemSlotType), typeof(Avalon.Api.Contract.ItemSlotType))]
+    [InlineData(typeof(Avalon.Domain.World.ItemBaseKind), typeof(Avalon.Api.Contract.ItemBaseKind))]
     [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Api.Contract.StatType))]
+    [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Network.Packets.Items.ItemStat))]
     [InlineData(typeof(Avalon.Network.Packets.Combat.DamageType), typeof(Avalon.Api.Contract.DamageType))]
     [InlineData(typeof(Avalon.Network.Packets.State.PowerType), typeof(Avalon.Api.Contract.PowerType))]
     [InlineData(typeof(Avalon.World.Public.Enums.SpellRange), typeof(Avalon.Api.Contract.SpellRange))]

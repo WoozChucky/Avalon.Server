@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
@@ -296,13 +297,20 @@ public class QuestCatalogShould
         AssertRefused(catalog, 3, "prerequisite quest 2");
     }
 
+    /// <summary>An item flagged own-one-copy could not always be paid, and a Unique-rarity item never comes from a quest (#1179).</summary>
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Refuse_a_unique_reward_item(bool asChoice)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void Refuse_a_unique_reward_item(bool asChoice, bool byRarity)
     {
         List<ItemTemplate> items = Items();
-        items.Single(i => i.Id.Value == Charm).Flags = ItemTemplateFlags.Unique;
+        ItemTemplate charm = items.Single(i => i.Id.Value == Charm);
+        if (byRarity)
+            charm.Rarity = ItemRarity.Unique;
+        else
+            charm.Flags = ItemTemplateFlags.Unique;
         QuestTemplate quest = Quest(1).WithStage(0, Kill(11, Boar, 1));
         quest = asChoice ? quest.Offering((Charm, 1), (Tonic, 1)) : quest.Paying(Charm, 1);
 

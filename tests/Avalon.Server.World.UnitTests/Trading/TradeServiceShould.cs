@@ -3,8 +3,10 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Trade;
+using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
+using static Avalon.Server.World.UnitTests.Inventory.TestModifiers;
 
 namespace Avalon.Server.World.UnitTests.Trading;
 
@@ -178,17 +180,32 @@ public class TradeServiceShould
         Assert.Equal(name is "offered twice" or "occupied trade slot", a.Character.Locks.Any);
     }
 
+    /// <summary>
+    /// Each state shows the offer as it now stands, each item with its rarity, item level and modifiers (#1179), and a
+    /// trade slot refilled with a different item shows only that item's, though the server reuses the slot's entries.
+    /// Any change resets both confirmations.
+    /// </summary>
     [Fact]
-    public void Reset_both_confirmations_on_any_change_and_refuse_a_stale_confirm()
+    public void Show_the_offer_as_it_stands_and_refuse_a_stale_confirm()
     {
         var w = new TradeTestWorld();
         Trader a = w.Online(1);
         Trader b = w.Online(2, gold: 100);
-        a.Character.Container(InventoryType.Bag).Load([Item(0, Sword)]);
+        InventoryItem rare = Item(0, Sword) with { Rarity = ItemRarity.Rare, ItemLevel = 9 };
+        InventoryItem magic = Item(1, Sword) with { Rarity = ItemRarity.Magic, ItemLevel = 4 };
+        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(rare,
+        [
+            Modifier(rare.InstanceId, 10103, 0, (0, StatType.Strength, 8, null), (1, StatType.Armor, 3, null)),
+            Modifier(rare.InstanceId, 203, 1, (0, StatType.AddedFireDamage, 3, 7)),
+        ])));
+        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(magic,
+            [Modifier(magic.InstanceId, 204, 0, (0, StatType.AddedColdDamage, 2, 5))])));
         w.Open(a, b);
 
         Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, 0, 0));
         Assert.Equal(2u, a.States().Last().Revision);
+        Assert.Equal("Rare 9: 10103 [Strength 8.., Armor 3..] 203 [AddedFireDamage 3..7]",
+            Shown(Assert.Single(b.States().Last().Partner.Items)));
         Assert.Equal(TradeResult.Ok, w.Trades.Confirm(a.Id, 2));
         Assert.True(b.States().Last().Partner.Confirmed);
         Assert.Equal(TradeResult.Ok, w.Trades.SetGold(b.Id, 10));
@@ -204,7 +221,24 @@ public class TradeServiceShould
 
         Assert.Equal(TradeResult.Ok, w.Trades.Confirm(a.Id, 3));
         Assert.True(b.States().Last().Partner.Confirmed);
+
+        // The same trade slot, now holding an item with fewer modifiers and values: none of the rare's are left.
+        Assert.Equal(TradeResult.Ok, w.Trades.RemoveItem(a.Id, 0));
+        Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, 1, 0));
+        Assert.False(b.States().Last().Partner.Confirmed);
+        Assert.Equal("Magic 4: 204 [AddedColdDamage 2..5]", Shown(Assert.Single(b.States().Last().Partner.Items)));
+
+        // And back to the rare, built again from the entries the smaller item left over.
+        Assert.Equal(TradeResult.Ok, w.Trades.RemoveItem(a.Id, 0));
+        Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, 0, 0));
+        Assert.Equal("Rare 9: 10103 [Strength 8.., Armor 3..] 203 [AddedFireDamage 3..7]",
+            Shown(Assert.Single(b.States().Last().Partner.Items)));
     }
+
+    /// <summary>An offered item as the client reads it: rarity, item level, then each modifier's values.</summary>
+    private static string Shown(TradeItemDto item) =>
+        $"{item.Rarity} {item.ItemLevel}: " + string.Join(" ", (item.Modifiers ?? []).Select(m =>
+            $"{m.ModifierId} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value}..{v.Value2}"))}]"));
 
     public static TheoryData<string, TradeResult, TradeResult> Closes => new()
     {

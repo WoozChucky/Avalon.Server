@@ -3,7 +3,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Vendor;
 using Avalon.World.Entities;
-using Avalon.World.Public.Characters;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 
@@ -43,8 +42,8 @@ public sealed class VendorTrade(
     }
 
     /// <summary>
-    /// Takes the item out, pays for it, and puts what left (the instance, or for a partial sale a
-    /// copy with a new id) at the front of the buyback list.
+    /// Takes the item out, pays for it, and puts what left (the instance with its modifiers, or for a
+    /// partial sale a copy with a new id) at the front of the buyback list.
     /// </summary>
     public VendorResult TrySell(bool shopOpen, byte bagSlot, uint? count)
     {
@@ -52,14 +51,14 @@ public sealed class VendorTrade(
         if (decision.Plan is not { } plan)
             return decision.Result;
 
-        InventoryItem sold = inventory.TakeOut(new SlotRef(InventoryType.Bag, plan.Slot), plan.Count);
+        CarriedItem sold = inventory.TakeOut(new SlotRef(InventoryType.Bag, plan.Slot), plan.Count);
         Expect(wallet.TryAddGold(plan.Payment) == WalletResult.Ok, "payment");
         owner.Buyback.Push(new BuybackEntry(sold, plan.Payment));
         owner.VendorListOwed = true;
         return VendorResult.Ok;
     }
 
-    /// <summary>Charges what it sold for and re-adds the exact instance, under its own id.</summary>
+    /// <summary>Charges what it sold for and re-adds the exact instance, under its own id, with its modifiers.</summary>
     public VendorResult TryBuyback(bool shopOpen, uint index)
     {
         BuybackDecision decision = VendorRules.DecideBuyback(owner, shopOpen, index, findTemplate);

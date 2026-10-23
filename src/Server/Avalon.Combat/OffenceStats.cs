@@ -17,7 +17,8 @@ internal struct OffenceStatValues
 /// percentage points and the product of every more, plus the crit multiplier bonus and the three speeds as raw totals,
 /// before their caps. Inline arrays rather than managed ones, so it is a value that never allocates; its equality is
 /// written by hand because the ability amounts' flush compares it, inside <see cref="AttackerCombat" />, after every stats
-/// refresh.
+/// refresh. The added damage every attack and every spell rolls (#1179) sits beside it on <see cref="AttackerCombat" />,
+/// so a hit that copies this block copies no ranges it may not read.
 /// </summary>
 public struct OffenceStats : IEquatable<OffenceStats>
 {

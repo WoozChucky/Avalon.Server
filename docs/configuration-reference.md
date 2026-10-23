@@ -483,7 +483,7 @@ The settings below are the worlds service's.
 
 Both Helm values render only when set.
 
-**`Application:Previews`** (defaults in the API's `appsettings.json`): `SiteName` (`og:site_name` and the not-found title; left out when empty), `AbilityColour` and `RarityColours` (an `ItemRarity` name to a `#RRGGBB` colour; the `theme-color` of an ability and of an item of that rarity). They mirror the Dashboard's `rarity.ts`. A missing or malformed colour leaves `theme-color` out; it never fails the request. Override one with e.g. `Application__Previews__RarityColours__Epic`.
+**`Application:Previews`** (defaults in the API's `appsettings.json`): `SiteName` (`og:site_name` and the not-found title; left out when empty), `AbilityColour` and `RarityColours` (an `ItemRarity` name to a `#RRGGBB` colour; the `theme-color` of an ability and of an item of that rarity). They mirror the Dashboard's `rarity.ts`. A missing or malformed colour leaves `theme-color` out; it never fails the request. Override one with e.g. `Application__Previews__RarityColours__Unique`.
 
 ---
 

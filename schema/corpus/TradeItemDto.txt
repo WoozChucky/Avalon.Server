@@ -20,6 +20,9 @@ variant absent
   field 2 ItemTemplateId : ulong = 0
   field 3 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
   field 4 Count : uint = 0
+  field 5 Rarity : ItemRarity = Common (0)
+  field 6 ItemLevel : uint = 0
+  field 7 Modifiers : List<ItemModifierDto> = null
   bytes 0
 
 variant empty
@@ -27,6 +30,9 @@ variant empty
   field 2 ItemTemplateId : ulong = 0
   field 3 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
   field 4 Count : uint = 0
+  field 5 Rarity : ItemRarity = Common (0)
+  field 6 ItemLevel : uint = 0
+  field 7 Modifiers : List<ItemModifierDto> = 0 elements
   bytes 0
 
 variant populated
@@ -34,32 +40,164 @@ variant populated
   field 2 ItemTemplateId : ulong = 4000000000
   field 3 ItemInstanceId : Guid = 0f8fad5b-d9cb-469f-a165-70867728950e
   field 4 Count : uint = 7
-  bytes 30
+  field 5 Rarity : ItemRarity = Rare (2)
+  field 6 ItemLevel : uint = 300
+  field 7 Modifiers : List<ItemModifierDto> = 2 elements
+    element 0
+      field 1 ModifierId : uint = 7
+      field 2 Values : List<ItemModifierValueDto> = 2 elements
+        element 0
+          field 1 Stat : ItemStat = CritMultiplier (32)
+          field 2 Value : int = 70000
+          field 3 Value2 : int? = -9
+        element 1
+          field 1 Stat : ItemStat = MovementSpeed (13)
+          field 2 Value : int = 1000
+          field 3 Value2 : int? = -3
+    element 1
+      field 1 ModifierId : uint = 1000000
+      field 2 Values : List<ItemModifierValueDto> = 2 elements
+        element 0
+          field 1 Stat : ItemStat = CritMultiplier (32)
+          field 2 Value : int = 70000
+          field 3 Value2 : int? = -9
+        element 1
+          field 1 Stat : ItemStat = MovementSpeed (13)
+          field 2 Value : int = 1000
+          field 3 Value2 : int? = -3
+  bytes 119
     08 2a 10 80 d0 ac f3 0e 1a 12 09 5b ad 8f 0f cb
-    d9 9f 46 11 a1 65 70 86 77 28 95 0e 20 07
+    d9 9f 46 11 a1 65 70 86 77 28 95 0e 20 07 28 02
+    30 ac 02 3a 27 08 07 12 11 08 20 10 f0 a2 04 18
+    f7 ff ff ff ff ff ff ff ff 01 12 10 08 0d 10 e8
+    07 18 fd ff ff ff ff ff ff ff ff 01 3a 29 08 c0
+    84 3d 12 11 08 20 10 f0 a2 04 18 f7 ff ff ff ff
+    ff ff ff ff 01 12 10 08 0d 10 e8 07 18 fd ff ff
+    ff ff ff ff ff ff 01
 
 variant maxima
   field 1 TradeSlot : byte = 255
   field 2 ItemTemplateId : ulong = 18446744073709551615
   field 3 ItemInstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
   field 4 Count : uint = 4294967295
-  bytes 40
+  field 5 Rarity : ItemRarity = Unique (3)
+  field 6 ItemLevel : uint = 4294967295
+  field 7 Modifiers : List<ItemModifierDto> = 3 elements
+    element 0
+      field 1 ModifierId : uint = 4294967295
+      field 2 Values : List<ItemModifierValueDto> = 3 elements
+        element 0
+          field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+          field 2 Value : int = 2147483647
+          field 3 Value2 : int? = 2147483647
+        element 1
+          field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+          field 2 Value : int = 2147483647
+          field 3 Value2 : int? = 2147483647
+        element 2
+          field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+          field 2 Value : int = 2147483647
+          field 3 Value2 : int? = 2147483647
+    element 1
+      field 1 ModifierId : uint = 4294967295
+      field 2 Values : List<ItemModifierValueDto> = 3 elements
+        element 0
+          field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+          field 2 Value : int = 2147483647
+          field 3 Value2 : int? = 2147483647
+        element 1
+          field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+          field 2 Value : int = 2147483647
+          field 3 Value2 : int? = 2147483647
+        element 2
+          field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+          field 2 Value : int = 2147483647
+          field 3 Value2 : int? = 2147483647
+    element 2
+      field 1 ModifierId : uint = 4294967295
+      field 2 Values : List<ItemModifierValueDto> = 3 elements
+        element 0
+          field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+          field 2 Value : int = 2147483647
+          field 3 Value2 : int? = 2147483647
+        element 1
+          field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+          field 2 Value : int = 2147483647
+          field 3 Value2 : int? = 2147483647
+        element 2
+          field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+          field 2 Value : int = 2147483647
+          field 3 Value2 : int? = 2147483647
+  bytes 216
     08 ff 01 10 ff ff ff ff ff ff ff ff ff 01 1a 12
     09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff ff
-    ff ff 20 ff ff ff ff 0f
+    ff ff 20 ff ff ff ff 0f 28 03 30 ff ff ff ff 0f
+    3a 36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff ff
+    ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff
+    ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff
+    ff 07 18 ff ff ff ff 07 3a 36 08 ff ff ff ff 0f
+    12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff 07
+    12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff 07
+    12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff 07
+    3a 36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff ff
+    ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff
+    ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff
+    ff 07 18 ff ff ff ff 07
 
 variant minima
   field 1 TradeSlot : byte = 0
   field 2 ItemTemplateId : ulong = 0
   field 3 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
   field 4 Count : uint = 0
-  bytes 0
+  field 5 Rarity : ItemRarity = Common (0)
+  field 6 ItemLevel : uint = 0
+  field 7 Modifiers : List<ItemModifierDto> = 1 element
+    element 0
+      field 1 ModifierId : uint = 0
+      field 2 Values : List<ItemModifierValueDto> = 1 element
+        element 0
+          field 1 Stat : ItemStat = Stamina (0)
+          field 2 Value : int = -2147483648
+          field 3 Value2 : int? = -2147483648
+  bytes 26
+    3a 18 12 16 10 80 80 80 80 f8 ff ff ff ff 01 18
+    80 80 80 80 f8 ff ff ff ff 01
 
 variant varint-edges
   field 1 TradeSlot : byte = 128
   field 2 ItemTemplateId : ulong = 16384
   field 3 ItemInstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
   field 4 Count : uint = 268435455
-  bytes 32
+  field 5 Rarity : ItemRarity = <not a declared member> (4)
+  field 6 ItemLevel : uint = 268435455
+  field 7 Modifiers : List<ItemModifierDto> = 2 elements
+    element 0
+      field 1 ModifierId : uint = 16383
+      field 2 Values : List<ItemModifierValueDto> = 2 elements
+        element 0
+          field 1 Stat : ItemStat = <not a declared member> (53)
+          field 2 Value : int = 268435455
+          field 3 Value2 : int? = 2097151
+        element 1
+          field 1 Stat : ItemStat = <not a declared member> (53)
+          field 2 Value : int = 2097152
+          field 3 Value2 : int? = 16384
+    element 1
+      field 1 ModifierId : uint = 2097152
+      field 2 Values : List<ItemModifierValueDto> = 2 elements
+        element 0
+          field 1 Stat : ItemStat = <not a declared member> (53)
+          field 2 Value : int = 268435455
+          field 3 Value2 : int? = 2097151
+        element 1
+          field 1 Stat : ItemStat = <not a declared member> (53)
+          field 2 Value : int = 2097152
+          field 3 Value2 : int? = 16384
+  bytes 103
     08 80 01 10 80 80 01 1a 12 09 04 03 02 01 06 05
     08 07 11 09 0a 0b 0c 0d 0e 0f 10 20 ff ff ff 7f
+    28 04 30 ff ff ff 7f 3a 1d 08 ff 7f 12 0b 08 35
+    10 ff ff ff 7f 18 ff ff 7f 12 0b 08 35 10 80 80
+    80 01 18 80 80 01 3a 1f 08 80 80 80 01 12 0b 08
+    35 10 ff ff ff 7f 18 ff ff 7f 12 0b 08 35 10 80
+    80 80 01 18 80 80 01

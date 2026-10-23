@@ -21,4 +21,11 @@ public static class ItemInstanceDefaults
     /// on ItemTemplate has to change.
     /// </summary>
     public static uint FullDurability(ItemTemplate template) => InitialDurability(template);
+
+    /// <summary>
+    /// The item level of a copy made from a template outright (#1179: vendor, creation, quest, a drop): the template's
+    /// required level, or 1 when it requires none (null, or 0 from a live edit), since an item level is at least 1.
+    /// </summary>
+    public static ushort InitialItemLevel(ItemTemplate template) =>
+        template.RequiredLevel is > 0 and { } level ? level : (ushort)1;
 }

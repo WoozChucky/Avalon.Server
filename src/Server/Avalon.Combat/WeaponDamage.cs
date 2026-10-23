@@ -5,30 +5,60 @@ namespace Avalon.Combat;
 
 /// <summary>
 /// What an attack rolls (#1178): a main hand's two damage ranges, each inclusive and typed by the item (null: the hit's
-/// type), and its time between basic attacks before attack speed. A creature's is its natural range. Default rolls
-/// nothing.
+/// type), its time between basic attacks before attack speed, and its own added damage by type (#1179), rolled after
+/// the two ranges. A creature's is its natural range. Default rolls nothing.
 /// </summary>
 public readonly record struct WeaponDamage(uint Min1, uint Max1, DamageType? Type1, uint Min2, uint Max2, DamageType? Type2,
-    uint AttackTimeMs)
+    uint AttackTimeMs, DamageRanges Added = default)
 {
     /// <summary>
-    /// A character's main hand: its ranges (a low end above its high end counting as the high end) and its attack time.
-    /// No main hand, or one whose first range deals nothing, rolls the formula's unarmed range as physical damage; a main
-    /// hand with no attack time paces as unarmed.
+    /// A character's main hand: its ranges (a low end above its high end counting as the high end) and its attack time,
+    /// with the lines local to it folded in (#1179): its added damage by type goes to <see cref="Added" />; its local
+    /// increased physical damage scales each end of a physical range and of the added physical damage by
+    /// <c>max(0, 1 + sum / 100)</c>; its local attack speed makes the attack time <c>time / (1 + sum / 100)</c>, a sum of
+    /// 0 or below counting as none, as every speed does (<see cref="Speed" />). Each result is worked out in whole numbers
+    /// and rounded exactly half away from zero (<see cref="LocalScaling" />). No main hand, or one whose first range deals
+    /// nothing, rolls the formula's unarmed range as physical damage; a main hand with no attack time paces as unarmed.
     /// </summary>
-    public static WeaponDamage Of(ItemTemplate? mainHand, CombatFormula f)
+    public static WeaponDamage Of(WornItem? mainHand, CombatFormula f)
     {
         uint unarmedTime = f.UnarmedAttackTimeMs;
-        uint max1 = mainHand?.DamageMax1 ?? 0;
-        if (mainHand is null || max1 == 0)
+        if (mainHand is not { } item || (item.Template.DamageMax1 ?? 0) == 0)
         {
             return new WeaponDamage(Math.Min(f.UnarmedDamageMin, f.UnarmedDamageMax), f.UnarmedDamageMax,
                 DamageType.Physical, 0, 0, null, unarmedTime);
         }
 
-        uint max2 = mainHand.DamageMax2 ?? 0;
-        uint time = mainHand.AttackTimeMs is { } attackTime and > 0 ? attackTime : unarmedTime;
-        return new WeaponDamage(Math.Min(mainHand.DamageMin1 ?? 0, max1), max1, mainHand.DamageType1,
-            Math.Min(mainHand.DamageMin2 ?? 0, max2), max2, mainHand.DamageType2, time);
+        DamageRanges added = default;
+        long increasedPhysical = 0;
+        long attackSpeed = 0;
+        foreach (ItemLine line in ItemLines.Of(item))
+        {
+            switch (line.Stat)
+            {
+                case >= StatType.AddedPhysicalDamage and <= StatType.AddedBlightDamage:
+                    added.Add((DamageType)(line.Stat - StatType.AddedPhysicalDamage), line);
+                    break;
+                case StatType.LocalIncreasedPhysicalDamage: increasedPhysical += line.Min; break;
+                case StatType.LocalAttackSpeed: attackSpeed += line.Min; break;
+                default: break;
+            }
+        }
+
+        ItemTemplate t = item.Template;
+        added.Increase(DamageType.Physical, increasedPhysical);
+
+        uint max1 = t.DamageMax1 ?? 0;
+        uint max2 = t.DamageMax2 ?? 0;
+        long increased1 = t.DamageType1 == DamageType.Physical ? increasedPhysical : 0;
+        long increased2 = t.DamageType2 == DamageType.Physical ? increasedPhysical : 0;
+        uint time = t.AttackTimeMs is { } attackTime and > 0 ? attackTime : unarmedTime;
+
+        return new WeaponDamage(
+            LocalScaling.Increase(Math.Min(t.DamageMin1 ?? 0, max1), increased1), LocalScaling.Increase(max1, increased1),
+            t.DamageType1,
+            LocalScaling.Increase(Math.Min(t.DamageMin2 ?? 0, max2), increased2), LocalScaling.Increase(max2, increased2),
+            t.DamageType2,
+            LocalScaling.Hasten(time, attackSpeed), added);
     }
 }

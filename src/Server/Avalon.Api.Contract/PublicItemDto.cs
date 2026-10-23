@@ -19,9 +19,10 @@ public sealed class PublicItemDto
     public ushort? RequiredAgility { get; set; }
     /// <summary>The Intellect a character needs to equip the item, or null for none (#1178).</summary>
     public ushort? RequiredIntellect { get; set; }
+    /// <summary>Whether any one of the set attribute requirements is enough (#1179, a mace's Strength or Intellect).</summary>
+    public bool RequiresAnyAttribute { get; set; }
     /// <summary>Milliseconds between a weapon's basic attacks before attack speed (#1178), above 0; null for an item that is not a weapon.</summary>
     public uint? AttackTimeMs { get; set; }
-    public ushort? ItemPower { get; set; }
     /// <summary>Empty when every class may use it.</summary>
     public List<CharacterClass> AllowedClasses { get; set; } = [];
     public uint MaxStackSize { get; set; }

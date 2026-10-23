@@ -265,8 +265,7 @@ public class SeedIntegrityShould
 
     private static readonly LootTableId s_forestArmour = new(11);
 
-    private static readonly ItemSubClass[] s_armourSubClasses =
-        [ItemSubClass.Helmet, ItemSubClass.Chest, ItemSubClass.Legs, ItemSubClass.Gloves, ItemSubClass.Boots];
+    private static readonly LootTableId s_forestJewellery = new(14);
 
     /// <summary>
     /// Issue #460: every creature a player can kill drops something, and nothing drops from a town
@@ -303,10 +302,10 @@ public class SeedIntegrityShould
         var catalog = new LootCatalog(tables, NullLoggerFactory.Instance);
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal(13, catalog.TableCount);
-        // Table 1: 2. Tables 2-8: 6 each. Table 9: 4 weapons. Table 10: 3 scrolls. Table 11: 20 armour pieces.
-        // Table 12, the forest chest: 6. Table 13, the forest barrel: 2.
-        Assert.Equal(2 + (7 * 6) + 4 + 3 + 20 + 6 + 2, catalog.EntryCount);
+        Assert.Equal(14, catalog.TableCount);
+        // Table 1: 2. Tables 2-8: 7 each. Table 9: 6 weapon and off-hand bases. Table 10: 3 scrolls. Table 11: 18 armour
+        // bases. Table 12, the forest chest: 7. Table 13, the forest barrel: 2. Table 14, the forest jewellery: 2.
+        Assert.Equal(2 + (7 * 7) + 6 + 3 + 18 + 7 + 2 + 2, catalog.EntryCount);
         Assert.All(context.CreatureTemplates.AsNoTracking().ToList().Where(t => t.LootTableId is not null),
             t => Assert.True(catalog.TryGet(t.LootTableId!, out _), $"{t.Name} names a table the catalog does not hold"));
     }
@@ -314,7 +313,7 @@ public class SeedIntegrityShould
     /// <summary>
     /// Every creature table rolls its own potions, then the shared pools: the common table, the
     /// weapon and scroll groups (each drops exactly one entry when it rolls, so it is referenced at
-    /// the chance it should drop with), and the armour table, rolled every kill.
+    /// the chance it should drop with), and the armour and jewellery tables, rolled every kill.
     /// </summary>
     [Fact]
     public void Reference_The_Shared_Pools_From_Every_Creature_Table()
@@ -336,11 +335,13 @@ public class SeedIntegrityShould
             Assert.Single(table.Entries, e => e.ReferenceTableId == s_forestWeapons && e.Chance == 2f);
             Assert.Single(table.Entries, e => e.ReferenceTableId == s_forestScrolls && e.Chance == 10f);
             Assert.Single(table.Entries, e => e.ReferenceTableId == s_forestArmour && e.Chance == 100f);
+            Assert.Single(table.Entries, e => e.ReferenceTableId == s_forestJewellery && e.Chance == 100f);
         });
     }
 
+    /// <summary>#1179: one tier-1 base of each weapon and off-hand kind, one group at equal weights.</summary>
     [Fact]
-    public void Seed_The_Forest_Weapons_As_One_Group_Of_One_Weapon_Per_Class()
+    public void Seed_the_forest_weapons_as_one_group_of_six_bases()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
@@ -348,17 +349,16 @@ public class SeedIntegrityShould
         var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
         LootTable table = LoadTable(context, s_forestWeapons);
 
-        Assert.Equal(4, table.Entries.Count);
+        Assert.Single(table.Entries.Select(e => e.Chance).Distinct());
         Assert.All(table.Entries, e =>
         {
             Assert.Equal(1, e.GroupId);
-            Assert.Equal(25f, e.Chance);
-            Assert.Equal(ItemClass.Weapon, items[e.ItemTemplateId!].Class);
-            Assert.Single(items[e.ItemTemplateId!].AllowedClasses);
+            ItemTemplate item = items[e.ItemTemplateId!];
+            Assert.Equal((ItemRarity.Common, (ushort?)1), (item.Rarity, item.RequiredLevel));
         });
         Assert.Equal(
-            CharacterClasses.Playable.Order(),
-            table.Entries.Select(e => items[e.ItemTemplateId!].AllowedClasses[0]).Order());
+            [ItemBaseKind.Sword, ItemBaseKind.Mace, ItemBaseKind.Staff, ItemBaseKind.Bow, ItemBaseKind.Shield, ItemBaseKind.CasterOffHand],
+            table.Entries.OrderBy(e => e.Sequence).Select(e => items[e.ItemTemplateId!].BaseKind));
     }
 
     [Fact]
@@ -381,9 +381,12 @@ public class SeedIntegrityShould
         });
     }
 
-    /// <summary>Every piece rolls on its own at 2 %, and the set covers each class in each of five slots exactly once.</summary>
+    /// <summary>
+    /// #1179: every piece rolls on its own at 2 %, and the table holds each of the eighteen armour kinds (three families
+    /// in six slots) exactly once, at tier 1, for every class.
+    /// </summary>
     [Fact]
-    public void Seed_The_Forest_Armour_As_Twenty_Independent_Pieces_One_Per_Class_And_Slot()
+    public void Seed_the_forest_armour_as_eighteen_independent_tier_one_pieces()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
@@ -391,34 +394,24 @@ public class SeedIntegrityShould
         var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
         LootTable table = LoadTable(context, s_forestArmour);
 
-        Assert.Equal(20, table.Entries.Count);
         Assert.All(table.Entries, e =>
         {
             Assert.Null(e.GroupId);
             Assert.Equal(2f, e.Chance);
             ItemTemplate piece = items[e.ItemTemplateId!];
-            Assert.Equal(ItemClass.Armor, piece.Class);
-            Assert.Contains(piece.SubClass, s_armourSubClasses);
-            Assert.Equal(ItemRarity.Uncommon, piece.Rarity);
-            Assert.Equal(SlotFor(piece.SubClass), piece.Slot);
-            Assert.Single(piece.AllowedClasses);
+            Assert.Equal((ItemClass.Armor, ItemRarity.Common, (ushort?)1), (piece.Class, piece.Rarity, piece.RequiredLevel));
+            Assert.Empty(piece.AllowedClasses);
         });
-
-        var covered = table.Entries
-            .Select(e => items[e.ItemTemplateId!])
-            .Select(i => (i.AllowedClasses[0], i.SubClass))
-            .ToHashSet();
-        var expected = CharacterClasses.Playable
-            .SelectMany(c => s_armourSubClasses.Select(s => (c, s)))
-            .ToHashSet();
-        Assert.True(expected.SetEquals(covered), "the armour table should hold one piece per class per slot");
+        Assert.Equal(
+            Enumerable.Range((int)ItemBaseKind.PlateHead, 18).Select(k => (ItemBaseKind)k),
+            table.Entries.Select(e => items[e.ItemTemplateId!].BaseKind!.Value).Order());
     }
 
     /// <summary>
     /// Seeded kills, rolled the way the tick rolls them: one gold pile, at most one weapon and at most
     /// one scroll (each is a group, referenced once), and nothing names an item the seed does not
-    /// have. Over 1000 kills of each creature, the 2 % weapon, the 10 % scroll and the 2 % armour
-    /// pieces all turn up.
+    /// have. Over 1000 kills of each creature, the 2 % weapon, the 10 % scroll and the 2 % armour and
+    /// jewellery pieces all turn up.
     /// </summary>
     [Fact]
     public void Roll_Every_Seeded_Creature_Into_One_Gold_Pile_At_Most_One_Weapon_And_At_Most_One_Scroll()
@@ -431,6 +424,7 @@ public class SeedIntegrityShould
         HashSet<ulong> weapons = ItemsIn(tables, s_forestWeapons);
         HashSet<ulong> scrolls = ItemsIn(tables, s_forestScrolls);
         HashSet<ulong> armour = ItemsIn(tables, s_forestArmour);
+        HashSet<ulong> jewellery = ItemsIn(tables, s_forestJewellery);
         var catalog = new LootCatalog(tables, NullLoggerFactory.Instance);
         var roller = new LootRoller(new LootRandom(new Random(460)), NullLogger<LootRoller>.Instance);
 
@@ -440,7 +434,7 @@ public class SeedIntegrityShould
 
         foreach (CreatureTemplate template in killable)
         {
-            int weaponsDropped = 0, scrollsDropped = 0, armourDropped = 0;
+            int weaponsDropped = 0, scrollsDropped = 0, armourDropped = 0, jewelleryDropped = 0;
 
             for (int i = 0; i < 1000; i++)
             {
@@ -454,6 +448,7 @@ public class SeedIntegrityShould
                 weaponsDropped += weaponCount;
                 scrollsDropped += scrollCount;
                 armourDropped += dropped.Count(armour.Contains);
+                jewelleryDropped += dropped.Count(jewellery.Contains);
 
                 Assert.Single(drops, d => d.IsGold);
                 Assert.All(dropped, id => Assert.Contains(items, t => t.Id.Value == id));
@@ -462,10 +457,11 @@ public class SeedIntegrityShould
             Assert.True(weaponsDropped > 0, $"{template.Name} dropped no weapon in 1000 kills");
             Assert.True(scrollsDropped > 0, $"{template.Name} dropped no scroll in 1000 kills");
             Assert.True(armourDropped > 0, $"{template.Name} dropped no armour in 1000 kills");
+            Assert.True(jewelleryDropped > 0, $"{template.Name} dropped no jewellery in 1000 kills");
         }
     }
 
-    /// <summary>Owner decision: forest drops can be sold. Every item in the weapon, scroll and armour pools.</summary>
+    /// <summary>Owner decision: forest drops can be sold. Every item in the weapon, scroll, armour and jewellery pools.</summary>
     [Fact]
     public void Let_Every_Forest_Pool_Item_Be_Sold()
     {
@@ -477,9 +473,10 @@ public class SeedIntegrityShould
         var pool = ItemsIn(tables, s_forestWeapons)
             .Concat(ItemsIn(tables, s_forestScrolls))
             .Concat(ItemsIn(tables, s_forestArmour))
+            .Concat(ItemsIn(tables, s_forestJewellery))
             .ToHashSet();
 
-        Assert.Equal(27, pool.Count);   // items 5-31
+        Assert.Equal(6 + 3 + 18 + 2, pool.Count);
         Assert.All(items.Where(i => pool.Contains(i.Id.Value)), item =>
         {
             Assert.False(item.Flags.HasFlag(ItemTemplateFlags.NoSell), $"{item.Name} is marked NoSell");
@@ -488,36 +485,9 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// Every class's armour carries Armor, so no class is unarmoured once mitigation reads it, and in
-    /// each slot cloth (Wizard, Cleric) is below leather (Hunter), which is below plate (Warrior).
-    /// </summary>
-    [Fact]
-    public void Armour_Every_Class_With_Cloth_Below_Leather_Below_Plate_In_Each_Slot()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
-        var pieces = LoadTable(context, s_forestArmour).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
-
-        foreach (ItemSubClass slot in s_armourSubClasses)
-        {
-            uint ArmorFor(CharacterClass c) =>
-                ArmorOf(Assert.Single(pieces, p => p.SubClass == slot && p.AllowedClasses[0] == c));
-
-            uint wizard = ArmorFor(CharacterClass.Wizard), cleric = ArmorFor(CharacterClass.Cleric);
-            uint hunter = ArmorFor(CharacterClass.Hunter), warrior = ArmorFor(CharacterClass.Warrior);
-
-            Assert.True(wizard > 0 && cleric > 0, $"{slot}: cloth has no Armor");
-            Assert.True(Math.Max(wizard, cleric) < hunter, $"{slot}: cloth {wizard}/{cleric} is not below leather {hunter}");
-            Assert.True(hunter < warrior, $"{slot}: leather {hunter} is not below plate {warrior}");
-        }
-    }
-
-    /// <summary>
-    /// The forest's doodad tables: the chest rolls potions, then the creatures' shared pools (the common table and the
-    /// armour table every time, the weapon group at 10 % and the scroll group at 25 %, richer than a kill); the barrel
-    /// rolls a potion or two and nothing else.
+    /// The forest's doodad tables: the chest rolls potions, then the creatures' shared pools (the common table, the armour
+    /// table and the jewellery table every time, the weapon group at 10 % and the scroll group at 25 %, richer than a
+    /// kill); the barrel rolls a potion or two and nothing else.
     /// </summary>
     [Fact]
     public void Seed_the_forest_chest_and_barrel_tables_as_designed()
@@ -533,7 +503,8 @@ public class SeedIntegrityShould
         Assert.Equal("Forest chest", chest.Name);
         Assert.Equal(
             [(1, 1ul, null, 60f, 1, 2, null), (2, 2ul, null, 40f, 1, 1, null), (3, null, 1, 100f, 1, 1, null),
-             (4, null, 9, 10f, 1, 1, null), (5, null, 10, 25f, 1, 1, null), (6, null, 11, 100f, 1, 1, null)],
+             (4, null, 9, 10f, 1, 1, null), (5, null, 10, 25f, 1, 1, null), (6, null, 11, 100f, 1, 1, null),
+             (7, null, 14, 100f, 1, 1, null)],
             Rows(chest));
 
         LootTable barrel = LoadTable(context, new LootTableId(13));
@@ -562,7 +533,10 @@ public class SeedIntegrityShould
         }
     }
 
-    /// <summary>Every pool weapon goes in the main hand, and the bow is the ranged one.</summary>
+    /// <summary>
+    /// Every pool weapon goes in the main hand with a weapon sub-class, and the bow is the ranged one; the shield and the
+    /// caster off-hand (#1179) are armour worn in the off hand.
+    /// </summary>
     [Fact]
     public void Seed_Every_Pool_Weapon_For_The_Main_Hand_With_A_Weapon_Sub_Class()
     {
@@ -570,15 +544,18 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
-        var weapons = LoadTable(context, s_forestWeapons).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
+        var pool = LoadTable(context, s_forestWeapons).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
 
-        Assert.All(weapons, w =>
+        Assert.All(pool.Where(w => w.Class == ItemClass.Weapon), w =>
         {
             Assert.Equal(ItemSlotType.MainHand, w.Slot);
             Assert.Contains(w.SubClass, new[] { ItemSubClass.OneHanded, ItemSubClass.TwoHanded, ItemSubClass.Ranged });
         });
-        ItemTemplate bow = Assert.Single(weapons, w => w.AllowedClasses[0] == CharacterClass.Hunter);
-        Assert.Equal(ItemSubClass.Ranged, bow.SubClass);
+        Assert.Equal(ItemSubClass.Ranged, Assert.Single(pool, w => w.BaseKind == ItemBaseKind.Bow).SubClass);
+        Assert.Equal(
+            [(ItemClass.Armor, ItemSubClass.Shield, (ItemSlotType?)ItemSlotType.OffHand),
+             (ItemClass.Armor, ItemSubClass.CasterOffHand, (ItemSlotType?)ItemSlotType.OffHand)],
+            pool.Where(w => w.Class != ItemClass.Weapon).OrderBy(w => w.BaseKind).Select(w => (w.Class, w.SubClass, w.Slot)));
     }
 
     /// <summary>
@@ -640,33 +617,12 @@ public class SeedIntegrityShould
         }
     }
 
-    private static uint ArmorOf(ItemTemplate item) =>
-        (uint)new (StatType? Type, uint? Value)[]
-            {
-                (item.StatType1, item.StatValue1), (item.StatType2, item.StatValue2), (item.StatType3, item.StatValue3),
-                (item.StatType4, item.StatValue4), (item.StatType5, item.StatValue5), (item.StatType6, item.StatValue6),
-                (item.StatType7, item.StatValue7), (item.StatType8, item.StatValue8), (item.StatType9, item.StatValue9),
-                (item.StatType10, item.StatValue10),
-            }
-            .Where(s => s.Type == StatType.Armor)
-            .Sum(s => (long)(s.Value ?? 0));
-
     private static LootTable LoadTable(WorldDbContext context, LootTableId id) =>
         Assert.Single(context.LootTables.AsNoTracking().Include(t => t.Entries).ToList(), t => t.Id == id);
 
     private static HashSet<ulong> ItemsIn(IEnumerable<LootTable> tables, LootTableId id) =>
         tables.Single(t => t.Id == id).Entries.Where(e => e.ItemTemplateId is not null)
             .Select(e => e.ItemTemplateId!.Value).ToHashSet();
-
-    private static ItemSlotType SlotFor(ItemSubClass subClass) => subClass switch
-    {
-        ItemSubClass.Helmet => ItemSlotType.Head,
-        ItemSubClass.Chest => ItemSlotType.Chest,
-        ItemSubClass.Legs => ItemSlotType.Legs,
-        ItemSubClass.Gloves => ItemSlotType.Hands,
-        ItemSubClass.Boots => ItemSlotType.Feet,
-        _ => throw new ArgumentOutOfRangeException(nameof(subClass), subClass, "not an armour slot"),
-    };
 
     /// <summary>The starter kit (#164), the aura abilities (auras) and the crowd-control abilities (#770).</summary>
     private static readonly Dictionary<CharacterClass, uint[]> s_kit = new()
@@ -1032,30 +988,6 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #506: the starter weapons roll 4-7 and the two-handed Thornwood Staff 9-14. #1178 (owner decision D2): a weapon's
-    /// roll is an attack's whole base, so the forest's sword and bow roll 5-7 and the Rusted Sword 4-6, carrying their old
-    /// hits (the carry-over theory below pins them); the Rootknot Mace keeps 7-11, which no Attack reads.
-    /// </summary>
-    [Theory]
-    [InlineData(4ul, 4u, 6u)]
-    [InlineData(32ul, 4u, 7u)]
-    [InlineData(33ul, 4u, 7u)]
-    [InlineData(34ul, 4u, 7u)]
-    [InlineData(35ul, 4u, 7u)]
-    [InlineData(5ul, 9u, 14u)]
-    [InlineData(6ul, 5u, 7u)]
-    [InlineData(7ul, 5u, 7u)]
-    [InlineData(8ul, 7u, 11u)]
-    public void Seed_the_weapon_damage_ranges(ulong id, uint min, uint max)
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
-        Assert.Equal(((uint?)min, (uint?)max), (item.DamageMin1, item.DamageMax1));
-    }
-
-    /// <summary>
     /// #506: creature armour rises linearly from 0 at level 1 to 30 at level 10, round(30 x (L - 1) / 9). #1178: evasion
     /// is 10 and ward 8 per level, before the template's modifiers.
     /// </summary>
@@ -1200,29 +1132,30 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #1178 (B-R9): a weapon's old haste pair is folded into its attack time, so each weapon's attribute moves to its
-    /// first stat and nothing follows it; the Rusted Sword, which had only the haste, carries no stat.
+    /// #1179: a base carries no attribute and no Stamina: its attribute is a requirement, and attributes come from the
+    /// character and from rolled modifiers.
     /// </summary>
-    [Theory]
-    [InlineData(4ul, null, null)]                   // Rusted Sword
-    [InlineData(7ul, StatType.Strength, 1u)]        // Bramblesteel Sword
-    [InlineData(32ul, StatType.Strength, 1u)]       // Ironwood Sword
-    [InlineData(6ul, StatType.Agility, 1u)]         // Briarstring Bow
-    [InlineData(34ul, StatType.Agility, 1u)]        // Hunter's Shortbow
-    [InlineData(8ul, StatType.Intellect, 1u)]       // Rootknot Mace
-    [InlineData(35ul, StatType.Intellect, 1u)]      // Oak Mace
-    [InlineData(5ul, StatType.Intellect, 1u)]       // Thornwood Staff
-    [InlineData(33ul, StatType.Intellect, 1u)]      // Ash Staff
-    public void Seed_each_weapons_attribute_as_its_first_stat(ulong id, StatType? stat, uint? value)
+    [Fact]
+    public void Seed_each_weapons_attribute_as_a_requirement_and_no_attribute_line_on_any_base()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
-        Assert.Equal((stat, value, (StatType?)null, (uint?)null), (item.StatType1, item.StatValue1, item.StatType2, item.StatValue2));
+        var bases = context.ItemTemplates.AsNoTracking().ToList()
+            .Where(i => i.Rarity == ItemRarity.Common && i.BaseKind is not null).ToList();
+
+        Assert.Equal(74, bases.Count);
+        StatType?[] attributes = [StatType.Strength, StatType.Agility, StatType.Intellect, StatType.Stamina];
+        Assert.All(bases, b => Assert.DoesNotContain(StatTypesOf(b), attributes.Contains));
+        Assert.All(bases.Where(b => b.Class == ItemClass.Weapon && b.RequiredLevel > 1), w =>
+            Assert.True(w.RequiredStrength is not null || w.RequiredAgility is not null || w.RequiredIntellect is not null,
+                $"{w.Name} asks no attribute"));
     }
 
-    /// <summary>#1178: a weapon's speed is its attack time, so no seeded item carries attack speed, nor movement speed.</summary>
+    /// <summary>
+    /// #1178: a weapon's speed is its attack time, so no base carries attack speed; #1179: a unique's stats come from its
+    /// rolled modifier, never its template. No item carries movement speed.
+    /// </summary>
     [Fact]
     public void Seed_attack_speed_and_movement_speed_on_no_item()
     {
@@ -1237,7 +1170,8 @@ public class SeedIntegrityShould
     /// <summary>
     /// #1178 (B-R9, table C): each class's basic attack, now paced by its weapon's attack time over Agility's attack speed,
     /// keeps today's pace (800 ms over the weapon's old haste) through the stats calculator over the seeded rows, with the
-    /// balance tool's starter profile (the class's starter weapon and five armour pieces) or bare-handed.
+    /// balance tool's starter profile (the class's starter weapon and five armour pieces, as they stood before #1179:
+    /// <see cref="RetiredGearProfiles" />) or bare-handed.
     /// </summary>
     [Theory]
     [InlineData(CharacterClass.Warrior, (ushort)1, true, 776.7, 0.1)]
@@ -1254,15 +1188,11 @@ public class SeedIntegrityShould
         CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
         ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().AsEnumerable().Single(f => f.Class == c);
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
-        ulong[] starterIds = c == CharacterClass.Warrior ? [32, 36, 37, 38, 39, 40] : [34, 46, 47, 48, 49, 50];
-        List<ItemTemplate> worn = starter
-            ? context.ItemTemplates.AsNoTracking().AsEnumerable().Where(i => starterIds.Contains(i.Id.Value)).ToList()
-            : [];
-        Assert.Equal(starter ? 6 : 0, worn.Count);
+        List<ItemTemplate> worn = starter ? RetiredGearProfiles.For("starter", c) : [];
         AbilityTemplate basic = context.AbilityTemplates.AsNoTracking().AsEnumerable()
             .Single(a => (a.Flags & AbilityFlags.Basic) != 0 && a.AllowedClasses!.Contains(c));
 
-        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, factors, formula);
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, Worn.Of([.. worn]), factors, formula);
         var pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, formula);
         double paceMs = AbilityPace.Cooldown(AbilityMetadataMapper.From(basic), pace) * 1000d;
 
@@ -1271,7 +1201,8 @@ public class SeedIntegrityShould
 
     /// <summary>
     /// #1178 (R17, tables A and B): each kit ability carries today's numbers over, through the stats calculator over the
-    /// seeded row and the balance tool's starter profile (the class's starter weapon and five armour pieces). The average of
+    /// seeded row and the balance tool's starter profile (the class's starter weapon and five armour pieces, as they stood
+    /// before #1179: <see cref="RetiredGearProfiles" />). The average of
     /// the ability's base with every roll at its low and at its high end (<see cref="RollEnds" />): an Attack's or a Spell's
     /// <see cref="OffenceMath.DirectBase" />, a Heal's <see cref="OffenceMath.HealBase" />, or, through its aura, the
     /// whole of <see cref="OffenceMath.PeriodicTotal" /> (Rend's Bleed, Ignite's Burn, Renew). Today's average is the old
@@ -1337,12 +1268,9 @@ public class SeedIntegrityShould
         CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
         ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().AsEnumerable().Single(f => f.Class == c);
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
-        ulong[] profile = s_gearProfiles[gear][c];
-        var worn = context.ItemTemplates.AsNoTracking().AsEnumerable()
-            .Where(i => profile.Contains(i.Id.Value)).ToList();
-        Assert.Equal(6, worn.Count);
+        List<ItemTemplate> worn = RetiredGearProfiles.For(gear, c);
 
-        AttackerCombat caster = CharacterStatsCalculator.Calculate(row, worn, factors, formula).AttackerAt(level);
+        AttackerCombat caster = CharacterStatsCalculator.Calculate(row, Worn.Of([.. worn]), factors, formula).AttackerAt(level);
         AbilityMetadata metadata = AbilityMetadataMapper.From(ability);
         AuraTemplate? aura = viaAura
             ? context.AuraTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == ability.AuraId!.Value)
@@ -1360,32 +1288,21 @@ public class SeedIntegrityShould
             FormattableString.Invariant($"ability {id} at level {level}: {average:0.###} against today's {todayAvg}"));
     }
 
-    /// <summary>
-    /// The balance tool's starter and forest profiles (each class's weapon and its five armour pieces), and the starter
-    /// Warrior with the Rusted Sword in place of its starter sword.
-    /// </summary>
-    private static readonly Dictionary<string, Dictionary<CharacterClass, ulong[]>> s_gearProfiles = new()
-    {
-        ["starter"] = new()
-        {
-            [CharacterClass.Warrior] = [32, 36, 37, 38, 39, 40],
-            [CharacterClass.Wizard] = [33, 41, 42, 43, 44, 45],
-            [CharacterClass.Hunter] = [34, 46, 47, 48, 49, 50],
-            [CharacterClass.Cleric] = [35, 51, 52, 53, 54, 55],
-        },
-        ["forest"] = new()
-        {
-            [CharacterClass.Warrior] = [7, 12, 13, 14, 15, 16],
-            [CharacterClass.Hunter] = [6, 22, 23, 24, 25, 26],
-        },
-        ["rusted"] = new() { [CharacterClass.Warrior] = [4, 36, 37, 38, 39, 40] },
-    };
-
     private static StatType?[] StatTypesOf(ItemTemplate i) =>
     [
         i.StatType1, i.StatType2, i.StatType3, i.StatType4, i.StatType5,
         i.StatType6, i.StatType7, i.StatType8, i.StatType9, i.StatType10,
     ];
+
+    /// <summary>The stat lines a template sets, in slot order.</summary>
+    private static IEnumerable<(StatType?, uint?)> StatLinesOf(ItemTemplate i) =>
+        new (StatType? Type, uint? Value)[]
+        {
+            (i.StatType1, i.StatValue1), (i.StatType2, i.StatValue2), (i.StatType3, i.StatValue3),
+            (i.StatType4, i.StatValue4), (i.StatType5, i.StatValue5), (i.StatType6, i.StatValue6),
+            (i.StatType7, i.StatValue7), (i.StatType8, i.StatValue8), (i.StatType9, i.StatValue9),
+            (i.StatType10, i.StatValue10),
+        }.Where(l => l.Type is not null).Select(l => (l.Type, l.Value));
 
     /// <summary>#627: every creature swings every 2.25 s, the interval the combat script used as a constant.</summary>
     [Fact]
@@ -1432,8 +1349,8 @@ public class SeedIntegrityShould
         Assert.Equal(
             [(0, QuestObjectiveType.Kill, 5ul, 3u), (0, QuestObjectiveType.Kill, 7ul, 2u), (1, QuestObjectiveType.Talk, 11ul, 1u), (2, QuestObjectiveType.Kill, 8ul, 1u)],
             quests[2].Objectives.OrderBy(o => o.Id).Select(o => (o.StageSequence, o.Type, o.CreatureTemplateId!.Value, o.Count)));
-        Assert.Equal((58ul, 1u), (Assert.Single(quests[2].ItemRewards).ItemTemplateId.Value, quests[2].ItemRewards[0].Count));
-        Assert.Equal([5ul, 6ul, 7ul, 8ul], quests[2].ItemChoices.Select(c => c.ItemTemplateId.Value).Order());
+        Assert.Equal((69ul, 1u), (Assert.Single(quests[2].ItemRewards).ItemTemplateId.Value, quests[2].ItemRewards[0].Count));
+        Assert.Equal([32ul, 33ul, 34ul, 35ul], quests[2].ItemChoices.Select(c => c.ItemTemplateId.Value).Order());
         Assert.All(quests[2].ItemChoices, c => Assert.Equal(1u, c.Count));
     }
 
@@ -1468,7 +1385,7 @@ public class SeedIntegrityShould
             quests.SelectMany(q => q.Objectives).SelectMany(o => o.Drops).OrderBy(d => d.ObjectiveId)
                 .Select(d => (d.ObjectiveId, d.CreatureTemplateId.Value, d.Chance)));
 
-        Assert.Equal([(4u, 2ul, 3u), (6u, 56ul, 2u), (7u, 64ul, 1u), (8u, 65ul, 1u)],
+        Assert.Equal([(4u, 2ul, 3u), (6u, 56ul, 2u), (7u, 68ul, 1u), (8u, 68ul, 1u)],
             quests.SelectMany(q => q.ItemRewards).OrderBy(r => r.QuestId.Value)
                 .Select(r => (r.QuestId.Value, r.ItemTemplateId.Value, r.Count)));
 
@@ -1578,8 +1495,8 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #711: Hilde's "Earn It Fancy" after "Pelts Before Frost": the pack and its alpha, then one of four chest pieces,
-    /// one per class, and no fixed item. Pins the structure, not the seeded values.
+    /// #711: Hilde's "Earn It Fancy" after "Pelts Before Frost": the pack and its alpha, then one of three chest bases,
+    /// one per armour family (#1179), and no fixed item. Pins the structure, not the seeded values.
     /// </summary>
     [Fact]
     public void Seed_earn_it_fancy_as_hildes_choice_quest()
@@ -1596,13 +1513,13 @@ public class SeedIntegrityShould
         Assert.Equal([(1101u, QuestObjectiveType.Kill, 5ul), (1102u, QuestObjectiveType.Kill, 8ul)],
             quest.Objectives.OrderBy(o => o.Id).Select(o => (o.Id, o.Type, o.CreatureTemplateId!.Value)));
 
-        // One chest piece per class to choose from.
+        // One chest base per armour family to choose from.
         ulong[] choices = [.. quest.ItemChoices.Select(c => c.ItemTemplateId.Value).Order()];
-        Assert.Equal([13ul, 18ul, 23ul, 28ul], choices);
+        Assert.Equal([37ul, 42ul, 47ul], choices);
         Assert.All(quest.ItemChoices, c => Assert.Equal(1u, c.Count));
-        Assert.Equal([CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Cleric],
+        Assert.Equal([ItemBaseKind.PlateChest, ItemBaseKind.LeatherChest, ItemBaseKind.ClothChest],
             context.ItemTemplates.AsNoTracking().ToList().Where(t => choices.Contains(t.Id.Value))
-                .OrderBy(t => t.Id.Value).SelectMany(t => t.AllowedClasses));
+                .Select(t => t.BaseKind).Order());
 
         // Every text the quest names resolves in the base wording and in ptPT.
         AssertTextsResolveInBothLocales(context,
@@ -1653,20 +1570,6 @@ public class SeedIntegrityShould
         Assert.DoesNotContain(context.VendorStocks.AsNoTracking().ToList(), s => s.ItemTemplateId.Value == 57);
     }
 
-    [Fact]
-    public void Seed_the_alphas_fang_pendant_as_an_uncommon_neck_piece_for_every_class()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-        ItemTemplate pendant = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == 58);
-
-        Assert.Equal("Alpha's Fang Pendant", pendant.Name);
-        Assert.Equal((ItemClass.Armor, ItemSubClass.Amulet, ItemSlotType.Neck, ItemRarity.Uncommon),
-            (pendant.Class, pendant.SubClass, pendant.Slot, pendant.Rarity));
-        Assert.Empty(pendant.AllowedClasses);
-        Assert.False(pendant.Flags.HasFlag(ItemTemplateFlags.Unique));
-    }
-
     /// <summary>Forest content pass, quests 4-8: five quest items that drop only for characters collecting them and are never sold.</summary>
     [Theory]
     [InlineData(59ul, "Blightfly Wing")]
@@ -1690,24 +1593,245 @@ public class SeedIntegrityShould
         Assert.DoesNotContain(context.VendorStocks.AsNoTracking().ToList(), s => s.ItemTemplateId.Value == id);
     }
 
-    /// <summary>The chain's two rewards: rings for every class, in a finger slot, never Unique (a reward must always fit).</summary>
-    [Theory]
-    [InlineData(64ul, "Heartwood Band", ItemRarity.Uncommon, (ushort)5, 3u, 2u)]
-    [InlineData(65ul, "Thornheart Signet", ItemRarity.Rare, (ushort)7, 5u, 4u)]
-    public void Seed_the_chains_rings_for_every_class(ulong id, string name, ItemRarity rarity, ushort level, uint stamina, uint armor)
+    /// <summary>
+    /// The chain's reward ring (#1179), the Copper Band base, for every class, in a finger slot, never flagged own-one-copy
+    /// (a reward must always fit, and a player may wear two of one ring). The unique rings are pinned with the uniques.
+    /// </summary>
+    [Fact]
+    public void Seed_the_chains_reward_ring_for_every_class()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        ItemTemplate ring = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
+        ItemTemplate ring = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == 68);
 
-        Assert.Equal(name, ring.Name);
-        Assert.Equal((ItemClass.Armor, ItemSubClass.Ring, ItemSlotType.Finger, rarity), (ring.Class, ring.SubClass, ring.Slot, ring.Rarity));
-        Assert.Equal(level, ring.RequiredLevel);
+        Assert.Equal("Copper Band", ring.Name);
+        Assert.Equal((ItemClass.Armor, ItemSubClass.Ring, ItemSlotType.Finger, ItemRarity.Common, ItemBaseKind.Ring),
+            (ring.Class, ring.SubClass, ring.Slot, ring.Rarity, ring.BaseKind));
+        Assert.Equal((ushort)1, ring.RequiredLevel);
         Assert.Empty(ring.AllowedClasses);
-        Assert.Equal((StatType.Stamina, stamina), (ring.StatType1, ring.StatValue1));
-        Assert.Equal((StatType.Armor, armor), (ring.StatType2, ring.StatValue2));
         Assert.False(ring.Flags.HasFlag(ItemTemplateFlags.Unique));
         Assert.Equal(1u, ring.MaxStackSize);
+    }
+
+    /// <summary>
+    /// #1179: every armour base as the spec's tables set it: its kind, tier level, the family's defence (chest
+    /// plate 8/18/32, leather 40/90/160, cloth 12/26/45; legs 80 %, head 60 %, shoulders 50 %, hands and feet 40 %), the
+    /// family's attribute from tier 2 and its price; a quarter of it back, every class, no stack, Common.
+    /// </summary>
+    [Theory]
+    [InlineData(36ul, ItemBaseKind.PlateHead, (ushort)1, StatType.Armor, 5u, null, null, 60u)]
+    [InlineData(37ul, ItemBaseKind.PlateChest, (ushort)1, StatType.Armor, 8u, null, null, 100u)]
+    [InlineData(38ul, ItemBaseKind.PlateLegs, (ushort)1, StatType.Armor, 6u, null, null, 80u)]
+    [InlineData(39ul, ItemBaseKind.PlateHands, (ushort)1, StatType.Armor, 3u, null, null, 40u)]
+    [InlineData(40ul, ItemBaseKind.PlateFeet, (ushort)1, StatType.Armor, 3u, null, null, 40u)]
+    [InlineData(76ul, ItemBaseKind.PlateShoulders, (ushort)1, StatType.Armor, 4u, null, null, 50u)]
+    [InlineData(12ul, ItemBaseKind.PlateHead, (ushort)5, StatType.Armor, 11u, StatType.Strength, (ushort)30, 120u)]
+    [InlineData(13ul, ItemBaseKind.PlateChest, (ushort)5, StatType.Armor, 18u, StatType.Strength, (ushort)30, 200u)]
+    [InlineData(14ul, ItemBaseKind.PlateLegs, (ushort)5, StatType.Armor, 14u, StatType.Strength, (ushort)30, 160u)]
+    [InlineData(15ul, ItemBaseKind.PlateHands, (ushort)5, StatType.Armor, 7u, StatType.Strength, (ushort)30, 80u)]
+    [InlineData(16ul, ItemBaseKind.PlateFeet, (ushort)5, StatType.Armor, 7u, StatType.Strength, (ushort)30, 80u)]
+    [InlineData(79ul, ItemBaseKind.PlateShoulders, (ushort)5, StatType.Armor, 9u, StatType.Strength, (ushort)30, 100u)]
+    [InlineData(85ul, ItemBaseKind.PlateHead, (ushort)10, StatType.Armor, 19u, StatType.Strength, (ushort)45, 240u)]
+    [InlineData(86ul, ItemBaseKind.PlateChest, (ushort)10, StatType.Armor, 32u, StatType.Strength, (ushort)45, 400u)]
+    [InlineData(87ul, ItemBaseKind.PlateLegs, (ushort)10, StatType.Armor, 26u, StatType.Strength, (ushort)45, 320u)]
+    [InlineData(88ul, ItemBaseKind.PlateHands, (ushort)10, StatType.Armor, 13u, StatType.Strength, (ushort)45, 160u)]
+    [InlineData(89ul, ItemBaseKind.PlateFeet, (ushort)10, StatType.Armor, 13u, StatType.Strength, (ushort)45, 160u)]
+    [InlineData(82ul, ItemBaseKind.PlateShoulders, (ushort)10, StatType.Armor, 16u, StatType.Strength, (ushort)45, 200u)]
+    [InlineData(46ul, ItemBaseKind.LeatherHead, (ushort)1, StatType.Evasion, 24u, null, null, 60u)]
+    [InlineData(47ul, ItemBaseKind.LeatherChest, (ushort)1, StatType.Evasion, 40u, null, null, 100u)]
+    [InlineData(48ul, ItemBaseKind.LeatherLegs, (ushort)1, StatType.Evasion, 32u, null, null, 80u)]
+    [InlineData(49ul, ItemBaseKind.LeatherHands, (ushort)1, StatType.Evasion, 16u, null, null, 40u)]
+    [InlineData(50ul, ItemBaseKind.LeatherFeet, (ushort)1, StatType.Evasion, 16u, null, null, 40u)]
+    [InlineData(77ul, ItemBaseKind.LeatherShoulders, (ushort)1, StatType.Evasion, 20u, null, null, 50u)]
+    [InlineData(22ul, ItemBaseKind.LeatherHead, (ushort)5, StatType.Evasion, 54u, StatType.Agility, (ushort)30, 120u)]
+    [InlineData(23ul, ItemBaseKind.LeatherChest, (ushort)5, StatType.Evasion, 90u, StatType.Agility, (ushort)30, 200u)]
+    [InlineData(24ul, ItemBaseKind.LeatherLegs, (ushort)5, StatType.Evasion, 72u, StatType.Agility, (ushort)30, 160u)]
+    [InlineData(25ul, ItemBaseKind.LeatherHands, (ushort)5, StatType.Evasion, 36u, StatType.Agility, (ushort)30, 80u)]
+    [InlineData(26ul, ItemBaseKind.LeatherFeet, (ushort)5, StatType.Evasion, 36u, StatType.Agility, (ushort)30, 80u)]
+    [InlineData(80ul, ItemBaseKind.LeatherShoulders, (ushort)5, StatType.Evasion, 45u, StatType.Agility, (ushort)30, 100u)]
+    [InlineData(90ul, ItemBaseKind.LeatherHead, (ushort)10, StatType.Evasion, 96u, StatType.Agility, (ushort)45, 240u)]
+    [InlineData(91ul, ItemBaseKind.LeatherChest, (ushort)10, StatType.Evasion, 160u, StatType.Agility, (ushort)45, 400u)]
+    [InlineData(92ul, ItemBaseKind.LeatherLegs, (ushort)10, StatType.Evasion, 128u, StatType.Agility, (ushort)45, 320u)]
+    [InlineData(93ul, ItemBaseKind.LeatherHands, (ushort)10, StatType.Evasion, 64u, StatType.Agility, (ushort)45, 160u)]
+    [InlineData(94ul, ItemBaseKind.LeatherFeet, (ushort)10, StatType.Evasion, 64u, StatType.Agility, (ushort)45, 160u)]
+    [InlineData(83ul, ItemBaseKind.LeatherShoulders, (ushort)10, StatType.Evasion, 80u, StatType.Agility, (ushort)45, 200u)]
+    [InlineData(41ul, ItemBaseKind.ClothHead, (ushort)1, StatType.Ward, 7u, null, null, 60u)]
+    [InlineData(42ul, ItemBaseKind.ClothChest, (ushort)1, StatType.Ward, 12u, null, null, 100u)]
+    [InlineData(43ul, ItemBaseKind.ClothLegs, (ushort)1, StatType.Ward, 10u, null, null, 80u)]
+    [InlineData(44ul, ItemBaseKind.ClothHands, (ushort)1, StatType.Ward, 5u, null, null, 40u)]
+    [InlineData(45ul, ItemBaseKind.ClothFeet, (ushort)1, StatType.Ward, 5u, null, null, 40u)]
+    [InlineData(78ul, ItemBaseKind.ClothShoulders, (ushort)1, StatType.Ward, 6u, null, null, 50u)]
+    [InlineData(17ul, ItemBaseKind.ClothHead, (ushort)5, StatType.Ward, 16u, StatType.Intellect, (ushort)30, 120u)]
+    [InlineData(18ul, ItemBaseKind.ClothChest, (ushort)5, StatType.Ward, 26u, StatType.Intellect, (ushort)30, 200u)]
+    [InlineData(19ul, ItemBaseKind.ClothLegs, (ushort)5, StatType.Ward, 21u, StatType.Intellect, (ushort)30, 160u)]
+    [InlineData(20ul, ItemBaseKind.ClothHands, (ushort)5, StatType.Ward, 10u, StatType.Intellect, (ushort)30, 80u)]
+    [InlineData(21ul, ItemBaseKind.ClothFeet, (ushort)5, StatType.Ward, 10u, StatType.Intellect, (ushort)30, 80u)]
+    [InlineData(81ul, ItemBaseKind.ClothShoulders, (ushort)5, StatType.Ward, 13u, StatType.Intellect, (ushort)30, 100u)]
+    [InlineData(95ul, ItemBaseKind.ClothHead, (ushort)10, StatType.Ward, 27u, StatType.Intellect, (ushort)45, 240u)]
+    [InlineData(96ul, ItemBaseKind.ClothChest, (ushort)10, StatType.Ward, 45u, StatType.Intellect, (ushort)45, 400u)]
+    [InlineData(97ul, ItemBaseKind.ClothLegs, (ushort)10, StatType.Ward, 36u, StatType.Intellect, (ushort)45, 320u)]
+    [InlineData(98ul, ItemBaseKind.ClothHands, (ushort)10, StatType.Ward, 18u, StatType.Intellect, (ushort)45, 160u)]
+    [InlineData(99ul, ItemBaseKind.ClothFeet, (ushort)10, StatType.Ward, 18u, StatType.Intellect, (ushort)45, 160u)]
+    [InlineData(84ul, ItemBaseKind.ClothShoulders, (ushort)10, StatType.Ward, 23u, StatType.Intellect, (ushort)45, 200u)]
+    public void Seed_every_armour_base_as_the_spec_tables_set_it(ulong id, ItemBaseKind kind, ushort level, StatType stat,
+        uint value, StatType? requirement, ushort? amount, uint buy)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplate piece = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
+
+        Assert.Equal((kind, (ushort?)level, ItemClass.Armor, (uint)id), (piece.BaseKind, piece.RequiredLevel, piece.Class, piece.DisplayId));
+        Assert.Equal(new (StatType?, uint?)[] { (stat, value) }, StatLinesOf(piece));
+        Assert.Equal(
+            (requirement == StatType.Strength ? amount : null, requirement == StatType.Agility ? amount : null,
+                requirement == StatType.Intellect ? amount : null),
+            (piece.RequiredStrength, piece.RequiredAgility, piece.RequiredIntellect));
+        Assert.Equal((buy, buy / 4), (piece.BuyPrice, piece.SellPrice));
+        Assert.Empty(piece.AllowedClasses);
+        Assert.Equal((1u, ItemRarity.Common, false), (piece.MaxStackSize, piece.Rarity, piece.RequiresAnyAttribute));
+    }
+
+    /// <summary>
+    /// #1179: every weapon and off-hand base. <paramref name="min" /> and <paramref name="max" /> are a
+    /// weapon's physical range, or an off-hand's two implicit values: a shield's armour and block, a caster off-hand's ward
+    /// and increased spell damage. Each asks its attribute (a sword Strength, a mace Strength or Intellect, a staff
+    /// Intellect, a bow Agility, a shield Strength, a caster off-hand Intellect) from tier 2, 30 then 45, and costs 120,
+    /// 240 or 480 by tier.
+    /// </summary>
+    [Theory]
+    [InlineData(32ul, ItemBaseKind.Sword, (ushort)1, 4u, 7u, 792u, false)]
+    [InlineData(7ul, ItemBaseKind.Sword, (ushort)5, 7u, 11u, 792u, false)]
+    [InlineData(100ul, ItemBaseKind.Sword, (ushort)10, 11u, 17u, 792u, false)]
+    [InlineData(35ul, ItemBaseKind.Mace, (ushort)1, 4u, 7u, 784u, true)]
+    [InlineData(8ul, ItemBaseKind.Mace, (ushort)5, 7u, 11u, 784u, true)]
+    [InlineData(101ul, ItemBaseKind.Mace, (ushort)10, 11u, 17u, 784u, true)]
+    [InlineData(33ul, ItemBaseKind.Staff, (ushort)1, 4u, 7u, 800u, false)]
+    [InlineData(5ul, ItemBaseKind.Staff, (ushort)5, 7u, 11u, 800u, false)]
+    [InlineData(102ul, ItemBaseKind.Staff, (ushort)10, 11u, 17u, 800u, false)]
+    [InlineData(34ul, ItemBaseKind.Bow, (ushort)1, 4u, 7u, 801u, false)]
+    [InlineData(6ul, ItemBaseKind.Bow, (ushort)5, 7u, 11u, 801u, false)]
+    [InlineData(103ul, ItemBaseKind.Bow, (ushort)10, 11u, 17u, 801u, false)]
+    [InlineData(70ul, ItemBaseKind.Shield, (ushort)1, 6u, 5u, null, false)]
+    [InlineData(71ul, ItemBaseKind.Shield, (ushort)5, 14u, 7u, null, false)]
+    [InlineData(72ul, ItemBaseKind.Shield, (ushort)10, 24u, 10u, null, false)]
+    [InlineData(73ul, ItemBaseKind.CasterOffHand, (ushort)1, 8u, 5u, null, false)]
+    [InlineData(74ul, ItemBaseKind.CasterOffHand, (ushort)5, 18u, 8u, null, false)]
+    [InlineData(75ul, ItemBaseKind.CasterOffHand, (ushort)10, 30u, 12u, null, false)]
+    public void Seed_every_weapon_and_off_hand_base(ulong id, ItemBaseKind kind, ushort level, uint min, uint max,
+        uint? attackTimeMs, bool any)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
+
+        Assert.Equal((kind, (ushort?)level, attackTimeMs, any),
+            (item.BaseKind, item.RequiredLevel, item.AttackTimeMs, item.RequiresAnyAttribute));
+        if (kind is ItemBaseKind.Shield or ItemBaseKind.CasterOffHand)
+        {
+            (StatType defence, StatType implicitLine, ItemSubClass subClass) = kind == ItemBaseKind.Shield
+                ? (StatType.Armor, StatType.BlockPct, ItemSubClass.Shield)
+                : (StatType.Ward, StatType.IncreasedSpellDamage, ItemSubClass.CasterOffHand);
+            Assert.Equal((ItemClass.Armor, subClass, (ItemSlotType?)ItemSlotType.OffHand), (item.Class, item.SubClass, item.Slot));
+            Assert.Equal(new (StatType?, uint?)[] { (defence, min), (implicitLine, max) }, StatLinesOf(item));
+            Assert.Null(item.DamageMax1);
+        }
+        else
+        {
+            Assert.Equal((ItemClass.Weapon, (ItemSlotType?)ItemSlotType.MainHand), (item.Class, item.Slot));
+            Assert.Equal(((uint?)min, (uint?)max, (DamageType?)DamageType.Physical), (item.DamageMin1, item.DamageMax1, item.DamageType1));
+            Assert.Empty(StatLinesOf(item));
+        }
+
+        ushort? amount = level switch { 1 => null, 5 => (ushort)30, _ => (ushort)45 };
+        (bool strength, bool agility, bool intellect) = kind switch
+        {
+            ItemBaseKind.Sword or ItemBaseKind.Shield => (true, false, false),
+            ItemBaseKind.Mace => (true, false, true),
+            ItemBaseKind.Bow => (false, true, false),
+            _ => (false, false, true),
+        };
+        Assert.Equal((strength ? amount : null, agility ? amount : null, intellect ? amount : null),
+            (item.RequiredStrength, item.RequiredAgility, item.RequiredIntellect));
+        uint buy = level switch { 1 => 120u, 5 => 240u, _ => 480u };
+        Assert.Equal((buy, buy / 4), (item.BuyPrice, item.SellPrice));
+        Assert.Empty(item.AllowedClasses);
+        Assert.Equal((1u, ItemRarity.Common), (item.MaxStackSize, item.Rarity));
+    }
+
+    /// <summary>
+    /// #1179: the five uniques as templates without stats: name, kind, slot, required level and prices only, Unique. A
+    /// unique's stats are its unique modifier, rolled per copy, so until the modifier catalog brings those no loot entry,
+    /// vendor row, quest reward, quest choice or starting item names one: nothing hands out a unique without stats.
+    /// </summary>
+    [Fact]
+    public void Seed_the_five_uniques_as_templates_without_stats()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id.Value);
+
+        (ulong Id, string Name, ItemBaseKind Kind, ItemSubClass SubClass, ItemSlotType Slot, ushort Level, uint Sell)[] uniques =
+        [
+            (58, "Alpha's Fang Pendant", ItemBaseKind.Amulet, ItemSubClass.Amulet, ItemSlotType.Neck, 3, 50),
+            (64, "Heartwood Band", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger, 4, 100),
+            (65, "Thornheart Signet", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger, 5, 200),
+            (66, "Bramble Mother's Seed", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 5, 200),
+            (67, "Tuskroot Idol", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 4, 100),
+        ];
+
+        Assert.Equal(uniques.Select(u => u.Id), items.Values.Where(i => i.Rarity == ItemRarity.Unique).Select(i => i.Id.Value).Order());
+        foreach ((ulong id, string name, ItemBaseKind kind, ItemSubClass subClass, ItemSlotType slot, ushort level, uint sell) in uniques)
+        {
+            ItemTemplate unique = items[id];
+            Assert.Equal((name, ItemClass.Armor, subClass, (ItemSlotType?)slot, (ItemBaseKind?)kind),
+                (unique.Name, unique.Class, unique.SubClass, unique.Slot, unique.BaseKind));
+            Assert.Equal(((ushort?)level, (ushort?)null, (ushort?)null, (ushort?)null),
+                (unique.RequiredLevel, unique.RequiredStrength, unique.RequiredAgility, unique.RequiredIntellect));
+            Assert.Equal((sell, 4 * sell, ItemTemplateFlags.None, 1u), (unique.SellPrice, unique.BuyPrice, unique.Flags, unique.MaxStackSize));
+            Assert.Empty(unique.AllowedClasses);
+            Assert.All(StatTypesOf(unique), Assert.Null);
+        }
+
+        HashSet<ulong> ids = [.. uniques.Select(u => u.Id)];
+        Assert.DoesNotContain(context.LootTableEntries.AsNoTracking().ToList(), e => e.ItemTemplateId is { } item && ids.Contains(item.Value));
+        Assert.DoesNotContain(context.VendorStocks.AsNoTracking().ToList(), v => ids.Contains(v.ItemTemplateId.Value));
+        Assert.DoesNotContain(context.QuestItemRewards.AsNoTracking().ToList(), r => ids.Contains(r.ItemTemplateId.Value));
+        Assert.DoesNotContain(context.QuestItemChoices.AsNoTracking().ToList(), c => ids.Contains(c.ItemTemplateId.Value));
+        Assert.DoesNotContain(context.CharacterCreateInfos.AsNoTracking().ToList().SelectMany(c => c.StartingItems),
+            i => ids.Contains(i.Value));
+    }
+
+    /// <summary>
+    /// #1179: the jewellery table as drafted; every loot table, vendor row, quest reward, quest choice and starting item
+    /// names a template that exists; every worn template is a base kind, worn in its kind's slot, that never stacks, and
+    /// nothing else has a base kind. The weapon and armour tables, the vendors' lines and the quests' rewards are pinned
+    /// by their own tests above and in VendorSeedShould.
+    /// </summary>
+    [Fact]
+    public void Seed_vendors_loot_and_quest_rewards_on_the_bases()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id.Value);
+        var entries = context.LootTableEntries.AsNoTracking().ToList();
+
+        LootTable jewellery = LoadTable(context, s_forestJewellery);
+        Assert.Equal("Forest jewellery", jewellery.Name);
+        Assert.Equal([(1, 68ul, 2f, (int?)null), (2, 69ul, 2f, null)],
+            jewellery.Entries.OrderBy(e => e.Sequence).Select(e => (e.Sequence, e.ItemTemplateId!.Value, e.Chance, e.GroupId)));
+        Assert.Single(entries, e => e.LootTableId.Value == 12 && e.ReferenceTableId == s_forestJewellery && e.Chance == 100f);
+
+        IEnumerable<ulong> named = entries.Where(e => e.ItemTemplateId is not null).Select(e => e.ItemTemplateId!.Value)
+            .Concat(context.VendorStocks.AsNoTracking().ToList().Select(v => v.ItemTemplateId.Value))
+            .Concat(context.QuestItemRewards.AsNoTracking().ToList().Select(r => r.ItemTemplateId.Value))
+            .Concat(context.QuestItemChoices.AsNoTracking().ToList().Select(c => c.ItemTemplateId.Value))
+            .Concat(context.CharacterCreateInfos.AsNoTracking().ToList().SelectMany(c => c.StartingItems).Select(i => i.Value));
+        Assert.All(named, id => Assert.Contains(id, items.Keys));
+        Assert.All(items.Values.Where(i => i.Slot is not null), i => Assert.Equal(1u, i.MaxStackSize));
+        Assert.All(items.Values, i => Assert.True((i.Slot is null) == (i.BaseKind is null),
+            $"{i.Name}: a worn template is a base kind, and nothing else is"));
+        Assert.All(items.Values.Where(i => i.BaseKind is not null),
+            i => Assert.Equal(ItemBaseKindSlots.SlotOf(i.BaseKind!.Value), i.Slot));
     }
 
     /// <summary>An item for every class lists none (#1171): a list names classes only to restrict the item to some.</summary>

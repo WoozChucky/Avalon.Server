@@ -1,4 +1,6 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 
 namespace Avalon.Domain.Characters;
 
@@ -40,4 +42,39 @@ public class TradeRecordItem
     public CharacterId GiverCharacterId { get; set; } = default!;
     public ItemTemplateId TemplateId { get; set; } = default!;
     public uint Count { get; set; }
+    public ItemRarity Rarity { get; set; }
+    public ushort ItemLevel { get; set; }
+
+    /// <summary>The item's modifiers as they were when it moved: the record's own copy, since it outlives the item.</summary>
+    public List<TradeRecordItemModifier> Modifiers { get; set; } = [];
+}
+
+/// <summary>
+/// One modifier of a traded item, as it was when the trade completed (#1179). Keyed by the trade and the modifier's own
+/// id (<see cref="ItemInstanceModifier.Id" />), which stays the modifier's whatever its place on the item becomes.
+/// </summary>
+public class TradeRecordItemModifier
+{
+    public Guid TradeId { get; set; }
+
+    /// <summary>The id of the item's modifier row (<see cref="ItemInstanceModifier.Id" />).</summary>
+    public Guid ItemInstanceModifierId { get; set; }
+
+    public ItemInstanceId ItemInstanceId { get; set; } = default!;
+    public byte Ordinal { get; set; }
+
+    /// <summary>The catalog modifier (<see cref="ItemInstanceModifier.ModifierId" />).</summary>
+    public ushort ModifierId { get; set; }
+    public List<TradeRecordItemModifierValue> Values { get; set; } = [];
+}
+
+/// <summary>One rolled number of a traded item's modifier, as it was when the trade completed (#1179).</summary>
+public class TradeRecordItemModifierValue
+{
+    public Guid TradeId { get; set; }
+    public Guid ItemInstanceModifierId { get; set; }
+    public byte Index { get; set; }
+    public StatType Stat { get; set; }
+    public int Value { get; set; }
+    public int? Value2 { get; set; }
 }

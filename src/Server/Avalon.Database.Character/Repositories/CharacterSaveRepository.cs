@@ -21,12 +21,31 @@ public sealed record CharacterQuestWrite(
     IReadOnlyList<CharacterCompletedQuest> Completed);
 
 /// <summary>
+/// The modifier rows of some of a batch's items (#1179), as flat rows. Each item in <paramref name="Items" /> ends up
+/// with exactly <paramref name="Modifiers" />' rows for it: its other modifiers are deleted with their values, each one
+/// here is updated when its id exists and inserted otherwise, and its value rows are replaced by
+/// <paramref name="Values" />' rows for it. A modifier here carries no values of its own (its <c>Values</c> is empty):
+/// every value row is in <paramref name="Values" />. Every item named must be one its batch upserts.
+/// </summary>
+/// <remarks>
+/// Single use, like the batch that carries it. While the write tracks these rows, EF's relationship fix-up adds the
+/// modifiers to the batch's <see cref="ItemInstance.Modifiers" /> and the values to each
+/// <see cref="ItemInstanceModifier.Values" />. A second write of the same objects would then reach those rows through a
+/// navigation, and the repository's one-row rule refuses that. Build fresh rows for every save, as the snapshot does.
+/// </remarks>
+public sealed record ItemModifierWrite(
+    IReadOnlyList<ItemInstanceId> Items,
+    IReadOnlyList<ItemInstanceModifier> Modifiers,
+    IReadOnlyList<ItemInstanceModifierValue> Values);
+
+/// <summary>
 /// What one character's save writes: its whole row, and only the items and slots whose save state
 /// was not Unchanged. Items and slots to upsert carry their current values; the rest are deleted.
 /// <paramref name="Stats" />, when present, is the character's derived-stats row, upserted.
 /// <paramref name="Quests" />, when present, is the quest rows to rewrite (#433).
 /// <paramref name="Ignores" />, when present, is the ignore entries to rewrite (#723).
 /// <paramref name="Auras" />, when present, replaces every aura row of the character.
+/// <paramref name="Modifiers" />, when present, rewrites the modifier rows of some of the upserted items (#1179).
 /// </summary>
 public sealed record CharacterSaveBatch(
     Domain.Characters.Character Row,
@@ -37,7 +56,8 @@ public sealed record CharacterSaveBatch(
     CharacterStats? Stats = null,
     CharacterQuestWrite? Quests = null,
     CharacterIgnoreWrite? Ignores = null,
-    CharacterAuraWrite? Auras = null)
+    CharacterAuraWrite? Auras = null,
+    ItemModifierWrite? Modifiers = null)
 {
     public GameplayWriteAuthority? Authority { get; init; }
 }
@@ -176,6 +196,26 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
             await context.ItemInstances.Where(i => removed.Contains(i.Id)).ExecuteDeleteAsync(token);
         }
 
+        // An item whose modifiers are rewritten loses every modifier not in its set, the values going by cascade, and
+        // the value rows of those in it, which are inserted again below: one statement each per batch.
+        foreach (CharacterSaveBatch batch in batches)
+        {
+            if (batch.Modifiers is not { Items.Count: > 0 } modifiers)
+                continue;
+
+            var rewritten = modifiers.Items.ToList();
+            var kept = modifiers.Modifiers.Select(m => m.Id).ToList();
+            await context.ItemInstanceModifiers
+                .Where(m => rewritten.Contains(m.ItemInstanceId) && !kept.Contains(m.Id))
+                .ExecuteDeleteAsync(token);
+            if (kept.Count > 0)
+            {
+                await context.ItemInstanceModifierValues
+                    .Where(v => kept.Contains(v.ItemInstanceModifierId))
+                    .ExecuteDeleteAsync(token);
+            }
+        }
+
         foreach (CharacterSaveBatch batch in batches)
         {
             context.TrackForUpdate(batch.Row);
@@ -198,6 +238,9 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
                         context.TrackForInsert(item);
                 }
             }
+
+            if (batch.Modifiers is { Modifiers.Count: > 0 } modifierWrite)
+                await UpsertModifiersAsync(context, modifierWrite, token);
 
             if (batch.UpsertSlots.Count > 0)
             {
@@ -281,6 +324,34 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
         // One SaveChanges: EF orders the item inserts ahead of the slot inserts that reference them.
         await context.SaveChangesAsync(token);
         await CheckDeadlineAsync(context, guards, token);
+    }
+
+    /// <summary>
+    /// Each modifier is updated when its id exists and inserted otherwise, after one query per batch for which exist, and
+    /// its value rows, deleted already, are inserted. One SaveChanges orders item, modifier and value inserts by foreign
+    /// key. A modifier never moves to another item: one stored under a different item refuses the save.
+    /// </summary>
+    private static async Task UpsertModifiersAsync(CharacterDbContext context, ItemModifierWrite write, CancellationToken token)
+    {
+        var ids = write.Modifiers.Select(m => m.Id).ToList();
+        var stored = (await context.ItemInstanceModifiers
+                .Where(m => ids.Contains(m.Id))
+                .Select(m => new { m.Id, m.ItemInstanceId })
+                .ToListAsync(token))
+            .ToDictionary(m => m.Id, m => m.ItemInstanceId);
+
+        foreach (ItemInstanceModifier modifier in write.Modifiers)
+        {
+            if (!stored.TryGetValue(modifier.Id, out ItemInstanceId? item))
+                context.TrackForInsert(modifier);
+            else if (item == modifier.ItemInstanceId)
+                context.TrackForUpdate(modifier);
+            else
+                throw new GameplayWriteRejectedException();
+        }
+
+        foreach (ItemInstanceModifierValue value in write.Values)
+            context.TrackForInsert(value);
     }
 
     /// <summary>

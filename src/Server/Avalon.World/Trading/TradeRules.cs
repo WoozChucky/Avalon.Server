@@ -5,6 +5,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Trade;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
+using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
 
 namespace Avalon.World.Trading;
@@ -14,9 +15,11 @@ namespace Avalon.World.Trading;
 public readonly record struct TradeOffer(CharacterEntity Character, IReadOnlyList<InventoryItem> Items, ulong Gold);
 
 /// <summary>What a completed trade does to one character.</summary>
-/// <param name="Outgoing">Its own items, with their Bag slots.</param>
-/// <param name="Incoming">The partner's items, each with Slot set to its destination slot in this character's Bag.</param>
-public sealed record TradeSidePlan(IReadOnlyList<InventoryItem> Outgoing, IReadOnlyList<InventoryItem> Incoming, ulong GoldOut, ulong GoldIn);
+/// <param name="Outgoing">Its own items, with their Bag slots and their modifiers (#1179).</param>
+/// <param name="Incoming">
+/// The partner's items, each with Slot set to its destination slot in this character's Bag, and its modifiers.
+/// </param>
+public sealed record TradeSidePlan(IReadOnlyList<CarriedItem> Outgoing, IReadOnlyList<CarriedItem> Incoming, ulong GoldOut, ulong GoldIn);
 
 public sealed record TradePlan(TradeSidePlan First, TradeSidePlan Second);
 
@@ -58,7 +61,8 @@ public static class TradeRules
     /// counting the slots its own outgoing items free (incoming items are placed whole, never merged into a stack);
     /// no receiver may end up owning two of a Unique item, counted across Equipment, Bag and Bank after its outgoing
     /// items leave; and no receiver's balance may pass <paramref name="maxGold" />. Destination slots are the lowest
-    /// free ones, ascending, given to incoming items in offer order.
+    /// free ones, ascending, given to incoming items in offer order. Each item carries its giver's live list of
+    /// modifiers, which the paired save copies and the swap hands over.
     /// </summary>
     public static TradeDecision Plan(
         TradeOffer first, TradeOffer second, Func<ItemTemplateId, ItemTemplate?> findTemplate, ulong maxGold)
@@ -100,10 +104,10 @@ public static class TradeRules
     private static ulong Balance(CharacterEntity character) => character.Data?.Gold ?? 0;
 
     /// <summary>The offered items as the Bag holds them now, in offer order, or null when one is not in place.</summary>
-    private static InventoryItem[]? ItemsInPlace(TradeOffer offer, Func<ItemTemplateId, ItemTemplate?> findTemplate)
+    private static CarriedItem[]? ItemsInPlace(TradeOffer offer, Func<ItemTemplateId, ItemTemplate?> findTemplate)
     {
         CharacterInventoryContainer bag = offer.Character.Container(InventoryType.Bag);
-        var items = new InventoryItem[offer.Items.Count];
+        var items = new CarriedItem[offer.Items.Count];
         for (int i = 0; i < items.Length; i++)
         {
             InventoryItem offered = offer.Items[i];
@@ -115,7 +119,7 @@ public static class TradeRules
                 return null;
             }
 
-            items[i] = held;
+            items[i] = new CarriedItem(held, offer.Character.ItemModifiers.Of(held.InstanceId));
         }
 
         return items;
@@ -146,11 +150,11 @@ public static class TradeRules
         return false;
     }
 
-    private static InventoryItem[] Placed(IReadOnlyList<InventoryItem> items, List<byte> slots)
+    private static CarriedItem[] Placed(IReadOnlyList<CarriedItem> items, List<byte> slots)
     {
-        var placed = new InventoryItem[items.Count];
+        var placed = new CarriedItem[items.Count];
         for (int i = 0; i < placed.Length; i++)
-            placed[i] = items[i] with { Slot = slots[i] };
+            placed[i] = items[i] with { Item = items[i].Item with { Slot = slots[i] } };
 
         return placed;
     }

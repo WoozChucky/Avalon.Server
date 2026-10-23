@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Trade;
 using Avalon.World.Entities;
@@ -330,9 +331,9 @@ public sealed partial class TradeService
 
     /// <summary>
     /// Applies the committed plan: every item out of each giver, then every item into each receiver at its planned
-    /// slot, then each side's gold spent, then received. A refusal is logged at Critical; what a giver did not lose its
-    /// receiver does not gain, so memory never holds more than the database. The audit line says whether every step
-    /// applied.
+    /// slot, with the modifiers its giver's take-out handed over (#1179), then each side's gold spent, then received. A
+    /// refusal is logged at Critical; what a giver did not lose its receiver does not gain, so memory never holds more
+    /// than the database. The audit line says whether every step applied.
     /// </summary>
     private void Swap(Trade trade, TradePlan plan)
     {
@@ -344,8 +345,8 @@ public sealed partial class TradeService
         second.Character.Locks.Clear();
 
         bool clean = true;
-        bool[] firstGave = TakeOut(trade, first, plan.First.Outgoing, economy, ref clean);
-        bool[] secondGave = TakeOut(trade, second, plan.Second.Outgoing, economy, ref clean);
+        CarriedItem?[] firstGave = TakeOut(trade, first, plan.First.Outgoing, economy, ref clean);
+        CarriedItem?[] secondGave = TakeOut(trade, second, plan.Second.Outgoing, economy, ref clean);
 
         // Each side's incoming items are the partner's outgoing ones, in the same order.
         clean &= PutIn(trade, first, plan.First.Incoming, secondGave, economy);
@@ -378,15 +379,16 @@ public sealed partial class TradeService
         }
     }
 
-    private bool[] TakeOut(
-        Trade trade, TradeSide giver, IReadOnlyList<InventoryItem> outgoing, ICharacterEconomy economy, ref bool clean)
+    /// <summary>What each giver handed over, by plan index: null for an item no longer in place.</summary>
+    private CarriedItem?[] TakeOut(
+        Trade trade, TradeSide giver, IReadOnlyList<CarriedItem> outgoing, ICharacterEconomy economy, ref bool clean)
     {
         IInventoryService inventory = economy.InventoryOf(giver.Character);
         CharacterInventoryContainer bag = giver.Character.Container(InventoryType.Bag);
-        bool[] gave = new bool[outgoing.Count];
+        var gave = new CarriedItem?[outgoing.Count];
         for (int i = 0; i < outgoing.Count; i++)
         {
-            InventoryItem item = outgoing[i];
+            InventoryItem item = outgoing[i].Item;
             // The whole stack, exactly as saved: anything else would hand over an instance the database does not name.
             if (!bag.TryGet(item.Slot, out InventoryItem held) || held.InstanceId != item.InstanceId
                 || held.Count != item.Count)
@@ -403,26 +405,26 @@ public sealed partial class TradeService
                 continue;
             }
 
-            inventory.TakeOut(new SlotRef(InventoryType.Bag, item.Slot), item.Count);
+            gave[i] = inventory.TakeOut(new SlotRef(InventoryType.Bag, item.Slot), item.Count);
             giver.Character.SaveState.ItemHandedOver(item.InstanceId);
-            gave[i] = true;
         }
 
         return gave;
     }
 
-    private bool PutIn(Trade trade, TradeSide receiver, IReadOnlyList<InventoryItem> incoming, bool[] given,
+    private bool PutIn(Trade trade, TradeSide receiver, IReadOnlyList<CarriedItem> incoming, CarriedItem?[] given,
         ICharacterEconomy economy)
     {
         IInventoryService inventory = economy.InventoryOf(receiver.Character);
         bool clean = true;
         for (int i = 0; i < incoming.Count; i++)
         {
-            InventoryItem item = incoming[i];
-            if (!given[i])
+            InventoryItem item = incoming[i].Item;
+            if (given[i] is not { } handed)
                 continue;
 
-            InventoryAddResult added = inventory.TryAddInstanceAt(item, item.Slot);
+            // The item at its planned slot, with what the giver's take-out handed over: the paired save wrote both.
+            InventoryAddResult added = inventory.TryAddInstanceAt(new CarriedItem(item, handed.Modifiers), item.Slot);
             if (added != InventoryAddResult.Ok)
             {
                 logger.LogCritical(
@@ -468,10 +470,10 @@ public sealed partial class TradeService
     private static void ExpectIncoming(TradeSide side, TradeSidePlan plan)
     {
         InventoryLocks locks = side.Character.Locks;
-        foreach (InventoryItem item in plan.Incoming)
+        foreach (CarriedItem carried in plan.Incoming)
         {
-            locks.Reserve(item.Slot);
-            locks.ExpectIncoming(item.TemplateId, item.Count);
+            locks.Reserve(carried.Item.Slot);
+            locks.ExpectIncoming(carried.Item.TemplateId, carried.Item.Count);
         }
 
         locks.IncomingGold = plan.GoldIn;
@@ -494,18 +496,51 @@ public sealed partial class TradeService
         return record;
     }
 
-    private static void AddItems(TradeRecord record, CharacterId giver, IReadOnlyList<InventoryItem> outgoing)
+    /// <summary>Each item as it moved, with a copy of its modifiers (#1179): the record outlives the item.</summary>
+    private static void AddItems(TradeRecord record, CharacterId giver, IReadOnlyList<CarriedItem> outgoing)
     {
-        foreach (InventoryItem item in outgoing)
+        foreach (CarriedItem carried in outgoing)
         {
-            record.Items.Add(new TradeRecordItem
+            InventoryItem item = carried.Item;
+            var recorded = new TradeRecordItem
             {
                 TradeId = record.Id,
                 ItemInstanceId = item.InstanceId,
                 GiverCharacterId = giver,
                 TemplateId = item.TemplateId,
                 Count = item.Count,
-            });
+                Rarity = item.Rarity,
+                ItemLevel = item.ItemLevel,
+            };
+
+            foreach (ItemInstanceModifier modifier in carried.Modifiers)
+            {
+                var copy = new TradeRecordItemModifier
+                {
+                    TradeId = record.Id,
+                    ItemInstanceModifierId = modifier.Id,
+                    ItemInstanceId = item.InstanceId,
+                    Ordinal = modifier.Ordinal,
+                    ModifierId = modifier.ModifierId,
+                };
+
+                foreach (ItemInstanceModifierValue value in modifier.Values)
+                {
+                    copy.Values.Add(new TradeRecordItemModifierValue
+                    {
+                        TradeId = record.Id,
+                        ItemInstanceModifierId = modifier.Id,
+                        Index = value.Index,
+                        Stat = value.Stat,
+                        Value = value.Value,
+                        Value2 = value.Value2,
+                    });
+                }
+
+                recorded.Modifiers.Add(copy);
+            }
+
+            record.Items.Add(recorded);
         }
     }
 
@@ -524,8 +559,8 @@ public sealed partial class TradeService
     private static int LookupBackoffSeconds(int attempt) =>
         attempt >= 6 ? MaxLookupBackoffSeconds : Math.Min(1 << (attempt - 1), MaxLookupBackoffSeconds);
 
-    private static string Describe(IReadOnlyList<InventoryItem> items) =>
-        string.Join(", ", items.Select(i => $"{i.InstanceId.Value}:{i.TemplateId.Value}x{i.Count}"));
+    private static string Describe(IReadOnlyList<CarriedItem> items) =>
+        string.Join(", ", items.Select(c => $"{c.Item.InstanceId.Value}:{c.Item.TemplateId.Value}x{c.Item.Count}"));
 
     private enum CompletionStep : byte
     {

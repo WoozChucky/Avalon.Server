@@ -15,15 +15,22 @@ public static class CharacterStatsCalculator
     /// Stamina plus gear health, and the formula's base crit plus gear crit; only power still reads the class's factors.
     /// Defence is the same for every class (#1178): armour, evasion and ward are gear plus Strength, Agility and Intellect
     /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances are gear's alone.
-    /// Weapon is the main hand's damage and attack time (the bare hand's with none) and Offence the offence block (#1178),
-    /// each attribute with gear. <paramref name="auras" />, when given, is folded in after gear: the result is what the
+    /// Every worn item gives its template's lines and its modifiers' (#1179); a defence line is its own item's: each item's
+    /// armour is <c>round(its Armor lines x max(0, 1 + its LocalIncreasedArmor / 100))</c>, half away from zero, and the
+    /// same for evasion and ward, so increased armour on one piece never scales another's. Weapon is the main hand's damage
+    /// and attack time (the bare hand's with none) with its own local lines and Offence the offence block (#1178), each
+    /// attribute with gear. <paramref name="auras" />, when given, is folded in after gear: the result is what the
     /// character has now. The offence block takes them through CharacterOffence alone, so they count once there.
     /// <paramref name="worn" /> is read by index, so a refresh allocates nothing here.
     /// </summary>
-    public static DerivedCharacterStats Calculate(ClassLevelStat row, IReadOnlyList<ItemTemplate> worn,
+    public static DerivedCharacterStats Calculate(ClassLevelStat row, IReadOnlyList<WornItem> worn,
         ClassStatFactors factors, CombatFormula formula, AuraStatTotals? auras = null)
     {
-        var gear = GearTotals.Of(worn);
+        // One walk of every worn item's lines feeds both the gear totals and the offence block's line sums (#1179).
+        OffenceStats offenceLines = default;
+        DamageRanges addedToAttacks = default;
+        DamageRanges addedToSpells = default;
+        var gear = GearTotals.Of(worn, ref offenceLines, ref addedToAttacks, ref addedToSpells);
 
         long stamina = row.Stamina + gear.Stamina;
         long strength = row.Strength + gear.Strength;
@@ -41,7 +48,9 @@ public static class CharacterStatsCalculator
         long ward = gear.Ward + (long)(intellect * (double)formula.WardPerIntellect);
 
         // #506, #1178: the main hand, what an Attack rolls; the bare hand's range with none.
-        ItemTemplate? weapon = MainHandOf(worn);
+        WornItem? weapon = MainHandOf(worn);
+        OffenceStats offence = CharacterOffence.Finish(offenceLines, Clamp(strength), Clamp(agility), Clamp(intellect),
+            formula, auras);
 
         DerivedCharacterStats derived = new(
             MaxHealth: Clamp(maxHealth),
@@ -60,7 +69,9 @@ public static class CharacterStatsCalculator
             Resistances: new Resistances(gear.FireResistance, gear.ColdResistance, gear.LightningResistance,
                 gear.BlightResistance),
             Weapon: WeaponDamage.Of(weapon, formula),
-            Offence: CharacterOffence.Of(Clamp(strength), Clamp(agility), Clamp(intellect), worn, formula, auras));
+            Offence: offence,
+            AddedToAttacks: addedToAttacks,
+            AddedToSpells: addedToSpells);
 
         return auras is null ? derived : AuraStats.Fold(derived, auras);
     }
@@ -85,12 +96,16 @@ public static class CharacterStatsCalculator
         return (uint)Math.Clamp(scaled, 1UL, newMax);
     }
 
-    /// <summary>The first worn template for the main hand, or null.</summary>
-    private static ItemTemplate? MainHandOf(IReadOnlyList<ItemTemplate> worn)
+    /// <summary>
+    /// The first worn item for the main hand, or null: the weapon the calculation rolls, and the one the worlds API words an
+    /// ability's amount with, so both read the same item.
+    /// </summary>
+    public static WornItem? MainHandOf(IReadOnlyList<WornItem> worn)
     {
         for (int i = 0; i < worn.Count; i++)
         {
-            if (worn[i].Slot == ItemSlotType.MainHand) return worn[i];
+            WornItem item = worn[i];
+            if (item.Template.Slot == ItemSlotType.MainHand) return item;
         }
 
         return null;
@@ -105,48 +120,52 @@ public static class CharacterStatsCalculator
         public float BlockPct, CritPct, MovementSpeedPct;
         public float FireResistance, ColdResistance, LightningResistance, BlightResistance;
 
-        /// <summary>Every stat pair with both a type and a value of every template, read by index: nothing is allocated.</summary>
-        public static GearTotals Of(IReadOnlyList<ItemTemplate> worn)
+        /// <summary>
+        /// Every line of every worn item, read by index and through <see cref="ItemLines" />: nothing is allocated. Each
+        /// item's defence lines are summed apart and scaled by its own local increased defence before they join the total;
+        /// every other line also goes to the offence block's sums (<see cref="CharacterOffence.Add" />), so the walk is the
+        /// only one.
+        /// </summary>
+        public static GearTotals Of(IReadOnlyList<WornItem> worn, ref OffenceStats offence, ref DamageRanges toAttacks,
+            ref DamageRanges toSpells)
         {
             GearTotals totals = default;
             for (int i = 0; i < worn.Count; i++)
             {
-                ItemTemplate t = worn[i];
-                totals.Add(t.StatType1, t.StatValue1);
-                totals.Add(t.StatType2, t.StatValue2);
-                totals.Add(t.StatType3, t.StatValue3);
-                totals.Add(t.StatType4, t.StatValue4);
-                totals.Add(t.StatType5, t.StatValue5);
-                totals.Add(t.StatType6, t.StatValue6);
-                totals.Add(t.StatType7, t.StatValue7);
-                totals.Add(t.StatType8, t.StatValue8);
-                totals.Add(t.StatType9, t.StatValue9);
-                totals.Add(t.StatType10, t.StatValue10);
+                WornItem item = worn[i];
+                ItemDefence defence = default;
+                foreach (ItemLine line in ItemLines.Of(item))
+                {
+                    if (defence.Add(line))
+                        continue;
+
+                    totals.Add(line.Stat, line.Min);
+                    CharacterOffence.Add(ref offence, ref toAttacks, ref toSpells, line);
+                }
+
+                totals.Armor += defence.Armor;
+                totals.Evasion += defence.Evasion;
+                totals.Ward += defence.Ward;
             }
 
             return totals;
         }
 
-        private void Add(StatType? statType, uint? statValue)
+        private void Add(StatType type, int value)
         {
-            if (statType is not { } type || statValue is not { } value) return;
-
             switch (type)
             {
                 case StatType.Stamina: Stamina += value; break;
                 case StatType.Strength: Strength += value; break;
                 case StatType.Agility: Agility += value; break;
                 case StatType.Intellect: Intellect += value; break;
-                case StatType.Armor: Armor += value; break;
                 case StatType.BlockPct: BlockPct += value; break;
-                case StatType.Evasion: Evasion += value; break;
                 case StatType.CritPct: CritPct += value; break;
                 case StatType.Health: Health += value; break;
                 case StatType.Power: Power += value; break;
                 // #627: a percentage, summed raw; the entity applies the combat formula's bounds. Attack speed, cast speed
                 // and cooldown recovery are the offence block's (#1178), CharacterOffence's to sum.
                 case StatType.MovementSpeed: MovementSpeedPct += value; break;
-                case StatType.Ward: Ward += value; break;
                 case StatType.FireResistance: FireResistance += value; break;
                 case StatType.ColdResistance: ColdResistance += value; break;
                 case StatType.LightningResistance: LightningResistance += value; break;
@@ -154,5 +173,34 @@ public static class CharacterStatsCalculator
                 default: break;
             }
         }
+    }
+
+    /// <summary>One item's own defence (#1179, A-R13): its flat armour, evasion and ward lines and its local increases.</summary>
+    private struct ItemDefence
+    {
+        private long _armor, _evasion, _ward, _increasedArmor, _increasedEvasion, _increasedWard;
+
+        public readonly long Armor => Scaled(_armor, _increasedArmor);
+
+        public readonly long Evasion => Scaled(_evasion, _increasedEvasion);
+
+        public readonly long Ward => Scaled(_ward, _increasedWard);
+
+        /// <summary>True when <paramref name="line" /> is a defence line, which this item keeps for itself.</summary>
+        public bool Add(in ItemLine line)
+        {
+            switch (line.Stat)
+            {
+                case StatType.Armor: _armor += line.Min; return true;
+                case StatType.Evasion: _evasion += line.Min; return true;
+                case StatType.Ward: _ward += line.Min; return true;
+                case StatType.LocalIncreasedArmor: _increasedArmor += line.Min; return true;
+                case StatType.LocalIncreasedEvasion: _increasedEvasion += line.Min; return true;
+                case StatType.LocalIncreasedWard: _increasedWard += line.Min; return true;
+                default: return false;
+            }
+        }
+
+        private static long Scaled(long flat, long increasedPct) => LocalScaling.Increase(flat, increasedPct);
     }
 }

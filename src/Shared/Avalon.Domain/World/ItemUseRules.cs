@@ -1,3 +1,5 @@
+using Avalon.Common;
+
 namespace Avalon.Domain.World;
 
 /// <summary>
@@ -33,11 +35,17 @@ public static class ItemUseRules
             : $"objective {objectiveId} collects item template {item.Id.Value}, which is not a QuestItem";
     }
 
-    /// <summary>Whether a quest may pay <paramref name="item"/> as a reward: a Unique one could not always be paid.</summary>
+    /// <summary>
+    /// Whether a quest may pay <paramref name="item"/> as a reward: one flagged Unique (own one copy) could not always be
+    /// paid, and a Unique-rarity item never comes from a quest (#1179).
+    /// </summary>
     public static string? QuestRewardProblem(ItemTemplate item)
     {
-        return (item.Flags & ItemTemplateFlags.Unique) != 0
-            ? $"reward item template {item.Id.Value} is Unique; a turn-in could not always pay it"
+        if ((item.Flags & ItemTemplateFlags.Unique) != 0)
+            return $"reward item template {item.Id.Value} is Unique; a turn-in could not always pay it";
+
+        return item.Rarity == ItemRarity.Unique
+            ? $"reward item template {item.Id.Value} is a Unique-rarity item; uniques never come from quests"
             : null;
     }
 }

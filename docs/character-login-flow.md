@@ -281,6 +281,24 @@ public class ItemSlotDto
     [ProtoMember(5)] public uint   Count          { get; set; }
     [ProtoMember(6)] public uint   Durability     { get; set; }
     [ProtoMember(7)] public uint   Flags          { get; set; } // ItemInstanceFlags, numeric
+    [ProtoMember(8)] public ItemRarity Rarity { get; set; } // the copy's (#1179): Common, Magic, Rare, Unique
+    [ProtoMember(9)] public uint ItemLevel { get; set; } // the copy's (#1179)
+    [ProtoMember(10)] public List<ItemModifierDto>? Modifiers { get; set; } // in the order the item shows them; null for none
+}
+
+[ProtoContract]
+public class ItemModifierDto
+{
+    [ProtoMember(1)] public uint ModifierId { get; set; } // the catalog modifier
+    [ProtoMember(2)] public List<ItemModifierValueDto> Values { get; set; } // in the modifier's stat-line order
+}
+
+[ProtoContract]
+public class ItemModifierValueDto
+{
+    [ProtoMember(1)] public ItemStat Stat { get; set; } // the server's stat numbers, member for member
+    [ProtoMember(2)] public int Value { get; set; }
+    [ProtoMember(3)] public int? Value2 { get; set; } // set exactly on an "adds X to Y" line, its high end
 }
 ```
 
@@ -294,7 +312,7 @@ Notes for a client implementer:
   non-nullable. Treat `Items == null` the same as "no items".
 - **`ItemInstanceId` crosses as `.bcl.Guid`**, the same encoding the other three `InstanceId`
   fields on the wire already use — two fixed64s in .NET byte order, not sixteen bytes in RFC order.
-- `ItemTemplateId` resolves to a name, icon, rarity, etc. via the vendored catalog — see
+- `ItemTemplateId` resolves to a name, icon, etc. via the vendored catalog — see
   `schema/items/item-catalog-v1.json` and `schema/items/item-schema-v1.json` (`docs/tooling.md`
   documents the exporter that produces both).
 - **`Gold`** is the character's gold. It is field 2, added after `Items`, so an older

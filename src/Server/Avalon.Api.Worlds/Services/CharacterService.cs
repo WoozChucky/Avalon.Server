@@ -172,18 +172,41 @@ public class CharacterService : ICharacterService
             Slot = row.Slot,
             Count = instance?.Count ?? 0,
             Durability = instance?.Durability ?? 0,
+            Rarity = (Avalon.Api.Contract.ItemRarity)(instance?.Rarity ?? default),
+            ItemLevel = instance?.ItemLevel ?? 0,
+            Modifiers = instance is null ? [] : ModifiersOf(instance),
             Template = template is null ? null : new CharacterInventoryItemTemplateDto
             {
                 Id = template.Id.Value,
                 Name = template.Name ?? string.Empty,
-                Rarity = (Avalon.Api.Contract.ItemRarity)template.Rarity,
                 DisplayId = template.DisplayId,
                 SlotType = (Avalon.Api.Contract.ItemSlotType?)template.Slot,
-                ItemPower = template.ItemPower ?? 0,
                 RequiredLevel = template.RequiredLevel ?? 0,
             },
         };
     }
+
+    /// <summary>
+    /// The copy's modifiers in the order the item shows them, by ordinal, each with its values in the order of the
+    /// catalog's stat lines: the read loads the rows in no particular order.
+    /// </summary>
+    private static List<CharacterInventoryModifierDto> ModifiersOf(ItemInstance instance) =>
+        instance.Modifiers
+            .OrderBy(m => m.Ordinal)
+            .Select(m => new CharacterInventoryModifierDto
+            {
+                ModifierId = m.ModifierId,
+                Values = m.Values
+                    .OrderBy(v => v.Index)
+                    .Select(v => new CharacterInventoryModifierValueDto
+                    {
+                        Stat = (Avalon.Api.Contract.StatType)v.Stat,
+                        Value = v.Value,
+                        Value2 = v.Value2,
+                    })
+                    .ToList(),
+            })
+            .ToList();
 
     public async Task<CharacterStatsDto?> GetStatsAsync(CharacterId id, CancellationToken cancellationToken = default)
     {
@@ -269,36 +292,38 @@ public class CharacterService : ICharacterService
 
     /// <summary>
     /// What the character attacks with, as the world server's stats refresh builds it (#1178), through the same
-    /// Avalon.Combat entry points: the offence block from the saved attributes (with gear) and the worn templates, the main
-    /// hand's weapon (the bare hand's with none), over the world's combat formula. Without auras: a character out of the
-    /// world holds none that count, and the ones it saved are stale. A character with no saved stats has no attributes.
+    /// Avalon.Combat entry points: the offence block from the saved attributes (with gear) and the worn items with their
+    /// saved modifiers (#1179), the main hand's weapon (the bare hand's with none), over the world's combat formula.
+    /// Without auras: a character out of the world holds none that count, and the ones it saved are stale. A character with
+    /// no saved stats has no attributes.
     /// </summary>
     private async Task<AttackerCombat> AttackerAsync(Character character, CancellationToken cancellationToken)
     {
         CharacterStats? stats = await _statsRepository.GetByCharacterIdAsync(character.Id, cancellationToken);
-        IReadOnlyList<ItemTemplate> worn = await WornTemplatesAsync(character.Id, cancellationToken);
+        IReadOnlyList<WornItem> worn = await WornItemsAsync(character.Id, cancellationToken);
         CombatFormula formula = (await _combatDataRepository.GetFormulasAsync(cancellationToken))
             .FirstOrDefault(f => f.Id == CombatFormula.SingletonId)
             ?? throw new InvalidOperationException("The world has no combat formula row.");
 
-        ItemTemplate? mainHand = worn.FirstOrDefault(t => t.Slot == Avalon.Domain.World.ItemSlotType.MainHand);
         OffenceStats offence = CharacterOffence.Of(stats?.Strength ?? 0, stats?.Agility ?? 0, stats?.Intellect ?? 0, worn,
-            formula);
-        return new AttackerCombat(character.Level, stats?.CritPct ?? 0f, WeaponDamage.Of(mainHand, formula), offence);
+            formula, out DamageRanges addedToAttacks, out DamageRanges addedToSpells);
+        var weapon = WeaponDamage.Of(CharacterStatsCalculator.MainHandOf(worn), formula);
+        return new AttackerCombat(character.Level, stats?.CritPct ?? 0f, weapon, offence, addedToAttacks, addedToSpells);
     }
 
     /// <summary>
-    /// The template of each item the character wears, as the world's stats refresh counts them: one per worn item, so two
-    /// copies of one template count twice, and none for an item in a slot its template does not fit
-    /// (<see cref="EquipmentSlots.Accepts" />).
+    /// Each item the character wears, as the world's stats refresh counts them: its current template and the modifiers its
+    /// saved instance holds (#1179), one per worn item, so two copies of one template count twice, and none for an item in a
+    /// slot its template does not fit (<see cref="EquipmentSlots.Accepts" />).
     /// </summary>
-    private async Task<IReadOnlyList<ItemTemplate>> WornTemplatesAsync(CharacterId id, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<WornItem>> WornItemsAsync(CharacterId id, CancellationToken cancellationToken)
     {
         var worn = (await _inventoryRepository.GetByCharacterIdAsync(id, cancellationToken))
             .Where(r => r.Container == Avalon.Common.InventoryType.Equipment)
             .ToList();
         if (worn.Count == 0) return [];
 
+        // Loaded with their modifiers and the modifiers' values.
         var instances = (await _itemInstanceRepository.GetByCharacterIdAsync(id, cancellationToken))
             .ToDictionary(i => i.Id);
         IEnumerable<ItemTemplateId> templateIds = worn
@@ -307,14 +332,14 @@ public class CharacterService : ICharacterService
         var templates = (await _itemTemplateRepository.GetByIdsAsync(templateIds, cancellationToken))
             .ToDictionary(t => t.Id);
 
-        List<ItemTemplate> result = [];
+        List<WornItem> result = [];
         foreach (CharacterInventory row in worn)
         {
             if (instances.TryGetValue(row.ItemId, out ItemInstance? instance)
                 && templates.TryGetValue(instance.TemplateId, out ItemTemplate? template)
                 && EquipmentSlots.Accepts(row.Slot, template.Slot))
             {
-                result.Add(template);
+                result.Add(new WornItem(template, instance.Modifiers.Count > 0 ? instance.Modifiers : null));
             }
         }
 

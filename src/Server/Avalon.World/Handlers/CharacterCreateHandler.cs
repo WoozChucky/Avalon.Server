@@ -75,6 +75,8 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
                 TemplateId = template.Id,
                 Count = template.Stackable ? template.MaxStackSize : 1,
                 Durability = ItemInstanceDefaults.InitialDurability(template),
+                Rarity = template.Rarity,
+                ItemLevel = ItemInstanceDefaults.InitialItemLevel(template),
                 UpdatedAt = DateTime.UtcNow
             };
             items.Add(item); slots.Add(new() { ItemId = item.Id, Container = InventoryType.Bag, Slot = (byte)(slots.Count) });

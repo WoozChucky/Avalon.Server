@@ -6,6 +6,7 @@ using Avalon.Network.Packets.Character;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
+using Avalon.World.Public.Characters;
 using static Avalon.Server.World.UnitTests.Inventory.EquipTemplates;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -28,7 +29,8 @@ public class InventoryMoveShould
         uint PlanCount = 0,
         bool Bank = false,
         ushort Level = 1,
-        CharacterClass Class = CharacterClass.Warrior);
+        CharacterClass Class = CharacterClass.Warrior,
+        bool Rolled = false);
 
     private static (SlotRef, ItemTemplate, uint) At(SlotRef slot, ItemTemplate template, uint count = 1) => (slot, template, count);
 
@@ -103,7 +105,7 @@ public class InventoryMoveShould
             Eq(EquipmentSlots.MainHand), Bag(0), null, ItemRequestResult.WrongEquipSlot),
         new("Refuse a slot past the container", [At(Bag(0), Potion, 5)], Bag(0), Bag(30), null, ItemRequestResult.InvalidSlot),
         new("Refuse the same slot twice", [At(Bag(0), Potion, 5)], Bag(0), Bag(0), null, ItemRequestResult.InvalidSlot),
-        new("Refuse a reserved equipment slot as the target", [At(Bag(0), Band)], Bag(0), Eq(11), null,
+        new("Refuse a reserved equipment slot as the target", [At(Bag(0), Band)], Bag(0), Eq(13), null,
             ItemRequestResult.InvalidSlot),
         new("Refuse a reserved equipment slot as the source", [], Eq(13), Bag(0), null, ItemRequestResult.InvalidSlot),
         new("Refuse a count of zero", [At(Bag(0), Potion, 5)], Bag(0), Bag(1), 0, ItemRequestResult.InvalidCount),
@@ -143,7 +145,12 @@ public class InventoryMoveShould
             Bag(0), Eq(EquipmentSlots.Finger1), null, ItemRequestResult.NotStackable),
         new("Refuse a merge onto a full stack", [At(Bag(0), Potion, 5), At(Bag(1), Potion, 20)], Bag(0), Bag(1), null,
             ItemRequestResult.TargetFull),
+        // #1179: an item carrying modifiers is one of a kind, whatever its template allows.
+        new("Refuse splitting a stackable item that carries modifiers", [At(Bag(0), Potion, 5)], Bag(0), Bag(3), 2,
+            ItemRequestResult.NotStackable, Rolled: true),
         new("Refuse a two-hander while the off hand is held", [At(Eq(EquipmentSlots.OffHand), Buckler), At(Bag(0), Greatsword)],
+            Bag(0), Eq(EquipmentSlots.MainHand), null, ItemRequestResult.Blocked),
+        new("Refuse a bow while the off hand is held", [At(Eq(EquipmentSlots.OffHand), Buckler), At(Bag(0), Shortbow)],
             Bag(0), Eq(EquipmentSlots.MainHand), null, ItemRequestResult.Blocked),
         new("Refuse an off hand while a two-hander is worn", [At(Eq(EquipmentSlots.MainHand), Greatsword), At(Bag(0), Buckler)],
             Bag(0), Eq(EquipmentSlots.OffHand), null, ItemRequestResult.Blocked),
@@ -168,6 +175,16 @@ public class InventoryMoveShould
         {
             character.Container(container.Key).Load(
                 container.Select(h => Item(h.At.Slot, h.Template, h.Count)).ToList());
+        }
+
+        if (row.Rolled && character.Container(row.From.Container).TryGet(row.From.Slot, out InventoryItem rolled))
+        {
+            character.ItemModifiers.Load([new ItemInstance
+            {
+                Id = rolled.InstanceId,
+                TemplateId = rolled.TemplateId,
+                Modifiers = [TestModifiers.Modifier(rolled.InstanceId, 1, 0, (0, StatType.Health, 10, null))],
+            }]);
         }
 
         return character;
@@ -268,7 +285,7 @@ public class InventoryMoveShould
         ["Refuse a count above the stack", At(Bag(0), Potion, 5), Bag(0), 6u, false, ItemRequestResult.InvalidCount, 0u],
         ["Refuse an item that cannot be destroyed", At(Bag(0), Heirloom), Bag(0), null, false, ItemRequestResult.CannotDestroy, 0u],
         ["Refuse the bank while it is closed", At(Vault(4), Potion, 5), Vault(4), null, false, ItemRequestResult.BankClosed, 0u],
-        ["Refuse a reserved equipment slot", At(Bag(0), Potion, 5), Eq(12), null, false, ItemRequestResult.InvalidSlot, 0u],
+        ["Refuse a reserved equipment slot", At(Bag(0), Potion, 5), Eq(13), null, false, ItemRequestResult.InvalidSlot, 0u],
         ["Refuse a slot past the container", At(Bag(0), Potion, 5), Bag(30), null, false, ItemRequestResult.InvalidSlot, 0u],
     ];
 

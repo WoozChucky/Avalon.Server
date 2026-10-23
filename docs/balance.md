@@ -13,7 +13,11 @@ stats and defences (evasion from Agility, no class base dodge or block, armour f
 Stamina and base crit for every class, the creatures' evasion seed) and the offence model of #1178 (each hit's typed
 parts and each heal from `OffenceMath`, the offence block from `CharacterStatsCalculator`, cooldowns and cast times from
 `AbilityPace` over the three speeds), so an element meets its resistance there; but it has no ward, and nothing in it
-was re-checked against the new numbers.
+was re-checked against the new numbers. Since the bases of #1179 (part A) replaced the old equipment, the gear sets in
+`balance/scenarios.json` name item ids that still exist: the Cleric's starter set (items 51-55) and forest set (27-31)
+are gone, so the Cleric wears the cloth sets, 41-45 and 17-21, beside its maces (35 and 8). Every set is now a base
+under its old id, with no attributes and a defence of its family's (plate armour, leather evasion, cloth ward), worn
+as a copy with no modifiers; the simulator does not roll modifiers.
 
 The simulator is a library with a thin tool on top. `Avalon.Balance.Core` (`src/Server/`) is the simulator, grader and
 run contract; it references `Avalon.Combat` and `Avalon.Domain` only, no `Avalon.World`, no `Avalon.Database*`, no EF,

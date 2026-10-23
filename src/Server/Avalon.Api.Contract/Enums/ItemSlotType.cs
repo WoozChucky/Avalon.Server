@@ -15,5 +15,6 @@ public enum ItemSlotType : ushort
     Finger,
     Gem,
     MainHand,
-    OffHand
+    OffHand,
+    Trinket = 11,
 }

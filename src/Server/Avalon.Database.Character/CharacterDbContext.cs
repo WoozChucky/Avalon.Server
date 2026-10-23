@@ -65,6 +65,8 @@ public partial class CharacterDbContext : DbContext
     public DbSet<CharacterInventory> CharacterInventory { get; set; } = null!;
     public DbSet<CharacterAbility> CharacterAbilities { get; set; } = null!;
     public DbSet<ItemInstance> ItemInstances { get; set; } = null!;
+    public DbSet<ItemInstanceModifier> ItemInstanceModifiers { get; set; } = null!;
+    public DbSet<ItemInstanceModifierValue> ItemInstanceModifierValues { get; set; } = null!;
     public DbSet<CharacterQuest> CharacterQuests { get; set; } = null!;
     public DbSet<CharacterQuestObjective> CharacterQuestObjectives { get; set; } = null!;
     public DbSet<CharacterCompletedQuest> CharacterCompletedQuests { get; set; } = null!;
@@ -104,6 +106,8 @@ public partial class CharacterDbContext : DbContext
         Configure(modelBuilder.Entity<CharacterInventory>());
         Configure(modelBuilder.Entity<CharacterAbility>());
         Configure(modelBuilder.Entity<ItemInstance>());
+        Configure(modelBuilder.Entity<ItemInstanceModifier>());
+        Configure(modelBuilder.Entity<ItemInstanceModifierValue>());
         Configure(modelBuilder.Entity<CharacterQuest>());
         Configure(modelBuilder.Entity<CharacterQuestObjective>());
         Configure(modelBuilder.Entity<CharacterCompletedQuest>());
@@ -116,6 +120,8 @@ public partial class CharacterDbContext : DbContext
         receipt.Property(r => r.TargetAccountId).HasConversion(v => v.Value, v => new AccountId(v));
         Configure(modelBuilder.Entity<TradeRecord>());
         Configure(modelBuilder.Entity<TradeRecordItem>());
+        Configure(modelBuilder.Entity<TradeRecordItemModifier>());
+        Configure(modelBuilder.Entity<TradeRecordItemModifierValue>());
     }
 
     /// <summary>
@@ -144,7 +150,33 @@ public partial class CharacterDbContext : DbContext
         builder.Property(i => i.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
         builder.Property(i => i.GiverCharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
         builder.Property(i => i.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
+        builder.Property(i => i.ItemLevel).HasColumnType("smallint");
         builder.HasIndex(i => i.ItemInstanceId);
+        // The record's own copy of the item's modifiers (#1179), written with it as one graph.
+        builder.HasMany(i => i.Modifiers)
+            .WithOne()
+            .HasForeignKey(m => new { m.TradeId, m.ItemInstanceId })
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<TradeRecordItemModifier> builder)
+    {
+        builder.ToTable("TradeRecordItemModifiers");
+        // Keyed by the modifier's own id, not its place: a modifier keeps its id when its item's modifiers are reordered.
+        builder.HasKey(m => new { m.TradeId, m.ItemInstanceModifierId });
+        builder.Property(m => m.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
+        builder.Property(m => m.ModifierId).HasColumnType("smallint");
+        builder.HasMany(m => m.Values)
+            .WithOne()
+            .HasForeignKey(v => new { v.TradeId, v.ItemInstanceModifierId })
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<TradeRecordItemModifierValue> builder)
+    {
+        builder.ToTable("TradeRecordItemModifierValues");
+        builder.HasKey(v => new { v.TradeId, v.ItemInstanceModifierId, v.Index });
+        builder.Property(v => v.Stat).HasColumnType("smallint");
     }
 
     private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder, bool postgres)
@@ -316,6 +348,47 @@ public partial class CharacterDbContext : DbContext
             );
 
         builder.HasIndex(b => b.CharacterId);
+
+        // Facts of every copy (#1179), like its count and flags.
+        builder.Property(b => b.ItemLevel).HasColumnType("smallint");
+        builder.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_ItemInstances_Rarity", "\"Rarity\" BETWEEN 0 AND 3");
+            t.HasCheckConstraint("CK_ItemInstances_ItemLevel", "\"ItemLevel\" > 0");
+        });
+
+        // Its modifiers are its own rows, gone with it.
+        builder.HasMany(b => b.Modifiers)
+            .WithOne()
+            .HasForeignKey(m => m.ItemInstanceId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    /// <summary>
+    /// An item's modifiers (#1179). Keyed by an id the world server allocates, so a modifier kept across saves is updated
+    /// in place. No unique index on the item and the ordinal: a reorder saved row by row would trip it. ModifierId names
+    /// a catalog row in the World database, so it has no foreign key, as an item's TemplateId has none. The column is
+    /// smallint, so catalog modifier ids stay at or below 32767.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ItemInstanceModifier> builder)
+    {
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.Id).ValueGeneratedNever();
+        builder.Property(m => m.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
+        builder.Property(m => m.ModifierId).HasColumnType("smallint");
+        builder.HasMany(m => m.Values)
+            .WithOne()
+            .HasForeignKey(v => v.ItemInstanceModifierId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(m => m.ItemInstanceId);
+    }
+
+    /// <summary>A modifier's rolled numbers. The stat is stored here, so a catalog edit never changes an existing item.</summary>
+    private static void Configure(EntityTypeBuilder<ItemInstanceModifierValue> builder)
+    {
+        builder.HasKey(v => new { v.ItemInstanceModifierId, v.Index });
+        builder.Property(v => v.Stat).HasColumnType("smallint");
+        builder.ToTable(t => t.HasCheckConstraint("CK_ItemInstanceModifierValues_Range", "\"Value2\" IS NULL OR \"Value2\" >= \"Value\""));
     }
 
     private static void Configure(EntityTypeBuilder<CharacterQuest> builder)

@@ -32,7 +32,8 @@ public readonly record struct DerivedCreatureStats(
     /// part takes the hit's type), no offence of its own, and its template's damage type.
     /// </summary>
     public AttackerCombat Attacker =>
-        new(Level, CritPct, new WeaponDamage(DamageMin, DamageMax, null, 0, 0, null, AttackTimeMs), default, DamageType);
+        new(Level, CritPct, new WeaponDamage(DamageMin, DamageMax, null, 0, 0, null, AttackTimeMs),
+            BaseType: DamageType);
 
     /// <summary>What a creature with these stats defends with (#506).</summary>
     public DefenderCombat Defence => new(Armor, Evasion, BlockPct, Resistances);

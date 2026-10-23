@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.Server.World.UnitTests.Inventory;
@@ -49,14 +50,44 @@ public class ItemEquipShould
         Assert.Equal(firstRing.InstanceId, At(_character, InventoryType.Bag, 0).InstanceId);
     }
 
+    /// <summary>
+    /// #1179: a trinket fills the first trinket slot, then the second, and with both full replaces the first, as a ring
+    /// does the fingers; slot 13 stays reserved.
+    /// </summary>
     [Fact]
-    public void Move_the_off_hand_item_to_the_bag_for_a_two_hander()
+    public void Wear_a_trinket_in_either_trinket_slot()
     {
-        Bag(Item(0, Potion), Item(1, Greatsword));
+        ItemTemplate idol = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 67);
+        Func<ItemTemplateId, ItemTemplate?> find = id => id == idol.Id ? idol : EquipTemplates.Find(id);
+        _character.Level = idol.RequiredLevel!.Value;
+        InventoryItem first = Item(0, idol);
+        InventoryItem second = Item(1, idol);
+        InventoryItem third = Item(2, idol);
+        Bag(first, second, third, Item(3, idol));
+
+        Assert.Equal(ItemUseResult.Ok, Equip(0, idol, find));
+        Assert.Equal(ItemUseResult.Ok, Equip(1, idol, find));
+        Assert.Equal(ItemUseResult.Ok, Equip(2, idol, find));
+
+        Assert.Equal(third.InstanceId, At(_character, InventoryType.Equipment, EquipmentSlots.Trinket1).InstanceId);
+        Assert.Equal(second.InstanceId, At(_character, InventoryType.Equipment, EquipmentSlots.Trinket2).InstanceId);
+        Assert.Equal(first.InstanceId, At(_character, InventoryType.Bag, 2).InstanceId);
+        Assert.Equal(ItemRequestResult.InvalidSlot, InventoryFor(_character, find)
+            .TryMove(EquipTemplates.Bag(3), Eq(EquipmentSlots.FirstReserved), count: null, bankAccessible: false));
+    }
+
+    /// <summary>A bow is held in both hands too (#1179).</summary>
+    [Theory]
+    [InlineData("two-hander")]
+    [InlineData("bow")]
+    public void Move_the_off_hand_item_to_the_bag_for_a_two_hander(string weapon)
+    {
+        ItemTemplate twoHanded = weapon == "bow" ? Shortbow : Greatsword;
+        Bag(Item(0, Potion), Item(1, twoHanded));
         Worn(Item(EquipmentSlots.MainHand, Axe), Item(EquipmentSlots.OffHand, Buckler));
 
-        Assert.Equal(ItemUseResult.Ok, Equip(1, Greatsword));
-        Assert.Equal(Greatsword.Id, At(_character, InventoryType.Equipment, EquipmentSlots.MainHand).TemplateId);
+        Assert.Equal(ItemUseResult.Ok, Equip(1, twoHanded));
+        Assert.Equal(twoHanded.Id, At(_character, InventoryType.Equipment, EquipmentSlots.MainHand).TemplateId);
         Assert.False(_character.Container(InventoryType.Equipment).TryGet(EquipmentSlots.OffHand, out _));
         Assert.Equal(Axe.Id, At(_character, InventoryType.Bag, 1).TemplateId);
         Assert.Equal(Buckler.Id, At(_character, InventoryType.Bag, 2).TemplateId);   // the lowest free slot before the use

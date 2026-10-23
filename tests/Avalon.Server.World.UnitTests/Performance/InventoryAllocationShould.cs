@@ -138,7 +138,7 @@ public class InventoryAllocationShould
                 Container = slot.Container,
                 Slot = slot.Slot,
                 Item = _character.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item)
-                    ? ItemSlotDtoMapper.ToDto(slot.Container, item)
+                    ? ItemSlotDtoMapper.ToDto(slot.Container, item, _character.ItemModifiers.Of(item.InstanceId))
                     : null,
             };
         }

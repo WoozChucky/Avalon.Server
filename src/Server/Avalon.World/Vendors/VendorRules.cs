@@ -134,8 +134,8 @@ public static class VendorRules
 
     /// <summary>
     /// Sell: alive; shop open; a Bag slot; an item there, not offered in a trade (#1175); a sellable
-    /// template; not damaged; the count; the gold cap. Only the Bag is ever named, so nothing is sold
-    /// from Equipment or the Bank.
+    /// template; not damaged; the count (the whole of an item carrying modifiers, #1179); the gold cap.
+    /// Only the Bag is ever named, so nothing is sold from Equipment or the Bank.
     /// </summary>
     public static SellDecision DecideSell(
         CharacterEntity character,
@@ -173,6 +173,10 @@ public static class VendorRules
         if (selling == 0 || selling > item.Count)
             return new SellDecision(VendorResult.InvalidCount, null);
 
+        // #1179: an item carrying modifiers is one of a kind and is sold whole (TakeOut refuses to split it).
+        if (selling < item.Count && character.ItemModifiers.Of(item.InstanceId).Count > 0)
+            return new SellDecision(VendorResult.InvalidCount, null);
+
         // CharacterWallet.TryAddGold's own rule, so the apply cannot disagree: gold a completing trade is about to pay
         // (#1175) counts as already in the balance.
         ulong payment = (ulong)template.SellPrice * selling;
@@ -203,7 +207,7 @@ public static class VendorRules
             return new BuybackDecision(VendorResult.ShopClosed, null);
 
         if (!character.Buyback.TryGet(index, out BuybackEntry? entry)
-            || (findTemplate(entry.Item.TemplateId) is { } flagged && !IsStockable(flagged)))
+            || (findTemplate(entry.Item.Item.TemplateId) is { } flagged && !IsStockable(flagged)))
         {
             return new BuybackDecision(VendorResult.NotFound, null);
         }
@@ -214,9 +218,9 @@ public static class VendorRules
         if (character.Locks.FreeSlotCount(character.Container(InventoryType.Bag)) == 0)
             return new BuybackDecision(VendorResult.InventoryFull, null);
 
-        if (findTemplate(entry.Item.TemplateId) is { } template
+        if (findTemplate(entry.Item.Item.TemplateId) is { } template
             && (template.Flags & ItemTemplateFlags.Unique) != 0
-            && HeldAnywhere(character, template.Id) + Incoming(character, template.Id) + entry.Item.Count > 1)
+            && HeldAnywhere(character, template.Id) + Incoming(character, template.Id) + entry.Item.Item.Count > 1)
         {
             return new BuybackDecision(VendorResult.UniqueAlreadyOwned, null);
         }

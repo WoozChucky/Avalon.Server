@@ -348,6 +348,7 @@ public sealed class LoadTestAccountsShould : IDisposable
                     CharacterId = id,
                     TemplateId = new ItemTemplateId(1),
                     Count = 1,
+                    ItemLevel = 1,
                     UpdatedAt = now,
                 });
             }

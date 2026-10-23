@@ -86,8 +86,8 @@ public sealed class QuestTemplateRouteShould : IAsyncLifetime
         QuestObjectiveTemplateDto talk = Assert.Single(quest.Stages[1].Objectives);
         Assert.Equal((303u, Avalon.Api.Contract.QuestObjectiveType.Talk, (ulong?)11, 1u, "Speak with Marta Ledgerwell"),
             (talk.Id, talk.Type, talk.CreatureTemplateId, talk.Count, talk.Text));
-        Assert.Equal([(58ul, 1u)], quest.ItemRewards.Select(r => (r.ItemTemplateId, r.Count)));
-        Assert.Equal([(5ul, 1u), (6ul, 1u), (7ul, 1u), (8ul, 1u)], quest.ItemChoices.Select(r => (r.ItemTemplateId, r.Count)));
+        Assert.Equal([(69ul, 1u)], quest.ItemRewards.Select(r => (r.ItemTemplateId, r.Count)));
+        Assert.Equal([(32ul, 1u), (33ul, 1u), (34ul, 1u), (35ul, 1u)], quest.ItemChoices.Select(r => (r.ItemTemplateId, r.Count)));
         Assert.Equal((600u, 400ul), (quest.RewardExperience, quest.RewardGold));
     }
 

@@ -9,54 +9,69 @@ public static class CharacterOffence
     /// <summary>
     /// <paramref name="strength" />, <paramref name="agility" /> and <paramref name="intellect" /> are the totals with
     /// gear. Strength gives increased physical attack damage, Intellect increased spell damage and increased healing,
-    /// Agility attack speed, each by <paramref name="f" />'s rate; the gear worn adds its Increased… keys, crit multiplier,
-    /// attack speed, cast speed and cooldown recovery flat; then <paramref name="auras" /> fold on top (a Flat adds, a More
-    /// multiplies). Runs on a stats refresh, never per hit, and allocates nothing: <paramref name="worn" /> is read by index.
+    /// Agility attack speed, each by <paramref name="f" />'s rate; every line of the gear worn (its template's and its
+    /// modifiers', #1179) adds its Increased… keys, crit multiplier, attack speed, cast speed and cooldown recovery flat,
+    /// and its added damage to attacks and to spells by type, handed out as <paramref name="addedToAttacks" /> and
+    /// <paramref name="addedToSpells" />, which sit beside the block on the attacker; a line local to its item (a weapon's
+    /// added damage, local increased damage or defence, local attack speed) is that item's, never the block's. Then
+    /// <paramref name="auras" /> fold on top (a Flat adds, a More multiplies). The gear's lines are summed first and the
+    /// attributes' terms added to those sums, as the stats calculation, which folds the lines in its own single walk of the
+    /// gear (<see cref="Add" />, <see cref="Finish" />), does. Runs on a stats refresh, never per hit, and allocates
+    /// nothing: <paramref name="worn" /> is read by index.
     /// </summary>
-    public static OffenceStats Of(uint strength, uint agility, uint intellect, IReadOnlyList<ItemTemplate> worn,
-        CombatFormula f, AuraStatTotals? auras = null)
+    public static OffenceStats Of(uint strength, uint agility, uint intellect, IReadOnlyList<WornItem> worn,
+        CombatFormula f, out DamageRanges addedToAttacks, out DamageRanges addedToSpells, AuraStatTotals? auras = null)
     {
         OffenceStats o = default;
+        addedToAttacks = default;
+        addedToSpells = default;
+        for (int i = 0; i < worn.Count; i++)
+        {
+            WornItem item = worn[i];
+            foreach (ItemLine line in ItemLines.Of(item))
+                Add(ref o, ref addedToAttacks, ref addedToSpells, line);
+        }
+
+        return Finish(o, strength, agility, intellect, f, auras);
+    }
+
+    /// <summary>
+    /// <paramref name="lines" />, the gear's lines summed by <see cref="Add" />, with the attributes' terms added and
+    /// <paramref name="auras" /> folded on top.
+    /// </summary>
+    internal static OffenceStats Finish(OffenceStats lines, uint strength, uint agility, uint intellect, CombatFormula f,
+        AuraStatTotals? auras)
+    {
+        OffenceStats o = lines;
         o.AddIncreased(OffenceStat.PhysicalAttack, (float)(strength * (double)f.IncreasedPhysicalAttackPerStrength));
         o.AddIncreased(OffenceStat.Spell, (float)(intellect * (double)f.IncreasedSpellPerIntellect));
         o.AddIncreased(OffenceStat.Healing, (float)(intellect * (double)f.IncreasedHealingPerIntellect));
-        o.AttackSpeedPct = (float)(agility * (double)f.AttackSpeedPerAgility);
-
-        for (int i = 0; i < worn.Count; i++)
-        {
-            ItemTemplate t = worn[i];
-            Add(ref o, t.StatType1, t.StatValue1);
-            Add(ref o, t.StatType2, t.StatValue2);
-            Add(ref o, t.StatType3, t.StatValue3);
-            Add(ref o, t.StatType4, t.StatValue4);
-            Add(ref o, t.StatType5, t.StatValue5);
-            Add(ref o, t.StatType6, t.StatValue6);
-            Add(ref o, t.StatType7, t.StatValue7);
-            Add(ref o, t.StatType8, t.StatValue8);
-            Add(ref o, t.StatType9, t.StatValue9);
-            Add(ref o, t.StatType10, t.StatValue10);
-        }
-
+        o.AttackSpeedPct += (float)(agility * (double)f.AttackSpeedPerAgility);
         return auras is null ? o : AuraStats.Fold(o, auras);
     }
 
-    /// <summary>One gear stat pair with both a type and a value; any other stat is not offence.</summary>
-    private static void Add(ref OffenceStats o, StatType? type, uint? value)
+    /// <summary>One gear line; any stat that is not offence adds nothing here.</summary>
+    internal static void Add(ref OffenceStats o, ref DamageRanges toAttacks, ref DamageRanges toSpells, in ItemLine line)
     {
-        if (type is not { } statType || value is not { } amount) return;
-
-        if (OffenceStats.KeyOf(statType) is { } key)
+        StatType stat = line.Stat;
+        if (OffenceStats.KeyOf(stat) is { } key)
         {
-            o.AddIncreased(key, amount);
+            o.AddIncreased(key, line.Min);
             return;
         }
 
-        switch (statType)
+        switch (stat)
         {
-            case StatType.CritMultiplier: o.CritMultiplierBonus += amount; break;
-            case StatType.AttackSpeed: o.AttackSpeedPct += amount; break;
-            case StatType.CastSpeed: o.CastSpeedPct += amount; break;
-            case StatType.CooldownRecovery: o.CooldownRecoveryPct += amount; break;
+            case StatType.CritMultiplier: o.CritMultiplierBonus += line.Min; break;
+            case StatType.AttackSpeed: o.AttackSpeedPct += line.Min; break;
+            case StatType.CastSpeed: o.CastSpeedPct += line.Min; break;
+            case StatType.CooldownRecovery: o.CooldownRecoveryPct += line.Min; break;
+            case >= StatType.AddedPhysicalDamageToAttacks and <= StatType.AddedBlightDamageToAttacks:
+                toAttacks.Add((DamageType)(stat - StatType.AddedPhysicalDamageToAttacks), line);
+                break;
+            case >= StatType.AddedFireDamageToSpells and <= StatType.AddedLightningDamageToSpells:
+                toSpells.Add((DamageType)(stat - StatType.AddedFireDamageToSpells + (int)DamageType.Fire), line);
+                break;
             default: break;
         }
     }

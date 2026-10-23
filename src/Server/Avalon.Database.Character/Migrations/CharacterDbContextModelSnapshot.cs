@@ -480,6 +480,12 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<long>("GiverCharacterId")
                         .HasColumnType("bigint");
 
+                    b.Property<short>("ItemLevel")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("Rarity")
+                        .HasColumnType("smallint");
+
                     b.Property<decimal>("TemplateId")
                         .HasColumnType("numeric(20,0)");
 
@@ -488,6 +494,55 @@ namespace Avalon.Database.Character.Migrations
                     b.HasIndex("ItemInstanceId");
 
                     b.ToTable("TradeRecordItems");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemModifier", b =>
+                {
+                    b.Property<Guid>("TradeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ItemInstanceModifierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ItemInstanceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("ModifierId")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("Ordinal")
+                        .HasColumnType("smallint");
+
+                    b.HasKey("TradeId", "ItemInstanceModifierId");
+
+                    b.HasIndex("TradeId", "ItemInstanceId");
+
+                    b.ToTable("TradeRecordItemModifiers", (string)null);
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemModifierValue", b =>
+                {
+                    b.Property<Guid>("TradeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ItemInstanceModifierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte>("Index")
+                        .HasColumnType("smallint");
+
+                    b.Property<short>("Stat")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("Value")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Value2")
+                        .HasColumnType("integer");
+
+                    b.HasKey("TradeId", "ItemInstanceModifierId", "Index");
+
+                    b.ToTable("TradeRecordItemModifierValues", (string)null);
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
@@ -510,6 +565,12 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<int>("Flags")
                         .HasColumnType("integer");
 
+                    b.Property<short>("ItemLevel")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("Rarity")
+                        .HasColumnType("smallint");
+
                     b.Property<decimal>("TemplateId")
                         .HasColumnType("numeric(20,0)");
 
@@ -520,7 +581,58 @@ namespace Avalon.Database.Character.Migrations
 
                     b.HasIndex("CharacterId");
 
-                    b.ToTable("ItemInstances");
+                    b.ToTable("ItemInstances", t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemInstances_ItemLevel", "\"ItemLevel\" > 0");
+
+                            t.HasCheckConstraint("CK_ItemInstances_Rarity", "\"Rarity\" BETWEEN 0 AND 3");
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemInstanceModifier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ItemInstanceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("ModifierId")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("Ordinal")
+                        .HasColumnType("smallint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemInstanceId");
+
+                    b.ToTable("ItemInstanceModifiers");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemInstanceModifierValue", b =>
+                {
+                    b.Property<Guid>("ItemInstanceModifierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte>("Index")
+                        .HasColumnType("smallint");
+
+                    b.Property<short>("Stat")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("Value")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Value2")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ItemInstanceModifierId", "Index");
+
+                    b.ToTable("ItemInstanceModifierValues", t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemInstanceModifierValues_Range", "\"Value2\" IS NULL OR \"Value2\" >= \"Value\"");
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterAbility", b =>
@@ -622,6 +734,24 @@ namespace Avalon.Database.Character.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemModifier", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.TradeRecordItem", null)
+                        .WithMany("Modifiers")
+                        .HasForeignKey("TradeId", "ItemInstanceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemModifierValue", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.TradeRecordItemModifier", null)
+                        .WithMany("Values")
+                        .HasForeignKey("TradeId", "ItemInstanceModifierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
                 {
                     b.HasOne("Avalon.Domain.Characters.Character", null)
@@ -631,9 +761,47 @@ namespace Avalon.Database.Character.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ItemInstanceModifier", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemInstance", null)
+                        .WithMany("Modifiers")
+                        .HasForeignKey("ItemInstanceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemInstanceModifierValue", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemInstanceModifier", null)
+                        .WithMany("Values")
+                        .HasForeignKey("ItemInstanceModifierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.Characters.TradeRecord", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItem", b =>
+                {
+                    b.Navigation("Modifiers");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemModifier", b =>
+                {
+                    b.Navigation("Values");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
+                {
+                    b.Navigation("Modifiers");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemInstanceModifier", b =>
+                {
+                    b.Navigation("Values");
                 });
 #pragma warning restore 612, 618
         }

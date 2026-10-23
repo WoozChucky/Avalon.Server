@@ -12,7 +12,8 @@ namespace Avalon.World.Items;
 /// <summary>
 /// A use of gear (item use): the item goes to the slot its type is worn in, through the same InventoryMove rules and
 /// IInventoryService apply as a drag, so the save and client marks are the drag's. An occupied slot swaps its item into
-/// the clicked Bag slot; a ring takes the empty finger, else the first; a two-hander first moves a worn off-hand item to
+/// the clicked Bag slot; a ring takes the empty finger, else the first, and a trinket the empty trinket slot, else the
+/// first (<see cref="EquipmentSlots.SlotsFor" />, #1179); a two-hander first moves a worn off-hand item to
 /// the lowest Bag slot free before the use (TargetFull when there is none). A use of a worn item takes it off to the
 /// lowest free Bag slot (<see cref="Unequip" />). Every check runs before anything moves, and <c>beforeApply</c> runs once
 /// they have all passed, just before the first move, so a refused equip or unequip never calls it.
@@ -54,7 +55,7 @@ public static class ItemEquip
         var from = new SlotRef(InventoryType.Bag, bagSlot);
         var to = new SlotRef(InventoryType.Equipment, target);
 
-        if (template.SubClass == ItemSubClass.TwoHanded && target == EquipmentSlots.MainHand
+        if (template.IsTwoHanded && target == EquipmentSlots.MainHand
             && equipment.TryGet(EquipmentSlots.OffHand, out _))
         {
             return EquipTwoHander(character, inventory, bagSlot, template, from, to, logger, beforeApply);
