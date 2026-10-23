@@ -11,4 +11,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" PrivateAssets="all" />
     <ProjectReference Include="..\..\src\Server\Avalon.Crashes\Avalon.Crashes.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\Fixtures\Crashes\stackwalk\*.json" Link="Fixtures\Crashes\stackwalk\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

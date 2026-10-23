@@ -26,7 +26,12 @@ public sealed record CrashFrame(
     string? Source,
     int? SourceLine,
     IReadOnlyList<CrashInlineFrame> InlineFrames,
-    string? Trust);
+    string? Trust)
+{
+    // Captured by validated address range before the upstream instruction address is discarded.
+    // Basenames alone cannot distinguish two loaded images with the same name.
+    public string? ImageKey { get; init; }
+}
 
 public sealed record CrashInlineFrame(string? Function, string? Source, int? SourceLine);
 

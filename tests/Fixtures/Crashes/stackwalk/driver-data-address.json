@@ -1,0 +1,16 @@
+{
+  "crash_info": {
+    "type": "EXCEPTION_ACCESS_VIOLATION_READ",
+    "address": "0x3010",
+    "crashing_thread": 0
+  },
+  "system_info": { "os": "Windows NT", "os_ver": "10.0.26100", "cpu_arch": "amd64" },
+  "threads": [{
+    "thread_id": 7,
+    "frames": [{ "module": "runtime.exe", "offset": "0x1010", "module_offset": "0x10", "function": "Game::Run()", "trust": "context", "inlines": null }]
+  }],
+  "modules": [
+    { "filename": "runtime.exe", "base_addr": "0x1000", "end_addr": "0x2000", "code_id": "A1", "loaded_symbols": true },
+    { "filename": "nvwgf2umx.dll", "base_addr": "0x3000", "end_addr": "0x4000", "code_id": "D1", "loaded_symbols": false, "version": "1.2.3" }
+  ]
+}
