@@ -138,14 +138,29 @@ HTTP downloads, pair validation, conversion, materialization and upload, with at
 most 16 module attempts. Its deadline cancels native work through the runner's
 process-tree cleanup. The required runtime phase is outside that budget. Missing
 optional symbols set `MissingSystemSymbols` and preserve module/range identities.
+Before any symbol I/O, the resolver groups every dump module by its Breakpad
+debug-file/debug-ID key using case-insensitive Windows names. Conflicting image
+name/ID groups are omitted entirely from the optional symbol tree and availability
+list, including conflicts with modules ineligible for public lookup. Load addresses
+and diagnostic versions do not distinguish binaries: repeated instances of the
+same image/debug identity may share symbols. A conflict involving the required
+runtime key raises `InvalidAnalysis` before I/O because safe symbol binding is
+impossible; it is an operational analysis failure, not an invalid-archive claim.
 The v1 public allowlist pairs matching DLL/PDB stems for `ntdll`, `kernel32`,
 `kernelbase`, `ucrtbase`, `vcruntime140`, `vcruntime140_1` and `msvcp140`. Runtime
 names and runtime debug identities are excluded even when paired with a system
 module name. No Vulkan loader or GPU-driver publication is assumed.
 
-The default public origin is `https://msdl.microsoft.com/download/symbols/`.
-Redirects are manual, capped at three, and stay at that origin or explicitly
-configured HTTPS redirect origins (none by default). Automatic decompression,
+Public-origin policy v1 permits only the fixed
+`https://msdl.microsoft.com/download/symbols/` base, documented by
+[Microsoft's SymSrv reference](https://learn.microsoft.com/en-us/windows/win32/debug/using-symsrv).
+Configuration may select only a subset of the code-owned approved authorities;
+v1 contains `https://msdl.microsoft.com` on port 443 and no external CDN authority.
+Arbitrary initial hosts, initial paths, redirect hosts and nondefault ports are
+configuration errors. Redirects are manual, capped at three, and restricted to
+the approved authority even if a configured list is mutated after validation.
+External CDN redirects remain misses; expanding the approved set requires a
+reviewed code/policy-version change with primary-source evidence. Automatic decompression,
 cookies and credentials are disabled. CAB/SZDD compressed files and encoded HTTP
 responses are deliberately unsupported: no decompression is attempted. An ordinary
 404, unsupported compression or invalid pair is a 24-hour negative cache entry;

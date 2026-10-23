@@ -112,7 +112,7 @@ public sealed class PublicSymbolClient : IDisposable
                 if (location is null || redirect == 3)
                     return PublicSymbolStatus.Invalid;
                 Uri next = location.IsAbsoluteUri ? location : new Uri(uri, location);
-                if (next.Scheme != "https" || next.UserInfo.Length > 0 || next.Fragment.Length > 0
+                if (!CrashSymbolOptions.IsApprovedPublicAuthority(next) || next.UserInfo.Length > 0 || next.Fragment.Length > 0
                     || !new[] { _options.PublicOrigin }.Concat(_options.RedirectOrigins).Any(o => o.GetLeftPart(UriPartial.Authority) == next.GetLeftPart(UriPartial.Authority)))
                 {
                     return PublicSymbolStatus.Invalid;

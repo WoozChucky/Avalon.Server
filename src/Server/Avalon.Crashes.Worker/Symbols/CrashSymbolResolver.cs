@@ -43,6 +43,14 @@ public sealed class CrashSymbolResolver
             throw new CrashSymbolException(CrashFailureCode.RuntimeIdentityMismatch);
         }
         ModuleIdentity runtime = runtimes[0];
+        // Native Breakpad lookup cannot distinguish images sharing a debug key, even at different load ranges.
+        // Include ineligible modules: native stackwalking can still look up their debug keys.
+        var ambiguousKeys = input.Modules.Where(m => m.PdbName is not null && m.PdbKey is not null)
+            .GroupBy(DebugKey, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Select(m => m.Name + "/" + m.ImageKey).Distinct(StringComparer.OrdinalIgnoreCase).Skip(1).Any())
+            .Select(group => group.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (ambiguousKeys.Contains(DebugKey(runtime)))
+            throw new CrashSymbolException(CrashFailureCode.InvalidAnalysis);
         bool uploadFailed = await ResolveModuleAsync(runtime, workspace, budget, true, ct);
         var available = new List<ModuleIdentity> { runtime };
         CrashQualityFlags quality = input.Quality;
@@ -56,6 +64,7 @@ public sealed class CrashSymbolResolver
             if (module == runtime)
                 continue;
             if (!_options.PublicEnabled || !PublicSymbolClient.IsEligible(module)
+                || ambiguousKeys.Contains(DebugKey(module))
                 || string.Equals(module.PdbKey, runtime.PdbKey, StringComparison.OrdinalIgnoreCase)
                 || modules >= _options.PublicModules || deadline.IsCancellationRequested)
             {
@@ -88,6 +97,8 @@ public sealed class CrashSymbolResolver
         return new(Path.Combine(workspace.DirectoryPath, "symbols"), quality,
             new(CrashSymbolOptions.StackwalkVersion, CrashSymbolOptions.ConverterVersion, _options.CacheVersion), available.AsReadOnly(), uploadFailed);
     }
+
+    private static string DebugKey(ModuleIdentity module) => module.PdbName + "/" + module.PdbKey;
 
     private async Task<bool> ResolveModuleAsync(ModuleIdentity module, CrashAttemptWorkspace main, SymbolDownloadBudget budget, bool required, CancellationToken ct)
     {

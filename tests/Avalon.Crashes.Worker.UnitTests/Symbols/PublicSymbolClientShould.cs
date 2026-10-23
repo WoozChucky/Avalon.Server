@@ -11,6 +11,33 @@ public sealed class PublicSymbolClientShould
     private static readonly ModuleIdentity s_module = SymbolIdentityValidatorShould.s_runtime with { Name = "ntdll.dll", PdbName = "ntdll.pdb" };
 
     [Theory]
+    [InlineData("https://arbitrary.example/", false)]
+    [InlineData("https://127.0.0.1/", false)]
+    [InlineData("https://msdl.microsoft.com/other-path/", false)]
+    [InlineData("https://arbitrary.example/", true)]
+    [InlineData("https://msdl.microsoft.com:8443/", true)]
+    public void Should_reject_configuration_outside_code_approved_origins(string origin, bool redirect)
+    {
+        using var handler = new Handler(_ => new(HttpStatusCode.NotFound));
+        CrashSymbolOptions options = redirect ? new CrashSymbolOptions { RedirectOrigins = [new(origin)] } : new CrashSymbolOptions { PublicOrigin = new(origin) };
+        CrashSymbolException error = Assert.Throws<CrashSymbolException>(() => new PublicSymbolClient(handler, options));
+        Assert.Equal(CrashFailureCode.ConfigurationInvalid, error.Code);
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Fact]
+    public async Task Should_allow_only_the_approved_microsoft_origin_subset()
+    {
+        using var handler = new Handler(request => request.RequestUri!.AbsolutePath.EndsWith("/redirected", StringComparison.Ordinal)
+            ? new(HttpStatusCode.NotFound)
+            : new(HttpStatusCode.Redirect) { Headers = { Location = new Uri("https://msdl.microsoft.com/redirected") } });
+        using var client = new PublicSymbolClient(handler, new() { RedirectOrigins = [new("https://msdl.microsoft.com/")] });
+        await using CrashAttemptWorkspace attempt = await Workspace().CreateAsync(Guid.NewGuid(), default);
+        Assert.Equal(PublicSymbolStatus.NotFound, (await client.FetchAsync(s_module, attempt, new(), default)).Status);
+        Assert.Equal(2, handler.Calls);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Should_bound_headers_redirects_and_body_together_and_preserve_cancellation(bool cancel)

@@ -12,6 +12,69 @@ namespace Avalon.Crashes.Worker.UnitTests.Symbols;
 
 public sealed class CrashSymbolResolverShould
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Should_omit_all_conflicting_breakpad_keys_before_materializing(bool reverse, bool ineligibleConflict)
+    {
+        await using var fixture = new Fixture();
+        ModuleIdentity runtime = SymbolIdentityValidatorShould.s_runtime;
+        ModuleIdentity first = runtime with { Name = "ntdll.dll", PdbName = "ntdll.pdb", PdbKey = "112233445566778899AABBCCDDEEFF001", BaseAddress = 0x20000 };
+        ModuleIdentity second = first with { Name = ineligibleConflict ? "helper.dll" : first.Name, ImageKey = "876543211000", BaseAddress = 0x30000 };
+        fixture.Store.RemoteFor = module => module.Name == "runtime.exe" ? null : SymbolCacheShould.Content(module);
+        await using CrashAttemptWorkspace attempt = await fixture.Workspaces.CreateAsync(Guid.NewGuid(), default);
+        string dump = await attempt.WriteAsync("dump.dmp", new byte[] { 1 }, default);
+        CrashInput input = Input(dump) with { Modules = reverse ? [runtime, second, first] : [runtime, first, second] };
+
+        SymbolResolution result = await fixture.Resolver.ResolveAsync(input, attempt, new(), default);
+
+        Assert.False(File.Exists(Path.Combine(result.BreakpadRoot, first.PdbName!, first.PdbKey!, "ntdll.sym")));
+        Assert.Equal(runtime, Assert.Single(result.AvailableModules));
+        Assert.DoesNotContain(first, result.AvailableModules);
+        Assert.DoesNotContain(second, result.AvailableModules);
+        Assert.Equal(CrashQualityFlags.MissingSystemSymbols, result.Quality);
+        Assert.True(File.Exists(dump));
+        Assert.True(File.Exists(Path.Combine(result.BreakpadRoot, runtime.PdbName!, runtime.PdbKey!, "runtime.sym")));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Should_share_symbols_for_one_binary_loaded_at_distinct_addresses(bool differentNameCase)
+    {
+        await using var fixture = new Fixture();
+        ModuleIdentity runtime = SymbolIdentityValidatorShould.s_runtime;
+        ModuleIdentity first = runtime with { Name = "ntdll.dll", PdbName = "ntdll.pdb", PdbKey = "112233445566778899AABBCCDDEEFF001", BaseAddress = 0x20000 };
+        ModuleIdentity second = first with { Name = differentNameCase ? "NTDLL.DLL" : first.Name, BaseAddress = 0x30000, Version = "diagnostic-version" };
+        fixture.Store.RemoteFor = module => module.Name == "runtime.exe" ? null : SymbolCacheShould.Content(module);
+        await using CrashAttemptWorkspace attempt = await fixture.Workspaces.CreateAsync(Guid.NewGuid(), default);
+
+        SymbolResolution result = await fixture.Resolver.ResolveAsync(Input("dump.dmp") with { Modules = [runtime, first, second] }, attempt, new(), default);
+
+        Assert.Equal(3, result.AvailableModules.Count);
+        Assert.Contains(first, result.AvailableModules);
+        Assert.Contains(second, result.AvailableModules);
+        Assert.Equal(CrashQualityFlags.None, result.Quality);
+        Assert.Single(Directory.GetFiles(result.BreakpadRoot, "ntdll.sym", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public async Task Should_reject_conflicting_required_runtime_key_before_materializing()
+    {
+        await using var fixture = new Fixture();
+        ModuleIdentity runtime = SymbolIdentityValidatorShould.s_runtime;
+        ModuleIdentity conflict = runtime with { Name = "helper.dll", ImageKey = "876543211000", BaseAddress = 0x20000 };
+        await using CrashAttemptWorkspace attempt = await fixture.Workspaces.CreateAsync(Guid.NewGuid(), default);
+        string dump = await attempt.WriteAsync("dump.dmp", new byte[] { 1 }, default);
+
+        CrashSymbolException error = await Assert.ThrowsAsync<CrashSymbolException>(() => fixture.Resolver.ResolveAsync(Input(dump) with { Modules = [runtime, conflict] }, attempt, new(), default));
+
+        Assert.Equal(CrashFailureCode.InvalidAnalysis, error.Code);
+        Assert.False(Directory.Exists(Path.Combine(attempt.DirectoryPath, "symbols")));
+        Assert.True(File.Exists(dump));
+    }
+
     [Fact]
     public async Task Should_preserve_runtime_success_when_optional_database_lock_fails()
     {
@@ -199,6 +262,7 @@ public sealed class CrashSymbolResolverShould
         public int Uploads { get; private set; }
         public bool Mismatch { get; set; }
         public string? Remote { get; set; }
+        public Func<ModuleIdentity, string?>? RemoteFor { get; set; }
         public Func<ModuleIdentity, CancellationToken, Task>? BeforeConverted { get; set; }
         public async Task DownloadOriginalAsync(ModuleIdentity identity, bool pdb, string destination, long maxBytes, SymbolDownloadBudget budget, CancellationToken ct)
         {
@@ -211,9 +275,10 @@ public sealed class CrashSymbolResolverShould
         {
             if (BeforeConverted is not null)
                 await BeforeConverted(identity, ct);
-            await File.WriteAllTextAsync(destination, Remote ?? "", ct);
-            return Remote is null ? null : new(identity.Name, identity.ImageKey, identity.PdbName!, identity.PdbKey!, cacheVersion,
-                CrashSymbolOptions.ConverterVersion, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Remote))), Encoding.UTF8.GetByteCount(Remote));
+            string? remote = RemoteFor is null ? Remote : RemoteFor(identity);
+            await File.WriteAllTextAsync(destination, remote ?? "", ct);
+            return remote is null ? null : new(identity.Name, identity.ImageKey, identity.PdbName!, identity.PdbKey!, cacheVersion,
+                CrashSymbolOptions.ConverterVersion, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(remote))), Encoding.UTF8.GetByteCount(remote));
         }
         public Task UploadConvertedAsync(ModuleIdentity identity, SymbolCacheMetadata metadata, string source, CancellationToken ct)
         {
