@@ -1188,28 +1188,28 @@ public class CreatureCombatScriptShould
         AssertEvery(1.5, SwingTimes(new Avalon.World.Entities.Creature { BaseAttackTime = 1.5f }, 10));
     }
 
-    /// <summary>#627: creature haste divides the interval, up to the cap fixed at spawn.</summary>
+    /// <summary>#627, #1178: creature attack speed divides the interval, up to the cap fixed at spawn.</summary>
     [Fact]
-    public void Swing_faster_with_haste_up_to_the_cap()
+    public void Swing_faster_with_attack_speed_up_to_the_cap()
     {
-        AssertEvery(1.5, SwingTimes(new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, HasteCap = 50f, HastePct = 50f }, 10));
-        AssertEvery(1.5, SwingTimes(new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, HasteCap = 50f, HastePct = 200f }, 10));
-        AssertEvery(2.25, SwingTimes(new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, HasteCap = 50f, HastePct = -20f }, 10));
+        AssertEvery(1.5, SwingTimes(new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, AttackSpeedCap = 50f, AttackSpeedPct = 50f }, 10));
+        AssertEvery(1.5, SwingTimes(new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, AttackSpeedCap = 50f, AttackSpeedPct = 200f }, 10));
+        AssertEvery(2.25, SwingTimes(new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, AttackSpeedCap = 50f, AttackSpeedPct = -20f }, 10));
     }
 
     /// <summary>
-    /// Review focus 3: haste gained right after a swing leaves the countdown in progress alone, neither reset
+    /// Review focus 3: attack speed gained right after a swing leaves the countdown in progress alone, neither reset
     /// nor doubled, and shortens every interval from the next swing on.
     /// </summary>
     [Fact]
-    public void Apply_a_haste_change_right_after_a_swing_from_the_next_interval()
+    public void Apply_an_attack_speed_change_right_after_a_swing_from_the_next_interval()
     {
-        var real = new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, HasteCap = 50f };
+        var real = new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, AttackSpeedCap = 50f };
 
         List<double> swings = SwingTimes(real, 7, at: t =>
         {
             if (t == SwingTick)
-                real.HastePct = 50f;
+                real.AttackSpeedPct = 50f;
         });
 
         Assert.Equal(0d, swings[0]);
@@ -1263,7 +1263,7 @@ public class CreatureCombatScriptShould
     {
         ICreatureLocomotion locomotion = Substitute.For<ICreatureLocomotion>();
         ICombatService combat = Substitute.For<ICombatService>();
-        var real = new Avalon.World.Entities.Creature { BaseAttackTime = baseAttackTime, HasteCap = 50f, HastePct = haste };
+        var real = new Avalon.World.Entities.Creature { BaseAttackTime = baseAttackTime, AttackSpeedCap = 50f, AttackSpeedPct = haste };
         (CreatureCombatScript script, _, _) =
             BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
         var swingTicks = new List<int>();

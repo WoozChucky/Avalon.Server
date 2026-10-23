@@ -20,10 +20,9 @@ public static class CombatSeed
         BlockMultiplier = 0.5f,
         CritCap = 50f,
         BlockCap = 50f,
-        // #627: haste counts up to 50 %, and gear moves a character between half and 1.35 times the base
+        // #627: gear moves a character between half and 1.35 times the base
         // 4 m/s. The cap is owner-set to keep a whole change from the base under the client's snap:
         // 4 x 0.35 x 0.1 s = 0.14 m of drift over a round trip, below 0.15 m.
-        HasteCap = 50f,
         MoveSpeedCap = 35f,
         MoveSpeedFloor = -50f,
         // #1178: evasion has armour's shape. These constants keep each class's former base dodge as evasion from Agility

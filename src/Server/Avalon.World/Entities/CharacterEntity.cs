@@ -110,11 +110,12 @@ public partial class CharacterEntity : ICharacter
     private float MovementSpeed { get; set; } = CharacterMovement.BaseSpeed;
 
     /// <summary>
-    /// The haste this character casts with (#627), in percentage points: its gear's AttackSpeed total, from 0
-    /// up to the combat formula's HasteCap, fixed at the last stats refresh. The cast system reads it once
-    /// per cast. World-side and read-only, not on ICharacter: the modding API cannot change it (#622).
+    /// The speeds this character casts with and its basic attack time (#1178): its offence block's attack speed, cast speed
+    /// and cooldown recovery, each from 0 up to the combat formula's cap, and its main hand's attack time (the bare hand's
+    /// with none), fixed at the last stats refresh. The cast system reads it once per cast. World-side and read-only, not on
+    /// ICharacter: the modding API cannot change it (#622).
     /// </summary>
-    public float EffectiveHastePct { get; private set; }
+    internal CasterPace Pace { get; private set; }
 
     public DateTime EnteredWorld { get; set; }
 
@@ -132,7 +133,7 @@ public partial class CharacterEntity : ICharacter
     /// (#526): EnterWorld empties it, and Refill and KeepShare keep its value, capped at the new maximum.
     /// </summary>
     /// <param name="formula">
-    /// Bounds haste and movement speed (#627): the current generation's, so a /reload combat reaches the
+    /// Bounds the speeds (#1178) and movement speed (#627): the current generation's, so a /reload combat reaches the
     /// character at this refresh. Required, so no caller can fall back to the seeded values unnoticed.
     /// </param>
     public void ApplyStats(DerivedCharacterStats stats, CurrentValues current, Avalon.Domain.World.CombatFormula formula)
@@ -188,8 +189,8 @@ public partial class CharacterEntity : ICharacter
         Stamina = stats.Stamina;
         RegenStat = PowerRegen.StatOf(Class, stats);
 
-        // #627: both bounded by the formula this refresh read, so a combat reload reaches them at the next refresh.
-        EffectiveHastePct = stats.EffectiveHastePct(formula);
+        // #627, #1178: bounded by the formula this refresh read, so a combat reload reaches them at the next refresh.
+        Pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, formula);
         MovementSpeed = CharacterMovement.SpeedFor(stats.MovementSpeedPct, formula);
 
         Stats = stats;

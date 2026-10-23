@@ -30,8 +30,7 @@ public static class CombatDataRules
         if (!(f.ArmorBase + f.ArmorPerLevel > 0f))
             throw new InvalidDataException("CombatFormula 1: ArmorBase + ArmorPerLevel must be above 0");
 
-        // #627: a speed at or below -100 % would stop a character dead, or reverse it.
-        RequireNonNegative("CombatFormula 1", nameof(f.HasteCap), f.HasteCap);
+        // #627: a movement speed at or below -100 % would stop a character dead, or reverse it.
         if (!float.IsFinite(f.MoveSpeedCap) || !float.IsFinite(f.MoveSpeedFloor)
             || !(f.MoveSpeedFloor > -100f) || !(f.MoveSpeedFloor <= f.MoveSpeedCap))
         {

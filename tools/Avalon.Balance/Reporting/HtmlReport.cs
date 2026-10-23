@@ -233,7 +233,7 @@ public static class HtmlReport
         sb.Append("<p>Health ").Append(s.Health).Append(" &middot; power ").Append(s.Power).Append(" &middot; attack ").Append(s.AttackDamage)
           .Append(" &middot; ability ").Append(s.AbilityDamage).Append(" &middot; armour ").Append(s.Armor)
           .Append(" &middot; crit ").Append(V(s.CritPct)).Append(" % &middot; evasion ").Append(s.Evasion)
-          .Append(" &middot; block ").Append(V(s.BlockPct)).Append(" % &middot; haste ").Append(V(s.HastePct)).Append(" %</p>");
+          .Append(" &middot; block ").Append(V(s.BlockPct)).Append(" %</p>");
         sb.Append("<table><tr><th>Ability</th><th>Per hit</th></tr>");
         foreach (AbilityLine a in s.Abilities)
             sb.Append("<tr><td>").Append(E(a.Name)).Append("</td><td>").Append(a.Min).Append('-').Append(a.Max).Append(' ').Append(E(a.Kind)).Append("</td></tr>");

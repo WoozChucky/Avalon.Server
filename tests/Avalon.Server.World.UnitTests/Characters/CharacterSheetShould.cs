@@ -79,12 +79,15 @@ public class CharacterSheetShould
         Assert.Equal((5f, 20f, 3f, 3u, 7u), (sheet.CritPct, sheet.EvasionPct, sheet.BlockPct, sheet.WeaponMin, sheet.WeaponMax));
     }
 
-    /// <summary>#627: the sheet shows the haste a cast actually uses, capped, and the speed the input step moves at.</summary>
+    /// <summary>
+    /// #627, #1178: the sheet shows the attack speed a basic attack actually uses, capped (in its HastePct field until the
+    /// sheet carries all three speeds), and the speed the input step moves at.
+    /// </summary>
     [Fact]
-    public void Carry_the_effective_haste_and_the_movement_speed()
+    public void Carry_the_effective_attack_speed_and_the_movement_speed()
     {
         CharacterEntity character = New();
-        character.ApplyStats(Stats() with { HastePct = 80f, MovementSpeedPct = 10f }, CurrentValues.EnterWorld, s_seeded.Formula);
+        character.ApplyStats(Stats() with { Offence = new OffenceStats { AttackSpeedPct = 80f }, MovementSpeedPct = 10f }, CurrentValues.EnterWorld, s_seeded.Formula);
         var sent = new List<OutboundPacket>();
 
         CharacterSheetFlusher.Flush(Recording(character, sent), s_seeded);
@@ -94,11 +97,11 @@ public class CharacterSheetShould
         Assert.Equal(4.4f, sheet.MovementSpeed, precision: 5);
     }
 
-    /// <summary>#627: a refresh that moves only the haste, or only the movement speed, is a change the owner is sent.</summary>
+    /// <summary>#627: a refresh that moves only the attack speed, or only the movement speed, is a change the owner is sent.</summary>
     [Theory]
     [InlineData(3f, 0f)]
     [InlineData(0f, 10f)]
-    public void Send_a_sheet_when_only_the_haste_or_only_the_movement_speed_changes(float haste, float movement)
+    public void Send_a_sheet_when_only_the_attack_speed_or_only_the_movement_speed_changes(float attackSpeed, float movement)
     {
         CharacterEntity character = New();
         character.ApplyStats(Stats(), CurrentValues.EnterWorld, s_seeded.Formula);
@@ -106,13 +109,13 @@ public class CharacterSheetShould
         IWorldConnection connection = Recording(character, sent);
         CharacterSheetFlusher.Flush(connection, s_seeded);
 
-        character.ApplyStats(Stats() with { HastePct = haste, MovementSpeedPct = movement }, CurrentValues.KeepShare, s_seeded.Formula);
+        character.ApplyStats(Stats() with { Offence = new OffenceStats { AttackSpeedPct = attackSpeed }, MovementSpeedPct = movement }, CurrentValues.KeepShare, s_seeded.Formula);
         CharacterSheetFlusher.Flush(connection, s_seeded);
 
         List<SCharacterStatsPacket> sheets = Sheets(sent);
         Assert.Equal(2, sheets.Count);
         Assert.Equal((0f, 4f), (sheets[0].HastePct, sheets[0].MovementSpeed));
-        Assert.Equal(haste, sheets[1].HastePct);
+        Assert.Equal(attackSpeed, sheets[1].HastePct);
         Assert.Equal(4f * (1f + movement / 100f), sheets[1].MovementSpeed, precision: 5);
     }
 

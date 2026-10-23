@@ -13,7 +13,7 @@ public class ReportsShould
     private static RowResult Row(CharacterClass c, ushort level, double win) =>
         new(new RowKey(c, level, "forest", "normal-3"), 10, win, new Distribution(15, 20, 25), new Distribution(40, 50, 60),
             new Distribution(1, 1.5, 2), new Distribution(2, 3, 4.25), new Dictionary<string, double> { ["Cleave, the \"big\" one"] = 120.5 }, new Dictionary<string, double> { ["Grey Fen Wolf: Bite"] = 80 },
-            new PlayerSnapshot(300, 100, 50, 4, 20, 5, 22, 5, 3, [new AbilityLine("Cleave", "Damage", 30, 36)]));
+            new PlayerSnapshot(300, 100, 50, 4, 20, 5, 22, 5, [new AbilityLine("Cleave", "Damage", 30, 36)]));
 
     private static ReportContext Context(params RowResult[] rows)
     {

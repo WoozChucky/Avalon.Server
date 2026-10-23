@@ -16,7 +16,6 @@ public class PeriodicHitShould
         BlockMultiplier = 0.5f,
         CritCap = 50f,
         BlockCap = 50f,
-        HasteCap = 50f,
         MoveSpeedCap = 35f,
         MoveSpeedFloor = -50f,
         EvasionBase = 560f,

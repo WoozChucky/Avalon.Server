@@ -8,7 +8,7 @@ namespace Avalon.Balance.UnitTests;
 public class GraderShould
 {
     private static readonly string s_balanceDir = Path.Combine(RepositoryRoot.Find(), "balance");
-    private static readonly PlayerSnapshot s_noSnapshot = new(1, 1, 0, 0, 0, 0, 0, 0, 0, []);
+    private static readonly PlayerSnapshot s_noSnapshot = new(1, 1, 0, 0, 0, 0, 0, 0, []);
 
     private static ScenarioFile Scenarios() => ConfigFileStore.Load(Path.Combine(s_balanceDir, "scenarios.json"), ConfigFiles.ParseScenarios);
 

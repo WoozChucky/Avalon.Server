@@ -121,7 +121,7 @@ public class CombatRulesShould
     }
 
     [Fact]
-    public void Cap_a_creatures_haste_for_cast_times_and_cooldowns()
+    public void Cap_a_creatures_speeds_for_cast_times_and_cooldowns()
     {
         CreatureTemplate alpha = Data.Creature(8);   // Bramblemaw Alpha: Howling Roar winds up for 1 s
         var hasty = new SimCreature
@@ -129,12 +129,17 @@ public class CombatRulesShould
             Name = "hasty",
             Template = alpha,
             Derived = Data.CreatureStats.Derive(alpha, 1),
-            HasteCap = 50f,
-            HastePct = 80f,
+            AttackSpeedCap = 50f,
+            CastSpeedCap = 50f,
+            CooldownRecoveryCap = 50f,
+            AttackSpeedPct = 80f,
+            CastSpeedPct = 80f,
+            CooldownRecoveryPct = 80f,
         };
         var roar = new SimAbility(Data.Abilities.TryGetValue(new AbilityId(310), out AbilityTemplate? row) ? row : throw new InvalidOperationException());
 
-        Assert.Equal(50f, CombatRules.EffectiveHaste(hasty));
+        Assert.Equal((50f, 50f, 50f), (CombatRules.PaceOf(hasty).AttackSpeedPct, CombatRules.PaceOf(hasty).CastSpeedPct,
+            CombatRules.PaceOf(hasty).CooldownRecoveryPct));
         Assert.Equal(roar.Metadata.CastTime / 1.5f, CombatRules.CastTime(hasty, roar), precision: 5);
         Assert.Equal(roar.Metadata.Cooldown / 1.5f, CombatRules.CooldownAfterFire(hasty, roar), precision: 5);
         Assert.Equal(2.25f / 1.5f, hasty.SwingInterval, precision: 5);
@@ -151,12 +156,12 @@ public class CombatRulesShould
     }
 
     [Fact]
-    public void Divide_a_characters_cooldown_by_its_haste()
+    public void Pace_a_characters_basic_attack_by_its_weapon_and_agility()
     {
-        SimPlayer warrior = Warrior(1, 7);   // Bramblesteel Sword: 3 % haste
+        SimPlayer warrior = Warrior(1, 7);   // Bramblesteel Sword: 792 ms; Agility 20: 2 % attack speed
 
-        Assert.Equal(3f, warrior.HastePct);
-        Assert.Equal(0.8f / 1.03f, CombatRules.CooldownAfterFire(warrior, warrior.Ability(200)), precision: 5);
+        Assert.Equal(2f, warrior.Pace.AttackSpeedPct, precision: 5);
+        Assert.Equal(0.792f / 1.02f, CombatRules.CooldownAfterFire(warrior, warrior.Ability(200)), precision: 5);
     }
 
     [Fact]

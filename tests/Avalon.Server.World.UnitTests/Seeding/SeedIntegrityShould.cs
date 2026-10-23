@@ -1282,52 +1282,85 @@ public class SeedIntegrityShould
         double evadePct = HitResolver.EvasionChance(evasion, (uint)level, formula) * 100d;
         Assert.InRange(evadePct, todayPct - 0.5, todayPct + 0.5);
     }
-    /// <summary>#627: the haste cap and the movement speed bounds, in percentage points.</summary>
+    /// <summary>#627: the movement speed bounds, in percentage points.</summary>
     [Fact]
-    public void Seed_the_haste_cap_and_the_movement_speed_bounds()
+    public void Seed_the_movement_speed_bounds()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         CombatFormula f = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
-        Assert.Equal((50f, 35f, -50f), (f.HasteCap, f.MoveSpeedCap, f.MoveSpeedFloor));
+        Assert.Equal((35f, -50f), (f.MoveSpeedCap, f.MoveSpeedFloor));
     }
 
     /// <summary>
-    /// #627: a weapon's AttackSpeed is a haste percentage, set by weapon type: swords and bows 3, maces 2,
-    /// staves 0. A staff keeps its AttackSpeed pair, at 0.
+    /// #1178 (B-R9): a weapon's old haste pair is folded into its attack time, so each weapon's attribute moves to its
+    /// first stat and nothing follows it; the Rusted Sword, which had only the haste, carries no stat.
     /// </summary>
     [Theory]
-    [InlineData(4ul, 3u)]   // Rusted Sword
-    [InlineData(7ul, 3u)]   // Bramblesteel Sword
-    [InlineData(32ul, 3u)]  // Ironwood Sword
-    [InlineData(6ul, 3u)]   // Briarstring Bow
-    [InlineData(34ul, 3u)]  // Hunter's Shortbow
-    [InlineData(8ul, 2u)]   // Rootknot Mace
-    [InlineData(35ul, 2u)]  // Oak Mace
-    [InlineData(5ul, 0u)]   // Thornwood Staff
-    [InlineData(33ul, 0u)]  // Ash Staff
-    public void Seed_each_weapons_attack_speed_as_a_haste_percentage(ulong id, uint haste)
+    [InlineData(4ul, null, null)]                   // Rusted Sword
+    [InlineData(7ul, StatType.Strength, 1u)]        // Bramblesteel Sword
+    [InlineData(32ul, StatType.Strength, 1u)]       // Ironwood Sword
+    [InlineData(6ul, StatType.Agility, 1u)]         // Briarstring Bow
+    [InlineData(34ul, StatType.Agility, 1u)]        // Hunter's Shortbow
+    [InlineData(8ul, StatType.Intellect, 1u)]       // Rootknot Mace
+    [InlineData(35ul, StatType.Intellect, 1u)]      // Oak Mace
+    [InlineData(5ul, StatType.Intellect, 1u)]       // Thornwood Staff
+    [InlineData(33ul, StatType.Intellect, 1u)]      // Ash Staff
+    public void Seed_each_weapons_attribute_as_its_first_stat(ulong id, StatType? stat, uint? value)
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
-        Assert.Equal((StatType?)StatType.AttackSpeed, item.StatType1);
-        Assert.Equal((uint?)haste, item.StatValue1);
+        Assert.Equal((stat, value, (StatType?)null, (uint?)null), (item.StatType1, item.StatValue1, item.StatType2, item.StatValue2));
     }
 
-    /// <summary>#627: every seeded weapon is one of the nine above, and no seeded item carries MovementSpeed.</summary>
+    /// <summary>#1178: a weapon's speed is its attack time, so no seeded item carries attack speed, nor movement speed.</summary>
     [Fact]
-    public void Seed_attack_speed_on_the_nine_weapons_only_and_movement_speed_on_nothing()
+    public void Seed_attack_speed_and_movement_speed_on_no_item()
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         var items = context.ItemTemplates.AsNoTracking().ToList();
-        Assert.Equal([4ul, 5ul, 6ul, 7ul, 8ul, 32ul, 33ul, 34ul, 35ul],
-            items.Where(i => StatTypesOf(i).Contains(StatType.AttackSpeed)).Select(i => i.Id.Value).Order());
+        Assert.DoesNotContain(items, i => StatTypesOf(i).Contains(StatType.AttackSpeed));
         Assert.DoesNotContain(items, i => StatTypesOf(i).Contains(StatType.MovementSpeed));
+    }
+
+    /// <summary>
+    /// #1178 (B-R9, table C): each class's basic attack, now paced by its weapon's attack time over Agility's attack speed,
+    /// keeps today's pace (800 ms over the weapon's old haste) through the stats calculator over the seeded rows, with the
+    /// balance tool's starter profile (the class's starter weapon and five armour pieces) or bare-handed.
+    /// </summary>
+    [Theory]
+    [InlineData(CharacterClass.Warrior, (ushort)1, true, 776.7, 0.1)]
+    [InlineData(CharacterClass.Hunter, (ushort)1, true, 776.7, 0.1)]
+    [InlineData(CharacterClass.Warrior, (ushort)1, false, 800.0, 0.1)]
+    [InlineData(CharacterClass.Warrior, (ushort)10, true, 776.7, 1.5)]
+    [InlineData(CharacterClass.Hunter, (ushort)10, true, 776.7, 2.0)]
+    public void Carry_todays_basic_attack_pace_over(CharacterClass c, ushort level, bool starter, double todayMs,
+        double tolerancePct)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
+        ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().AsEnumerable().Single(f => f.Class == c);
+        ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
+        ulong[] starterIds = c == CharacterClass.Warrior ? [32, 36, 37, 38, 39, 40] : [34, 46, 47, 48, 49, 50];
+        List<ItemTemplate> worn = starter
+            ? context.ItemTemplates.AsNoTracking().AsEnumerable().Where(i => starterIds.Contains(i.Id.Value)).ToList()
+            : [];
+        Assert.Equal(starter ? 6 : 0, worn.Count);
+        AbilityTemplate basic = context.AbilityTemplates.AsNoTracking().AsEnumerable()
+            .Single(a => (a.Flags & AbilityFlags.Basic) != 0 && a.AllowedClasses!.Contains(c));
+
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, factors, formula);
+        var pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, formula);
+        double paceMs = AbilityPace.Cooldown(AbilityMetadataMapper.From(basic), pace) * 1000d;
+
+        Assert.InRange(Math.Abs(paceMs - todayMs) / todayMs * 100d, 0d, tolerancePct);
     }
 
     private static StatType?[] StatTypesOf(ItemTemplate i) =>

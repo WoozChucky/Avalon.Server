@@ -93,7 +93,7 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world, IOption
         // town NPC's flag stays as it was until the server restarts.
         IDialogueCatalog dialogue = world.Data.Dialogue;
 
-        // The combat area too (#627): the haste cap and movement bounds are fixed at spawn, like its stats.
+        // The combat area too (#627): the speed caps and movement bounds are fixed at spawn, like its stats.
         CombatFormula formula = world.Data.Combat.Formula;
 
         CreatureTemplate? template = creatures.Templates.FirstOrDefault(t => t.Id == templateId);
@@ -138,7 +138,9 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world, IOption
             BaseWard = stats.Ward,   // fills the ward (#1178)
             WardRegen = _regen,
             BaseAttackTime = template.BaseAttackTime,
-            HasteCap = formula.HasteCap,
+            AttackSpeedCap = formula.AttackSpeedCap,
+            CastSpeedCap = formula.CastSpeedCap,
+            CooldownRecoveryCap = formula.CooldownRecoveryCap,
             ControlResistance = ControlResistance.Of(template, creatures.Rarities),
             MoveSpeedFloor = formula.MoveSpeedFloor,
             MoveSpeedCap = formula.MoveSpeedCap,

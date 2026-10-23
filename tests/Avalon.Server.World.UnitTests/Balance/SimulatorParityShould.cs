@@ -88,7 +88,9 @@ public class SimulatorParityShould
             Evasion = twin.Derived.Evasion,
             BlockPct = twin.Derived.BlockPct,
             BaseAttackTime = twin.Template.BaseAttackTime,
-            HasteCap = Data.Combat.Formula.HasteCap,
+            AttackSpeedCap = Data.Combat.Formula.AttackSpeedCap,
+            CastSpeedCap = Data.Combat.Formula.CastSpeedCap,
+            CooldownRecoveryCap = Data.Combat.Formula.CooldownRecoveryCap,
         };
         creature.Script = new CombatResolutionShould.CountingWoundScript(creature);
         instance.AddCreature(creature);
@@ -115,7 +117,7 @@ public class SimulatorParityShould
         var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
 
         Assert.Equal(real.Character.Stats, sim.Stats);
-        Assert.Equal(real.Character.EffectiveHastePct, sim.HastePct);
+        Assert.Equal(Internal<CasterPace>(real.Character, "Pace"), sim.Pace);
         Assert.Equal(real.Character.RegenStat, sim.RegenStat);
         Assert.Equal(Internal<AttackerCombat>(real.Character, "Combat"), sim.Attack);
         Assert.Equal(Internal<DefenderCombat>(real.Character, "Defence"), sim.Defence);
@@ -144,7 +146,7 @@ public class SimulatorParityShould
                 Assert.Equal(Internal<AttackerCombat>(real, "Combat"), sim.Attack);
                 Assert.Equal(Internal<DefenderCombat>(real, "Defence"), sim.Defence);
                 Assert.Equal(real.Health, sim.Health);
-                Assert.Equal(real.HasteCap, sim.HasteCap);
+                Assert.Equal(Internal<CasterPace>(real, "Pace"), sim.Pace);
                 Assert.Equal(real.SwingInterval, sim.SwingInterval);
             }
         }
@@ -625,7 +627,7 @@ public class SimulatorParityShould
         sim.ApplyAuraStats(Data);
 
         Assert.Equal(real.Character.Stats, sim.Stats);
-        Assert.Equal(real.Character.EffectiveHastePct, sim.HastePct);
+        Assert.Equal(Internal<CasterPace>(real.Character, "Pace"), sim.Pace);
         Assert.Equal(real.Character.RegenStat, sim.RegenStat);
         Assert.Equal(Internal<AttackerCombat>(real.Character, "Combat"), sim.Attack);
         Assert.Equal(Internal<DefenderCombat>(real.Character, "Defence"), sim.Defence);
@@ -752,7 +754,7 @@ public class SimulatorParityShould
     public void Swing_on_the_same_interval_as_a_spawned_creature()
     {
         var sim = SimCreature.Create(Data, Data.Creature(4), Level, 0);
-        var real = new Creature { BaseAttackTime = sim.Template.BaseAttackTime, HasteCap = Data.Combat.Formula.HasteCap };
+        var real = new Creature { BaseAttackTime = sim.Template.BaseAttackTime, AttackSpeedCap = Data.Combat.Formula.AttackSpeedCap };
 
         Assert.Equal(real.SwingInterval, sim.SwingInterval);
         Assert.Equal(real.SwingInterval, CombatRules.CooldownAfterFire(sim, sim.Basic!));

@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Avalon.Api.Contract;
 
-/// <summary>A stat an aura modifies (auras): the stored numbers, so values are only ever appended.</summary>
+/// <summary>A stat an aura modifies (auras): the stored numbers, a retired one (7, haste) never reused.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum AuraStat
 {
@@ -14,7 +14,6 @@ public enum AuraStat
     /// <summary>Evasion rating (#1178), formerly the dodge chance.</summary>
     Evasion = 5,
     BlockPct = 6,
-    HastePct = 7,
     MovementSpeed = 8,
     MaxHealth = 9,
     MaxPower = 10,

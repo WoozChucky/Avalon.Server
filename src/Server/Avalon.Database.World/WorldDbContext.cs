@@ -1631,9 +1631,7 @@ public class WorldDbContext : DbContext
                 DamageMin1 = 1,
                 DamageMax1 = 3,
                 DamageType1 = DamageType.Physical,
-                AttackTimeMs = 792,
-                StatType1 = StatType.AttackSpeed,
-                StatValue1 = 3 // haste %, a sword's (#627)
+                AttackTimeMs = 792
             },
             // The forest pools (issue #460). Items 5-31 can be sold (owner decision), so they carry no
             // NoSell. Items 5-8: one weapon per class, the group in loot table 9.
@@ -1658,10 +1656,8 @@ public class WorldDbContext : DbContext
                 DamageMax1 = 14,
                 DamageType1 = DamageType.Physical,
                 AttackTimeMs = 800,
-                StatType1 = StatType.AttackSpeed,
-                StatValue1 = 0, // haste %, a staff's (#627)
-                StatType2 = StatType.Intellect,
-                StatValue2 = 1
+                StatType1 = StatType.Intellect,
+                StatValue1 = 1
             }, new ItemTemplate
             {
                 Id = 6,
@@ -1682,10 +1678,8 @@ public class WorldDbContext : DbContext
                 DamageMax1 = 11,
                 DamageType1 = DamageType.Physical,
                 AttackTimeMs = 801,
-                StatType1 = StatType.AttackSpeed,
-                StatValue1 = 3, // haste %, a bow's (#627)
-                StatType2 = StatType.Agility,
-                StatValue2 = 1
+                StatType1 = StatType.Agility,
+                StatValue1 = 1
             }, new ItemTemplate
             {
                 Id = 7,
@@ -1706,10 +1700,8 @@ public class WorldDbContext : DbContext
                 DamageMax1 = 11,
                 DamageType1 = DamageType.Physical,
                 AttackTimeMs = 792,
-                StatType1 = StatType.AttackSpeed,
-                StatValue1 = 3, // haste %, a sword's (#627)
-                StatType2 = StatType.Strength,
-                StatValue2 = 1
+                StatType1 = StatType.Strength,
+                StatValue1 = 1
             }, new ItemTemplate
             {
                 Id = 8,
@@ -1730,10 +1722,8 @@ public class WorldDbContext : DbContext
                 DamageMax1 = 11,
                 DamageType1 = DamageType.Physical,
                 AttackTimeMs = 784,
-                StatType1 = StatType.AttackSpeed,
-                StatValue1 = 2, // haste %, a mace's (#627)
-                StatType2 = StatType.Intellect,
-                StatValue2 = 1
+                StatType1 = StatType.Intellect,
+                StatValue1 = 1
             },
             // Items 9-11: collectible scrolls, the group in loot table 10. Using one does nothing yet.
             new ItemTemplate
@@ -1806,14 +1796,13 @@ public class WorldDbContext : DbContext
         // The Common starter tier (#432), what the town vendors sell: one weapon per class and a
         // five-slot set per class. Each stat is the matching forest piece's (items 5-8, 12-31) times
         // 0.6, rounded half away from zero, and at least 1 where the forest piece has it. Weapon
-        // damage is scaled the same way. AttackSpeed is a haste percentage set by weapon type (#627:
-        // swords and bows 3, maces 2, staves 0), so it is copied, never scaled.
+        // damage is scaled the same way. A weapon's speed is its attack time (#1178), copied by weapon type, never scaled.
         // Sold, never dropped: no loot table names these.
         builder.HasData(
-            StarterWeapon(32, "Ironwood Sword", CharacterClass.Warrior, ItemSubClass.OneHanded, attackSpeed: 3, attackTimeMs: 792, (StatType.Strength, 1)),
-            StarterWeapon(33, "Ash Staff", CharacterClass.Wizard, ItemSubClass.TwoHanded, attackSpeed: 0, attackTimeMs: 800, (StatType.Intellect, 1)),
-            StarterWeapon(34, "Hunter's Shortbow", CharacterClass.Hunter, ItemSubClass.Ranged, attackSpeed: 3, attackTimeMs: 801, (StatType.Agility, 1)),
-            StarterWeapon(35, "Oak Mace", CharacterClass.Cleric, ItemSubClass.OneHanded, attackSpeed: 2, attackTimeMs: 784, (StatType.Intellect, 1)));
+            StarterWeapon(32, "Ironwood Sword", CharacterClass.Warrior, ItemSubClass.OneHanded, attackTimeMs: 792, (StatType.Strength, 1)),
+            StarterWeapon(33, "Ash Staff", CharacterClass.Wizard, ItemSubClass.TwoHanded, attackTimeMs: 800, (StatType.Intellect, 1)),
+            StarterWeapon(34, "Hunter's Shortbow", CharacterClass.Hunter, ItemSubClass.Ranged, attackTimeMs: 801, (StatType.Agility, 1)),
+            StarterWeapon(35, "Oak Mace", CharacterClass.Cleric, ItemSubClass.OneHanded, attackTimeMs: 784, (StatType.Intellect, 1)));
 
         builder.HasData(
             StarterArmourPiece(36, "Ironbound Helm", CharacterClass.Warrior, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Strength, 1), (StatType.Armor, 2), (StatType.Stamina, 1)),
@@ -2008,11 +1997,11 @@ public class WorldDbContext : DbContext
 
     /// <summary>
     /// A Common starter weapon (#432): level 1, for one class, main hand. Every one rolls 4-7 (#506),
-    /// and the stats are AttackSpeed then one attribute, the forest weapons' shape. Sells for a
+    /// and its one stat is an attribute, the forest weapons' shape. Sells for a
     /// quarter of its 120.
     /// </summary>
     private static ItemTemplate StarterWeapon(
-        ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, uint attackSpeed, uint attackTimeMs,
+        ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, uint attackTimeMs,
         (StatType Type, uint Value) stat) => new()
         {
             Id = id,
@@ -2033,10 +2022,8 @@ public class WorldDbContext : DbContext
             DamageMax1 = 7,
             DamageType1 = DamageType.Physical,
             AttackTimeMs = attackTimeMs,
-            StatType1 = StatType.AttackSpeed,
-            StatValue1 = attackSpeed,
-            StatType2 = stat.Type,
-            StatValue2 = stat.Value,
+            StatType1 = stat.Type,
+            StatValue1 = stat.Value,
         };
 
     /// <summary>
@@ -3235,16 +3222,18 @@ public class WorldDbContext : DbContext
         // and level-10 averages, each within a few percent; the old columns stay until the maths reads the new ones.
         // The starter kit (#164): three skills per class, one generic script per shape. The ids are new,
         // so no client that cached the retired abilities (1, 2, 100-103) confuses them. Numbers are
-        // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres. Each class's free
-        // 800 ms skill is its basic attack, flagged Basic (#770): the one ability a silence does not stop.
+        // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres. Each class's free skill is
+        // its basic attack, flagged Basic (#770): the one ability a silence does not stop. A basic attack (Cleave, Quick
+        // Shot) is paced by its weapon's attack time over attack speed, so its Cooldown is 0; a spell basic (Spark Bolt,
+        // Smite) keeps 800 ms, shortened by cast speed (#1178, B-R9, owner decision D1).
         builder.HasData(
-            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Melee, powerGainPerHit: 8, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 315f),
+            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 0, cost: 0, value: 12, range: SpellRange.Melee, powerGainPerHit: 8, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 315f),
             Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, value: 25, range: SpellRange.Short, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.5f, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 614f),
             Kit(202, CharacterClass.Warrior, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 9f, cooldown: 3000, cost: 10, value: 20, range: SpellRange.Medium, scaling: ScalingStat.Attack, coefficient: 0.5f, weapon: 1.0f, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 492f),
             Kit(210, CharacterClass.Wizard, "Spark Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 11f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.25f, flags: AbilityFlags.Basic, damageType: DamageType.Lightning, tags: AbilityTags.Spell | AbilityTags.Projectile, spellBase: (14, 20), growth: 0.70f),
             Kit(211, CharacterClass.Wizard, "Flame Burst", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, castTime: 600, cooldown: 5000, cost: 25, value: 18, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.4f, damageType: DamageType.Fire, tags: AbilityTags.Spell | AbilityTags.Area, spellBase: (21, 32), growth: 0.75f),
             Kit(212, CharacterClass.Wizard, "Frost Fan", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 6f, arc: 60f, cooldown: 4000, cost: 15, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f, damageType: DamageType.Cold, tags: AbilityTags.Spell | AbilityTags.Area, spellBase: (26, 40), growth: 0.80f),
-            Kit(220, CharacterClass.Hunter, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 363f),
+            Kit(220, CharacterClass.Hunter, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 14f, cooldown: 0, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 363f),
             Kit(221, CharacterClass.Hunter, "Piercing Arrow", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 30f, speed: 12f, pierce: true, cooldown: 4000, cost: 15, value: 25, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.2f, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 690f),
             Kit(222, CharacterClass.Hunter, "Scatter Shot", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 8f, arc: 45f, cooldown: 4000, cost: 20, value: 22, range: SpellRange.Medium, scaling: ScalingStat.Attack, coefficient: 0.4f, weapon: 0.8f, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Area, effectiveness: 516f),
             Kit(230, CharacterClass.Cleric, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 10f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.3f, flags: AbilityFlags.Basic, damageType: DamageType.Lightning, tags: AbilityTags.Spell | AbilityTags.Projectile, spellBase: (12, 17), growth: 0.45f),
@@ -3569,7 +3558,7 @@ public class WorldDbContext : DbContext
     /// <summary>
     /// The one combat formula row (#506). Every value finite, the multipliers and armour terms 0 or more,
     /// the armour cap a share (0 to 1), the chance caps percentage points (0 to 100), and the armour
-    /// terms together above 0, so no reduction divides by zero. The haste cap is 0 or more, and the
+    /// terms together above 0, so no reduction divides by zero. The speed caps are 0 or more (#1178), and the
     /// movement speed floor above -100 and at most the cap (#627). The upper bound refuses Infinity and
     /// NaN too, as the other float checks here do.
     /// </summary>
@@ -3587,9 +3576,8 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_CombatFormula_CritCap", Percentage("CritCap"));
             t.HasCheckConstraint("CK_CombatFormula_BlockCap", Percentage("BlockCap"));
 
-            // #627: haste caps at 0 or more; movement speed stays above -100 %, so it never reaches 0,
+            // #627: movement speed stays above -100 %, so it never reaches 0,
             // with the floor at most the cap. The upper bound refuses Infinity and NaN, as above.
-            t.HasCheckConstraint("CK_CombatFormula_HasteCap", Finite("HasteCap"));
             t.HasCheckConstraint("CK_CombatFormula_MoveSpeedCap",
                 "\"MoveSpeedCap\" > -100 AND \"MoveSpeedCap\" < 'Infinity'");
             t.HasCheckConstraint("CK_CombatFormula_MoveSpeedFloor",

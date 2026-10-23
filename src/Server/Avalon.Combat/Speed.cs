@@ -1,11 +1,11 @@
 namespace Avalon.Combat;
 
 /// <summary>
-/// The one haste rule (#627): a time becomes <c>time / (1 + haste / 100)</c>, haste in percentage points and
-/// already bounded by whoever owns it (a character's EffectiveHastePct, a creature's SwingInterval). A
-/// negative or unreadable value counts as none, so haste only ever shortens a time here.
+/// The one speed rule (#627, #1178): a time becomes <c>time / (1 + speed / 100)</c>, the speed in percentage points and
+/// already bounded by whoever owns it (<see cref="CasterPace" />, a creature's SwingInterval). A negative or unreadable
+/// value counts as none, so a speed only ever shortens a time here.
 /// </summary>
-public static class Haste
+public static class Speed
 {
     public static TimeSpan Scale(TimeSpan time, float effectivePct) =>
         effectivePct > 0f ? time / (1d + effectivePct / 100d) : time;

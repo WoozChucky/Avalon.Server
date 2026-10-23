@@ -15,7 +15,9 @@ public static class CharacterStatsCalculator
     /// attacks for <c>(long)(0.5 x 21 + 1.5 x 23) = 45</c>, where truncating each product would give 44.
     /// Defence is the same for every class (#1178): armour, evasion and ward are gear plus Strength, Agility and Intellect
     /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances are gear's alone.
-    /// <paramref name="auras" />, when given, is folded in after gear: the result is what the character has now.
+    /// Weapon is the main hand's damage and attack time (the bare hand's with none) and Offence the offence block (#1178),
+    /// each attribute with gear. <paramref name="auras" />, when given, is folded in after gear: the result is what the
+    /// character has now. The offence block takes them through CharacterOffence alone, so they count once there.
     /// </summary>
     public static DerivedCharacterStats Calculate(ClassLevelStat row, IEnumerable<ItemTemplate> worn,
         ClassStatFactors factors, CombatFormula formula, AuraStatTotals? auras = null)
@@ -60,11 +62,12 @@ public static class CharacterStatsCalculator
             AbilityDamage: Clamp(ability),
             WeaponMin: weaponMin,
             WeaponMax: weaponMax,
-            HastePct: gear.HastePct,
             MovementSpeedPct: gear.MovementSpeedPct,
             MaxWard: Clamp(ward),
             Resistances: new Resistances(gear.FireResistance, gear.ColdResistance, gear.LightningResistance,
-                gear.BlightResistance));
+                gear.BlightResistance),
+            Weapon: WeaponDamage.Of(weapon, formula),
+            Offence: CharacterOffence.Of(Clamp(strength), Clamp(agility), Clamp(intellect), worn, formula, auras));
 
         return auras is null ? derived : AuraStats.Fold(derived, auras);
     }
@@ -95,7 +98,7 @@ public static class CharacterStatsCalculator
     private struct GearTotals
     {
         public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, AttackDamage, AbilityDamage, Health, Power;
-        public float BlockPct, CritPct, HastePct, MovementSpeedPct;
+        public float BlockPct, CritPct, MovementSpeedPct;
         public float FireResistance, ColdResistance, LightningResistance, BlightResistance;
 
         public static GearTotals Of(IEnumerable<ItemTemplate> worn)
@@ -126,8 +129,8 @@ public static class CharacterStatsCalculator
                 case StatType.AbilityDamage: AbilityDamage += value; break;
                 case StatType.Health: Health += value; break;
                 case StatType.Power: Power += value; break;
-                // #627: both percentages, summed raw; the entity applies the combat formula's bounds.
-                case StatType.AttackSpeed: HastePct += value; break;
+                // #627: a percentage, summed raw; the entity applies the combat formula's bounds. Attack speed, cast speed
+                // and cooldown recovery are the offence block's (#1178), CharacterOffence's to sum.
                 case StatType.MovementSpeed: MovementSpeedPct += value; break;
                 case StatType.Ward: Ward += value; break;
                 case StatType.FireResistance: FireResistance += value; break;

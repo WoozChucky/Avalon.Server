@@ -1116,7 +1116,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
             if (start.Payload is null)
             {
-                // #627: the time the cast system just set, haste included, so every cast bar ends when the cast does.
+                // #627: the time the cast system just set, cast speed included, so every cast bar ends when the cast does.
                 // #1082: the tick the cast was taken on, so a client ends it at that tick's server time plus CastTime.
                 AbilityFootprintDto? dto = footprint?.FillDto(_footprintDto, _footprintOrigin, _footprintDirection,
                     _footprintCentre);

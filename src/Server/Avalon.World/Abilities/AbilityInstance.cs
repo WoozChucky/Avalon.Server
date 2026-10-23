@@ -14,8 +14,11 @@ public class AbilityInstance
     public required AbilityScript Script { get; init; }
     public required Vector3 CastStartPosition { get; init; }
 
-    /// <summary>The caster's effective haste when the cast started (#627); the cooldown it sets is divided by it.</summary>
-    public float HastePct { get; init; }
+    /// <summary>
+    /// The cooldown the cast sets when it fires, in seconds, worked out from its caster's pace when it was queued (#1178), so
+    /// a gear change mid-cast (a weapon swap) changes nothing.
+    /// </summary>
+    public float CooldownSeconds { get; init; }
 
     /// <summary>The cast's id (#648), unique within the instance: every broadcast of this cast carries it.</summary>
     public uint CastId { get; init; }

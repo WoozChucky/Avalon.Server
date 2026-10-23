@@ -83,7 +83,8 @@ public class CreatureCastShould
         return row;
     }
 
-    private static Creature Wolf(uint id = 163_901, float x = 0f, float z = 0f, float haste = 0f)
+    private static Creature Wolf(uint id = 163_901, float x = 0f, float z = 0f, float attackSpeed = 0f,
+        float cooldownRecovery = 0f)
     {
         var wolf = new Creature
         {
@@ -95,7 +96,8 @@ public class CreatureCastShould
             Health = 100,
             CurrentHealth = 100,
             BaseAttackTime = 2.25f,
-            HastePct = haste,
+            AttackSpeedPct = attackSpeed,
+            CooldownRecoveryPct = cooldownRecovery,
             DamageMin = 3,
             DamageMax = 7,
         };
@@ -123,16 +125,17 @@ public class CreatureCastShould
         Assert.Equal([player], _arena.Damaged());
     }
 
-    // ── cooldowns and haste ──
+    // ── cooldowns and speeds ──
 
     /// <summary>
-    /// With 50 % haste the basic waits BaseAttackTime / 1.5: SwingInterval already carries the haste, so it is
-    /// not divided a second time (Review Focus 5). A special's row cooldown is divided once.
+    /// With 50 % attack speed the basic waits BaseAttackTime / 1.5: SwingInterval carries the attack speed, so it is not
+    /// divided a second time (Review Focus 5), and cooldown recovery does not touch it (#1178). A special's row cooldown is
+    /// divided once, by cooldown recovery alone.
     /// </summary>
     [Fact]
-    public void Scale_the_basic_and_the_specials_by_haste_exactly_once()
+    public void Scale_the_basic_by_attack_speed_and_the_specials_by_cooldown_recovery_exactly_once()
     {
-        Creature wolf = Wolf(haste: 50f);
+        Creature wolf = Wolf(attackSpeed: 50f, cooldownRecovery: 25f);
         IAbility bite = wolf.Abilities[s_biteId]!;
         IAbility claw = wolf.Abilities[s_clawId]!;
 
@@ -140,7 +143,7 @@ public class CreatureCastShould
         Assert.True(_sut.RunInstant(wolf, s_north, claw));
 
         Assert.Equal(1.5f, bite.CooldownTimer, 0.0001f);
-        Assert.Equal(8f / 1.5f, claw.CooldownTimer, 0.0001f);
+        Assert.Equal(8f / 1.25f, claw.CooldownTimer, 0.0001f);
     }
 
     // ── wind-ups ──

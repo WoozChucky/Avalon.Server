@@ -7,10 +7,10 @@ namespace Avalon.World.Characters;
 /// <summary>
 /// What a character's own client is shown of its stats (#506): the derived stats, with the chances made
 /// effective by the combat formula's caps, exactly as <see cref="HitResolver" /> clamps them for a roll.
-/// Haste and movement speed (#627) are the values the character's last stats refresh fixed, the ones a
-/// cast and the input step use. The evasion rating, the ward's maximum and the resistances (#1178) come from the same
-/// refresh, the resistances capped as a hit caps them. A value type, so the last one sent can be compared with the current
-/// one without allocating.
+/// HastePct carries the effective attack speed (#1178) until the sheet carries all three speeds; it and movement speed
+/// (#627) are the values the character's last stats refresh fixed, the ones a cast and the input step use. The evasion
+/// rating, the ward's maximum and the resistances (#1178) come from the same refresh, the resistances capped as a hit caps
+/// them. A value type, so the last one sent can be compared with the current one without allocating.
 /// </summary>
 public readonly record struct CharacterSheet(
     uint Stamina,

@@ -164,9 +164,9 @@ public class InstanceAbilityCastSystem(
             return false;
         }
 
-        // #627: haste is read once, here: the cast time is fixed now, and the cooldown it sets when it fires
-        // uses the same value, so a gear change mid-cast changes neither.
-        float haste = HasteOf(caster);
+        // #627, #1178: the pace is read once, here: the cast time and the cooldown the cast sets when it fires are fixed
+        // now, so a gear change mid-cast (a weapon swap) changes neither.
+        CasterPace pace = PaceOf(caster);
         uint castId = TakeCastId();
         AbilityFootprint? footprint = FootprintOf(caster, aim, ability);
         _abilityQueue.Add(new AbilityInstance
@@ -175,7 +175,7 @@ public class InstanceAbilityCastSystem(
             Ability = ability,
             Script = script,
             CastStartPosition = caster.Position,
-            HastePct = haste,
+            CooldownSeconds = CooldownOf(caster, ability, pace),
             CastId = castId,
             Footprint = footprint,
             ForItem = forItem,
@@ -183,7 +183,7 @@ public class InstanceAbilityCastSystem(
 
         // #521 item 1: Casting is set, and the cost paid, only once the queue has taken the cast.
         ability.Casting = true;
-        ability.CastTimeTimer = Haste.Scale(ability.Metadata.CastTime, haste);
+        ability.CastTimeTimer = AbilityPace.CastTime(ability.Metadata, pace);
         if (pays)
         {
             AbilityCost.Pay(caster, ability.Metadata);
@@ -223,7 +223,7 @@ public class InstanceAbilityCastSystem(
 
         // #1088: a cast taken ends its caster's arrival protection, before it fires, so it lands as any other caster's.
         ArrivalProtection.End(caster);
-        Fire(caster, ability, script, HasteOf(caster), TakeCastId(), view, null, null);
+        Fire(caster, ability, script, CooldownOf(caster, ability, PaceOf(caster)), TakeCastId(), view, null, null);
         return true;
     }
 
@@ -345,7 +345,7 @@ public class InstanceAbilityCastSystem(
                                       && cast.Footprint is { Shape: AbilityShape.Circle or AbilityShape.Cone } footprint
                 ? footprint
                 : null;
-            Fire(cast.Caster, ability, cast.Script, cast.HastePct, cast.CastId, default, dodge, cast.Footprint);
+            Fire(cast.Caster, ability, cast.Script, cast.CooldownSeconds, cast.CastId, default, dodge, cast.Footprint);
         }
     }
 
@@ -606,14 +606,14 @@ public class InstanceAbilityCastSystem(
     }
 
     /// <summary>
-    /// A caster's effective haste (#627): a character's, cached at its last stats refresh; a World-side
-    /// creature's, capped by the cap it spawned with (#163). Any other caster casts with none.
+    /// A caster's pace (#1178): a character's, fixed at its last stats refresh; a World-side creature's, its speeds capped by
+    /// the caps it spawned with (#163). Any other caster casts with no speed and no attack time.
     /// </summary>
-    private static float HasteOf(IUnit caster) => caster switch
+    private static CasterPace PaceOf(IUnit caster) => caster switch
     {
-        CharacterEntity character => character.EffectiveHastePct,
-        Creature creature => MathF.Min(creature.HastePct, creature.HasteCap),
-        _ => 0f,
+        CharacterEntity character => character.Pace,
+        Creature creature => creature.Pace,
+        _ => default,
     };
 
     /// <summary>Creatures and staff characters in god mode do not pay ability costs.</summary>
@@ -655,14 +655,13 @@ public class InstanceAbilityCastSystem(
         && (creature.CurrentHealth == 0 || creature.Script is IReturningHome { IsReturningHome: true });
 
     /// <summary>
-    /// The cooldown a cast sets when it fires. A creature's basic waits its SwingInterval (#163), which already
-    /// carries its haste, so it is not divided again; every other cooldown is divided by the haste the cast was
-    /// read with (#627).
+    /// The cooldown a cast sets when it fires, by <see cref="AbilityPace.Cooldown" /> over the pace the cast was read with
+    /// (#1178): a creature's basic waits its SwingInterval (#163), a character's basic attack its weapon's attack time over
+    /// attack speed, a spell basic its row over cast speed, every other its row over cooldown recovery.
     /// </summary>
-    private static float CooldownOf(IUnit caster, IAbility ability, float hastePct) =>
-        caster is Creature creature && creature.Abilities.IsBasic(ability)
-            ? creature.SwingInterval
-            : Haste.Scale(ability.Metadata.Cooldown, hastePct);
+    private static float CooldownOf(IUnit caster, IAbility ability, in CasterPace pace) =>
+        AbilityPace.Cooldown(ability.Metadata, pace,
+            creatureBasic: caster is Creature creature && creature.Abilities.IsBasic(ability));
 
     /// <summary>
     /// The cooldown, set once (#627), so a later gear change never rescales a running one; the finish-cast
@@ -672,11 +671,11 @@ public class InstanceAbilityCastSystem(
     /// circle or cone fires with its <paramref name="dodge" /> footprint set on the arena (#1082), so the players it hits
     /// wait out their delay; every other cast with none. It is put back after as the rewind is.
     /// </summary>
-    private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct, uint castId, CastView view,
+    private void Fire(IUnit caster, IAbility ability, AbilityScript script, float cooldownSeconds, uint castId, CastView view,
         AbilityFootprint? dodge, AbilityFootprint? started)
     {
         if (caster is not CharacterEntity { GodMode: true })
-            ability.CooldownTimer = CooldownOf(caster, ability, hastePct);
+            ability.CooldownTimer = cooldownSeconds;
         arena.BroadcastFinishCast(caster, ability, castId);
 
         // Contained (#530): a throwing Prepare never enters the active list, so it is never a world

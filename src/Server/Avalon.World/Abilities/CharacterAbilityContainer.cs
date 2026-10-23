@@ -80,7 +80,7 @@ public class CharacterAbilityContainer(ILoggerFactory loggerFactory) : ICharacte
 
     private static void CountDown(IAbility ability, TimeSpan deltaTime)
     {
-        // #627: a cooldown counts down whatever the cast timer holds, which a hasted cast time never
+        // #627: a cooldown counts down whatever the cast timer holds, which a shortened cast time never
         // matches with the metadata's. An ability being cast has no cooldown running: a cast is refused
         // while it has one, and the cooldown is set only once the cast fires.
         if (ability.CooldownTimer > 0)

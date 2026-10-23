@@ -37,7 +37,7 @@ public static class CharacterStatsRefresh
     /// False, changing nothing, when there is no ClassLevelStat row for the character's class and
     /// level, or no ClassStatFactors row for its class (#506). A worn item counts only when its template exists and the slot it is in accepts it, so
     /// a row that put a gem in slot 8 or anything in 11-13 adds nothing. <paramref name="formula" /> bounds
-    /// haste and movement speed (#627), and is required: the caller passes the generation it read.
+    /// the speeds (#1178) and movement speed (#627), and is required: the caller passes the generation it read.
     /// </summary>
     public static bool Apply(
         CharacterEntity character,

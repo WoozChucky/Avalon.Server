@@ -7,7 +7,7 @@ namespace Avalon.Combat;
 /// The one fold (#1178): <c>(base + flat) x max(0, 1 + increased / 100) x each (1 + more / 100)</c>, a Flat or Increased
 /// times the stacks, a More multiplying once per stack. A whole-number stat is rounded and never below 0;
 /// a percentage stat is not rounded. The caps apply afterwards, where they always did (the hit's chance caps, the
-/// haste cap, the movement floor and cap). Pure.
+/// speed caps, the movement floor and cap). Pure.
 /// </summary>
 public static class AuraStats
 {
@@ -23,7 +23,11 @@ public static class AuraStats
     public static float Apply(float value, AuraStatTotals totals, AuraStat stat) =>
         totals.IsEmpty ? value : (float)((value + (double)totals.Flat(stat)) * Factor(totals, stat));
 
-    /// <summary>A character's derived stats with its auras folded in. Maximum health never falls below 1.</summary>
+    /// <summary>
+    /// A character's derived stats with its auras folded in. Maximum health never falls below 1. The offence block is left as
+    /// it is: CharacterStatsCalculator built it with the auras already (CharacterOffence), so folding it here would count
+    /// them twice.
+    /// </summary>
     public static DerivedCharacterStats Fold(in DerivedCharacterStats s, AuraStatTotals t) => t.IsEmpty ? s : s with
     {
         MaxHealth = s.MaxHealth == 0 ? 0u : Math.Max(1u, Apply(s.MaxHealth, t, AuraStat.MaxHealth)),
@@ -34,7 +38,6 @@ public static class AuraStats
         CritPct = Apply(s.CritPct, t, AuraStat.CritPct),
         Evasion = Apply(s.Evasion, t, AuraStat.Evasion),
         BlockPct = Apply(s.BlockPct, t, AuraStat.BlockPct),
-        HastePct = Apply(s.HastePct, t, AuraStat.HastePct),
         MovementSpeedPct = Apply(s.MovementSpeedPct, t, AuraStat.MovementSpeed),
         MaxWard = Apply(s.MaxWard, t, AuraStat.MaxWard),
         Resistances = Apply(s.Resistances, t),

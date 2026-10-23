@@ -150,8 +150,8 @@ public class CharacterStatsCalculatorShould
     }
 
     /// <summary>
-    /// #627: AttackSpeed and MovementSpeed are summed over the worn gear as percentages, raw (the caps are
-    /// the combat formula's, applied by the entity), and change nothing else.
+    /// #627, #1178: AttackSpeed and MovementSpeed are summed over the worn gear as percentages, raw (the caps are the combat
+    /// formula's, applied by the entity), attack speed into the offence block on top of Agility's, and change nothing else.
     /// </summary>
     [Fact]
     public void Sum_attack_speed_and_movement_speed_over_the_worn_gear_and_change_nothing_else()
@@ -180,8 +180,9 @@ public class CharacterStatsCalculatorShould
 
         DerivedCharacterStats worn = Calc(row, [boots, sword]);
 
-        Assert.Equal((12f, 60f), (worn.HastePct, worn.MovementSpeedPct));
-        Assert.Equal(Calc(row, []), worn with { HastePct = 0f, MovementSpeedPct = 0f });
+        DerivedCharacterStats bare = Calc(row, []);
+        Assert.Equal((2f + 12f, 60f), (worn.Offence.AttackSpeedPct, worn.MovementSpeedPct));   // Agility 20 x 0.1, plus gear
+        Assert.Equal(bare, worn with { MovementSpeedPct = 0f, Offence = bare.Offence });
     }
 
     [Fact]

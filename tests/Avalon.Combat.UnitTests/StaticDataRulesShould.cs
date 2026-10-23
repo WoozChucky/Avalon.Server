@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.Combat.UnitTests;
@@ -34,7 +35,6 @@ public class StaticDataRulesShould
         BlockMultiplier = 0.5f,
         CritCap = 50f,
         BlockCap = 50f,
-        HasteCap = 50f,
         MoveSpeedCap = 35f,
         MoveSpeedFloor = -50f,
         EvasionBase = 560f,
@@ -236,6 +236,8 @@ public class StaticDataRulesShould
             () => AbilityRules.Problem(Seeded(211, t => t.Tags = AbilityTags.Spell | AbilityTags.Area | AbilityTags.DamageOverTime)) },
         { "a class attack deals its weapon's physical damage: an element comes from its conversion or added damage",
             () => AbilityRules.Problem(Seeded(220, t => t.DamageType = DamageType.Cold)) },
+        { "a basic attack is paced by its weapon: its Cooldown is 0",
+            () => AbilityRules.Problem(Seeded(220, t => (t.Flags, t.Cooldown) = (AbilityFlags.Basic, 800u))) },
         { "ConvertPct 150 is not a percentage from 0 to 100", () => AbilityRules.Problem(Seeded(223, t => t.ConvertPct = 150f)) },
         { "a conversion names an element to convert to", () => AbilityRules.Problem(Seeded(223, t => t.ConvertToType = null)) },
         { "a Spell or a Heal that deals or heals needs a SpellBaseMax above 0",

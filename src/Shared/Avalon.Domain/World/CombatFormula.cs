@@ -30,12 +30,6 @@ public class CombatFormula
 
     public float BlockCap { get; set; }
 
-    /// <summary>
-    /// The most haste that counts, in percentage points (#627): a character's effective haste is its gear's
-    /// AttackSpeed total, at most this. 0 or more.
-    /// </summary>
-    public float HasteCap { get; set; }
-
     /// <summary>The largest movement speed bonus, in percentage points of the base 4 m/s (#627).</summary>
     public float MoveSpeedCap { get; set; }
 

@@ -201,7 +201,7 @@ namespace Avalon.Database.World.Migrations
                             BaseDamageCoefficient = 1f,
                             CastTime = 0L,
                             ConvertPct = 0f,
-                            Cooldown = 800L,
+                            Cooldown = 0L,
                             Cost = 0L,
                             CostPowerType = 0,
                             DamageEffectiveness = 315f,
@@ -447,7 +447,7 @@ namespace Avalon.Database.World.Migrations
                             BaseDamageCoefficient = 1f,
                             CastTime = 0L,
                             ConvertPct = 0f,
-                            Cooldown = 800L,
+                            Cooldown = 0L,
                             Cost = 0L,
                             CostPowerType = 0,
                             DamageEffectiveness = 363f,
@@ -3543,9 +3543,6 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("EvasionPerLevel")
                         .HasColumnType("real");
 
-                    b.Property<float>("HasteCap")
-                        .HasColumnType("real");
-
                     b.Property<float>("IncreasedHealingPerIntellect")
                         .HasColumnType("real");
 
@@ -3624,8 +3621,6 @@ namespace Avalon.Database.World.Migrations
 
                             t.HasCheckConstraint("CK_CombatFormula_EvasionTermsPositive", "\"EvasionBase\" + \"EvasionPerLevel\" > 0");
 
-                            t.HasCheckConstraint("CK_CombatFormula_HasteCap", "\"HasteCap\" >= 0 AND \"HasteCap\" < 'Infinity'");
-
                             t.HasCheckConstraint("CK_CombatFormula_IncreasedHealingPerIntellect", "\"IncreasedHealingPerIntellect\" >= 0 AND \"IncreasedHealingPerIntellect\" < 'Infinity'");
 
                             t.HasCheckConstraint("CK_CombatFormula_IncreasedPhysicalAttackPerStrength", "\"IncreasedPhysicalAttackPerStrength\" >= 0 AND \"IncreasedPhysicalAttackPerStrength\" < 'Infinity'");
@@ -3672,7 +3667,6 @@ namespace Avalon.Database.World.Migrations
                             EvasionCap = 30f,
                             EvasionPerAgility = 1.125f,
                             EvasionPerLevel = 40f,
-                            HasteCap = 50f,
                             IncreasedHealingPerIntellect = 3.5f,
                             IncreasedPhysicalAttackPerStrength = 3.5f,
                             IncreasedSpellPerIntellect = 3.5f,
@@ -5637,8 +5631,6 @@ namespace Avalon.Database.World.Migrations
                             RequiredLevel = 1,
                             SellPrice = 50L,
                             Slot = 9,
-                            StatType1 = 12,
-                            StatValue1 = 3L,
                             SubClass = 100
                         },
                         new
@@ -5660,10 +5652,8 @@ namespace Avalon.Database.World.Migrations
                             RequiredLevel = 1,
                             SellPrice = 50L,
                             Slot = 9,
-                            StatType1 = 12,
-                            StatType2 = 3,
-                            StatValue1 = 0L,
-                            StatValue2 = 1L,
+                            StatType1 = 3,
+                            StatValue1 = 1L,
                             SubClass = 101
                         },
                         new
@@ -5685,10 +5675,8 @@ namespace Avalon.Database.World.Migrations
                             RequiredLevel = 1,
                             SellPrice = 50L,
                             Slot = 9,
-                            StatType1 = 12,
-                            StatType2 = 2,
-                            StatValue1 = 3L,
-                            StatValue2 = 1L,
+                            StatType1 = 2,
+                            StatValue1 = 1L,
                             SubClass = 102
                         },
                         new
@@ -5710,10 +5698,8 @@ namespace Avalon.Database.World.Migrations
                             RequiredLevel = 1,
                             SellPrice = 50L,
                             Slot = 9,
-                            StatType1 = 12,
-                            StatType2 = 1,
-                            StatValue1 = 3L,
-                            StatValue2 = 1L,
+                            StatType1 = 1,
+                            StatValue1 = 1L,
                             SubClass = 100
                         },
                         new
@@ -5735,10 +5721,8 @@ namespace Avalon.Database.World.Migrations
                             RequiredLevel = 1,
                             SellPrice = 50L,
                             Slot = 9,
-                            StatType1 = 12,
-                            StatType2 = 3,
-                            StatValue1 = 2L,
-                            StatValue2 = 1L,
+                            StatType1 = 3,
+                            StatValue1 = 1L,
                             SubClass = 100
                         },
                         new
@@ -6242,10 +6226,8 @@ namespace Avalon.Database.World.Migrations
                             RequiredLevel = 1,
                             SellPrice = 30L,
                             Slot = 9,
-                            StatType1 = 12,
-                            StatType2 = 1,
-                            StatValue1 = 3L,
-                            StatValue2 = 1L,
+                            StatType1 = 1,
+                            StatValue1 = 1L,
                             SubClass = 100
                         },
                         new
@@ -6267,10 +6249,8 @@ namespace Avalon.Database.World.Migrations
                             RequiredLevel = 1,
                             SellPrice = 30L,
                             Slot = 9,
-                            StatType1 = 12,
-                            StatType2 = 3,
-                            StatValue1 = 0L,
-                            StatValue2 = 1L,
+                            StatType1 = 3,
+                            StatValue1 = 1L,
                             SubClass = 101
                         },
                         new
@@ -6292,10 +6272,8 @@ namespace Avalon.Database.World.Migrations
                             RequiredLevel = 1,
                             SellPrice = 30L,
                             Slot = 9,
-                            StatType1 = 12,
-                            StatType2 = 2,
-                            StatValue1 = 3L,
-                            StatValue2 = 1L,
+                            StatType1 = 2,
+                            StatValue1 = 1L,
                             SubClass = 102
                         },
                         new
@@ -6317,10 +6295,8 @@ namespace Avalon.Database.World.Migrations
                             RequiredLevel = 1,
                             SellPrice = 30L,
                             Slot = 9,
-                            StatType1 = 12,
-                            StatType2 = 3,
-                            StatValue1 = 2L,
-                            StatValue2 = 1L,
+                            StatType1 = 3,
+                            StatValue1 = 1L,
                             SubClass = 100
                         },
                         new

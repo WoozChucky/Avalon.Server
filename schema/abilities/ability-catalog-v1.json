@@ -15,7 +15,7 @@
       "projectileSpeed": 0,
       "pierce": false,
       "castTimeMs": 0,
-      "cooldownMs": 800,
+      "cooldownMs": 0,
       "auraId": null,
       "basic": true
     },
@@ -195,7 +195,7 @@
       "projectileSpeed": 14,
       "pierce": false,
       "castTimeMs": 0,
-      "cooldownMs": 800,
+      "cooldownMs": 0,
       "auraId": null,
       "basic": true
     },

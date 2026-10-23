@@ -14,6 +14,9 @@ public sealed class SimPlayer : SimUnit
 
     public required uint RegenStat { get; set; }
 
+    /// <summary>As CharacterEntity.Pace: its speeds, each capped, and its main hand's attack time, from its derived stats.</summary>
+    public CasterPace Pace { get; private set; }
+
     /// <summary>The templates it wears, which every stats refresh reads again.</summary>
     public IReadOnlyList<ItemTemplate> Worn { get; private init; } = [];
 
@@ -43,7 +46,7 @@ public sealed class SimPlayer : SimUnit
         RegenStat = PowerRegen.StatOf(Class, next);
         Attack = next.AttackerAt(Level);
         Defence = next.Defence;
-        HastePct = next.EffectiveHastePct(data.Combat.Formula);
+        Pace = CasterPace.From(next.Offence, next.Weapon.AttackTimeMs / 1000f, data.Combat.Formula);
         Health = next.MaxHealth;
         CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, oldHealth, next.MaxHealth);
         Power = next.MaxPower;
@@ -68,7 +71,7 @@ public sealed class SimPlayer : SimUnit
             RegenStat = PowerRegen.StatOf(characterClass, stats),
             Attack = stats.AttackerAt(level),
             Defence = stats.Defence,
-            HastePct = stats.EffectiveHastePct(data.Combat.Formula),
+            Pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, data.Combat.Formula),
             Level = level,
             Health = stats.MaxHealth,
             CurrentHealth = stats.MaxHealth,

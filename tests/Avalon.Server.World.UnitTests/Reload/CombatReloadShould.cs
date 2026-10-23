@@ -116,8 +116,9 @@ public class CombatReloadShould
         { "CombatFormula 1", r => { r.Formulas[0].MoveSpeedFloor = 20f; r.Formulas[0].MoveSpeedCap = 10f; } },
         { "CombatFormula 1", r => r.Formulas[0].MoveSpeedCap = float.NaN },
         { "CombatFormula 1", r => r.Formulas[0].MoveSpeedCap = float.PositiveInfinity },
-        { "CombatFormula 1", r => r.Formulas[0].HasteCap = -1f },
-        { "CombatFormula 1", r => r.Formulas[0].HasteCap = float.NaN },
+        // #1178: a speed cap is finite and 0 or more.
+        { "CombatFormula 1", r => r.Formulas[0].AttackSpeedCap = -1f },
+        { "CombatFormula 1", r => r.Formulas[0].CooldownRecoveryCap = float.NaN },
     };
 
     [Theory]
@@ -156,17 +157,17 @@ public class CombatReloadShould
         Assert.Contains("CHECK constraint failed", refused.InnerException!.Message, StringComparison.Ordinal);
     }
 
-    /// <summary>#627: the database refuses a negative haste cap, a floor at -100 % or below, and a floor above the cap.</summary>
+    /// <summary>#627, #1178: the database refuses a negative attack speed cap, a floor at -100 % or below, and a floor above the cap.</summary>
     [Theory]
     [InlineData(-1f, 50f, -50f)]
     [InlineData(50f, 50f, -100f)]
     [InlineData(50f, 10f, 20f)]
-    public void Be_refused_by_the_database_outside_the_speed_bounds(float hasteCap, float moveCap, float moveFloor)
+    public void Be_refused_by_the_database_outside_the_speed_bounds(float attackSpeedCap, float moveCap, float moveFloor)
     {
         using var database = Handlers.SqliteDatabase.World();
         using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
         CombatFormula formula = context.CombatFormulas.Single();
-        formula.HasteCap = hasteCap;
+        formula.AttackSpeedCap = attackSpeedCap;
         formula.MoveSpeedCap = moveCap;
         formula.MoveSpeedFloor = moveFloor;
 

@@ -119,6 +119,8 @@ public static class AbilityRules
         if (Has(tags, AbilityTags.Melee) && !Has(tags, AbilityTags.Attack)) return "only an Attack is Melee";
 
         bool attack = Has(tags, AbilityTags.Attack);
+        if (attack && (t.Flags & AbilityFlags.Basic) != AbilityFlags.None && t.Cooldown > 0)
+            return "a basic attack is paced by its weapon: its Cooldown is 0";
         if (attack && t.AllowedClasses is { Count: > 0 } && t.DamageType is { } type && type != DamageType.Physical)
             return "a class attack deals its weapon's physical damage: an element comes from its conversion or added damage";
 
