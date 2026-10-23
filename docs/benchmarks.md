@@ -1621,6 +1621,37 @@ tracks the sum, the largest mitigated part and the blight part. What remains ove
 hit, is the work #1178 adds: the evasion chance (a division where the dodge was a comparison) and the per-part loop with
 its type dispatch. The tick is unchanged. A hit stays well under a microsecond.
 
+### Offence — `Benchmarks/OffenceBenchmarks.cs` (#1178)
+
+The base of an ability in `Avalon.Combat`, which every damaging hit, every heal and every damage-over-time aura's
+application computes before the hit maths, measured before and after the offence model of #1178 (part B). `AttackBase`
+is `HitResolver.AbilityBase` for Cleave (200) cast by a level-1 starter Warrior (attack damage 58, a 4..7 main hand):
+`12 + 0.3 × 58 + 1.0 × roll`. `SpellBase` is the same for Spark Bolt (210) cast by a level-1 starter Wizard (ability
+damage 93): `12 + 0.25 × 93`, with no weapon term, so nothing is drawn. `DamageOverTimeSnapshot` is `AuraRules.Snapshot`
+of Bleed (aura 1, 12 s ticking every 3 s) from the Warrior: `(12 + 0.25 × 58) / 4` per tick. All run on the seeded
+formula (`CombatSeed.Formula`) and on `CombatRandom.Steady`, whose weapon roll comes up at its low end, so every
+iteration takes the same path; setup fails the run unless Cleave's base is 33.4, Spark Bolt's 35.25 and Bleed's tick
+6.625.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*OffenceBenchmarks*" --warmupCount 10 --iterationCount 20
+```
+
+Out of process (BenchmarkDotNet's default toolchain), ten warmups and twenty measured iterations, measured once:
+BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, Release. Before is `3e36c9774` with
+this benchmark added and no maths changed, on 2026-10-23:
+
+| Operation | Before (#1178 part B) | Allocated |
+|---|---:|---:|
+| `AttackBase` | 1.78 ns (± 0.06 ns, error ± 0.05 ns) | 0 B |
+| `SpellBase` | 0.00 ns (below what BenchmarkDotNet resolves) | 0 B |
+| `DamageOverTimeSnapshot` | 2.49 ns (± 0.03 ns, error ± 0.03 ns) | 0 B |
+
+None allocates: the attacker is a value struct passed `in`, the aura template is read, and the snapshot is a value
+struct. Today's spell base is two float operations on fields with no draw, which the JIT inlines into the benchmark
+method, so it measures as nothing over BenchmarkDotNet's empty-method overhead; the attack base adds the weapon roll
+through the `ICombatRandom` interface, and the snapshot adds the tick count and a division.
+
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
 Measures the production `WorldConnection` arrival, session/map filtering and handler dispatch paths. Each operation
