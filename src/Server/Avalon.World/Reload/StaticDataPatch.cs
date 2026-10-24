@@ -9,6 +9,7 @@ using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
 using Avalon.World.Vendors;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Reload;
 
@@ -92,6 +93,39 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
 
     /// <summary>The template of that id, or null: by key, where a reader walked the templates.</summary>
     public ItemTemplate? Find(ItemTemplateId id) => id is null ? null : _templates.Find(id.Value);
+
+    /// <summary>
+    /// The patch, with each template's links held against its rarity (#1179, B-R2's half the catalog cannot see): a
+    /// Unique template links exactly one Unique modifier, a Common one only Implicit modifiers, and no other template
+    /// links any. A template that breaks it is logged and keeps none of its links, as the catalog's own refusals do.
+    /// </summary>
+    public static ItemsPatch Build(IReadOnlyCollection<ItemTemplate> templates, ItemModifierCatalog modifiers, ILogger logger)
+    {
+        HashSet<ulong> refused = [];
+        foreach (ItemTemplate template in templates)
+        {
+            IReadOnlyList<ItemModifier> linked = modifiers.LinkedTo(template.Id);
+            if (linked.Count == 0)
+                continue;
+
+            string? reason = template.Rarity switch
+            {
+                ItemRarity.Unique when linked is not [{ Group.Kind: ItemModifierKind.Unique }] =>
+                    "a unique template links exactly one unique modifier",
+                ItemRarity.Common when linked.Any(m => m.Group.Kind != ItemModifierKind.Implicit) =>
+                    "a common template links only implicit modifiers",
+                ItemRarity.Unique or ItemRarity.Common => null,
+                _ => $"a {template.Rarity} template links no modifier",
+            };
+            if (reason is null)
+                continue;
+
+            logger.LogError("Item template {TemplateId} keeps none of its modifier links: {Reason}", template.Id.Value, reason);
+            refused.Add(template.Id.Value);
+        }
+
+        return new ItemsPatch(templates, refused.Count == 0 ? modifiers : modifiers.WithoutLinksOf(refused));
+    }
 
     /// <summary>
     /// The line of a base kind (#1179): its Common templates, the tiers, by required level and then id; empty for a kind

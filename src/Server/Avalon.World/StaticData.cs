@@ -112,9 +112,10 @@ public class StaticData(
                 return new AurasPatch(await ReadAurasAsync(loggerFactory, ct));
 
             case ReloadArea.Items:
-                return new ItemsPatch(
+                return ItemsPatch.Build(
                     (await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly(),
-                    await itemModifierRepository.GetCatalogAsync(ct));
+                    await itemModifierRepository.GetCatalogAsync(ct),
+                    loggerFactory.CreateLogger<ItemsPatch>());
 
             case ReloadArea.Progression:
                 return new ProgressionPatch(

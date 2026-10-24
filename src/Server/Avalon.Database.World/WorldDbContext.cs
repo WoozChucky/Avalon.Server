@@ -1783,7 +1783,8 @@ public class WorldDbContext : DbContext
     /// <summary>
     /// The catalog rows (#1179): a tier of an affix group, or a unique's or implicit group's single row with no tier. Kind
     /// and name live on the group only; that a prefix or suffix row has a tier and a unique or implicit row none spans the
-    /// two tables, so ItemModifierCatalog and SeedIntegrityShould hold it.
+    /// two tables, so no column check can: ItemModifierCatalog leaves out a row that breaks it, and SeedIntegrityShould
+    /// holds the seed to it.
     /// </summary>
     private static void Configure(EntityTypeBuilder<ItemModifier> builder)
     {
@@ -1836,7 +1837,7 @@ public class WorldDbContext : DbContext
         builder.ToTable("ItemTemplateModifiers");
         builder.HasKey(l => new { l.TemplateId, l.Index });
         builder.Property(l => l.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
-        builder.HasOne<ItemTemplate>().WithMany(t => t.Modifiers).HasForeignKey(l => l.TemplateId)
+        builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(l => l.TemplateId)
             .OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<ItemModifier>().WithMany().HasForeignKey(l => l.ModifierId).OnDelete(DeleteBehavior.Restrict);
 

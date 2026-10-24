@@ -11,12 +11,14 @@ public readonly record struct ItemModifierCandidate(ItemModifier Modifier, int W
 /// index order, and per base kind the prefix and suffix rows that may roll there. Built once, never changed; a reload
 /// builds a new one. A row it cannot trust is logged and left out:
 /// <list type="bullet">
-/// <item>a modifier with no group or no stat line, or a unique or implicit modifier that carries a weight;</item>
+/// <item>a modifier with no group or no stat line, a prefix or suffix row without a tier, a unique or implicit row with
+/// one, or a unique or implicit modifier that carries a weight;</item>
 /// <item>a template's links when one names a modifier left out or a prefix or suffix, or when they mix a unique
 /// modifier with any other link (a unique template links its one Unique modifier, a common one only Implicits). The
 /// template is then left with no links at all, never with part of them.</item>
 /// </list>
-/// Which template is unique is the template's own fact, held against these links by the seed's guard test.
+/// Which template is unique is the template's own fact: the items area holds the links against it
+/// (ItemsPatch.Build), leaving out with <see cref="WithoutLinksOf" /> a template whose links break it.
 /// </summary>
 public sealed class ItemModifierCatalog
 {
@@ -70,6 +72,20 @@ public sealed class ItemModifierCatalog
         }
     }
 
+    private ItemModifierCatalog(ItemModifierCatalog from, Dictionary<ulong, ItemModifier[]> links)
+    {
+        _modifiers = from._modifiers;
+        _candidates = from._candidates;
+        _links = links;
+    }
+
+    /// <summary>
+    /// This catalog without the links of <paramref name="templates" />: the same modifiers and candidates, shared, and
+    /// every other template's links. What the items area keeps when a template's links break its rarity.
+    /// </summary>
+    public ItemModifierCatalog WithoutLinksOf(IReadOnlySet<ulong> templates) =>
+        new(this, _links.Where(pair => !templates.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value));
+
     /// <summary>How many modifiers the catalog accepted.</summary>
     public int Count => _modifiers.Count;
 
@@ -102,6 +118,10 @@ public sealed class ItemModifierCatalog
 
         if (modifier.Stats.Count == 0)
             return "it has no stat line";
+
+        bool affix = modifier.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix;
+        if (affix != modifier.Tier is not null)
+            return affix ? "a prefix or suffix row has no tier" : $"a {modifier.Group.Kind} row has a tier, but it has none";
 
         if (modifier.Group.Kind is ItemModifierKind.Unique or ItemModifierKind.Implicit && modifier.Weights.Count > 0)
             return $"a {modifier.Group.Kind} modifier carries a weight, but it only ever rolls through a template link";

@@ -19,8 +19,7 @@
       "useScript": "RestoreHealth",
       "useCooldownMs": 30000,
       "useCooldownGroup": "potion",
-      "useValue": 30,
-      "modifiers": []
+      "useValue": 30
     },
     {
       "id": 2,
@@ -40,8 +39,7 @@
       "useScript": "RestorePower",
       "useCooldownMs": 30000,
       "useCooldownGroup": "potion",
-      "useValue": 30,
-      "modifiers": []
+      "useValue": 30
     },
     {
       "id": 3,
@@ -60,8 +58,7 @@
       "requiresAnyAttribute": false,
       "useScript": "TownPortalScroll",
       "useCastTimeMs": 3000,
-      "useCooldownMs": 30000,
-      "modifiers": []
+      "useCooldownMs": 30000
     },
     {
       "id": 5,
@@ -85,8 +82,7 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "attackTimeMs": 800,
-      "modifiers": []
+      "attackTimeMs": 800
     },
     {
       "id": 6,
@@ -110,8 +106,7 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "attackTimeMs": 801,
-      "modifiers": []
+      "attackTimeMs": 801
     },
     {
       "id": 7,
@@ -135,8 +130,7 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "attackTimeMs": 792,
-      "modifiers": []
+      "attackTimeMs": 792
     },
     {
       "id": 8,
@@ -161,8 +155,7 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "attackTimeMs": 784,
-      "modifiers": []
+      "attackTimeMs": 784
     },
     {
       "id": 9,
@@ -178,8 +171,7 @@
       "buyPrice": 20,
       "sellPrice": 5,
       "allowedClasses": [],
-      "requiresAnyAttribute": false,
-      "modifiers": []
+      "requiresAnyAttribute": false
     },
     {
       "id": 10,
@@ -195,8 +187,7 @@
       "buyPrice": 20,
       "sellPrice": 5,
       "allowedClasses": [],
-      "requiresAnyAttribute": false,
-      "modifiers": []
+      "requiresAnyAttribute": false
     },
     {
       "id": 11,
@@ -212,8 +203,7 @@
       "buyPrice": 20,
       "sellPrice": 5,
       "allowedClasses": [],
-      "requiresAnyAttribute": false,
-      "modifiers": []
+      "requiresAnyAttribute": false
     },
     {
       "id": 12,
@@ -235,14 +225,7 @@
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 11,
-      "modifiers": [
-        {
-          "templateId": 12,
-          "index": 0,
-          "modifierId": 224
-        }
-      ]
+      "statValue1": 11
     },
     {
       "id": 13,
@@ -264,14 +247,7 @@
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 18,
-      "modifiers": [
-        {
-          "templateId": 13,
-          "index": 0,
-          "modifierId": 225
-        }
-      ]
+      "statValue1": 18
     },
     {
       "id": 14,
@@ -293,14 +269,7 @@
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 14,
-      "modifiers": [
-        {
-          "templateId": 14,
-          "index": 0,
-          "modifierId": 226
-        }
-      ]
+      "statValue1": 14
     },
     {
       "id": 15,
@@ -322,14 +291,7 @@
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 7,
-      "modifiers": [
-        {
-          "templateId": 15,
-          "index": 0,
-          "modifierId": 227
-        }
-      ]
+      "statValue1": 7
     },
     {
       "id": 16,
@@ -351,14 +313,7 @@
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 7,
-      "modifiers": [
-        {
-          "templateId": 16,
-          "index": 0,
-          "modifierId": 228
-        }
-      ]
+      "statValue1": 7
     },
     {
       "id": 17,
@@ -380,14 +335,7 @@
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 16,
-      "modifiers": [
-        {
-          "templateId": 17,
-          "index": 0,
-          "modifierId": 229
-        }
-      ]
+      "statValue1": 16
     },
     {
       "id": 18,
@@ -409,14 +357,7 @@
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 26,
-      "modifiers": [
-        {
-          "templateId": 18,
-          "index": 0,
-          "modifierId": 230
-        }
-      ]
+      "statValue1": 26
     },
     {
       "id": 19,
@@ -438,14 +379,7 @@
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 21,
-      "modifiers": [
-        {
-          "templateId": 19,
-          "index": 0,
-          "modifierId": 231
-        }
-      ]
+      "statValue1": 21
     },
     {
       "id": 20,
@@ -467,14 +401,7 @@
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 10,
-      "modifiers": [
-        {
-          "templateId": 20,
-          "index": 0,
-          "modifierId": 232
-        }
-      ]
+      "statValue1": 10
     },
     {
       "id": 21,
@@ -496,14 +423,7 @@
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 10,
-      "modifiers": [
-        {
-          "templateId": 21,
-          "index": 0,
-          "modifierId": 233
-        }
-      ]
+      "statValue1": 10
     },
     {
       "id": 22,
@@ -525,14 +445,7 @@
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 54,
-      "modifiers": [
-        {
-          "templateId": 22,
-          "index": 0,
-          "modifierId": 234
-        }
-      ]
+      "statValue1": 54
     },
     {
       "id": 23,
@@ -554,14 +467,7 @@
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 90,
-      "modifiers": [
-        {
-          "templateId": 23,
-          "index": 0,
-          "modifierId": 235
-        }
-      ]
+      "statValue1": 90
     },
     {
       "id": 24,
@@ -583,14 +489,7 @@
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 72,
-      "modifiers": [
-        {
-          "templateId": 24,
-          "index": 0,
-          "modifierId": 236
-        }
-      ]
+      "statValue1": 72
     },
     {
       "id": 25,
@@ -612,14 +511,7 @@
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 36,
-      "modifiers": [
-        {
-          "templateId": 25,
-          "index": 0,
-          "modifierId": 237
-        }
-      ]
+      "statValue1": 36
     },
     {
       "id": 26,
@@ -641,14 +533,7 @@
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 36,
-      "modifiers": [
-        {
-          "templateId": 26,
-          "index": 0,
-          "modifierId": 238
-        }
-      ]
+      "statValue1": 36
     },
     {
       "id": 32,
@@ -671,8 +556,7 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "attackTimeMs": 792,
-      "modifiers": []
+      "attackTimeMs": 792
     },
     {
       "id": 33,
@@ -695,8 +579,7 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "attackTimeMs": 800,
-      "modifiers": []
+      "attackTimeMs": 800
     },
     {
       "id": 34,
@@ -719,8 +602,7 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "attackTimeMs": 801,
-      "modifiers": []
+      "attackTimeMs": 801
     },
     {
       "id": 35,
@@ -743,8 +625,7 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "attackTimeMs": 784,
-      "modifiers": []
+      "attackTimeMs": 784
     },
     {
       "id": 36,
@@ -765,14 +646,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 5,
-      "modifiers": [
-        {
-          "templateId": 36,
-          "index": 0,
-          "modifierId": 239
-        }
-      ]
+      "statValue1": 5
     },
     {
       "id": 37,
@@ -793,14 +667,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 8,
-      "modifiers": [
-        {
-          "templateId": 37,
-          "index": 0,
-          "modifierId": 240
-        }
-      ]
+      "statValue1": 8
     },
     {
       "id": 38,
@@ -821,14 +688,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 6,
-      "modifiers": [
-        {
-          "templateId": 38,
-          "index": 0,
-          "modifierId": 241
-        }
-      ]
+      "statValue1": 6
     },
     {
       "id": 39,
@@ -849,14 +709,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 3,
-      "modifiers": [
-        {
-          "templateId": 39,
-          "index": 0,
-          "modifierId": 242
-        }
-      ]
+      "statValue1": 3
     },
     {
       "id": 40,
@@ -877,14 +730,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 3,
-      "modifiers": [
-        {
-          "templateId": 40,
-          "index": 0,
-          "modifierId": 243
-        }
-      ]
+      "statValue1": 3
     },
     {
       "id": 41,
@@ -905,14 +751,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 7,
-      "modifiers": [
-        {
-          "templateId": 41,
-          "index": 0,
-          "modifierId": 244
-        }
-      ]
+      "statValue1": 7
     },
     {
       "id": 42,
@@ -933,14 +772,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 12,
-      "modifiers": [
-        {
-          "templateId": 42,
-          "index": 0,
-          "modifierId": 245
-        }
-      ]
+      "statValue1": 12
     },
     {
       "id": 43,
@@ -961,14 +793,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 10,
-      "modifiers": [
-        {
-          "templateId": 43,
-          "index": 0,
-          "modifierId": 246
-        }
-      ]
+      "statValue1": 10
     },
     {
       "id": 44,
@@ -989,14 +814,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 5,
-      "modifiers": [
-        {
-          "templateId": 44,
-          "index": 0,
-          "modifierId": 247
-        }
-      ]
+      "statValue1": 5
     },
     {
       "id": 45,
@@ -1017,14 +835,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 5,
-      "modifiers": [
-        {
-          "templateId": 45,
-          "index": 0,
-          "modifierId": 248
-        }
-      ]
+      "statValue1": 5
     },
     {
       "id": 46,
@@ -1045,14 +856,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 24,
-      "modifiers": [
-        {
-          "templateId": 46,
-          "index": 0,
-          "modifierId": 249
-        }
-      ]
+      "statValue1": 24
     },
     {
       "id": 47,
@@ -1073,14 +877,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 40,
-      "modifiers": [
-        {
-          "templateId": 47,
-          "index": 0,
-          "modifierId": 250
-        }
-      ]
+      "statValue1": 40
     },
     {
       "id": 48,
@@ -1101,14 +898,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 32,
-      "modifiers": [
-        {
-          "templateId": 48,
-          "index": 0,
-          "modifierId": 251
-        }
-      ]
+      "statValue1": 32
     },
     {
       "id": 49,
@@ -1129,14 +919,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 16,
-      "modifiers": [
-        {
-          "templateId": 49,
-          "index": 0,
-          "modifierId": 252
-        }
-      ]
+      "statValue1": 16
     },
     {
       "id": 50,
@@ -1157,14 +940,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 16,
-      "modifiers": [
-        {
-          "templateId": 50,
-          "index": 0,
-          "modifierId": 253
-        }
-      ]
+      "statValue1": 16
     },
     {
       "id": 56,
@@ -1184,8 +960,7 @@
       "useScript": "RestoreHealth",
       "useCooldownMs": 30000,
       "useCooldownGroup": "potion",
-      "useValue": 60,
-      "modifiers": []
+      "useValue": 60
     },
     {
       "id": 57,
@@ -1201,8 +976,7 @@
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false,
-      "modifiers": []
+      "requiresAnyAttribute": false
     },
     {
       "id": 58,
@@ -1221,14 +995,7 @@
       "slot": 1,
       "allowedClasses": [],
       "requiredLevel": 3,
-      "requiresAnyAttribute": false,
-      "modifiers": [
-        {
-          "templateId": 58,
-          "index": 0,
-          "modifierId": 219
-        }
-      ]
+      "requiresAnyAttribute": false
     },
     {
       "id": 59,
@@ -1244,8 +1011,7 @@
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false,
-      "modifiers": []
+      "requiresAnyAttribute": false
     },
     {
       "id": 60,
@@ -1261,8 +1027,7 @@
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false,
-      "modifiers": []
+      "requiresAnyAttribute": false
     },
     {
       "id": 61,
@@ -1278,8 +1043,7 @@
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false,
-      "modifiers": []
+      "requiresAnyAttribute": false
     },
     {
       "id": 62,
@@ -1295,8 +1059,7 @@
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false,
-      "modifiers": []
+      "requiresAnyAttribute": false
     },
     {
       "id": 63,
@@ -1312,8 +1075,7 @@
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false,
-      "modifiers": []
+      "requiresAnyAttribute": false
     },
     {
       "id": 64,
@@ -1332,14 +1094,7 @@
       "slot": 7,
       "allowedClasses": [],
       "requiredLevel": 4,
-      "requiresAnyAttribute": false,
-      "modifiers": [
-        {
-          "templateId": 64,
-          "index": 0,
-          "modifierId": 220
-        }
-      ]
+      "requiresAnyAttribute": false
     },
     {
       "id": 65,
@@ -1358,14 +1113,7 @@
       "slot": 7,
       "allowedClasses": [],
       "requiredLevel": 5,
-      "requiresAnyAttribute": false,
-      "modifiers": [
-        {
-          "templateId": 65,
-          "index": 0,
-          "modifierId": 221
-        }
-      ]
+      "requiresAnyAttribute": false
     },
     {
       "id": 66,
@@ -1384,14 +1132,7 @@
       "slot": 11,
       "allowedClasses": [],
       "requiredLevel": 5,
-      "requiresAnyAttribute": false,
-      "modifiers": [
-        {
-          "templateId": 66,
-          "index": 0,
-          "modifierId": 222
-        }
-      ]
+      "requiresAnyAttribute": false
     },
     {
       "id": 67,
@@ -1410,14 +1151,7 @@
       "slot": 11,
       "allowedClasses": [],
       "requiredLevel": 4,
-      "requiresAnyAttribute": false,
-      "modifiers": [
-        {
-          "templateId": 67,
-          "index": 0,
-          "modifierId": 223
-        }
-      ]
+      "requiresAnyAttribute": false
     },
     {
       "id": 68,
@@ -1436,8 +1170,7 @@
       "slot": 7,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false,
-      "modifiers": []
+      "requiresAnyAttribute": false
     },
     {
       "id": 69,
@@ -1456,8 +1189,7 @@
       "slot": 1,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false,
-      "modifiers": []
+      "requiresAnyAttribute": false
     },
     {
       "id": 70,
@@ -1480,14 +1212,7 @@
       "statType1": 4,
       "statValue1": 6,
       "statType2": 5,
-      "statValue2": 5,
-      "modifiers": [
-        {
-          "templateId": 70,
-          "index": 0,
-          "modifierId": 254
-        }
-      ]
+      "statValue2": 5
     },
     {
       "id": 71,
@@ -1511,14 +1236,7 @@
       "statType1": 4,
       "statValue1": 14,
       "statType2": 5,
-      "statValue2": 7,
-      "modifiers": [
-        {
-          "templateId": 71,
-          "index": 0,
-          "modifierId": 255
-        }
-      ]
+      "statValue2": 7
     },
     {
       "id": 72,
@@ -1542,14 +1260,7 @@
       "statType1": 4,
       "statValue1": 24,
       "statType2": 5,
-      "statValue2": 10,
-      "modifiers": [
-        {
-          "templateId": 72,
-          "index": 0,
-          "modifierId": 256
-        }
-      ]
+      "statValue2": 10
     },
     {
       "id": 73,
@@ -1572,14 +1283,7 @@
       "statType1": 14,
       "statValue1": 8,
       "statType2": 26,
-      "statValue2": 5,
-      "modifiers": [
-        {
-          "templateId": 73,
-          "index": 0,
-          "modifierId": 257
-        }
-      ]
+      "statValue2": 5
     },
     {
       "id": 74,
@@ -1603,14 +1307,7 @@
       "statType1": 14,
       "statValue1": 18,
       "statType2": 26,
-      "statValue2": 8,
-      "modifiers": [
-        {
-          "templateId": 74,
-          "index": 0,
-          "modifierId": 258
-        }
-      ]
+      "statValue2": 8
     },
     {
       "id": 75,
@@ -1634,14 +1331,7 @@
       "statType1": 14,
       "statValue1": 30,
       "statType2": 26,
-      "statValue2": 12,
-      "modifiers": [
-        {
-          "templateId": 75,
-          "index": 0,
-          "modifierId": 259
-        }
-      ]
+      "statValue2": 12
     },
     {
       "id": 76,
@@ -1662,14 +1352,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 4,
-      "modifiers": [
-        {
-          "templateId": 76,
-          "index": 0,
-          "modifierId": 260
-        }
-      ]
+      "statValue1": 4
     },
     {
       "id": 77,
@@ -1690,14 +1373,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 20,
-      "modifiers": [
-        {
-          "templateId": 77,
-          "index": 0,
-          "modifierId": 261
-        }
-      ]
+      "statValue1": 20
     },
     {
       "id": 78,
@@ -1718,14 +1394,7 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 6,
-      "modifiers": [
-        {
-          "templateId": 78,
-          "index": 0,
-          "modifierId": 262
-        }
-      ]
+      "statValue1": 6
     },
     {
       "id": 79,
@@ -1747,14 +1416,7 @@
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 9,
-      "modifiers": [
-        {
-          "templateId": 79,
-          "index": 0,
-          "modifierId": 263
-        }
-      ]
+      "statValue1": 9
     },
     {
       "id": 80,
@@ -1776,14 +1438,7 @@
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 45,
-      "modifiers": [
-        {
-          "templateId": 80,
-          "index": 0,
-          "modifierId": 264
-        }
-      ]
+      "statValue1": 45
     },
     {
       "id": 81,
@@ -1805,14 +1460,7 @@
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 13,
-      "modifiers": [
-        {
-          "templateId": 81,
-          "index": 0,
-          "modifierId": 265
-        }
-      ]
+      "statValue1": 13
     },
     {
       "id": 82,
@@ -1834,14 +1482,7 @@
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 16,
-      "modifiers": [
-        {
-          "templateId": 82,
-          "index": 0,
-          "modifierId": 266
-        }
-      ]
+      "statValue1": 16
     },
     {
       "id": 83,
@@ -1863,14 +1504,7 @@
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 80,
-      "modifiers": [
-        {
-          "templateId": 83,
-          "index": 0,
-          "modifierId": 267
-        }
-      ]
+      "statValue1": 80
     },
     {
       "id": 84,
@@ -1892,14 +1526,7 @@
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 23,
-      "modifiers": [
-        {
-          "templateId": 84,
-          "index": 0,
-          "modifierId": 268
-        }
-      ]
+      "statValue1": 23
     },
     {
       "id": 85,
@@ -1921,14 +1548,7 @@
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 19,
-      "modifiers": [
-        {
-          "templateId": 85,
-          "index": 0,
-          "modifierId": 269
-        }
-      ]
+      "statValue1": 19
     },
     {
       "id": 86,
@@ -1950,14 +1570,7 @@
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 32,
-      "modifiers": [
-        {
-          "templateId": 86,
-          "index": 0,
-          "modifierId": 270
-        }
-      ]
+      "statValue1": 32
     },
     {
       "id": 87,
@@ -1979,14 +1592,7 @@
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 26,
-      "modifiers": [
-        {
-          "templateId": 87,
-          "index": 0,
-          "modifierId": 271
-        }
-      ]
+      "statValue1": 26
     },
     {
       "id": 88,
@@ -2008,14 +1614,7 @@
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 13,
-      "modifiers": [
-        {
-          "templateId": 88,
-          "index": 0,
-          "modifierId": 272
-        }
-      ]
+      "statValue1": 13
     },
     {
       "id": 89,
@@ -2037,14 +1636,7 @@
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 13,
-      "modifiers": [
-        {
-          "templateId": 89,
-          "index": 0,
-          "modifierId": 273
-        }
-      ]
+      "statValue1": 13
     },
     {
       "id": 90,
@@ -2066,14 +1658,7 @@
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 96,
-      "modifiers": [
-        {
-          "templateId": 90,
-          "index": 0,
-          "modifierId": 274
-        }
-      ]
+      "statValue1": 96
     },
     {
       "id": 91,
@@ -2095,14 +1680,7 @@
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 160,
-      "modifiers": [
-        {
-          "templateId": 91,
-          "index": 0,
-          "modifierId": 275
-        }
-      ]
+      "statValue1": 160
     },
     {
       "id": 92,
@@ -2124,14 +1702,7 @@
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 128,
-      "modifiers": [
-        {
-          "templateId": 92,
-          "index": 0,
-          "modifierId": 276
-        }
-      ]
+      "statValue1": 128
     },
     {
       "id": 93,
@@ -2153,14 +1724,7 @@
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 64,
-      "modifiers": [
-        {
-          "templateId": 93,
-          "index": 0,
-          "modifierId": 277
-        }
-      ]
+      "statValue1": 64
     },
     {
       "id": 94,
@@ -2182,14 +1746,7 @@
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 64,
-      "modifiers": [
-        {
-          "templateId": 94,
-          "index": 0,
-          "modifierId": 278
-        }
-      ]
+      "statValue1": 64
     },
     {
       "id": 95,
@@ -2211,14 +1768,7 @@
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 27,
-      "modifiers": [
-        {
-          "templateId": 95,
-          "index": 0,
-          "modifierId": 279
-        }
-      ]
+      "statValue1": 27
     },
     {
       "id": 96,
@@ -2240,14 +1790,7 @@
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 45,
-      "modifiers": [
-        {
-          "templateId": 96,
-          "index": 0,
-          "modifierId": 280
-        }
-      ]
+      "statValue1": 45
     },
     {
       "id": 97,
@@ -2269,14 +1812,7 @@
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 36,
-      "modifiers": [
-        {
-          "templateId": 97,
-          "index": 0,
-          "modifierId": 281
-        }
-      ]
+      "statValue1": 36
     },
     {
       "id": 98,
@@ -2298,14 +1834,7 @@
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 18,
-      "modifiers": [
-        {
-          "templateId": 98,
-          "index": 0,
-          "modifierId": 282
-        }
-      ]
+      "statValue1": 18
     },
     {
       "id": 99,
@@ -2327,14 +1856,7 @@
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 18,
-      "modifiers": [
-        {
-          "templateId": 99,
-          "index": 0,
-          "modifierId": 283
-        }
-      ]
+      "statValue1": 18
     },
     {
       "id": 100,
@@ -2358,8 +1880,7 @@
       "damageMin1": 11,
       "damageMax1": 17,
       "damageType1": 0,
-      "attackTimeMs": 792,
-      "modifiers": []
+      "attackTimeMs": 792
     },
     {
       "id": 101,
@@ -2384,8 +1905,7 @@
       "damageMin1": 11,
       "damageMax1": 17,
       "damageType1": 0,
-      "attackTimeMs": 784,
-      "modifiers": []
+      "attackTimeMs": 784
     },
     {
       "id": 102,
@@ -2409,8 +1929,7 @@
       "damageMin1": 11,
       "damageMax1": 17,
       "damageType1": 0,
-      "attackTimeMs": 800,
-      "modifiers": []
+      "attackTimeMs": 800
     },
     {
       "id": 103,
@@ -2434,8 +1953,7 @@
       "damageMin1": 11,
       "damageMax1": 17,
       "damageType1": 0,
-      "attackTimeMs": 801,
-      "modifiers": []
+      "attackTimeMs": 801
     }
   ]
 }

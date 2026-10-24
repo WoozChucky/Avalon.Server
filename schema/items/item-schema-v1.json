@@ -281,12 +281,6 @@
       "name": "UseValue",
       "type": "uint32",
       "nullable": true
-    },
-    {
-      "name": "Modifiers",
-      "type": "array",
-      "nullable": false,
-      "element": "ItemTemplateModifier"
     }
   ],
   "enums": {

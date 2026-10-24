@@ -11,7 +11,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.World.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    [Migration("20261024000538_AddItemModifierCatalog")]
+    [Migration("20261024002254_AddItemModifierCatalog")]
     partial class AddItemModifierCatalog
     {
         /// <inheritdoc />
@@ -27126,7 +27126,7 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired();
 
                     b.HasOne("Avalon.Domain.World.ItemTemplate", null)
-                        .WithMany("Modifiers")
+                        .WithMany()
                         .HasForeignKey("TemplateId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -27484,11 +27484,6 @@ namespace Avalon.Database.World.Migrations
                     b.Navigation("Stats");
 
                     b.Navigation("Weights");
-                });
-
-            modelBuilder.Entity("Avalon.Domain.World.ItemTemplate", b =>
-                {
-                    b.Navigation("Modifiers");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.LootTable", b =>

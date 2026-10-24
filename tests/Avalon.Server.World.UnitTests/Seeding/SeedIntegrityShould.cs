@@ -5,6 +5,7 @@ using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Database.World.Repositories;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
@@ -19,6 +20,7 @@ using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Avalon.World.Quests;
+using Avalon.World.Reload;
 using Avalon.World.Scripts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -1964,12 +1966,12 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #1179: the modifier catalog whole, as the database holds it. Its counts; its ids, plain surrogates in the seed's
-    /// order (the affix families by code and element, the uniques, the implicit groups by base); the rules that span its
-    /// tables (a code on every affix group, an element only on a split family's, one stat set per group, a tier on every
-    /// affix row and on no other); the tiers' item levels and weights; the second range on exactly the "adds" lines; no
-    /// weight on a unique, an implicit or a trinket; and the template links: each unique links its own unique row, and
-    /// exactly the 60 defence-bearing bases link one implicit each. The catalog loads all of it without leaving any out.
+    /// #1179: the modifier catalog whole, as the database holds it. Its counts (its ids are held by
+    /// <see cref="Keep_every_catalog_row_at_its_committed_id" />); the rules that span its tables (a code on every affix
+    /// group, an element only on a split family's, one stat set per group, a tier on every affix row and on no other); the
+    /// tiers' item levels and weights; the second range on exactly the "adds" lines; no weight on a unique, an implicit
+    /// or a trinket; and the template links: each unique links its own unique row, and exactly the 60 defence-bearing
+    /// bases link one implicit each. The catalog loads all of it without leaving any out.
     /// </summary>
     [Fact]
     public async Task Seed_the_catalog_whole()
@@ -1990,15 +1992,6 @@ public class SeedIntegrityShould
             (modifiers.Count, modifiers.Sum(m => m.Stats.Count), modifiers.Sum(m => m.Weights.Count), links.Count));
 
         var templateOfGroup = links.ToDictionary(l => groupOf[l.ModifierId].Id, l => l.TemplateId.Value);
-        Assert.Equal(Enumerable.Range(1, 109), groups.Select(g => g.Id));
-        Assert.Equal(Enumerable.Range(1, 109), groups
-            .OrderBy(g => g.Kind)
-            .ThenBy(g => g.Code is null ? 0 : int.Parse(g.Code[1..]))
-            .ThenBy(g => g.Element)
-            .ThenBy(g => templateOfGroup.GetValueOrDefault(g.Id))
-            .Select(g => g.Id));
-        Assert.Equal(Enumerable.Range(1, 283), modifiers.Select(m => m.Id));
-        Assert.Equal(Enumerable.Range(1, 283), modifiers.OrderBy(m => m.GroupId).ThenBy(m => m.Tier).Select(m => m.Id));
 
         string[] split = ["P8", "P9", "P10", "S5"];
         ushort[] levels = [1, 4, 7, 10, 13];
@@ -2012,7 +2005,7 @@ public class SeedIntegrityShould
                 Assert.NotNull(group.Code);
                 Assert.Equal(split.Contains(group.Code), group.Element is not null);
                 int tiers = group.Code is "S7" or "S13" ? 4 : 5;
-                Assert.Equal(Enumerable.Range(1, tiers).Select(t => (byte?)t), rows.Select(m => m.Tier));
+                Assert.Equal(Enumerable.Range(1, tiers).Select(t => (byte?)t), rows.Select(m => m.Tier).Order());
                 foreach (ItemModifier row in rows)
                 {
                     Assert.Equal(levels[row.Tier!.Value - 1], row.RequiredItemLevel);
@@ -2044,7 +2037,9 @@ public class SeedIntegrityShould
             templates[l.TemplateId.Value].Rarity == ItemRarity.Unique ? ItemModifierKind.Unique : ItemModifierKind.Implicit,
             groupOf[l.ModifierId].Kind));
         HashSet<ItemBaseKind> defended =
-            [.. Enum.GetValues<ItemBaseKind>().Where(k => (int)k <= 18), ItemBaseKind.Shield, ItemBaseKind.CasterOffHand];
+            [.. Enum.GetValues<ItemBaseKind>().Where(k => ItemBaseKindSlots.SlotOf(k) is ItemSlotType.Head or ItemSlotType.Shoulder
+                or ItemSlotType.Chest or ItemSlotType.Hands or ItemSlotType.Legs or ItemSlotType.Feet), ItemBaseKind.Shield,
+                ItemBaseKind.CasterOffHand];
         Assert.Equal(
             templates.Values
                 .Where(t => t.Rarity == ItemRarity.Unique
@@ -2053,8 +2048,8 @@ public class SeedIntegrityShould
             links.Select(l => l.TemplateId.Value).Order());
         Assert.Equal(60, links.Count(l => groupOf[l.ModifierId].Kind == ItemModifierKind.Implicit));
 
-        ItemModifierCatalog catalog = await new ItemModifierRepository(database, NullLoggerFactory.Instance)
-            .GetCatalogAsync(CancellationToken.None);
+        ItemModifierCatalog catalog = ItemsPatch.Build(templates.Values, await new ItemModifierRepository(database,
+            NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None), NullLogger.Instance).Modifiers;
         Assert.Equal(283, catalog.Count);
         Assert.All(links, l => Assert.Equal(l.ModifierId, Assert.Single(catalog.LinkedTo(l.TemplateId)).Id));
     }
@@ -2176,5 +2171,44 @@ public class SeedIntegrityShould
             .Single(s => s.ModifierId == link.ModifierId && s.Stat == stat);
 
         Assert.Equal((min, max, min2, max2), (line.Min, line.Max, line.Min2, line.Max2));
+    }
+
+    /// <summary>
+    /// #1179: every catalog row keeps the id it was seeded with, since items store it: ids are literal in the seed and
+    /// unique, and each row's key (its family, element and tier, or its unique's or base's template) keeps the group id
+    /// and modifier id committed in item-modifier-ids.tsv. A new row adds a line; an existing line never changes.
+    /// </summary>
+    [Fact]
+    public void Keep_every_catalog_row_at_its_committed_id()
+    {
+        Assert.Equal(ItemModifierSeed.Groups().Length, ItemModifierSeed.Groups().Select(g => g.Id).Distinct().Count());
+        Assert.Equal(ItemModifierSeed.Modifiers().Length, ItemModifierSeed.Modifiers().Select(m => m.Id).Distinct().Count());
+
+        string path = Path.Combine(RepositoryLayout.Root(), "tests", "Avalon.Server.World.UnitTests", "Seeding", "item-modifier-ids.tsv");
+        string[] committed =
+        [
+            .. File.ReadAllLines(path).Where(line => line.Length > 0 && !line.StartsWith('#')).Order(StringComparer.Ordinal),
+        ];
+        string[] seeded =
+        [
+            .. CatalogKeys.All().Select(row => $"{row.Key}\t{row.GroupId}\t{row.ModifierId}").Order(StringComparer.Ordinal),
+        ];
+
+        Assert.Equal(committed, seeded);
+    }
+
+    /// <summary>
+    /// #1179: until the bases' template stat lines go (Part B, Task 2), each base's drafted implicit lines are the very
+    /// lines its template carries, in order, and only the 60 defence-bearing bases have any.
+    /// </summary>
+    [Fact]
+    public void Draft_each_implicit_from_its_bases_stat_lines()
+    {
+        ILookup<ulong, DraftedImplicit> drafted = ItemModifierSeed.Implicits().ToLookup(i => i.TemplateId);
+        ItemTemplate[] bases = [.. ItemBaseSeed.Equipment().Where(t => t.Rarity == ItemRarity.Common && StatLinesOf(t).Any())];
+
+        Assert.Equal(bases.Select(t => t.Id.Value).Order(), drafted.Select(d => d.Key).Order());
+        Assert.All(bases, t => Assert.Equal(StatLinesOf(t),
+            drafted[t.Id.Value].Select(d => ((StatType?)d.Stat, (uint?)d.Value))));
     }
 }

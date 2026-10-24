@@ -27123,7 +27123,7 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired();
 
                     b.HasOne("Avalon.Domain.World.ItemTemplate", null)
-                        .WithMany("Modifiers")
+                        .WithMany()
                         .HasForeignKey("TemplateId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -27481,11 +27481,6 @@ namespace Avalon.Database.World.Migrations
                     b.Navigation("Stats");
 
                     b.Navigation("Weights");
-                });
-
-            modelBuilder.Entity("Avalon.Domain.World.ItemTemplate", b =>
-                {
-                    b.Navigation("Modifiers");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.LootTable", b =>

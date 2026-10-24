@@ -37,14 +37,44 @@ public static class ItemModifierDoc
     ];
 
     /// <summary>
-    /// Writes the block into the page at <paramref name="path" />, which must exist: the page's prose is hand-written
-    /// around it.
+    /// The page this block lives in: the repository's own docs/item-modifiers.md, whatever output root the exporter was
+    /// given, since the page is hand-written and committed, not an artifact written somewhere else.
     /// </summary>
+    public static string PagePath() => Path.Combine(RepositoryRoot.Find(), DocsDirectory, FileName);
+
+    /// <summary>
+    /// Null when the page can take the block: it exists and holds each marker once, in order. Otherwise why not, so the
+    /// exporter stops before it writes anything.
+    /// </summary>
+    public static string? Readiness()
+    {
+        string path;
+        try
+        {
+            path = PagePath();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message;
+        }
+
+        if (!File.Exists(path))
+            return $"needs {path}: the page is hand-written around its generated block.";
+
+        try
+        {
+            _ = Splice(File.ReadAllText(path), string.Empty);
+            return null;
+        }
+        catch (InvalidDataException ex)
+        {
+            return $"cannot write {path}: {ex.Message}";
+        }
+    }
+
+    /// <summary>Writes the block into the page at <paramref name="path" />, which must exist (see <see cref="Readiness" />).</summary>
     public static void Write(string path)
     {
-        if (!File.Exists(path))
-            throw new FileNotFoundException($"{path} does not exist: the page is hand-written around its generated block.", path);
-
         string page = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
         Lf.Write(path, Splice(page, Render()));
         Console.WriteLine($"wrote the generated block of {path}");
@@ -53,12 +83,15 @@ public static class ItemModifierDoc
     /// <summary>
     /// <paramref name="page" /> with everything between its two markers replaced by <paramref name="block" />.
     /// </summary>
-    /// <exception cref="InvalidDataException">The page lacks a marker, or has them out of order.</exception>
+    /// <exception cref="InvalidDataException">The page lacks a marker, holds one twice, or has them out of order.</exception>
     public static string Splice(string page, string block)
     {
         int begin = page.IndexOf(Begin, StringComparison.Ordinal);
         int end = page.IndexOf(End, StringComparison.Ordinal);
-        if (begin < 0 || end < begin)
+        bool once = begin >= 0 && end >= 0
+            && page.IndexOf(Begin, begin + Begin.Length, StringComparison.Ordinal) < 0
+            && page.IndexOf(End, end + End.Length, StringComparison.Ordinal) < 0;
+        if (!once || end < begin)
             throw new InvalidDataException($"The page needs {Begin} and then {End}, each once, around its generated block.");
 
         int from = begin + Begin.Length;

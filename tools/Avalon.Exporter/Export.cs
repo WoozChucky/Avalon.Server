@@ -71,11 +71,12 @@ internal static class Exports
             root => ItemModifierCatalogExport.Write(
                 Path.Combine(root, ItemModifierCatalogExport.DirectoryName, ItemModifierCatalogExport.FileName))),
 
-        new("item-modifier-doc", "../" + ItemModifierDoc.DocsDirectory + "/" + ItemModifierDoc.FileName,
-            "the generated block of the item modifier page, from the seed (the page sits beside the output root)",
-            root => ItemModifierDoc.Write(Path.Combine(
-                Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(root)) ?? root,
-                ItemModifierDoc.DocsDirectory, ItemModifierDoc.FileName))),
+        // The page is the repository's own, hand-written around its block, so it is written there whatever --out names;
+        // its readiness checks the page and its markers before anything is written.
+        new("item-modifier-doc", ItemModifierDoc.DocsDirectory + "/" + ItemModifierDoc.FileName + " (the repository's, whatever --out)",
+            "the generated block of the item modifier page, from the seed",
+            _ => ItemModifierDoc.Write(ItemModifierDoc.PagePath()),
+            ItemModifierDoc.Readiness),
 
         new("ability-catalog", AbilityCatalogExport.DirectoryName + "/" + AbilityCatalogExport.FileName,
             "the ability rows the client names and draws casts from (needs a World database)",

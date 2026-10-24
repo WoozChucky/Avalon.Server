@@ -7,9 +7,10 @@
 namespace Avalon.Database.World.Migrations
 {
     /// <summary>
-    /// #1179: the item modifier catalog, seeded from ItemModifierSeed: 109 groups (28 prefix and 16 suffix families, 5
-    /// uniques, 60 bases' implicits), 283 modifiers, 300 stat lines, 1780 weights and 65 template links. The inserts run
-    /// groups, then modifiers, then their stat lines, weights and links, so every row's parent exists first.
+    /// #1179: the item modifier catalog, seeded from ItemModifierSeed with its literal ids: 109 groups (28 prefix and 16
+    /// suffix families, 5 uniques, 60 bases' implicits), 283 modifiers, 300 stat lines, 1780 weights and 65 template
+    /// links. The inserts run groups, then modifiers, then their stat lines, weights and links, so every row's parent
+    /// exists first.
     /// </summary>
     public partial class AddItemModifierCatalog : Migration
     {

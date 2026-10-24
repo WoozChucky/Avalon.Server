@@ -1,6 +1,5 @@
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
-using Avalon.Network.Packets.Combat;
 
 namespace Avalon.Server.World.UnitTests.Seeding;
 
@@ -11,25 +10,28 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// </summary>
 internal static class CatalogKeys
 {
-    public static int ModifierId(string key)
+    /// <summary>Every seeded row by its key, with its group's id and its own.</summary>
+    public static IReadOnlyList<(string Key, int GroupId, int ModifierId)> All()
     {
-        string[] parts = key.Split(' ');
-        ItemModifierGroup[] groups = ItemModifierSeed.Groups();
-        ItemModifier[] modifiers = ItemModifierSeed.Modifiers();
+        Dictionary<int, ItemModifierGroup> groups = ItemModifierSeed.Groups().ToDictionary(g => g.Id);
+        Dictionary<int, ulong> templateOf = ItemModifierSeed.TemplateLinks().ToDictionary(l => l.ModifierId, l => l.TemplateId.Value);
 
-        if (parts[0] is "unique" or "implicit")
-        {
-            ItemModifierKind kind = parts[0] == "unique" ? ItemModifierKind.Unique : ItemModifierKind.Implicit;
-            ulong template = ulong.Parse(parts[1]);
-            ItemTemplateModifier link = ItemModifierSeed.TemplateLinks().Single(l => l.TemplateId.Value == template);
-            ItemModifier linked = modifiers.Single(m => m.Id == link.ModifierId);
-            Assert.Equal(kind, groups.Single(g => g.Id == linked.GroupId).Kind);
-            return linked.Id;
-        }
-
-        DamageType? element = parts.Length == 3 ? Enum.Parse<DamageType>(parts[1]) : null;
-        byte tier = byte.Parse(parts[^1].TrimStart('T'));
-        ItemModifierGroup group = groups.Single(g => g.Code == parts[0] && g.Element == element);
-        return modifiers.Single(m => m.GroupId == group.Id && m.Tier == tier).Id;
+        return
+        [
+            .. ItemModifierSeed.Modifiers().Select(m =>
+            {
+                ItemModifierGroup group = groups[m.GroupId];
+                string key = group.Kind switch
+                {
+                    ItemModifierKind.Unique => $"unique {templateOf[m.Id]}",
+                    ItemModifierKind.Implicit => $"implicit {templateOf[m.Id]}",
+                    _ when group.Element is { } element => $"{group.Code} {element} T{m.Tier}",
+                    _ => $"{group.Code} T{m.Tier}",
+                };
+                return (key, group.Id, m.Id);
+            }),
+        ];
     }
+
+    public static int ModifierId(string key) => All().Single(row => row.Key == key).ModifierId;
 }

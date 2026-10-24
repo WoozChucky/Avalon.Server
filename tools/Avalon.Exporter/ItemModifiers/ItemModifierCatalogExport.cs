@@ -19,6 +19,7 @@ public static class ItemModifierCatalogExport
     private static readonly JsonSerializerOptions s_serializerOptions = new()
     {
         WriteIndented = true,
+        NewLine = "\n",
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 

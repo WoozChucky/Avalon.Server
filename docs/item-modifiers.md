@@ -23,13 +23,18 @@ Five World database tables, all balance tables (seeded with `HasData`, changed o
 - `ItemTemplateModifiers`: the modifiers every copy of a template rolls when it is made, in order: a base's implicits, or
   a unique's own modifier.
 
-Ids are plain sequential numbers that mean nothing: the seed assigns them once, in a readable order, and a row added
-later takes the next free id. An item names a catalog row by `ModifierId` (`integer`). Nothing computes meaning from an
-id; a tier, a group or a kind is always read from its column.
+Ids are surrogate numbers that mean nothing. Each group and each row has its id written as a literal in the seed table
+(`ItemModifierSeed`); none is computed from where a row sits. An item names a catalog row by `ModifierId` (`integer`), so
+an id never changes once seeded: a row added later takes the next free id, and `SeedIntegrityShould` holds every row
+to the id committed in `tests/Avalon.Server.World.UnitTests/Seeding/item-modifier-ids.tsv` (a new row adds a line).
+Nothing computes meaning from an id; a tier, a group or a kind is always read from its column.
 
 `ItemModifierCatalog` loads the catalog for the world server and the REST API. It logs and leaves out a row with no stat
-line, a unique or implicit row that carries a weight, and a template's links when they name a missing row, a prefix or a
-suffix, or mix a unique modifier with anything else.
+line, a prefix or suffix row without a tier or a unique or implicit row with one, a unique or implicit row that carries
+a weight, and a template's links when they name a missing row, a prefix or a suffix, or mix a unique modifier with
+anything else. The items area (`ItemsPatch.Build`) also holds each template's links against its rarity: a unique
+template links exactly its one unique modifier, a common base only implicits, and a template that breaks this keeps
+none of its links.
 
 ## Rarity
 
