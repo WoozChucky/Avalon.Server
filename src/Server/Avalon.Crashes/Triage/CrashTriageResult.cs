@@ -2,7 +2,7 @@ namespace Avalon.Crashes.Triage;
 
 public enum CrashTriageOutcome { Updated, Missing, Conflict, Validation }
 
-public enum CrashTriageValidationCode { InvalidRevision, EmptyPatch, InvalidStatus, InvalidFixedVersion, InvalidIssueUrl, NotesTooLong }
+public enum CrashTriageValidationCode { InvalidRevision, EmptyPatch, InvalidStatus, InvalidFixedVersion, InvalidIssueUrl, NotesTooLong, InvalidNotes }
 
 public sealed record CrashGroupTriage(
     CrashGroupId Id, CrashGroupStatus Status, string? FixedInVersion, string? IssueUrl, string? Notes,

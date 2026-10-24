@@ -19,6 +19,42 @@ namespace Avalon.Crashes.IntegrationTests;
 public sealed class CrashPipelineShould(ITestOutputHelper output)
 {
     [IntegrationFact]
+    public async Task Should_process_nul_log_and_actual_native_os_text_without_database_outage()
+    {
+        await using var fixture = new CrashPipelineFixture();
+        await fixture.InitializeAsync();
+        StoredCrashObject source = await fixture.UploadAsync(nulText: true);
+        StoredCrashObject control = await fixture.UploadAsync();
+        fixture.StartWorker();
+        CrashReport report = await fixture.WaitReportAsync(source.Key, r => r.Status == CrashReportStatus.Processed);
+        CrashReport safe = await fixture.WaitReportAsync(control.Key, r => r.Status == CrashReportStatus.Processed);
+        using var health = new HttpClient();
+        using HttpResponseMessage healthy = await health.GetAsync("http://127.0.0.1:8080/health");
+        Assert.Equal(HttpStatusCode.OK, healthy.StatusCode);
+        await fixture.StopWorkerAsync();
+        Assert.Equal("before\ufffdafter literal\\u0000", report.LogTail);
+        Assert.Contains("before\ufffdafter", report.OsVersion!);
+        Assert.True(report.QualityFlags.HasFlag(CrashQualityFlags.SanitizedText));
+        Assert.False(safe.QualityFlags.HasFlag(CrashQualityFlags.SanitizedText));
+        JsonElement detail = await fixture.GetAsync($"/admin/crashes/reports/{report.Id.Value}");
+        Assert.Contains("sanitizedText", detail.GetProperty("quality").EnumerateArray().Select(v => v.GetString()));
+        Assert.DoesNotContain("unknownNativeValue", detail.GetProperty("quality").EnumerateArray().Select(v => v.GetString()));
+        Assert.Contains("Application.cpp", detail.GetProperty("analysis").GetRawText());
+        var queue = new CrashQueue(fixture.Database.Factory);
+        Assert.False(await queue.DiscoverAsync(source, DateTimeOffset.UtcNow, default));
+        await using CrashesDbContext db = fixture.Database.Factory.CreateDbContext();
+        Assert.Equal(2, await db.Reports.CountAsync());
+        Assert.Equal(2, (await db.Groups.SingleAsync()).ReportCount);
+        Assert.All(await db.Reports.ToListAsync(), row =>
+        {
+            Assert.Equal(CrashReportStatus.Processed, row.Status);
+            Assert.Equal(1, row.AttemptCount);
+            Assert.Equal(0, row.ConsecutiveToolFailures);
+            Assert.Null(row.LeaseOwner);
+        });
+    }
+
+    [IntegrationFact]
     public async Task Should_process_one_zip_into_one_admin_readable_group()
     {
         await using var fixture = new CrashPipelineFixture();

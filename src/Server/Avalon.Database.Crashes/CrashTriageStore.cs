@@ -28,6 +28,8 @@ public sealed class CrashTriageStore(IDbContextFactory<CrashesDbContext> factory
             return CrashTriageResult.Invalid(CrashTriageValidationCode.InvalidIssueUrl);
         if (patch.Notes.IsSpecified && patch.Notes.Value is { Length: > 4096 })
             return CrashTriageResult.Invalid(CrashTriageValidationCode.NotesTooLong);
+        if (patch.Notes.IsSpecified && patch.Notes.Value?.Contains('\0') == true)
+            return CrashTriageResult.Invalid(CrashTriageValidationCode.InvalidNotes);
 
         await using CrashesDbContext db = await factory.CreateDbContextAsync(ct);
         db.Database.SetCommandTimeout(TimeSpan.FromSeconds(5));

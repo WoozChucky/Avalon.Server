@@ -7,6 +7,46 @@ namespace Avalon.Crashes.UnitTests.Analysis;
 
 public sealed class StackwalkProjectorShould
 {
+    [Fact]
+    public void Should_normalize_all_retained_native_text_before_signatures()
+    {
+        const string Text = "before\0after";
+        const string Expected = "before\ufffdafter";
+        CrashInput input = AnalysisFixture.Input(new ModuleIdentity(Text, Text, Text, Text, Text, 0x1000, 0x1000));
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            crash_info = new { type = Text, crashing_thread = 0 },
+            system_info = new { os = Text, os_ver = Text, cpu_arch = Text, cpu_info = Text },
+            threads = new[] { new { frames = new object[]
+            {
+                new { offset = "0x1010", function = Text, file = Text, trust = Text, module = Text, inlines = new[] { new { function = Text, file = Text } } },
+                new { offset = "0x9999", function = @"literal\u0000", file = @"literal\u0000", trust = "context", module = Text, inlines = Array.Empty<object>() }
+            } } }
+        });
+        CrashAnalysis result = StackwalkProjector.Project(json, input, AnalysisFixture.Tools);
+        Assert.Equal(Expected, result.Crash.Reason);
+        Assert.Equal(new CrashSystem(Expected, Expected, null, Expected, Expected), result.System);
+        CrashFrame frame = result.Threads[0].Frames[0];
+        Assert.Equal(Expected, frame.Module);
+        Assert.Equal(Expected, frame.ImageKey);
+        Assert.Equal(Expected, frame.Function);
+        Assert.Equal(Expected, frame.Source);
+        Assert.Equal(Expected, frame.Trust);
+        Assert.Equal(Expected, frame.InlineFrames[0].Function);
+        Assert.Equal(Expected, frame.InlineFrames[0].Source);
+        Assert.Equal(Expected, result.Threads[0].Frames[1].Module);
+        Assert.Equal(@"literal\u0000", result.Threads[0].Frames[1].Function);
+        CrashModule module = result.Modules[0];
+        Assert.Equal(Expected, module.Name);
+        Assert.Equal(Expected, module.ImageKey);
+        Assert.Equal(Expected, module.PdbName);
+        Assert.Equal(Expected, module.PdbKey);
+        Assert.Equal(Expected, module.Version);
+        Assert.True(result.Quality.HasFlag(CrashQualityFlags.SanitizedText));
+        Assert.DoesNotContain('\0', CrashSignature.Create(result).Display);
+        Assert.Equal(CrashSignature.Create(result), CrashSignature.Create(StackwalkProjector.Project(json, input, AnalysisFixture.Tools)));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -164,6 +164,7 @@ public static class StackwalkProjector
         {
             if (value is null)
                 return null;
+            value = CrashText.Sanitize(value, ref _quality);
             if (value.Length <= cap)
                 return value;
             _quality |= CrashQualityFlags.Truncated;

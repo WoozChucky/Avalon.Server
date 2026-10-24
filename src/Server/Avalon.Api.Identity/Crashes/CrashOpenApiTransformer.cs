@@ -11,7 +11,7 @@ internal sealed class CrashOpenApiTransformer : IOpenApiSchemaTransformer, IOpen
 {
     private static readonly string[] s_groupStatuses = ["new", "investigating", "fixed", "ignored"];
     private static readonly string[] s_reportStatuses = ["pending", "processing", "retry_wait", "processed", "rejected", "failed"];
-    private static readonly string[] s_quality = ["missingSystemSymbols", "scanFrames", "truncated", "metadataDisagreement", "versionComparisonUnavailable", "unknownNativeValue"];
+    private static readonly string[] s_quality = ["missingSystemSymbols", "scanFrames", "truncated", "metadataDisagreement", "versionComparisonUnavailable", "sanitizedText", "unknownNativeValue"];
 
     public Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
     {
@@ -31,7 +31,7 @@ internal sealed class CrashOpenApiTransformer : IOpenApiSchemaTransformer, IOpen
                 ["status"] = Strings(s_groupStatuses),
                 ["fixedInVersion"] = NullableText(64, "Strict SemVer 2.0 version. Null clears the fixed version."),
                 ["issueUrl"] = NullableText(2048, "Canonical https://github.com/<owner>/<repo>/issues/<positive-decimal> URL without credentials, port, query, fragment or trailing slash. Never fetched. Null clears the issue URL."),
-                ["notes"] = NullableText(4096, "Plain, long-lived engineering notes; never include logs, names, paths or report material. No automatic report-to-note copy. Null clears the notes."),
+                ["notes"] = NullableText(4096, "Plain, long-lived engineering notes; never include logs, names, paths or report material. No automatic report-to-note copy. NUL characters are invalid. Null clears the notes."),
             };
         }
         else if (type.Namespace == typeof(CrashReportDto).Namespace && schema.Properties is { } properties)
@@ -85,6 +85,6 @@ internal sealed class CrashOpenApiTransformer : IOpenApiSchemaTransformer, IOpen
     {
         Type = JsonSchemaType.Array,
         Items = Strings(s_quality),
-        Description = "Known quality markers preserve these exact spellings; no flags produces an empty array. Unknown quality bits, trust or report enum values add unknownNativeValue.",
+        Description = "Known quality markers preserve these exact spellings; no flags produces an empty array. sanitizedText marks replacement of decoded NUL with U+FFFD before persistence. Unknown quality bits, trust or report enum values add unknownNativeValue.",
     };
 }

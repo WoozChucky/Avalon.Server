@@ -28,10 +28,7 @@ internal static class TelemetryCapture
                         continue;
                     }
 
-                    string encoded = resource.GetRawText();
-                    foreach (string secret in privateValues) Assert.DoesNotContain(secret, encoded);
-                    foreach (string forbidden in new[] { "http.url", "url.full", "db.statement", "db.query.text", "garage-tls", "Database=", "Username=", "signature=" })
-                        Assert.DoesNotContain(forbidden, encoded);
+                    AssertPrivateValuesAbsent(resource, [.. privateValues, "http.url", "url.full", "db.statement", "db.query.text", "garage-tls", "Database=", "Username=", "signature="]);
                     string scopeName = name switch { "resourceSpans" => "scopeSpans", "resourceLogs" => "scopeLogs", _ => "scopeMetrics" };
                     foreach (JsonElement scope in resource.GetProperty(scopeName).EnumerateArray())
                     {
@@ -85,5 +82,25 @@ internal static class TelemetryCapture
         }
         Assert.True(logs >= 4, $"Expected report-triggered finite events, got {logs}.");
         return (spans, logs, metrics.Count);
+    }
+
+    internal static void AssertPrivateValuesAbsent(JsonElement element, string[] privateValues)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (JsonProperty property in element.EnumerateObject())
+                {
+                    foreach (string secret in privateValues) Assert.DoesNotContain(secret, property.Name);
+                    AssertPrivateValuesAbsent(property.Value, privateValues);
+                }
+                break;
+            case JsonValueKind.Array:
+                foreach (JsonElement item in element.EnumerateArray()) AssertPrivateValuesAbsent(item, privateValues);
+                break;
+            case JsonValueKind.String:
+                foreach (string secret in privateValues) Assert.DoesNotContain(secret, element.GetString()!);
+                break;
+        }
     }
 }

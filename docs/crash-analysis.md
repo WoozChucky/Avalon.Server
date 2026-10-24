@@ -122,16 +122,24 @@ document, using the named `Avalon.Api.Contract.Crashes` DTOs. UUIDs are primitiv
 strings, dates UTC ISO, addresses hex strings and enum values lower case. Unknown
 native/internal fields remain nullable, with explicit quality markers; do not
 invent an empty stack or zero address. The feature preserves explicit JSON nulls.
+Decoded NUL characters in retained log/native text become U+FFFD before signatures
+and persistence, with the additive `sanitizedText` quality marker. UTF-8 log and
+serialized stack limits still apply after replacement; `truncated` also marks any
+resulting omission. Clients with strict quality enums must regenerate for this
+marker. Deploy matching feature worker and identity binaries before first intake;
+intermediate pre-fix branch images are not supported rollout targets and cannot
+decode newly flagged rows. Leave the additive quality constraint migration in place during rollback and use compatible binaries.
 
 PATCH requires `triageRevision` and at least one editable field. Omitted fields
 preserve values; explicit null clears `fixedInVersion`, `issueUrl` or `notes`.
 Status accepts `new`, `investigating`, `fixed`, `ignored`; fixed requires strict
 SemVer 2.0. Fixing records server `fixedAt`. A later upload at/above that fixed
-version records a regression once per report; a delayed old upload cannot regress
-it merely by arriving at the processor later. Fix and ignored clear the current
+version reopens a currently fixed group and increments regression history once per
+fixed-to-new reopening; later reports while already reopened do not increment it.
+A delayed old upload cannot regress it merely by arriving at the processor later. Fix and ignored clear the current
 regression flag while preserving regression history. Conflicts are 409 with only
 `currentRevision`, requiring a reread before editing. Issue URLs are validated
-GitHub issue URLs and are never fetched.
+GitHub issue URLs and are never fetched. Notes containing NUL are invalid input (400).
 
 | HTTP | Feature code |
 | --- | --- |
@@ -173,7 +181,8 @@ Worker arguments are `run`, `run --paused`, `cleanup`,
 `list-failures --page 1 --page-size 50`, and `retry --report-id <uuid>`. Operator
 commands accept IDs and finite failure state, never raw stack input. Manual retry
 applies only to eligible retained failed reports, starts a bounded new retry
-campaign and is rate limited; it cannot extend expiry or regroup a processed row.
+campaign governed by the retry backoff; it cannot extend expiry or regroup a
+processed row. The operator command has no separate elapsed-time rate limit.
 Correct missing originals/configuration first. Do not reset counters or delete
 queue rows to replay reports.
 

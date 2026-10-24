@@ -11,7 +11,7 @@ namespace Avalon.Api.Identity.Crashes;
 public static class CrashDtoMapper
 {
     private const CrashQualityFlags KnownQuality = CrashQualityFlags.MissingSystemSymbols | CrashQualityFlags.ScanFrames
-        | CrashQualityFlags.Truncated | CrashQualityFlags.MetadataDisagreement | CrashQualityFlags.VersionComparisonUnavailable;
+        | CrashQualityFlags.Truncated | CrashQualityFlags.MetadataDisagreement | CrashQualityFlags.VersionComparisonUnavailable | CrashQualityFlags.SanitizedText;
 
     public static CrashGroupPageDto Page(CrashGroupPage page) => new(page.Items.Select(Group).ToArray(), page.Page,
         page.PageSize, page.Total, Utc(page.AsOf), page.RetentionDays, Utc(page.EffectiveSince));

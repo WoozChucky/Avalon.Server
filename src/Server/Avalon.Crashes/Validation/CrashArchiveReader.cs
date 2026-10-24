@@ -14,7 +14,7 @@ public sealed class CrashArchiveReader
         CrashQualityFlags quality = CrashQualityFlags.None;
         if (entries.TryGetValue("log-tail.txt", out byte[]? logBytes))
         {
-            log = Encoding.UTF8.GetString(logBytes);
+            log = CrashText.Sanitize(Encoding.UTF8.GetString(logBytes), ref quality);
             if (Encoding.UTF8.GetByteCount(log) > CrashLimits.LogBytes)
             {
                 var output = new StringBuilder(log.Length);

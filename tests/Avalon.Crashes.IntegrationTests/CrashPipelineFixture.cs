@@ -80,9 +80,33 @@ internal sealed class CrashPipelineFixture : IAsyncDisposable
         foreach (string key in _originals) await _admin.DeleteObjectAsync("symbols", key);
     }
 
-    public async Task<StoredCrashObject> UploadAsync(bool brokenThreads = false)
+    public async Task<StoredCrashObject> UploadAsync(bool brokenThreads = false, bool nulText = false)
     {
         byte[] dump = await ReadDumpAsync();
+        if (nulText)
+        {
+            // Modify only this in-memory copy. SystemInfo CSD is a length-prefixed UTF-16 string,
+            // and the pinned walker emits its embedded NUL in system_info.os_ver.
+            int directory = (int)BinaryPrimitives.ReadUInt32LittleEndian(dump.AsSpan(12));
+            int count = (int)BinaryPrimitives.ReadUInt32LittleEndian(dump.AsSpan(8));
+            bool changed = false;
+            for (int i = 0; i < count; i++)
+            {
+                int entry = directory + i * 12;
+                if (BinaryPrimitives.ReadUInt32LittleEndian(dump.AsSpan(entry)) != 7) continue;
+                int system = (int)BinaryPrimitives.ReadUInt32LittleEndian(dump.AsSpan(entry + 8));
+                byte[] text = Encoding.Unicode.GetBytes("before\0after");
+                int append = dump.Length;
+                Array.Resize(ref dump, append + 4 + text.Length);
+                BinaryPrimitives.WriteUInt32LittleEndian(dump.AsSpan(system + 24), (uint)append);
+                BinaryPrimitives.WriteUInt32LittleEndian(dump.AsSpan(append), (uint)text.Length);
+                text.CopyTo(dump, append + 4);
+                changed = true;
+                break;
+            }
+            Assert.True(changed);
+            _ = new MinidumpIdentityReader().Read(dump);
+        }
         if (brokenThreads)
         {
             int count = (int)BinaryPrimitives.ReadUInt32LittleEndian(dump.AsSpan(8));
@@ -114,7 +138,7 @@ internal sealed class CrashPipelineFixture : IAsyncDisposable
                 threadId = 23952,
                 time = "2026-10-23T12:00:00Z"
             }));
-            await WriteEntryAsync(zip, "log-tail.txt", Encoding.UTF8.GetBytes(LogCanary));
+            await WriteEntryAsync(zip, "log-tail.txt", Encoding.UTF8.GetBytes(nulText ? "before\0after literal\\u0000" : LogCanary));
         }
         Assert.True(bytes.Length <= CrashLimits.ArchiveBytes);
         bytes.Position = 0;

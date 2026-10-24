@@ -194,5 +194,6 @@ public sealed class CrashOpenApiShould(CrashOpenApiFixture fixture) : IClassFixt
         Assert.Contains("retry_wait", Schema("CrashReportDto").GetProperty("properties").GetProperty("status").GetRawText(), StringComparison.Ordinal);
         Assert.Contains("investigating", Schema("CrashGroupDto").GetProperty("properties").GetProperty("status").GetRawText(), StringComparison.Ordinal);
         Assert.Contains("missingSystemSymbols", Schema("CrashStackDto").GetProperty("properties").GetProperty("quality").GetRawText(), StringComparison.Ordinal);
+        Assert.Contains("sanitizedText", Schema("CrashStackDto").GetProperty("properties").GetProperty("quality").GetRawText(), StringComparison.Ordinal);
     }
 }

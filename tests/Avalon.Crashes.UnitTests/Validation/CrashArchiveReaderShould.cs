@@ -9,6 +9,16 @@ public sealed class CrashArchiveReaderShould : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "avalon-crash-tests", Guid.NewGuid().ToString("N"));
 
+    [Fact]
+    public async Task Should_replace_nul_and_reapply_the_utf8_byte_limit()
+    {
+        CrashInput input = await Read(CrashFixture.Archive(log: new byte[CrashLimits.LogBytes]));
+        Assert.Equal(new string('\ufffd', CrashLimits.LogBytes / 3), input.LogTail);
+        Assert.True(Encoding.UTF8.GetByteCount(input.LogTail!) <= CrashLimits.LogBytes);
+        Assert.True(input.Quality.HasFlag(CrashQualityFlags.Truncated));
+        Assert.True(input.Quality.HasFlag(CrashQualityFlags.SanitizedText));
+    }
+
     [Theory]
     [InlineData(CompressionLevel.NoCompression)]
     [InlineData(CompressionLevel.SmallestSize)]
@@ -129,7 +139,7 @@ public sealed class CrashArchiveReaderShould : IDisposable
     public async Task Should_accept_exact_expanded_and_entry_boundaries()
     {
         string metadata = CrashFixture.Metadata.PadRight(4096);
-        CrashInput input = await Read(CrashFixture.Archive(dump: CrashFixture.Dump(4 * 1024 * 1024 - 4096 - 65536), metadata: metadata, log: new byte[65536], compression: CompressionLevel.SmallestSize));
+        CrashInput input = await Read(CrashFixture.Archive(dump: CrashFixture.Dump(4 * 1024 * 1024 - 4096 - 65536), metadata: metadata, log: Enumerable.Repeat((byte)'a', 65536).ToArray(), compression: CompressionLevel.SmallestSize));
         Assert.Equal(65536, Encoding.UTF8.GetByteCount(input.LogTail!));
     }
 

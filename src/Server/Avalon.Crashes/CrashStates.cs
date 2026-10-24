@@ -57,7 +57,8 @@ public enum CrashQualityFlags
     [JsonStringEnumMemberName("scanFrames")] ScanFrames = 2,
     [JsonStringEnumMemberName("truncated")] Truncated = 4,
     [JsonStringEnumMemberName("metadataDisagreement")] MetadataDisagreement = 8,
-    [JsonStringEnumMemberName("versionComparisonUnavailable")] VersionComparisonUnavailable = 16
+    [JsonStringEnumMemberName("versionComparisonUnavailable")] VersionComparisonUnavailable = 16,
+    [JsonStringEnumMemberName("sanitizedText")] SanitizedText = 32
 }
 
 public sealed class StableCrashEnumConverter<TEnum>() : JsonStringEnumConverter<TEnum>(namingPolicy: null, allowIntegerValues: false) where TEnum : struct, Enum;
