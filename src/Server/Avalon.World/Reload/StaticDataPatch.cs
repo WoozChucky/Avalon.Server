@@ -74,8 +74,30 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
 {
     private static readonly int s_kinds = Enum.GetValues<ItemBaseKind>().Max(kind => (int)kind) + 1;
 
+    // The last generation stamped, process-wide; the first patch is 1, so 0 stands for none.
+    private static long s_lastGeneration;
+
     private readonly KeyedRows<ulong, ItemTemplate> _templates = Keyed(Templates);
     private readonly ItemTemplate[][] _lines = Lines(Templates);
+    private readonly ItemModifierCatalog _modifiers = Modifiers;
+
+    /// <summary>
+    /// This patch's stamp (#1179), unique in the process and never 0: what a name worked out from it is keyed by
+    /// (DescribedName), so a copy compares a number, not a reference that would keep an old generation's templates and
+    /// catalog alive after a reload. Stamped when the patch is built, and again by a <c>with</c> that changes either part.
+    /// </summary>
+    public long Generation { get; private init; } = NextGeneration();
+
+    /// <summary>The modifier catalog of this generation; replacing it stamps a new generation.</summary>
+    public ItemModifierCatalog Modifiers
+    {
+        get => _modifiers;
+        init
+        {
+            _modifiers = value;
+            Generation = NextGeneration();
+        }
+    }
 
     /// <summary>
     /// The templates, with their lookup by id (<see cref="KeyedRows{TKey,TRow}" />, #883) and their lines by base kind:
@@ -88,6 +110,7 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
         {
             _templates = Keyed(value);
             _lines = Lines(value);
+            Generation = NextGeneration();
         }
     }
 
@@ -126,6 +149,8 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     /// </summary>
     public IReadOnlyList<ItemTemplate> LineOf(ItemBaseKind kind) =>
         (int)kind >= 0 && (int)kind < _lines.Length ? _lines[(int)kind] : [];
+
+    private static long NextGeneration() => Interlocked.Increment(ref s_lastGeneration);
 
     private static KeyedRows<ulong, ItemTemplate> Keyed(IReadOnlyCollection<ItemTemplate> templates) =>
         KeyedRows<ulong, ItemTemplate>.Over(templates, static template => template.Id?.Value);

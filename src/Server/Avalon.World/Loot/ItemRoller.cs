@@ -24,7 +24,7 @@ public interface IItemRoller
     RolledItem RollPlain(ItemTemplate template, ushort itemLevel, ItemModifierCatalog catalog);
 
     /// <summary>
-    /// The full roll of a made copy , at the context's item level:
+    /// The full roll of a made copy, at the context's item level:
     /// <list type="bullet">
     /// <item>a Unique template rolls rarity Unique and its one linked modifier;</item>
     /// <item>a Common template with a base kind becomes the best tier of its line the item level reaches, rolls a rarity

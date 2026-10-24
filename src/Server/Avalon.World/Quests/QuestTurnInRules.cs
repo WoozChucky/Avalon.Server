@@ -17,9 +17,10 @@ namespace Avalon.World.Quests;
 /// stacks not offered in a trade (#1175: an offered stack is not the quest's to take, so it counts for nothing); the
 /// pick one of the quest's choice set, or none for a quest without one (#711); every reward template, fixed and
 /// picked, known, and the template it is paid as (a base's tier at the quest's level, #1179, <see cref="PaidAs" />) one a
-/// quest may pay (not flagged Unique, not of Unique rarity); the fixed rewards and the pick, as paid, fit the bag as it will be once every quest item has left it, less the slots a completing trade reserved; the
-/// gold under the cap, counting the gold that trade is about to pay. Everything after it is ordered so nothing can
-/// refuse, as VendorRules is for a trade.
+/// quest may pay (not flagged Unique, not of Unique rarity); the fixed rewards and the pick, as paid, fit the bag as it
+/// will be once every quest item has left it, less the slots a completing trade reserved; the gold under the cap,
+/// counting the gold that trade is about to pay. Everything after it is ordered so nothing can refuse, as VendorRules is
+/// for a trade.
 /// </summary>
 public static class QuestTurnInRules
 {
