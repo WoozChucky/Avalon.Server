@@ -66,7 +66,7 @@ public class CharacterInventoryMoveShould
         ids.Next().Returns(fresh);
 
         Assert.Equal(ItemRequestResult.Ok,
-            new CharacterInventoryService(character, EquipTemplates.Find, ids).TryMove(Bag(0), Bag(4), 2, false));
+            InventoryFor(character, EquipTemplates.Find, ids).TryMove(Bag(0), Bag(4), 2, false));
 
         Assert.Equal(3u, At(character, InventoryType.Bag, 0).Count);
         InventoryItem split = At(character, InventoryType.Bag, 4);

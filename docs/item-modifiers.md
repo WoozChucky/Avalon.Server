@@ -51,6 +51,14 @@ away from zero and at least 1, and every copy rolls it, however the copy is made
 item). Implicits count toward neither affix limit and never block an affix: an armour implicit and the flat armour prefix
 sit on one piece. Weapons keep their damage and attack time on the base; rings, amulets and trinkets have no implicit.
 
+A base's template carries no defence line of its own (World migration `MoveBaseStatsToImplicits`): the stats fold reads
+the copy's implicit values as that item's own defence, scaled by its local increases like any other armour, evasion or
+ward line. A copy is made through `IItemRoller.RollPlain` wherever it comes from: `IInventoryService.TryAdd` (a vendor
+purchase, an item script's add, a quest's reward, a pickup) and `CharacterCreateHandler` (a starting item); the rows enter
+the character's `ItemModifierStore` marked for the save that inserts the copy, or are inserted with a new character. The
+copies owned before implicits existed got theirs at the drafted value (Character migration `AddImplicitsToOwnedItems`,
+[inventory and saves](inventory-and-saves.md)), so none lost defence.
+
 ## Rolling
 
 A copy's **item level** caps the tiers it can roll: a row rolls only when its `RequiredItemLevel` is at most the item

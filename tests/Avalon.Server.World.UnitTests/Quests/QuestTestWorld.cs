@@ -84,7 +84,7 @@ internal sealed class QuestTestWorld
         Instance.Creatures.Returns(_creatures);
         World.InstanceRegistry.GetInstanceById(Arg.Any<Guid>()).Returns(ci => ci.Arg<Guid>() == Instance.InstanceId ? Instance : null);
 
-        Economy = new CharacterEconomy(World, new ItemIdAllocator());
+        Economy = TestEconomy.Over(World);
         ILogger<QuestService> logger = log is null ? NullLogger<QuestService>.Instance : new Logger<QuestService>(log);
         Quests = new QuestService(World, services, Economy, random, Clock, logger, parties);
     }
@@ -107,7 +107,8 @@ internal sealed class QuestTestWorld
         List<CharacterLevelExperience>? levels = null,
         Action<List<DialogueNode>, List<DialogueOption>>? dialogue = null,
         TestLog? log = null,
-        List<DoodadTemplate>? doodads = null)
+        List<DoodadTemplate>? doodads = null,
+        Func<TestStaticDataRepositories, TestStaticDataRepositories>? repositories = null)
     {
         List<QuestTemplate> rows = quests ?? Chain();
         List<DialogueNode> nodes =
@@ -124,7 +125,7 @@ internal sealed class QuestTestWorld
         ];
         dialogue?.Invoke(nodes, options);
 
-        StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
+        TestStaticDataRepositories fixtures = TestStaticData.Repositories(
             items: Items,
             creatures: QuestTestData.Creatures,
             texts: Texts,
@@ -138,7 +139,8 @@ internal sealed class QuestTestWorld
             ],
             quests: QuestRepositories.Of(() => rows),
             scripts: scripts ?? ScriptManager(),
-            doodads: doodads is null ? null : () => doodads));
+            doodads: doodads is null ? null : () => doodads);
+        StaticData data = await TestStaticData.LoadAsync(repositories is null ? fixtures : repositories(fixtures));
 
         var config = new GameConfiguration();
         configure?.Invoke(config);
@@ -163,7 +165,7 @@ internal sealed class QuestTestWorld
     public QuestService QuietQuests()
     {
         var quiet = new QuietWorld(Data);
-        return new QuestService(quiet, _services, new CharacterEconomy(quiet, new ItemIdAllocator()), Random, Clock,
+        return new QuestService(quiet, _services, TestEconomy.Over(quiet), Random, Clock,
             NullLogger<QuestService>.Instance);
     }
 

@@ -1,8 +1,8 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
-using Avalon.Domain.Characters;
 using Avalon.Database.World.Repositories;
+using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
@@ -10,14 +10,13 @@ using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Parties;
+using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Quests;
-using Avalon.World;
-using Avalon.World.Inventory;
 using Avalon.World.Testing;
 using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.DependencyInjection;
@@ -117,7 +116,7 @@ public class QuestDoodadCreditShould
         var clock = new ManualTimerClock();
         IWorld world = MapInstanceClients.NewWorld(data);
         var quests = new QuestService(world, Substitute.For<IServiceProvider>(),
-            new CharacterEconomy(world, new ItemIdAllocator()), new SteadyLootRandom(0), clock, NullLogger<QuestService>.Instance);
+            TestEconomy.Over(world), new SteadyLootRandom(0), clock, NullLogger<QuestService>.Instance);
         var scripts = new DoodadScripts(new ServiceCollection().BuildServiceProvider(), clock, NullLogger<DoodadScripts>.Instance);
         var visibility = new DoodadVisibility(scripts);
         var uses = new DoodadUseService(scripts, visibility, world, clock, NullLogger<DoodadUseService>.Instance, quests);
@@ -170,7 +169,7 @@ public class QuestDoodadCreditShould
         var clock = new ManualTimerClock();
         IWorld world = MapInstanceClients.NewWorld(ScenarioReferenceData.Shared.Data);
         var quests = new QuestService(world, Substitute.For<IServiceProvider>(),
-            new CharacterEconomy(world, new ItemIdAllocator()), new SteadyLootRandom(0), clock, NullLogger<QuestService>.Instance);
+            TestEconomy.Over(world), new SteadyLootRandom(0), clock, NullLogger<QuestService>.Instance);
         var scripts = new DoodadScripts(new ServiceCollection().BuildServiceProvider(), clock, NullLogger<DoodadScripts>.Instance);
         var visibility = new DoodadVisibility(scripts);
         var uses = new DoodadUseService(scripts, visibility, world, clock, NullLogger<DoodadUseService>.Instance, quests);

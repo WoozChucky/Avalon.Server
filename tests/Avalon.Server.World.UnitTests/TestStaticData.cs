@@ -12,7 +12,7 @@ namespace Avalon.Server.World.UnitTests;
 /// <summary>
 /// The stubbed reference-data repositories StaticData (and World, which builds its own StaticData)
 /// is constructed from. Each one answers from what the test passed, read again on every call, so a
-/// test can change the rows and reload.
+/// test can change the rows and reload. Without <see cref="ItemModifiers" /> the modifier catalog is empty.
 /// </summary>
 internal sealed record TestStaticDataRepositories(
     ICharacterCreateInfoRepository CreateInfos,
@@ -31,10 +31,11 @@ internal sealed record TestStaticDataRepositories(
     IQuestRepository? Quests = null,
     IScriptManager? Scripts = null,
     IAuraTemplateRepository? Auras = null,
-    IDoodadTemplateRepository? Doodads = null)
+    IDoodadTemplateRepository? Doodads = null,
+    IItemModifierRepository? ItemModifiers = null)
 {
     public StaticData ToStaticData(Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) =>
-        new(CreateInfos, ClassStats, Items, ItemModifierRepositories.Empty(), Abilities, Levels, Creatures, BaseStats, Rarities, Texts, Dialogue, Loot,
+        new(CreateInfos, ClassStats, Items, ItemModifiers ?? ItemModifierRepositories.Empty(), Abilities, Levels, Creatures, BaseStats, Rarities, Texts, Dialogue, Loot,
             loggerFactory ?? NullLoggerFactory.Instance, Vendors, Combat, Quests, Scripts, Auras, Doodads);
 }
 

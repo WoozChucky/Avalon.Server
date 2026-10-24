@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
+using Avalon.World.Loot;
 using Avalon.World.Public.Characters;
 
 namespace Avalon.World.Inventory;
@@ -15,27 +16,32 @@ namespace Avalon.World.Inventory;
 /// in a trade (<see cref="CharacterEntity.Locks" />, #1175) is left alone: adds never fill it, removals by template
 /// never see it, and removing it by id is Locked. While a trade completes, every add but its own
 /// (<see cref="TryAddInstanceAt" />) treats the Bag slots it reserved as taken and counts the copies it is about to add
-/// toward Unique.
+/// toward Unique. Every new copy of a template that links modifiers rolls them as it is made (#1179, B-R12), through
+/// <paramref name="roller" /> over the catalog <paramref name="currentCatalog" /> answers at that moment.
 /// </summary>
 public sealed class CharacterInventoryService(
     CharacterEntity owner,
     Func<ItemTemplateId, ItemTemplate?> findTemplate,
-    IItemIdAllocator itemIds) : IInventoryService
+    IItemIdAllocator itemIds,
+    IItemRoller roller,
+    Func<ItemModifierCatalog> currentCatalog) : IInventoryService
 {
     /// <summary>Where an instance id is looked for, in order.</summary>
     private static readonly InventoryType[] s_allContainers = [InventoryType.Bag, InventoryType.Equipment, InventoryType.Bank];
 
     private CharacterInventoryContainer Bag => owner.Container(InventoryType.Bag);
 
-    public InventoryAddResult CanAdd(ItemTemplateId templateId, uint count) => Check(templateId, count, out _);
+    public InventoryAddResult CanAdd(ItemTemplateId templateId, uint count) => Check(templateId, count, currentCatalog(), out _);
 
     public InventoryAddResult TryAdd(ItemTemplateId templateId, uint count)
     {
-        InventoryAddResult result = Check(templateId, count, out ItemTemplate? template);
+        ItemModifierCatalog catalog = currentCatalog();
+        InventoryAddResult result = Check(templateId, count, catalog, out ItemTemplate? template);
         if (result != InventoryAddResult.Ok || count == 0)
             return result;
 
-        uint maxStack = MaxStack(template!);
+        bool rolls = Rolls(templateId, catalog);
+        uint maxStack = MaxStack(template!, rolls);
         uint remaining = count;
         CharacterInventoryContainer bag = Bag;
 
@@ -61,9 +67,17 @@ public sealed class CharacterInventoryService(
                 continue;
 
             uint take = Math.Min(maxStack, remaining);
-            Create(InventoryType.Bag, new InventoryItem(slot, itemIds.Next(), templateId, take,
-                ItemInstanceDefaults.InitialDurability(template!), ItemInstanceFlags.None, template!.Rarity,
-                ItemInstanceDefaults.InitialItemLevel(template)));
+            if (rolls)
+            {
+                CreateRolled(slot, template!, catalog);
+            }
+            else
+            {
+                Create(InventoryType.Bag, new InventoryItem(slot, itemIds.Next(), templateId, take,
+                    ItemInstanceDefaults.InitialDurability(template!), ItemInstanceFlags.None, template!.Rarity,
+                    ItemInstanceDefaults.InitialItemLevel(template)));
+            }
+
             remaining -= take;
             if (remaining == 0)
                 return InventoryAddResult.Ok;
@@ -309,7 +323,7 @@ public sealed class CharacterInventoryService(
         owner.ClientChanges.RecordSlot(slot.Container, slot.Slot);
     }
 
-    private InventoryAddResult Check(ItemTemplateId templateId, uint count, out ItemTemplate? template)
+    private InventoryAddResult Check(ItemTemplateId templateId, uint count, ItemModifierCatalog catalog, out ItemTemplate? template)
     {
         template = findTemplate(templateId);
         if (template is null)
@@ -325,7 +339,7 @@ public sealed class CharacterInventoryService(
 
         // In long: 30 slots of a uint.MaxValue stack still fit, and nothing here can wrap. A slot a completing trade
         // reserved (#1175) is no room.
-        uint maxStack = MaxStack(template);
+        uint maxStack = MaxStack(template, Rolls(templateId, catalog));
         CharacterInventoryContainer bag = Bag;
         long room = (long)owner.Locks.FreeSlotCount(bag) * maxStack;
         foreach (InventoryItem item in bag.Held)
@@ -367,8 +381,27 @@ public sealed class CharacterInventoryService(
     /// <summary>Offered in a trade (#1175). One bool read while nothing is.</summary>
     private bool IsLocked(InventoryItem item) => owner.Locks.IsLocked(item.InstanceId);
 
-    /// <summary>A MaxStackSize of 0 is read as 1: every item takes at least a slot of its own.</summary>
-    private static uint MaxStack(ItemTemplate template) => InventoryMove.MaxStack(template);
+    /// <summary>
+    /// A MaxStackSize of 0 is read as 1: every item takes at least a slot of its own. A copy that rolls modifiers is one
+    /// of a kind (#1179), so each takes a slot of its own whatever the template says.
+    /// </summary>
+    private static uint MaxStack(ItemTemplate template, bool rolls) => rolls ? 1u : InventoryMove.MaxStack(template);
+
+    /// <summary>Whether a new copy of the template rolls modifiers (#1179): it links some in the catalog.</summary>
+    private static bool Rolls(ItemTemplateId templateId, ItemModifierCatalog catalog) => catalog.LinkedTo(templateId).Count > 0;
+
+    /// <summary>
+    /// One new copy of a template that links modifiers, rolled now (#1179, B-R12): a plain copy at its template's item
+    /// level, in the slot, with its modifiers in the store and marked, so the save that inserts it writes them.
+    /// </summary>
+    private void CreateRolled(byte slot, ItemTemplate template, ItemModifierCatalog catalog)
+    {
+        RolledItem rolled = roller.RollPlain(template, ItemInstanceDefaults.InitialItemLevel(template), catalog);
+        Create(InventoryType.Bag, new InventoryItem(slot, rolled.InstanceId, rolled.TemplateId, 1,
+            ItemInstanceDefaults.InitialDurability(template), ItemInstanceFlags.None, rolled.Rarity, rolled.ItemLevel),
+            rolled.Modifiers);
+        owner.SaveState.ItemModifiersChanged(rolled.InstanceId);
+    }
 
     private void Take(InventoryType container, InventoryItem item, uint count)
     {

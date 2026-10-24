@@ -36,7 +36,7 @@ public class BankFlowShould : IAsyncLifetime
     }
 
     private void Move(uint request, InventoryType from, byte fromSlot, InventoryType to, byte toSlot) =>
-        new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, _w.World, new CharacterEconomy(_w.World, new ItemIdAllocator()))
+        new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, _w.World, TestEconomy.Over(_w.World))
             .Execute(_w.Connection, new CItemMovePacket
             {
                 RequestId = request,

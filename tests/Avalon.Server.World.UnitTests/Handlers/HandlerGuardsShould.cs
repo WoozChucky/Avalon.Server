@@ -143,7 +143,7 @@ public class HandlerGuardsShould
                 break;
             case NetworkPacketType.CMSG_CHARACTER_CREATE:
                 new CharacterCreateHandler(NullLogger<CharacterCreateHandler>.Instance, characters,
-                        Substitute.For<IItemIdAllocator>(), world)
+                        Substitute.For<IItemRoller>(), world)
                     .Execute(connection, new CCharacterCreatePacket());
                 break;
             case NetworkPacketType.CMSG_CHARACTER_DELETE:

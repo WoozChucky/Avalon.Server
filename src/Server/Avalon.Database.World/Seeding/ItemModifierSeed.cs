@@ -3,7 +3,10 @@ using Avalon.Network.Packets.Combat;
 
 namespace Avalon.Database.World.Seeding;
 
-/// <summary>A base's implicit stat as drafted (#1179): the value its template carried, which the seeded range spreads.</summary>
+/// <summary>
+/// A base's implicit stat as drafted (#1179): the value its template carried before its defence became its implicit,
+/// which the seeded range spreads, and which every copy owned from before then was given (AddImplicitsToOwnedItems).
+/// </summary>
 public readonly record struct DraftedImplicit(ulong TemplateId, StatType Stat, int Value);
 
 /// <summary>
@@ -188,8 +191,10 @@ public static class ItemModifierSeed
     private static (int Group, int Row, ulong Template, (StatType Stat, int Value)[] Lines) Base(
         int group, int row, ulong template, params (StatType Stat, int Value)[] lines) => (group, row, template, lines);
 
-    // The bases' implicits: group id, modifier id, template, and the drafted lines, the values the bases' templates carry
-    // (an armour piece's defence, a shield's armour and block, a caster off-hand's ward and increased spell damage).
+    // The bases' implicits: group id, modifier id, template, and the drafted lines, the values the bases' templates carried
+    // until their defence moved here (an armour piece's defence, a shield's armour and block, a caster off-hand's ward and
+    // increased spell damage). The chest's values per family and tier are 8/18/32 armour, 40/90/160 evasion and 12/26/45
+    // ward; legs 80 %, head 60 %, shoulders 50 %, hands and feet 40 % of them, rounded.
     private static readonly (int Group, int Row, ulong Template, (StatType Stat, int Value)[] Lines)[] s_implicits =
     [
         Base(50, 224, 12, (StatType.Armor, 11)),

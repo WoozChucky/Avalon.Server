@@ -1617,9 +1617,10 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #1179: every armour base as the spec's tables set it: its kind, tier level, the family's defence (chest
-    /// plate 8/18/32, leather 40/90/160, cloth 12/26/45; legs 80 %, head 60 %, shoulders 50 %, hands and feet 40 %), the
-    /// family's attribute from tier 2 and its price; a quarter of it back, every class, no stack, Common.
+    /// #1179: every armour base as the spec's tables set it: its kind, tier level, the family's attribute from tier 2 and
+    /// its price; a quarter of it back, every class, no stack, Common, and no stat line. Its defence is its implicit, drafted
+    /// from the family's (chest plate 8/18/32, leather 40/90/160, cloth 12/26/45; legs 80 %, head 60 %, shoulders 50 %,
+    /// hands and feet 40 %) and seeded as that value ±15 % (<see cref="AssertImplicit" />).
     /// </summary>
     [Theory]
     [InlineData(36ul, ItemBaseKind.PlateHead, (ushort)1, StatType.Armor, 5u, null, null, 60u)]
@@ -1684,7 +1685,8 @@ public class SeedIntegrityShould
         ItemTemplate piece = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
 
         Assert.Equal((kind, (ushort?)level, ItemClass.Armor, (uint)id), (piece.BaseKind, piece.RequiredLevel, piece.Class, piece.DisplayId));
-        Assert.Equal(new (StatType?, uint?)[] { (stat, value) }, StatLinesOf(piece));
+        Assert.Empty(StatLinesOf(piece));
+        AssertImplicit(context, id, (stat, (int)value));
         Assert.Equal(
             (requirement == StatType.Strength ? amount : null, requirement == StatType.Agility ? amount : null,
                 requirement == StatType.Intellect ? amount : null),
@@ -1696,8 +1698,8 @@ public class SeedIntegrityShould
 
     /// <summary>
     /// #1179: every weapon and off-hand base. <paramref name="min" /> and <paramref name="max" /> are a
-    /// weapon's physical range, or an off-hand's two implicit values: a shield's armour and block, a caster off-hand's ward
-    /// and increased spell damage. Each asks its attribute (a sword Strength, a mace Strength or Intellect, a staff
+    /// weapon's physical range, or an off-hand's two drafted implicit values (<see cref="AssertImplicit" />): a shield's
+    /// armour and block, a caster off-hand's ward and increased spell damage; neither carries a stat line. Each asks its attribute (a sword Strength, a mace Strength or Intellect, a staff
     /// Intellect, a bow Agility, a shield Strength, a caster off-hand Intellect) from tier 2, 30 then 45, and costs 120,
     /// 240 or 480 by tier.
     /// </summary>
@@ -1735,15 +1737,16 @@ public class SeedIntegrityShould
                 ? (StatType.Armor, StatType.BlockPct, ItemSubClass.Shield)
                 : (StatType.Ward, StatType.IncreasedSpellDamage, ItemSubClass.CasterOffHand);
             Assert.Equal((ItemClass.Armor, subClass, (ItemSlotType?)ItemSlotType.OffHand), (item.Class, item.SubClass, item.Slot));
-            Assert.Equal(new (StatType?, uint?)[] { (defence, min), (implicitLine, max) }, StatLinesOf(item));
+            AssertImplicit(context, id, (defence, (int)min), (implicitLine, (int)max));
             Assert.Null(item.DamageMax1);
         }
         else
         {
             Assert.Equal((ItemClass.Weapon, (ItemSlotType?)ItemSlotType.MainHand), (item.Class, item.Slot));
             Assert.Equal(((uint?)min, (uint?)max, (DamageType?)DamageType.Physical), (item.DamageMin1, item.DamageMax1, item.DamageType1));
-            Assert.Empty(StatLinesOf(item));
         }
+
+        Assert.Empty(StatLinesOf(item));
 
         ushort? amount = level switch { 1 => null, 5 => (ushort)30, _ => (ushort)45 };
         (bool strength, bool agility, bool intellect) = kind switch
@@ -2198,17 +2201,22 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #1179: until the bases' template stat lines go (Part B, Task 2), each base's drafted implicit lines are the very
-    /// lines its template carries, in order, and only the 60 defence-bearing bases have any.
+    /// #1179 (B-R9): a base's defence is its one implicit modifier. Its drafted lines (<paramref name="drafted" />, in
+    /// order) are ItemModifierSeed's, and each is seeded as that value ±15 %, rounded half away from zero and at least 1.
     /// </summary>
-    [Fact]
-    public void Draft_each_implicit_from_its_bases_stat_lines()
+    private static void AssertImplicit(WorldDbContext context, ulong templateId, params (StatType Stat, int Value)[] drafted)
     {
-        ILookup<ulong, DraftedImplicit> drafted = ItemModifierSeed.Implicits().ToLookup(i => i.TemplateId);
-        ItemTemplate[] bases = [.. ItemBaseSeed.Equipment().Where(t => t.Rarity == ItemRarity.Common && StatLinesOf(t).Any())];
+        static int Spread(int value, int percent) =>
+            Math.Max(1, (int)Math.Round(value * (100 + percent) / 100m, MidpointRounding.AwayFromZero));
 
-        Assert.Equal(bases.Select(t => t.Id.Value).Order(), drafted.Select(d => d.Key).Order());
-        Assert.All(bases, t => Assert.Equal(StatLinesOf(t),
-            drafted[t.Id.Value].Select(d => ((StatType?)d.Stat, (uint?)d.Value))));
+        Assert.Equal(drafted, ItemModifierSeed.Implicits().Where(i => i.TemplateId == templateId).Select(i => (i.Stat, i.Value)));
+        ItemTemplateModifier link = Assert.Single(context.ItemTemplateModifiers.AsNoTracking().ToList(),
+            l => l.TemplateId.Value == templateId);
+        Assert.Equal(ItemModifierKind.Implicit, context.ItemModifiers.AsNoTracking().Include(m => m.Group)
+            .Single(m => m.Id == link.ModifierId).Group.Kind);
+        Assert.Equal(
+            drafted.Select((line, index) => ((byte)index, line.Stat, Spread(line.Value, -15), Spread(line.Value, 15), (int?)null)),
+            context.ItemModifierStats.AsNoTracking().Where(l => l.ModifierId == link.ModifierId).OrderBy(l => l.Index).ToList()
+                .Select(l => (l.Index, l.Stat, l.Min, l.Max, l.Min2)));
     }
 }

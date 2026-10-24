@@ -6,11 +6,11 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.GameAuth;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
-using Avalon.World.Inventory;
 using Avalon.World.Items;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -49,7 +49,7 @@ public class ItemUseContextShould
 
     private ItemUseContext Context(ItemTemplate? template = null) => new(
         _connection, _character, _host, _stack, template ?? Potion,
-        new ItemUseTools(_world, new CharacterEconomy(_world, new ItemIdAllocator()),
+        new ItemUseTools(_world, TestEconomy.Over(_world),
             new TownReturn(NullLogger.Instance, _world, _resolver, InlineDatabaseWork.Instance),
             new MapTeleport(NullLogger<MapTeleport>.Instance, _world, Substitute.For<Avalon.World.Persistence.ICharacterSaver>()),
             _placement, new FakeTimeProvider(), NullLogger<ItemUseTools>.Instance));

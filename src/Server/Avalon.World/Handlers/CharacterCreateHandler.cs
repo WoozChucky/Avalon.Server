@@ -9,6 +9,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Serialization;
 using Avalon.World.Inventory;
+using Avalon.World.Loot;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Reload;
@@ -18,7 +19,7 @@ namespace Avalon.World.Handlers;
 
 [PacketHandler(NetworkPacketType.CMSG_CHARACTER_CREATE)]
 public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logger, ICharacterRepository characterRepository,
-    IItemIdAllocator itemIds, IWorld world) : WorldPacketHandler<CCharacterCreatePacket>
+    IItemRoller itemRoller, IWorld world) : WorldPacketHandler<CCharacterCreatePacket>
 {
     public override void Execute(IWorldConnection connection, CCharacterCreatePacket packet)
     {
@@ -62,6 +63,7 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
             Power1 = (int)Math.Min(stats.MaxPower, (uint)int.MaxValue)
         };
         var items = new List<ItemInstance>(); var slots = new List<CharacterInventory>();
+        ItemModifierCatalog modifiers = world.Data.ItemModifiers;
         foreach (ItemTemplateId templateId in createInfo.StartingItems)
         {
             ItemTemplate? template = world.Data.FindItemTemplate(templateId);
@@ -69,15 +71,19 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
             {
                 logger.LogWarning("Starting item {TemplateId} not found", templateId); continue;
             }
+            // #1179 (B-R12): a starting item is made as any copy is, rolling the modifiers its template links; they are
+            // inserted with it. A copy with modifiers is one of a kind, so it is never a stack.
+            RolledItem rolled = itemRoller.RollPlain(template, ItemInstanceDefaults.InitialItemLevel(template), modifiers);
             var item = new ItemInstance
             {
-                Id = itemIds.Next(),
+                Id = rolled.InstanceId,
                 TemplateId = template.Id,
-                Count = template.Stackable ? template.MaxStackSize : 1,
+                Count = template.Stackable && rolled.Modifiers.Count == 0 ? template.MaxStackSize : 1,
                 Durability = ItemInstanceDefaults.InitialDurability(template),
-                Rarity = template.Rarity,
-                ItemLevel = ItemInstanceDefaults.InitialItemLevel(template),
-                UpdatedAt = DateTime.UtcNow
+                Rarity = rolled.Rarity,
+                ItemLevel = rolled.ItemLevel,
+                UpdatedAt = DateTime.UtcNow,
+                Modifiers = [.. rolled.Modifiers]
             };
             items.Add(item); slots.Add(new() { ItemId = item.Id, Container = InventoryType.Bag, Slot = (byte)(slots.Count) });
         }

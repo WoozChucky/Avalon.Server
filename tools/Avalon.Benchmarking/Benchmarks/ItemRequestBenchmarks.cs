@@ -7,6 +7,7 @@ using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
+using Avalon.World.Loot;
 using Avalon.World.Public.Characters;
 using Avalon.World.Testing.Fakes;
 using BenchmarkDotNet.Attributes;
@@ -63,8 +64,10 @@ public class ItemRequestBenchmarks
         _character.Container(InventoryType.Bag).Load([Stack(0, 5), Stack(2, 5), Stack(3, 20)]);
         _connection = new QuietConnection(_character);
 
-        var economy = new OneCharacterEconomy(
-            new CharacterInventoryService(_character, static _ => s_potion, new ItemIdAllocator()));
+        var ids = new ItemIdAllocator();
+        var catalog = new ItemModifierCatalog([], [], NullLogger.Instance);
+        var economy = new OneCharacterEconomy(new CharacterInventoryService(_character, static _ => s_potion, ids,
+            new ItemRoller(new LootRandom(new Random(0)), ids), () => catalog));
         var world = new QuietWorld(null!);
         _move = new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, world, economy);
         _destroy = new ItemDestroyHandler(NullLogger<ItemDestroyHandler>.Instance, world, economy);

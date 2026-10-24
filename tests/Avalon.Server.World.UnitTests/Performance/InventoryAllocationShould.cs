@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
@@ -83,7 +84,7 @@ public class InventoryAllocationShould
     public async Task Change_items_through_the_economy_allocating_nothing()
     {
         var world = new QuietWorld(await TestStaticData.LoadAsync(items: [Potion, Sword, Relic]));
-        var economy = new CharacterEconomy(world, new ItemIdAllocator());
+        CharacterEconomy economy = TestEconomy.Over(world);
         var move = new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, world, economy);
         _character.Container(InventoryType.Bag).Load([Item(0, Potion, count: 5), Item(3, Sword), Item(4, Relic)]);
         CItemMovePacket there = Move(0, 1);

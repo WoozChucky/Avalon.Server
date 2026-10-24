@@ -5,10 +5,11 @@ using Avalon.Network.Packets.Combat;
 namespace Avalon.Database.World.Seeding;
 
 /// <summary>
-/// The seeded equipment (#1179): 74 bases and 5 uniques. A base is Common, lists no classes and carries no attributes:
-/// its defence or damage, its implicit lines and its requirements, in three tiers at required levels 1, 5 and 10 (the
-/// attribute asks none, 30 and 45). Plate gives armour and asks Strength, leather evasion and Agility, cloth ward and
-/// Intellect. A unique is seeded without stat lines: its stats are its unique modifier, rolled per copy. Numbers are
+/// The seeded equipment (#1179): 74 bases and 5 uniques. A base is Common, lists no classes and carries no stat line:
+/// a weapon its damage and attack time, every base its requirements, in three tiers at required levels 1, 5 and 10 (the
+/// attribute asks none, 30 and 45). Plate asks Strength, leather Agility, cloth Intellect. A base's defence (an armour
+/// piece's armour, evasion or ward, a shield's armour and block, a caster off-hand's ward and spell damage) is its
+/// implicit modifier, and a unique's stats its unique modifier, both rolled per copy (ItemModifierSeed). Numbers are
 /// rounded half away from zero and at least 1; every base sells for a quarter of its price. The model's HasData reads
 /// these; consumables and quest items stay in WorldDbContext, with no base kind.
 /// </summary>
@@ -28,17 +29,17 @@ public static class ItemBaseSeed
 
     public static ItemTemplate[] Equipment() =>
     [
-        // Plate: armour, Strength. Head, chest, legs, hands, feet, shoulders; tiers 1, 2 and 3.
+        // Plate: Strength. Head, chest, legs, hands, feet, shoulders; tiers 1, 2 and 3.
         .. ArmourSet(Family.Plate, 1, ["Ironbound Helm", "Ironbound Chestguard", "Ironbound Legguards", "Ironbound Gauntlets", "Ironbound Boots", "Ironbound Pauldrons"], [36, 37, 38, 39, 40, 76]),
         .. ArmourSet(Family.Plate, 2, ["Barkplate Helm", "Barkplate Chestguard", "Barkplate Legguards", "Barkplate Gauntlets", "Barkplate Boots", "Barkplate Pauldrons"], [12, 13, 14, 15, 16, 79]),
         .. ArmourSet(Family.Plate, 3, ["Ironroot Helm", "Ironroot Chestguard", "Ironroot Legguards", "Ironroot Gauntlets", "Ironroot Boots", "Ironroot Pauldrons"], [85, 86, 87, 88, 89, 82]),
 
-        // Leather: evasion, Agility.
+        // Leather: Agility.
         .. ArmourSet(Family.Leather, 1, ["Hide Cap", "Hide Jerkin", "Hide Breeches", "Hide Grips", "Hide Boots", "Hide Mantle"], [46, 47, 48, 49, 50, 77]),
         .. ArmourSet(Family.Leather, 2, ["Fernstalker Cap", "Fernstalker Jerkin", "Fernstalker Breeches", "Fernstalker Grips", "Fernstalker Boots", "Fernstalker Mantle"], [22, 23, 24, 25, 26, 80]),
         .. ArmourSet(Family.Leather, 3, ["Gloamhide Cap", "Gloamhide Jerkin", "Gloamhide Breeches", "Gloamhide Grips", "Gloamhide Boots", "Gloamhide Mantle"], [90, 91, 92, 93, 94, 83]),
 
-        // Cloth: ward, Intellect.
+        // Cloth: Intellect.
         .. ArmourSet(Family.Cloth, 1, ["Linen Hood", "Linen Robe", "Linen Leggings", "Linen Gloves", "Linen Slippers", "Linen Shoulderwraps"], [41, 42, 43, 44, 45, 78]),
         .. ArmourSet(Family.Cloth, 2, ["Mossweave Hood", "Mossweave Robe", "Mossweave Leggings", "Mossweave Gloves", "Mossweave Slippers", "Mossweave Shoulderwraps"], [17, 18, 19, 20, 21, 81]),
         .. ArmourSet(Family.Cloth, 3, ["Duskweave Hood", "Duskweave Robe", "Duskweave Leggings", "Duskweave Gloves", "Duskweave Slippers", "Duskweave Shoulderwraps"], [95, 96, 97, 98, 99, 84]),
@@ -57,13 +58,13 @@ public static class ItemBaseSeed
         Weapon(6, "Briarstring Bow", ItemBaseKind.Bow, ItemSubClass.Ranged, 2, 801, Attribute.Agility),
         Weapon(103, "Duskstring Bow", ItemBaseKind.Bow, ItemSubClass.Ranged, 3, 801, Attribute.Agility),
 
-        // Off hands: a shield's armour and block, Strength; a caster off-hand's ward and increased spell damage, Intellect.
-        OffHand(70, "Oak Buckler", ItemBaseKind.Shield, ItemSubClass.Shield, 1, Attribute.Strength, (StatType.Armor, 6), (StatType.BlockPct, 5)),
-        OffHand(71, "Barkplate Shield", ItemBaseKind.Shield, ItemSubClass.Shield, 2, Attribute.Strength, (StatType.Armor, 14), (StatType.BlockPct, 7)),
-        OffHand(72, "Ironroot Kite Shield", ItemBaseKind.Shield, ItemSubClass.Shield, 3, Attribute.Strength, (StatType.Armor, 24), (StatType.BlockPct, 10)),
-        OffHand(73, "Ash Focus", ItemBaseKind.CasterOffHand, ItemSubClass.CasterOffHand, 1, Attribute.Intellect, (StatType.Ward, 8), (StatType.IncreasedSpellDamage, 5)),
-        OffHand(74, "Thornwood Focus", ItemBaseKind.CasterOffHand, ItemSubClass.CasterOffHand, 2, Attribute.Intellect, (StatType.Ward, 18), (StatType.IncreasedSpellDamage, 8)),
-        OffHand(75, "Gloamwood Orb", ItemBaseKind.CasterOffHand, ItemSubClass.CasterOffHand, 3, Attribute.Intellect, (StatType.Ward, 30), (StatType.IncreasedSpellDamage, 12)),
+        // Off hands: a shield asks Strength, a caster off-hand Intellect.
+        OffHand(70, "Oak Buckler", ItemBaseKind.Shield, ItemSubClass.Shield, 1, Attribute.Strength),
+        OffHand(71, "Barkplate Shield", ItemBaseKind.Shield, ItemSubClass.Shield, 2, Attribute.Strength),
+        OffHand(72, "Ironroot Kite Shield", ItemBaseKind.Shield, ItemSubClass.Shield, 3, Attribute.Strength),
+        OffHand(73, "Ash Focus", ItemBaseKind.CasterOffHand, ItemSubClass.CasterOffHand, 1, Attribute.Intellect),
+        OffHand(74, "Thornwood Focus", ItemBaseKind.CasterOffHand, ItemSubClass.CasterOffHand, 2, Attribute.Intellect),
+        OffHand(75, "Gloamwood Orb", ItemBaseKind.CasterOffHand, ItemSubClass.CasterOffHand, 3, Attribute.Intellect),
 
         // Jewellery: one base each, level 1, no implicit.
         Jewellery(68, "Copper Band", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger),
@@ -77,28 +78,6 @@ public static class ItemBaseSeed
         Unique(66, "Bramble Mother's Seed", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 5, 200),
         Unique(67, "Tuskroot Idol", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 4, 100),
     ];
-
-    // Chest defence by family and tier; the other slots are shares of it (legs 80 %, head 60 %, shoulders 50 %, hands and
-    // feet 40 %), written out as rounded.
-    private static uint Defence(Family family, ArmourSlot slot, int tier) => (family, slot) switch
-    {
-        (Family.Plate, ArmourSlot.Chest) => Pick(tier, 8, 18, 32),
-        (Family.Plate, ArmourSlot.Legs) => Pick(tier, 6, 14, 26),
-        (Family.Plate, ArmourSlot.Head) => Pick(tier, 5, 11, 19),
-        (Family.Plate, ArmourSlot.Shoulders) => Pick(tier, 4, 9, 16),
-        (Family.Plate, _) => Pick(tier, 3, 7, 13),
-        (Family.Leather, ArmourSlot.Chest) => Pick(tier, 40, 90, 160),
-        (Family.Leather, ArmourSlot.Legs) => Pick(tier, 32, 72, 128),
-        (Family.Leather, ArmourSlot.Head) => Pick(tier, 24, 54, 96),
-        (Family.Leather, ArmourSlot.Shoulders) => Pick(tier, 20, 45, 80),
-        (Family.Leather, _) => Pick(tier, 16, 36, 64),
-        (Family.Cloth, ArmourSlot.Chest) => Pick(tier, 12, 26, 45),
-        (Family.Cloth, ArmourSlot.Legs) => Pick(tier, 10, 21, 36),
-        (Family.Cloth, ArmourSlot.Head) => Pick(tier, 7, 16, 27),
-        (Family.Cloth, ArmourSlot.Shoulders) => Pick(tier, 6, 13, 23),
-        (Family.Cloth, _) => Pick(tier, 5, 10, 18),
-        _ => throw new ArgumentOutOfRangeException(nameof(family)),
-    };
 
     // Tier-1 armour prices; tier 2 doubles them and tier 3 quadruples them.
     private static uint ArmourPrice(ArmourSlot slot, int tier) => (slot switch
@@ -135,11 +114,11 @@ public static class ItemBaseSeed
     private static IEnumerable<ItemTemplate> ArmourSet(Family family, int tier, string[] names, ulong[] ids)
     {
         ArmourSlot[] slots = [ArmourSlot.Head, ArmourSlot.Chest, ArmourSlot.Legs, ArmourSlot.Hands, ArmourSlot.Feet, ArmourSlot.Shoulders];
-        (StatType defence, Attribute attribute, ItemBaseKind head) = family switch
+        (Attribute attribute, ItemBaseKind head) = family switch
         {
-            Family.Plate => (StatType.Armor, Attribute.Strength, ItemBaseKind.PlateHead),
-            Family.Leather => (StatType.Evasion, Attribute.Agility, ItemBaseKind.LeatherHead),
-            _ => (StatType.Ward, Attribute.Intellect, ItemBaseKind.ClothHead),
+            Family.Plate => (Attribute.Strength, ItemBaseKind.PlateHead),
+            Family.Leather => (Attribute.Agility, ItemBaseKind.LeatherHead),
+            _ => (Attribute.Intellect, ItemBaseKind.ClothHead),
         };
 
         for (int i = 0; i < slots.Length; i++)
@@ -155,11 +134,8 @@ public static class ItemBaseSeed
                 _ => (ItemSubClass.Boots, ItemSlotType.Feet, 5),
             };
 
-            ItemTemplate piece = Base(ids[i], names[i], (ItemBaseKind)((int)head + kindOffset), ItemClass.Armor, subClass,
+            yield return Base(ids[i], names[i], (ItemBaseKind)((int)head + kindOffset), ItemClass.Armor, subClass,
                 worn, tier, ArmourPrice(slot, tier), attribute);
-            piece.StatType1 = defence;
-            piece.StatValue1 = Defence(family, slot, tier);
-            yield return piece;
         }
     }
 
@@ -178,17 +154,8 @@ public static class ItemBaseSeed
     }
 
     private static ItemTemplate OffHand(
-        ulong id, string name, ItemBaseKind kind, ItemSubClass subClass, int tier, Attribute attribute,
-        (StatType Type, uint Value) first, (StatType Type, uint Value) second)
-    {
-        ItemTemplate offHand = Base(id, name, kind, ItemClass.Armor, subClass, ItemSlotType.OffHand, tier,
-            Pick(tier, 120, 240, 480), attribute);
-        offHand.StatType1 = first.Type;
-        offHand.StatValue1 = first.Value;
-        offHand.StatType2 = second.Type;
-        offHand.StatValue2 = second.Value;
-        return offHand;
-    }
+        ulong id, string name, ItemBaseKind kind, ItemSubClass subClass, int tier, Attribute attribute) =>
+        Base(id, name, kind, ItemClass.Armor, subClass, ItemSlotType.OffHand, tier, Pick(tier, 120, 240, 480), attribute);
 
     private static ItemTemplate Jewellery(ulong id, string name, ItemBaseKind kind, ItemSubClass subClass, ItemSlotType slot) =>
         Base(id, name, kind, ItemClass.Armor, subClass, slot, tier: 1, buyPrice: 200);

@@ -103,6 +103,9 @@ public sealed class ScenarioWorld : IDisposable
     // Added to the world's seed for the quest service's drop rolls, for the same reason.
     private const int QuestSeedOffset = 104729;
 
+    // Added to the world's seed for the item rolls (#1179), for the same reason.
+    private const int ItemSeedOffset = 1299709;
+
     private readonly ScenarioWorldHost _world;
     private readonly ScenarioReferenceData? _reference;
     private readonly CombatPatch _combat;
@@ -229,8 +232,10 @@ public sealed class ScenarioWorld : IDisposable
         // Items and quests, as production registers them: the economy over item ids handed out in order (so a run's
         // ids are the same every time), and the quest service, which an instance tells of every kill and Tick flushes.
         services.AddSingleton<IItemIdAllocator>(new SequentialItemIds());
-        services.AddSingleton<ICharacterEconomy>(provider =>
-            new CharacterEconomy(_world, provider.GetRequiredService<IItemIdAllocator>()));
+        services.AddSingleton<IItemRoller>(provider => new ItemRoller(
+            new LootRandom(new Random(unchecked(seed + ItemSeedOffset))), provider.GetRequiredService<IItemIdAllocator>()));
+        services.AddSingleton<ICharacterEconomy>(provider => new CharacterEconomy(_world,
+            provider.GetRequiredService<IItemIdAllocator>(), provider.GetRequiredService<IItemRoller>()));
         services.AddSingleton(provider => new QuestService(_world, provider,
             provider.GetRequiredService<ICharacterEconomy>(),
             new LootRandom(new Random(unchecked(seed + QuestSeedOffset))), Clock, new Logger<QuestService>(_errorLog),
@@ -238,14 +243,18 @@ public sealed class ScenarioWorld : IDisposable
     }
 
     /// <summary>
-    /// Item instance ids in the order they are asked for: deterministic, where production's are time-ordered. Built
-    /// from parts, as production's are made, so an id allocates its <see cref="ItemInstanceId" /> and nothing else.
+    /// Item instance ids, and modifier ids (#1179), in the order they are asked for: deterministic, where production's
+    /// are time-ordered. Built from parts, as production's are made, so an id allocates its <see cref="ItemInstanceId" />
+    /// and nothing else; the two never meet.
     /// </summary>
     private sealed class SequentialItemIds : IItemIdAllocator
     {
         private int _next;
+        private int _nextModifier;
 
         public ItemInstanceId Next() => new(new Guid(++_next, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1));
+
+        public Guid NextModifierId() => new(++_nextModifier, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2);
     }
 
     /// <summary>The world's clock: every instance, character and timer here reads it, and <see cref="Tick()" /> advances it.</summary>

@@ -8,7 +8,7 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 internal static class TestModifiers
 {
     /// <summary>A modifier with a new id on <paramref name="item" />, its values given as (index, stat, value, high end).</summary>
-    public static ItemInstanceModifier Modifier(ItemInstanceId item, ushort modifierId, byte ordinal,
+    public static ItemInstanceModifier Modifier(ItemInstanceId item, int modifierId, byte ordinal,
         params (byte Index, StatType Stat, int Value, int? Value2)[] values)
     {
         var id = Guid.CreateVersion7();

@@ -21356,8 +21356,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 15L,
                             Slot = 0,
-                            StatType1 = 4,
-                            StatValue1 = 5L,
                             SubClass = 201
                         },
                         new
@@ -21376,8 +21374,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 25L,
                             Slot = 3,
-                            StatType1 = 4,
-                            StatValue1 = 8L,
                             SubClass = 202
                         },
                         new
@@ -21396,8 +21392,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 20L,
                             Slot = 5,
-                            StatType1 = 4,
-                            StatValue1 = 6L,
                             SubClass = 203
                         },
                         new
@@ -21416,8 +21410,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 10L,
                             Slot = 4,
-                            StatType1 = 4,
-                            StatValue1 = 3L,
                             SubClass = 205
                         },
                         new
@@ -21436,8 +21428,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 10L,
                             Slot = 6,
-                            StatType1 = 4,
-                            StatValue1 = 3L,
                             SubClass = 204
                         },
                         new
@@ -21456,8 +21446,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 12L,
                             Slot = 2,
-                            StatType1 = 4,
-                            StatValue1 = 4L,
                             SubClass = 208
                         },
                         new
@@ -21477,8 +21465,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 30L,
                             Slot = 0,
-                            StatType1 = 4,
-                            StatValue1 = 11L,
                             SubClass = 201
                         },
                         new
@@ -21498,8 +21484,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 50L,
                             Slot = 3,
-                            StatType1 = 4,
-                            StatValue1 = 18L,
                             SubClass = 202
                         },
                         new
@@ -21519,8 +21503,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 40L,
                             Slot = 5,
-                            StatType1 = 4,
-                            StatValue1 = 14L,
                             SubClass = 203
                         },
                         new
@@ -21540,8 +21522,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 20L,
                             Slot = 4,
-                            StatType1 = 4,
-                            StatValue1 = 7L,
                             SubClass = 205
                         },
                         new
@@ -21561,8 +21541,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 20L,
                             Slot = 6,
-                            StatType1 = 4,
-                            StatValue1 = 7L,
                             SubClass = 204
                         },
                         new
@@ -21582,8 +21560,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 25L,
                             Slot = 2,
-                            StatType1 = 4,
-                            StatValue1 = 9L,
                             SubClass = 208
                         },
                         new
@@ -21603,8 +21579,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 60L,
                             Slot = 0,
-                            StatType1 = 4,
-                            StatValue1 = 19L,
                             SubClass = 201
                         },
                         new
@@ -21624,8 +21598,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 100L,
                             Slot = 3,
-                            StatType1 = 4,
-                            StatValue1 = 32L,
                             SubClass = 202
                         },
                         new
@@ -21645,8 +21617,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 80L,
                             Slot = 5,
-                            StatType1 = 4,
-                            StatValue1 = 26L,
                             SubClass = 203
                         },
                         new
@@ -21666,8 +21636,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 40L,
                             Slot = 4,
-                            StatType1 = 4,
-                            StatValue1 = 13L,
                             SubClass = 205
                         },
                         new
@@ -21687,8 +21655,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 40L,
                             Slot = 6,
-                            StatType1 = 4,
-                            StatValue1 = 13L,
                             SubClass = 204
                         },
                         new
@@ -21708,8 +21674,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 50L,
                             Slot = 2,
-                            StatType1 = 4,
-                            StatValue1 = 16L,
                             SubClass = 208
                         },
                         new
@@ -21728,8 +21692,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 15L,
                             Slot = 0,
-                            StatType1 = 6,
-                            StatValue1 = 24L,
                             SubClass = 201
                         },
                         new
@@ -21748,8 +21710,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 25L,
                             Slot = 3,
-                            StatType1 = 6,
-                            StatValue1 = 40L,
                             SubClass = 202
                         },
                         new
@@ -21768,8 +21728,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 20L,
                             Slot = 5,
-                            StatType1 = 6,
-                            StatValue1 = 32L,
                             SubClass = 203
                         },
                         new
@@ -21788,8 +21746,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 10L,
                             Slot = 4,
-                            StatType1 = 6,
-                            StatValue1 = 16L,
                             SubClass = 205
                         },
                         new
@@ -21808,8 +21764,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 10L,
                             Slot = 6,
-                            StatType1 = 6,
-                            StatValue1 = 16L,
                             SubClass = 204
                         },
                         new
@@ -21828,8 +21782,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 12L,
                             Slot = 2,
-                            StatType1 = 6,
-                            StatValue1 = 20L,
                             SubClass = 208
                         },
                         new
@@ -21849,8 +21801,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 30L,
                             Slot = 0,
-                            StatType1 = 6,
-                            StatValue1 = 54L,
                             SubClass = 201
                         },
                         new
@@ -21870,8 +21820,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 50L,
                             Slot = 3,
-                            StatType1 = 6,
-                            StatValue1 = 90L,
                             SubClass = 202
                         },
                         new
@@ -21891,8 +21839,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 40L,
                             Slot = 5,
-                            StatType1 = 6,
-                            StatValue1 = 72L,
                             SubClass = 203
                         },
                         new
@@ -21912,8 +21858,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 20L,
                             Slot = 4,
-                            StatType1 = 6,
-                            StatValue1 = 36L,
                             SubClass = 205
                         },
                         new
@@ -21933,8 +21877,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 20L,
                             Slot = 6,
-                            StatType1 = 6,
-                            StatValue1 = 36L,
                             SubClass = 204
                         },
                         new
@@ -21954,8 +21896,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 25L,
                             Slot = 2,
-                            StatType1 = 6,
-                            StatValue1 = 45L,
                             SubClass = 208
                         },
                         new
@@ -21975,8 +21915,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 60L,
                             Slot = 0,
-                            StatType1 = 6,
-                            StatValue1 = 96L,
                             SubClass = 201
                         },
                         new
@@ -21996,8 +21934,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 100L,
                             Slot = 3,
-                            StatType1 = 6,
-                            StatValue1 = 160L,
                             SubClass = 202
                         },
                         new
@@ -22017,8 +21953,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 80L,
                             Slot = 5,
-                            StatType1 = 6,
-                            StatValue1 = 128L,
                             SubClass = 203
                         },
                         new
@@ -22038,8 +21972,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 40L,
                             Slot = 4,
-                            StatType1 = 6,
-                            StatValue1 = 64L,
                             SubClass = 205
                         },
                         new
@@ -22059,8 +21991,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 40L,
                             Slot = 6,
-                            StatType1 = 6,
-                            StatValue1 = 64L,
                             SubClass = 204
                         },
                         new
@@ -22080,8 +22010,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 50L,
                             Slot = 2,
-                            StatType1 = 6,
-                            StatValue1 = 80L,
                             SubClass = 208
                         },
                         new
@@ -22100,8 +22028,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 15L,
                             Slot = 0,
-                            StatType1 = 14,
-                            StatValue1 = 7L,
                             SubClass = 201
                         },
                         new
@@ -22120,8 +22046,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 25L,
                             Slot = 3,
-                            StatType1 = 14,
-                            StatValue1 = 12L,
                             SubClass = 202
                         },
                         new
@@ -22140,8 +22064,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 20L,
                             Slot = 5,
-                            StatType1 = 14,
-                            StatValue1 = 10L,
                             SubClass = 203
                         },
                         new
@@ -22160,8 +22082,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 10L,
                             Slot = 4,
-                            StatType1 = 14,
-                            StatValue1 = 5L,
                             SubClass = 205
                         },
                         new
@@ -22180,8 +22100,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 10L,
                             Slot = 6,
-                            StatType1 = 14,
-                            StatValue1 = 5L,
                             SubClass = 204
                         },
                         new
@@ -22200,8 +22118,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 12L,
                             Slot = 2,
-                            StatType1 = 14,
-                            StatValue1 = 6L,
                             SubClass = 208
                         },
                         new
@@ -22221,8 +22137,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 30L,
                             Slot = 0,
-                            StatType1 = 14,
-                            StatValue1 = 16L,
                             SubClass = 201
                         },
                         new
@@ -22242,8 +22156,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 50L,
                             Slot = 3,
-                            StatType1 = 14,
-                            StatValue1 = 26L,
                             SubClass = 202
                         },
                         new
@@ -22263,8 +22175,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 40L,
                             Slot = 5,
-                            StatType1 = 14,
-                            StatValue1 = 21L,
                             SubClass = 203
                         },
                         new
@@ -22284,8 +22194,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 20L,
                             Slot = 4,
-                            StatType1 = 14,
-                            StatValue1 = 10L,
                             SubClass = 205
                         },
                         new
@@ -22305,8 +22213,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 20L,
                             Slot = 6,
-                            StatType1 = 14,
-                            StatValue1 = 10L,
                             SubClass = 204
                         },
                         new
@@ -22326,8 +22232,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 25L,
                             Slot = 2,
-                            StatType1 = 14,
-                            StatValue1 = 13L,
                             SubClass = 208
                         },
                         new
@@ -22347,8 +22251,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 60L,
                             Slot = 0,
-                            StatType1 = 14,
-                            StatValue1 = 27L,
                             SubClass = 201
                         },
                         new
@@ -22368,8 +22270,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 100L,
                             Slot = 3,
-                            StatType1 = 14,
-                            StatValue1 = 45L,
                             SubClass = 202
                         },
                         new
@@ -22389,8 +22289,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 80L,
                             Slot = 5,
-                            StatType1 = 14,
-                            StatValue1 = 36L,
                             SubClass = 203
                         },
                         new
@@ -22410,8 +22308,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 40L,
                             Slot = 4,
-                            StatType1 = 14,
-                            StatValue1 = 18L,
                             SubClass = 205
                         },
                         new
@@ -22431,8 +22327,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 40L,
                             Slot = 6,
-                            StatType1 = 14,
-                            StatValue1 = 18L,
                             SubClass = 204
                         },
                         new
@@ -22452,8 +22346,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 50L,
                             Slot = 2,
-                            StatType1 = 14,
-                            StatValue1 = 23L,
                             SubClass = 208
                         },
                         new
@@ -22746,10 +22638,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 30L,
                             Slot = 10,
-                            StatType1 = 4,
-                            StatType2 = 5,
-                            StatValue1 = 6L,
-                            StatValue2 = 5L,
                             SubClass = 200
                         },
                         new
@@ -22769,10 +22657,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 60L,
                             Slot = 10,
-                            StatType1 = 4,
-                            StatType2 = 5,
-                            StatValue1 = 14L,
-                            StatValue2 = 7L,
                             SubClass = 200
                         },
                         new
@@ -22792,10 +22676,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 120L,
                             Slot = 10,
-                            StatType1 = 4,
-                            StatType2 = 5,
-                            StatValue1 = 24L,
-                            StatValue2 = 10L,
                             SubClass = 200
                         },
                         new
@@ -22814,10 +22694,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 30L,
                             Slot = 10,
-                            StatType1 = 14,
-                            StatType2 = 26,
-                            StatValue1 = 8L,
-                            StatValue2 = 5L,
                             SubClass = 209
                         },
                         new
@@ -22837,10 +22713,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 60L,
                             Slot = 10,
-                            StatType1 = 14,
-                            StatType2 = 26,
-                            StatValue1 = 18L,
-                            StatValue2 = 8L,
                             SubClass = 209
                         },
                         new
@@ -22860,10 +22732,6 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 120L,
                             Slot = 10,
-                            StatType1 = 14,
-                            StatType2 = 26,
-                            StatValue1 = 30L,
-                            StatValue2 = 12L,
                             SubClass = 209
                         },
                         new

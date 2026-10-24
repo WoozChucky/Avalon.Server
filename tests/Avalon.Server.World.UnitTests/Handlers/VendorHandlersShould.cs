@@ -119,7 +119,7 @@ public class VendorHandlersShould : IAsyncLifetime
         inventory.TryAdd(Arg.Any<ItemTemplateId>(), Arg.Any<uint>()).Returns(InventoryAddResult.InventoryFull);
         inventory.TryAddInstance(Arg.Any<CarriedItem>()).Returns(InventoryAddResult.InventoryFull);
         inventory.TakeOut(Arg.Any<SlotRef>(), Arg.Any<uint>()).Returns(_ => throw new InvalidOperationException("boom"));
-        IWallet wallet = new CharacterEconomy(_w.World, new ItemIdAllocator()).WalletOf(Me);
+        IWallet wallet = TestEconomy.Over(_w.World).WalletOf(Me);
         ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
         economy.VendorOf(Me).Returns(_ => new VendorTrade(Me, inventory, wallet, Find, 1_000_000));
 

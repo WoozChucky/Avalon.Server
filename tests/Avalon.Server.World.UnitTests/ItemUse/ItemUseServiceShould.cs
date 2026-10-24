@@ -77,7 +77,7 @@ public class ItemUseServiceShould : IAsyncLifetime
         {
             var to = new SlotRef(row == "drag gear on" ? InventoryType.Equipment : InventoryType.Bag,
                 row == "drag gear on" ? EquipmentSlots.MainHand : (byte)1);
-            var economy = new CharacterEconomy(_w.World, new ItemIdAllocator());
+            CharacterEconomy economy = TestEconomy.Over(_w.World);
             new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, _w.World, economy)
                 .Execute(_w.Client.Connection, new CItemMovePacket
                 {

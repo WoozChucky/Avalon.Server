@@ -387,7 +387,7 @@ public class DoodadUseShould
 
             IScriptManager itemScripts = Substitute.For<IScriptManager>();
             itemScripts.GetItemScript(nameof(ConsumeOneScript)).Returns(typeof(ConsumeOneScript));
-            var economy = new CharacterEconomy(World, new ItemIdAllocator());
+            CharacterEconomy economy = TestEconomy.Over(World);
             var tools = new ItemUseTools(World, economy,
                 new TownReturn(NullLogger.Instance, World, Substitute.For<IRespawnTargetResolver>(), InlineDatabaseWork.Instance),
                 new MapTeleport(NullLogger<MapTeleport>.Instance, World, Substitute.For<ICharacterSaver>()),

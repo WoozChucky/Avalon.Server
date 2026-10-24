@@ -330,7 +330,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "item", "class", 999, "class" },
         { "item", "flags", 1 << 20, "flags" },
         { "item", "maxStackSize", 0, "maxStackSize" },
-        { "item", "statType1", null, "statType1" },        // the seeded first stat keeps its value but loses its type
+        { "item", "statValue1", 8, "statType1" },          // on a plate chest, whose defence is its implicit (#1179): a value with no type
         { "item", "damageMax1", 0, "damageMax1" },          // a seeded weapon gets a maximum below its minimum
         { "ability", "name", "", "name" },
         { "ability", "costPowerType", "None", "costPowerType" }, // paired with a cost above 0, set below
@@ -386,7 +386,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
     }
 
     /// <summary>
-    /// A seeded row the refusal applies to: one with a first stat, a weapon, a circle ability, a helpful aura.
+    /// A seeded row the refusal applies to: a plate chest, a weapon, a circle ability, a helpful aura.
     /// </summary>
     private async Task<ulong> RefusalTargetAsync(string kind, string field, object? value)
     {
@@ -394,7 +394,6 @@ public sealed class TemplateEditShould : IAsyncLifetime
         using WorldDbContext db = _sqlite.CreateWorld(new WorldId(Editable));
         return (kind, field) switch
         {
-            ("item", "statType1") => db.ItemTemplates.AsEnumerable().First(t => t.StatType1 is not null && t.StatValue1 is not null).Id.Value,
             ("item", "damageMax1") => db.ItemTemplates.AsEnumerable().First(t => t.DamageMin1 is not null && t.DamageMax1 is not null).Id.Value,
             ("ability", "scriptName") => 200UL,
             ("ability", "damageType") => value is null ? 213UL : 232UL,
@@ -403,6 +402,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
             ("aura", "periodicEffectiveness") => 1UL,
             ("item", "attackTimeMs" or "damageType1") => 32UL,
             ("item", "maxStackSize") when value is 5 => 37UL,
+            ("item", "statValue1") => 37UL,
             ("item", "baseKind") => value is "PlateChest" ? 32UL : 1UL,
             ("ability", _) => 200UL,
             ("creature", "fireResistance" or "wardModifier") => 7UL,

@@ -18,7 +18,6 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
-using Avalon.World.Inventory;
 using Avalon.World.Items;
 using Avalon.World.Public;
 using Avalon.World.Respawn;
@@ -36,7 +35,7 @@ public class ItemUseContextWorldShould
     private static ItemUseContext ContextFor(IWorld world, IWorldConnection connection, CharacterEntity character,
         IItemUseHost host, Avalon.World.Quests.QuestService? quests = null) => new(
         connection, character, host, TestCharacters.Item(0, TestCharacters.Potion), TestCharacters.Potion,
-        new ItemUseTools(world, new CharacterEconomy(world, new ItemIdAllocator()),
+        new ItemUseTools(world, TestEconomy.Over(world),
             new TownReturn(NullLogger.Instance, world, Substitute.For<IRespawnTargetResolver>(), InlineDatabaseWork.Instance),
             new MapTeleport(NullLogger<MapTeleport>.Instance, world, Substitute.For<Avalon.World.Persistence.ICharacterSaver>()),
             Substitute.For<ICreaturePlacementService>(), new FakeTimeProvider(), NullLogger<ItemUseTools>.Instance,

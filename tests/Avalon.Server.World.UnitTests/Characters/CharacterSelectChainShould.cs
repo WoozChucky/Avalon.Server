@@ -18,7 +18,7 @@ using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
-using Avalon.World.Inventory;
+using Avalon.World.Loot;
 using Avalon.World.Maintenance;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
@@ -236,7 +236,7 @@ public class CharacterSelectChainShould : IDisposable
         Step(2);
 
         new CharacterCreateHandler(NullLogger<CharacterCreateHandler>.Instance, _characters,
-                Substitute.For<IItemIdAllocator>(),
+                Substitute.For<IItemRoller>(),
                 Substitute.For<IWorld>())
             .Execute(_connection, new CCharacterCreatePacket());
         Step(2);
