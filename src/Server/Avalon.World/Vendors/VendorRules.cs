@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Vendor;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
@@ -19,7 +20,10 @@ public sealed record BuyPlan(VendorStockView Row, ItemTemplate Item, uint Count,
 public readonly record struct BuyDecision(VendorResult Result, BuyPlan? Plan);
 
 /// <param name="Slot">The Bag slot the item is taken from.</param>
-/// <param name="Payment">SellPrice times <paramref name="Count" />, which is also the buyback price.</param>
+/// <param name="Payment">
+/// SellPrice times the sell factor of the item's rarity times <paramref name="Count" /> (#1179), which is also the buyback
+/// price.
+/// </param>
 public sealed record SellPlan(byte Slot, uint Count, ulong Payment);
 
 public readonly record struct SellDecision(VendorResult Result, SellPlan? Plan);
@@ -54,6 +58,14 @@ public static class VendorRules
     /// flagged since is hidden from the buyback list and its buyback NotFound alike (#738).
     /// </summary>
     public static bool IsStockable(ItemTemplate item) => (item.Flags & ItemTemplateFlags.QuestItem) == 0;
+
+    /// <summary>
+    /// Whether a stock row of <paramref name="item" /> is sold now: stockable, and Common (#1179). VendorCatalog refuses a
+    /// row of any other rarity, but a /reload items can make a stocked item Unique without a vendor reload, so the row is
+    /// hidden and a buy of it NotFound until /reload vendors drops it. Buyback asks only <see cref="IsStockable" />: a
+    /// unique sold to a vendor may be bought back.
+    /// </summary>
+    public static bool IsSoldNew(ItemTemplate item) => IsStockable(item) && item.Rarity == ItemRarity.Common;
 
     /// <summary>A row with a quest requirement is shown, and sold, only once IQuestProgress says it is met.</summary>
     public static bool IsVisible(VendorStockView row, CharacterEntity character, IQuestProgress quests) =>
@@ -93,7 +105,7 @@ public static class VendorRules
         }
 
         if (row is null || !IsVisible(row, character, quests) || findTemplate(row.ItemTemplateId) is not { } item
-            || !IsStockable(item))
+            || !IsSoldNew(item))
         {
             return new BuyDecision(VendorResult.NotFound, null);
         }
@@ -135,7 +147,9 @@ public static class VendorRules
     /// <summary>
     /// Sell: alive; shop open; a Bag slot; an item there, not offered in a trade (#1175); a sellable
     /// template; not damaged; the count (the whole of an item carrying modifiers, #1179); the gold cap.
-    /// Only the Bag is ever named, so nothing is sold from Equipment or the Bank.
+    /// Only the Bag is ever named, so nothing is sold from Equipment or the Bank. The sale pays the template's SellPrice
+    /// times <paramref name="sellFactors" />' factor for the copy's own rarity (#1179), so a magic, rare or unique
+    /// copy sells for more than a common one of the same template.
     /// </summary>
     public static SellDecision DecideSell(
         CharacterEntity character,
@@ -143,7 +157,8 @@ public static class VendorRules
         byte bagSlot,
         uint? count,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
-        ulong maxGold)
+        ulong maxGold,
+        SellFactors sellFactors)
     {
         if (character.IsDead)
             return new SellDecision(VendorResult.Dead, null);
@@ -178,10 +193,14 @@ public static class VendorRules
             return new SellDecision(VendorResult.InvalidCount, null);
 
         // CharacterWallet.TryAddGold's own rule, so the apply cannot disagree: gold a completing trade is about to pay
-        // (#1175) counts as already in the balance.
-        ulong payment = (ulong)template.SellPrice * selling;
-        if (!character.Locks.CanReceiveGold(Balance(character), payment, maxGold))
+        // (#1175) counts as already in the balance. A uint price times a uint factor fits a ulong, but times a uint count
+        // it can pass one, and a payment past a ulong passes any cap.
+        ulong unitPayment = (ulong)template.SellPrice * sellFactors.For(item.Rarity);
+        if (Math.BigMul(unitPayment, selling, out ulong payment) != 0
+            || !character.Locks.CanReceiveGold(Balance(character), payment, maxGold))
+        {
             return new SellDecision(VendorResult.GoldCapReached, null);
+        }
 
         return new SellDecision(VendorResult.Ok, new SellPlan((byte)bagSlot, selling, payment));
     }

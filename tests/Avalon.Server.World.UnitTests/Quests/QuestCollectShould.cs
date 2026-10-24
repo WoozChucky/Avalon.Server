@@ -4,6 +4,7 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.World.Configuration;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Characters;
@@ -32,7 +33,7 @@ public class QuestCollectShould
     private static void Flush(QuestTestWorld w, QuestClient c)
     {
         QuestFlusher.Flush(c.Connection, w.Quests);
-        InventoryUpdateFlusher.Flush(c.Connection);   // as WorldServer does next, clearing the tick's slot changes
+        InventoryUpdateFlusher.Flush(c.Connection, w.Data.Items, new ItemModifierDtoPool());   // as WorldServer does next, clearing the tick's slot changes
     }
 
     [Fact]
@@ -160,7 +161,8 @@ public class QuestCollectShould
         sellable.SellPrice = 5;
         c.Character.Container(InventoryType.Bag).Load([TestCharacters.Item(0, sellable, 1)]);
 
-        SellDecision decision = VendorRules.DecideSell(c.Character, shopOpen: true, bagSlot: 0, count: 1, _ => sellable, maxGold: 1_000_000);
+        SellDecision decision = VendorRules.DecideSell(c.Character, shopOpen: true, bagSlot: 0, count: 1, _ => sellable, maxGold: 1_000_000,
+            new SellFactors());
 
         Assert.Equal(VendorResult.NotSellable, decision.Result);
     }

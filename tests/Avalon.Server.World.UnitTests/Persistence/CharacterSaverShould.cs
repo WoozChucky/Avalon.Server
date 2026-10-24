@@ -10,6 +10,7 @@ using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Characters;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
@@ -324,7 +325,7 @@ public sealed class CharacterSaverShould : IDisposable
         CharacterEntity character = await LoadAsync(7);
         Assert.Equal(Describe(a, b), Describe(character.ItemModifiers.Of(x.InstanceId)));
         var vendor = new VendorTrade(character, InventoryFor(character, Vendors.VendorTestData.Find),
-            new CharacterWallet(character, ulong.MaxValue), Vendors.VendorTestData.Find, ulong.MaxValue);
+            new CharacterWallet(character, ulong.MaxValue), Vendors.VendorTestData.Find, ulong.MaxValue, new SellFactors());
         CharacterSaver saver = Saver();
 
         Assert.Equal(Avalon.Network.Packets.Vendor.VendorResult.Ok, vendor.TrySell(shopOpen: true, 4, null));
@@ -688,7 +689,12 @@ public sealed class CharacterSaverShould : IDisposable
         {
             // Rows of their own, not the caller's objects: the context's fix-up would otherwise fill them in.
             await using CharacterDbContext context = _db.CreateDbContext();
-            context.AddRange(modifiers.Select(m => m.Copy()));
+            context.AddRange(modifiers.Select(m =>
+            {
+                ItemInstanceModifier row = m.CopyRow();
+                row.Values.AddRange(m.Values.Select(v => v.Copy()));
+                return row;
+            }));
             await context.SaveChangesAsync();
         }
 

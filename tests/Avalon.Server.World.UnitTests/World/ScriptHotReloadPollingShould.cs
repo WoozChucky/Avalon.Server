@@ -144,6 +144,7 @@ public class ScriptHotReloadPollingShould
             createInfos,
             stats,
             items,
+            ItemModifierRepositories.Empty(),
             abilityTemplates,
             levels,
             creatureTemplates,

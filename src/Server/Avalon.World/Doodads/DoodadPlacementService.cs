@@ -126,7 +126,9 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
                     continue;
 
                 taken[index] = true;
-                placed.Add(new PlannedDoodad(template, c.Position, c.Yaw, rule.Required, visible, usable));
+                // The slot's depth band is the level range its drops roll their item level in (#1179).
+                placed.Add(new PlannedDoodad(template, c.Position, c.Yaw, rule.Required, visible, usable,
+                    DepthBandLevels.For(config.DepthBands, c.Depth, setPiece: false)));
                 if (template.Solid)
                     obstacles.Add(Obstacle(template, c.Position, c.Yaw));
                 got++;
@@ -400,7 +402,10 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
         }
 
         var doodad = new Doodad(new ObjectGuid(ObjectType.Doodad, IObject.GenerateId()), template, position, yawDegrees,
-            visible, usable);
+            visible, usable)
+        {
+            Levels = spawn.Levels,
+        };
         RunOnSpawn(placement, doodad);
         placement.Instance.AddDoodad(doodad);
         placement.Standing.Add(position);

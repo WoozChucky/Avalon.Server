@@ -9,6 +9,7 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
@@ -124,7 +125,7 @@ public class CharacterCreationShould : IDisposable
         });
         IWorldConnection connection = NewConnection();
         CharacterCreateHandler handler = new(
-            NullLogger<CharacterCreateHandler>.Instance, characters, new ItemIdAllocator(), NewWorld(data));
+            NullLogger<CharacterCreateHandler>.Instance, characters, TestEconomy.Roller(new ItemIdAllocator()), NewWorld(data));
 
         handler.Execute(connection, new CCharacterCreatePacket
         {
@@ -252,7 +253,7 @@ public class CharacterCreationShould : IDisposable
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         IWorldConnection connection = NewConnection();
         CharacterCreateHandler handler = new(
-            NullLogger<CharacterCreateHandler>.Instance, characters, new ItemIdAllocator(), NewWorld(data));
+            NullLogger<CharacterCreateHandler>.Instance, characters, TestEconomy.Roller(new ItemIdAllocator()), NewWorld(data));
 
         handler.Execute(connection, new CCharacterCreatePacket
         {
@@ -327,7 +328,7 @@ public class CharacterCreationShould : IDisposable
             .Returns(Task.FromException<CharacterCreationReply>(new DbUpdateException("disk full")));
         IWorldConnection connection = NewConnection();
         CharacterCreateHandler handler = new(
-            NullLogger<CharacterCreateHandler>.Instance, characters, new ItemIdAllocator(), NewWorld(data));
+            NullLogger<CharacterCreateHandler>.Instance, characters, TestEconomy.Roller(new ItemIdAllocator()), NewWorld(data));
 
         handler.Execute(connection, new CCharacterCreatePacket
         {
@@ -384,6 +385,7 @@ public class CharacterCreationShould : IDisposable
             new CharacterCreateInfoRepository(_world),
             new ClassLevelStatRepository(_world),
             new ItemTemplateRepository(_world),
+            new ItemModifierRepository(_world, NullLoggerFactory.Instance),
             new AbilityTemplateRepository(_world),
             new CharacterLevelExperienceRepository(_world),
             new CreatureTemplateRepository(_world),
@@ -401,7 +403,7 @@ public class CharacterCreationShould : IDisposable
     private CharacterCreateHandler NewHandler(StaticData data) => new(
         NullLogger<CharacterCreateHandler>.Instance,
         new CharacterRepository(_characters),
-        new ItemIdAllocator(),
+        TestEconomy.Roller(new ItemIdAllocator()),
         NewWorld(data));
 
     private static IWorld NewWorld(StaticData data)

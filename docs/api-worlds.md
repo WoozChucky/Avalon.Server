@@ -204,6 +204,34 @@ singletons as in every host. Only their context factories differ in the API, whi
   deletes items 66-103; the Character rollback drops the modifier tables and the new columns, and every modifier with
   them. The wiped equipment never comes back (`WipeOwnedEquipment` restores nothing), and an item of a template the
   World rollback deleted stays as a row whose template is gone. No world or API does that by itself.
+  **Migration order, #1179 (part B).** The modifier catalog, implicits and rolling at drop are not additive either (no
+  backward compatibility, owner, 2026-10-23). A world's World database migrates through `AddItemModifierCatalog` (the
+  five catalog tables `ItemModifierGroups`, `ItemModifiers`, `ItemModifierStats`, `ItemModifierWeights` and
+  `ItemTemplateModifiers`, seeded: 109 groups, 283 modifiers and every base's and unique's links, [item
+  modifiers](item-modifiers.md)), then `MoveBaseStatsToImplicits` (each defence-bearing base's stat lines are cleared
+  from its template: its defence is now its implicit modifier), then `SeedUniqueAndBossDrops` (the five uniques' loot
+  entries on tables 6, 7 and 8, and table 15 "Forest boss gear", which table 8 rolls at 100 %). Its Character database
+  migrates through `WidenModifierIds` (`ItemInstanceModifiers.ModifierId` and `TradeRecordItemModifiers.ModifierId`
+  from `smallint` to `integer`), then `AddImplicitsToOwnedItems` (every owned copy of the 60 defence-bearing bases gets
+  its implicit row at the drafted value, so none loses defence; a copy that already has modifier rows, made by a world
+  running this part, is left as it is), then `AddRareName` (`ItemInstances.RareName` with `CK_ItemInstances_RareName`,
+  and `TradeRecordItems.RareName` with `CK_TradeRecordItems_RareName`, the same rule). Each world applies them at its
+  start, before it serves (`WorldStartup`: its Character database, then its World database); neither set reads the
+  other database, so that order does not matter (the backfill carries the implicits' ids as plain values). The order
+  is: the worlds go first, each migrating at its next start (start any stopped world once, so it migrates too), and
+  then the API release with the change is cut. The released API is broken in between, which the owner accepted: an
+  older API reading a migrated world serves the bases without their defence (the template no longer carries it, and
+  that API cannot read the catalog), and its inventory read knows neither a copy's name nor its modifiers' kinds. An
+  API with the change reading a world that has not migrated fails with Postgres 42P01 or 42703 on the missing catalog
+  tables and column: the public item tooltips and link previews (`IItemModifierRepository`, which reads the one
+  template's links and their rows) and a character's inventory (`RareName`, and the rows its items carry). To roll a
+  world back to a build without the change, first run `dotnet ef database update ReplaceItemsWithBases` against its
+  World database and `dotnet ef database update AddItemInstanceModifiers` against its Character database. The World
+  rollback drops the catalog, puts each base's defence lines back on its template and removes the new loot entries and
+  table 15; the Character rollback drops the rare names and their checks, deletes every `ItemInstanceModifiers` row
+  naming an implicit (their values by cascade; a trade record's own copies, `TradeRecordItemModifiers`, keep theirs) and
+  narrows the modifier ids back. A rolled copy keeps its rarity, item level and affix rows, and a unique copy its unique
+  modifier row, which part A reads as stat lines like any other. No world or API does that by itself.
 
 ## How a request reaches its world
 
@@ -294,7 +322,7 @@ reads admit the owner or a game master (`CharacterReadHandler`), character write
 |---|---|---|---|
 | `/world/{worldId}/character/paginate` | GET | GameMaster | |
 | `/world/{worldId}/character/{id}` | GET, PATCH | Player | Owner, or game master (read) or admin (write) |
-| `/world/{worldId}/character/{id}/inventory`, `/abilities`, `/stats`, `/quests`, `/auras` | GET | Player | Owner or game master. An inventory item carries its copy's `rarity`, `itemLevel` and `modifiers` (each `modifierId` with its `values`: `stat`, `value` and, on an "adds X to Y" line, `value2`), in the order the item shows them (#1179); that is the only rarity the read shows, and its `template` carries none |
+| `/world/{worldId}/character/{id}/inventory`, `/abilities`, `/stats`, `/quests`, `/auras` | GET | Player | Owner or game master. An inventory item carries its copy's `rarity`, `itemLevel`, `name` and `modifiers` (each `modifierId` with its `kind`, `Prefix`, `Suffix`, `Unique` or `Implicit` from the world's modifier catalog, null for a modifier the catalog no longer holds, and its `values`: `stat`, `value` and, on an "adds X to Y" line, `value2`), in the order the item shows them (#1179); `name` is a magic copy's prefix and suffix around the template's name or a rare copy's two words, null where the template's name is the item's; that is the only rarity the read shows, and its `template` carries none |
 | `/world/{worldId}/map-template`, `/{id}` | GET | Player | |
 | `/world/{worldId}/map-template/{id}/preview-layout` | GET | GameMaster | Runs the procedural generator against that world's data; see [Map Generation](map-generation.md) |
 | `/world/{worldId}/map-template/chunk-asset/{*filename}` | GET | GameMaster | Whitelisted against the world's `ChunkTemplate.GeometryFile` values; the bytes come from the API's own copy of `Maps/` (`Application:MapAssets:ChunkAssetRoot`), not from the world |
@@ -322,7 +350,7 @@ outside `/world/{worldId}/`.
 | Route | Answer |
 |---|---|
 | `GET /public/world` | `{ defaultWorldId, worlds: [{ id, name, type, status, population, queueLength, maintenanceDeadlineUtc, lore }] }`: the configured, available worlds the caller may read, in id order, each with its live state. `Cache-Control: private, no-cache`, since the list depends on the caller |
-| `GET /public/world/{worldId}/item/{id}` | `PublicItemDto` |
+| `GET /public/world/{worldId}/item/{id}` | `PublicItemDto`; its `modifierSpans` are the lines every copy rolls within (#1179): a base's implicits or a unique's own modifier, each `kind`, `stat`, `min`, `max` and, on an "adds X to Y" line, `min2` and `max2`, from the world's modifier catalog (`IItemModifierRepository`) |
 | `GET /public/world/{worldId}/ability/{id}` | `PublicAbilityDto` |
 
 - **The caller** (`PublicCaller.AccessLevelAsync`) is authenticated through the default policy: a signed-in caller
@@ -369,7 +397,8 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   world. With no `PublicSiteUrl`, `og:url` is left out and the link is relative.
 - **The description** (`LinkPreviewText.Describe`) reads like the site's tooltips: for an item its rarity, slot,
   subclass, damage, a weapon's attack time after its damage (`0.78 sec attack time`, before attack speed, #1189),
-  armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178; one part, `Requires 30
+  the lines every copy rolls within (#1179, `ModifierSpans`: `7-9 Armor` on a plate chest, `+24-36 Health` and `Adds 2
+  to 3-5 Physical Damage to Attacks` on a unique), armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178; one part, `Requires 30
   Strength or 30 Intellect`, when any one is enough, #1179) and allowed classes (only when restricted to some; an
   empty list means every class, #1171); for an ability its classes, cost, cast time, cooldown and what one hit deals
   or heals (#1178): an Attack as its weapon damage (`315 % of weapon damage`, then `converts 50 % to cold` or `adds
@@ -394,6 +423,12 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   `tests/Avalon.Api.Worlds.UnitTests/Worlds/stat-wording.json`, refreshed from there and never edited here.
   `StatWordingShould` fails when a `StatType` member has no row, or a row names no stat, or the preview writes a row's
   text differently, so a new stat fails until the shared file and both formatters handle it.
+- **Ranges a copy rolls within** (#1179): `LinkPreviewText.FormatSpan` words a modifier span as `FormatStat` words the
+  stat, with the range for its number (`7-9 Armor`, `+24-36 Health`, `+3-5% Crit`; one number when both ends are
+  equal), and an "adds X to Y" line with both its ranges (`Adds 2 to 3-5 Physical Damage to Attacks`). The wording
+  file's `spans` rows (`type`, `min`, `max`, and `min2` and `max2` on a two-range line, with the `text`) hold it, and
+  `StatWordingShould` checks each. These rows run ahead in the copy here until the Dashboard's file takes them; the
+  copy is then checked byte-identical again.
 - **Colours:** an item's `theme-color` is its rarity's colour, an ability's `AbilityColour`. A missing or malformed
   colour leaves `theme-color` out; it never fails the request.
 - **Not-found and unavailable pages** are titled "Not found · {SiteName}" and "Unavailable · {SiteName}" (or just

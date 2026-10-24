@@ -6,7 +6,11 @@ namespace Avalon.Api.Contract.Mappers;
 
 public static class PublicMapping
 {
-    public static PublicItemDto ToPublicDto(this ItemTemplate t) => new()
+    /// <param name="linked">
+    /// The modifiers every copy of the template rolls (#1179), in link order: the world catalog's
+    /// <c>LinkedTo(t.Id)</c>, a base's implicits or a unique's own modifier.
+    /// </param>
+    public static PublicItemDto ToPublicDto(this ItemTemplate t, IReadOnlyList<ItemModifier> linked) => new()
     {
         Id = t.Id.Value,
         Name = t.Name ?? "",
@@ -30,6 +34,7 @@ public static class PublicMapping
             : ItemUniqueness.None,
         Damage = DamageOf(t).ToList(),
         Stats = StatsOf(t).ToList(),
+        ModifierSpans = [.. linked.SelectMany(SpansOf)],
     };
 
     public static PublicAbilityDto ToPublicDto(this AbilityTemplate t) => new()
@@ -80,6 +85,17 @@ public static class PublicMapping
             };
         }
     }
+
+    private static IEnumerable<PublicItemSpanDto> SpansOf(ItemModifier modifier) =>
+        modifier.Stats.OrderBy(line => line.Index).Select(line => new PublicItemSpanDto
+        {
+            Kind = (ItemModifierKind)modifier.Group.Kind,
+            Stat = (StatType)line.Stat,
+            Min = line.Min,
+            Max = line.Max,
+            Min2 = line.Min2,
+            Max2 = line.Max2,
+        });
 
     private static IEnumerable<PublicItemStatDto> StatsOf(ItemTemplate t)
     {

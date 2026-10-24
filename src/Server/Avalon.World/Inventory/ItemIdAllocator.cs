@@ -9,6 +9,9 @@ namespace Avalon.World.Inventory;
 public interface IItemIdAllocator
 {
     ItemInstanceId Next();
+
+    /// <summary>The id of a modifier an item rolls (#1179), handed out at the roll, as an item's own id is.</summary>
+    Guid NextModifierId();
 }
 
 /// <summary>
@@ -21,4 +24,6 @@ public interface IItemIdAllocator
 public sealed class ItemIdAllocator : IItemIdAllocator
 {
     public ItemInstanceId Next() => new(Guid.CreateVersion7());
+
+    public Guid NextModifierId() => Guid.CreateVersion7();
 }

@@ -271,6 +271,12 @@ public class GameConfiguration
     /// <summary>When daily, weekly and monthly quests come back (#710), UTC. Read at startup.</summary>
     public QuestResetConfiguration QuestResets { get; set; } = new();
 
+    /// <summary>
+    /// Game:Items (#1179): a made item's rarity odds by the dropping creature's rarity, and what a sale pays per rarity.
+    /// Read at startup.
+    /// </summary>
+    public ItemConfiguration Items { get; set; } = new();
+
     /// <summary>How many characters one character may ignore (#723). A full list refuses /ignore with a system line.</summary>
     [Range(1, 500)]
     public int MaxIgnoredCharacters { get; set; } = 50;

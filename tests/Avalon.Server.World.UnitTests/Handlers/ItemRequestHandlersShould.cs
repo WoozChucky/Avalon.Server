@@ -27,10 +27,10 @@ public class ItemRequestHandlersShould : IAsyncLifetime
     public Task DisposeAsync() => Task.CompletedTask;
 
     private ItemMoveHandler MoveHandler(ICharacterEconomy? economy = null) =>
-        new(NullLogger<ItemMoveHandler>.Instance, _w.World, economy ?? new CharacterEconomy(_w.World, new ItemIdAllocator()));
+        new(NullLogger<ItemMoveHandler>.Instance, _w.World, economy ?? TestEconomy.Over(_w.World));
 
     private ItemDestroyHandler DestroyHandler() =>
-        new(NullLogger<ItemDestroyHandler>.Instance, _w.World, new CharacterEconomy(_w.World, new ItemIdAllocator()));
+        new(NullLogger<ItemDestroyHandler>.Instance, _w.World, TestEconomy.Over(_w.World));
 
     private void Move(uint request, InventoryType from, byte fromSlot, InventoryType to, byte toSlot, uint? count = null) =>
         MoveHandler().Execute(_w.Connection, new CItemMovePacket

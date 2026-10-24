@@ -4,6 +4,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Vendors;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
@@ -119,9 +120,9 @@ public class VendorHandlersShould : IAsyncLifetime
         inventory.TryAdd(Arg.Any<ItemTemplateId>(), Arg.Any<uint>()).Returns(InventoryAddResult.InventoryFull);
         inventory.TryAddInstance(Arg.Any<CarriedItem>()).Returns(InventoryAddResult.InventoryFull);
         inventory.TakeOut(Arg.Any<SlotRef>(), Arg.Any<uint>()).Returns(_ => throw new InvalidOperationException("boom"));
-        IWallet wallet = new CharacterEconomy(_w.World, new ItemIdAllocator()).WalletOf(Me);
+        IWallet wallet = TestEconomy.Over(_w.World).WalletOf(Me);
         ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
-        economy.VendorOf(Me).Returns(_ => new VendorTrade(Me, inventory, wallet, Find, 1_000_000));
+        economy.VendorOf(Me).Returns(_ => new VendorTrade(Me, inventory, wallet, Find, 1_000_000, new SellFactors()));
 
         var buyLog = new LevelLogger<VendorBuyHandler>();
         var sellLog = new LevelLogger<VendorSellHandler>();

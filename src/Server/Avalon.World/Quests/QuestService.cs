@@ -23,6 +23,7 @@ using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Localization;
 using Avalon.World.Public.Scripts;
+using Avalon.World.Reload;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -41,6 +42,7 @@ public sealed class QuestService(
     IServiceProvider services,
     ICharacterEconomy economy,
     ILootRandom random,
+    IItemRoller itemRoller,
     TimeProvider time,
     ILogger<QuestService> logger,
     PartyService? parties = null,
@@ -159,7 +161,8 @@ public sealed class QuestService(
         ILocalizedTextCatalog text = world.Data.LocalizedTexts;
         connection.Send(SQuestOfferPacket.Create(questId, npc.Guid.RawValue,
             turnIn ? QuestOfferMode.TurnIn : QuestOfferMode.Offer,
-            QuestDisplay.Build(quest, text, text.ContextFor(character, connection.Locale), completionText: turnIn),
+            QuestDisplay.Build(quest, world.Data.Items, text, text.ContextFor(character, connection.Locale),
+                completionText: turnIn),
             PacketEncoder.Shared));
         return true;
     }
@@ -277,6 +280,8 @@ public sealed class QuestService(
     /// quest held, the bag recounted as it is now, then QuestTurnInRules (ready, the pick, the reward templates, the
     /// bag, the gold). Only then do the quest items leave, and experience (personal: no party split, no level gap, no
     /// map band), gold and items, the fixed ones and the one picked from the choice set (#711; 0 is no pick), are paid.
+    /// A reward whose template is a Common base is rolled as it is paid (#1179): Magic, at the quest's level, on
+    /// the best tier of its line that level reaches, one copy per slot the room check counted.
     /// </summary>
     public QuestResult TurnIn(IWorldConnection connection, CharacterEntity character, uint questId, ulong npcGuid,
         ulong choiceItemTemplateId = 0)
@@ -297,7 +302,8 @@ public sealed class QuestService(
         // The bag as it is now: an item destroyed this tick has not been through QuestFlusher yet.
         Recount(character, quest, active);
 
-        QuestResult decision = QuestTurnInRules.Decide(character, quest, active, choiceItemTemplateId, FindTemplate,
+        ItemsPatch items = world.Data.Items;
+        QuestResult decision = QuestTurnInRules.Decide(character, quest, active, choiceItemTemplateId, items,
             world.Configuration.MaxGold, out IReadOnlyList<(ItemTemplate Template, uint Count)> rewards);
         if (decision == QuestResult.Error)
             LogUnpayableRewards(quest, choiceItemTemplateId);
@@ -311,9 +317,12 @@ public sealed class QuestService(
             logger.LogError("Quest {QuestId} gold was refused after its checks passed for character {CharacterId}", questId, character.Guid.Id);
 
         IInventoryService inventory = economy.InventoryOf(character);
+        DropContext magic = QuestTurnInRules.RewardRoll(quest);
         foreach ((ItemTemplate template, uint count) in rewards)
         {
-            InventoryAddResult added = inventory.TryAdd(template.Id, count);
+            InventoryAddResult added = ItemRoller.IsRolledBase(template)
+                ? AddRolled(inventory, template, count, magic, items)
+                : inventory.TryAdd(template.Id, count);
             if (added != InventoryAddResult.Ok)
             {
                 logger.LogError("Quest {QuestId} reward {Item} was refused ({Result}) after its checks passed for character {CharacterId}",
@@ -328,8 +337,27 @@ public sealed class QuestService(
     }
 
     /// <summary>
-    /// A reward template that is gone or Unique blocks every turn-in of the quest (a reload since the catalog was
-    /// built), or every turn-in with that pick (#711), so it is logged at Error, naming the quest and the template.
+    /// <paramref name="count" /> copies of a Common base, each rolled Magic (a rolled copy is one item in its own slot),
+    /// stopping at the first the Bag refuses.
+    /// </summary>
+    private InventoryAddResult AddRolled(IInventoryService inventory, ItemTemplate template, uint count, in DropContext magic,
+        ItemsPatch items)
+    {
+        for (uint i = 0; i < count; i++)
+        {
+            // A Common template with a base kind always rolls.
+            InventoryAddResult added = inventory.TryAddRolled(itemRoller.Roll(template, magic, items)!);
+            if (added != InventoryAddResult.Ok)
+                return added;
+        }
+
+        return InventoryAddResult.Ok;
+    }
+
+    /// <summary>
+    /// A reward template that is gone, or that no quest may pay (#1179: flagged Unique, or of Unique rarity), blocks every
+    /// turn-in of the quest (a reload since the catalog was built), or every turn-in with that pick (#711), so it is
+    /// logged at Error, naming the quest and the template.
     /// </summary>
     private void LogUnpayableRewards(QuestView quest, ulong choiceItemTemplateId)
     {
@@ -342,16 +370,13 @@ public sealed class QuestService(
 
     private void LogIfUnpayable(QuestView quest, QuestItemRewardView reward)
     {
-        ItemTemplate? template = FindTemplate(reward.ItemTemplateId);
-        if (template is null || (template.Flags & ItemTemplateFlags.Unique) != 0)
-        {
-            logger.LogError("Quest {QuestId} cannot be turned in: reward item template {Item} is {Problem}",
-                quest.Id, reward.ItemTemplateId.Value, template is null ? "missing" : "Unique");
-        }
+        ItemTemplate? template = QuestTurnInRules.PaidAs(quest, reward, world.Data.Items);
+        string? problem = template is null
+            ? $"reward item template {reward.ItemTemplateId.Value} is missing"
+            : ItemUseRules.QuestRewardProblem(template);
+        if (problem is not null)
+            logger.LogError("Quest {QuestId} cannot be turned in: {Problem}", quest.Id, problem);
     }
-
-    private ItemTemplate? FindTemplate(ItemTemplateId id) =>
-        world.Data.FindItemTemplate(id);
 
     /// <summary>
     /// Adds to one objective of an active quest's current stage, capped at its count. False, changing nothing, for
@@ -1200,7 +1225,7 @@ public sealed class QuestService(
                     QuestId = quest.Id,
                     State = StateOf(active.State),
                     Stage = active.Stage,
-                    Display = QuestDisplay.Build(quest, text, context, completionText: false),
+                    Display = QuestDisplay.Build(quest, world.Data.Items, text, context, completionText: false),
                     Progress = ProgressOf(quest, active),
                 });
             }
@@ -1237,7 +1262,8 @@ public sealed class QuestService(
                 if (change == QuestClientChange.Accepted)
                 {
                     ILocalizedTextCatalog text = world.Data.LocalizedTexts;
-                    update.Display = QuestDisplay.Build(quest, text, text.ContextFor(character, connection.Locale), completionText: false);
+                    update.Display = QuestDisplay.Build(quest, world.Data.Items, text, text.ContextFor(character, connection.Locale),
+                        completionText: false);
                 }
 
                 break;

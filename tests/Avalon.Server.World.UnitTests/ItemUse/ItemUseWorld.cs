@@ -102,7 +102,7 @@ internal sealed class ItemUseWorld : IDisposable
             scripts.GetItemScript(type.Name).Returns(type);
         }
 
-        var economy = new CharacterEconomy(World, new ItemIdAllocator());
+        CharacterEconomy economy = TestEconomy.Over(World);
         Inventory = economy.InventoryOf(character);
         var tools = new ItemUseTools(World, economy,
             new TownReturn(NullLogger.Instance, World, Substitute.For<IRespawnTargetResolver>(), InlineDatabaseWork.Instance),

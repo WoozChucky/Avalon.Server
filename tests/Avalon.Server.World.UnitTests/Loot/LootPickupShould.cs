@@ -1,14 +1,21 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Character.Repositories;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Loot;
+using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
+using Avalon.World.Persistence;
+using Avalon.World.Public.Characters;
+using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
+using static Avalon.Server.World.UnitTests.Inventory.TestModifiers;
 
 namespace Avalon.Server.World.UnitTests.Loot;
 
@@ -26,22 +33,24 @@ public class LootPickupShould
     private readonly GroundLootStore _store = new();
     private readonly CharacterEntity _picker = New(id: 7);
     private ulong _maxGold = 1_000;
+    private Func<ItemTemplateId, ItemTemplate?> _templates = Find;
 
     private ICharacterEconomy Economy()
     {
         ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
-        economy.InventoryOf(Arg.Any<CharacterEntity>()).Returns(ci => InventoryFor(ci.Arg<CharacterEntity>()));
+        economy.InventoryOf(Arg.Any<CharacterEntity>()).Returns(ci => InventoryFor(ci.Arg<CharacterEntity>(), _templates));
         economy.WalletOf(Arg.Any<CharacterEntity>()).Returns(ci => new CharacterWallet(ci.Arg<CharacterEntity>(), _maxGold));
         return economy;
     }
 
     private void Drop(ItemTemplateId? item = null, uint count = 1, ulong gold = 0, uint? owner = 7,
-        DateTime? freeForAllAt = null, Vector3? at = null) => _store.Add(new GroundLoot
+        DateTime? freeForAllAt = null, Vector3? at = null, RolledItem? rolled = null) => _store.Add(new GroundLoot
         {
             Guid = s_dropGuid,
             Position = at ?? new Vector3(1f, 0f, 1f),
             ItemTemplateId = item,
             Count = count,
+            Rolled = rolled,
             Gold = gold,
             OwnerCharacterId = owner,
             FreeForAllAt = freeForAllAt ?? s_now.AddSeconds(30),
@@ -64,6 +73,55 @@ public class LootPickupShould
         Assert.Equal(3u, At(_picker, InventoryType.Bag, 0).Count);
         Assert.True(_picker.SaveState.HasChanges);
         Assert.True(_picker.ClientChanges.HasChanges);
+    }
+
+    /// <summary>
+    /// #1179: a drop that rolled its copy is that copy until it is picked up. A picker with a full Bag is refused and the
+    /// copy stays on the ground as it lay; the next picker gets exactly it (its id, rarity, item level, name and modifier
+    /// rows), and the next save writes it with them.
+    /// </summary>
+    [Fact]
+    public void Put_the_ground_instance_in_the_bag_exactly()
+    {
+        ItemTemplate chest = ScenarioReferenceData.Shared.Data.FindItemTemplate(new ItemTemplateId(37))!;
+        _templates = id => id == chest.Id ? chest : Find(id);
+        var id = new ItemInstanceId(Guid.CreateVersion7());
+        List<ItemInstanceModifier> modifiers =
+        [
+            Modifier(id, CatalogKeys.ModifierId("implicit 37"), 0, (0, StatType.Armor, 8, null)),
+            Modifier(id, CatalogKeys.ModifierId("P2 T3"), 1, (0, StatType.AddedFireDamage, 3, 6)),
+            Modifier(id, CatalogKeys.ModifierId("S1 T3"), 2, (0, StatType.Strength, 7, null)),
+        ];
+        var rolled = new RolledItem(id, chest.Id, ItemRarity.Rare, 9, "Thorn Bite", modifiers);
+        Drop(item: chest.Id, owner: null, freeForAllAt: s_now, rolled: rolled);
+        string asRolled = Describe(modifiers);
+
+        CharacterEntity full = New(id: 8);
+        full.Container(InventoryType.Bag).Load(Enumerable.Range(0, 30).Select(s => Item((byte)s, Sword)).ToList());
+        Assert.Equal(new LootPickupOutcome(LootPickupResult.InventoryFull, Removed: false), PickUp(picker: full));
+        Assert.True(_store.TryGet(s_dropGuid, out GroundLoot? left));
+        Assert.Same(rolled, left.Rolled);
+        Assert.Equal(asRolled, Describe(rolled.Modifiers));
+
+        Assert.Equal(new LootPickupOutcome(LootPickupResult.Ok, Removed: true), PickUp());
+
+        InventoryItem bagged = At(_picker, InventoryType.Bag, 0);
+        Assert.Equal((id, chest.Id, 1u, ItemRarity.Rare, (ushort)9, "Thorn Bite"),
+            (bagged.InstanceId, bagged.TemplateId, bagged.Count, bagged.Rarity, bagged.ItemLevel, bagged.RareName));
+        Assert.Equal(asRolled, Describe(_picker.ItemModifiers.Of(id)));
+
+        CharacterSaveBatch save = CharacterSaveSnapshot.Take(_picker).Batch;
+        ItemInstance row = Assert.Single(save.UpsertItems);
+        Assert.Equal((id, ItemRarity.Rare, (ushort)9, "Thorn Bite"), (row.Id, row.Rarity, row.ItemLevel, row.RareName));
+        ItemModifierWrite written = save.Modifiers!;
+        Assert.Equal(asRolled, Describe([.. written.Modifiers.Where(m => m.ItemInstanceId == id).OrderBy(m => m.Ordinal)
+            .Select(m => new ItemInstanceModifier
+            {
+                Id = m.Id,
+                ModifierId = m.ModifierId,
+                Ordinal = m.Ordinal,
+                Values = [.. written.Values.Where(v => v.ItemInstanceModifierId == m.Id).OrderBy(v => v.Index)],
+            })]));
     }
 
     [Fact]

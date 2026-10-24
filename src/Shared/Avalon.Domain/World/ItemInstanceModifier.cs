@@ -15,38 +15,25 @@ public class ItemInstanceModifier
 
     public ItemInstanceId ItemInstanceId { get; set; } = default!;
 
-    public ushort ModifierId { get; set; }
+    public int ModifierId { get; set; }
 
     /// <summary>Its place among the item's modifiers, the order they are shown in.</summary>
     public byte Ordinal { get; set; }
 
     public List<ItemInstanceModifierValue> Values { get; set; } = [];
 
-    /// <summary>A deep copy, with copies of the value rows: what a save takes on the tick, so the write shares nothing the tick changes.</summary>
-    public ItemInstanceModifier Copy()
+    /// <summary>
+    /// A copy of the row alone, its <see cref="Values" /> its own empty list: what a save takes on the tick beside copies
+    /// of the value rows (<see cref="ItemInstanceModifierValue.Copy" />), so the write shares nothing the tick changes and
+    /// every value is a row of its own.
+    /// </summary>
+    public ItemInstanceModifier CopyRow() => new()
     {
-        var values = new List<ItemInstanceModifierValue>(Values.Count);
-        foreach (ItemInstanceModifierValue value in Values)
-        {
-            values.Add(new ItemInstanceModifierValue
-            {
-                ItemInstanceModifierId = value.ItemInstanceModifierId,
-                Index = value.Index,
-                Stat = value.Stat,
-                Value = value.Value,
-                Value2 = value.Value2,
-            });
-        }
-
-        return new ItemInstanceModifier
-        {
-            Id = Id,
-            ItemInstanceId = ItemInstanceId,
-            ModifierId = ModifierId,
-            Ordinal = Ordinal,
-            Values = values,
-        };
-    }
+        Id = Id,
+        ItemInstanceId = ItemInstanceId,
+        ModifierId = ModifierId,
+        Ordinal = Ordinal,
+    };
 }
 
 /// <summary>
@@ -65,4 +52,14 @@ public class ItemInstanceModifierValue
     public int Value { get; set; }
 
     public int? Value2 { get; set; }
+
+    /// <summary>A copy of the row, which a save writes beside <see cref="ItemInstanceModifier.CopyRow" />.</summary>
+    public ItemInstanceModifierValue Copy() => new()
+    {
+        ItemInstanceModifierId = ItemInstanceModifierId,
+        Index = Index,
+        Stat = Stat,
+        Value = Value,
+        Value2 = Value2,
+    };
 }

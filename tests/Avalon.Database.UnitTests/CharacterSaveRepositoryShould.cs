@@ -241,6 +241,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
                     Count = 1,
                     Rarity = ItemRarity.Rare,
                     ItemLevel = 9,
+                    RareName = "Thorn Bite",
                     Modifiers =
                     [
                         new TradeRecordItemModifier
@@ -277,9 +278,10 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             TradeRecordItem moved = await read.TradeRecordItems.AsNoTracking()
                 .Include(i => i.Modifiers).ThenInclude(m => m.Values)
                 .SingleAsync(i => i.TradeId == record.Id);
-            Assert.Equal((sword.Id, ItemRarity.Rare, (ushort)9), (moved.ItemInstanceId, moved.Rarity, moved.ItemLevel));
+            Assert.Equal((sword.Id, ItemRarity.Rare, (ushort)9, "Thorn Bite"),
+                (moved.ItemInstanceId, moved.Rarity, moved.ItemLevel, moved.RareName));
             TradeRecordItemModifier modifier = Assert.Single(moved.Modifiers);
-            Assert.Equal((modifierId, (byte)0, (ushort)202), (modifier.ItemInstanceModifierId, modifier.Ordinal, modifier.ModifierId));
+            Assert.Equal((modifierId, (byte)0, 202), (modifier.ItemInstanceModifierId, modifier.Ordinal, modifier.ModifierId));
             Assert.Equal([(StatType.AddedFireDamage, 2, (int?)5), (StatType.Strength, 4, null)],
                 modifier.Values.OrderBy(v => v.Index).Select(v => (v.Stat, v.Value, v.Value2)));
         }
@@ -288,13 +290,14 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     /// <summary>
     /// An item's modifiers change over its life (crafting, #1180): its save leaves exactly the set it carries, a row kept
     /// by id updated in place under that id, and every other row gone with its values. An item the save does not rewrite
-    /// keeps its modifiers and their values.
+    /// keeps its modifiers and their values. A rare item keeps the name its roll gave it (#1179), and only a rare one may
+    /// carry a name (CK_ItemInstances_RareName).
     /// </summary>
     [Fact]
     public async Task Replace_an_items_modifier_rows_by_id_in_its_save()
     {
         CharacterRow row = await SeedCharacterAsync(1);
-        ItemInstance item = Item(row.Id, count: 1, rarity: ItemRarity.Magic, itemLevel: 7);
+        ItemInstance item = Item(row.Id, count: 1, rarity: ItemRarity.Rare, itemLevel: 7, rareName: "Thorn Bite");
         ItemInstance untouched = Item(row.Id, count: 1, rarity: ItemRarity.Magic, itemLevel: 4);
         ItemInstanceModifier a = Modifier(item.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5));
         ItemInstanceModifier b = Modifier(item.Id, 10103, 1, Value(0, StatType.Strength, 8, null));
@@ -303,12 +306,12 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             upsertSlots: [Slot(row.Id, 0, item.Id), Slot(row.Id, 1, untouched.Id)], modifiers: Write(a, b, other))]);
 
         ItemInstance saved = await SavedAsync(row.Id, item.Id);
-        Assert.Equal((ItemRarity.Magic, (ushort)7), (saved.Rarity, saved.ItemLevel));
+        Assert.Equal((ItemRarity.Rare, (ushort)7, "Thorn Bite"), (saved.Rarity, saved.ItemLevel, saved.RareName));
         Assert.Equal(Describe(a, b), Describe([.. saved.Modifiers]));
 
         ItemInstanceModifier kept = Modifier(item.Id, 202, 1, Value(0, StatType.AddedFireDamage, 3, 6), a.Id);
         ItemInstanceModifier added = Modifier(item.Id, 203, 0, Value(0, StatType.AddedColdDamage, 1, 4));
-        ItemInstance again = Item(row.Id, count: 1, item.Id, ItemRarity.Magic, 7);
+        ItemInstance again = Item(row.Id, count: 1, item.Id, ItemRarity.Rare, 7, "Thorn Bite");
         await _saves.WriteAsync([Batch(row, upsertItems: [again], modifiers: Write(kept, added))]);
 
         Assert.Equal(Describe(added, kept), Describe([.. (await SavedAsync(row.Id, item.Id)).Modifiers]));
@@ -316,6 +319,10 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         await using CharacterDbContext read = _database.CreateDbContext();
         Assert.Equal(new[] { added.Id, kept.Id, other.Id }.Order(), (await read.Set<ItemInstanceModifierValue>().AsNoTracking().ToListAsync())
             .Select(v => v.ItemInstanceModifierId).Order());
+
+        ItemInstance named = Item(row.Id, count: 1, rarity: ItemRarity.Magic, itemLevel: 7, rareName: "Thorn Bite");
+        await Assert.ThrowsAnyAsync<DbUpdateException>(() => _saves.WriteAsync(
+            [Batch(row, upsertItems: [named], upsertSlots: [Slot(row.Id, 2, named.Id)])]));
     }
 
     /// <summary>
@@ -426,7 +433,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     }
 
     private static ItemInstance Item(CharacterId owner, uint count, ItemInstanceId? id = null,
-        ItemRarity rarity = ItemRarity.Common, ushort itemLevel = 1) =>
+        ItemRarity rarity = ItemRarity.Common, ushort itemLevel = 1, string? rareName = null) =>
         new()
         {
             Id = id ?? new ItemInstanceId(Guid.CreateVersion7()),
@@ -436,6 +443,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             Flags = ItemInstanceFlags.None,
             Rarity = rarity,
             ItemLevel = itemLevel,
+            RareName = rareName,
             UpdatedAt = DateTime.UtcNow,
         };
 

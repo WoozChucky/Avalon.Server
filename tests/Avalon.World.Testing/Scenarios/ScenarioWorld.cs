@@ -90,6 +90,13 @@ public sealed class ScenarioWorld : IDisposable
     // from. That world's characters have no Stats, so the flusher returns at its first check and never reads the caps.
     private static readonly CombatPatch s_combat = new(new CombatFormula(), new Dictionary<CharacterClass, ClassStatFactors>());
 
+    // The inventory flusher's items generation, as WorldServer passes it, in a world without reference data: nothing there
+    // changes an inventory, so the flusher never reads it.
+    private static readonly ItemsPatch s_items = new([], new ItemModifierCatalog([], [], NullLogger.Instance));
+
+    // The inventory flush's modifier entries, owned by this world as WorldServer owns its own.
+    private readonly ItemModifierDtoPool _inventoryModifierDtos = new();
+
     // How far a walker must have moved between MarkProgress and a check: well above float noise, well below the
     // 20 m it walks in five windows.
     private const float MinimumWalk = 0.5f;
@@ -102,6 +109,9 @@ public sealed class ScenarioWorld : IDisposable
 
     // Added to the world's seed for the quest service's drop rolls, for the same reason.
     private const int QuestSeedOffset = 104729;
+
+    // Added to the world's seed for the item rolls (#1179), for the same reason.
+    private const int ItemSeedOffset = 1299709;
 
     private readonly ScenarioWorldHost _world;
     private readonly ScenarioReferenceData? _reference;
@@ -229,23 +239,31 @@ public sealed class ScenarioWorld : IDisposable
         // Items and quests, as production registers them: the economy over item ids handed out in order (so a run's
         // ids are the same every time), and the quest service, which an instance tells of every kill and Tick flushes.
         services.AddSingleton<IItemIdAllocator>(new SequentialItemIds());
-        services.AddSingleton<ICharacterEconomy>(provider =>
-            new CharacterEconomy(_world, provider.GetRequiredService<IItemIdAllocator>()));
+        services.AddSingleton<IItemRoller>(provider => new ItemRoller(
+            new LootRandom(new Random(unchecked(seed + ItemSeedOffset))), provider.GetRequiredService<IItemIdAllocator>(),
+            Options.Create(configuration)));
+        services.AddSingleton<ICharacterEconomy>(provider => new CharacterEconomy(_world,
+            provider.GetRequiredService<IItemIdAllocator>(), provider.GetRequiredService<IItemRoller>()));
         services.AddSingleton(provider => new QuestService(_world, provider,
             provider.GetRequiredService<ICharacterEconomy>(),
-            new LootRandom(new Random(unchecked(seed + QuestSeedOffset))), Clock, new Logger<QuestService>(_errorLog),
+            new LootRandom(new Random(unchecked(seed + QuestSeedOffset))), provider.GetRequiredService<IItemRoller>(), Clock,
+            new Logger<QuestService>(_errorLog),
             provider.GetRequiredService<PartyService>()));
     }
 
     /// <summary>
-    /// Item instance ids in the order they are asked for: deterministic, where production's are time-ordered. Built
-    /// from parts, as production's are made, so an id allocates its <see cref="ItemInstanceId" /> and nothing else.
+    /// Item instance ids, and modifier ids (#1179), in the order they are asked for: deterministic, where production's
+    /// are time-ordered. Built from parts, as production's are made, so an id allocates its <see cref="ItemInstanceId" />
+    /// and nothing else; the two never meet.
     /// </summary>
     private sealed class SequentialItemIds : IItemIdAllocator
     {
         private int _next;
+        private int _nextModifier;
 
         public ItemInstanceId Next() => new(new Guid(++_next, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1));
+
+        public Guid NextModifierId() => new(++_nextModifier, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2);
     }
 
     /// <summary>The world's clock: every instance, character and timer here reads it, and <see cref="Tick()" /> advances it.</summary>
@@ -351,8 +369,9 @@ public sealed class ScenarioWorld : IDisposable
                     throw new InvalidOperationException("A quest flush logged an error during a tick", questError);
             }
 
+            ItemsPatch items = _reference?.Data.Items ?? s_items;
             for (int i = 0; i < _connections.Count; i++)
-                InventoryUpdateFlusher.Flush(_connections[i]);
+                InventoryUpdateFlusher.Flush(_connections[i], items, _inventoryModifierDtos);
             for (int i = 0; i < _connections.Count; i++)
                 CharacterSheetFlusher.Flush(_connections[i], _combat);
             for (int i = 0; i < _connections.Count; i++)

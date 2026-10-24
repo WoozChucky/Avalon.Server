@@ -1,6 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.World.Entities;
 using Avalon.World.Items;
+using Avalon.World.Loot;
 
 namespace Avalon.World.Doodads;
 
@@ -30,10 +31,11 @@ public interface IDoodadHost : IItemUseHost
     /// Rolls <paramref name="doodad" />'s loot table and gold range and drops them on the ring around it, as a kill
     /// drops: allocated by the instance's loot allocator among <paramref name="user" /> and the members of its party in
     /// this instance (nobody, as for a kill, when the user is in a party leave countdown), stored, and told to every
-    /// connection here in one shared loot packet. Contained: a failure is logged and drops what was stored before it.
-    /// How many drops it stored.
+    /// connection here in one shared loot packet. Its equipment drops roll their copies at an item level drawn from
+    /// <paramref name="random" /> (the use's own) within the doodad's level range (#1179). Contained: a failure is logged and
+    /// drops what was stored before it. How many drops it stored.
     /// </summary>
-    int DropLootAt(Doodad doodad, CharacterEntity user);
+    int DropLootAt(Doodad doodad, CharacterEntity user, ILootRandom random);
 
     /// <summary>
     /// Adds the living players here within <paramref name="radius" /> of <paramref name="centre" /> on X/Z to

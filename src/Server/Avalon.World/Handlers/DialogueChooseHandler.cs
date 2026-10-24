@@ -46,6 +46,9 @@ public partial class DialogueChooseHandler(
     TradeService? trades = null)
     : WorldPacketHandler<CDialogueChoosePacket>
 {
+    // The bank snapshot's modifier entries (#1179), given back once it is encoded. Handlers run on the tick, one at a time.
+    private readonly ItemModifierDtoPool _modifierDtos = new();
+
     private IDialogueCatalog Dialogue => world.Data.Dialogue;
     private DialogueActions Actions => world.Data.DialogueActions;
 
@@ -190,8 +193,9 @@ public partial class DialogueChooseHandler(
                 // An open trade closes before the window opens (#1175): an NPC window and a trade never overlap.
                 trades?.NpcWindowOpening(entity);
                 entity.OpenBankNpc = npc.Guid;
-                connection.Send(SInventoryUpdatePacket.Create(
-                    BankAccess.Snapshot(entity), null, PacketEncoder.Shared));
+                InventorySlotUpdateDto[] bank = BankAccess.Snapshot(entity, world.Data.Items, _modifierDtos);
+                connection.Send(SInventoryUpdatePacket.Create(bank, null, PacketEncoder.Shared));
+                _modifierDtos.Return(bank);
                 break;
 
             case DialogueOptionAction.OpenShop:

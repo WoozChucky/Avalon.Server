@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.Loot;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
@@ -101,5 +102,8 @@ public class LootPacketsShould
         Assert.Equal("2819", Hex(Only(d => d.Gold = 25)));
         Assert.Equal("3007", Hex(Only(d => d.OwnerCharacterId = 7)));
         Assert.Equal("3809", Hex(Only(d => d.FreeForAllAt = 9)));
+        Assert.Equal("4002", Hex(Only(d => d.Rarity = ItemRarity.Rare)));
+        Assert.Equal("4809", Hex(Only(d => d.ItemLevel = 9)));
+        Assert.Equal("5202" + "0803", Hex(Only(d => d.Modifiers = [new ItemModifierDto { ModifierId = 3 }])));
     }
 }

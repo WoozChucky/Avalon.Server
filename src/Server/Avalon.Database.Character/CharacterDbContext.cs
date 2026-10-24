@@ -151,6 +151,9 @@ public partial class CharacterDbContext : DbContext
         builder.Property(i => i.GiverCharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
         builder.Property(i => i.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
         builder.Property(i => i.ItemLevel).HasColumnType("smallint");
+        builder.Property(i => i.RareName).HasMaxLength(32);
+        // As on the item itself: a rare copy, and only a rare one, carries its two words.
+        builder.ToTable(t => t.HasCheckConstraint("CK_TradeRecordItems_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)"));
         builder.HasIndex(i => i.ItemInstanceId);
         // The record's own copy of the item's modifiers (#1179), written with it as one graph.
         builder.HasMany(i => i.Modifiers)
@@ -165,7 +168,6 @@ public partial class CharacterDbContext : DbContext
         // Keyed by the modifier's own id, not its place: a modifier keeps its id when its item's modifiers are reordered.
         builder.HasKey(m => new { m.TradeId, m.ItemInstanceModifierId });
         builder.Property(m => m.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
-        builder.Property(m => m.ModifierId).HasColumnType("smallint");
         builder.HasMany(m => m.Values)
             .WithOne()
             .HasForeignKey(v => new { v.TradeId, v.ItemInstanceModifierId })
@@ -349,12 +351,15 @@ public partial class CharacterDbContext : DbContext
 
         builder.HasIndex(b => b.CharacterId);
 
-        // Facts of every copy (#1179), like its count and flags.
+        // Facts of every copy (#1179), like its count and flags. A rare copy, and only a rare one (Rarity 2), carries the two
+        // words its roll gave it.
         builder.Property(b => b.ItemLevel).HasColumnType("smallint");
+        builder.Property(b => b.RareName).HasMaxLength(32);
         builder.ToTable(t =>
         {
             t.HasCheckConstraint("CK_ItemInstances_Rarity", "\"Rarity\" BETWEEN 0 AND 3");
             t.HasCheckConstraint("CK_ItemInstances_ItemLevel", "\"ItemLevel\" > 0");
+            t.HasCheckConstraint("CK_ItemInstances_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
         });
 
         // Its modifiers are its own rows, gone with it.
@@ -367,15 +372,13 @@ public partial class CharacterDbContext : DbContext
     /// <summary>
     /// An item's modifiers (#1179). Keyed by an id the world server allocates, so a modifier kept across saves is updated
     /// in place. No unique index on the item and the ordinal: a reorder saved row by row would trip it. ModifierId names
-    /// a catalog row in the World database, so it has no foreign key, as an item's TemplateId has none. The column is
-    /// smallint, so catalog modifier ids stay at or below 32767.
+    /// a catalog row in the World database, so it has no foreign key, as an item's TemplateId has none.
     /// </summary>
     private static void Configure(EntityTypeBuilder<ItemInstanceModifier> builder)
     {
         builder.HasKey(m => m.Id);
         builder.Property(m => m.Id).ValueGeneratedNever();
         builder.Property(m => m.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
-        builder.Property(m => m.ModifierId).HasColumnType("smallint");
         builder.HasMany(m => m.Values)
             .WithOne()
             .HasForeignKey(v => v.ItemInstanceModifierId)

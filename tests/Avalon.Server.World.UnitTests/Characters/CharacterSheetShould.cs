@@ -15,7 +15,6 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
-using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -154,7 +153,7 @@ public class CharacterSheetShould
     public async Task Send_a_sheet_after_an_equip_that_changes_a_stat_and_none_after_one_that_changes_nothing()
     {
         BankerWorld w = await BankerWorld.CreateAsync();
-        var move = new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, w.World, new CharacterEconomy(w.World, new ItemIdAllocator()));
+        var move = new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, w.World, TestEconomy.Over(w.World));
         w.Character.Container(InventoryType.Bag).Load([Item(0, EquipTemplates.Chestguard), Item(1, EquipTemplates.Band)]);
         CharacterSheetFlusher.Flush(w.Connection, w.Data.Combat);
         uint armourBefore = Assert.Single(w.Read<SCharacterStatsPacket>(NetworkPacketType.SMSG_CHARACTER_STATS)).Armor;

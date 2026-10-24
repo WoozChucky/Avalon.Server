@@ -68,7 +68,7 @@ public class CrowdControlGatesShould
             return Conversation(action, await BankerWorld.CreateAsync());
 
         ItemUseWorld w = await ItemUseWorld.CreateAsync();
-        var economy = new CharacterEconomy(w.World, new ItemIdAllocator());
+        CharacterEconomy economy = TestEconomy.Over(w.World);
         uint request = 0;
         Func<string> act;
         switch (action)
@@ -168,7 +168,7 @@ public class CrowdControlGatesShould
     /// <summary>The actions on an NPC conversation, by the banker's world: none of them ends it.</summary>
     private static (CharacterEntity, Func<string>, IDisposable?) Conversation(string action, BankerWorld w)
     {
-        var economy = new CharacterEconomy(w.World, new ItemIdAllocator());
+        CharacterEconomy economy = TestEconomy.Over(w.World);
         uint request = 0;
         Func<string> act;
         switch (action)

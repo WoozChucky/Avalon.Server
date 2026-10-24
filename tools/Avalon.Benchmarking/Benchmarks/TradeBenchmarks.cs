@@ -11,6 +11,7 @@ using Avalon.World.Handlers;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Reload;
 using Avalon.World.Testing.Fakes;
 using Avalon.World.Trading;
 using BenchmarkDotNet.Attributes;
@@ -40,6 +41,9 @@ public class TradeBenchmarks
         Class = ItemClass.Consumable,
         MaxStackSize = 20,
     };
+
+    // The items generation a state's offers are judged and named by: these potions roll none.
+    private static readonly ItemsPatch s_items = new([s_potion], new ItemModifierCatalog([], [], NullLogger.Instance));
 
     private readonly CTradeOfferItemPacket _offer = new() { BagSlot = 0, TradeSlot = 0 };
     private readonly CTradeRemoveItemPacket _remove = new() { TradeSlot = 0 };
@@ -72,7 +76,7 @@ public class TradeBenchmarks
     {
         Open(Math.Max(OpenTrades, 1));
         ((CharacterEntity)_offerer.Character!).Container(InventoryType.Bag).Load(
-            [new InventoryItem(0, new ItemInstanceId(Guid.CreateVersion7()), s_potion.Id, 5, 0, ItemInstanceFlags.None, ItemRarity.Common, 1, 0)]);
+            [new InventoryItem(0, new ItemInstanceId(Guid.CreateVersion7()), s_potion.Id, 5, 0, ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null, 0)]);
         _offerHandler = new TradeOfferItemHandler(_trades, NullLogger<TradeOfferItemHandler>.Instance);
         _removeHandler = new TradeRemoveItemHandler(_trades, NullLogger<TradeRemoveItemHandler>.Instance);
 
@@ -104,7 +108,7 @@ public class TradeBenchmarks
         _trades = new TradeService(Options.Create(new GameConfiguration()), TimeProvider.System, NoSaves.Instance, online,
             NullLogger<TradeService>.Instance);
         // No trade completes here: the economy is only read by a completion.
-        _trades.Attach(null!, static id => id == s_potion.Id ? s_potion : null);
+        _trades.Attach(null!, static () => s_items);
 
         var connections = new QuietConnection[Math.Max(trades, 1) * 2];
         for (int i = 0; i < connections.Length; i++)

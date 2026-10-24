@@ -2,14 +2,16 @@ namespace Avalon.Exporter;
 
 /// <summary>
 /// One exported artifact: the name it is selected by, what writing it does, and -- for an export
-/// that needs something this machine may not have -- how to find out before anything is written.
+/// that needs something this machine may not have -- how to find out before anything is written. An export
+/// <c>InRepository</c> writes a committed file of the repository itself, never under the output root.
 /// </summary>
 internal sealed record Export(
     string Name,
     string Destination,
     string Summary,
     Action<string> Write,
-    Func<string?>? Readiness = null);
+    Func<string?>? Readiness = null,
+    bool InRepository = false);
 
 /// <summary>
 /// The registry. Adding an artifact the client vendors is an entry here -- not another csproj with
@@ -65,6 +67,19 @@ internal static class Exports
             "the item template rows the client vendors (needs a World database)",
             root => ItemCatalog.Write(Path.Combine(root, ItemCatalog.DirectoryName, ItemCatalog.FileName)),
             ItemCatalog.Readiness),
+
+        new("item-modifier-catalog", ItemModifierCatalogExport.DirectoryName + "/" + ItemModifierCatalogExport.FileName,
+            "the item modifier catalog: groups, tiers, stat ranges and each template's linked modifiers (from the seed)",
+            root => ItemModifierCatalogExport.Write(
+                Path.Combine(root, ItemModifierCatalogExport.DirectoryName, ItemModifierCatalogExport.FileName))),
+
+        // The page is the repository's own, hand-written around its block, so it is written there whatever --out names;
+        // its readiness checks the page and its markers before anything is written.
+        new("item-modifier-doc", ItemModifierDoc.DocsDirectory + "/" + ItemModifierDoc.FileName + " (the repository's, whatever --out)",
+            "the generated block of the item modifier page, from the seed",
+            _ => ItemModifierDoc.Write(ItemModifierDoc.PagePath()),
+            ItemModifierDoc.Readiness,
+            InRepository: true),
 
         new("ability-catalog", AbilityCatalogExport.DirectoryName + "/" + AbilityCatalogExport.FileName,
             "the ability rows the client names and draws casts from (needs a World database)",

@@ -6,26 +6,27 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.World.Loot;
 
 /// <summary>
-/// Rolls what a dying creature, or a used doodad, drops. Tick thread. It allocates the list it hands back,
-/// and nothing else: each entry that hits finds its item template by id.
+/// Rolls what a dying creature, or a used doodad, drops. Tick thread. It adds the drops to a list the caller keeps
+/// (#1179: a kill's is its instance's, so a kill allocates no list), and allocates nothing else: each entry that hits
+/// finds its item template by id.
 /// </summary>
 public interface ILootRoller
 {
     /// <summary>
-    /// Item stacks in roll order, then at most one gold pile, always last. Reads
+    /// Adds to <paramref name="drops"/> the item stacks in roll order, then at most one gold pile, always last. Reads
     /// <paramref name="template"/>'s table from <paramref name="catalog"/> as it is now, so a Loot
     /// reload applies to the next kill. It is the roll by table below, over the creature's table and gold range.
     /// </summary>
-    IReadOnlyList<RolledDrop> Roll(CreatureTemplate template, LootCatalog catalog, IReadOnlyCollection<ItemTemplate> items);
+    void Roll(CreatureTemplate template, LootCatalog catalog, IReadOnlyCollection<ItemTemplate> items, List<RolledDrop> drops);
 
     /// <summary>
-    /// Item stacks from <paramref name="table"/> (none when null) in roll order, then at most one gold pile of
-    /// <paramref name="minGold"/> to <paramref name="maxGold"/> gold, always last. Reads the table from
-    /// <paramref name="catalog"/> as it is now; a table it does not hold drops only gold, and sets
+    /// Adds to <paramref name="drops"/> the item stacks from <paramref name="table"/> (none when null) in roll order, then
+    /// at most one gold pile of <paramref name="minGold"/> to <paramref name="maxGold"/> gold, always last. Reads the table
+    /// from <paramref name="catalog"/> as it is now; a table it does not hold drops only gold, and sets
     /// <paramref name="tableMissing"/>, so the caller logs it under the template that named it.
     /// </summary>
-    IReadOnlyList<RolledDrop> Roll(LootTableId? table, int minGold, int maxGold, LootCatalog catalog,
-        IReadOnlyCollection<ItemTemplate> items, out bool tableMissing);
+    void Roll(LootTableId? table, int minGold, int maxGold, LootCatalog catalog, IReadOnlyCollection<ItemTemplate> items,
+        List<RolledDrop> drops, out bool tableMissing);
 }
 
 public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) : ILootRoller
@@ -36,24 +37,21 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
     /// </summary>
     public const int MaxReferenceDepth = 8;
 
-    public IReadOnlyList<RolledDrop> Roll(CreatureTemplate template, LootCatalog catalog, IReadOnlyCollection<ItemTemplate> items)
+    public void Roll(CreatureTemplate template, LootCatalog catalog, IReadOnlyCollection<ItemTemplate> items,
+        List<RolledDrop> drops)
     {
-        IReadOnlyList<RolledDrop> drops = Roll(template.LootTableId, template.MinGold, template.MaxGold, catalog, items,
-            out bool tableMissing);
+        Roll(template.LootTableId, template.MinGold, template.MaxGold, catalog, items, drops, out bool tableMissing);
         if (tableMissing)
         {
             logger.LogWarning(
                 "Creature template {TemplateId} names loot table {TableId}, which is missing or was refused; it drops only gold",
                 template.Id.Value, template.LootTableId!.Value);
         }
-
-        return drops;
     }
 
-    public IReadOnlyList<RolledDrop> Roll(LootTableId? table, int minGold, int maxGold, LootCatalog catalog,
-        IReadOnlyCollection<ItemTemplate> items, out bool tableMissing)
+    public void Roll(LootTableId? table, int minGold, int maxGold, LootCatalog catalog,
+        IReadOnlyCollection<ItemTemplate> items, List<RolledDrop> drops, out bool tableMissing)
     {
-        var drops = new List<RolledDrop>();
         tableMissing = false;
 
         if (table is { } tableId)
@@ -66,8 +64,6 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
 
         if (RollGold(minGold, maxGold) is { } gold)
             drops.Add(RolledDrop.GoldPile(gold));
-
-        return drops;
     }
 
     private void RollTable(LootTableView table, int depth, LootCatalog catalog,

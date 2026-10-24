@@ -36,7 +36,7 @@ public class BankFlowShould : IAsyncLifetime
     }
 
     private void Move(uint request, InventoryType from, byte fromSlot, InventoryType to, byte toSlot) =>
-        new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, _w.World, new CharacterEconomy(_w.World, new ItemIdAllocator()))
+        new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, _w.World, TestEconomy.Over(_w.World))
             .Execute(_w.Connection, new CItemMovePacket
             {
                 RequestId = request,
@@ -61,7 +61,7 @@ public class BankFlowShould : IAsyncLifetime
 
         Move(1, InventoryType.Bag, 0, InventoryType.Bank, 6);
         Assert.Equal(ItemRequestResult.Ok, LastResult());
-        InventoryUpdateFlusher.Flush(_w.Connection);
+        InventoryUpdateFlusher.Flush(_w.Connection, _w.Data.Items, new ItemModifierDtoPool());
 
         SInventoryUpdatePacket deposit = Updates().Last();
         Assert.Equal(5u, deposit.Slots.Single(s => s.Container == InventoryType.Bank && s.Slot == 6).Item!.Count);

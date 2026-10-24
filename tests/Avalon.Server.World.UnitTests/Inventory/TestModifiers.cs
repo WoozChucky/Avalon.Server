@@ -8,7 +8,7 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 internal static class TestModifiers
 {
     /// <summary>A modifier with a new id on <paramref name="item" />, its values given as (index, stat, value, high end).</summary>
-    public static ItemInstanceModifier Modifier(ItemInstanceId item, ushort modifierId, byte ordinal,
+    public static ItemInstanceModifier Modifier(ItemInstanceId item, int modifierId, byte ordinal,
         params (byte Index, StatType Stat, int Value, int? Value2)[] values)
     {
         var id = Guid.CreateVersion7();
@@ -38,6 +38,6 @@ internal static class TestModifiers
     private static string Rolled(ItemInstanceModifier m) =>
         Line(m.ModifierId, m.Ordinal, m.Values.Select(v => (v.Index, v.Stat, v.Value, v.Value2)));
 
-    private static string Line(ushort modifierId, byte ordinal, IEnumerable<(byte Index, StatType Stat, int Value, int? Value2)> values) =>
+    private static string Line(int modifierId, byte ordinal, IEnumerable<(byte Index, StatType Stat, int Value, int? Value2)> values) =>
         $"{modifierId}@{ordinal}: " + string.Join(", ", values.Select(v => $"{v.Index} {v.Stat} {v.Value}..{v.Value2}"));
 }

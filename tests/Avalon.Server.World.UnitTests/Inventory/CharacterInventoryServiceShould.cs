@@ -1,9 +1,31 @@
 using Avalon.Common;
+using Avalon.Common.GameAuth;
+using Avalon.Common.ValueObjects;
+using Avalon.Database.Character.Repositories;
+using Avalon.Database.World.Repositories;
+using Avalon.Domain.World;
+using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Quest;
+using Avalon.Network.Packets.Vendor;
+using Avalon.Server.World.UnitTests.GameAuth;
+using Avalon.Server.World.UnitTests.Handlers;
+using Avalon.Server.World.UnitTests.Quests;
+using Avalon.World;
 using Avalon.World.Entities;
+using Avalon.World.Handlers;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Inventory;
+using Avalon.World.Items;
 using Avalon.World.Persistence;
+using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Quests;
+using Avalon.World.Respawn;
+using Avalon.World.Vendors;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
+using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Inventory;
 
@@ -42,20 +64,46 @@ public class CharacterInventoryServiceShould
         Assert.Equal(3, new[] { 1, 2, 3 }.Select(s => At(character, InventoryType.Bag, (byte)s).InstanceId).Distinct().Count());
     }
 
-    [Fact]
-    public void Refuse_an_add_that_does_not_fit_whole_and_change_nothing()
+    /// <summary>
+    /// Two potions with room for one: past a partial stack and no slot free, or, for a potion that rolls a modifier
+    /// (#1179: a copy carrying modifiers is one item in a slot of its own, whatever its template stacks to), one slot free.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Refuse_an_add_that_does_not_fit_whole_and_change_nothing(bool rolls)
     {
         CharacterEntity character = New();
         var bag = Enumerable.Range(0, 29).Select(s => Item((byte)s, Sword)).ToList();
-        bag.Add(Item(29, Potion, count: 19));
+        if (!rolls)
+            bag.Add(Item(29, Potion, count: 19));
         character.Container(InventoryType.Bag).Load(bag);
+        ItemModifierCatalog? linked = rolls ? PotionLinkingAnImplicit() : null;
 
-        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character).CanAdd(Potion.Id, 2));
-        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character).TryAdd(Potion.Id, 2));
+        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character, modifiers: linked).CanAdd(Potion.Id, 2));
+        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character, modifiers: linked).TryAdd(Potion.Id, 2));
 
-        Assert.Equal(19u, At(character, InventoryType.Bag, 29).Count);
+        Assert.Equal(rolls ? 29 : 30, character.Container(InventoryType.Bag).Items.Count());
+        if (!rolls)
+            Assert.Equal(19u, At(character, InventoryType.Bag, 29).Count);
         Assert.False(character.SaveState.HasChanges);
         Assert.False(character.ClientChanges.HasChanges);
+    }
+
+    /// <summary>A catalog with one implicit modifier, which the potion links.</summary>
+    private static ItemModifierCatalog PotionLinkingAnImplicit()
+    {
+        var group = new ItemModifierGroup { Id = 1, Kind = ItemModifierKind.Implicit, Name = Potion.Name };
+        var modifier = new ItemModifier
+        {
+            Id = 1,
+            GroupId = 1,
+            Group = group,
+            RequiredItemLevel = 1,
+            Stats = [new ItemModifierStat { ModifierId = 1, Index = 0, Stat = StatType.Health, Min = 1, Max = 2 }],
+        };
+        return new ItemModifierCatalog([modifier],
+            [new ItemTemplateModifier { TemplateId = Potion.Id, Index = 0, ModifierId = 1 }], NullLogger.Instance);
     }
 
     [Theory]
@@ -263,5 +311,161 @@ public class CharacterInventoryServiceShould
 
         Assert.Equal(SaveState.Removed, character.SaveState.ItemState(potion.InstanceId));
         Assert.NotEqual(potion.InstanceId, At(character, InventoryType.Bag, 0).InstanceId);
+    }
+
+    /// <summary>
+    /// Review Focus 1 (#1179): however a copy of a base is made (bought, given by an item script, paid as a quest's
+    /// reward, or handed to a new character), it carries its base's implicits: one modifier per link, in link order,
+    /// ordinals from 0, every value within its line's range, and the write that stores the copy writes them. A quest's
+    /// reward is rolled Magic, so its affixes follow the implicits; every other copy carries the implicits alone.
+    /// Potion 1, made the same way, carries none.
+    /// </summary>
+    [Theory]
+    [InlineData("vendor purchase")]
+    [InlineData("item script add")]
+    [InlineData("quest reward")]
+    [InlineData("starting item")]
+    public async Task Give_every_copy_of_a_base_its_implicits_however_it_is_made(string how)
+    {
+        const uint QuestId = 7901, KillId = 79011;
+        using var seed = SqliteDatabase.World();
+        var made = new ItemTemplateId(how is "vendor purchase" or "starting item" ? 37ul : 70ul);
+        var potion = new ItemTemplateId(1);
+        QuestTestWorld w = await QuestTestWorld.CreateAsync(
+            [Quest(QuestId).WithStage(0, Kill(KillId, Boar, 1)).Paying(made.Value, 1).Paying(potion.Value, 1)],
+            repositories: r => r with
+            {
+                Items = new ItemTemplateRepository(seed),
+                ItemModifiers = new ItemModifierRepository(seed, NullLoggerFactory.Instance),
+                ClassStats = new ClassLevelStatRepository(seed),
+                CreateInfos = StartingWith(made, potion),
+            });
+        QuestClient c = w.Join(gold: 1000);
+
+        List<MadeCopy> copies;
+        switch (how)
+        {
+            case "vendor purchase":
+                // Hilde's row of the plate chest, and a potion row beside it.
+                var stock = new VendorStockState(new CreatureTemplateId(13),
+                [
+                    new VendorStockView(1, 1, made, null, null, null, null, []),
+                    new VendorStockView(2, 2, potion, null, null, null, null, []),
+                ]);
+                VendorTrade vendor = w.Economy.VendorOf(c.Character);
+                Assert.Equal(VendorResult.Ok, vendor.TryBuy(true, stock, 1, 1, NoQuestProgress.Instance, DateTime.UnixEpoch));
+                Assert.Equal(VendorResult.Ok, vendor.TryBuy(true, stock, 2, 1, NoQuestProgress.Instance, DateTime.UnixEpoch));
+                copies = HeldAndWritten(c.Character);
+                break;
+            case "item script add":
+                ItemTemplate used = w.Data.FindItemTemplate(potion)!;
+                var tools = new ItemUseTools(w.World, w.Economy,
+                    new TownReturn(NullLogger.Instance, w.World, Substitute.For<IRespawnTargetResolver>(), InlineDatabaseWork.Instance),
+                    new MapTeleport(NullLogger<MapTeleport>.Instance, w.World, Substitute.For<ICharacterSaver>()),
+                    Substitute.For<ICreaturePlacementService>(), TimeProvider.System, NullLogger<ItemUseTools>.Instance);
+                IItemUseContext use = new ItemUseContext(c.Connection, c.Character, Substitute.For<IItemUseHost>(),
+                    Item(29, used), used, tools);
+                Assert.True(use.GiveItem(made, 1));
+                Assert.True(use.GiveItem(potion, 1));
+                copies = HeldAndWritten(c.Character);
+                break;
+            case "quest reward":
+                w.Accept(c, QuestId);
+                w.Quests.AddProgress(c.Character, QuestId, KillId, 1);
+                Creature giver = w.Place(Giver);
+                w.Talk(c, giver);
+                Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, QuestId, giver.Guid.RawValue));
+                copies = HeldAndWritten(c.Character);
+                break;
+            default:
+                copies = await CreatedAsync(w.World);
+                break;
+        }
+
+        // The base's copy carries its links, the potion none.
+        Assert.Equal(new[] { made.Value, potion.Value }.Order(), copies.Select(copy => copy.Template.Value).Order());
+        foreach (MadeCopy copy in copies)
+        {
+            IReadOnlyList<ItemModifier> links = w.Data.ItemModifiers.LinkedTo(copy.Template);
+            Assert.Equal(copy.Template == made, links.Count > 0);
+            List<ItemInstanceModifier> implicits = [.. copy.Held.Take(links.Count)];
+            if (how != "quest reward" || copy.Template != made)
+                Assert.Equal(links.Count, copy.Held.Count);
+            Assert.Equal(links.Select(link => link.Id), implicits.Select(modifier => modifier.ModifierId));
+            Assert.Equal(Enumerable.Range(0, links.Count).Select(ordinal => (byte)ordinal), implicits.Select(modifier => modifier.Ordinal));
+            for (int i = 0; i < links.Count; i++)
+            {
+                Assert.Equal(links[i].Stats.Select(line => (line.Index, line.Stat)), implicits[i].Values.Select(v => (v.Index, v.Stat)));
+                Assert.All(links[i].Stats.Zip(implicits[i].Values), pair => Assert.InRange(pair.Second.Value, pair.First.Min, pair.First.Max));
+                Assert.All(implicits[i].Values, value => Assert.Null(value.Value2));
+            }
+
+            Assert.Equal(TestModifiers.Describe(copy.Held), TestModifiers.Describe(copy.Written));
+        }
+    }
+
+    /// <summary>A copy as it was made: its template, its modifiers as held, and as the write that stores it carries them.</summary>
+    private sealed record MadeCopy(
+        ItemTemplateId Template, IReadOnlyList<ItemInstanceModifier> Held, IReadOnlyList<ItemInstanceModifier> Written);
+
+    /// <summary>A warrior's create info, listing <paramref name="items" /> as its starting items.</summary>
+    private static ICharacterCreateInfoRepository StartingWith(params ItemTemplateId[] items)
+    {
+        ICharacterCreateInfoRepository repository = Substitute.For<ICharacterCreateInfoRepository>();
+        repository.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult<IReadOnlyCollection<CharacterCreateInfo>>(
+            [new CharacterCreateInfo { Class = CharacterClass.Warrior, Map = 1, StartingItems = [.. items] }]));
+        return repository;
+    }
+
+    /// <summary>
+    /// Every Bag item's modifiers in the store, and what the next save writes of them: the write's rows for the item, its
+    /// values put back on each, or none when the save does not rewrite the item's set.
+    /// </summary>
+    private static List<MadeCopy> HeldAndWritten(CharacterEntity character)
+    {
+        ItemModifierWrite? write = CharacterSaveSnapshot.Take(character).Batch.Modifiers;
+        IReadOnlyList<ItemInstanceModifier> WrittenFor(ItemInstanceId item) =>
+        [
+            .. (write?.Modifiers ?? []).Where(m => m.ItemInstanceId == item).OrderBy(m => m.Ordinal).Select(m => new ItemInstanceModifier
+            {
+                Id = m.Id,
+                ItemInstanceId = m.ItemInstanceId,
+                ModifierId = m.ModifierId,
+                Ordinal = m.Ordinal,
+                Values = [.. write!.Values.Where(v => v.ItemInstanceModifierId == m.Id).OrderBy(v => v.Index)],
+            }),
+        ];
+
+        return
+        [
+            .. character.Container(InventoryType.Bag).Items.Select(item =>
+                new MadeCopy(item.TemplateId, character.ItemModifiers.Of(item.InstanceId), WrittenFor(item.InstanceId))),
+        ];
+    }
+
+    /// <summary>A warrior created through the handler: each starting item as the creation inserts it, its modifiers with it.</summary>
+    private static async Task<List<MadeCopy>> CreatedAsync(IWorld world)
+    {
+        ICharacterRepository characters = Substitute.For<ICharacterRepository>();
+        CharacterCreationBatch? created = null;
+        characters.CreateForGameplayAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CharacterCreationBatch>(), Arg.Any<int>(),
+            Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            created = call.Arg<CharacterCreationBatch>();
+            return Task.FromResult(new CharacterCreationReply(created.Row));
+        });
+        IWorldConnection connection = Substitute.For<IWorldConnection>();
+        connection.AccountId.Returns(new AccountId(1));
+        connection.GameplayAuthority.Returns(new GameplayWriteAuthority(new AccountId(1), Guid.NewGuid(), 1));
+        connection.IsConnected.Returns(true);
+        connection.Character.Returns((ICharacter?)null!);
+
+        new CharacterCreateHandler(NullLogger<CharacterCreateHandler>.Instance, characters, TestEconomy.Roller(new ItemIdAllocator()),
+            world).Execute(connection, new CCharacterCreatePacket { Name = "Starter", Class = CharacterClass.Warrior });
+        await (Task)connection.ReceivedCalls()
+            .Single(call => call.GetMethodInfo().Name == nameof(IWorldConnection.EnqueueContinuation)).GetArguments()[0]!;
+
+        Assert.NotNull(created);
+        return [.. created.Items.Select(item => new MadeCopy(item.TemplateId, item.Modifiers, item.Modifiers))];
     }
 }

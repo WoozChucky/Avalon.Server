@@ -3,7 +3,7 @@ using Avalon.Domain.World;
 namespace Avalon.Combat;
 
 /// <summary>
-/// The speeds a caster casts with (#1178, B-R9), each in percentage points and already bounded to 0 through its cap, and
+/// The speeds a caster casts with (#1178), each in percentage points and already bounded to 0 through its cap, and
 /// the time between its basic attacks before attack speed, in seconds: a character's main hand's (or the bare hand's), a
 /// creature's BaseAttackTime. Fixed at a character's stats refresh and read once per cast, so a gear change mid-cast
 /// changes nothing. Default paces nothing: every speed none and no attack time.

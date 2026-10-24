@@ -345,6 +345,7 @@ public class DeSpawnDuringReadinessBarrierShould
             createInfos,
             stats,
             items,
+            ItemModifierRepositories.Empty(),
             abilityTemplates,
             levels,
             creatureTemplates,

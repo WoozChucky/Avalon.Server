@@ -45,6 +45,9 @@ public class TradeRecordItem
     public ItemRarity Rarity { get; set; }
     public ushort ItemLevel { get; set; }
 
+    /// <summary>A rare item's name as it was when it moved (#1179); null for every other item.</summary>
+    public string? RareName { get; set; }
+
     /// <summary>The item's modifiers as they were when it moved: the record's own copy, since it outlives the item.</summary>
     public List<TradeRecordItemModifier> Modifiers { get; set; } = [];
 }
@@ -64,7 +67,7 @@ public class TradeRecordItemModifier
     public byte Ordinal { get; set; }
 
     /// <summary>The catalog modifier (<see cref="ItemInstanceModifier.ModifierId" />).</summary>
-    public ushort ModifierId { get; set; }
+    public int ModifierId { get; set; }
     public List<TradeRecordItemModifierValue> Values { get; set; } = [];
 }
 

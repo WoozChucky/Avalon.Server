@@ -34,6 +34,25 @@ public sealed class PublicItemDto
     public List<PublicItemDamageDto> Damage { get; set; } = [];
     /// <summary>The template's stat pairs that are set, in slot order. Armor is one of them.</summary>
     public List<PublicItemStatDto> Stats { get; set; } = [];
+    /// <summary>
+    /// The lines every copy rolls within (#1179): a base's implicits or a unique's own modifier, each line a range, in
+    /// the order the item shows them; empty for an item that links none.
+    /// </summary>
+    public List<PublicItemSpanDto> ModifierSpans { get; set; } = [];
+}
+
+/// <summary>
+/// One stat line a copy of the item rolls within (#1179): <see cref="Min" /> to <see cref="Max" />, and on an "adds X to
+/// Y" line its high end's range, <see cref="Min2" /> to <see cref="Max2" />.
+/// </summary>
+public sealed class PublicItemSpanDto
+{
+    public ItemModifierKind Kind { get; set; }
+    public StatType Stat { get; set; }
+    public int Min { get; set; }
+    public int Max { get; set; }
+    public int? Min2 { get; set; }
+    public int? Max2 { get; set; }
 }
 
 public sealed class PublicItemDamageDto

@@ -43,6 +43,7 @@ using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Pvp;
 using Avalon.World.Quests;
+using Avalon.World.Reload;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
 using Avalon.World.Serialization;
@@ -202,7 +203,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly List<IWorldObject> _objectAbilities = new(64);
     private readonly ICharacterSaveScheduler? _saveScheduler;
     private readonly GroundLootStore _groundLoot = new();
-    private readonly ILootRoller? _lootRoller;
+    // What a kill or a doodad drops: the loot roller rolls the table, and the item roller (#1179) makes each equipment drop
+    // into its copy as it drops. One optional pair: an instance that drops anything has both, and one built without them
+    // (tests) drops nothing.
+    private readonly (ILootRoller Loot, IItemRoller Items)? _drops;
     private readonly ILootAllocator? _lootAllocator;
     private readonly QuestService? _questService;
 
@@ -379,7 +383,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // Optional for the same reason: an instance built without them (tests) drops nothing.
         // Production registers both; WorldHostGraphShould proves it.
-        _lootRoller = serviceProvider.GetService<ILootRoller>();
+        _drops = serviceProvider.GetService<ILootRoller>() is { } lootRoller
+            ? (lootRoller, serviceProvider.GetRequiredService<IItemRoller>())
+            : null;
         _lootAllocator = serviceProvider.GetService<ILootAllocator>();
         _questService = serviceProvider.GetService<QuestService>();
 
@@ -1288,15 +1294,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// among the characters that share the kill (2026-09-30); each quest drop (#433) belongs to the member it was
     /// rolled for, for good. All of them are placed in one ring. A kill nobody is credited with
     /// (<paramref name="credited" /> false: an aura's tick whose caster is gone) drops every table drop free for all at
-    /// once, whatever instance this is. It allocates the drops it leaves on the ground, and the list the roller hands
-    /// back; its own lists, the quest drops among them (#883), and loot messages are the kill's
-    /// <paramref name="buffers" /> (#890).
+    /// once, whatever instance this is. Each equipment drop of the table is rolled into its copy as it drops (#1179), at
+    /// the creature's level and by its rarity's odds, and lies on the ground as that copy until it is picked up. It
+    /// allocates the drops it leaves on the ground and the copies it rolls (their modifiers included); its own lists, the
+    /// rolled drops and the quest drops among them (#883), and loot messages are the kill's <paramref name="buffers" />
+    /// (#890).
     /// </summary>
     private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible, bool credited, KillBuffers buffers)
     {
         List<(RolledDrop Drop, uint Owner)> questDrops = buffers.QuestDrops;
         RollQuestDrops(creature, eligible, questDrops);
-        bool rollsTable = _lootRoller is not null && _lootAllocator is not null && creature.Metadata is CreatureTemplate;
+        bool rollsTable = _drops is not null && _lootAllocator is not null && creature.Metadata is CreatureTemplate;
         if (!rollsTable && questDrops.Count == 0)
         {
             return;
@@ -1306,24 +1314,32 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // that killed the creature. One bad table costs one kill's loot, nothing more.
         try
         {
-            IReadOnlyList<RolledDrop> table = rollsTable
-                ? _lootRoller!.Roll((CreatureTemplate)creature.Metadata, _world.Data.Loot, _world.Data.ItemTemplates)
-                : [];
-            if (table.Count == 0 && questDrops.Count == 0)
+            List<RolledDrop> rolled = buffers.Rolled;
+            Debug.Assert(rolled.Count == 0, "The list of rolled drops still holds an earlier kill's");
+            if (rollsTable)
+            {
+                ItemsPatch items = _world.Data.Items;
+                (ILootRoller lootRoller, IItemRoller itemRoller) = _drops!.Value;
+                lootRoller.Roll((CreatureTemplate)creature.Metadata, _world.Data.Loot, items.Templates, rolled);
+
+                // Each equipment drop becomes its copy now (#1179: the creature's level is the item level, which the
+                // context holds at least 1), by the creature's rarity odds. Quest drops are not rolled.
+                itemRoller.RollDrops(rolled, new DropContext(creature.Level, creature.Metadata.Rarity, ForceMagic: false), items);
+            }
+
+            int tableDrops = rolled.Count;
+            if (tableDrops == 0 && questDrops.Count == 0)
             {
                 return;
             }
 
-            List<RolledDrop> rolled = buffers.Rolled;
-            Debug.Assert(rolled.Count == 0, "The list of rolled drops still holds an earlier kill's");
-            rolled.AddRange(table);
             for (int i = 0; i < questDrops.Count; i++)
             {
                 rolled.Add(questDrops[i].Drop);
             }
 
             PlaceAndAnnounce(creature.Position, rolled,
-                new KillAllocations(_lootAllocator, OwnerCharacterId, OwnerPartyId, eligible, credited, table.Count, questDrops),
+                new KillAllocations(_lootAllocator, OwnerCharacterId, OwnerPartyId, eligible, credited, tableDrops, questDrops),
                 buffers);
         }
         catch (Exception e)
@@ -1338,13 +1354,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// areas as they are, each drop allocated on its own among the user and the members of its party in this instance (a
     /// party member anywhere here, dead or alive; a character leaves its party, and so this, at the start of a leave
     /// countdown; a user in one makes nobody eligible, as a killer in one does), placed on the ring around the doodad and
-    /// told to everyone here in one shared packet. Its lists are the instance's <see cref="KillBuffers" />, as a kill's
-    /// are. Contained, as a kill's drop is: a failure is logged, and what was stored before it stays (a placement that
-    /// throws stores nothing). Tick thread.
+    /// told to everyone here in one shared packet. Each equipment drop is rolled into its copy as it drops (#1179), by the
+    /// Normal odds, at an item level drawn from <paramref name="random" /> within the doodad's depth band, else this map's
+    /// level range, else 1 (<see cref="DoodadItemLevel" />). Its lists are the instance's
+    /// <see cref="KillBuffers" />, as a kill's are. Contained, as a kill's drop is: a failure is logged, and what was
+    /// stored before it stays (a placement that throws stores nothing). Tick thread.
     /// </summary>
-    int IDoodadHost.DropLootAt(Doodad doodad, CharacterEntity user)
+    int IDoodadHost.DropLootAt(Doodad doodad, CharacterEntity user, ILootRandom random)
     {
-        if (_lootRoller is null || _lootAllocator is null)
+        if (_drops is not { } drops || _lootAllocator is null)
             return 0;
 
         int before = _groundLoot.Count;
@@ -1373,8 +1391,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             DoodadTemplateView template = doodad.Template;
-            IReadOnlyList<RolledDrop> table = _lootRoller.Roll(template.LootTableId, template.MinGold, template.MaxGold,
-                _world.Data.Loot, _world.Data.ItemTemplates, out bool tableMissing);
+            ItemsPatch items = _world.Data.Items;
+            List<RolledDrop> rolled = buffers.Rolled;
+            Debug.Assert(rolled.Count == 0, "The list of rolled drops still holds an earlier kill's");
+            drops.Loot.Roll(template.LootTableId, template.MinGold, template.MaxGold, _world.Data.Loot, items.Templates,
+                rolled, out bool tableMissing);
             if (tableMissing)
             {
                 _logger.LogWarning(
@@ -1382,14 +1403,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                     template.Id.Value, template.LootTableId!.Value);
             }
 
-            if (table.Count == 0)
+            if (rolled.Count == 0)
                 return 0;
 
-            List<RolledDrop> rolled = buffers.Rolled;
-            Debug.Assert(rolled.Count == 0, "The list of rolled drops still holds an earlier kill's");
-            rolled.AddRange(table);
+            drops.Items.RollDrops(rolled,
+                new DropContext(DoodadItemLevel(doodad, random), Public.Enums.CreatureRarity.Normal, ForceMagic: false), items);
+            if (rolled.Count == 0)
+                return 0;
+
             PlaceAndAnnounce(doodad.Position, rolled,
-                new KillAllocations(_lootAllocator, OwnerCharacterId, OwnerPartyId, eligible, credited: true, table.Count,
+                new KillAllocations(_lootAllocator, OwnerCharacterId, OwnerPartyId, eligible, credited: true, rolled.Count,
                     buffers.QuestDrops),
                 buffers);
         }
@@ -1424,7 +1447,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
 
         // Walked by index and through the dictionary's own enumerator: a kill allocates no boxed enumerator (#880).
-        List<LootDropDto> dtos = buffers.DescribePlaced();
+        List<LootDropDto> dtos = buffers.DescribePlaced(_world.Data);
         // The same drops for every connection: encoded once, for the first, and shared by every one (#875).
         OutboundPacket spawned = default;
         foreach (IWorldConnection connection in _connections.Values)
@@ -1526,7 +1549,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 {
                     if (snapshot.Payload is null)
                     {
-                        snapshot = SLootSpawnedPacket.Create(LootDtos(_groundLoot.All), PacketEncoder.Shared);
+                        snapshot = SLootSpawnedPacket.Create(LootDtos(_groundLoot.All, _world.Data), PacketEncoder.Shared);
                     }
 
                     connection.Send(snapshot.Share());
@@ -1558,18 +1581,18 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>The drops as the loot packet carries them: built once for every connection the drop is sent to.</summary>
-    private static List<LootDropDto> LootDtos(IReadOnlyCollection<GroundLoot> drops)
+    private static List<LootDropDto> LootDtos(IReadOnlyCollection<GroundLoot> drops, StaticData data)
     {
         var dtos = new List<LootDropDto>(drops.Count);
         if (drops is IReadOnlyList<GroundLoot> list)
         {
             for (int i = 0; i < list.Count; i++)
-                dtos.Add(LootDropMapper.ToDto(list[i]));
+                dtos.Add(LootDropMapper.ToDto(list[i], data));
             return dtos;
         }
 
         foreach (GroundLoot drop in drops)
-            dtos.Add(LootDropMapper.ToDto(drop));
+            dtos.Add(LootDropMapper.ToDto(drop, data));
         return dtos;
     }
 
@@ -3210,6 +3233,22 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _bandTemplatesFrom = templates;
         _bandTemplate = found;
         return found;
+    }
+
+    /// <summary>
+    /// The item level of a doodad's drops (#1179): uniform within the doodad's depth band, else within this map's
+    /// level range, else 1. Drawn from <paramref name="random" />, the use's own, only when there is a range; never below 1.
+    /// </summary>
+    private ushort DoodadItemLevel(Doodad doodad, ILootRandom random)
+    {
+        (ushort min, ushort max) = doodad.Levels is { } band
+            ? (band.Min, band.Max)
+            : BandTemplate() is { MinLevel: { } low, MaxLevel: { } high }
+                ? (low, high)
+                : ((ushort)1, (ushort)1);
+        min = Math.Max((ushort)1, min);
+        max = Math.Max(min, max);
+        return min == max ? min : (ushort)random.NextInt64(min, max + 1L);
     }
 
     /// <summary>

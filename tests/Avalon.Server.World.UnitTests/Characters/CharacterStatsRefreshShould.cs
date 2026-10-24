@@ -1,8 +1,8 @@
-using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
@@ -114,39 +114,41 @@ public class CharacterStatsRefreshShould
     }
 
     /// <summary>
-    /// Review Focus 3 (#1179): a base edited live while a copy is worn. Each refresh reads the template the lookup holds
-    /// now and the modifiers the copy rolled, so the seeded Ironbound Helm's 5 armour becomes 9 while the copy's
-    /// 10 health stays.
+    /// Review Focus 3 (#1179): a base's defence is its copy's implicit, rolled when the copy was made, and its weapon damage
+    /// its current template's. A plate helm whose implicit rolled 6 armour gives 6; a live edit of the worn Ironwood Sword's
+    /// high end to 9 reaches the next refresh, and the helm's 6 stays.
     /// </summary>
     [Fact]
-    public void Read_base_stats_from_the_current_template_and_modifiers_from_the_instance()
+    public void Read_defence_from_the_copy_and_weapon_damage_from_the_current_template()
     {
-        ItemTemplate seeded = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 36);
-        ItemTemplate edited = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 36);
-        Assert.Equal((StatType.Armor, 5u), (seeded.StatType1, seeded.StatValue1));
-        edited.StatValue1 = 9;
+        ItemTemplate helmBase = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 36);
+        ItemTemplate sword = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 32);
+        ItemTemplate edited = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 32);
+        Assert.Equal(7u, sword.DamageMax1);
+        edited.DamageMax1 = 9;
 
         CharacterEntity bare = New();
         CharacterStatsRefresh.Apply(bare, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
         CharacterEntity character = New();
-        InventoryItem helm = Item(EquipmentSlots.Head, seeded);
+        InventoryItem helm = Item(EquipmentSlots.Head, helmBase);
+        InventoryItem blade = Item(EquipmentSlots.MainHand, sword);
         character.ItemModifiers.Load([new ItemInstance
         {
             Id = helm.InstanceId,
-            TemplateId = seeded.Id,
-            Modifiers = [TestModifiers.Modifier(helm.InstanceId, 1, 0, (0, StatType.Health, 10, null))],
+            TemplateId = helmBase.Id,
+            Modifiers = [TestModifiers.Modifier(helm.InstanceId, CatalogKeys.ModifierId("implicit 36"), 0, (0, StatType.Armor, 6, null))],
         }]);
-        character.Container(InventoryType.Equipment).Load([helm]);
+        character.Container(InventoryType.Equipment).Load([helm, blade]);
 
-        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, id => id == seeded.Id ? seeded : null,
+        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, id => id == helmBase.Id ? helmBase : id == sword.Id ? sword : null,
             CurrentValues.Refill, TestCombat.Formula);
-        (uint Armor, uint Health) before = (character.Stats!.Value.Armor, character.Stats.Value.MaxHealth);
-        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, id => id == edited.Id ? edited : null,
+        (uint Armor, uint Max) before = (character.Stats!.Value.Armor, character.Stats.Value.Weapon.Max1);
+        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, id => id == helmBase.Id ? helmBase : id == edited.Id ? edited : null,
             CurrentValues.Refill, TestCombat.Formula);
 
-        DerivedCharacterStats none = bare.Stats!.Value;
-        Assert.Equal((none.Armor + 5u, none.MaxHealth + 10u), before);
-        Assert.Equal((none.Armor + 9u, none.MaxHealth + 10u), (character.Stats.Value.Armor, character.Stats.Value.MaxHealth));
+        uint none = bare.Stats!.Value.Armor;
+        Assert.Equal((none + 6u, 7u), before);
+        Assert.Equal((none + 6u, 9u), (character.Stats.Value.Armor, character.Stats.Value.Weapon.Max1));
     }
 
     [Fact]

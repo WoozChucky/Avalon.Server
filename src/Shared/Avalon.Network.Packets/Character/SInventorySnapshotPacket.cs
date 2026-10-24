@@ -76,4 +76,10 @@ public class ItemSlotDto
     /// empty repeated field reads back as.
     /// </summary>
     [ProtoMember(10)] public List<ItemModifierDto>? Modifiers { get; set; }
+
+    /// <summary>
+    /// The copy's name (#1179): set for a magic copy (its prefix and suffix around the template's name) and a rare one
+    /// (the two words its roll gave it); null where the template's name is the item's.
+    /// </summary>
+    [ProtoMember(11)] public string? Name { get; set; }
 }

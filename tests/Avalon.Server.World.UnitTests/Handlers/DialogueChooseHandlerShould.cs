@@ -285,7 +285,7 @@ public class DialogueChooseHandlerShould
             rarities.GetAllAsync(Arg.Any<CancellationToken>())
                 .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 
-            return new StaticData(createInfos, stats, items, abilities, levels,
+            return new StaticData(createInfos, stats, items, ItemModifierRepositories.Empty(), abilities, levels,
                 creatureTemplates, baseStats, rarities,
                 textRepo, dialogueRepo, LootRepositories.Empty(), NullLoggerFactory.Instance);
         }

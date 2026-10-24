@@ -516,6 +516,7 @@ public class CharacterLeaveShould : IDisposable
             createInfos,
             stats,
             items,
+            ItemModifierRepositories.Empty(),
             abilityTemplates,
             levels,
             creatureTemplates,

@@ -113,7 +113,7 @@ public class AbilityAmountsFlusherShould
     }
 
     /// <summary>
-    /// #1178 (B-R9, D1): each entry carries the pace the server computes. A Cleave-shaped basic attack waits its weapon's
+    /// #1178 (D1): each entry carries the pace the server computes. A Cleave-shaped basic attack waits its weapon's
     /// attack time over attack speed (a level-1 Warrior's Agility 20 gives 2 %: item 32's 792 ms / 1.02 → 776, an 801 ms
     /// weapon's → 785), so a weapon swap resends it; a Spark Bolt-shaped basic spell waits its 800 ms row over cast speed,
     /// which nothing gives, whatever the weapon.

@@ -117,7 +117,7 @@ public class CanInteractAgreementShould
         levels.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>([]));
 
-        var data = new StaticData(createInfos, classStats, items, abilities, levels,
+        var data = new StaticData(createInfos, classStats, items, ItemModifierRepositories.Empty(), abilities, levels,
             templates, baseStats, rarities, text, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         data.LoadAsync().GetAwaiter().GetResult();
 

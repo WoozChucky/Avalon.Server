@@ -72,6 +72,10 @@ public class DoodadPlacementShould
 
             PlannedDoodad shrine = Assert.Single(plan.Placed, p => p.Template.Id.Value == Shrine);
             Assert.Contains(Slot(layout, shrine), s => s.Tag == "doodad_large" && s.Depth >= 2);
+            // Each carries its slot's depth band, the level range its drops roll their item level in (#1179).
+            Assert.All(plan.Placed, p => Assert.Equal(
+                DepthBandLevels.For(config.DepthBands, Slot(layout, p).First().Depth, setPiece: false), p.Levels));
+            Assert.NotNull(shrine.Levels);
 
             Assert.All(plan.Placed, p => Assert.True(FlatDistance(p.Position, layout.EntrySpawnWorldPos) >= 15f));
             Assert.Empty(plan.RequiredShort);
@@ -137,7 +141,8 @@ public class DoodadPlacementShould
     /// <summary>
     /// A spawn's gate replaces its template's, but one naming a quest the world does not hold is dropped and the
     /// template's stands, and one on a solid template is dropped, so a solid doodad is never hidden: each dropped gate is
-    /// one Warning. The template's script's OnSpawn runs on each doodad before it is added.
+    /// one Warning. The template's script's OnSpawn runs on each doodad before it is added. Each keeps its planned
+    /// depth band.
     /// </summary>
     [Fact]
     public async Task Place_each_doodad_with_the_gates_it_may_keep_and_its_scripts_OnSpawn()
@@ -150,7 +155,7 @@ public class DoodadPlacementShould
         Vector3[] spots = layout.Chunks.Where(c => c.Depth > 0).Take(3).Select(c => c.WorldPos + new Vector3(15f, 0f, 15f)).ToArray();
         var plan = new DoodadPlan(
         [
-            new PlannedDoodad(Template(catalog, Barrel), spots[0], 90f, VisibleGate: onObjective),
+            new PlannedDoodad(Template(catalog, Barrel), spots[0], 90f, VisibleGate: onObjective, Levels: new LevelRange(3, 5)),
             new PlannedDoodad(Template(catalog, Gated), spots[1], 0f, UsableGate: unknownQuest),
             new PlannedDoodad(Template(catalog, Shrine), spots[2], 180f, VisibleGate: onObjective),
         ], [], []);
@@ -167,6 +172,8 @@ public class DoodadPlacementShould
         Assert.Equal(spots[2], shrine.Position);   // a solid doodad keeps its slot's height
         Assert.Equal(2, log.Entries.Count(e => e.Level == LogLevel.Warning));
         Assert.Equal((DoodadState.Ready, DoodadState.Used), (barrel.State, gated.State));
+        // The planned depth band is the doodad's own (#1179): its drops roll their item level in it.
+        Assert.Equal((new LevelRange(3, 5), (LevelRange?)null), (barrel.Levels, shrine.Levels));
     }
 
     /// <summary>
@@ -260,6 +267,7 @@ public class DoodadPlacementShould
         MapTemplateId = new MapTemplateId(2),
         ChunkPoolId = Reference.ForestConfig.ChunkPoolId,
         SpawnTableId = Reference.ForestConfig.SpawnTableId,
+        DepthBands = Reference.ForestConfig.DepthBands,
         DoodadRules = [.. rules],
     };
 

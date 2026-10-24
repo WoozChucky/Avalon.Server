@@ -296,7 +296,7 @@ public class CharacterSelectHandlerShould
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 
-        var data = new StaticData(createInfos, stats, items, abilities, levels,
+        var data = new StaticData(createInfos, stats, items, ItemModifierRepositories.Empty(), abilities, levels,
             creatureTemplates, baseStats, rarities,
             localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance,
             auraTemplateRepository: auraRepository);

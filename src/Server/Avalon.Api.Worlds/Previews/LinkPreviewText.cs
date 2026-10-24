@@ -30,6 +30,7 @@ public static partial class LinkPreviewText
             string.Join(' ', new[] { d.Min == d.Max ? Num(d.Max) : $"{Num(d.Min)} – {Num(d.Max)}", d.Type?.ToString(), "Damage" }
                 .Where(p => !string.IsNullOrEmpty(p)))));
         if (AttackTime(item.AttackTimeMs) is { } attackTime) parts.Add(attackTime);
+        parts.AddRange(item.ModifierSpans.Select(s => FormatSpan(s.Stat, s.Min, s.Max, s.Min2, s.Max2)));
         parts.AddRange(item.Stats.Where(s => s.Type == StatType.Armor).Select(s => FormatStat(s.Type, s.Value)));
         parts.AddRange(item.Stats.Where(s => s.Type != StatType.Armor).Select(s => FormatStat(s.Type, s.Value)));
         if (item.RequiredLevel is > 0) parts.Add($"Requires Level {Num(item.RequiredLevel.Value)}");
@@ -137,12 +138,31 @@ public static partial class LinkPreviewText
     /// A negative value keeps its own sign (<c>-3% Cold Resistance</c>), and armour never gets a plus. The Dashboard's
     /// packages/shared/src/items/stat-wording.json holds a row for every stat; both sides test against it (#460).
     /// </summary>
-    public static string FormatStat(StatType type, long value)
+    public static string FormatStat(StatType type, long value) =>
+        Word(type, value.ToString(CultureInfo.InvariantCulture), negative: value < 0);
+
+    /// <summary>
+    /// A stat line a copy rolls within (#1179), as <see cref="FormatStat" /> words the stat with the range for its number:
+    /// <c>7-9 Armor</c>, <c>+24-36 Health</c>, <c>+3-5% Crit</c>, one number when both ends are equal; an "adds X to Y"
+    /// line, which has a second range for its high end, as <c>Adds 2 to 3-5 Physical Damage to Attacks</c>. The shared
+    /// wording file's <c>spans</c> rows hold it.
+    /// </summary>
+    public static string FormatSpan(StatType type, int min, int max, int? min2, int? max2)
+    {
+        string amount = Range(min, max);
+        if (min2 is { } low2 && max2 is { } high2) amount = $"{amount} to {Range(low2, high2)}";
+        return Word(type, amount, negative: min < 0);
+    }
+
+    /// <summary>
+    /// The stat's wording around <paramref name="amount" />, the number as written: a plus before it unless
+    /// <paramref name="negative" /> (its own sign is in it), never on armour or added damage.
+    /// </summary>
+    private static string Word(StatType type, string amount, bool negative)
     {
         string name = type.ToString();
-        string amount = value.ToString(CultureInfo.InvariantCulture);
         if (type == StatType.Armor) return $"{amount} Armor";
-        string signed = value >= 0 ? $"+{amount}" : amount;
+        string signed = negative ? amount : $"+{amount}";
         if (name.EndsWith("Pct", StringComparison.Ordinal)) return $"{signed}% {SplitWords(name[..^3])}";
         if (name.EndsWith("Resistance", StringComparison.Ordinal) || IsPercentPoints(type))
             return $"{signed}% {SplitWords(name)}";
@@ -197,6 +217,12 @@ public static partial class LinkPreviewText
 
     /// <summary><c>2-4</c>, or one number when both ends are the same.</summary>
     private static string Range(uint min, uint max) => min == max ? Num(max) : $"{Num(min)}-{Num(max)}";
+
+    /// <summary><c>7-9</c>, or one number when both ends are the same.</summary>
+    private static string Range(int min, int max) =>
+        min == max
+            ? min.ToString(CultureInfo.InvariantCulture)
+            : $"{min.ToString(CultureInfo.InvariantCulture)}-{max.ToString(CultureInfo.InvariantCulture)}";
 
     private static string Lower(DamageType type) => type.ToString().ToLowerInvariant();
 

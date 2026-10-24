@@ -25,6 +25,7 @@ public class StaticData(
     ICharacterCreateInfoRepository characterCreateInfoRepository,
     IClassLevelStatRepository classLevelStatRepository,
     IItemTemplateRepository itemTemplateRepository,
+    IItemModifierRepository itemModifierRepository,
     IAbilityTemplateRepository abilityTemplateRepository,
     ICharacterLevelExperienceRepository characterLevelExperienceRepository,
     ICreatureTemplateRepository creatureTemplateRepository,
@@ -111,7 +112,10 @@ public class StaticData(
                 return new AurasPatch(await ReadAurasAsync(loggerFactory, ct));
 
             case ReloadArea.Items:
-                return new ItemsPatch((await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly());
+                return ItemsPatch.Build(
+                    (await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly(),
+                    await itemModifierRepository.GetCatalogAsync(ct),
+                    loggerFactory.CreateLogger<ItemsPatch>());
 
             case ReloadArea.Progression:
                 return new ProgressionPatch(
@@ -347,6 +351,18 @@ public class StaticData(
     /// wants one template, where <c>ItemTemplates.FirstOrDefault</c> walks them all with a closure.
     /// </summary>
     public ItemTemplate? FindItemTemplate(ItemTemplateId id) => _items!.Find(id);
+
+    /// <summary>
+    /// The modifier catalog (#1179), the same generation as the item templates: a /reload items replaces both together.
+    /// </summary>
+    public ItemModifierCatalog ItemModifiers => _items!.Modifiers;
+
+    /// <summary>
+    /// The item templates and the modifier catalog as one generation (#1179): what a roll of a made item reads, taken once
+    /// so a template and the modifiers it links are never from two reads.
+    /// </summary>
+    public ItemsPatch Items => _items!;
+
     /// <summary>The accepted ability templates only; a refused row is not here.</summary>
     public IReadOnlyCollection<AbilityTemplate> AbilityTemplates => _abilities!.Catalog.Templates;
 

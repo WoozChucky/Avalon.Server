@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Domain.World;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
@@ -11,6 +12,7 @@ using Avalon.World.Testing.Scenarios;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.Benchmarking.Benchmarks;
 
@@ -53,8 +55,10 @@ public class QuestFlushBenchmarks
     {
         _scenario = ScenarioWorld.CreateWithReferenceData();
         MapInstance town = _scenario.AddInstance(MapType.Town, 1);
+        var ids = new ItemIdAllocator();
+        var roller = new ItemRoller(new LootRandom(new Random(0)), ids, Options.Create(new GameConfiguration()));
         _quests = new QuestService(_scenario.Host, new ServiceCollection().BuildServiceProvider(),
-            new CharacterEconomy(_scenario.Host, new ItemIdAllocator()), new LootRandom(new Random(0)), _scenario.Clock,
+            new CharacterEconomy(_scenario.Host, ids, roller), new LootRandom(new Random(0)), roller, _scenario.Clock,
             NullLogger<QuestService>.Instance);
         if (!_quests.Catalog.TryGet(KillQuest, out QuestView? quest))
             throw new InvalidOperationException("The seed has no quest 1.");

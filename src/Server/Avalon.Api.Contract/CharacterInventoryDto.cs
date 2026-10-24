@@ -19,6 +19,11 @@ public sealed class CharacterInventoryItemDto
     public ushort ItemLevel { get; set; }
     /// <summary>The modifiers this copy rolled, in the order the item shows them; empty for none (#1179).</summary>
     public List<CharacterInventoryModifierDto> Modifiers { get; set; } = [];
+    /// <summary>
+    /// This copy's name (#1179): a magic copy's prefix and suffix around its template's name, or a rare copy's two
+    /// words; null where the template's name is the item's.
+    /// </summary>
+    public string? Name { get; set; }
     public CharacterInventoryItemTemplateDto? Template { get; set; }
 }
 
@@ -26,9 +31,11 @@ public sealed class CharacterInventoryItemDto
 public sealed class CharacterInventoryModifierDto
 {
     /// <summary>The catalog modifier it rolled.</summary>
-    public ushort ModifierId { get; set; }
+    public int ModifierId { get; set; }
     /// <summary>Its rolled numbers, in the order of the catalog's stat lines.</summary>
     public List<CharacterInventoryModifierValueDto> Values { get; set; } = [];
+    /// <summary>What the catalog modifier is, from the world's catalog; null when the catalog no longer holds it.</summary>
+    public ItemModifierKind? Kind { get; set; }
 }
 
 /// <summary>One rolled number of an item's modifier: the stat it gives and how much (#1179).</summary>

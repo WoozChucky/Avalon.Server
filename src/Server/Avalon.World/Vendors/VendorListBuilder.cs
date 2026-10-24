@@ -30,7 +30,7 @@ public static class VendorListBuilder
         foreach (VendorStockView row in stock.Rows)
         {
             if (!VendorRules.IsVisible(row, character, quests) || FindTemplate(data, row.ItemTemplateId) is not { } item
-                || !VendorRules.IsStockable(item))
+                || !VendorRules.IsSoldNew(item))
             {
                 continue;
             }
@@ -58,7 +58,7 @@ public static class VendorListBuilder
             buyback.Add(new VendorBuybackDto
             {
                 Index = (uint)index,
-                Item = ItemSlotDtoMapper.ToDto(InventoryType.Bag, sold[index].Item.Item, sold[index].Item.Modifiers),
+                Item = ItemSlotDtoMapper.ToDto(InventoryType.Bag, sold[index].Item, data.Items),
                 Price = sold[index].Price,
             });
         }

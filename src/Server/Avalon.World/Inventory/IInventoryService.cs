@@ -1,5 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Character;
+using Avalon.World.Loot;
 
 namespace Avalon.World.Inventory;
 
@@ -19,7 +20,9 @@ public interface IInventoryService
     /// free Bag slots, one new instance per stack. Never adds to Equipment or the Bank, nor to a stack
     /// offered in a trade (#1175), nor to one carrying modifiers (#1179), nor to a Bag slot a completing trade
     /// reserved; a Unique template counts the copies that trade is about to add. A count of 0 is Ok and
-    /// changes nothing.
+    /// changes nothing. A template that links modifiers in the current catalog (a base's implicits, a
+    /// unique's own, #1179) makes one copy per slot, each rolling them now through IItemRoller.RollPlain,
+    /// its modifiers in the store and marked for the save that inserts it.
     /// </summary>
     InventoryAddResult TryAdd(ItemTemplateId templateId, uint count);
 
@@ -77,4 +80,14 @@ public interface IInventoryService
     /// character holds. Throws when the slot is past the Bag: the trade plans the slot first.
     /// </summary>
     InventoryAddResult TryAddInstanceAt(CarriedItem carried, byte bagSlot);
+
+    /// <summary>
+    /// Puts the copy a roll made (#1179: a drop picked up, a rolled reward) in the lowest free Bag slot, exactly as
+    /// it was made: its id, rarity, item level and rare name, count 1, its template's initial durability, never merged.
+    /// Its modifier list is handed to the store as the item's own entry (the caller keeps no use of it) and marked, with
+    /// the item marked New, so the next save inserts both. InventoryFull when no Bag slot is free (a slot a completing
+    /// trade reserved, #1175, is not), UniqueAlreadyOwned as <see cref="TryAddInstance" /> answers it, and
+    /// UnknownTemplate when its template is gone; any answer but Ok changes nothing.
+    /// </summary>
+    InventoryAddResult TryAddRolled(RolledItem item);
 }

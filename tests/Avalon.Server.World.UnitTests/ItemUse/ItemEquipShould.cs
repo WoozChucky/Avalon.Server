@@ -76,6 +76,24 @@ public class ItemEquipShould
             .TryMove(EquipTemplates.Bag(3), Eq(EquipmentSlots.FirstReserved), count: null, bankAccessible: false));
     }
 
+    /// <summary>
+    /// #1179: a second copy of a UniqueEquipped trinket takes the slot wearing the first, which goes to the clicked Bag
+    /// slot, even with the other trinket slot free: one copy is worn, never two.
+    /// </summary>
+    [Fact]
+    public void Swap_a_second_copy_of_a_UniqueEquipped_trinket_into_the_slot_wearing_the_first()
+    {
+        InventoryItem worn = Item(EquipmentSlots.Trinket2, WardStone);
+        InventoryItem second = Item(0, WardStone);
+        Bag(second);
+        Worn(worn);
+
+        Assert.Equal(ItemUseResult.Ok, Equip(0, WardStone));
+        Assert.Equal(second.InstanceId, At(_character, InventoryType.Equipment, EquipmentSlots.Trinket2).InstanceId);
+        Assert.Equal(worn.InstanceId, At(_character, InventoryType.Bag, 0).InstanceId);
+        Assert.False(_character.Container(InventoryType.Equipment).TryGet(EquipmentSlots.Trinket1, out _));
+    }
+
     /// <summary>A bow is held in both hands too (#1179).</summary>
     [Theory]
     [InlineData("two-hander")]
@@ -134,10 +152,13 @@ public class ItemEquipShould
         {
             "a stack of gear" => (StackedBand, 2u),
             "an off hand beside a worn two-hander" => (Buckler, 1u),
+            "a copy of a UniqueEquipped trinket worn in both slots" => (WardStone, 1u),
             _ => throw new ArgumentOutOfRangeException(nameof(name)),
         };
         if (template == Buckler)
             Worn(Item(EquipmentSlots.MainHand, Greatsword));
+        if (template == WardStone)
+            Worn(Item(EquipmentSlots.Trinket1, WardStone), Item(EquipmentSlots.Trinket2, WardStone));   // as a reload can leave
         Bag(Item(0, template, count));
 
         Assert.Equal(expected, Equip(0, template));
@@ -148,6 +169,7 @@ public class ItemEquipShould
     {
         { "a stack of gear", ItemUseResult.NotUsable },   // no stack is ever worn
         { "an off hand beside a worn two-hander", ItemUseResult.Blocked },
+        { "a copy of a UniqueEquipped trinket worn in both slots", ItemUseResult.UniqueEquipped },   // #1179
     };
 
     /// <summary>A use of a worn item takes it off to the lowest free Bag slot, interrupting a cast just before it moves.</summary>

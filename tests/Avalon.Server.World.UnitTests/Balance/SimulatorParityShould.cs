@@ -836,7 +836,7 @@ public class SimulatorParityShould
         ICharacterLevelExperienceRepository levels = Substitute.For<ICharacterLevelExperienceRepository>();
         levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterLevelExperience>());
 
-        var data = new StaticData(createInfos, classStats, items, abilities, levels, templates, baseStats, rarities,
+        var data = new StaticData(createInfos, classStats, items, ItemModifierRepositories.Empty(), abilities, levels, templates, baseStats, rarities,
             text, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance, combatDataRepository: combat);
         data.LoadAsync().GetAwaiter().GetResult();
 

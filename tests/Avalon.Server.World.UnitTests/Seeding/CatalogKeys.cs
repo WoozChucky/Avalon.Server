@@ -1,0 +1,37 @@
+using Avalon.Database.World.Seeding;
+using Avalon.Domain.World;
+
+namespace Avalon.Server.World.UnitTests.Seeding;
+
+/// <summary>
+/// Names a seeded catalog modifier the way the catalog does (#1179), so no test holds an id: "P2 T2" (a family's tier),
+/// "P8 Fire T1" or "S5 Blight T2" (an element of a split family), "unique 65" (the unique template's own modifier) and
+/// "implicit 37" (the base template's implicit row).
+/// </summary>
+internal static class CatalogKeys
+{
+    /// <summary>Every seeded row by its key, with its group's id and its own.</summary>
+    public static IReadOnlyList<(string Key, int GroupId, int ModifierId)> All()
+    {
+        Dictionary<int, ItemModifierGroup> groups = ItemModifierSeed.Groups().ToDictionary(g => g.Id);
+        Dictionary<int, ulong> templateOf = ItemModifierSeed.TemplateLinks().ToDictionary(l => l.ModifierId, l => l.TemplateId.Value);
+
+        return
+        [
+            .. ItemModifierSeed.Modifiers().Select(m =>
+            {
+                ItemModifierGroup group = groups[m.GroupId];
+                string key = group.Kind switch
+                {
+                    ItemModifierKind.Unique => $"unique {templateOf[m.Id]}",
+                    ItemModifierKind.Implicit => $"implicit {templateOf[m.Id]}",
+                    _ when group.Element is { } element => $"{group.Code} {element} T{m.Tier}",
+                    _ => $"{group.Code} T{m.Tier}",
+                };
+                return (key, group.Id, m.Id);
+            }),
+        ];
+    }
+
+    public static int ModifierId(string key) => All().Single(row => row.Key == key).ModifierId;
+}

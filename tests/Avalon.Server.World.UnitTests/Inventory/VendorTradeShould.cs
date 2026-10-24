@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Vendor;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
@@ -19,7 +20,8 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 public class VendorTradeShould
 {
     private static VendorTrade Trade(CharacterEntity character, ulong maxGold = 1_000_000) =>
-        new(character, TestCharacters.InventoryFor(character, Find), new CharacterWallet(character, maxGold), Find, maxGold);
+        new(character, TestCharacters.InventoryFor(character, Find), new CharacterWallet(character, maxGold), Find, maxGold,
+            new SellFactors());
 
     private static InventoryItem At(CharacterEntity character, byte slot) =>
         TestCharacters.At(character, InventoryType.Bag, slot);
@@ -110,15 +112,17 @@ public class VendorTradeShould
         Assert.Equal(8UL, character.Buyback.Entries[0].Price);
     }
 
+    /// <summary>A magic copy sells for twice its sell price (#1179), and its buyback costs exactly what the sale paid.</summary>
     [Fact]
     public void Buy_back_the_exact_instance_and_take_it_off_the_list()
     {
         CharacterEntity character = TestCharacters.New(gold: 30);
-        InventoryItem blade = TestCharacters.Item(4, Blade, durability: 42);
+        InventoryItem blade = TestCharacters.Item(4, Blade, durability: 42) with { Rarity = ItemRarity.Magic };
         character.Container(InventoryType.Bag).Load([TestCharacters.Item(0, Tonic), blade]);
         VendorTrade trade = Trade(character);
         trade.TrySell(true, 4, null);
         character.VendorListOwed = false;
+        Assert.Equal(80UL, character.Data!.Gold);
 
         Assert.Equal(VendorResult.Ok, trade.TryBuyback(true, 0));
 

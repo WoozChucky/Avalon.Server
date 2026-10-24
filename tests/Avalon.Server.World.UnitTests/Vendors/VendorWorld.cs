@@ -172,7 +172,7 @@ internal sealed class VendorWorld
 
         // Only these two instances are stubbed; any other id comes back null.
         TestTown.Stub(World, Data, (InstanceId, instance), (PlainInstanceId, plain));
-        Economy = new CharacterEconomy(World, new ItemIdAllocator());
+        Economy = TestEconomy.Over(World);
 
         Main = AddShopper(7, gold: 1000);
     }

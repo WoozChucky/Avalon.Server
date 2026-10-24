@@ -99,6 +99,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScan
 DOTNET_TieredCompilation=0 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CrowdControlBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SocialEventBenchmarks*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InterestVisibilityBenchmarks*" "*SpatialIndexBenchmarks*" --job short
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemRollerBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 
 # Not BenchmarkDotNet: the spatial index's candidates against the creatures in view, along generated forests (#982)
 dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 300
@@ -354,6 +355,39 @@ for each slot (32 B) and an `ItemSlotDto` for each slot holding an item (56 B). 
 nothing to walk, on every tick a character's gold changed and no slot did, and 752 B, 808 B and 1,056 B on top of
 the entries at 1, 8 and 30 slots.
 
+**Copies with modifiers (#1179).** Every copy of a base carries its implicit, so ordinary gear changes now describe
+modifiers, and a magic copy a name. Each entry's modifiers and their values used to be made afresh at every describe,
+and a magic copy's name built again. Now the flush takes its modifier entries from a pool the tick owns
+(`ItemModifierDtoPool`, `WorldServer`'s; an item request's refusal, the bank snapshot and the select snapshot each use
+their handler's) and gives them back once `Create` has encoded the packet, and a magic copy's name is held on its store
+entry for the items generation it was worked out in (`DescribedName`). `Rolled` makes every Bag slot a seeded plate
+chest the roller made over the real catalog, every other one a plain copy with its implicit and the rest Magic with
+their implicit, one or two affixes and a name; without it, the potions above. `Unpooled` is the flusher's walk and sort
+with the entries made as they were before the pool. One run, in process, three warmups and five measured iterations,
+the thread pinned to one core (`--affinity 1`), `DOTNET_TieredCompilation=0`: BenchmarkDotNet 0.15.8, Windows 11,
+i9-12900K, SDK 10.0.402 / runtime 10.0.13, Release, 2026-10-24:
+
+```bash
+DOTNET_TieredCompilation=0 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InventoryFlushBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1
+```
+
+| Changed slots | Items | `Unpooled`, allocated | `Flusher`, allocated | `Unpooled`, mean | `Flusher`, mean |
+|---:|---|---:|---:|---:|---:|
+| 1 | potions | 144 B | 144 B | 912.5 ns | 954.1 ns |
+| 1 | chests with modifiers | 336 B | 144 B | 1,374.6 ns | 1,270.2 ns |
+| 8 | potions | 984 B | 984 B | 2,990.6 ns | 3,198.3 ns |
+| 8 | chests with modifiers | 3,728 B | 984 B | 8,891.1 ns | 8,324.1 ns |
+| 30 | potions | 3,624 B | 3,624 B | 9,880.6 ns | 11,408.3 ns |
+| 30 | chests with modifiers | 14,169 B | 3,624 B | 23,456.9 ns | 25,632.0 ns |
+
+A flush of copies with modifiers allocates exactly what a flush of potions does, the packet's own entries, and 0 B
+for their modifiers and names once the pool holds enough: before the pool it was 192 B more for a one-implicit
+copy and about 490 B for a magic one with its name. (Each entry grew by 24 B since the #883 table above, the
+item's rarity, item level, modifiers and name; the gold-only flush is still 0 B.) The time is the encode of the
+modifiers, which both pay; the means are one run and within their errors of each other. `InventoryAllocationShould` holds the same: a flush and a refusal naming a
+potion, a sword, an empty slot, a plain chest with its implicit and a magic chest allocate the entries and nothing
+else.
+
 **The quest flusher's bag check.** `QuestFlusher.TouchedTheBag` runs for every connection on every tick, to see
 whether a Bag slot changed. It walked the changed slots through the set's interface, which boxed the set's enumerator:
 40 B per connection on every tick with any slot change, a cost the finding did not list. It now uses the struct
@@ -399,6 +433,10 @@ core (`--affinity 4`; BenchmarkDotNet runs the benchmark process at high priorit
 The allocations are exact. A short job's three iterations leave the means wide (an error of ±2-17 µs on the 1- and
 30-slot rows), so they back no claim beyond the allocations; the `Queried` rows are unchanged in shape (448, 888,
 1,704 and 4,392 B, each the old query's cost plus the larger entries).
+
+Item names (#1179) then added one reference to `ItemSlotDto`, its `Name` (80 B on 64-bit, not 72 B): 8 B more per item
+entry in the rows above, not re-measured. The name stays null for a common or unique copy, and a magic copy's entry
+builds its one name string as it is described; a rare copy's is the string it already holds.
 
 `InventoryAllocationShould` pins both paths in the World suite: a gold-only flush and an accepted reply at 0 B, and
 a flush of changed slots and a refusal at exactly what building their entries costs, measured in the test rather
@@ -1845,6 +1883,51 @@ seven rounds, two runs each; no BenchmarkDotNet run):
   final wave that allocates less. The value was regenerated with the scenario runner (`dotnet run -c Release
   --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json`), and the
   Release gate then read 13,991 B (+0.06 %, within).
+
+### Item roller — `Benchmarks/ItemRollerBenchmarks.cs` (#1179)
+
+Making one copy of an item with its modifiers (`ItemRoller`, [item modifiers](item-modifiers.md)), which runs once per
+drop, vendor purchase, quest reward or starting item, on the tick in whatever makes the item, never per tick or per
+hit. Both rows make a plate chest at item level 15 over the seeded templates and modifier catalog (the scenario
+reference data): the Ironroot Chestguard (86), the best tier of its line there. `RollPlain` is `IItemRoller.RollPlain`,
+a common copy as a vendor purchase or an item script makes it, with its one implicit (Armor 27-37). `RollRare` is
+`IItemRoller.Roll` with the Normal odds and the rarity draw pinned to Rare: the base tier, the implicit, the affix count,
+each affix's weighted pick among the chest's candidates (on the stack) and its values, and the two-word name. The draws
+come from a fixed sequence restarted before each operation, so every operation makes the same item, and setup fails
+the run unless the rare carries its implicit and six affixes (the most a rare can).
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemRollerBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+Out of process, ten warmups and twenty measured iterations, the process pinned to one core (`--affinity 4`;
+BenchmarkDotNet runs it at high priority), one run: BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.402 /
+runtime 10.0.13, concurrent workstation GC, Release, at `3f0b69062` with this benchmark added, 2026-10-24:
+
+| Operation | Mean / min / median | Allocated |
+|---|---:|---:|
+| `ItemRollerBenchmarks.RollPlain` | 230.1 / 212.0 / 225.3 ns (± 14.4 ns) | 360 B |
+| `ItemRollerBenchmarks.RollRare` | 3,031.9 / 2,802 / 3,014 ns (± 148 ns) | 1,696 B |
+
+Everything allocated belongs to the copy: the `RolledItem` and its id, its modifier list (sized for the most the rarity
+can carry, so it never grows), each modifier row with its value list and value rows, and the rare's name. The roll
+allocates nothing of its own beside them: the affix weights and the groups already taken are on the stack. A rare costs
+about 13 times a plain copy: the difference is its six affixes, each a pass over the chest's candidates for the weights
+still eligible, a weighted pick and its values, and the name. At one roll per drop that is about 3 µs per rare
+equipment drop.
+
+At first each `ItemInstanceModifier` built an empty `Values` list from its property initializer before the roller
+assigned its own (32 B per modifier); the roller now fills the row's own list, sized once, and a save copies a row and
+its values without a list to throw away (`CopyRow`). The same benchmark after it, one run in process, three warmups and
+five measured iterations, the thread pinned to one core (`--affinity 1`), `DOTNET_TieredCompilation=0`, 2026-10-24:
+
+| Operation | Mean | Allocated |
+|---|---:|---:|
+| `ItemRollerBenchmarks.RollPlain` | 280.5 ns (± 5.5 ns) | 328 B (-32 B) |
+| `ItemRollerBenchmarks.RollRare` | 3,540.8 ns (± 482 ns) | 1,472 B (-224 B) |
+
+The bytes are exact: the plain copy's one modifier and the rare's seven no longer make a list each. The means are not
+comparable with the run above (in process, fewer iterations, another affinity) and claim nothing.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
@@ -4216,7 +4299,8 @@ with the committed figure, in every build (Debug and Release, see below) and for
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (14,447 B per window since #1178, whose evasion and creature defences change
+  `forest-combat` is the largest figure (14,374 B per window since #1179 part B, whose equipment drops roll their copies
+  when they drop; 13,983 B from #1179 part A; 14,447 B from #1178, whose evasion and creature defences change
   which hits land, so the fight goes differently; 13,805 B from #1168, which merges two fights a character and a
   creature bring together, moving their threat lists with nothing seeded, so the fight goes differently; 13,649 B from
   #1165, which keeps a creature and a pair in one encounter; 14,323 B from #1164, whose dodgeable hostile abilities changed the fight, measured at #1165 and never
@@ -4782,7 +4866,24 @@ pickups in the minute). `ForestCombatScenarioShould` runs the scenario twice in 
 outcome (every count above) and the same bytes per window, and kills and deaths in it; the second run's creatures
 carry higher ids (the process-wide object id counter), which changes neither.
 
-**Gate.** Committed at **14,447 B per window** (20.1 B per player per tick, 241 B per tick) since #1178, 642 B over the
+**Gate.** Committed at **14,374 B per window** (20.0 B per player per tick, 240 B per tick) since #1179 part B, 391 B over
+the 13,983 B before it and outside the gate (which then failed above 14,239 B). Measured with the runner in Release on
+the developer machine, step by step:
+- 14,407 B at `28a5cb3de`, part B before this step: every copy made rolls its base's implicits, so each armour piece
+  the fighters pick up is made with its modifier rows and values, and the inventory update carries them.
+- 14,154 B (-253 B) once a kill's or a chest's loot roll fills the instance's reused list (`KillBuffers.Rolled`) rather
+  than returning a new list per kill, which the roller's wider `RolledDrop` had made larger. This step also carries the
+  new fields every drop sends (an unrolled drop's item level) and the ground entry's reference to a rolled copy.
+- 14,374 B (+220 B) once every equipment drop rolls its copy when it drops. A drop allocates its copy (`RolledItem`), its
+  modifier rows with their value lists, whether or not anyone picks it up (a pickup now adds that copy rather than
+  making one), and `SMSG_LOOT_SPAWNED` grows with each copy's rarity and modifiers. The loot messages and their modifier
+  entries are kept and refilled (#890, `ItemModifierDtoPool`); a drop that did not roll refills its entry from the empty
+  array, where a first cut made a new empty list per drop (84 B per window, caught before the regeneration).
+
+Debug reads the same, and the regeneration (`dotnet run -c Release --project
+tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json`) changed no other scenario.
+Before it, committed at 13,983 B since #1179 part A (an item entry without a details object, see
+[item stats](#item-stats--benchmarksitemstatsbenchmarkscs-1179)), and at **14,447 B per window** (20.1 B per player per tick, 241 B per tick) from #1178, 642 B over the
 13,805 B before it and outside the gate (which then failed above 14,061 B): the combat foundation's first part changes
 which hits land. Every character evades by its Agility instead of its class's base dodge, and has no base block; the
 creatures' blight hits and the wizards' and clerics' spells pass armour; and the forest's creatures are given their
@@ -4931,8 +5032,11 @@ summary.
 | Debug, then | 13,649 |
 | Two fights merged into one encounter, nothing seeded (#1168, PGO on) | 13,805 |
 | Debug, then | 13,805 |
-| Evasion for everyone, the forest's creature defences by type (#1178, PGO on), now | 14,447 |
-| Debug, now | 14,447 |
+| Evasion for everyone, the forest's creature defences by type (#1178, PGO on) | 14,447 |
+| Debug, then | 14,447 |
+| An item entry without a details object (#1179 part A, PGO on) | 13,983 |
+| Drops that roll their copies when they drop, a kill's roll in a reused list (#1179 part B, PGO on), now | 14,374 |
+| Debug, now | 14,374 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
@@ -4942,8 +5046,8 @@ fighters cost about as much per tick as `town-walk`'s 30 walkers (measured befor
 since #1109 the scenario's mean tick is 0.045 ms, see "The forest since #1109"): most creatures are far from any
 player, and an idle creature's AI looks for players once a second rather than every tick. The minute allocated 0.62 MB
 on the tick thread before #972, about 0.86 MB from #972, about 1.36 MB from #1109's tree walls and seed 33, and about
-0.93 MB from #1113, about 0.88 MB from #1157 and #711, about 0.86 MB from #1162 and #1164, about 0.82 MB from #1165, about 0.83 MB from #1168, and about 0.87 MB since #1178 (14,447 B per window over the
-minute's 60 windows).
+0.93 MB from #1113, about 0.88 MB from #1157 and #711, about 0.86 MB from #1162 and #1164, about 0.82 MB from #1165, about 0.83 MB from #1168, about 0.87 MB from #1178, about 0.84 MB from #1179 part A,
+and about 0.86 MB since #1179 part B (14,374 B per window over the minute's 60 windows).
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
 holds its free segments in a stack under a lock per size class. It held them in a `ConcurrentQueue` per size: after a
@@ -5709,8 +5813,8 @@ aura had a script or not; the same 32 B was paid by every apply and every tick o
 | Per kill | Bytes | Why it is left |
 |---|---:|---|
 | The corpse's removal timer | 32 B | Kept until the corpse is removed. Gone since: the remover keeps a count for each corpse, not an object ([the corpse remover](#gameplay-requests-quests-aura-hooks-and-corpses--the-allocation-tests-benchmarksencounterlookupbenchmarkscs-883)). |
-| The list `ILootRoller.Roll` hands back | 152 B for up to four drops | The roller is one object for every instance, so it cannot keep the list, and the tests of the kill substitute `Roll` and answer with a list: taking it out means a signature that fills the caller's list. |
-| Each drop left on the ground | 96 B | Kept: the `GroundLoot` and its guid, until it is picked up. |
+| The list `ILootRoller.Roll` hands back | 152 B for up to four drops | Gone since #1179: `Roll` fills the caller's list, the instance's `KillBuffers.Rolled`. |
+| Each drop left on the ground | 96 B (104 B since #1179) | Kept: the `GroundLoot` and its guid, until it is picked up; since #1179 it holds a reference to the copy an equipment drop rolled, made with its modifiers when it drops. |
 
 Not measured by the scenario, which builds no quest service: the kill's quest credit and quest drops
 (`QuestService.CreatureKilled`, `RollQuestDrops`) copied each eligible member's quests and walked the eligible

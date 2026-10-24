@@ -69,6 +69,11 @@ public class WorldDbContext : DbContext
 
     public DbSet<CreatureTemplate> CreatureTemplates { get; set; } = null!;
     public DbSet<ItemTemplate> ItemTemplates { get; set; } = null!;
+    public DbSet<ItemModifierGroup> ItemModifierGroups { get; set; } = null!;
+    public DbSet<ItemModifier> ItemModifiers { get; set; } = null!;
+    public DbSet<ItemModifierStat> ItemModifierStats { get; set; } = null!;
+    public DbSet<ItemModifierWeight> ItemModifierWeights { get; set; } = null!;
+    public DbSet<ItemTemplateModifier> ItemTemplateModifiers { get; set; } = null!;
     public DbSet<MapTemplate> MapTemplates { get; set; } = null!;
     public DbSet<QuestTemplate> QuestTemplates { get; set; } = null!;
     public DbSet<QuestStage> QuestStages { get; set; } = null!;
@@ -130,6 +135,11 @@ public class WorldDbContext : DbContext
     {
         Configure(modelBuilder.Entity<CreatureTemplate>());
         Configure(modelBuilder.Entity<ItemTemplate>());
+        Configure(modelBuilder.Entity<ItemModifierGroup>());
+        Configure(modelBuilder.Entity<ItemModifier>());
+        Configure(modelBuilder.Entity<ItemModifierStat>());
+        Configure(modelBuilder.Entity<ItemModifierWeight>());
+        Configure(modelBuilder.Entity<ItemTemplateModifier>());
         Configure(modelBuilder.Entity<MapTemplate>());
         Configure(modelBuilder.Entity<QuestTemplate>());
         Configure(modelBuilder.Entity<QuestStage>());
@@ -1665,7 +1675,8 @@ public class WorldDbContext : DbContext
             });
 
         // The equipment (#1179): 74 bases and 5 uniques, ItemBaseSeed's. Ids 5-8, 12-26 and 32-50 are bases under
-        // their old ids, 58, 64 and 65 uniques, 66-103 new; 4, 27-31 and 51-55 are gone.
+        // their old ids, 58, 64 and 65 uniques, 66-103 new; 4, 27-31 and 51-55 are gone. None carries a stat line: a
+        // base's defence is its implicit modifier, a unique's stats its unique modifier (ItemModifierSeed).
         builder.HasData(ItemBaseSeed.Equipment());
 
         // Item 56 (#432): Tobin's Greater Health Potion, sold for gold plus two Health Potions. A use restores
@@ -1745,6 +1756,94 @@ public class WorldDbContext : DbContext
         SellPrice = 0,
         Slot = null,
     };
+
+    /// <summary>
+    /// The modifier catalog's groups (#1179): one row per exclusive group, an affix family (each element of a split family
+    /// its own), a unique or a base's implicits. A code and an element name one group; uniques and implicits have neither,
+    /// so the unique index covers the coded rows only.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ItemModifierGroup> builder)
+    {
+        builder.ToTable("ItemModifierGroups", t =>
+        {
+            t.HasCheckConstraint("CK_ItemModifierGroups_Kind", "\"Kind\" IN (1, 2, 3, 4)");
+            t.HasCheckConstraint("CK_ItemModifierGroups_Code", "(\"Kind\" IN (1, 2)) = (\"Code\" IS NOT NULL)");
+            t.HasCheckConstraint("CK_ItemModifierGroups_Element",
+                "\"Element\" IS NULL OR (\"Kind\" IN (1, 2) AND \"Element\" BETWEEN 0 AND 4)");
+        });
+        builder.HasKey(g => g.Id);
+        builder.Property(g => g.Id).ValueGeneratedNever();
+        builder.Property(g => g.Code).HasMaxLength(8);
+        builder.Property(g => g.Element).HasColumnType("smallint");
+        builder.Property(g => g.Name).HasMaxLength(40).IsRequired();
+        builder.HasIndex(g => new { g.Code, g.Element }).IsUnique().AreNullsDistinct(false).HasFilter("\"Code\" IS NOT NULL");
+
+        builder.HasData(ItemModifierSeed.Groups());
+    }
+
+    /// <summary>
+    /// The catalog rows (#1179): a tier of an affix group, or a unique's or implicit group's single row with no tier. Kind
+    /// and name live on the group only; that a prefix or suffix row has a tier and a unique or implicit row none spans the
+    /// two tables, so no column check can: ItemModifierCatalog leaves out a row that breaks it, and SeedIntegrityShould
+    /// holds the seed to it.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ItemModifier> builder)
+    {
+        builder.ToTable("ItemModifiers", t =>
+        {
+            t.HasCheckConstraint("CK_ItemModifiers_Tier", "\"Tier\" IS NULL OR \"Tier\" BETWEEN 1 AND 5");
+            t.HasCheckConstraint("CK_ItemModifiers_RequiredItemLevel", "\"RequiredItemLevel\" > 0");
+        });
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.Id).ValueGeneratedNever();
+        builder.Property(m => m.RequiredItemLevel).HasColumnType("smallint");
+        builder.HasOne(m => m.Group).WithMany().HasForeignKey(m => m.GroupId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(m => new { m.GroupId, m.Tier }).IsUnique().AreNullsDistinct(false);
+        builder.HasMany(m => m.Stats).WithOne().HasForeignKey(s => s.ModifierId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(m => m.Weights).WithOne().HasForeignKey(w => w.ModifierId).OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasData(ItemModifierSeed.Modifiers());
+    }
+
+    /// <summary>A catalog row's stat lines (#1179); an "adds X to Y" line has the second range, every other line none.</summary>
+    private static void Configure(EntityTypeBuilder<ItemModifierStat> builder)
+    {
+        builder.ToTable("ItemModifierStats", t => t.HasCheckConstraint("CK_ItemModifierStats_Range",
+            "\"Min\" <= \"Max\" AND (\"Min2\" IS NULL) = (\"Max2\" IS NULL) AND (\"Min2\" IS NULL OR \"Min2\" <= \"Max2\")"));
+        builder.HasKey(s => new { s.ModifierId, s.Index });
+        builder.Property(s => s.Stat).HasColumnType("smallint");
+
+        builder.HasData(ItemModifierSeed.Stats());
+    }
+
+    /// <summary>A prefix or suffix row's weight on a base kind (#1179); no row, or 0, means it never rolls there.</summary>
+    private static void Configure(EntityTypeBuilder<ItemModifierWeight> builder)
+    {
+        builder.ToTable("ItemModifierWeights", t =>
+        {
+            t.HasCheckConstraint("CK_ItemModifierWeights_Weight", "\"Weight\" >= 0");
+            t.HasCheckConstraint("CK_ItemModifierWeights_BaseKind", "\"BaseKind\" BETWEEN 1 AND 27");
+        });
+        builder.HasKey(w => new { w.ModifierId, w.BaseKind });
+
+        builder.HasData(ItemModifierSeed.Weights());
+    }
+
+    /// <summary>
+    /// What every copy of a template rolls when it is made (#1179): a base's implicits or a unique's own modifier, in
+    /// index order. Gone with the template; a linked modifier cannot be deleted.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ItemTemplateModifier> builder)
+    {
+        builder.ToTable("ItemTemplateModifiers");
+        builder.HasKey(l => new { l.TemplateId, l.Index });
+        builder.Property(l => l.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
+        builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(l => l.TemplateId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<ItemModifier>().WithMany().HasForeignKey(l => l.ModifierId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(ItemModifierSeed.TemplateLinks());
+    }
 
     private static void Configure(EntityTypeBuilder<MapTemplate> builder)
     {
@@ -2619,7 +2718,8 @@ public class WorldDbContext : DbContext
             new LootTable { Id = 11, Name = "Forest armour" },
             new LootTable { Id = 12, Name = "Forest chest" },
             new LootTable { Id = 13, Name = "Forest barrel" },
-            new LootTable { Id = 14, Name = "Forest jewellery" });
+            new LootTable { Id = 14, Name = "Forest jewellery" },
+            new LootTable { Id = 15, Name = "Forest boss gear" });
     }
 
     private static void Configure(EntityTypeBuilder<LootTableEntry> builder)
@@ -2657,9 +2757,10 @@ public class WorldDbContext : DbContext
         // scroll group (table 10) at 10 %, the armour table (table 11) and the jewellery table (table 14) on every
         // kill, whose pieces each roll at 2 %. A group always drops exactly one of its entries when its table rolls, so
         // the chance a group drops at all is the chance its table is referenced with. Potion and common-table chances
-        // rise with the creature's rarity; the pool references are the same for every creature. #1179: the pools drop
-        // the tier-1 bases exactly as named (rolling the tier by item level comes later). No table names a unique
-        // until the modifier catalog gives every unique its rolled stats.
+        // rise with the creature's rarity; the pool references are the same for every creature. #1179: the pools name the
+        // tier-1 bases, and each drop rolls its copy when it drops, on the best tier of its line the item level reaches.
+        // The three elite and boss tables add their uniques (each its own entry), and Mother Bramble's adds the boss gear
+        // (table 15) on every kill, so a boss kill always has a drop its guaranteed rare can be.
         builder.HasData(
             new LootTableEntry { LootTableId = 1, Sequence = 1, ItemTemplateId = 3, Chance = 5f, MinCount = 1, MaxCount = 1 },
             new LootTableEntry { LootTableId = 1, Sequence = 2, ItemTemplateId = 1, Chance = 10f, MinCount = 1, MaxCount = 2 });
@@ -2671,6 +2772,17 @@ public class WorldDbContext : DbContext
         builder.HasData(ForestCreatureTable(6, potion: 40f, potionMax: 2, mana: 25f, manaMax: 1, common: 50f));
         builder.HasData(ForestCreatureTable(7, potion: 60f, potionMax: 3, mana: 40f, manaMax: 2, common: 75f));
         builder.HasData(ForestCreatureTable(8, potion: 100f, potionMax: 4, mana: 100f, manaMax: 3, common: 100f, potionMin: 2));
+
+        // The uniques (#1179): Alpha's Fang Pendant from the Bramblemaw Alpha (table 6); the Heartwood Band and the
+        // Tuskroot Idol from Old Tuskroot (table 7); the Thornheart Signet and Bramble Mother's Seed from Mother Bramble
+        // (table 8), who also rolls the boss gear (table 15) on every kill.
+        builder.HasData(
+            new LootTableEntry { LootTableId = 6, Sequence = 8, ItemTemplateId = 58, Chance = 10f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 7, Sequence = 8, ItemTemplateId = 64, Chance = 10f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 7, Sequence = 9, ItemTemplateId = 67, Chance = 10f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 8, Sequence = 8, ReferenceTableId = 15, Chance = 100f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 8, Sequence = 9, ItemTemplateId = 65, Chance = 15f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 8, Sequence = 10, ItemTemplateId = 66, Chance = 15f, MinCount = 1, MaxCount = 1 });
 
         // Table 9: one tier-1 weapon or off-hand base of each kind, equal weights: sword, mace, staff, bow, shield,
         // caster off-hand.
@@ -2731,6 +2843,20 @@ public class WorldDbContext : DbContext
         builder.HasData(
             new LootTableEntry { LootTableId = 14, Sequence = 1, ItemTemplateId = 68, Chance = 2f, MinCount = 1, MaxCount = 1 },
             new LootTableEntry { LootTableId = 14, Sequence = 2, ItemTemplateId = 69, Chance = 2f, MinCount = 1, MaxCount = 1 });
+
+        // Table 15, the forest boss gear (#1179): one group of the 26 tier-1 bases at equal weight, the weapon and
+        // off-hand table's six, the armour table's eighteen and the jewellery table's two, in that order.
+        ulong[] bossGear = [32, 35, 33, 34, 70, 73, 36, 37, 38, 39, 40, 76, 46, 47, 48, 49, 50, 77, 41, 42, 43, 44, 45, 78, 68, 69];
+        builder.HasData(bossGear.Select((item, index) => new LootTableEntry
+        {
+            LootTableId = 15,
+            Sequence = index + 1,
+            ItemTemplateId = item,
+            Chance = 1f,
+            GroupId = 1,
+            MinCount = 1,
+            MaxCount = 1,
+        }));
     }
 
     /// <summary>The shape every forest creature's table shares; only the chances and counts differ.</summary>
@@ -2934,7 +3060,7 @@ public class WorldDbContext : DbContext
         // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres. Each class's free skill is
         // its basic attack, flagged Basic (#770): the one ability a silence does not stop. A basic attack (Cleave, Quick
         // Shot) is paced by its weapon's attack time over attack speed, so its Cooldown is 0; a spell basic (Spark Bolt,
-        // Smite) keeps 800 ms, shortened by cast speed (#1178, B-R9, owner decision D1).
+        // Smite) keeps 800 ms, shortened by cast speed (#1178, owner decision D1).
         builder.HasData(
             Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 0, cost: 0, range: SpellRange.Melee, powerGainPerHit: 8, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 315f),
             Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, range: SpellRange.Short, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 614f),

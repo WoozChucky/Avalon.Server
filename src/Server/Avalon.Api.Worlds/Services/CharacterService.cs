@@ -38,6 +38,7 @@ public class CharacterService : ICharacterService
     private readonly ICharacterAbilityRepository _characterAbilityRepository;
     private readonly IAbilityTemplateRepository _abilityTemplateRepository;
     private readonly IItemTemplateRepository _itemTemplateRepository;
+    private readonly IItemModifierRepository _itemModifierRepository;
     private readonly ICharacterStatsRepository _statsRepository;
     private readonly ICharacterQuestRepository _questRepository;
     private readonly ICharacterAuraRepository _auraRepository;
@@ -50,6 +51,7 @@ public class CharacterService : ICharacterService
         ICharacterAbilityRepository characterAbilityRepository,
         IAbilityTemplateRepository abilityTemplateRepository,
         IItemTemplateRepository itemTemplateRepository,
+        IItemModifierRepository itemModifierRepository,
         ICharacterStatsRepository statsRepository,
         ICharacterQuestRepository questRepository,
         ICharacterAuraRepository auraRepository,
@@ -61,6 +63,7 @@ public class CharacterService : ICharacterService
         _characterAbilityRepository = characterAbilityRepository;
         _abilityTemplateRepository = abilityTemplateRepository;
         _itemTemplateRepository = itemTemplateRepository;
+        _itemModifierRepository = itemModifierRepository;
         _statsRepository = statsRepository;
         _questRepository = questRepository;
         _auraRepository = auraRepository;
@@ -144,6 +147,10 @@ public class CharacterService : ICharacterService
         // template is looked up by id rather than joined.
         IReadOnlyList<ItemTemplate> templates = await _itemTemplateRepository.GetByIdsAsync(
             instances.Select(i => i.TemplateId), cancellationToken);
+        // The catalog rows the items carry and nothing more (#1179): each modifier's kind, and the prefix and suffix that
+        // name a magic copy.
+        ItemModifierCatalog catalog = await _itemModifierRepository.GetByIdsAsync(
+            [.. instances.SelectMany(i => i.Modifiers).Select(m => m.ModifierId).Distinct()], cancellationToken);
 
         var instanceById = instances.ToDictionary(i => i.Id);
         var templateById = templates.ToDictionary(t => t.Id);
@@ -151,14 +158,15 @@ public class CharacterService : ICharacterService
         return new CharacterInventoryDto
         {
             CharacterId = character.Id.Value,
-            Items = inventoryRows.Select(row => MapItem(row, instanceById, templateById)).ToList(),
+            Items = inventoryRows.Select(row => MapItem(row, instanceById, templateById, catalog)).ToList(),
         };
     }
 
     private static CharacterInventoryItemDto MapItem(
         CharacterInventory row,
         Dictionary<ItemInstanceId, ItemInstance> instanceById,
-        Dictionary<ItemTemplateId, ItemTemplate> templateById)
+        Dictionary<ItemTemplateId, ItemTemplate> templateById,
+        ItemModifierCatalog catalog)
     {
         instanceById.TryGetValue(row.ItemId, out ItemInstance? instance);
         ItemTemplate? template = instance is not null && templateById.TryGetValue(instance.TemplateId, out ItemTemplate? found)
@@ -174,7 +182,10 @@ public class CharacterService : ICharacterService
             Durability = instance?.Durability ?? 0,
             Rarity = (Avalon.Api.Contract.ItemRarity)(instance?.Rarity ?? default),
             ItemLevel = instance?.ItemLevel ?? 0,
-            Modifiers = instance is null ? [] : ModifiersOf(instance),
+            Modifiers = instance is null ? [] : ModifiersOf(instance, catalog),
+            Name = instance is null || template is null
+                ? null
+                : ItemNames.Display(template, instance.Rarity, instance.RareName, instance.Modifiers, catalog),
             Template = template is null ? null : new CharacterInventoryItemTemplateDto
             {
                 Id = template.Id.Value,
@@ -188,14 +199,16 @@ public class CharacterService : ICharacterService
 
     /// <summary>
     /// The copy's modifiers in the order the item shows them, by ordinal, each with its values in the order of the
-    /// catalog's stat lines: the read loads the rows in no particular order.
+    /// catalog's stat lines: the read loads the rows in no particular order. Each says what it is by the world's
+    /// catalog.
     /// </summary>
-    private static List<CharacterInventoryModifierDto> ModifiersOf(ItemInstance instance) =>
+    private static List<CharacterInventoryModifierDto> ModifiersOf(ItemInstance instance, ItemModifierCatalog catalog) =>
         instance.Modifiers
             .OrderBy(m => m.Ordinal)
             .Select(m => new CharacterInventoryModifierDto
             {
                 ModifierId = m.ModifierId,
+                Kind = (Avalon.Api.Contract.ItemModifierKind?)catalog.Find(m.ModifierId)?.Group.Kind,
                 Values = m.Values
                     .OrderBy(v => v.Index)
                     .Select(v => new CharacterInventoryModifierValueDto

@@ -545,6 +545,7 @@ enum ItemRequestResult {
    ItemRequestResult_Stunned = 13;
    ItemRequestResult_Locked = 14;
    ItemRequestResult_AttributesTooLow = 15;
+   ItemRequestResult_UniqueEquipped = 16;
 }
 message ItemSlotDto {
    InventoryType Container = 1;
@@ -557,6 +558,7 @@ message ItemSlotDto {
    ItemRarity Rarity = 8;
    uint32 ItemLevel = 9;
    repeated ItemModifierDto Modifiers = 10;
+   optional string Name = 11;
 }
 enum ItemStat {
    ItemStat_Stamina = 0;
@@ -632,6 +634,7 @@ enum ItemUseResult {
    ItemUseResult_Stunned = 17;
    ItemUseResult_Locked = 18;
    ItemUseResult_AttributesTooLow = 19;
+   ItemUseResult_UniqueEquipped = 20;
 }
 message LootDropDto {
    uint64 LootGuid = 1;
@@ -641,6 +644,10 @@ message LootDropDto {
    optional uint64 Gold = 5;
    optional uint32 OwnerCharacterId = 6;
    int64 FreeForAllAt = 7;
+   ItemRarity Rarity = 8;
+   uint32 ItemLevel = 9;
+   repeated ItemModifierDto Modifiers = 10;
+   optional string Name = 11;
 }
 enum LootPickupResult {
    LootPickupResult_Ok = 0;
@@ -1019,6 +1026,8 @@ enum QuestResult {
 message QuestRewardItemDto {
    uint64 ItemTemplateId = 1;
    uint32 Count = 2;
+   ItemRarity Rarity = 3;
+   uint64 PaidItemTemplateId = 4;
 }
 message QuestRewardsDto {
    uint32 Experience = 1;
@@ -1517,6 +1526,7 @@ message TradeItemDto {
    ItemRarity Rarity = 5;
    uint32 ItemLevel = 6;
    repeated ItemModifierDto Modifiers = 7;
+   optional string Name = 8;
 }
 enum TradeResult {
    TradeResult_Unknown = 0;

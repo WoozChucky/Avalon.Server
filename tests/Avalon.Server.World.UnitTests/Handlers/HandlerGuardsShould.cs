@@ -92,7 +92,7 @@ public class HandlerGuardsShould
             case NetworkPacketType.CMSG_QUEST_ACCEPT:
                 new QuestAcceptHandler(
                         new QuestService(world, Substitute.For<IServiceProvider>(), economy, Substitute.For<ILootRandom>(),
-                            TimeProvider.System, NullLogger<QuestService>.Instance),
+                            Substitute.For<IItemRoller>(), TimeProvider.System, NullLogger<QuestService>.Instance),
                         NullLogger<QuestAcceptHandler>.Instance)
                     .Execute(connection, new CQuestAcceptPacket { QuestId = 1, NpcGuid = 7 });
                 break;
@@ -143,7 +143,7 @@ public class HandlerGuardsShould
                 break;
             case NetworkPacketType.CMSG_CHARACTER_CREATE:
                 new CharacterCreateHandler(NullLogger<CharacterCreateHandler>.Instance, characters,
-                        Substitute.For<IItemIdAllocator>(), world)
+                        Substitute.For<IItemRoller>(), world)
                     .Execute(connection, new CCharacterCreatePacket());
                 break;
             case NetworkPacketType.CMSG_CHARACTER_DELETE:

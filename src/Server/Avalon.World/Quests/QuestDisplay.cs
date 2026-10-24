@@ -1,19 +1,31 @@
+using Avalon.Common;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Quest;
+using Avalon.World.Loot;
 using Avalon.World.Public.Localization;
+using Avalon.World.Reload;
 
 namespace Avalon.World.Quests;
 
-/// <summary>Builds the self-describing quest DTOs (#433) with every text resolved in the reader's language.</summary>
+/// <summary>
+/// Builds the self-describing quest DTOs (#433) with every text resolved in the reader's language, and each reward item
+/// at the rarity it is paid at (#1179), read from <c>items</c>, the item templates of the same tick.
+/// </summary>
 public static class QuestDisplay
 {
-    public static QuestDisplayDto Build(QuestView quest, ILocalizedTextCatalog text, TextContext context, bool completionText)
+    public static QuestDisplayDto Build(QuestView quest, ItemsPatch items, ILocalizedTextCatalog text, TextContext context,
+        bool completionText)
     {
+        IReadOnlyList<QuestItemRewardView> fixedItems = quest.ItemRewards;
+        var paid = new List<QuestRewardItemDto>(fixedItems.Count);
+        for (int i = 0; i < fixedItems.Count; i++)
+            paid.Add(Reward(quest, fixedItems[i], items));
+
         var rewards = new QuestRewardsDto
         {
             Experience = quest.RewardExperience,
             Gold = quest.RewardGold,
-            Items = quest.ItemRewards.Select(r => new QuestRewardItemDto { ItemTemplateId = r.ItemTemplateId.Value, Count = r.Count }).ToList(),
+            Items = paid,
         };
 
         // The choice set (#711), walked by index. Most quests have none, and the DTO's own empty list then stands:
@@ -24,8 +36,7 @@ public static class QuestDisplay
             var picks = new List<QuestRewardItemDto>(choices.Count);
             for (int i = 0; i < choices.Count; i++)
             {
-                QuestItemRewardView choice = choices[i];
-                picks.Add(new QuestRewardItemDto { ItemTemplateId = choice.ItemTemplateId.Value, Count = choice.Count });
+                picks.Add(Reward(quest, choices[i], items));
             }
 
             rewards.Choices = picks;
@@ -50,6 +61,26 @@ public static class QuestDisplay
             }).ToList(),
             Rewards = rewards,
             Repeat = RepeatKindOf(quest.Repeat),
+        };
+    }
+
+    /// <summary>
+    /// A reward item as the window shows it: the template the quest names, which a pick sends back, and the one it is paid
+    /// as (QuestTurnInRules.PaidAs: a Common base's tier at the quest's level, which the turn-in rolls Magic, else the named
+    /// one) with the rarity it is paid at, its template's own for any other; the named template and Common for a template
+    /// a reload removed, which no turn-in pays.
+    /// </summary>
+    private static QuestRewardItemDto Reward(QuestView quest, QuestItemRewardView reward, ItemsPatch items)
+    {
+        ItemTemplate? paid = QuestTurnInRules.PaidAs(quest, reward, items);
+        return new QuestRewardItemDto
+        {
+            ItemTemplateId = reward.ItemTemplateId.Value,
+            Count = reward.Count,
+            Rarity = paid is null ? ItemRarity.Common
+                : ItemRoller.IsRolledBase(paid) ? ItemRarity.Magic
+                : paid.Rarity,
+            PaidItemTemplateId = paid?.Id.Value ?? reward.ItemTemplateId.Value,
         };
     }
 

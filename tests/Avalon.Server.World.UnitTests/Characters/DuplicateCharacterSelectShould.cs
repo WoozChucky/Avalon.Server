@@ -645,6 +645,7 @@ public class DuplicateCharacterSelectShould : IDisposable
             createInfos,
             stats,
             items,
+            ItemModifierRepositories.Empty(),
             abilityTemplates,
             levels,
             creatureTemplates,

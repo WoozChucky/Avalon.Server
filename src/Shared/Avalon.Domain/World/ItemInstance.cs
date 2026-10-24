@@ -37,6 +37,12 @@ public class ItemInstance : IDbEntity<ItemInstanceId>
     /// <summary>This copy's item level, at least 1: the template's required level for an item made from it outright.</summary>
     public ushort ItemLevel { get; set; }
 
+    /// <summary>
+    /// A rare copy's two words, given once at its roll (#1179) and kept, so a change to the word lists never renames an item
+    /// a player holds; null on every other copy (CK_ItemInstances_RareName).
+    /// </summary>
+    public string? RareName { get; set; }
+
     public DateTime UpdatedAt { get; set; }
 
     /// <summary>

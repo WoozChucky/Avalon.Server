@@ -477,7 +477,7 @@ public class StaticDataReloadShould
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<IReadOnlyCollection<DialogueOption>>(repos.Options.ToList()));
 
-        StaticData data = new(createInfos, classLevelStats, itemTemplates, abilityTemplates,
+        StaticData data = new(createInfos, classLevelStats, itemTemplates, ItemModifierRepositories.Empty(), abilityTemplates,
             characterLevelExperiences, templates, baseStats, rarities,
             localizedText, dialogue, LootRepositories.Of(() => repos.LootTables.ToList()),
             NullLoggerFactory.Instance);

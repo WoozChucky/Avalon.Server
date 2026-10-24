@@ -52,15 +52,23 @@ internal static class TestCharacters
         "Tester" + string.Concat(id.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(d => (char)(d - '0' + 'a')));
 
     public static InventoryItem Item(byte slot, ItemTemplate template, uint count = 1, uint durability = 0, uint charges = 0) =>
-        new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None, template.Rarity, 1, charges);
+        new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None, template.Rarity, 1, RareName: null, charges);
 
     /// <summary>The item outside a container with no modifiers, as a sale or a trade carries it (#1179).</summary>
     public static CarriedItem Carried(InventoryItem item) => new(item, []);
 
-    /// <summary>An inventory over this catalogue, or over <paramref name="find" /> when given one.</summary>
+    /// <summary>
+    /// An inventory over this catalogue, or over <paramref name="find" /> when given one, and over the modifier catalog
+    /// <paramref name="modifiers" /> when given one (#1179), else an empty one: nothing it adds rolls modifiers.
+    /// </summary>
     public static CharacterInventoryService InventoryFor(
-        CharacterEntity character, Func<ItemTemplateId, ItemTemplate?>? find = null) =>
-        new(character, find ?? Find, new ItemIdAllocator());
+        CharacterEntity character, Func<ItemTemplateId, ItemTemplate?>? find = null, IItemIdAllocator? ids = null,
+        ItemModifierCatalog? modifiers = null)
+    {
+        ids ??= new ItemIdAllocator();
+        ItemModifierCatalog catalog = modifiers ?? ItemModifierRepositories.EmptyCatalog();
+        return new CharacterInventoryService(character, find ?? Find, ids, TestEconomy.Roller(ids), () => catalog);
+    }
 
     public static InventoryItem At(CharacterEntity character, InventoryType container, byte slot)
     {

@@ -483,6 +483,10 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<short>("ItemLevel")
                         .HasColumnType("smallint");
 
+                    b.Property<string>("RareName")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<byte>("Rarity")
                         .HasColumnType("smallint");
 
@@ -493,7 +497,10 @@ namespace Avalon.Database.Character.Migrations
 
                     b.HasIndex("ItemInstanceId");
 
-                    b.ToTable("TradeRecordItems");
+                    b.ToTable("TradeRecordItems", t =>
+                        {
+                            t.HasCheckConstraint("CK_TradeRecordItems_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemModifier", b =>
@@ -507,8 +514,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<Guid>("ItemInstanceId")
                         .HasColumnType("uuid");
 
-                    b.Property<short>("ModifierId")
-                        .HasColumnType("smallint");
+                    b.Property<int>("ModifierId")
+                        .HasColumnType("integer");
 
                     b.Property<byte>("Ordinal")
                         .HasColumnType("smallint");
@@ -568,6 +575,10 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<short>("ItemLevel")
                         .HasColumnType("smallint");
 
+                    b.Property<string>("RareName")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<byte>("Rarity")
                         .HasColumnType("smallint");
 
@@ -585,6 +596,8 @@ namespace Avalon.Database.Character.Migrations
                         {
                             t.HasCheckConstraint("CK_ItemInstances_ItemLevel", "\"ItemLevel\" > 0");
 
+                            t.HasCheckConstraint("CK_ItemInstances_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
+
                             t.HasCheckConstraint("CK_ItemInstances_Rarity", "\"Rarity\" BETWEEN 0 AND 3");
                         });
                 });
@@ -597,8 +610,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<Guid>("ItemInstanceId")
                         .HasColumnType("uuid");
 
-                    b.Property<short>("ModifierId")
-                        .HasColumnType("smallint");
+                    b.Property<int>("ModifierId")
+                        .HasColumnType("integer");
 
                     b.Property<byte>("Ordinal")
                         .HasColumnType("smallint");

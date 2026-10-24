@@ -130,6 +130,7 @@ public class World : IWorld
         ICharacterCreateInfoRepository characterCreateInfoRepository,
         IClassLevelStatRepository classLevelStatRepository,
         IItemTemplateRepository itemTemplateRepository,
+        IItemModifierRepository itemModifierRepository,
         IAbilityTemplateRepository abilityTemplateRepository,
         ICharacterLevelExperienceRepository characterLevelExperienceRepository,
         ICreatureTemplateRepository creatureTemplateRepository,
@@ -164,6 +165,7 @@ public class World : IWorld
         _scriptHotReloader = scriptHotReloader;
         _chunkLibrary = chunkLibrary;
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
+            itemModifierRepository,
             abilityTemplateRepository, characterLevelExperienceRepository, creatureTemplateRepository,
             creatureBaseStatRepository, creatureRarityModifierRepository, localizedTextRepository,
             dialogueRepository, lootTableRepository, loggerFactory, vendorStockRepository, combatDataRepository,
@@ -551,7 +553,7 @@ public class World : IWorld
         _parties?.AttachInstances(registry);
         // Trades complete through the economy and judge what may be traded by the item templates (#1175). Resolved here,
         // not injected: the economy depends on this World.
-        _trades?.Attach(_serviceProvider.GetRequiredService<ICharacterEconomy>(), Data.FindItemTemplate);
+        _trades?.Attach(_serviceProvider.GetRequiredService<ICharacterEconomy>(), () => Data.Items);
     }
 
     public void Update(TimeSpan deltaTime)

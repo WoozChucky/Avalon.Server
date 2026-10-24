@@ -1,4 +1,5 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -103,6 +104,12 @@ internal static class VendorTestData
         SellPrice = 20,
     };
 
+    /// <summary>The seeded Ironwood Sword, a Common base (#1179), named as the seed names it.</summary>
+    public static readonly ItemTemplate IronwoodSword = ItemBaseSeed.Equipment().Single(t => t.Name == "Ironwood Sword");
+
+    /// <summary>The seeded Thornheart Signet, a Unique (#1179), named as the seed names it.</summary>
+    public static readonly ItemTemplate ThornheartSignet = ItemBaseSeed.Equipment().Single(t => t.Name == "Thornheart Signet");
+
     public const uint TonicSequence = 1;
     public const uint BladeSequence = 2;
     public const uint ElixirSequence = 3;
@@ -113,7 +120,7 @@ internal static class VendorTestData
     public static IReadOnlyCollection<ItemTemplate> Items => [Tonic, Blade, Elixir, Charm, Keepsake, Trinket, Plate];
 
     private static readonly Dictionary<ItemTemplateId, ItemTemplate> s_byId =
-        new[] { Tonic, Blade, Elixir, Charm, Keepsake, Trinket, Plate }.ToDictionary(t => t.Id);
+        new[] { Tonic, Blade, Elixir, Charm, Keepsake, Trinket, Plate, IronwoodSword, ThornheartSignet }.ToDictionary(t => t.Id);
 
     public static ItemTemplate? Find(ItemTemplateId id) => s_byId.GetValueOrDefault(id);
 

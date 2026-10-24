@@ -93,6 +93,8 @@ public static class ServiceExtensions
         services.AddSingleton<IValidateOptions<GameConfiguration>>(new TickThreadCpuValidation(LinuxCpuAffinity.Instance));
         // #710: a quest reset setting out of range stops the start.
         services.AddSingleton<IValidateOptions<GameConfiguration>>(new QuestResetValidation());
+        // #1179: rarity odds that cannot be drawn, or a sell factor below 1, stop the start.
+        services.AddSingleton<IValidateOptions<GameConfiguration>>(new ItemConfigurationValidation());
 
         // The send threads and the session layer (#875): Network:SendThreads, MaxPendingBytes, MaxWriteStall,
         // PacketEncryption. And the receive queue's depth cap (#927): MaxReceiveQueueDepth.
@@ -168,6 +170,8 @@ public static class ServiceExtensions
         // #506: every combat roll (dodge, crit, block, weapon, creature swing) goes through this.
         services.AddSingleton<ICombatRandom>(new CombatRandom(Random.Shared));
         services.AddSingleton<ILootRoller, LootRoller>();
+        // #1179: every copy of an item is made through this, and rolls the modifiers its template links as it is made.
+        services.AddSingleton<IItemRoller, ItemRoller>();
         services.AddSingleton<ILootAllocator, PartyLootAllocator>();
         services.AddSingleton<ICharacterSaver, CharacterSaver>();
         services.AddSingleton<ICharacterSaveScheduler, CharacterSaveScheduler>();

@@ -7,6 +7,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
@@ -37,7 +38,8 @@ public sealed class VendorSaveRoundTripShould : IDisposable
     public void Dispose() => _database.Dispose();
 
     private static VendorTrade Trade(CharacterEntity character) =>
-        new(character, TestCharacters.InventoryFor(character, Find), new CharacterWallet(character, 1_000_000), Find, 1_000_000);
+        new(character, TestCharacters.InventoryFor(character, Find), new CharacterWallet(character, 1_000_000), Find, 1_000_000,
+            new SellFactors());
 
     /// <summary>A character whose row and items are already in the database, loaded as select would.</summary>
     private async Task<CharacterEntity> LoadedWithAsync(params InventoryItem[] items)

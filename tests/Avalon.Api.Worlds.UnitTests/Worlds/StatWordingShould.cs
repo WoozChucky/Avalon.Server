@@ -9,7 +9,8 @@ namespace Avalon.Api.Worlds.UnitTests.Worlds;
 /// The link preview writes item stats and attack time as the public site's tooltip does (#1189). stat-wording.json
 /// beside this file is a verbatim copy of the Dashboard's packages/shared/src/items/stat-wording.json (Dashboard #460),
 /// which the site's formatter tests against too; refresh the copy from there, never edit it here. A new stat type fails
-/// here until the shared file has its row and the preview writes it.
+/// here until the shared file has its row and the preview writes it. Its <c>spans</c> rows, the ranges a copy rolls
+/// within (#1179), run ahead of the Dashboard's file until it takes them.
 /// </summary>
 public class StatWordingShould
 {
@@ -36,7 +37,16 @@ public class StatWordingShould
                     Text: row.GetProperty("text").GetString()))
                 .Where(row => LinkPreviewText.AttackTime(row.Ms) != row.Text)
                 .Select(row => $"attack time {row.Ms?.ToString() ?? "null"}: the preview writes " +
-                               $"{LinkPreviewText.AttackTime(row.Ms) ?? "nothing"}"))];
+                               $"{LinkPreviewText.AttackTime(row.Ms) ?? "nothing"}"))
+            .Concat(root.GetProperty("spans").EnumerateArray()
+                .Select(row => (Type: Enum.Parse<StatType>(row.GetProperty("type").GetString()!),
+                    Min: row.GetProperty("min").GetInt32(), Max: row.GetProperty("max").GetInt32(),
+                    Min2: row.TryGetProperty("min2", out JsonElement min2) ? min2.GetInt32() : (int?)null,
+                    Max2: row.TryGetProperty("max2", out JsonElement max2) ? max2.GetInt32() : (int?)null,
+                    Text: row.GetProperty("text").GetString()))
+                .Select(row => (Row: row, Written: LinkPreviewText.FormatSpan(row.Type, row.Min, row.Max, row.Min2, row.Max2)))
+                .Where(span => span.Written != span.Row.Text)
+                .Select(span => $"{span.Row.Type} span: the preview writes \"{span.Written}\""))];
         Assert.Empty(differing);
     }
 }

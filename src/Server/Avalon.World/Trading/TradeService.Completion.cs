@@ -511,6 +511,7 @@ public sealed partial class TradeService
                 Count = item.Count,
                 Rarity = item.Rarity,
                 ItemLevel = item.ItemLevel,
+                RareName = item.RareName,
             };
 
             foreach (ItemInstanceModifier modifier in carried.Modifiers)

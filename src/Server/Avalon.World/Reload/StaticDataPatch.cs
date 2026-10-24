@@ -9,6 +9,7 @@ using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
 using Avalon.World.Vendors;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Reload;
 
@@ -64,28 +65,112 @@ public sealed record AbilitiesPatch(AbilityCatalog Catalog) : StaticDataPatch(Re
     public override string Describe() => Catalog.Describe();
 }
 
-public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates)
+/// <summary>
+/// The item templates and the modifier catalog (#1179), one generation: a /reload items reloads both, so a template and
+/// the modifiers it links are never from two reads. The catalog is not live-editable (balance tables, migrations only).
+/// </summary>
+public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, ItemModifierCatalog Modifiers)
     : StaticDataPatch(ReloadArea.Items)
 {
+    private static readonly int s_kinds = Enum.GetValues<ItemBaseKind>().Max(kind => (int)kind) + 1;
+
+    // The last generation stamped, process-wide; the first patch is 1, so 0 stands for none.
+    private static long s_lastGeneration;
+
     private readonly KeyedRows<ulong, ItemTemplate> _templates = Keyed(Templates);
+    private readonly ItemTemplate[][] _lines = Lines(Templates);
+    private readonly ItemModifierCatalog _modifiers = Modifiers;
 
     /// <summary>
-    /// The templates, with their lookup by id (<see cref="KeyedRows{TKey,TRow}" />, #883): one object, replaced with
-    /// the patch, so a reload cannot leave a lookup behind.
+    /// This patch's stamp (#1179), unique in the process and never 0: what a name worked out from it is keyed by
+    /// (DescribedName), so a copy compares a number, not a reference that would keep an old generation's templates and
+    /// catalog alive after a reload. Stamped when the patch is built, and again by a <c>with</c> that changes either part.
+    /// </summary>
+    public long Generation { get; private init; } = NextGeneration();
+
+    /// <summary>The modifier catalog of this generation; replacing it stamps a new generation.</summary>
+    public ItemModifierCatalog Modifiers
+    {
+        get => _modifiers;
+        init
+        {
+            _modifiers = value;
+            Generation = NextGeneration();
+        }
+    }
+
+    /// <summary>
+    /// The templates, with their lookup by id (<see cref="KeyedRows{TKey,TRow}" />, #883) and their lines by base kind:
+    /// replaced with the patch, so a reload cannot leave a lookup behind.
     /// </summary>
     public IReadOnlyCollection<ItemTemplate> Templates
     {
         get => _templates;
-        init => _templates = Keyed(value);
+        init
+        {
+            _templates = Keyed(value);
+            _lines = Lines(value);
+            Generation = NextGeneration();
+        }
     }
 
     /// <summary>The template of that id, or null: by key, where a reader walked the templates.</summary>
     public ItemTemplate? Find(ItemTemplateId id) => id is null ? null : _templates.Find(id.Value);
 
+    /// <summary>
+    /// The patch, with each template's links held against its rarity (#1179, the half of the link rules the catalog
+    /// cannot see, ItemModifierCatalog.RarityRefusal): a Unique template links exactly one Unique modifier, a Common one only Implicit
+    /// modifiers, and no other template links any. A template that breaks it is logged and left out whole, with its
+    /// links, so the world never makes a copy of it, rather than kept with its links stripped (a stat-less unique, or a
+    /// unique standing in its line as a base). A template that links nothing is kept: a Unique one whose modifier the
+    /// catalog refused has its drops removed by the roll.
+    /// </summary>
+    public static ItemsPatch Build(IReadOnlyCollection<ItemTemplate> templates, ItemModifierCatalog modifiers, ILogger logger)
+    {
+        HashSet<ulong> refused = [];
+        foreach (ItemTemplate template in templates)
+        {
+            IReadOnlyList<ItemModifier> linked = modifiers.LinkedTo(template.Id);
+            if (linked.Count == 0 || ItemModifierCatalog.RarityRefusal(template.Rarity, linked) is not { } reason)
+                continue;
+
+            logger.LogError("Item template {TemplateId} is left out: {Reason}", template.Id.Value, reason);
+            refused.Add(template.Id.Value);
+        }
+
+        return refused.Count == 0
+            ? new ItemsPatch(templates, modifiers)
+            : new ItemsPatch([.. templates.Where(t => !refused.Contains(t.Id.Value))], modifiers.WithoutLinksOf(refused));
+    }
+
+    /// <summary>
+    /// The line of a base kind (#1179): its Common templates, the tiers, by required level and then id; empty for a kind
+    /// with none. Built once per patch.
+    /// </summary>
+    public IReadOnlyList<ItemTemplate> LineOf(ItemBaseKind kind) =>
+        (int)kind >= 0 && (int)kind < _lines.Length ? _lines[(int)kind] : [];
+
+    private static long NextGeneration() => Interlocked.Increment(ref s_lastGeneration);
+
     private static KeyedRows<ulong, ItemTemplate> Keyed(IReadOnlyCollection<ItemTemplate> templates) =>
         KeyedRows<ulong, ItemTemplate>.Over(templates, static template => template.Id?.Value);
 
-    public override string Describe() => $"{Templates.Count} item templates";
+    private static ItemTemplate[][] Lines(IReadOnlyCollection<ItemTemplate> templates)
+    {
+        var lines = new ItemTemplate[s_kinds][];
+        for (int kind = 0; kind < s_kinds; kind++)
+        {
+            lines[kind] = templates
+                .Where(template => template.Rarity == ItemRarity.Common && template.BaseKind == (ItemBaseKind)kind)
+                .OrderBy(template => template.RequiredLevel ?? 1)
+                .ThenBy(template => template.Id.Value)
+                .ToArray();
+        }
+
+        return lines;
+    }
+
+    public override string Describe() => $"{Templates.Count} item templates, {Modifiers.Count} item modifiers";
 }
 
 public sealed record ProgressionPatch(

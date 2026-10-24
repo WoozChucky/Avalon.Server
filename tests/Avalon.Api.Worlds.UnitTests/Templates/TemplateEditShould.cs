@@ -330,7 +330,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "item", "class", 999, "class" },
         { "item", "flags", 1 << 20, "flags" },
         { "item", "maxStackSize", 0, "maxStackSize" },
-        { "item", "statType1", null, "statType1" },        // the seeded first stat keeps its value but loses its type
+        { "item", "statValue1", 8, "statType1" },          // on a plate chest, whose defence is its implicit (#1179): a value with no type
         { "item", "damageMax1", 0, "damageMax1" },          // a seeded weapon gets a maximum below its minimum
         { "ability", "name", "", "name" },
         { "ability", "costPowerType", "None", "costPowerType" }, // paired with a cost above 0, set below
@@ -363,6 +363,8 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "item", "baseKind", "PlateChest", "baseKind" },                   // on the starter sword: a chest kind in the main hand (#1179)
         { "item", "requiredLevel", 40000, "requiredLevel" },                // past the copy's smallint item level (#1179)
         { "item", "rarity", "Magic", "rarity" },                            // a template is Common or Unique (#1179)
+        { "item", "rarity", "Common", "rarity" },                           // on Thornheart Signet, whose unique modifier a Common template may not link (#1179)
+        { "item", "rarity", "Unique", "rarity" },                           // on the Copper Band: it links no unique modifier, and quests pay it (#1179)
         { "item", "damageType1", null, "damageType1" },                     // on the starter sword: a damage range is typed (#1179)
     };
 
@@ -386,7 +388,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
     }
 
     /// <summary>
-    /// A seeded row the refusal applies to: one with a first stat, a weapon, a circle ability, a helpful aura.
+    /// A seeded row the refusal applies to: a plate chest, a weapon, a circle ability, a helpful aura.
     /// </summary>
     private async Task<ulong> RefusalTargetAsync(string kind, string field, object? value)
     {
@@ -394,7 +396,6 @@ public sealed class TemplateEditShould : IAsyncLifetime
         using WorldDbContext db = _sqlite.CreateWorld(new WorldId(Editable));
         return (kind, field) switch
         {
-            ("item", "statType1") => db.ItemTemplates.AsEnumerable().First(t => t.StatType1 is not null && t.StatValue1 is not null).Id.Value,
             ("item", "damageMax1") => db.ItemTemplates.AsEnumerable().First(t => t.DamageMin1 is not null && t.DamageMax1 is not null).Id.Value,
             ("ability", "scriptName") => 200UL,
             ("ability", "damageType") => value is null ? 213UL : 232UL,
@@ -403,7 +404,10 @@ public sealed class TemplateEditShould : IAsyncLifetime
             ("aura", "periodicEffectiveness") => 1UL,
             ("item", "attackTimeMs" or "damageType1") => 32UL,
             ("item", "maxStackSize") when value is 5 => 37UL,
+            ("item", "statValue1") => 37UL,
             ("item", "baseKind") => value is "PlateChest" ? 32UL : 1UL,
+            ("item", "rarity") when value is "Common" => 65UL,
+            ("item", "rarity") when value is "Unique" => 68UL,
             ("ability", _) => 200UL,
             ("creature", "fireResistance" or "wardModifier") => 7UL,
             ("aura", "control") => TestWard,
@@ -1043,18 +1047,22 @@ public sealed class TemplateEditShould : IAsyncLifetime
         return body["errors"]?.AsObject() ?? throw new InvalidOperationException(body.ToJsonString());
     }
 
-    [Fact]
-    public async Task Refuse_making_an_item_a_quest_item_while_a_vendor_sells_it()
+    /// <summary>A vendor sells neither a quest item nor anything but a common item (#1179).</summary>
+    [Theory]
+    [InlineData("flags", "quest item")]
+    [InlineData("rarity", "not Common")]
+    public async Task Refuse_making_an_item_one_no_vendor_sells_while_a_vendor_sells_it(string field, string reason)
     {
         ulong id = FirstId("item");
-        SetItem(id, i => i.Flags = Avalon.Domain.World.ItemTemplateFlags.None);
+        SetItem(id, i => { i.Flags = Avalon.Domain.World.ItemTemplateFlags.None; i.Rarity = Avalon.Common.ItemRarity.Common; });
         int stock = StockOf(id);
 
-        JsonObject errors = await PutItemErrorsAsync(id, j => j["flags"] = 2048);
+        JsonObject errors = await PutItemErrorsAsync(id,
+            j => j[field] = field == "flags" ? JsonValue.Create(2048) : JsonValue.Create("Unique"));
 
-        string message = errors["flags"]!.AsArray()[0]!.GetValue<string>();
+        string message = errors[field]!.AsArray()[0]!.GetValue<string>();
         Assert.Contains($"stock row {stock} of creature template {SeededCreature()}", message, StringComparison.Ordinal);
-        Assert.Contains("quest item", message, StringComparison.Ordinal);
+        Assert.Contains(reason, message, StringComparison.Ordinal);
     }
 
     [Fact]

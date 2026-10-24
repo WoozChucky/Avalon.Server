@@ -20,6 +20,9 @@ internal sealed class ScriptedLootRandom : ILootRandom
     public double NextDouble() =>
         _doubles.TryDequeue(out double next) ? next : throw new InvalidOperationException("no scripted double left");
 
+    /// <summary>True when every scripted number was drawn: a draw the code under test skipped shows here.</summary>
+    public bool Exhausted => _doubles.Count == 0 && _integers.Count == 0;
+
     /// <summary>The range of the most recent NextInt64 request.</summary>
     public (long Min, long MaxExclusive)? LastIntegerRange { get; private set; }
 

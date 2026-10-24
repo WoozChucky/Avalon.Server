@@ -44,8 +44,9 @@ revision), 3 `Items` (repeated `TradeItemDto`, in trade-slot order, only the occ
 
 `TradeItemDto`: 1 `TradeSlot` (uint32, 0-14), 2 `ItemTemplateId` (uint64), 3 `ItemInstanceId` (`.bcl.Guid`, the item
 instance, as everywhere else an instance id crosses), 4 `Count` (uint32: the whole stack is offered), 5 `Rarity`
-(`ItemRarity`), 6 `ItemLevel` (uint32) and 7 `Modifiers` (repeated `ItemModifierDto`, null for an item without any):
-the copy's rarity, item level and modifiers, as an inventory slot carries them (#1179).
+(`ItemRarity`), 6 `ItemLevel` (uint32), 7 `Modifiers` (repeated `ItemModifierDto`, null for an item without any) and
+8 `Name` (optional string: a magic or rare copy's name, absent where the template's name is the item's): the copy's
+rarity, item level, modifiers and name, as an inventory slot carries them (#1179).
 
 `TradeId` is numbered from 1 each time the world server starts; it names one trade window for as long as it is open.
 
