@@ -612,6 +612,7 @@ enum ItemStat {
    ItemStat_AddedFireDamageToSpells = 50;
    ItemStat_AddedColdDamageToSpells = 51;
    ItemStat_AddedLightningDamageToSpells = 52;
+   ItemStat_IncreasedMaximumLife = 53;
 }
 enum ItemUseResult {
    ItemUseResult_Unknown = 0;

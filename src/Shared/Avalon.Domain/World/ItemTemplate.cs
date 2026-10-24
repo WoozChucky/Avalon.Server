@@ -235,6 +235,9 @@ public enum StatType
     AddedFireDamageToSpells = 50,
     AddedColdDamageToSpells = 51,
     AddedLightningDamageToSpells = 52,
+
+    // A percentage of increased maximum life: it scales the flat life from base, Stamina and gear (#1179).
+    IncreasedMaximumLife = 53,
 }
 
 [Flags]

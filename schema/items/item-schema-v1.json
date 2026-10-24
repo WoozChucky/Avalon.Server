@@ -686,6 +686,10 @@
       {
         "name": "AddedLightningDamageToSpells",
         "value": 52
+      },
+      {
+        "name": "IncreasedMaximumLife",
+        "value": 53
       }
     ],
     "ItemTemplateFlags": [

@@ -12,7 +12,8 @@ public static class CharacterStatsCalculator
     /// <summary>
     /// Where a class's power factor is fractional, the whole sum of the factored terms is truncated to a whole number once,
     /// not each product on its own. Health and crit are the same for every class (#1178): BaseHp plus Stamina times <paramref name="formula" />'s life per
-    /// Stamina plus gear health, and the formula's base crit plus gear crit; only power still reads the class's factors.
+    /// Stamina plus gear health, scaled by gear's increased maximum life (#1179, <c>max(0, 1 + x / 100)</c>, whole numbers, half
+    /// away from zero), and the formula's base crit plus gear crit; only power still reads the class's factors.
     /// Defence is the same for every class (#1178): armour, evasion and ward are gear plus Strength, Agility and Intellect
     /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances are gear's alone.
     /// Every worn item gives its template's lines and its modifiers' (#1179); a defence line is its own item's: each item's
@@ -37,7 +38,8 @@ public static class CharacterStatsCalculator
         long agility = row.Agility + gear.Agility;
         long intellect = row.Intellect + gear.Intellect;
 
-        long maxHealth = row.BaseHp + stamina * formula.LifePerStamina + gear.Health;
+        long maxHealth = LocalScaling.Increase(row.BaseHp + stamina * formula.LifePerStamina + gear.Health,
+            gear.IncreasedMaximumLife);
         long maxPower = factors.FixedPower is { } fixedPower
             ? fixedPower
             : row.BaseMana
@@ -116,7 +118,7 @@ public static class CharacterStatsCalculator
 
     private struct GearTotals
     {
-        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, Health, Power;
+        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, Health, IncreasedMaximumLife, Power;
         public float BlockPct, CritPct, MovementSpeedPct;
         public float FireResistance, ColdResistance, LightningResistance, BlightResistance;
 
@@ -162,6 +164,7 @@ public static class CharacterStatsCalculator
                 case StatType.BlockPct: BlockPct += value; break;
                 case StatType.CritPct: CritPct += value; break;
                 case StatType.Health: Health += value; break;
+                case StatType.IncreasedMaximumLife: IncreasedMaximumLife += value; break;
                 case StatType.Power: Power += value; break;
                 // #627: a percentage, summed raw; the entity applies the combat formula's bounds. Attack speed, cast speed
                 // and cooldown recovery are the offence block's (#1178), CharacterOffence's to sum.

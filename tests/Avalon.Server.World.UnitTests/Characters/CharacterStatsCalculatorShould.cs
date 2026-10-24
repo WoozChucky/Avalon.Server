@@ -133,6 +133,34 @@ public class CharacterStatsCalculatorShould
         Assert.Equal(new Resistances(fire, 0f, 0f, 0f), stats.Resistances);
     }
 
+    /// <summary>
+    /// #1179 (B2-R14): increased maximum life scales the flat life from base, Stamina and gear, in whole numbers, half away
+    /// from zero, never below 0. BaseHp 500 and Stamina 20 at the seeded 5 life per Stamina is 600. 675 x 1.26 is 850.5,
+    /// so 851. An aura folds after the increase: 600 x 1.10 is 660, then +50 flat is 710 (715 had it been scaled).
+    /// </summary>
+    [Theory]
+    [InlineData(0, 0, 600u, 0)]
+    [InlineData(75, 0, 675u, 0)]
+    [InlineData(0, 26, 756u, 0)]
+    [InlineData(75, 26, 851u, 0)]
+    [InlineData(0, -150, 0u, 0)]
+    [InlineData(0, 10, 710u, 50)]
+    public void Scale_maximum_health_by_increased_maximum_life(int gearHealth, int increased, uint expected, int auraHealth)
+    {
+        var row = new ClassLevelStat { Class = CharacterClass.Warrior, Level = 1, BaseHp = 500, Stamina = 20 };
+        var amulet = new ItemTemplate { Name = "Amulet", Slot = ItemSlotType.Neck };
+        var aura = new AuraStatModifier { Stat = AuraStat.MaxHealth, Kind = AuraModifierKind.Flat, Value = auraHealth };
+        AuraStatTotals? auras = auraHealth == 0
+            ? null
+            : AuraStatTotals.Of([aura], static m => ((IReadOnlyList<AuraStatModifier>)[m], 1u));
+
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row,
+            [Rolled(amulet, (StatType.Health, gearHealth, null), (StatType.IncreasedMaximumLife, increased, null))],
+            TestCombat.FactorsOf(CharacterClass.Warrior), TestCombat.Formula, auras);
+
+        Assert.Equal(expected, stats.MaxHealth);
+    }
+
     [Fact]
     public void Add_worn_attributes_before_deriving_health_and_damage()
     {

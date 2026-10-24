@@ -8,7 +8,8 @@ namespace Avalon.Combat;
 internal static class LocalScaling
 {
     /// <summary>
-    /// <paramref name="value" /> times <c>max(0, 100 + increasedPct) / 100</c>: a piece's defence, a weapon's damage end.
+    /// <paramref name="value" /> times <c>max(0, 100 + increasedPct) / 100</c>: a piece's defence, a weapon's damage end, the
+    /// character's flat life (increased maximum life).
     /// </summary>
     public static long Increase(long value, long increasedPct) =>
         RoundHalfAway(value * Math.Max(0L, 100L + increasedPct), 100L);

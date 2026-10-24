@@ -52,7 +52,8 @@
     "AddedBlightDamageToAttacks": "Adds 5 Blight Damage to Attacks",
     "AddedFireDamageToSpells": "Adds 5 Fire Damage to Spells",
     "AddedColdDamageToSpells": "Adds 5 Cold Damage to Spells",
-    "AddedLightningDamageToSpells": "Adds 5 Lightning Damage to Spells"
+    "AddedLightningDamageToSpells": "Adds 5 Lightning Damage to Spells",
+    "IncreasedMaximumLife": "+5% increased Health"
   },
   "negative": [
     {
