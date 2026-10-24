@@ -11,7 +11,7 @@ concurrency:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     permissions:
       contents: read
@@ -75,7 +75,7 @@ jobs:
           dotnet publish src/Server/Avalon.Crashes.Worker/Avalon.Crashes.Worker.csproj -c Release -r linux-x64 --self-contained false --no-restore -p:UseAppHost=false -o src/Server/Avalon.Crashes.Worker/out
 
   charts:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
     steps:
