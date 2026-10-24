@@ -331,9 +331,9 @@ public sealed partial class TradeService
 
     /// <summary>
     /// Applies the committed plan: every item out of each giver, then every item into each receiver at its planned
-    /// slot, with the modifiers its giver's take-out handed over (#1179), then each side's gold spent, then received. A
-    /// refusal is logged at Critical; what a giver did not lose its receiver does not gain, so memory never holds more
-    /// than the database. The audit line says whether every step applied.
+    /// slot, with the rolled rows its giver's take-out handed over (#1179), then each side's gold spent, then
+    /// received. A refusal is logged at Critical; what a giver did not lose its receiver does not gain, so memory never
+    /// holds more than the database. The audit line says whether every step applied.
     /// </summary>
     private void Swap(Trade trade, TradePlan plan)
     {

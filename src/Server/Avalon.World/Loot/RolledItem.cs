@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.World.Inventory;
 
 namespace Avalon.World.Loot;
 
@@ -18,4 +19,10 @@ public sealed record RolledItem(
     ushort ItemLevel,
     string? RareName,
     ItemBaseStats BaseStats,
-    List<ItemInstanceModifier> Modifiers);
+    List<ItemInstanceModifier> Modifiers)
+{
+    /// <summary>
+    /// Whether the roll made rolled rows, modifiers or base stats (<see cref="ItemModifierStore.HasRolledRows" />).
+    /// </summary>
+    public bool HasRolledRows => ItemModifierStore.HasRolledRows(BaseStats, Modifiers);
+}

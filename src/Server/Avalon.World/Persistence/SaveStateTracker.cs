@@ -17,7 +17,7 @@ public enum SaveState : byte
 
 /// <summary>
 /// An entry's state and the version it was given when last marked. <paramref name="Modifiers" />, on an item's mark
-/// only (#1179): its modifiers changed, so the save that upserts it rewrites them all.
+/// only (#1179): its rolled rows (modifiers and base stats) changed, so the save that upserts it rewrites them all.
 /// </summary>
 public readonly record struct SaveMark(SaveState State, long Version, bool Modifiers);
 
@@ -71,7 +71,7 @@ public sealed class SaveStateTracker
     public SaveState SlotState(InventoryType container, byte slot) =>
         _slots.TryGetValue((container, slot), out SaveMark mark) ? mark.State : SaveState.Unchanged;
 
-    /// <summary>The modifiers flag stays as it was (#1179), as it does on every item mark: see <see cref="ItemModifiersChanged" />.</summary>
+    /// <summary>The rolled-rows flag stays as it was (#1179), as it does on every item mark: see <see cref="ItemModifiersChanged" />.</summary>
     public void ItemCreated(ItemInstanceId id) => _items[id] = new SaveMark(SaveState.New, ++_version, ModifiersMarked(id));
 
     /// <summary>A New item stays New: it has never been written, and its first write carries the change.</summary>
@@ -82,9 +82,10 @@ public sealed class SaveStateTracker
     }
 
     /// <summary>
-    /// The item's modifiers changed, were added or removed (#1179): marked as <see cref="ItemChanged" /> marks it, and the
-    /// save that upserts it rewrites its whole current set. Every later mark of the item keeps the flag until a save that
-    /// carried it is acknowledged; a save that deletes the item writes none, its rows going with the item's.
+    /// The item's rolled rows (modifiers and base stats) changed, were added or removed (#1179): marked as
+    /// <see cref="ItemChanged" /> marks it, and the save that upserts it rewrites its whole current set of both.
+    /// Every later mark of the item keeps the flag until a save that carried it is acknowledged; a save that deletes
+    /// the item writes none, its rows going with the item's.
     /// </summary>
     public void ItemModifiersChanged(ItemInstanceId id) =>
         _items[id] = new SaveMark(ChangedFrom(ItemState(id)), ++_version, Modifiers: true);
@@ -96,9 +97,9 @@ public sealed class SaveStateTracker
     public void ItemRemoved(ItemInstanceId id) => _items[id] = new SaveMark(SaveState.Removed, ++_version, ModifiersMarked(id));
 
     /// <summary>
-    /// Forgets the item's whole mark, its modifiers flag with it (#1175, #1179). A trade calls it after taking the item out
-    /// of the giver: the paired save already wrote it, and its modifiers, as the receiver's, and the fence would refuse any
-    /// later save of the giver that still named it.
+    /// Forgets the item's whole mark, its rolled-rows flag with it (#1175, #1179). A trade calls it after taking the
+    /// item out of the giver: the paired save already wrote it, and its rolled rows, as the receiver's, and the fence
+    /// would refuse any later save of the giver that still named it.
     /// </summary>
     public void ItemHandedOver(ItemInstanceId id) => _items.Remove(id);
 

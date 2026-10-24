@@ -217,7 +217,7 @@ public sealed class CharacterInventoryService(
 
         // Its rows may be gone (a sale saved before the buyback deleted them, modifiers, base stats and all), so the save
         // that upserts it writes them again.
-        if (carried.Modifiers.Count > 0 || !carried.BaseStats.IsEmpty)
+        if (carried.HasRolledRows)
             owner.SaveState.ItemModifiersChanged(item.InstanceId);
 
         return InventoryAddResult.Ok;
@@ -433,7 +433,7 @@ public sealed class CharacterInventoryService(
         Create(InventoryType.Bag, new InventoryItem(slot, rolled.InstanceId, rolled.TemplateId, 1,
             ItemInstanceDefaults.InitialDurability(template), ItemInstanceFlags.None, rolled.Rarity, rolled.ItemLevel,
             rolled.RareName));
-        if (rolled.Modifiers.Count == 0 && rolled.BaseStats.IsEmpty)
+        if (!rolled.HasRolledRows)
             return;
 
         owner.ItemModifiers.PutMade(rolled.InstanceId, rolled.BaseStats, rolled.Modifiers);

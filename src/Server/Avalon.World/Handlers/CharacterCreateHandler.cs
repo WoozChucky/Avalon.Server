@@ -74,12 +74,11 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
             // #1179: a starting item is made as any copy is, rolling its base stats and the modifiers its template links;
             // they are inserted with it. A copy that rolled either is one of a kind, so it is never a stack.
             RolledItem rolled = itemRoller.RollPlain(template, ItemInstanceDefaults.InitialItemLevel(template), itemData);
-            bool oneOfAKind = rolled.Modifiers.Count > 0 || !rolled.BaseStats.IsEmpty;
             var item = new ItemInstance
             {
                 Id = rolled.InstanceId,
                 TemplateId = template.Id,
-                Count = template.Stackable && !oneOfAKind ? template.MaxStackSize : 1,
+                Count = template.Stackable && !rolled.HasRolledRows ? template.MaxStackSize : 1,
                 Durability = ItemInstanceDefaults.InitialDurability(template),
                 Rarity = rolled.Rarity,
                 ItemLevel = rolled.ItemLevel,

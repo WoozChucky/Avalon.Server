@@ -11,8 +11,8 @@ using Microsoft.Extensions.Options;
 namespace Avalon.World.Loot;
 
 /// <summary>
-/// Makes copies of items with their modifiers (#1179). A copy rolls when it is made, on the tick, in the purchase, use,
-/// reward, creation or kill that makes it; nothing rolls per tick or per hit.
+/// Makes copies of items with their base stats and modifiers (#1179). A copy rolls when it is made, on the tick, in
+/// the purchase, use, reward, creation or kill that makes it; nothing rolls per tick or per hit.
 /// </summary>
 public interface IItemRoller
 {
@@ -27,7 +27,9 @@ public interface IItemRoller
     /// <summary>
     /// The full roll of a made copy, at the context's item level:
     /// <list type="bullet">
-    /// <item>a Unique template rolls rarity Unique and its one linked modifier;</item>
+    /// <item>a Unique template rolls rarity Unique, its base stats, then its one linked modifier. The base stats are its
+    /// own template's ranges, and a Unique template carries none; once a unique names its base, it rolls that base's
+    /// base stats and implicit first, then its own modifier;</item>
     /// <item>a Common template with a base kind becomes the best tier of its line the item level reaches, rolls a rarity
     /// by the context's odds (Magic outright when it forces Magic), its base stats, its implicits, then its affixes by
     /// weight, and a rare its two-word name.</item>

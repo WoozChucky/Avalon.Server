@@ -37,6 +37,13 @@ public sealed class ItemModifierStore
     public bool IsOneOfAKind(ItemInstanceId item) => _byItem.ContainsKey(item);
 
     /// <summary>
+    /// The one rule for whether a copy carries rolled rows (#1179): it has modifiers or base stats. A copy that does has
+    /// an entry here, is one of a kind and is marked for the save that writes them; one that has neither has no entry.
+    /// </summary>
+    internal static bool HasRolledRows(in ItemBaseStats baseStats, IReadOnlyList<ItemInstanceModifier> modifiers) =>
+        modifiers.Count > 0 || !baseStats.IsEmpty;
+
+    /// <summary>
     /// The item's live list itself, in ordinal order, or null for an item without modifiers: what the stats refresh folds,
     /// read through the concrete list. Nothing may change it.
     /// </summary>
@@ -76,7 +83,13 @@ public sealed class ItemModifierStore
                     modifier.Values.Sort(static (a, b) => a.Index.CompareTo(b.Index));
             }
 
-            _byItem[instance.Id] = new Entry(modifiers, ItemBaseStats.Of(instance.BaseStats));
+            // By index over the concrete list: the IEnumerable overload of ItemBaseStats.Of boxed its enumerator per copy.
+            ItemBaseStats baseStats = default;
+            List<ItemInstanceBaseStat> rows = instance.BaseStats;
+            for (int i = 0; i < rows.Count; i++)
+                baseStats = baseStats.With(rows[i].Stat, rows[i].Value);
+
+            _byItem[instance.Id] = new Entry(modifiers, baseStats);
         }
     }
 
@@ -86,7 +99,7 @@ public sealed class ItemModifierStore
     /// </summary>
     internal void Put(ItemInstanceId item, ItemBaseStats baseStats, IReadOnlyList<ItemInstanceModifier> modifiers)
     {
-        if (modifiers.Count == 0 && baseStats.IsEmpty)
+        if (!HasRolledRows(baseStats, modifiers))
         {
             _byItem.Remove(item);
             return;
@@ -102,7 +115,7 @@ public sealed class ItemModifierStore
     /// </summary>
     internal void PutMade(ItemInstanceId item, ItemBaseStats baseStats, List<ItemInstanceModifier> made)
     {
-        if (made.Count == 0 && baseStats.IsEmpty)
+        if (!HasRolledRows(baseStats, made))
         {
             _byItem.Remove(item);
             return;

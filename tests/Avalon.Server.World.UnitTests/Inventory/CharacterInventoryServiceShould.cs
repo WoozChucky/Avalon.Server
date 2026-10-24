@@ -16,10 +16,12 @@ using Avalon.World.Handlers;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Inventory;
 using Avalon.World.Items;
+using Avalon.World.Loot;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Quests;
+using Avalon.World.Reload;
 using Avalon.World.Respawn;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -473,8 +475,8 @@ public class CharacterInventoryServiceShould
     }
 
     /// <summary>
-    /// A warrior created through the handler: each starting item as the creation inserts it, its modifiers and base stats
-    /// with it (the insert is the write, so it counts as marked).
+    /// A warrior created through the handler: each starting item as its roll made it (held), and the rows the creation
+    /// inserts with it (written). The insert is the write, so a copy counts as marked when it carries rows of either kind.
     /// </summary>
     private static async Task<List<MadeCopy>> CreatedAsync(IWorld world)
     {
@@ -492,17 +494,40 @@ public class CharacterInventoryServiceShould
         connection.IsConnected.Returns(true);
         connection.Character.Returns((ICharacter?)null!);
 
-        new CharacterCreateHandler(NullLogger<CharacterCreateHandler>.Instance, characters, TestEconomy.Roller(new ItemIdAllocator()),
-            world).Execute(connection, new CCharacterCreatePacket { Name = "Starter", Class = CharacterClass.Warrior });
+        var roller = new RecordingRoller(TestEconomy.Roller(new ItemIdAllocator()));
+        new CharacterCreateHandler(NullLogger<CharacterCreateHandler>.Instance, characters, roller, world)
+            .Execute(connection, new CCharacterCreatePacket { Name = "Starter", Class = CharacterClass.Warrior });
         await (Task)connection.ReceivedCalls()
             .Single(call => call.GetMethodInfo().Name == nameof(IWorldConnection.EnqueueContinuation)).GetArguments()[0]!;
 
         Assert.NotNull(created);
         return
         [
-            .. created.Items.Select(item => new MadeCopy(item.TemplateId, item.Modifiers, item.Modifiers,
-                ItemBaseStats.Of(item.BaseStats), ItemBaseStats.Of(item.BaseStats),
-                item.Modifiers.Count > 0 || item.BaseStats.Count > 0)),
+            .. created.Items.Select(item =>
+            {
+                RolledItem rolled = roller.Made.Single(made => made.InstanceId == item.Id);
+                return new MadeCopy(item.TemplateId, rolled.Modifiers, item.Modifiers, rolled.BaseStats,
+                    ItemBaseStats.Of(item.BaseStats), item.Modifiers.Count > 0 || item.BaseStats.Count > 0);
+            }),
         ];
+    }
+
+    /// <summary>The roller the handler is given, keeping every plain copy it made, as the roll made it.</summary>
+    private sealed class RecordingRoller(IItemRoller inner) : IItemRoller
+    {
+        public List<RolledItem> Made { get; } = [];
+
+        public RolledItem RollPlain(ItemTemplate template, ushort itemLevel, ItemsPatch items)
+        {
+            RolledItem rolled = inner.RollPlain(template, itemLevel, items);
+            Made.Add(rolled);
+            return rolled;
+        }
+
+        public RolledItem? Roll(ItemTemplate template, in DropContext context, ItemsPatch items) =>
+            inner.Roll(template, context, items);
+
+        public void RollDrops(List<RolledDrop> drops, in DropContext context, ItemsPatch items) =>
+            inner.RollDrops(drops, context, items);
     }
 }
