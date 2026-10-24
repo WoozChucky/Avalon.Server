@@ -1,4 +1,5 @@
 using Avalon.Common;
+using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Configuration;
@@ -35,10 +36,11 @@ public interface IItemRoller
     RolledItem? Roll(ItemTemplate template, in DropContext context, ItemsPatch items);
 
     /// <summary>
-    /// Rolls a kill's or a container's drops in place: each drop whose template rolls carries its copy and names the
-    /// copy's template; gold and items that do not roll stay as they are, and a unique whose modifier the catalog left
-    /// out is removed, so it never reaches the ground without its stats. After a Boss kill none of whose drops rolled
-    /// Rare, the first drop that rolled a rarity is rolled again whole as Rare (B-R20); a unique is never touched.
+    /// Rolls a kill's or a container's drops in place: each drop whose template rolls carries its copy, names the copy's
+    /// template and counts one item (B-R18); gold and items that do not roll stay as they are, and a unique whose modifier
+    /// the catalog left out is removed, so it never reaches the ground without its stats. After a Boss kill none of whose
+    /// drops rolled Rare, the first drop that rolled a rarity is rolled again whole as Rare (B-R20); a unique is never
+    /// touched.
     /// </summary>
     void RollDrops(List<RolledDrop> drops, in DropContext context, ItemsPatch items);
 }
@@ -103,7 +105,7 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
 
                 if (rolled is not null)
                 {
-                    drop = drop with { ItemTemplateId = rolled.TemplateId, Rolled = rolled };
+                    drop = drop with { ItemTemplateId = rolled.TemplateId, Count = 1, Rolled = rolled };
                     anyRare |= rolled.Rarity == ItemRarity.Rare;
                     if (firstRarity < 0 && rolled.Rarity != ItemRarity.Unique)
                         firstRarity = kept;
@@ -128,35 +130,6 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
             Rolled = RollBase(tier, tier.BaseKind!.Value, ItemRarity.Rare, context.ItemLevel, items.Modifiers,
                 previous.InstanceId),
         };
-    }
-
-    /// <summary>
-    /// The index a weighted pick lands on: the first whose running total of <paramref name="weights" /> exceeds
-    /// <paramref name="draw" /> (in [0, 1)) times their total, so an index is picked with its weight over the total and
-    /// a weight of 0 is never picked. At least one weight must be above 0. Public so the unit tests reach it.
-    /// </summary>
-    public static int PickWeighted(ReadOnlySpan<int> weights, double draw)
-    {
-        long total = 0;
-        foreach (int weight in weights)
-            total += Math.Max(weight, 0);
-
-        double target = draw * total;
-        long running = 0;
-        int last = -1;
-        for (int i = 0; i < weights.Length; i++)
-        {
-            if (weights[i] <= 0)
-                continue;
-
-            running += weights[i];
-            last = i;
-            if (running > target)
-                return i;
-        }
-
-        // A draw within a rounding of 1 lands past the running total: the last weighted index.
-        return last;
     }
 
     /// <summary>
@@ -273,7 +246,7 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
             if (!any)
                 return;
 
-            ItemModifier picked = candidates[PickWeighted(weights, random.NextDouble())].Modifier;
+            ItemModifier picked = candidates[WeightedPick.Index(weights, random.NextDouble())].Modifier;
             groups[taken++] = picked.GroupId;
             if (picked.Group.Kind == ItemModifierKind.Prefix)
                 prefixes++;

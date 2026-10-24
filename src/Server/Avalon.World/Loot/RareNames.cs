@@ -23,12 +23,11 @@ public static class RareNames
         return string.Concat(first, " ", seconds[random.NextInt64(0, seconds.Length)]);
     }
 
-    // Weapons; armour pieces and shields; amulets, rings and caster off-hands. A trinket (only ever a unique, so never
-    // rare) is jewellery.
+    // Weapons; amulets, rings and caster off-hands; armour pieces and shields.
     private static string[] SecondWords(ItemBaseKind kind) => kind switch
     {
         ItemBaseKind.Sword or ItemBaseKind.Mace or ItemBaseKind.Staff or ItemBaseKind.Bow => s_weapons,
-        ItemBaseKind.Amulet or ItemBaseKind.Ring or ItemBaseKind.CasterOffHand or ItemBaseKind.Trinket => s_jewellery,
+        ItemBaseKind.Amulet or ItemBaseKind.Ring or ItemBaseKind.CasterOffHand => s_jewellery,
         _ => s_armour,
     };
 }

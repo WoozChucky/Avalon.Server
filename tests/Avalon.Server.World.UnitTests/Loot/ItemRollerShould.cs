@@ -76,15 +76,6 @@ public class ItemRollerShould
             m => Catalog.Find(m.ModifierId)!.Group.Kind == ItemModifierKind.Implicit);
     }
 
-    [Theory]
-    [InlineData(new[] { 1000, 800 }, 0.5555, 0)]
-    [InlineData(new[] { 1000, 800 }, 0.5556, 1)]
-    [InlineData(new[] { 1000, 800, 600, 400, 200 }, 0.9333, 3)]
-    [InlineData(new[] { 1000, 800, 600, 400, 200 }, 0.9334, 4)]
-    [InlineData(new[] { 0, 800 }, 0.0, 1)]
-    public void Pick_a_modifier_by_weight(int[] weights, double draw, int index) =>
-        Assert.Equal(index, ItemRoller.PickWeighted(weights, draw));
-
     [Fact]
     public void Roll_only_what_the_weights_and_the_rarity_allow()
     {
@@ -116,9 +107,10 @@ public class ItemRollerShould
     [Fact]
     public void Make_one_drop_rare_when_a_boss_kill_rolled_none()
     {
-        // Every draw at its lowest: under the Boss odds each base rolls Magic with one affix.
+        // Every draw at its lowest: under the Boss odds each base rolls Magic with one affix. The chest drop names two
+        // copies; a rolled drop is one item.
         var context = new DropContext(5, CreatureRarity.Boss, false);
-        List<RolledDrop> drops = [Drop(65), RolledDrop.GoldPile(12), Drop(37), Drop(68)];
+        List<RolledDrop> drops = [Drop(65), RolledDrop.GoldPile(12), RolledDrop.Item(new ItemTemplateId(37), 2), Drop(68)];
 
         Roller(EdgeRandom.Low()).RollDrops(drops, context, s_items);
 
@@ -131,18 +123,38 @@ public class ItemRollerShould
         Assert.Equal(12UL, drops[1].Gold);
 
         Assert.Equal(ItemRarity.Rare, upgraded.Rarity);
-        Assert.Equal(13UL, drops[2].ItemTemplateId!.Value);
+        Assert.Equal((13UL, 1u), (drops[2].ItemTemplateId!.Value, drops[2].Count));
         Assert.Equal(CatalogKeys.ModifierId("implicit 13"), upgraded.Modifiers[0].ModifierId);
         Assert.Equal(1 + 3, upgraded.Modifiers.Count);
         Assert.Equal("Thorn Shell", upgraded.RareName);
         Assert.Equal(ItemRarity.Magic, magic.Rarity);
 
-        // A kill whose first base already rolled Rare (0.5 under the Boss odds) upgrades nothing else.
+        // A kill whose first base already rolled Rare upgrades nothing else. Every draw is scripted, in the contracted
+        // order, so an extra, missing or reordered draw fails. Each pick of 0.0 lands on the first eligible row.
+        // The plate chest (13 at item level 5): rarity 0.5 (Rare), its implicit, the count 3, three prefixes (the next
+        // prefix group each time), their values, then the two words. The ring: rarity 0.0 (Magic), the count 2, a prefix,
+        // then a suffix (the prefix room is full), and their values.
+        ItemModifierStat Line(string key) => Catalog.Find(CatalogKeys.ModifierId(key))!.Stats.Single();
+        var script = new ScriptedLootRandom(
+            [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [Line("implicit 13").Min, 3, Line("P11 T1").Min, Line("P12 T1").Min, Line("P13 T1").Min, 0, 0,
+             2, Line("P8 Fire T1").Min, Line("S1 T1").Min]);
         List<RolledDrop> again = [Drop(37), Drop(68)];
-        Roller(EdgeRandom.Low(0.5)).RollDrops(again, context, s_items);
 
+        Roller(script).RollDrops(again, context, s_items);
+
+        Assert.True(script.Exhausted, "the roll left scripted draws unused");
         Assert.Equal([ItemRarity.Rare, ItemRarity.Magic], again.Select(drop => drop.Rolled!.Rarity));
+        Assert.Equal("Thorn Shell", again[0].Rolled!.RareName);
+        Assert.Equal(
+            [
+                (string[])["implicit 13", "P11 T1", "P12 T1", "P13 T1"],
+                ["P8 Fire T1", "S1 T1"],
+            ],
+            again.Select(drop => drop.Rolled!.Modifiers.Select(m => KeyOf(m.ModifierId)).ToArray()));
     }
+
+    private static string KeyOf(int modifierId) => CatalogKeys.All().Single(row => row.ModifierId == modifierId).Key;
 
     [Fact]
     public void Drop_no_unique_whose_modifier_the_catalog_left_out()
