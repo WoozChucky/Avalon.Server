@@ -174,3 +174,68 @@ It requires Linux, `AVALON_CRASHES_INTEGRATION=1`,
 fail in explicit integration mode. It invokes the actual resolver and pinned tools,
 then requires `Application.cpp`/`main.cpp` source lines, CFI and inline entries.
 It never publishes raw pairs, dumps or raw stackwalk output.
+
+## Isolated product-image integration
+
+Build only the worker-project Docker context; never use repository-root `out/crashes`
+as product publish output or build context:
+
+```bash
+dotnet restore src/Server/Avalon.Crashes.Worker/Avalon.Crashes.Worker.csproj -r linux-x64
+dotnet publish src/Server/Avalon.Crashes.Worker/Avalon.Crashes.Worker.csproj -c Release -r linux-x64 --self-contained false --no-restore -p:UseAppHost=false -o src/Server/Avalon.Crashes.Worker/out
+docker build --platform linux/amd64 -t avalon-crashes-worker:integration src/Server/Avalon.Crashes.Worker
+bash tools/crashes/run-integration.sh --suite postgres
+bash tools/crashes/run-integration.sh --suite garage
+# Set protected absolute paths first; neither directory enters the image.
+export AVALON_CRASHES_PRIVATE_PAIR=/absolute/private/pair
+export AVALON_CRASHES_PRIVATE_FIXTURE=/absolute/private/fixture
+bash tools/crashes/run-integration.sh --suite native
+bash tools/crashes/run-integration.sh --suite all
+```
+
+Requires Bash, Docker Compose v2/local Linux-amd64 daemon, Python3.12+ (`python`),
+and .NET10 SDK. `CRASHES_IMAGE` selects an already-built product image. Windows
+uses Git Bash, not WSL. The SDK runner image is digest-pinned to10.0.402 and tests
+are published for runtime10.0.13 to agree with the product image. Tool versions
+and native binaries still come exclusively from the canonical worker native lock.
+
+Every invocation generates a UUID Compose project, volumes and scratch directory.
+PostgreSQL listens on5433 only inside its container. Tests share that network
+namespace, preserving the fixture's localhost/non5432 guard. No host ports are
+published. Garage is available only through `https://garage-tls:8443` in the
+internal test network; its disposable self-signed certificate is trusted only
+through the test container's `SSL_CERT_FILE`. No host trust store is modified.
+All database/storage credentials are generated in mode-private files and supplied
+with env/config files. Supplied DB/S3 variables, Compose overrides, remote Docker
+contexts and `DOCKER_HOST`/TLS overrides are rejected before provisioning.
+
+Suite traits are `Category=CrashesPostgres`, `Category=CrashesGarage`, and
+`Category=CrashesNative`. `all` checks each suite separately. Zero tests, any skip,
+failed results or attachments fail the run. The native suite requires the exact
+pair/dump hashes from committed provenance; missing protected prerequisites fail
+explicitly. PostgreSQL and Garage suites run independently without private files.
+The Garage smoke proves signed HTTPS paging, HEAD/GET and changed-fingerprint
+rejection. S3 timestamps are floored to whole UTC seconds because Garage LIST
+and HTTP HEAD/GET expose different precision; retention can expire less than one
+second earlier, never later. ETag, size and whole-second changes remain checked.
+
+Exit/interrupt cleanup removes only this generated project's containers, network,
+volumes, credentials and private logs/results. No integration TRX/log/fixture
+uploads are configured. Forced process termination or daemon loss can prevent
+cleanup: inspect exact `crashes-test-<UUID>` names/labels before removing only that
+run's resources; never prune the user's Docker host. The protected source files
+remain untouched. Full worker-host processing, role permissions and OTLP failure
+privacy are separate acceptance gates; this adapter smoke does not establish them.
+
+The `crashes-integration.yml` workflow uses ephemeral GitHub-hosted runners for
+ordinary PR suites. Native conversion is manual, main-only, in the protected
+`crashes-native` environment. Configure required reviewers and main-only deployment
+branches there, plus `CRASHES_FIXTURE_URL` (secret signed HTTPS archive URL) and
+`CRASHES_FIXTURE_SHA256` (trusted environment variable). The archive itself must
+never be a GitHub secret/artifact: it exceeds normal secret limits. Provisioning
+rejects redirects, validates SHA256/size and extracts only regular allowlisted
+files matching public provenance into runner temp, after the product image build.
+The tar.gz must contain file entries `pair/runtime.exe`, `pair/runtime.pdb`,
+`fixture/dump.dmp`; optional entries are `fixture/runtime.sym`, `fixture/meta.json`,
+`fixture/log-tail.txt` and `fixture/provenance.json`. Directory, duplicate and link
+entries are rejected. Neither URL nor credentials are placed on command lines.

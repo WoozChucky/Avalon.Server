@@ -43,6 +43,7 @@ jobs:
                    src/Server/Avalon.Api/Avalon.Api.csproj src/Server/Avalon.Balance.Service/Avalon.Balance.Service.csproj; do
             dotnet restore "$p"
           done
+          dotnet restore src/Server/Avalon.Crashes.Worker/Avalon.Crashes.Worker.csproj -r linux-x64
       - name: Version
         id: version
         run: |

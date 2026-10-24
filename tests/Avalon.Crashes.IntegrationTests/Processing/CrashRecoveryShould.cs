@@ -10,6 +10,7 @@ using Xunit;
 
 namespace Avalon.Crashes.IntegrationTests.Processing;
 
+[Trait("Category", "CrashesPostgres")]
 public sealed class CrashRecoveryShould : IAsyncLifetime
 {
     private readonly PostgresFixture _postgres = new();
@@ -30,7 +31,16 @@ public sealed class CrashRecoveryShould : IAsyncLifetime
         await queue.DiscoverAsync(source, clock.GetUtcNow(), default);
         await using CrashesDbContext db = _postgres.Factory.CreateDbContext();
         var start = new ProcessStartInfo("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        start.ArgumentList.Add("vstest");
+        string? runner = Environment.GetEnvironmentVariable("AVALON_CRASHES_TEST_RUNNER");
+        if (runner is not null)
+        {
+            start.ArgumentList.Add("exec");
+            start.ArgumentList.Add(runner);
+        }
+        else
+        {
+            start.ArgumentList.Add("vstest");
+        }
         start.ArgumentList.Add(typeof(CrashRecoveryShould).Assembly.Location);
         start.ArgumentList.Add("--TestCaseFilter:FullyQualifiedName~RecoveryTestProcessShould.Run_child_processor");
         start.Environment["AVALON_CRASHES_CHILD_CONNECTION"] = db.Database.GetConnectionString();

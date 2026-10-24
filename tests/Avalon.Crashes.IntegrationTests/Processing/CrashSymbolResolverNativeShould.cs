@@ -8,6 +8,7 @@ using Xunit.Abstractions;
 
 namespace Avalon.Crashes.IntegrationTests.Processing;
 
+[Trait("Category", "CrashesNative")]
 public sealed class CrashSymbolResolverNativeShould(ITestOutputHelper output)
 {
     [IntegrationFact]

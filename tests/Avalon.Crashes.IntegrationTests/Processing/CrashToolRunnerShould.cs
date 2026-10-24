@@ -4,6 +4,7 @@ using Xunit;
 
 namespace Avalon.Crashes.IntegrationTests.Processing;
 
+[Trait("Category", "CrashesNative")]
 public sealed class CrashToolRunnerShould
 {
     private static CrashToolRunner Runner() => (CrashToolRunner)Activator.CreateInstance(typeof(CrashToolRunner), nonPublic: true)!;

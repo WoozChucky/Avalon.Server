@@ -10,6 +10,7 @@ using Xunit;
 
 namespace Avalon.Crashes.IntegrationTests.Persistence;
 
+[Trait("Category", "CrashesPostgres")]
 public sealed class CrashQueueShould : IAsyncLifetime
 {
     private static readonly DateTimeOffset s_now = new(2026, 10, 23, 10, 0, 0, TimeSpan.Zero);

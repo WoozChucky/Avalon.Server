@@ -3,6 +3,7 @@ using Xunit;
 
 namespace Avalon.Crashes.IntegrationTests.Persistence;
 
+[Trait("Category", "CrashesPostgres")]
 public sealed class CrashSymbolLockShould(PostgresFixture fixture) : IClassFixture<PostgresFixture>
 {
     [IntegrationFact]

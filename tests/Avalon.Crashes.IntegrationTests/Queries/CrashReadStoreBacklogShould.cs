@@ -10,6 +10,7 @@ using Xunit.Abstractions;
 
 namespace Avalon.Crashes.IntegrationTests.Queries;
 
+[Trait("Category", "CrashesPostgres")]
 public sealed class CrashReadStoreBacklogShould(ITestOutputHelper output) : IAsyncLifetime
 {
     private readonly PostgresFixture _postgres = new();

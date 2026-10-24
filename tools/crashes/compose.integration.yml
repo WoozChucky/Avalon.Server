@@ -1,0 +1,29 @@
+# All state belongs to the generated Compose project. No published ports or external volumes.
+services:
+  postgres:
+    image: postgres:18@sha256:a9abf4275f9e99bff8e6aed712b3b7dfec9cac1341bba01c1ffdfce9ff9fc34a
+    command: [postgres, -p, "5433"]
+    env_file: ${CRASHES_RUN_DIR:?}/postgres.env
+    volumes: [postgres:/var/lib/postgresql]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -p 5433"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+  garage:
+    image: dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020
+    volumes:
+      - ${CRASHES_RUN_DIR:?}/garage.toml:/etc/garage.toml:ro
+      - garage:/var/lib/garage
+  garage-tls:
+    image: nginx:alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2
+    volumes:
+      - ${CRASHES_RUN_DIR:?}/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${CRASHES_RUN_DIR:?}/tls:/tls:ro
+    depends_on: [garage]
+volumes:
+  postgres: {}
+  garage: {}
+networks:
+  default:
+    internal: true

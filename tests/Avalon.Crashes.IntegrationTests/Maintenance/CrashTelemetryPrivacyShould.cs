@@ -18,6 +18,7 @@ using Xunit;
 
 namespace Avalon.Crashes.IntegrationTests.Maintenance;
 
+[Trait("Category", "CrashesPostgres")]
 public sealed class CrashTelemetryPrivacyShould : IAsyncLifetime
 {
     private readonly PostgresFixture _postgres = new();

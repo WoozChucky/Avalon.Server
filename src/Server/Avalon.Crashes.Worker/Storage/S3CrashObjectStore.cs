@@ -196,7 +196,10 @@ public sealed class S3CrashObjectStore : ICrashObjectStore, IDisposable
     {
         if (string.IsNullOrEmpty(etag) || size is null or < 0 || modified is null)
             throw new CrashStorageException(CrashFailureCode.StorageUnavailable);
-        return new StoredCrashObject(key, etag, size.Value, new DateTimeOffset(DateTime.SpecifyKind(modified.Value, DateTimeKind.Utc)));
+        // Garage LIST preserves fractions while HEAD/GET HTTP dates have whole-second precision.
+        // Floor consistently so identity comparisons work and retention can only expire earlier.
+        long ticks = modified.Value.Ticks - modified.Value.Ticks % TimeSpan.TicksPerSecond;
+        return new StoredCrashObject(key, etag, size.Value, new DateTimeOffset(ticks, TimeSpan.Zero));
     }
 
     private static bool IsStorageError(Exception e) => e is AmazonServiceException or AmazonClientException or HttpRequestException;

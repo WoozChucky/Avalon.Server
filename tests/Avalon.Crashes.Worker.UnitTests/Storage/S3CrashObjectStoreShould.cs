@@ -182,6 +182,31 @@ public sealed class S3CrashObjectStoreShould
     }
 
     [Fact]
+    public async Task Match_fractional_listing_time_to_http_head_and_get_precision()
+    {
+        using var client = new Client
+        {
+            ListResult = new ListObjectsV2Response
+            {
+                S3Objects = [new S3Object { Key = s_expected.Key, ETag = s_expected.ETag, Size = 3, LastModified = s_now.AddMilliseconds(999).UtcDateTime }]
+            },
+            HeadResult = new GetObjectMetadataResponse { ETag = s_expected.ETag, LastModified = s_now.UtcDateTime, ContentLength = 3 },
+            GetResult = Response([1, 2, 3])
+        };
+        var store = new S3CrashObjectStore(client, new CrashStorageOptions());
+        StoredCrashObject discovered = Assert.Single((await store.ListAsync("", null, null, default)).Objects);
+        Assert.Equal(s_now, discovered.LastModified);
+        Assert.Equal(discovered, await store.HeadAsync(discovered.Key, default));
+        string destination = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        try
+        {
+            await store.DownloadAsync(discovered, destination, CrashLimits.ArchiveBytes, default);
+            Assert.Equal(new byte[] { 1, 2, 3 }, await File.ReadAllBytesAsync(destination));
+        }
+        finally { File.Delete(destination); }
+    }
+
+    [Fact]
     public async Task Send_bounded_listing_parameters_and_keep_original_keys()
     {
         using var client = new Client
