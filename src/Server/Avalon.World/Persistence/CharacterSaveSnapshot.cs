@@ -255,12 +255,14 @@ internal sealed class ModifierRows
     public void Add(ItemInstanceId item, IReadOnlyList<ItemInstanceModifier> modifiers)
     {
         _items.Add(item);
-        foreach (ItemInstanceModifier modifier in modifiers)
+        // By index: a foreach through the interface boxed an enumerator per item.
+        for (int i = 0; i < modifiers.Count; i++)
         {
-            ItemInstanceModifier copy = modifier.Copy();
-            _values.AddRange(copy.Values);
-            copy.Values = [];
-            _modifiers.Add(copy);
+            ItemInstanceModifier modifier = modifiers[i];
+            _modifiers.Add(modifier.CopyRow());
+            List<ItemInstanceModifierValue> values = modifier.Values;
+            for (int v = 0; v < values.Count; v++)
+                _values.Add(values[v].Copy());
         }
     }
 

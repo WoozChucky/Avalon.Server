@@ -66,6 +66,9 @@ public class CharacterSelectHandler(
     WorldMaintenanceCoordinator? maintenance = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private readonly IWorldDatabaseWork _databaseWork = databaseWork ?? WorldDatabaseWork.ThreadPool;
+
+    // The snapshot's modifier entries (#1179), given back once it is encoded; the select's steps run on the tick.
+    private readonly ItemModifierDtoPool _modifierDtos = new();
     private Activity? _parentActivity;
 
     /// <summary>
@@ -680,15 +683,17 @@ public class CharacterSelectHandler(
         ];
 
         connection.Send(SInventorySnapshotPacket.Create(carried, character.Gold, PacketEncoder.Shared));
+        foreach (ItemSlotDto slot in carried)
+            _modifierDtos.Return(slot);
 
         Step(connection, select, _databaseWork.Run(() => characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None)),
             spells => OnSpellsReceived(connection, select, entity, instance, spells));
         _parentActivity = activity;
     }
 
-    private static IEnumerable<ItemSlotDto> ToDtos(CharacterEntity entity, InventoryType container, ItemsPatch items)
+    private IEnumerable<ItemSlotDto> ToDtos(CharacterEntity entity, InventoryType container, ItemsPatch items)
         => entity[container].Items.Select(item =>
-            ItemSlotDtoMapper.ToDto(container, item, entity.ItemModifiers.Of(item.InstanceId), items));
+            ItemSlotDtoMapper.ToDto(container, item, entity.ItemModifiers, items, _modifierDtos));
 
     private void OnSpellsReceived(IWorldConnection connection, long select, CharacterEntity entity, IMapInstance instance,
         IReadOnlyCollection<CharacterAbility> spells)

@@ -55,8 +55,7 @@ public static class LootDropMapper
         {
             dto.Rarity = rolled.Rarity;
             dto.ItemLevel = rolled.ItemLevel;
-            dto.Name = ItemSlotDtoMapper.NameOf(rolled.TemplateId, rolled.Rarity, rolled.RareName, rolled.Modifiers,
-                data.Items);
+            dto.Name = drop.NameIn(data.Items);
         }
         else
         {

@@ -18,13 +18,13 @@ public interface IItemRoller
 {
     /// <summary>
     /// A plain copy of <paramref name="template" /> at <paramref name="itemLevel" />: its template's rarity and only the
-    /// modifiers every copy of it rolls (B-R12), one per link of <paramref name="catalog" />, ordinals from 0 in link order,
+    /// modifiers every copy of it rolls, one per link of <paramref name="catalog" />, ordinals from 0 in link order,
     /// each value uniform within its line's range. A template that links nothing makes a copy with none.
     /// </summary>
     RolledItem RollPlain(ItemTemplate template, ushort itemLevel, ItemModifierCatalog catalog);
 
     /// <summary>
-    /// The full roll of a made copy (B-R14 to B-R19), at the context's item level:
+    /// The full roll of a made copy , at the context's item level:
     /// <list type="bullet">
     /// <item>a Unique template rolls rarity Unique and its one linked modifier;</item>
     /// <item>a Common template with a base kind becomes the best tier of its line the item level reaches, rolls a rarity
@@ -37,9 +37,9 @@ public interface IItemRoller
 
     /// <summary>
     /// Rolls a kill's or a container's drops in place: each drop whose template rolls carries its copy, names the copy's
-    /// template and counts one item (B-R18); gold and items that do not roll stay as they are, and a unique whose modifier
+    /// template and counts one item; gold and items that do not roll stay as they are, and a unique whose modifier
     /// the catalog left out is removed, so it never reaches the ground without its stats. After a Boss kill none of whose
-    /// drops rolled Rare, the first drop that rolled a rarity is rolled again whole as Rare (B-R20); a unique is never
+    /// drops rolled Rare, the first drop that rolled a rarity is rolled again whole as Rare; a unique is never
     /// touched.
     /// </summary>
     void RollDrops(List<RolledDrop> drops, in DropContext context, ItemsPatch items);
@@ -62,6 +62,10 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
     // largest kind has about a hundred.
     private const int StackCandidates = 256;
 
+    // The modifiers of every copy that rolls none, shared: a store keeps no entry for none (ItemModifierStore.PutMade), so
+    // nothing ever adds to it, and a plain copy of a template that links nothing allocates no list.
+    private static readonly List<ItemInstanceModifier> s_none = [];
+
     private readonly CreatureRarityOdds _odds = options.Value.Items.Rarity;
 
     public RolledItem RollPlain(ItemTemplate template, ushort itemLevel, ItemModifierCatalog catalog)
@@ -69,7 +73,7 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
         ItemInstanceId instanceId = itemIds.Next();
         IReadOnlyList<ItemModifier> links = catalog.LinkedTo(template.Id);
         if (links.Count == 0)
-            return new RolledItem(instanceId, template.Id, template.Rarity, itemLevel, RareName: null, []);
+            return new RolledItem(instanceId, template.Id, template.Rarity, itemLevel, RareName: null, s_none);
 
         // The copy's own list, which the character's modifier store keeps as its entry (ItemModifierStore.PutMade).
         var modifiers = new List<ItemInstanceModifier>(links.Count);
@@ -82,12 +86,12 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
         if (template.Rarity == ItemRarity.Unique)
             return RollUnique(template, context.ItemLevel, items.Modifiers);
 
-        if (template.Rarity != ItemRarity.Common || template.BaseKind is not { } kind)
+        if (!IsRolledBase(template))
             return null;
 
         ItemRarity rarity = context.ForceMagic ? ItemRarity.Magic : DrawRarity(context.Odds);
-        return RollBase(BestTier(template, kind, context.ItemLevel, items), kind, rarity, context.ItemLevel, items.Modifiers,
-            itemIds.Next());
+        return RollBase(TierAt(template, context.ItemLevel, items), template.BaseKind!.Value, rarity, context.ItemLevel,
+            items.Modifiers, itemIds.Next());
     }
 
     public void RollDrops(List<RolledDrop> drops, in DropContext context, ItemsPatch items)
@@ -133,7 +137,7 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
     }
 
     /// <summary>
-    /// Common, Magic or Rare by the creature's odds (B-R14): a draw of [0, 100) is Common below the common share, Magic
+    /// Common, Magic or Rare by the creature's odds: a draw of [0, 100) is Common below the common share, Magic
     /// below the common and magic shares together, and Rare above.
     /// </summary>
     private ItemRarity DrawRarity(CreatureRarity creature)
@@ -147,13 +151,26 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
     }
 
     /// <summary>
-    /// The best Common template of <paramref name="kind" />'s line whose required level the item level reaches, the
-    /// lowest id among equals (B-R16); <paramref name="named" /> when none does. The line is sorted by required level,
-    /// then id, so the first of the highest level reached wins.
+    /// Whether a copy of <paramref name="template" /> rolls as a base: a Common template with a base kind, whose
+    /// copy takes the best tier of its line, its implicits, a rarity and affixes. The one test for it, which the quest
+    /// rewards share (a base reward is rolled Magic).
     /// </summary>
-    private static ItemTemplate BestTier(ItemTemplate named, ItemBaseKind kind, ushort itemLevel, ItemsPatch items)
+    public static bool IsRolledBase(ItemTemplate template) =>
+        template.Rarity == ItemRarity.Common && template.BaseKind is not null;
+
+    /// <summary>
+    /// The template a rolled copy of <paramref name="named" /> is made as at <paramref name="itemLevel" />: for a
+    /// rolled base, the best Common template of its kind's line whose required level the item level reaches, the lowest id
+    /// among equals; <paramref name="named" /> when none does, and for any template that is not a rolled base. The line is
+    /// sorted by required level, then id, so the first of the highest level reached wins. What a quest reward's window
+    /// shows and its turn-in checks are resolved by too, at the reward roll's item level.
+    /// </summary>
+    public static ItemTemplate TierAt(ItemTemplate named, ushort itemLevel, ItemsPatch items)
     {
-        IReadOnlyList<ItemTemplate> line = items.LineOf(kind);
+        if (!IsRolledBase(named))
+            return named;
+
+        IReadOnlyList<ItemTemplate> line = items.LineOf(named.BaseKind!.Value);
         ItemTemplate? best = null;
         for (int i = 0; i < line.Count; i++)
         {
@@ -217,7 +234,7 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
     }
 
     /// <summary>
-    /// Up to <paramref name="count" /> affixes (B-R17), each a weighted pick among the candidates still eligible: within
+    /// Up to <paramref name="count" /> affixes, each a weighted pick among the candidates still eligible: within
     /// the item level, of a kind with room left and of a group the item does not carry yet. Stops early when none is.
     /// </summary>
     private void RollAffixes(List<ItemInstanceModifier> modifiers, ItemInstanceId instanceId,
@@ -259,12 +276,22 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
 
     /// <summary>
     /// One modifier on the copy: a value per stat line, in the line's index, uniform in [Min, Max]; a line with a second
-    /// range also rolls its high end uniform in [Min2, Max2], raised to the low end when below it (B-R15).
+    /// range also rolls its high end uniform in [Min2, Max2], raised to the low end when below it.
     /// </summary>
     private ItemInstanceModifier Roll(ItemInstanceId instanceId, ItemModifier modifier, byte ordinal)
     {
         Guid id = itemIds.NextModifierId();
-        var values = new List<ItemInstanceModifierValue>(modifier.Stats.Count);
+        var rolled = new ItemInstanceModifier
+        {
+            Id = id,
+            ItemInstanceId = instanceId,
+            ModifierId = modifier.Id,
+            Ordinal = ordinal,
+        };
+
+        // The row's own list, sized once: replacing it would throw away the one its initializer made.
+        List<ItemInstanceModifierValue> values = rolled.Values;
+        values.Capacity = modifier.Stats.Count;
         foreach (ItemModifierStat line in modifier.Stats)
         {
             int value = Uniform(line.Min, line.Max);
@@ -279,14 +306,7 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
             });
         }
 
-        return new ItemInstanceModifier
-        {
-            Id = id,
-            ItemInstanceId = instanceId,
-            ModifierId = modifier.Id,
-            Ordinal = ordinal,
-            Values = values,
-        };
+        return rolled;
     }
 
     private int Uniform(int min, int max) => (int)random.NextInt64(min, (long)max + 1);

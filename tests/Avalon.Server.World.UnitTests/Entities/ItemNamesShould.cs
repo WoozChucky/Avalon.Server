@@ -8,7 +8,7 @@ using Avalon.World.Testing.Scenarios;
 namespace Avalon.Server.World.UnitTests.Entities;
 
 /// <summary>
-/// An item's name as it is described (#1179, B-R19), over the seeded catalog and templates: a magic item from its prefix
+/// An item's name as it is described (#1179), over the seeded catalog and templates: a magic item from its prefix
 /// and suffix around the template's name, a rare by the two words its roll stored, and common and unique items (null) by
 /// the template's own. An implicit never names an item.
 /// </summary>

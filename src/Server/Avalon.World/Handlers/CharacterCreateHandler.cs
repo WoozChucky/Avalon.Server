@@ -71,7 +71,7 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
             {
                 logger.LogWarning("Starting item {TemplateId} not found", templateId); continue;
             }
-            // #1179 (B-R12): a starting item is made as any copy is, rolling the modifiers its template links; they are
+            // #1179: a starting item is made as any copy is, rolling the modifiers its template links; they are
             // inserted with it. A copy with modifiers is one of a kind, so it is never a stack.
             RolledItem rolled = itemRoller.RollPlain(template, ItemInstanceDefaults.InitialItemLevel(template), modifiers);
             var item = new ItemInstance
@@ -83,8 +83,11 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
                 Rarity = rolled.Rarity,
                 ItemLevel = rolled.ItemLevel,
                 UpdatedAt = DateTime.UtcNow,
-                Modifiers = rolled.Modifiers
             };
+            // The copy's own rows, inserted with it; one that rolled none keeps the instance's own empty list, since the roll
+            // shares one for every copy without modifiers.
+            if (rolled.Modifiers.Count > 0)
+                item.Modifiers = rolled.Modifiers;
             items.Add(item); slots.Add(new() { ItemId = item.Id, Container = InventoryType.Bag, Slot = (byte)(slots.Count) });
         }
         var batch = new CharacterCreationBatch(row, stats.ToRow(new(0)),

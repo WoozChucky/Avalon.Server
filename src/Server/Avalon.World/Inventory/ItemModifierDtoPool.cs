@@ -1,16 +1,47 @@
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Items;
 
 namespace Avalon.World.Inventory;
 
 /// <summary>
-/// Modifier entries for a caller that sends the same item entries again and again (the trade window, #1179): an entry's
-/// list is refilled in place, and whatever a smaller item leaves over (a list, a modifier, a value) waits here for the
-/// next larger one, so neither re-sending an item nor the window shrinking and growing again makes garbage. Exactly the
-/// item's modifiers are sent: nothing left over stays in an entry. Owned by one caller on one thread.
+/// Modifier entries for a caller that sends item entries again and again (#1179), so describing an item's modifiers
+/// makes no garbage. Two ways in:
+/// <list type="bullet">
+/// <item>a caller that keeps its messages (the trade window, a kill's loot messages) refills an entry's list in place
+/// (<see cref="Refill" />), and whatever a smaller item leaves over (a list, a modifier, a value) waits here for the next
+/// larger one;</item>
+/// <item>a caller that builds its entries afresh (the tick's inventory update, an item request's refusal, the bank, the
+/// select snapshot) takes the lists from here (<see cref="Rent" />) and gives them back (<see cref="Return(ItemSlotDto?)" />)
+/// once the message is encoded, which the packet's Create does before it returns.</item>
+/// </list>
+/// Exactly the item's modifiers are sent: nothing left over stays in an entry. Owned by one caller on one thread.
 /// </summary>
 public sealed class ItemModifierDtoPool
 {
+    /// <summary>
+    /// <paramref name="modifiers" /> in a list from this pool, null for none: for an entry built just now, whose list is
+    /// given back with <see cref="Return(ItemSlotDto?)" /> once its message is encoded.
+    /// </summary>
+    public List<ItemModifierDto>? Rent(IReadOnlyList<ItemInstanceModifier> modifiers) => Refill(null, modifiers);
+
+    /// <summary>The entry's modifier list back to the pool, once the message that carried it is encoded; it is left with none.</summary>
+    public void Return(ItemSlotDto? entry)
+    {
+        if (entry?.Modifiers is not { } list)
+            return;
+
+        Return(list);
+        entry.Modifiers = null;
+    }
+
+    /// <summary>Every entry's modifier lists back to the pool (<see cref="Return(ItemSlotDto?)" />), once their message is encoded.</summary>
+    public void Return(ReadOnlySpan<InventorySlotUpdateDto> entries)
+    {
+        for (int i = 0; i < entries.Length; i++)
+            Return(entries[i].Item);
+    }
+
     private readonly Stack<List<ItemModifierDto>> _lists = new();
     private readonly Stack<ItemModifierDto> _modifiers = new();
     private readonly Stack<ItemModifierValueDto> _values = new();

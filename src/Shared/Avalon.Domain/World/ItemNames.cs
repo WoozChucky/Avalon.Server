@@ -3,7 +3,7 @@ using Avalon.Common;
 namespace Avalon.Domain.World;
 
 /// <summary>
-/// An item's name as it is described (#1179, B-R19). Only a copy's prefix and suffix name it: its implicits and a
+/// An item's name as it is described (#1179). Only a copy's prefix and suffix name it: its implicits and a
 /// unique's own modifier never do. Computed whenever the item is described, never stored, so a rename of a base or an
 /// affix in the catalog reaches every copy; a rare's two words are the exception, given once by its roll and stored on
 /// the copy.

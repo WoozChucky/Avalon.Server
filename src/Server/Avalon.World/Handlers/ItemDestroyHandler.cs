@@ -18,6 +18,9 @@ namespace Avalon.World.Handlers;
 public class ItemDestroyHandler(ILogger<ItemDestroyHandler> logger, IWorld world, ICharacterEconomy economy)
     : WorldPacketHandler<CItemDestroyPacket>
 {
+    // A refusal's modifier entries (#1179), given back once the reply is encoded. Handlers run on the tick, one at a time.
+    private readonly ItemModifierDtoPool _modifierDtos = new();
+
     public override void Execute(IWorldConnection connection, CItemDestroyPacket packet)
     {
         if (connection.Character is not CharacterEntity character)
@@ -42,7 +45,7 @@ public class ItemDestroyHandler(ILogger<ItemDestroyHandler> logger, IWorld world
 
         // The slot a refusal reports, read where it stands: a request allocates nothing to name it (#883).
         ItemRequestReply.Send(connection, character, packet.RequestId, result,
-            read ? new ReadOnlySpan<SlotRef>(in slot) : default, world.Data.Items);
+            read ? new ReadOnlySpan<SlotRef>(in slot) : default, world.Data.Items, _modifierDtos);
     }
 
     private ItemRequestResult Destroy(

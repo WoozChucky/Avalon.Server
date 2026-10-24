@@ -1,12 +1,14 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.World.Inventory;
+using Avalon.World.Reload;
 
 namespace Avalon.World.Loot;
 
 /// <summary>
 /// A drop lying on the ground in one instance: a stack of one item template, a copy the drop rolled, or a pile of gold.
-/// Immutable once placed.
+/// Immutable once placed, but for the name its rolled copy is described by, which it holds once worked out.
 /// </summary>
 /// <remarks>
 /// Never persisted, and not an ItemInstance. A copy the drop rolled (#1179, <see cref="Rolled" />) was made whole at the
@@ -44,4 +46,16 @@ public sealed class GroundLoot
     public DateTime FreeForAllAt { get; init; }
 
     public bool IsGold => ItemTemplateId is null;
+
+    // The rolled copy's name, worked out at its first describe in an items generation (#1179): a drop is described at
+    // its kill and again in every snapshot that shows it.
+    private DescribedName _name;
+
+    /// <summary>
+    /// The name the rolled copy is described by in <paramref name="items" /> (ItemSlotDtoMapper.NameOf), held here once
+    /// worked out; null for a drop that did not roll.
+    /// </summary>
+    internal string? NameIn(ItemsPatch items) => Rolled is { } rolled
+        ? _name.Of(rolled.TemplateId, rolled.Rarity, rolled.RareName, rolled.Modifiers, items)
+        : null;
 }

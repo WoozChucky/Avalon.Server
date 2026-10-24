@@ -11,6 +11,7 @@ using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Reload;
 using Avalon.World.Social;
 using Avalon.World.Threading;
 using Microsoft.Extensions.Logging;
@@ -60,8 +61,8 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
     // The completion's (TradeService.Completion.cs): the paired save, and the economy the swap goes through.
     private readonly ICharacterSaver _saver = saver;
     private ICharacterEconomy? _economy;
+    private Func<ItemsPatch>? _items;
     private Func<ItemTemplateId, ItemTemplate?> _findTemplate = static _ => null;
-    private Func<ItemModifierCatalog>? _currentCatalog;
     private uint _lastTradeId;
 
     private GameConfiguration Config => options.Value;
@@ -70,15 +71,15 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
     public OnlineCharacters Online => online;
 
     /// <summary>
-    /// World.LoadAsync calls this once its economy, item templates and modifier catalog exist. The catalog is read as
-    /// each state is filled, with the template, to name an offered magic copy (#1179).
+    /// World.LoadAsync calls this once its economy and items generation exist. The current generation is read where it is
+    /// needed: an offered item's template, and, as each state is filled, the name of an offered copy (#1179).
     /// </summary>
-    public void Attach(ICharacterEconomy economy, Func<ItemTemplateId, ItemTemplate?> findTemplate,
-        Func<ItemModifierCatalog> currentCatalog)
+    public void Attach(ICharacterEconomy economy, Func<ItemsPatch> items)
     {
         _economy = economy;
-        _findTemplate = findTemplate;
-        _currentCatalog = currentCatalog;
+        _items = items;
+        // Made once here, so a judge of what may be traded allocates no delegate.
+        _findTemplate = FindTemplate;
     }
 
     /// <summary>The trade this character is in, open or completing, or none.</summary>
@@ -567,6 +568,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
         TradeSideDto dto = _sideDtos[index];
         List<TradeItemDto> items = _itemLists[index];
         items.Clear();
+        ItemsPatch generation = Items();
         for (int slot = 0; slot < side.Items.Length; slot++)
         {
             if (side.Items[slot] is not { } item)
@@ -582,7 +584,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             entry.Rarity = item.Rarity;
             entry.ItemLevel = item.ItemLevel;
             entry.Modifiers = _modifierDtos.Refill(entry.Modifiers, modifiers);
-            entry.Name = NameOf(item, modifiers);
+            entry.Name = side.Character.ItemModifiers.NameOf(item, generation);
             items.Add(entry);
         }
 
@@ -591,17 +593,10 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
         dto.Items = items;
     }
 
-    /// <summary>
-    /// An offered copy's name (#1179): its template's and the current catalog's, as an inventory slot names it; null for a
-    /// common or unique copy, and for a template a reload removed.
-    /// </summary>
-    private string? NameOf(InventoryItem item, IReadOnlyList<ItemInstanceModifier> modifiers) =>
-        item.Rarity is ItemRarity.Magic or ItemRarity.Rare && _findTemplate(item.TemplateId) is { } template
-            ? ItemNames.Display(template, item.Rarity, item.RareName, modifiers, CurrentCatalog())
-            : null;
+    private ItemTemplate? FindTemplate(ItemTemplateId id) => Items().Find(id);
 
-    private ItemModifierCatalog CurrentCatalog() =>
-        _currentCatalog?.Invoke() ?? throw new InvalidOperationException("TradeService.Attach has not been called.");
+    private ItemsPatch Items() =>
+        _items?.Invoke() ?? throw new InvalidOperationException("TradeService.Attach has not been called.");
 
     private static TradeItemDto[] NewItemDtos()
     {

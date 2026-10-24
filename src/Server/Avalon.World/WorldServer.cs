@@ -256,6 +256,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ThrottledErrorLog _memberStatusErrors;
     private readonly QuestService? _quests;
     private readonly ThrottledErrorLog _questFlushErrors;
+
+    // The inventory flush's modifier entries (#1179): taken by each connection's update and given back once it is
+    // encoded. The flush runs on the tick, after both passes, one connection at a time.
+    private readonly ItemModifierDtoPool _inventoryModifierDtos = new();
     private readonly ThrottledErrorLog _questResetErrors;
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IScriptManager _scriptManager;
@@ -963,7 +967,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // The items generation is read once, so every connection's magic copies are named from the same one (#1179).
         ItemsPatch items = _world.Data.Items;
         for (int i = 0; i < conns.Length; i++)
-            InventoryUpdateFlusher.Flush(conns[i], items);
+            InventoryUpdateFlusher.Flush(conns[i], items, _inventoryModifierDtos);
         stageStart = StageDone(stageStart, s_inventoryStage);
 
         // The character sheet (#506), to its owner only, when a value it shows changed this tick: a gear

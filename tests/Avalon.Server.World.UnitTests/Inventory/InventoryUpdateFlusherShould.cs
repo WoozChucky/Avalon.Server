@@ -48,7 +48,7 @@ public class InventoryUpdateFlusherShould
 
         InventoryFor(character).TryAdd(Potion.Id, 3);
         InventoryFor(character).TryAdd(Potion.Id, 2);
-        InventoryUpdateFlusher.Flush(connection, s_items);
+        InventoryUpdateFlusher.Flush(connection, s_items, new ItemModifierDtoPool());
 
         SInventoryUpdatePacket update = Read(Assert.Single(_sent));
         InventorySlotUpdateDto slot = Assert.Single(update.Slots);
@@ -66,7 +66,7 @@ public class InventoryUpdateFlusherShould
         IWorldConnection connection = ConnectionFor(character);
 
         new CharacterWallet(character, ulong.MaxValue).TryAddGold(2);
-        InventoryUpdateFlusher.Flush(connection, s_items);
+        InventoryUpdateFlusher.Flush(connection, s_items, new ItemModifierDtoPool());
 
         SInventoryUpdatePacket update = Read(Assert.Single(_sent));
         Assert.Equal(42UL, update.Gold);
@@ -81,7 +81,7 @@ public class InventoryUpdateFlusherShould
         IWorldConnection connection = ConnectionFor(character);
 
         new CharacterWallet(character, ulong.MaxValue).TrySpend(40);
-        InventoryUpdateFlusher.Flush(connection, s_items);
+        InventoryUpdateFlusher.Flush(connection, s_items, new ItemModifierDtoPool());
 
         Assert.Equal(0UL, Read(Assert.Single(_sent)).Gold);
     }
@@ -93,8 +93,8 @@ public class InventoryUpdateFlusherShould
         IWorldConnection connection = ConnectionFor(character);
 
         InventoryFor(character).TryAdd(Potion.Id, 1);
-        InventoryUpdateFlusher.Flush(connection, s_items);
-        InventoryUpdateFlusher.Flush(connection, s_items);
+        InventoryUpdateFlusher.Flush(connection, s_items, new ItemModifierDtoPool());
+        InventoryUpdateFlusher.Flush(connection, s_items, new ItemModifierDtoPool());
 
         Assert.Single(_sent);
         Assert.False(character.ClientChanges.HasChanges);
@@ -113,7 +113,7 @@ public class InventoryUpdateFlusherShould
         IWorldConnection connection = ConnectionFor(character);
 
         InventoryFor(character).TryRemove(banked.InstanceId, 1);
-        InventoryUpdateFlusher.Flush(connection, s_items);
+        InventoryUpdateFlusher.Flush(connection, s_items, new ItemModifierDtoPool());
 
         Assert.Empty(_sent);
         Assert.False(character.ClientChanges.HasChanges);
@@ -132,7 +132,7 @@ public class InventoryUpdateFlusherShould
 
         InventoryFor(character).TryRemove(banked.InstanceId, 1);
         InventoryFor(character).TryAdd(Potion.Id, 1);
-        InventoryUpdateFlusher.Flush(connection, s_items);
+        InventoryUpdateFlusher.Flush(connection, s_items, new ItemModifierDtoPool());
 
         SInventoryUpdatePacket update = Read(Assert.Single(_sent));
         Assert.Equal(2, update.Slots.Length);
@@ -157,7 +157,7 @@ public class InventoryUpdateFlusherShould
         InventoryFor(character).TryRemove(banked.InstanceId, 1);
         InventoryFor(character).TryAddInstance(new CarriedItem(rare,
             [TestModifiers.Modifier(rare.InstanceId, 203, 0, (0, StatType.AddedFireDamage, 3, 7))]));
-        InventoryUpdateFlusher.Flush(connection, s_items);
+        InventoryUpdateFlusher.Flush(connection, s_items, new ItemModifierDtoPool());
 
         InventorySlotUpdateDto slot = Assert.Single(Read(Assert.Single(_sent)).Slots);
         Assert.Equal(InventoryType.Bag, slot.Container);
@@ -189,7 +189,7 @@ public class InventoryUpdateFlusherShould
         ];
         foreach ((InventoryType container, byte slot) in touched)
             character.ClientChanges.RecordSlot(container, slot);
-        InventoryUpdateFlusher.Flush(connection, s_items);
+        InventoryUpdateFlusher.Flush(connection, s_items, new ItemModifierDtoPool());
 
         Assert.Equal(
             [

@@ -21,18 +21,23 @@ public static class ItemRequestReply
     /// from its own stack and a request costs no list (#883).
     /// </param>
     /// <param name="items">The current items generation, which names a magic copy a refusal reports (#1179).</param>
+    /// <param name="pool">
+    /// The handler's modifier entries (#1179): a refusal's are taken from it and given back once the reply is encoded.
+    /// </param>
     public static void Send(
         IWorldConnection connection,
         CharacterEntity character,
         uint requestId,
         ItemRequestResult result,
         ReadOnlySpan<SlotRef> named,
-        ItemsPatch items)
+        ItemsPatch items,
+        ItemModifierDtoPool pool)
     {
         InventorySlotUpdateDto[] slots =
-            result == ItemRequestResult.Ok ? [] : CurrentState(connection, character, named, items);
+            result == ItemRequestResult.Ok ? [] : CurrentState(connection, character, named, items, pool);
 
         connection.Send(SItemResultPacket.Create(requestId, result, slots, PacketEncoder.Shared));
+        pool.Return(slots);
     }
 
     /// <summary>
@@ -40,7 +45,8 @@ public static class ItemRequestReply
     /// are counted first, then read into an array of that size.
     /// </summary>
     private static InventorySlotUpdateDto[] CurrentState(
-        IWorldConnection connection, CharacterEntity character, ReadOnlySpan<SlotRef> named, ItemsPatch items)
+        IWorldConnection connection, CharacterEntity character, ReadOnlySpan<SlotRef> named, ItemsPatch items,
+        ItemModifierDtoPool pool)
     {
         bool bankOpen = BankAccess.IsOpen(connection, character);
 
@@ -67,7 +73,7 @@ public static class ItemRequestReply
                 Container = slot.Container,
                 Slot = slot.Slot,
                 Item = character.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item)
-                    ? ItemSlotDtoMapper.ToDto(slot.Container, item, character.ItemModifiers.Of(item.InstanceId), items)
+                    ? ItemSlotDtoMapper.ToDto(slot.Container, item, character.ItemModifiers, items, pool)
                     : null,
             };
         }

@@ -21,6 +21,9 @@ namespace Avalon.World.Handlers;
 public class ItemMoveHandler(ILogger<ItemMoveHandler> logger, IWorld world, ICharacterEconomy economy)
     : WorldPacketHandler<CItemMovePacket>
 {
+    // A refusal's modifier entries (#1179), given back once the reply is encoded. Handlers run on the tick, one at a time.
+    private readonly ItemModifierDtoPool _modifierDtos = new();
+
     public override void Execute(IWorldConnection connection, CItemMovePacket packet)
     {
         if (connection.Character is not CharacterEntity character)
@@ -56,7 +59,8 @@ public class ItemMoveHandler(ILogger<ItemMoveHandler> logger, IWorld world, ICha
             result = ItemRequestResult.NotFound;
         }
 
-        ItemRequestReply.Send(connection, character, packet.RequestId, result, named[..readable], world.Data.Items);
+        ItemRequestReply.Send(connection, character, packet.RequestId, result, named[..readable], world.Data.Items,
+            _modifierDtos);
     }
 
     private ItemRequestResult Move(

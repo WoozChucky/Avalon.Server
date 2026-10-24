@@ -33,7 +33,7 @@ public class QuestCollectShould
     private static void Flush(QuestTestWorld w, QuestClient c)
     {
         QuestFlusher.Flush(c.Connection, w.Quests);
-        InventoryUpdateFlusher.Flush(c.Connection, w.Data.Items);   // as WorldServer does next, clearing the tick's slot changes
+        InventoryUpdateFlusher.Flush(c.Connection, w.Data.Items, new ItemModifierDtoPool());   // as WorldServer does next, clearing the tick's slot changes
     }
 
     [Fact]

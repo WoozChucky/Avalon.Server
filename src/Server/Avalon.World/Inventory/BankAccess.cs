@@ -60,7 +60,10 @@ public static class BankAccess
     /// when the bank opens, the first time Bank slots reach the client.
     /// </summary>
     /// <param name="items">The current items generation, which names a magic copy (#1179).</param>
-    public static InventorySlotUpdateDto[] Snapshot(CharacterEntity character, ItemsPatch items)
+    /// <param name="pool">
+    /// Where the entries' modifier lists come from (#1179); the caller gives them back once the packet is encoded.
+    /// </param>
+    public static InventorySlotUpdateDto[] Snapshot(CharacterEntity character, ItemsPatch items, ItemModifierDtoPool pool)
     {
         CharacterInventoryContainer bank = character.Container(InventoryType.Bank);
         var slots = new InventorySlotUpdateDto[bank.Capacity];
@@ -72,7 +75,7 @@ public static class BankAccess
                 Container = InventoryType.Bank,
                 Slot = slot,
                 Item = bank.TryGet(slot, out InventoryItem item)
-                    ? ItemSlotDtoMapper.ToDto(InventoryType.Bank, item, character.ItemModifiers.Of(item.InstanceId), items)
+                    ? ItemSlotDtoMapper.ToDto(InventoryType.Bank, item, character.ItemModifiers, items, pool)
                     : null,
             };
         }

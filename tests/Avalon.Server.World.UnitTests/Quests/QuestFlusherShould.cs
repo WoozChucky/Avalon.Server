@@ -102,7 +102,7 @@ public class QuestFlusherShould
             [new CharacterCompletedQuest { CharacterId = c.Id, QuestId = Hunt, CompletedAt = DateTime.UnixEpoch,
                 LastCompletedAt = DateTime.UnixEpoch, CompletionCount = 1 }]));
         Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(c.Character).TryAdd(new ItemTemplateId(Tusk), 2));
-        InventoryUpdateFlusher.Flush(c.Connection, w.Data.Items);   // the bag came with the load, not with this tick
+        InventoryUpdateFlusher.Flush(c.Connection, w.Data.Items, new ItemModifierDtoPool());   // the bag came with the load, not with this tick
         c.Clear();
 
         w.Quests.RecountAtSelect(c.Character);

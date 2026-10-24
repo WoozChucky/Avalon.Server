@@ -163,7 +163,7 @@ public class LootPickupHandlerShould
     {
         Assert.DoesNotContain(_sent, p => p.Header.Type == NetworkPacketType.SMSG_INVENTORY_UPDATE);
 
-        InventoryUpdateFlusher.Flush(_connection, ItemModifierRepositories.Items());
+        InventoryUpdateFlusher.Flush(_connection, ItemModifierRepositories.Items(), new ItemModifierDtoPool());
 
         OutboundPacket packet = Assert.Single(_sent, p => p.Header.Type == NetworkPacketType.SMSG_INVENTORY_UPDATE);
         using var stream = new MemoryStream(packet.PayloadMemory.ToArray());

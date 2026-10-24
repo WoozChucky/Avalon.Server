@@ -11,6 +11,7 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
+using Avalon.World.Reload;
 using Avalon.World.Threading;
 using Avalon.World.Trading;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -34,6 +35,11 @@ internal sealed class TradeTestWorld
     public static readonly ItemTemplate Token = new()
     { Id = new ItemTemplateId(9002), Name = "Token", Class = ItemClass.Quest, MaxStackSize = 1, Flags = ItemTemplateFlags.QuestItem };
 
+    // The items generation the service judges and names offered items by: these, and the test characters' templates.
+    private static readonly ItemsPatch s_items = ItemModifierRepositories.Items(
+        Contraband, Token, TestCharacters.Potion, TestCharacters.Sword, TestCharacters.Relic, TestCharacters.Pebble,
+        TestCharacters.Hoard);
+
     /// <param name="tickThread">Given, the service and who is online assert the tick thread with it.</param>
     public TradeTestWorld(Action<GameConfiguration>? configure = null, TickThreadGuard? tickThread = null)
     {
@@ -42,7 +48,7 @@ internal sealed class TradeTestWorld
         Economy = new TestEconomy(Config);
         Trades = new TradeService(Options.Create(Config), Clock, Saver, Characters, NullLogger<TradeService>.Instance,
             tickThread);
-        Trades.Attach(Economy, Find, ItemModifierRepositories.EmptyCatalog);
+        Trades.Attach(Economy, static () => s_items);
     }
 
     public ManualTimerClock Clock { get; } = new();

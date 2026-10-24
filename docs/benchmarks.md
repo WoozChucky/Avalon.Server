@@ -355,6 +355,39 @@ for each slot (32 B) and an `ItemSlotDto` for each slot holding an item (56 B). 
 nothing to walk, on every tick a character's gold changed and no slot did, and 752 B, 808 B and 1,056 B on top of
 the entries at 1, 8 and 30 slots.
 
+**Copies with modifiers (#1179).** Every copy of a base carries its implicit, so ordinary gear changes now describe
+modifiers, and a magic copy a name. Each entry's modifiers and their values used to be made afresh at every describe,
+and a magic copy's name built again. Now the flush takes its modifier entries from a pool the tick owns
+(`ItemModifierDtoPool`, `WorldServer`'s; an item request's refusal, the bank snapshot and the select snapshot each use
+their handler's) and gives them back once `Create` has encoded the packet, and a magic copy's name is held on its store
+entry for the items generation it was worked out in (`DescribedName`). `Rolled` makes every Bag slot a seeded plate
+chest the roller made over the real catalog, every other one a plain copy with its implicit and the rest Magic with
+their implicit, one or two affixes and a name; without it, the potions above. `Unpooled` is the flusher's walk and sort
+with the entries made as they were before the pool. One run, in process, three warmups and five measured iterations,
+the thread pinned to one core (`--affinity 1`), `DOTNET_TieredCompilation=0`: BenchmarkDotNet 0.15.8, Windows 11,
+i9-12900K, SDK 10.0.402 / runtime 10.0.13, Release, 2026-10-24:
+
+```bash
+DOTNET_TieredCompilation=0 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InventoryFlushBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1
+```
+
+| Changed slots | Items | `Unpooled`, allocated | `Flusher`, allocated | `Unpooled`, mean | `Flusher`, mean |
+|---:|---|---:|---:|---:|---:|
+| 1 | potions | 144 B | 144 B | 912.5 ns | 954.1 ns |
+| 1 | chests with modifiers | 336 B | 144 B | 1,374.6 ns | 1,270.2 ns |
+| 8 | potions | 984 B | 984 B | 2,990.6 ns | 3,198.3 ns |
+| 8 | chests with modifiers | 3,728 B | 984 B | 8,891.1 ns | 8,324.1 ns |
+| 30 | potions | 3,624 B | 3,624 B | 9,880.6 ns | 11,408.3 ns |
+| 30 | chests with modifiers | 14,169 B | 3,624 B | 23,456.9 ns | 25,632.0 ns |
+
+A flush of copies with modifiers allocates exactly what a flush of potions does, the packet's own entries, and 0 B
+for their modifiers and names once the pool holds enough: before the pool it was 192 B more for a one-implicit
+copy and about 490 B for a magic one with its name. (Each entry grew by 24 B since the #883 table above, the
+item's rarity, item level, modifiers and name; the gold-only flush is still 0 B.) The time is the encode of the
+modifiers, which both pay; the means are one run and within their errors of each other. `InventoryAllocationShould` holds the same: a flush and a refusal naming a
+potion, a sword, an empty slot, a plain chest with its implicit and a magic chest allocate the entries and nothing
+else.
+
 **The quest flusher's bag check.** `QuestFlusher.TouchedTheBag` runs for every connection on every tick, to see
 whether a Bag slot changed. It walked the changed slots through the set's interface, which boxed the set's enumerator:
 40 B per connection on every tick with any slot change, a cost the finding did not list. It now uses the struct
@@ -1878,12 +1911,23 @@ runtime 10.0.13, concurrent workstation GC, Release, at `3f0b69062` with this be
 
 Everything allocated belongs to the copy: the `RolledItem` and its id, its modifier list (sized for the most the rarity
 can carry, so it never grows), each modifier row with its value list and value rows, and the rare's name. The roll
-allocates nothing of its own beside them: the affix weights and the groups already taken are on the stack. One part of
-it is not needed: each `ItemInstanceModifier` builds an empty `Values` list from its property initializer before the
-roller assigns its own (32 B per modifier: 32 B of the plain copy's, 224 B of the rare's seven). A rare costs about 13
-times a plain copy: the difference is its six affixes, each a pass over the chest's candidates for the weights still
-eligible, a weighted pick and its values, and the name. At one roll per drop that is about 3 µs per rare equipment
-drop.
+allocates nothing of its own beside them: the affix weights and the groups already taken are on the stack. A rare costs
+about 13 times a plain copy: the difference is its six affixes, each a pass over the chest's candidates for the weights
+still eligible, a weighted pick and its values, and the name. At one roll per drop that is about 3 µs per rare
+equipment drop.
+
+At first each `ItemInstanceModifier` built an empty `Values` list from its property initializer before the roller
+assigned its own (32 B per modifier); the roller now fills the row's own list, sized once, and a save copies a row and
+its values without a list to throw away (`CopyRow`). The same benchmark after it, one run in process, three warmups and
+five measured iterations, the thread pinned to one core (`--affinity 1`), `DOTNET_TieredCompilation=0`, 2026-10-24:
+
+| Operation | Mean | Allocated |
+|---|---:|---:|
+| `ItemRollerBenchmarks.RollPlain` | 280.5 ns (± 5.5 ns) | 328 B (-32 B) |
+| `ItemRollerBenchmarks.RollRare` | 3,540.8 ns (± 482 ns) | 1,472 B (-224 B) |
+
+The bytes are exact: the plain copy's one modifier and the rare's seven no longer make a list each. The means are not
+comparable with the run above (in process, fewer iterations, another affinity) and claim nothing.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 

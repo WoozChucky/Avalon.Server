@@ -94,6 +94,9 @@ public sealed class ScenarioWorld : IDisposable
     // changes an inventory, so the flusher never reads it.
     private static readonly ItemsPatch s_items = new([], new ItemModifierCatalog([], [], NullLogger.Instance));
 
+    // The inventory flush's modifier entries, owned by this world as WorldServer owns its own.
+    private readonly ItemModifierDtoPool _inventoryModifierDtos = new();
+
     // How far a walker must have moved between MarkProgress and a check: well above float noise, well below the
     // 20 m it walks in five windows.
     private const float MinimumWalk = 0.5f;
@@ -368,7 +371,7 @@ public sealed class ScenarioWorld : IDisposable
 
             ItemsPatch items = _reference?.Data.Items ?? s_items;
             for (int i = 0; i < _connections.Count; i++)
-                InventoryUpdateFlusher.Flush(_connections[i], items);
+                InventoryUpdateFlusher.Flush(_connections[i], items, _inventoryModifierDtos);
             for (int i = 0; i < _connections.Count; i++)
                 CharacterSheetFlusher.Flush(_connections[i], _combat);
             for (int i = 0; i < _connections.Count; i++)
