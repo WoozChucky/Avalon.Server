@@ -641,6 +641,9 @@ message LootDropDto {
    optional uint64 Gold = 5;
    optional uint32 OwnerCharacterId = 6;
    int64 FreeForAllAt = 7;
+   ItemRarity Rarity = 8;
+   uint32 ItemLevel = 9;
+   repeated ItemModifierDto Modifiers = 10;
 }
 enum LootPickupResult {
    LootPickupResult_Ok = 0;

@@ -53,9 +53,11 @@ sit on one piece. Weapons keep their damage and attack time on the base; rings, 
 
 A base's template carries no defence line of its own (World migration `MoveBaseStatsToImplicits`): the stats fold reads
 the copy's implicit values as that item's own defence, scaled by its local increases like any other armour, evasion or
-ward line. A copy is made through `IItemRoller.RollPlain` wherever it comes from: `IInventoryService.TryAdd` (a vendor
-purchase, an item script's add, a quest's reward, a pickup) and `CharacterCreateHandler` (a starting item); the rows enter
-the character's `ItemModifierStore` marked for the save that inserts the copy, or are inserted with a new character. The
+ward line. A copy made outright goes through `IItemRoller.RollPlain`: `IInventoryService.TryAdd` (a vendor purchase, an
+item script's add, a quest's reward, a pickup of a drop that did not roll) and `CharacterCreateHandler` (a starting
+item). A drop rolls its copy, implicits first, when it drops ([drops](#drops)), and its pickup adds that copy. Either way
+the rows enter the character's `ItemModifierStore` marked for the save that inserts the copy, or are inserted with a new
+character. The
 copies owned before implicits existed got theirs at the drafted value (Character migration `AddImplicitsToOwnedItems`,
 [inventory and saves](inventory-and-saves.md)), so none lost defence.
 
@@ -68,6 +70,22 @@ its weight over the total weight of every eligible row, so lower tiers stay like
 
 Every element of a split family (P8, P9, P10 and S5) is its own group with the full weights, so a rare may carry several
 elements, up to three resistances.
+
+## Drops
+
+A creature's or a chest's drops roll when they drop, on the tick, in the kill or the use (`IItemRoller.RollDrops`):
+
+- **Item level:** a creature's level; a chest's or a barrel's is drawn within its depth band, else the map's level range,
+  else 1.
+- **Base tier:** a base becomes the best tier of its line the item level reaches (item level 4 a tier-1 base, 5 the
+  tier-2), and rolls that tier's implicits.
+- **Rarity:** drawn by the creature's rarity (`Game:Items:Rarity`; a chest or a barrel by the Normal odds). A unique
+  rolls its own modifier.
+- **The boss's rare:** a Boss kill none of whose drops rolled Rare has its first drop that rolled a rarity rolled again,
+  whole, as Rare. A unique is never touched.
+
+The copy lies on the ground whole, its id, rarity, item level, name and modifiers included, and whoever picks it up gets
+exactly that copy. A quest drop and any item that is not a base or a unique do not roll.
 
 ## Weights
 

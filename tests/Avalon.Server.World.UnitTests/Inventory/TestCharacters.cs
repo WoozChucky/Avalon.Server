@@ -52,7 +52,7 @@ internal static class TestCharacters
         "Tester" + string.Concat(id.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(d => (char)(d - '0' + 'a')));
 
     public static InventoryItem Item(byte slot, ItemTemplate template, uint count = 1, uint durability = 0, uint charges = 0) =>
-        new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None, template.Rarity, 1, charges);
+        new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None, template.Rarity, 1, RareName: null, charges);
 
     /// <summary>The item outside a container with no modifiers, as a sale or a trade carries it (#1179).</summary>
     public static CarriedItem Carried(InventoryItem item) => new(item, []);

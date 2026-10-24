@@ -2718,7 +2718,8 @@ public class WorldDbContext : DbContext
             new LootTable { Id = 11, Name = "Forest armour" },
             new LootTable { Id = 12, Name = "Forest chest" },
             new LootTable { Id = 13, Name = "Forest barrel" },
-            new LootTable { Id = 14, Name = "Forest jewellery" });
+            new LootTable { Id = 14, Name = "Forest jewellery" },
+            new LootTable { Id = 15, Name = "Forest boss gear" });
     }
 
     private static void Configure(EntityTypeBuilder<LootTableEntry> builder)
@@ -2756,9 +2757,10 @@ public class WorldDbContext : DbContext
         // scroll group (table 10) at 10 %, the armour table (table 11) and the jewellery table (table 14) on every
         // kill, whose pieces each roll at 2 %. A group always drops exactly one of its entries when its table rolls, so
         // the chance a group drops at all is the chance its table is referenced with. Potion and common-table chances
-        // rise with the creature's rarity; the pool references are the same for every creature. #1179: the pools drop
-        // the tier-1 bases exactly as named (rolling the tier by item level comes later). No table names a unique
-        // until the modifier catalog gives every unique its rolled stats.
+        // rise with the creature's rarity; the pool references are the same for every creature. #1179: the pools name the
+        // tier-1 bases, and each drop rolls its copy when it drops, on the best tier of its line the item level reaches.
+        // The three elite and boss tables add their uniques (each its own entry), and Mother Bramble's adds the boss gear
+        // (table 15) on every kill, so a boss kill always has a drop its guaranteed rare can be.
         builder.HasData(
             new LootTableEntry { LootTableId = 1, Sequence = 1, ItemTemplateId = 3, Chance = 5f, MinCount = 1, MaxCount = 1 },
             new LootTableEntry { LootTableId = 1, Sequence = 2, ItemTemplateId = 1, Chance = 10f, MinCount = 1, MaxCount = 2 });
@@ -2770,6 +2772,17 @@ public class WorldDbContext : DbContext
         builder.HasData(ForestCreatureTable(6, potion: 40f, potionMax: 2, mana: 25f, manaMax: 1, common: 50f));
         builder.HasData(ForestCreatureTable(7, potion: 60f, potionMax: 3, mana: 40f, manaMax: 2, common: 75f));
         builder.HasData(ForestCreatureTable(8, potion: 100f, potionMax: 4, mana: 100f, manaMax: 3, common: 100f, potionMin: 2));
+
+        // The uniques (#1179): Alpha's Fang Pendant from the Bramblemaw Alpha (table 6); the Heartwood Band and the
+        // Tuskroot Idol from Old Tuskroot (table 7); the Thornheart Signet and Bramble Mother's Seed from Mother Bramble
+        // (table 8), who also rolls the boss gear (table 15) on every kill.
+        builder.HasData(
+            new LootTableEntry { LootTableId = 6, Sequence = 8, ItemTemplateId = 58, Chance = 10f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 7, Sequence = 8, ItemTemplateId = 64, Chance = 10f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 7, Sequence = 9, ItemTemplateId = 67, Chance = 10f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 8, Sequence = 8, ReferenceTableId = 15, Chance = 100f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 8, Sequence = 9, ItemTemplateId = 65, Chance = 15f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 8, Sequence = 10, ItemTemplateId = 66, Chance = 15f, MinCount = 1, MaxCount = 1 });
 
         // Table 9: one tier-1 weapon or off-hand base of each kind, equal weights: sword, mace, staff, bow, shield,
         // caster off-hand.
@@ -2830,6 +2843,20 @@ public class WorldDbContext : DbContext
         builder.HasData(
             new LootTableEntry { LootTableId = 14, Sequence = 1, ItemTemplateId = 68, Chance = 2f, MinCount = 1, MaxCount = 1 },
             new LootTableEntry { LootTableId = 14, Sequence = 2, ItemTemplateId = 69, Chance = 2f, MinCount = 1, MaxCount = 1 });
+
+        // Table 15, the forest boss gear (#1179): one group of the 26 tier-1 bases at equal weight, the weapon and
+        // off-hand table's six, the armour table's eighteen and the jewellery table's two, in that order.
+        ulong[] bossGear = [32, 35, 33, 34, 70, 73, 36, 37, 38, 39, 40, 76, 46, 47, 48, 49, 50, 77, 41, 42, 43, 44, 45, 78, 68, 69];
+        builder.HasData(bossGear.Select((item, index) => new LootTableEntry
+        {
+            LootTableId = 15,
+            Sequence = index + 1,
+            ItemTemplateId = item,
+            Chance = 1f,
+            GroupId = 1,
+            MinCount = 1,
+            MaxCount = 1,
+        }));
     }
 
     /// <summary>The shape every forest creature's table shares; only the chances and counts differ.</summary>

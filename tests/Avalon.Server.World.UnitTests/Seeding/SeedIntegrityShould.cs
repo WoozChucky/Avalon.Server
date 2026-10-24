@@ -11,6 +11,7 @@ using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Handlers;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
 using Avalon.World.Doodads;
@@ -270,6 +271,8 @@ public class SeedIntegrityShould
 
     private static readonly LootTableId s_forestJewellery = new(14);
 
+    private static readonly LootTableId s_forestBossGear = new(15);
+
     /// <summary>
     /// Issue #460: every creature a player can kill drops something, and nothing drops from a town
     /// NPC, which cannot die. A new hostile template without a table would be a creature worth nothing.
@@ -305,10 +308,12 @@ public class SeedIntegrityShould
         var catalog = new LootCatalog(tables, NullLoggerFactory.Instance);
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal(14, catalog.TableCount);
-        // Table 1: 2. Tables 2-8: 7 each. Table 9: 6 weapon and off-hand bases. Table 10: 3 scrolls. Table 11: 18 armour
+        Assert.Equal(15, catalog.TableCount);
+        // Table 1: 2. Tables 2-8: 7 each, and the uniques (#1179): one in table 6, two in table 7, and two with the boss
+        // gear's reference in table 8. Table 9: 6 weapon and off-hand bases. Table 10: 3 scrolls. Table 11: 18 armour
         // bases. Table 12, the forest chest: 7. Table 13, the forest barrel: 2. Table 14, the forest jewellery: 2.
-        Assert.Equal(2 + (7 * 7) + 6 + 3 + 18 + 7 + 2 + 2, catalog.EntryCount);
+        // Table 15, the forest boss gear: 26.
+        Assert.Equal(2 + (7 * 7) + 1 + 2 + 3 + 6 + 3 + 18 + 7 + 2 + 2 + 26, catalog.EntryCount);
         Assert.All(context.CreatureTemplates.AsNoTracking().ToList().Where(t => t.LootTableId is not null),
             t => Assert.True(catalog.TryGet(t.LootTableId!, out _), $"{t.Name} names a table the catalog does not hold"));
     }
@@ -412,9 +417,9 @@ public class SeedIntegrityShould
 
     /// <summary>
     /// Seeded kills, rolled the way the tick rolls them: one gold pile, at most one weapon and at most
-    /// one scroll (each is a group, referenced once), and nothing names an item the seed does not
-    /// have. Over 1000 kills of each creature, the 2 % weapon, the 10 % scroll and the 2 % armour and
-    /// jewellery pieces all turn up.
+    /// one scroll (each is a group, referenced once; a boss kill's gear, #1179, may add a second weapon), and nothing
+    /// names an item the seed does not have. Over 1000 kills of each creature, the 2 % weapon, the 10 % scroll and the
+    /// 2 % armour and jewellery pieces all turn up.
     /// </summary>
     [Fact]
     public void Roll_Every_Seeded_Creature_Into_One_Gold_Pile_At_Most_One_Weapon_And_At_Most_One_Scroll()
@@ -438,6 +443,7 @@ public class SeedIntegrityShould
         foreach (CreatureTemplate template in killable)
         {
             int weaponsDropped = 0, scrollsDropped = 0, armourDropped = 0, jewelleryDropped = 0;
+            bool bossGear = tables.Single(t => t.Id == template.LootTableId).Entries.Any(e => e.ReferenceTableId == s_forestBossGear);
 
             for (int i = 0; i < 1000; i++)
             {
@@ -446,7 +452,7 @@ public class SeedIntegrityShould
 
                 int weaponCount = dropped.Count(weapons.Contains);
                 int scrollCount = dropped.Count(scrolls.Contains);
-                Assert.InRange(weaponCount, 0, 1);
+                Assert.InRange(weaponCount, 0, bossGear ? 2 : 1);
                 Assert.InRange(scrollCount, 0, 1);
                 weaponsDropped += weaponCount;
                 scrollsDropped += scrollCount;
@@ -1766,8 +1772,8 @@ public class SeedIntegrityShould
 
     /// <summary>
     /// #1179: the five uniques as templates without stats: name, kind, slot, required level and prices only, Unique. A
-    /// unique's stats are its unique modifier, rolled per copy, so until the modifier catalog brings those no loot entry,
-    /// vendor row, quest reward, quest choice or starting item names one: nothing hands out a unique without stats.
+    /// unique's stats are its unique modifier, rolled per copy when it drops, so no vendor row, quest reward, quest choice
+    /// or starting item names one: those would hand out a copy made outright. Only loot names them (pinned below).
     /// </summary>
     [Fact]
     public void Seed_the_five_uniques_as_templates_without_stats()
@@ -1799,7 +1805,6 @@ public class SeedIntegrityShould
         }
 
         HashSet<ulong> ids = [.. uniques.Select(u => u.Id)];
-        Assert.DoesNotContain(context.LootTableEntries.AsNoTracking().ToList(), e => e.ItemTemplateId is { } item && ids.Contains(item.Value));
         Assert.DoesNotContain(context.VendorStocks.AsNoTracking().ToList(), v => ids.Contains(v.ItemTemplateId.Value));
         Assert.DoesNotContain(context.QuestItemRewards.AsNoTracking().ToList(), r => ids.Contains(r.ItemTemplateId.Value));
         Assert.DoesNotContain(context.QuestItemChoices.AsNoTracking().ToList(), c => ids.Contains(c.ItemTemplateId.Value));
@@ -1821,6 +1826,15 @@ public class SeedIntegrityShould
         var items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id.Value);
         var entries = context.LootTableEntries.AsNoTracking().ToList();
 
+        // The uniques drop from the elite and boss tables alone, each its own entry: Alpha's Fang Pendant from the
+        // Bramblemaw Alpha (6), the Heartwood Band and the Tuskroot Idol from Old Tuskroot (7), the Thornheart Signet and
+        // Bramble Mother's Seed from Mother Bramble (8).
+        Assert.Equal(
+            [(6, 58ul, 10f, (int?)null), (7, 64ul, 10f, null), (7, 67ul, 10f, null), (8, 65ul, 15f, null), (8, 66ul, 15f, null)],
+            entries.Where(e => e.ItemTemplateId is { } item && items[item.Value].Rarity == ItemRarity.Unique)
+                .OrderBy(e => e.LootTableId.Value).ThenBy(e => e.ItemTemplateId!.Value)
+                .Select(e => (e.LootTableId.Value, e.ItemTemplateId!.Value, e.Chance, e.GroupId)));
+
         LootTable jewellery = LoadTable(context, s_forestJewellery);
         Assert.Equal("Forest jewellery", jewellery.Name);
         Assert.Equal([(1, 68ul, 2f, (int?)null), (2, 69ul, 2f, null)],
@@ -1838,6 +1852,31 @@ public class SeedIntegrityShould
             $"{i.Name}: a worn template is a base kind, and nothing else is"));
         Assert.All(items.Values.Where(i => i.BaseKind is not null),
             i => Assert.Equal(ItemBaseKindSlots.SlotOf(i.BaseKind!.Value), i.Slot));
+    }
+
+    /// <summary>
+    /// #1179: Mother Bramble's table rolls the forest boss gear on every kill, one group of the first tier of every base
+    /// line at equal weight, so a boss kill always has a drop its guaranteed rare can be.
+    /// </summary>
+    [Fact]
+    public void Seed_the_forest_boss_gear_as_one_group_of_every_tier_one_base()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        var items = context.ItemTemplates.AsNoTracking().ToList();
+        LootTable gear = LoadTable(context, s_forestBossGear);
+
+        Assert.Equal("Forest boss gear", gear.Name);
+        Assert.Equal(26, gear.Entries.Count);
+        Assert.All(gear.Entries, e => Assert.Equal(((int?)1, gear.Entries.First().Chance, 1, 1), (e.GroupId, e.Chance, e.MinCount, e.MaxCount)));
+        Assert.True(gear.Entries.First().Chance > 0f);
+        IEnumerable<ulong> tierOnes = items.Where(i => i.Rarity == ItemRarity.Common && i.BaseKind is not null)
+            .GroupBy(i => i.BaseKind)
+            .Select(line => line.OrderBy(i => i.RequiredLevel ?? 1).ThenBy(i => i.Id.Value).First().Id.Value);
+        Assert.Equal(tierOnes.Order(), gear.Entries.Select(e => e.ItemTemplateId!.Value).Order());
+        Assert.Single(context.LootTableEntries.AsNoTracking().ToList(), e => e.ReferenceTableId == s_forestBossGear);
+        Assert.Single(LoadTable(context, new LootTableId(8)).Entries,
+            e => e.ReferenceTableId == s_forestBossGear && e.Chance == 100f && e.GroupId is null);
     }
 
     /// <summary>An item for every class lists none (#1171): a list names classes only to restrict the item to some.</summary>

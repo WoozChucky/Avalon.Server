@@ -483,6 +483,10 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<short>("ItemLevel")
                         .HasColumnType("smallint");
 
+                    b.Property<string>("RareName")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<byte>("Rarity")
                         .HasColumnType("smallint");
 
@@ -568,6 +572,10 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<short>("ItemLevel")
                         .HasColumnType("smallint");
 
+                    b.Property<string>("RareName")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<byte>("Rarity")
                         .HasColumnType("smallint");
 
@@ -584,6 +592,8 @@ namespace Avalon.Database.Character.Migrations
                     b.ToTable("ItemInstances", t =>
                         {
                             t.HasCheckConstraint("CK_ItemInstances_ItemLevel", "\"ItemLevel\" > 0");
+
+                            t.HasCheckConstraint("CK_ItemInstances_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_ItemInstances_Rarity", "\"Rarity\" BETWEEN 0 AND 3");
                         });

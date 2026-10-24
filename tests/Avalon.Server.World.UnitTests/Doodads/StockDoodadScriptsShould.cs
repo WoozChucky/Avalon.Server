@@ -17,12 +17,14 @@ using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World;
 using Avalon.World.Auras;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Doodads;
 using Avalon.World.Doodads.Scripts;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Parties;
 using Avalon.World.Public.Maps;
@@ -52,16 +54,20 @@ public class StockDoodadScriptsShould
     /// Countdown: A, B and C form a party, A and B enter its instance, and A leaves the party there, so A uses the chest
     /// in its leave countdown: as for a kill, nobody is eligible, and the party instance's drops are free for all at once.
     /// Member in countdown: B leaves instead, so A uses it with B in its countdown beside it: B is no longer a member, so
-    /// only A is eligible, as for a kill.
+    /// only A is eligible, as for a kill. #1179: the chest's blade rolls its copy as it drops, at an item level drawn from
+    /// the use within the chest's depth band (3-5, the draw 4); an authored chest (solo, placed without a band) on a map
+    /// with no level range rolls item level 1, drawing none.
     /// </summary>
     [Theory]
     [InlineData("solo")]
+    [InlineData("authored")]
     [InlineData("party")]
     [InlineData("countdown")]
     [InlineData("member in countdown")]
     public async Task Drop_a_chests_table_at_its_feet_as_a_kill_drops(string mode)
     {
         bool party = mode == "party", countdown = mode == "countdown", memberCountdown = mode == "member in countdown";
+        bool authored = mode == "authored";
         var partyId = new PartyId(70);
         PartyTestWorld? parties = null;
         PartyClient? partyA = null, partyB = null;
@@ -76,9 +82,12 @@ public class StockDoodadScriptsShould
 
         // In the party instance: the first drop goes to the second eligible member, the second to the first.
         ScriptedCombatRandom draws = new ScriptedCombatRandom().Longs(1, 0);
-        using Fixture f = await Fixture.CreateAsync(owner: mode == "solo" ? IdA : null,
-            ownerParty: mode == "solo" ? null : partyId, draws: draws, parties: parties?.Parties);
-        Doodad chest = f.Place(Template(3, typeof(LootDoodadScript), loot: 1, gold: 5));
+        bool solo = mode is "solo" or "authored";
+        using Fixture f = await Fixture.CreateAsync(owner: solo ? IdA : null,
+            ownerParty: solo ? null : partyId, draws: draws, parties: parties?.Parties);
+        Doodad chest = f.Place(Template(3, typeof(LootDoodadScript), loot: 1, gold: 5),
+            authored ? null : new LevelRange(3, 5));
+        f.ScriptRandom.NextInt64(3, 6).Returns(4L);
         MapInstanceClient a = f.Join(partyA?.Character ?? TestCharacters.New(IdA, time: f.Time), new Vector3(6f, 0f, 0f));
         MapInstanceClient b = f.Join(partyB?.Character ?? TestCharacters.New(IdB, time: f.Time), new Vector3(30f, 0f, 30f));
         MapInstanceClient stranger = f.Join(IdD, new Vector3(8f, 0f, 0f));
@@ -110,7 +119,7 @@ public class StockDoodadScriptsShould
         });
         if (party)
         {
-            Assert.Equal(IdB, f.Instance.Drops.All.Single(d => d.ItemTemplateId == Sword.Id).OwnerCharacterId);
+            Assert.Equal(IdB, f.Instance.Drops.All.Single(d => d.ItemTemplateId == s_blade.Id).OwnerCharacterId);
             Assert.Equal(IdA, f.Instance.Drops.All.Single(d => d.Gold > 0).OwnerCharacterId);
             Assert.Equal([(0L, 1L), (0L, 1L)], draws.WeaponRolls);   // two eligible, each draw
         }
@@ -123,7 +132,11 @@ public class StockDoodadScriptsShould
         {
             SLootSpawnedPacket spawned = Assert.Single(client.Read<SLootSpawnedPacket>(NetworkPacketType.SMSG_LOOT_SPAWNED));
             Assert.Equal(2, spawned.Drops.Count);
+            Assert.Equal(authored ? 1u : 4u, Assert.Single(spawned.Drops, d => d.ItemTemplateId == s_blade.Id.Value).ItemLevel);
         }
+
+        Assert.Equal(authored ? 1 : 4, f.Instance.Drops.All.Single(d => d.ItemTemplateId == s_blade.Id).Rolled!.ItemLevel);
+        f.ScriptRandom.Received(authored ? 0 : 1).NextInt64(3, 6);
     }
 
     [Fact]
@@ -197,6 +210,19 @@ public class StockDoodadScriptsShould
 
     // ---- Helpers ---------------------------------------------------------------------------------
 
+    /// <summary>A one-handed sword base (#1179), alone in its line, so its drop rolls its copy on this template.</summary>
+    private static readonly ItemTemplate s_blade = new()
+    {
+        Id = new ItemTemplateId(210),
+        Name = "Blade",
+        Class = ItemClass.Weapon,
+        SubClass = ItemSubClass.OneHanded,
+        Slot = ItemSlotType.MainHand,
+        BaseKind = ItemBaseKind.Sword,
+        RequiredLevel = 1,
+        MaxStackSize = 1,
+    };
+
     private static DoodadTemplateView Template(uint id, Type script, int? loot = null, int gold = 0, float radius = 0f,
         uint restorePct = 0, IReadOnlyList<DoodadOutcomeView>? outcomes = null) => new(
         new DoodadTemplateId(id), script.Name, "props-kit", "Chest", null, null, null, null,
@@ -244,6 +270,8 @@ public class StockDoodadScriptsShould
             Instance = TestMapInstances.Build(world, navigator: navigator, time: Time, ownerPartyId: ownerParty,
                 parties: parties,
                 lootRoller: new LootRoller(new LootRandom(new Random(460)), NullLogger<LootRoller>.Instance),
+                itemRoller: new ItemRoller(new LootRandom(new Random(1179)), new ItemIdAllocator(),
+                    Options.Create(new GameConfiguration())),
                 lootAllocator: new PartyLootAllocator(Options.Create(new GameConfiguration()), Time,
                     draws ?? CombatRandom.Steady),
                 doodadVisibility: visibility, doodadUses: service, ownerCharacterId: owner);
@@ -260,15 +288,19 @@ public class StockDoodadScriptsShould
             ICombatRandom? draws = null, PartyService? parties = null)
         {
             StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
-                items: () => Items,
-                loot: LootRepositories.Of(() => [Table(1, Item(1, Sword))]),
+                items: () => [.. Items, s_blade],
+                loot: LootRepositories.Of(() => [Table(1, Item(1, s_blade))]),
                 auras: () => [AuraTestData.Fortified(8), AuraTestData.Fortified(9), AuraTestData.Fortified(10)]));
             return new Fixture(data, owner, ownerParty, draws, parties);
         }
 
-        public Doodad Place(DoodadTemplateView template)
+        /// <param name="levels">The depth band its drops roll their item level in; none, as for an authored spawn.</param>
+        public Doodad Place(DoodadTemplateView template, LevelRange? levels = null)
         {
-            var doodad = new Doodad(new ObjectGuid(ObjectType.Doodad, template.Id.Value), template, s_doodadAt, 0f);
+            var doodad = new Doodad(new ObjectGuid(ObjectType.Doodad, template.Id.Value), template, s_doodadAt, 0f)
+            {
+                Levels = levels,
+            };
             Instance.AddDoodad(doodad);
             return doodad;
         }

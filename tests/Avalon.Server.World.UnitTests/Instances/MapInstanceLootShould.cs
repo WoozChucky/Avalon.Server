@@ -8,11 +8,13 @@ using Avalon.Network.Packets.Loot;
 using Avalon.Server.World.UnitTests.Combat;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Parties;
+using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Parties;
 using Avalon.World.Public.Characters;
@@ -21,6 +23,7 @@ using Avalon.World.Public.Maps;
 using Avalon.World.Public.Units;
 using Avalon.World.Reload;
 using Avalon.World.Scripts;
+using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -49,10 +52,17 @@ public class MapInstanceLootShould
     private static List<SLootDespawnedPacket> Despawned(MapInstanceClient client) =>
         client.Read<SLootDespawnedPacket>(NetworkPacketType.SMSG_LOOT_DESPAWNED);
 
+    /// <param name="itemRoller">
+    /// Rolls the equipment drops (#1179); with one, the items and the modifier catalog are the seeded ones, which it rolls
+    /// over. Without one, nothing rolls and the items are the loot tests' own.
+    /// </param>
     private async Task<MapInstance> Build(uint? owner = 7, ILootRoller? roller = null, PartyId? ownerParty = null,
-        PartyService? parties = null, ICombatRandom? random = null)
+        PartyService? parties = null, ICombatRandom? random = null, IItemRoller? itemRoller = null)
     {
-        StaticData data = await LootStaticData.LoadAsync(() => Items, () => _tables, _levels);
+        StaticData data = itemRoller is null
+            ? await LootStaticData.LoadAsync(() => Items, () => _tables, _levels)
+            : await LootStaticData.LoadAsync(() => ScenarioReferenceData.Shared.Data.ItemTemplates, () => _tables, _levels,
+                ScenarioReferenceData.Shared.Data.ItemModifiers);
         _data = data;
 
         IWorld world = NewWorld(data);
@@ -66,6 +76,11 @@ public class MapInstanceLootShould
         serviceProvider.GetService(typeof(ILootAllocator))
             .Returns(new PartyLootAllocator(Options.Create(new GameConfiguration()), new FixedTimeProvider(s_now),
                 random ?? CombatRandom.Steady));
+        if (itemRoller is not null)
+        {
+            serviceProvider.GetService(typeof(IItemRoller)).Returns(itemRoller);
+        }
+
         if (parties is not null)
         {
             serviceProvider.GetService(typeof(PartyService)).Returns(parties);
@@ -101,18 +116,24 @@ public class MapInstanceLootShould
 
     /// <summary>
     /// #546: a real hit that kills rolls the loot once, while the creature is still a hostile in its
-    /// encounter and before anyone is told it died.
+    /// encounter and before anyone is told it died. #1179: the table's equipment drop is rolled into its copy as it
+    /// drops, at the creature's level: the level-5 kill's plate chest (base 37) is the tier-2 chest (13) with its
+    /// implicit, announced and left on the ground as that copy.
     /// </summary>
     [Fact]
     public async Task Roll_A_Real_Kills_Loot_Once_Before_The_Encounter_Death_And_The_Death_Broadcast()
     {
         ILootRoller roller = Substitute.For<ILootRoller>();
-        using MapInstance instance = await Build(roller: roller);
+        // The Normal odds' Common at the first draw, then the implicit's Armor (15-21).
+        var draws = new ScriptedLootRandom([0.0], [18]);
+        var itemRoller = new ItemRoller(draws, new ItemIdAllocator(), Options.Create(new GameConfiguration()));
+        using MapInstance instance = await Build(roller: roller, itemRoller: itemRoller);
         MapInstanceClient killer = Join(instance, 460_111);
         var creature = new Creature
         {
             Guid = new ObjectGuid(ObjectType.Creature, 460_011),
             Metadata = BoarTemplate(1),
+            Level = 5,
             Position = new Vector3(10f, 2f, 10f),
             Health = 10,
             CurrentHealth = 10,
@@ -122,21 +143,35 @@ public class MapInstanceLootShould
 
         bool? hostileAtRoll = null;
         int deathsAtRoll = -1;
-        roller.Roll(Arg.Any<CreatureTemplate>(), Arg.Any<LootCatalog>(), Arg.Any<IReadOnlyCollection<ItemTemplate>>())
-            .Returns(_ =>
+        roller.When(r => r.Roll(Arg.Any<CreatureTemplate>(), Arg.Any<LootCatalog>(), Arg.Any<IReadOnlyCollection<ItemTemplate>>(),
+                Arg.Any<List<RolledDrop>>()))
+            .Do(ci =>
             {
                 hostileAtRoll = instance.CombatService.GetEncounterFor(creature)?.Hostiles.Contains(creature);
                 deathsAtRoll = killer.Read<Avalon.Network.Packets.Combat.SUnitDeathPacket>(NetworkPacketType.SMSG_UNIT_DEATH).Count;
-                return [];
+                ci.Arg<List<RolledDrop>>().Add(RolledDrop.Item(new ItemTemplateId(37), 1));
             });
 
         instance.CombatService.ApplyDamage(killer.Character, creature, 10);
 
-        roller.ReceivedWithAnyArgs(1).Roll(default!, default!, default!);
+        roller.ReceivedWithAnyArgs(1).Roll(default!, default!, default!, default!);
         Assert.True(hostileAtRoll, "the encounter had already been told of the death when the loot was rolled");
         Assert.Equal(0, deathsAtRoll);
         Assert.Single(killer.Read<Avalon.Network.Packets.Combat.SUnitDeathPacket>(NetworkPacketType.SMSG_UNIT_DEATH));
         Assert.Null(creature.Script);
+
+        Assert.True(draws.Exhausted, "the drop did not roll as scripted");
+        LootDropDto announced = Assert.Single(Assert.Single(Spawned(killer)).Drops);
+        Assert.Equal((13UL, 1u, ItemRarity.Common, 5u), (announced.ItemTemplateId, announced.Count, announced.Rarity, announced.ItemLevel));
+        Avalon.Network.Packets.Items.ItemModifierDto implicitArmor = Assert.Single(announced.Modifiers!);
+        Assert.Equal((uint)CatalogKeys.ModifierId("implicit 13"), implicitArmor.ModifierId);
+        Assert.Equal(18, Assert.Single(implicitArmor.Values).Value);
+
+        RolledItem onGround = Assert.Single(instance.Drops.All).Rolled!;
+        Assert.Equal((13UL, ItemRarity.Common, (ushort)5, (string?)null),
+            (onGround.TemplateId.Value, onGround.Rarity, onGround.ItemLevel, onGround.RareName));
+        Assert.Equal(implicitArmor.ModifierId, (uint)Assert.Single(onGround.Modifiers).ModifierId);
+        Assert.Equal(18, Assert.Single(Assert.Single(onGround.Modifiers).Values).Value);
     }
 
     /// <summary>
@@ -330,8 +365,9 @@ public class MapInstanceLootShould
     public async Task Still_Award_Experience_When_Rolling_Loot_Throws()
     {
         ILootRoller roller = Substitute.For<ILootRoller>();
-        roller.Roll(Arg.Any<CreatureTemplate>(), Arg.Any<LootCatalog>(), Arg.Any<IReadOnlyCollection<ItemTemplate>>())
-            .Returns(_ => throw new InvalidOperationException("bad table"));
+        roller.When(r => r.Roll(Arg.Any<CreatureTemplate>(), Arg.Any<LootCatalog>(), Arg.Any<IReadOnlyCollection<ItemTemplate>>(),
+                Arg.Any<List<RolledDrop>>()))
+            .Do(_ => throw new InvalidOperationException("bad table"));
         using MapInstance instance = await Build(roller: roller);
 
         ICharacter killer = Substitute.For<ICharacter>();

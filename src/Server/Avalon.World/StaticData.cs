@@ -357,6 +357,12 @@ public class StaticData(
     /// </summary>
     public ItemModifierCatalog ItemModifiers => _items!.Modifiers;
 
+    /// <summary>
+    /// The item templates and the modifier catalog as one generation (#1179): what a roll of a made item reads, taken once
+    /// so a template and the modifiers it links are never from two reads.
+    /// </summary>
+    public ItemsPatch Items => _items!;
+
     /// <summary>The accepted ability templates only; a refused row is not here.</summary>
     public IReadOnlyCollection<AbilityTemplate> AbilityTemplates => _abilities!.Catalog.Templates;
 

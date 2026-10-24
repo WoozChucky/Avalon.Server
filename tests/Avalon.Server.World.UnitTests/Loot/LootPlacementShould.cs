@@ -1,6 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Loot;
+using Avalon.World;
 using Avalon.World.Loot;
 using Avalon.World.Public.Maps;
 using NSubstitute;
@@ -97,13 +98,14 @@ public class LootPlacementShould
     }
 
     [Fact]
-    public void Map_A_Drop_To_The_Wire_Shape()
+    public async Task Map_A_Drop_To_The_Wire_Shape()
     {
+        StaticData data = await TestStaticData.LoadAsync();
         GroundLoot sword = Place([RolledDrop.Item(new ItemTemplateId(4), 1)], new LootAllocation(7, s_freeAt), OpenGround())[0];
         GroundLoot pile = Place([RolledDrop.GoldPile(25)], new LootAllocation(null, s_freeAt), OpenGround())[0];
 
-        LootDropDto swordDto = LootDropMapper.ToDto(sword);
-        LootDropDto pileDto = LootDropMapper.ToDto(pile);
+        LootDropDto swordDto = LootDropMapper.ToDto(sword, data);
+        LootDropDto pileDto = LootDropMapper.ToDto(pile, data);
 
         Assert.Equal(sword.Guid.RawValue, swordDto.LootGuid);
         Assert.Equal(4UL, swordDto.ItemTemplateId);

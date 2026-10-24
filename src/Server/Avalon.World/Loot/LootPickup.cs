@@ -53,8 +53,12 @@ public static class LootPickup
 
         if (drop.ItemTemplateId is { } itemId)
         {
-            // 5. All or nothing: a refused add changes nothing.
-            InventoryAddResult result = economy.InventoryOf(character).TryAdd(itemId, drop.Count);
+            // 5. All or nothing: a refused add changes nothing. A copy the drop rolled (#1179) goes in exactly as it lies
+            // here, and a refusal leaves it on the ground as it was.
+            IInventoryService inventory = economy.InventoryOf(character);
+            InventoryAddResult result = drop.Rolled is { } rolled
+                ? inventory.TryAddRolled(rolled)
+                : inventory.TryAdd(itemId, drop.Count);
             switch (result)
             {
                 case InventoryAddResult.Ok:

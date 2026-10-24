@@ -152,6 +152,7 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
         Flags = item.Flags,
         Rarity = item.Rarity,
         ItemLevel = item.ItemLevel,
+        RareName = item.RareName,
         UpdatedAt = now,
     };
 

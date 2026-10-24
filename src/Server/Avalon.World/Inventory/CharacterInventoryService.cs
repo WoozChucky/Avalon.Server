@@ -75,7 +75,7 @@ public sealed class CharacterInventoryService(
             {
                 Create(InventoryType.Bag, new InventoryItem(slot, itemIds.Next(), templateId, take,
                     ItemInstanceDefaults.InitialDurability(template!), ItemInstanceFlags.None, template!.Rarity,
-                    ItemInstanceDefaults.InitialItemLevel(template)));
+                    ItemInstanceDefaults.InitialItemLevel(template), RareName: null));
             }
 
             remaining -= take;
@@ -250,6 +250,33 @@ public sealed class CharacterInventoryService(
         return InventoryAddResult.Ok;
     }
 
+    public InventoryAddResult TryAddRolled(RolledItem item)
+    {
+        ItemTemplate? template = findTemplate(item.TemplateId);
+        if (template is null)
+            return InventoryAddResult.UnknownTemplate;
+
+        CharacterInventoryContainer bag = Bag;
+        byte? lowestFree = null;
+        for (byte free = 0; free < bag.Capacity; free++)
+        {
+            if (owner.Locks.IsFree(bag, free))
+            {
+                lowestFree = free;
+                break;
+            }
+        }
+
+        if (lowestFree is not { } slot)
+            return InventoryAddResult.InventoryFull;
+
+        if ((template.Flags & ItemTemplateFlags.Unique) != 0 && OwnedOrIncoming(item.TemplateId) + 1 > 1)
+            return InventoryAddResult.UniqueAlreadyOwned;
+
+        PutRolled(slot, item, template);
+        return InventoryAddResult.Ok;
+    }
+
     /// <summary>Adding an instance the character already holds would duplicate it; callers only add one that left.</summary>
     private void ThrowIfHeld(InventoryItem item)
     {
@@ -394,11 +421,22 @@ public sealed class CharacterInventoryService(
     /// One new copy of a template that links modifiers, rolled now (#1179, B-R12): a plain copy at its template's item
     /// level, in the slot, with its modifiers in the store and marked, so the save that inserts it writes them.
     /// </summary>
-    private void CreateRolled(byte slot, ItemTemplate template, ItemModifierCatalog catalog)
+    private void CreateRolled(byte slot, ItemTemplate template, ItemModifierCatalog catalog) =>
+        PutRolled(slot, roller.RollPlain(template, ItemInstanceDefaults.InitialItemLevel(template), catalog), template);
+
+    /// <summary>
+    /// A copy a roll made, in the Bag slot: its id, rarity, item level and name as the roll gave them, count 1 and its
+    /// template's initial durability, with its modifier list handed to the store as its own entry and marked, so the save
+    /// that inserts it writes them.
+    /// </summary>
+    private void PutRolled(byte slot, RolledItem rolled, ItemTemplate template)
     {
-        RolledItem rolled = roller.RollPlain(template, ItemInstanceDefaults.InitialItemLevel(template), catalog);
         Create(InventoryType.Bag, new InventoryItem(slot, rolled.InstanceId, rolled.TemplateId, 1,
-            ItemInstanceDefaults.InitialDurability(template), ItemInstanceFlags.None, rolled.Rarity, rolled.ItemLevel));
+            ItemInstanceDefaults.InitialDurability(template), ItemInstanceFlags.None, rolled.Rarity, rolled.ItemLevel,
+            rolled.RareName));
+        if (rolled.Modifiers.Count == 0)
+            return;
+
         owner.ItemModifiers.PutMade(rolled.InstanceId, rolled.Modifiers);
         owner.SaveState.ItemModifiersChanged(rolled.InstanceId);
     }

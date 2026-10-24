@@ -1,3 +1,5 @@
+using Avalon.Common;
+using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.World;
 using ProtoBuf;
 
@@ -40,4 +42,21 @@ public class LootDropDto
     /// is sent when the time passes.
     /// </summary>
     [ProtoMember(7)] public long FreeForAllAt { get; set; }
+
+    /// <summary>
+    /// The copy's rarity (#1179): what the drop rolled; Common for an item drop that does not roll, and for a gold pile.
+    /// </summary>
+    [ProtoMember(8)] public ItemRarity Rarity { get; set; }
+
+    /// <summary>
+    /// The copy's item level (#1179): what the drop rolled at; the template's required level, or 1, for an item drop that
+    /// does not roll; 0 for a gold pile.
+    /// </summary>
+    [ProtoMember(9)] public uint ItemLevel { get; set; }
+
+    /// <summary>
+    /// The modifiers the copy rolled (#1179), in the order it shows them; null for a drop without any, which is what an
+    /// empty repeated field reads back as.
+    /// </summary>
+    [ProtoMember(10)] public List<ItemModifierDto>? Modifiers { get; set; }
 }

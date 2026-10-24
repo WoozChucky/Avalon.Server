@@ -4216,7 +4216,8 @@ with the committed figure, in every build (Debug and Release, see below) and for
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (14,447 B per window since #1178, whose evasion and creature defences change
+  `forest-combat` is the largest figure (14,374 B per window since #1179 part B, whose equipment drops roll their copies
+  when they drop; 13,983 B from #1179 part A; 14,447 B from #1178, whose evasion and creature defences change
   which hits land, so the fight goes differently; 13,805 B from #1168, which merges two fights a character and a
   creature bring together, moving their threat lists with nothing seeded, so the fight goes differently; 13,649 B from
   #1165, which keeps a creature and a pair in one encounter; 14,323 B from #1164, whose dodgeable hostile abilities changed the fight, measured at #1165 and never
@@ -4782,7 +4783,24 @@ pickups in the minute). `ForestCombatScenarioShould` runs the scenario twice in 
 outcome (every count above) and the same bytes per window, and kills and deaths in it; the second run's creatures
 carry higher ids (the process-wide object id counter), which changes neither.
 
-**Gate.** Committed at **14,447 B per window** (20.1 B per player per tick, 241 B per tick) since #1178, 642 B over the
+**Gate.** Committed at **14,374 B per window** (20.0 B per player per tick, 240 B per tick) since #1179 part B, 391 B over
+the 13,983 B before it and outside the gate (which then failed above 14,239 B). Measured with the runner in Release on
+the developer machine, step by step:
+- 14,407 B at `28a5cb3de`, part B before this step: every copy made rolls its base's implicits, so each armour piece
+  the fighters pick up is made with its modifier rows and values, and the inventory update carries them.
+- 14,154 B (-253 B) once a kill's or a chest's loot roll fills the instance's reused list (`KillBuffers.Rolled`) rather
+  than returning a new list per kill, which the roller's wider `RolledDrop` had made larger. This step also carries the
+  new fields every drop sends (an unrolled drop's item level) and the ground entry's reference to a rolled copy.
+- 14,374 B (+220 B) once every equipment drop rolls its copy when it drops. A drop allocates its copy (`RolledItem`), its
+  modifier rows with their value lists, whether or not anyone picks it up (a pickup now adds that copy rather than
+  making one), and `SMSG_LOOT_SPAWNED` grows with each copy's rarity and modifiers. The loot messages and their modifier
+  entries are kept and refilled (#890, `ItemModifierDtoPool`); a drop that did not roll refills its entry from the empty
+  array, where a first cut made a new empty list per drop (84 B per window, caught before the regeneration).
+
+Debug reads the same, and the regeneration (`dotnet run -c Release --project
+tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json`) changed no other scenario.
+Before it, committed at 13,983 B since #1179 part A (an item entry without a details object, see
+[item stats](#item-stats--benchmarksitemstatsbenchmarkscs-1179)), and at **14,447 B per window** (20.1 B per player per tick, 241 B per tick) from #1178, 642 B over the
 13,805 B before it and outside the gate (which then failed above 14,061 B): the combat foundation's first part changes
 which hits land. Every character evades by its Agility instead of its class's base dodge, and has no base block; the
 creatures' blight hits and the wizards' and clerics' spells pass armour; and the forest's creatures are given their
@@ -4931,8 +4949,11 @@ summary.
 | Debug, then | 13,649 |
 | Two fights merged into one encounter, nothing seeded (#1168, PGO on) | 13,805 |
 | Debug, then | 13,805 |
-| Evasion for everyone, the forest's creature defences by type (#1178, PGO on), now | 14,447 |
-| Debug, now | 14,447 |
+| Evasion for everyone, the forest's creature defences by type (#1178, PGO on) | 14,447 |
+| Debug, then | 14,447 |
+| An item entry without a details object (#1179 part A, PGO on) | 13,983 |
+| Drops that roll their copies when they drop, a kill's roll in a reused list (#1179 part B, PGO on), now | 14,374 |
+| Debug, now | 14,374 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
@@ -4942,8 +4963,8 @@ fighters cost about as much per tick as `town-walk`'s 30 walkers (measured befor
 since #1109 the scenario's mean tick is 0.045 ms, see "The forest since #1109"): most creatures are far from any
 player, and an idle creature's AI looks for players once a second rather than every tick. The minute allocated 0.62 MB
 on the tick thread before #972, about 0.86 MB from #972, about 1.36 MB from #1109's tree walls and seed 33, and about
-0.93 MB from #1113, about 0.88 MB from #1157 and #711, about 0.86 MB from #1162 and #1164, about 0.82 MB from #1165, about 0.83 MB from #1168, and about 0.87 MB since #1178 (14,447 B per window over the
-minute's 60 windows).
+0.93 MB from #1113, about 0.88 MB from #1157 and #711, about 0.86 MB from #1162 and #1164, about 0.82 MB from #1165, about 0.83 MB from #1168, about 0.87 MB from #1178, about 0.84 MB from #1179 part A,
+and about 0.86 MB since #1179 part B (14,374 B per window over the minute's 60 windows).
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
 holds its free segments in a stack under a lock per size class. It held them in a `ConcurrentQueue` per size: after a
@@ -5709,8 +5730,8 @@ aura had a script or not; the same 32 B was paid by every apply and every tick o
 | Per kill | Bytes | Why it is left |
 |---|---:|---|
 | The corpse's removal timer | 32 B | Kept until the corpse is removed. Gone since: the remover keeps a count for each corpse, not an object ([the corpse remover](#gameplay-requests-quests-aura-hooks-and-corpses--the-allocation-tests-benchmarksencounterlookupbenchmarkscs-883)). |
-| The list `ILootRoller.Roll` hands back | 152 B for up to four drops | The roller is one object for every instance, so it cannot keep the list, and the tests of the kill substitute `Roll` and answer with a list: taking it out means a signature that fills the caller's list. |
-| Each drop left on the ground | 96 B | Kept: the `GroundLoot` and its guid, until it is picked up. |
+| The list `ILootRoller.Roll` hands back | 152 B for up to four drops | Gone since #1179: `Roll` fills the caller's list, the instance's `KillBuffers.Rolled`. |
+| Each drop left on the ground | 96 B (104 B since #1179) | Kept: the `GroundLoot` and its guid, until it is picked up; since #1179 it holds a reference to the copy an equipment drop rolled, made with its modifiers when it drops. |
 
 Not measured by the scenario, which builds no quest service: the kill's quest credit and quest drops
 (`QuestService.CreatureKilled`, `RollQuestDrops`) copied each eligible member's quests and walked the eligible

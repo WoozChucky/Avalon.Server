@@ -171,7 +171,8 @@ public class QuestKillCreditShould
     {
         QuestTestWorld w = await QuestTestWorld.CreateAsync();
         ILootRoller roller = Substitute.For<ILootRoller>();
-        roller.Roll(default!, default!, default!).ReturnsForAnyArgs([new RolledDrop(null, 0, 5)]);
+        roller.WhenForAnyArgs(r => r.Roll(default!, default!, default!, default!))
+            .Do(ci => ci.Arg<List<RolledDrop>>().Add(new RolledDrop(null, 0, 5)));
         var allocator = new PartyLootAllocator(Options.Create(new GameConfiguration()), new FixedTimeProvider(DateTimeOffset.UnixEpoch),
             CombatRandom.Steady);
         using MapInstance instance = TestMapInstances.Build(w.World, navigator: Substitute.For<IMapNavigator>(),

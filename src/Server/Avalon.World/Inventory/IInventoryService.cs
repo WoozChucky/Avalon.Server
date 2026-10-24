@@ -1,5 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Character;
+using Avalon.World.Loot;
 
 namespace Avalon.World.Inventory;
 
@@ -79,4 +80,14 @@ public interface IInventoryService
     /// character holds. Throws when the slot is past the Bag: the trade plans the slot first.
     /// </summary>
     InventoryAddResult TryAddInstanceAt(CarriedItem carried, byte bagSlot);
+
+    /// <summary>
+    /// Puts the copy a roll made (#1179, B-R18: a drop picked up, a rolled reward) in the lowest free Bag slot, exactly as
+    /// it was made: its id, rarity, item level and rare name, count 1, its template's initial durability, never merged.
+    /// Its modifier list is handed to the store as the item's own entry (the caller keeps no use of it) and marked, with
+    /// the item marked New, so the next save inserts both. InventoryFull when no Bag slot is free (a slot a completing
+    /// trade reserved, #1175, is not), UniqueAlreadyOwned as <see cref="TryAddInstance" /> answers it, and
+    /// UnknownTemplate when its template is gone; any answer but Ok changes nothing.
+    /// </summary>
+    InventoryAddResult TryAddRolled(RolledItem item);
 }

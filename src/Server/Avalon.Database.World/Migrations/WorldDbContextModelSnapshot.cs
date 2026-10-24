@@ -24394,6 +24394,11 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 14,
                             Name = "Forest jewellery"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Name = "Forest boss gear"
                         });
                 });
 
@@ -24896,6 +24901,60 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            LootTableId = 6,
+                            Sequence = 8,
+                            Chance = 10f,
+                            ItemTemplateId = 58m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 7,
+                            Sequence = 8,
+                            Chance = 10f,
+                            ItemTemplateId = 64m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 7,
+                            Sequence = 9,
+                            Chance = 10f,
+                            ItemTemplateId = 67m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 8,
+                            Sequence = 8,
+                            Chance = 100f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 15
+                        },
+                        new
+                        {
+                            LootTableId = 8,
+                            Sequence = 9,
+                            Chance = 15f,
+                            ItemTemplateId = 65m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 8,
+                            Sequence = 10,
+                            Chance = 15f,
+                            ItemTemplateId = 66m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
                             LootTableId = 9,
                             Sequence = 1,
                             Chance = 25f,
@@ -25241,6 +25300,266 @@ namespace Avalon.Database.World.Migrations
                             LootTableId = 14,
                             Sequence = 2,
                             Chance = 2f,
+                            ItemTemplateId = 69m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 1,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 32m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 2,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 35m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 3,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 33m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 4,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 34m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 5,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 70m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 6,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 73m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 7,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 36m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 8,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 37m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 9,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 38m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 10,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 39m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 11,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 40m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 12,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 76m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 13,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 46m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 14,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 47m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 15,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 48m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 16,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 49m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 17,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 50m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 18,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 77m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 19,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 41m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 20,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 42m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 21,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 43m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 22,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 44m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 23,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 45m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 24,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 78m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 25,
+                            Chance = 1f,
+                            GroupId = 1,
+                            ItemTemplateId = 68m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 15,
+                            Sequence = 26,
+                            Chance = 1f,
+                            GroupId = 1,
                             ItemTemplateId = 69m,
                             MaxCount = 1,
                             MinCount = 1

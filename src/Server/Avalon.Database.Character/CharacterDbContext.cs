@@ -151,6 +151,7 @@ public partial class CharacterDbContext : DbContext
         builder.Property(i => i.GiverCharacterId).HasConversion(v => v.Value, v => new CharacterId(v)).IsRequired();
         builder.Property(i => i.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
         builder.Property(i => i.ItemLevel).HasColumnType("smallint");
+        builder.Property(i => i.RareName).HasMaxLength(32);
         builder.HasIndex(i => i.ItemInstanceId);
         // The record's own copy of the item's modifiers (#1179), written with it as one graph.
         builder.HasMany(i => i.Modifiers)
@@ -348,12 +349,15 @@ public partial class CharacterDbContext : DbContext
 
         builder.HasIndex(b => b.CharacterId);
 
-        // Facts of every copy (#1179), like its count and flags.
+        // Facts of every copy (#1179), like its count and flags. A rare copy, and only a rare one (Rarity 2), carries the two
+        // words its roll gave it.
         builder.Property(b => b.ItemLevel).HasColumnType("smallint");
+        builder.Property(b => b.RareName).HasMaxLength(32);
         builder.ToTable(t =>
         {
             t.HasCheckConstraint("CK_ItemInstances_Rarity", "\"Rarity\" BETWEEN 0 AND 3");
             t.HasCheckConstraint("CK_ItemInstances_ItemLevel", "\"ItemLevel\" > 0");
+            t.HasCheckConstraint("CK_ItemInstances_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
         });
 
         // Its modifiers are its own rows, gone with it.

@@ -59,6 +59,7 @@ public static class LootPlacement
                 Position = new Vector3(reachable.x, groundY, reachable.z),
                 ItemTemplateId = drop.ItemTemplateId,
                 Count = drop.Count,
+                Rolled = drop.Rolled,
                 Gold = drop.Gold,
                 OwnerCharacterId = allocation.OwnerCharacterId,
                 FreeForAllAt = allocation.FreeForAllAt,

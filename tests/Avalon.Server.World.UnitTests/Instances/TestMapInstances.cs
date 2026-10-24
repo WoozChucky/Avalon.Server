@@ -91,6 +91,7 @@ internal static class TestMapInstances
     /// <param name="doodadVisibility">Who may see and use each doodad; the instance's own, which asks no script, when omitted.</param>
     /// <param name="doodadUses">The doodad use service the instance's doodad casts and respawns answer to; none when omitted.</param>
     /// <param name="ownerCharacterId">The character that owns the instance (a solo instance); none when omitted.</param>
+    /// <param name="itemRoller">Rolls each equipment drop into its copy (#1179); none when omitted, so no drop rolls.</param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
         MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null,
@@ -98,7 +99,7 @@ internal static class TestMapInstances
         QuestService? quests = null, ILootRoller? lootRoller = null, ILootAllocator? lootAllocator = null,
         AuraScripts? auraScripts = null, PacketEncoder? encoder = null, ChunkLayout? layout = null,
         WorldTicks? worldTicks = null, DoodadVisibility? doodadVisibility = null, DoodadUseService? doodadUses = null,
-        uint? ownerCharacterId = null)
+        uint? ownerCharacterId = null, IItemRoller? itemRoller = null)
     {
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         if (random is not null)
@@ -131,6 +132,10 @@ internal static class TestMapInstances
         if (lootAllocator is not null)
         {
             serviceProvider.GetService(typeof(ILootAllocator)).Returns(lootAllocator);
+        }
+        if (itemRoller is not null)
+        {
+            serviceProvider.GetService(typeof(IItemRoller)).Returns(itemRoller);
         }
         if (auraScripts is not null)
         {

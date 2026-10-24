@@ -123,7 +123,7 @@ public sealed class DoodadUseContext(TimeProvider time, ILogger? logger = null) 
         if (_spawning)
             return 0;
 
-        return Host.DropLootAt(doodad, User);
+        return Host.DropLootAt(doodad, User, _random!);
     }
 
     public int ApplyAuraInRadius(AuraId aura, float radius)
