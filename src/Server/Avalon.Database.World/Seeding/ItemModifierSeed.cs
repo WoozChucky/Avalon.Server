@@ -12,11 +12,13 @@ namespace Avalon.Database.World.Seeding;
 /// <item>Every element of a family split by element (P8, P9, P10, S5) is its own group; a unique is one group.</item>
 /// <item>Ids are literal surrogates written in the tables: every group and every modifier row carries its own id, which
 /// means nothing and never changes, since items store the modifier id. A row added later takes the next id above the
-/// highest ever used, wherever it sits in the tables; a deleted id is never reused. SeedIntegrityShould holds every
-/// existing row to its committed id.</item>
-/// <item>Tiers unlock at item level 1, 4, 7, 10 and 13 and weigh 1000, 800, 600, 400 and 200 on every base kind their
-/// family rolls on, and on no other. An "adds X-Y" line seeds its low end [X, m] and its high end [m, Y], with m the
-/// floor of their mean.</item>
+/// highest ever used, wherever it sits in the tables; a deleted id is never reused (so the rows of the retired fourth
+/// and fifth tiers leave gaps). SeedIntegrityShould holds every existing row to its committed id.</item>
+/// <item>Tiers count down: T9 is the weakest and T1 the best. Every family has T9, T8 and T7, the starting zone's,
+/// unlocking at item level 1, 4 and 7 and weighing 1000, 800 and 600 on each base kind its group rolls on, and on no
+/// other; T6 to T1 are left for later content. The values fit the starting zone's gear budget, and each tier beats the
+/// one below at its best value. An "adds" line names its two ends exactly: "adds 1 to 3" seeds its low end 1-1 and its
+/// high end 3-3, and each hit rolls between them.</item>
 /// <item>A unique's lines are its drafted values ±20 %, rounded half away from zero and at least 1; it has no tier, no
 /// weight and no item-level gate.</item>
 /// </list>
@@ -25,8 +27,10 @@ public static class ItemModifierSeed
 {
     private const int UniqueSpreadPercent = 20;
 
-    private static readonly ushort[] s_tierLevels = [1, 4, 7, 10, 13];
-    private static readonly int[] s_tierWeights = [1000, 800, 600, 400, 200];
+    // The tiers every family has, weakest first, with their item levels and weights.
+    private static readonly byte[] s_tiers = [9, 8, 7];
+    private static readonly ushort[] s_tierLevels = [1, 4, 7];
+    private static readonly int[] s_tierWeights = [1000, 800, 600];
 
     private static readonly ItemBaseKind[] s_plate =
     [
@@ -46,27 +50,33 @@ public static class ItemModifierSeed
         ItemBaseKind.ClothLegs, ItemBaseKind.ClothFeet,
     ];
 
-    private static readonly ItemBaseKind[] s_armour = [.. s_plate, .. s_leather, .. s_cloth];
-    private static readonly ItemBaseKind[] s_gloves = [ItemBaseKind.PlateHands, ItemBaseKind.LeatherHands, ItemBaseKind.ClothHands];
     private static readonly ItemBaseKind[] s_helmets = [ItemBaseKind.PlateHead, ItemBaseKind.LeatherHead, ItemBaseKind.ClothHead];
     private static readonly ItemBaseKind[] s_shoulders = [ItemBaseKind.PlateShoulders, ItemBaseKind.LeatherShoulders, ItemBaseKind.ClothShoulders];
+    private static readonly ItemBaseKind[] s_chests = [ItemBaseKind.PlateChest, ItemBaseKind.LeatherChest, ItemBaseKind.ClothChest];
+    private static readonly ItemBaseKind[] s_gloves = [ItemBaseKind.PlateHands, ItemBaseKind.LeatherHands, ItemBaseKind.ClothHands];
+    private static readonly ItemBaseKind[] s_legs = [ItemBaseKind.PlateLegs, ItemBaseKind.LeatherLegs, ItemBaseKind.ClothLegs];
     private static readonly ItemBaseKind[] s_boots = [ItemBaseKind.PlateFeet, ItemBaseKind.LeatherFeet, ItemBaseKind.ClothFeet];
     private static readonly ItemBaseKind[] s_weapons = [ItemBaseKind.Sword, ItemBaseKind.Mace, ItemBaseKind.Staff, ItemBaseKind.Bow];
 
-    private const ItemBaseKind Sword = ItemBaseKind.Sword;
     private const ItemBaseKind Mace = ItemBaseKind.Mace;
     private const ItemBaseKind Staff = ItemBaseKind.Staff;
-    private const ItemBaseKind Bow = ItemBaseKind.Bow;
     private const ItemBaseKind Shield = ItemBaseKind.Shield;
     private const ItemBaseKind CasterOffHand = ItemBaseKind.CasterOffHand;
     private const ItemBaseKind Amulet = ItemBaseKind.Amulet;
     private const ItemBaseKind Ring = ItemBaseKind.Ring;
 
-    // The tier ranges shared by several families: the percentage families, the attributes and the global added damage.
-    private static readonly (int, int)[] s_increasedLocal = [(10, 19), (20, 34), (35, 49), (50, 64), (65, 79)];
-    private static readonly (int, int)[] s_attribute = [(1, 3), (4, 6), (7, 10), (11, 15), (16, 20)];
-    private static readonly (int, int)[] s_addedGlobal = [(1, 2), (1, 3), (2, 4), (2, 5), (3, 6)];
-    private static readonly (int, int)[] s_overTime = [(6, 10), (11, 16), (17, 22), (23, 28), (29, 34)];
+    // Where a split family's elements roll: P8's increased elemental damage everywhere alike; a resistance on the shield,
+    // the caster off-hand and the amulet, and on one armour slot of its own.
+    private static readonly ItemBaseKind[] s_increasedElement = [Staff, CasterOffHand, Amulet, Ring, .. s_shoulders];
+    private static readonly ItemBaseKind[] s_resistance = [Shield, CasterOffHand, Amulet];
+
+    // The tier ranges (T9, T8, T7) shared by several families. An "adds" family's pair is its low end and its high end.
+    private static readonly (int, int)[] s_increasedLocal = [(5, 8), (9, 12), (13, 16)];
+    private static readonly (int, int)[] s_oneTwoThree = Single(1, 2, 3);
+    private static readonly (int, int)[] s_smallPercent = [(1, 2), (2, 3), (3, 4)];
+    private static readonly (int, int)[] s_spellAndHealing = [(2, 3), (3, 4), (5, 6)];
+    private static readonly (int, int)[] s_addsLocal = [(1, 1), (1, 2), (2, 3)];
+    private static readonly (int, int)[] s_addsGlobal = [(1, 1), (1, 2), (1, 3)];
 
     /// <summary>The catalog groups, each with its literal id: affix families, then uniques.</summary>
     public static ItemModifierGroup[] Groups() => Build().Groups;
@@ -83,11 +93,13 @@ public static class ItemModifierSeed
     /// <summary>The template links: each unique's own modifier.</summary>
     public static ItemTemplateModifier[] TemplateLinks() => Build().Links;
 
-    /// <summary>One group of a family: its id, element, name and stat, and its rows' ids by tier.</summary>
-    private sealed record FamilyGroup(int Id, DamageType? Element, string Name, StatType Stat, int[] Rows);
+    /// <summary>
+    /// One group of a family: its id, element, name and stat, its rows' ids by tier (T9, T8, T7), and the base kinds it
+    /// rolls on.
+    /// </summary>
+    private sealed record FamilyGroup(int Id, DamageType? Element, string Name, StatType Stat, int[] Rows, ItemBaseKind[] RollsOn);
 
-    private sealed record Family(
-        string Code, ItemModifierKind Kind, bool Adds, (int Low, int High)[] Tiers, ItemBaseKind[] RollsOn, FamilyGroup[] Groups);
+    private sealed record Family(string Code, ItemModifierKind Kind, bool Adds, (int Low, int High)[] Tiers, FamilyGroup[] Groups);
 
     private sealed record Built(
         ItemModifierGroup[] Groups, ItemModifier[] Modifiers, ItemModifierStat[] Stats, ItemModifierWeight[] Weights,
@@ -95,73 +107,74 @@ public static class ItemModifierSeed
 
     private static Family Prefix(string code, int group, int[] rows, ItemBaseKind[] rollsOn, (int, int)[] tiers, string name,
         StatType stat, bool adds = false) =>
-        new(code, ItemModifierKind.Prefix, adds, tiers, rollsOn, [new(group, null, name, stat, rows)]);
+        new(code, ItemModifierKind.Prefix, adds, tiers, [new(group, null, name, stat, rows, rollsOn)]);
 
     private static Family Suffix(string code, int group, int[] rows, ItemBaseKind[] rollsOn, (int, int)[] tiers, string name,
         StatType stat) =>
-        new(code, ItemModifierKind.Suffix, false, tiers, rollsOn, [new(group, null, name, stat, rows)]);
+        new(code, ItemModifierKind.Suffix, false, tiers, [new(group, null, name, stat, rows, rollsOn)]);
 
     private static (int, int)[] Single(params int[] values) => [.. values.Select(value => (value, value))];
 
     private static readonly Family[] s_families =
     [
-        Prefix("P1", 1, [1, 2, 3, 4, 5], s_weapons, [(1, 2), (2, 4), (3, 6), (5, 8), (6, 11)], "Briar-edged", StatType.AddedPhysicalDamage, adds: true),
-        Prefix("P2", 2, [6, 7, 8, 9, 10], s_weapons, [(1, 3), (2, 5), (3, 7), (4, 10), (6, 13)], "Smouldering", StatType.AddedFireDamage, adds: true),
-        Prefix("P3", 3, [11, 12, 13, 14, 15], s_weapons, [(1, 2), (2, 4), (3, 6), (4, 8), (5, 11)], "Rimed", StatType.AddedColdDamage, adds: true),
-        Prefix("P4", 4, [16, 17, 18, 19, 20], s_weapons, [(1, 4), (1, 7), (1, 10), (2, 14), (2, 18)], "Crackling", StatType.AddedLightningDamage, adds: true),
-        Prefix("P5", 5, [21, 22, 23, 24, 25], s_weapons, [(1, 2), (2, 4), (3, 6), (4, 8), (5, 11)], "Festering", StatType.AddedBlightDamage, adds: true),
-        Prefix("P6", 6, [26, 27, 28, 29, 30], s_weapons, s_increasedLocal, "Honed", StatType.LocalIncreasedPhysicalDamage),
-        Prefix("P7", 7, [31, 32, 33, 34, 35], [Mace, Staff, CasterOffHand], [(8, 12), (13, 20), (21, 30), (31, 40), (41, 50)], "Whispering", StatType.IncreasedSpellDamage),
-        new("P8", ItemModifierKind.Prefix, false, [(5, 9), (10, 14), (15, 19), (20, 24), (25, 29)], [Staff, CasterOffHand, Amulet, Ring],
+        Prefix("P1", 1, [1, 2, 3], s_weapons, s_addsLocal, "Briar-edged", StatType.AddedPhysicalDamage, adds: true),
+        Prefix("P2", 2, [6, 7, 8], s_weapons, s_addsLocal, "Smouldering", StatType.AddedFireDamage, adds: true),
+        Prefix("P3", 3, [11, 12, 13], s_weapons, s_addsLocal, "Rimed", StatType.AddedColdDamage, adds: true),
+        Prefix("P4", 4, [16, 17, 18], s_weapons, [(1, 2), (1, 3), (1, 4)], "Crackling", StatType.AddedLightningDamage, adds: true),
+        Prefix("P5", 5, [21, 22, 23], s_weapons, s_addsLocal, "Festering", StatType.AddedBlightDamage, adds: true),
+        Prefix("P6", 6, [26, 27, 28], s_weapons, s_increasedLocal, "Honed", StatType.LocalIncreasedPhysicalDamage),
+        Prefix("P7", 7, [31, 32, 33], [Mace, Staff, CasterOffHand], s_spellAndHealing, "Whispering", StatType.IncreasedSpellDamage),
+        new("P8", ItemModifierKind.Prefix, false, s_smallPercent,
         [
-            new(8, DamageType.Fire, "Ashen", StatType.IncreasedFireDamage, [36, 37, 38, 39, 40]),
-            new(9, DamageType.Cold, "Hoarfrost", StatType.IncreasedColdDamage, [41, 42, 43, 44, 45]),
-            new(10, DamageType.Lightning, "Galvanic", StatType.IncreasedLightningDamage, [46, 47, 48, 49, 50]),
-            new(11, DamageType.Blight, "Mouldering", StatType.IncreasedBlightDamage, [51, 52, 53, 54, 55]),
+            new(8, DamageType.Fire, "Ashen", StatType.IncreasedFireDamage, [36, 37, 38], s_increasedElement),
+            new(9, DamageType.Cold, "Hoarfrost", StatType.IncreasedColdDamage, [41, 42, 43], s_increasedElement),
+            new(10, DamageType.Lightning, "Galvanic", StatType.IncreasedLightningDamage, [46, 47, 48], s_increasedElement),
+            new(11, DamageType.Blight, "Mouldering", StatType.IncreasedBlightDamage, [51, 52, 53], s_increasedElement),
         ]),
-        new("P9", ItemModifierKind.Prefix, true, s_addedGlobal, [Ring, Amulet, .. s_gloves],
+        new("P9", ItemModifierKind.Prefix, true, s_addsGlobal,
         [
-            new(12, DamageType.Physical, "Thorn-tipped", StatType.AddedPhysicalDamageToAttacks, [56, 57, 58, 59, 60]),
-            new(13, DamageType.Fire, "Thorn-tipped", StatType.AddedFireDamageToAttacks, [61, 62, 63, 64, 65]),
-            new(14, DamageType.Cold, "Thorn-tipped", StatType.AddedColdDamageToAttacks, [66, 67, 68, 69, 70]),
-            new(15, DamageType.Lightning, "Thorn-tipped", StatType.AddedLightningDamageToAttacks, [71, 72, 73, 74, 75]),
-            new(16, DamageType.Blight, "Thorn-tipped", StatType.AddedBlightDamageToAttacks, [76, 77, 78, 79, 80]),
+            new(12, DamageType.Physical, "Thorn-tipped", StatType.AddedPhysicalDamageToAttacks, [56, 57, 58], s_gloves),
+            new(13, DamageType.Fire, "Thorn-tipped", StatType.AddedFireDamageToAttacks, [61, 62, 63], s_gloves),
+            new(14, DamageType.Cold, "Thorn-tipped", StatType.AddedColdDamageToAttacks, [66, 67, 68], s_gloves),
+            new(15, DamageType.Lightning, "Thorn-tipped", StatType.AddedLightningDamageToAttacks, [71, 72, 73], s_gloves),
+            new(16, DamageType.Blight, "Thorn-tipped", StatType.AddedBlightDamageToAttacks, [76, 77, 78], s_gloves),
         ]),
-        new("P10", ItemModifierKind.Prefix, true, s_addedGlobal, [Ring, Amulet, CasterOffHand],
+        new("P10", ItemModifierKind.Prefix, true, s_addsGlobal,
         [
-            new(17, DamageType.Fire, "Ember-sung", StatType.AddedFireDamageToSpells, [81, 82, 83, 84, 85]),
-            new(18, DamageType.Cold, "Ember-sung", StatType.AddedColdDamageToSpells, [86, 87, 88, 89, 90]),
-            new(19, DamageType.Lightning, "Ember-sung", StatType.AddedLightningDamageToSpells, [91, 92, 93, 94, 95]),
+            new(17, DamageType.Fire, "Ember-sung", StatType.AddedFireDamageToSpells, [81, 82, 83], [Ring]),
+            new(18, DamageType.Cold, "Ember-sung", StatType.AddedColdDamageToSpells, [86, 87, 88], [Ring]),
+            new(19, DamageType.Lightning, "Ember-sung", StatType.AddedLightningDamageToSpells, [91, 92, 93], [Ring]),
         ]),
-        Prefix("P11", 20, [96, 97, 98, 99, 100], [.. s_armour, Shield, Ring, Amulet], [(5, 9), (10, 19), (20, 29), (30, 44), (45, 59)], "Hale", StatType.Health),
-        Prefix("P12", 21, [101, 102, 103, 104, 105], [.. s_plate, Shield], [(2, 4), (4, 8), (8, 14), (14, 22), (22, 32)], "Barkbound", StatType.Armor),
-        Prefix("P13", 22, [106, 107, 108, 109, 110], [.. s_plate, Shield], s_increasedLocal, "Ironbark", StatType.LocalIncreasedArmor),
-        Prefix("P14", 23, [111, 112, 113, 114, 115], s_leather, [(10, 19), (20, 39), (40, 64), (65, 94), (95, 129)], "Fleet-footed", StatType.Evasion),
-        Prefix("P15", 24, [116, 117, 118, 119, 120], s_leather, s_increasedLocal, "Mistwoven", StatType.LocalIncreasedEvasion),
-        Prefix("P16", 25, [121, 122, 123, 124, 125], [.. s_cloth, CasterOffHand], [(3, 5), (6, 10), (11, 17), (18, 26), (27, 37)], "Veilwoven", StatType.Ward),
-        Prefix("P17", 26, [126, 127, 128, 129, 130], [.. s_cloth, CasterOffHand], s_increasedLocal, "Glamoured", StatType.LocalIncreasedWard),
-        Prefix("P18", 27, [131, 132, 133, 134, 135], [Amulet, Staff, CasterOffHand], s_overTime, "Lingering", StatType.IncreasedDamageOverTime),
-        Prefix("P19", 28, [136, 137, 138, 139, 140], [Mace, Staff, CasterOffHand, Amulet], s_overTime, "Mending", StatType.IncreasedHealing),
+        Prefix("P11", 20, [96, 97, 98], [.. s_helmets, .. s_chests, .. s_legs, .. s_boots, Shield, Amulet], [(1, 2), (3, 4), (5, 5)], "Hale", StatType.Health),
+        Prefix("P12", 21, [101, 102, 103], [.. s_plate, Shield], s_smallPercent, "Barkbound", StatType.Armor),
+        Prefix("P13", 22, [106, 107, 108], [.. s_plate, Shield], s_increasedLocal, "Ironbark", StatType.LocalIncreasedArmor),
+        Prefix("P14", 23, [111, 112, 113], s_leather, [(5, 8), (9, 14), (15, 20)], "Fleet-footed", StatType.Evasion),
+        Prefix("P15", 24, [116, 117, 118], s_leather, s_increasedLocal, "Mistwoven", StatType.LocalIncreasedEvasion),
+        Prefix("P16", 25, [121, 122, 123], [.. s_cloth, CasterOffHand], [(1, 2), (2, 4), (4, 6)], "Veilwoven", StatType.Ward),
+        Prefix("P17", 26, [126, 127, 128], [.. s_cloth, CasterOffHand], s_increasedLocal, "Glamoured", StatType.LocalIncreasedWard),
+        Prefix("P18", 27, [131, 132, 133], [Amulet, Staff, CasterOffHand], s_oneTwoThree, "Lingering", StatType.IncreasedDamageOverTime),
+        Prefix("P19", 28, [136, 137, 138], [Mace, Staff, CasterOffHand, Amulet], s_spellAndHealing, "Mending", StatType.IncreasedHealing),
 
-        Suffix("S1", 29, [141, 142, 143, 144, 145], [.. s_armour, Sword, Mace, Bow, Shield, Ring, Amulet], s_attribute, "of the Ox-root", StatType.Strength),
-        Suffix("S2", 30, [146, 147, 148, 149, 150], [.. s_armour, Sword, Staff, Bow, Ring, Amulet], s_attribute, "of the Hare", StatType.Agility),
-        Suffix("S3", 31, [151, 152, 153, 154, 155], [.. s_armour, Sword, Mace, Staff, CasterOffHand, Ring, Amulet], s_attribute, "of the Owl", StatType.Intellect),
-        Suffix("S4", 32, [156, 157, 158, 159, 160], [.. s_armour, Shield, Ring, Amulet], s_attribute, "of the Old Oak", StatType.Stamina),
-        new("S5", ItemModifierKind.Suffix, false, [(6, 11), (12, 17), (18, 23), (24, 29), (30, 35)], [.. s_armour, Shield, Ring, Amulet],
+        Suffix("S1", 29, [141, 142, 143], [.. s_chests, Ring], s_oneTwoThree, "of the Ox-root", StatType.Strength),
+        Suffix("S2", 30, [146, 147, 148], [.. s_legs, Ring], s_oneTwoThree, "of the Hare", StatType.Agility),
+        Suffix("S3", 31, [151, 152, 153], [.. s_shoulders, Ring], s_oneTwoThree, "of the Owl", StatType.Intellect),
+        Suffix("S4", 32, [156, 157, 158], s_boots, s_oneTwoThree, "of the Old Oak", StatType.Stamina),
+        new("S5", ItemModifierKind.Suffix, false, s_smallPercent,
         [
-            new(33, DamageType.Fire, "of the Hearth", StatType.FireResistance, [161, 162, 163, 164, 165]),
-            new(34, DamageType.Cold, "of the Thaw", StatType.ColdResistance, [166, 167, 168, 169, 170]),
-            new(35, DamageType.Lightning, "of Grounding", StatType.LightningResistance, [171, 172, 173, 174, 175]),
-            new(36, DamageType.Blight, "of the Clean Spring", StatType.BlightResistance, [176, 177, 178, 179, 180]),
+            new(33, DamageType.Fire, "of the Hearth", StatType.FireResistance, [161, 162, 163], [.. s_helmets, .. s_resistance]),
+            new(34, DamageType.Cold, "of the Thaw", StatType.ColdResistance, [166, 167, 168], [.. s_boots, .. s_resistance]),
+            new(35, DamageType.Lightning, "of Grounding", StatType.LightningResistance, [171, 172, 173], [.. s_legs, .. s_resistance]),
+            new(36, DamageType.Blight, "of the Clean Spring", StatType.BlightResistance, [176, 177, 178], [.. s_chests, .. s_resistance]),
         ]),
-        Suffix("S6", 37, [181, 182, 183, 184, 185], s_weapons, [(5, 7), (8, 10), (11, 13), (14, 16), (17, 19)], "of Haste", StatType.LocalAttackSpeed),
-        Suffix("S7", 38, [186, 187, 188, 189], [.. s_gloves, Ring], [(3, 4), (5, 6), (7, 8), (9, 10)], "of Quick Hands", StatType.AttackSpeed),
-        Suffix("S8", 39, [190, 191, 192, 193, 194], [Staff, Mace, Amulet, Ring, CasterOffHand], [(4, 6), (7, 9), (10, 12), (13, 15), (16, 18)], "of Cadence", StatType.CastSpeed),
-        Suffix("S9", 40, [195, 196, 197, 198, 199], [.. s_weapons, CasterOffHand, Amulet, Ring], Single(1, 2, 3, 4, 5), "of the Keen Eye", StatType.CritPct),
-        Suffix("S10", 41, [200, 201, 202, 203, 204], [.. s_weapons, Amulet], [(8, 12), (13, 17), (18, 22), (23, 27), (28, 32)], "of Ruin", StatType.CritMultiplier),
-        Suffix("S11", 42, [205, 206, 207, 208, 209], s_boots, Single(5, 8, 11, 14, 17), "of the Wanderer", StatType.MovementSpeed),
-        Suffix("S12", 43, [210, 211, 212, 213, 214], [.. s_helmets, .. s_shoulders, Amulet], [(3, 4), (5, 6), (7, 8), (9, 10), (11, 12)], "of Renewal", StatType.CooldownRecovery),
-        Suffix("S13", 44, [215, 216, 217, 218], [Shield], [(3, 4), (5, 6), (7, 8), (9, 10)], "of the Bulwark", StatType.BlockPct),
+        Suffix("S6", 37, [181, 182, 183], s_weapons, s_oneTwoThree, "of Haste", StatType.LocalAttackSpeed),
+        Suffix("S7", 38, [186, 187, 188], s_gloves, s_oneTwoThree, "of Quick Hands", StatType.AttackSpeed),
+        Suffix("S8", 39, [190, 191, 192], [Staff, CasterOffHand, .. s_gloves], s_oneTwoThree, "of Cadence", StatType.CastSpeed),
+        Suffix("S9", 40, [195, 196, 197], [.. s_weapons, .. s_gloves], s_oneTwoThree, "of the Keen Eye", StatType.CritPct),
+        Suffix("S10", 41, [200, 201, 202], [.. s_weapons, CasterOffHand, .. s_helmets, .. s_gloves], [(2, 3), (4, 5), (5, 6)], "of Ruin", StatType.CritMultiplier),
+        Suffix("S11", 42, [205, 206, 207], s_boots, Single(2, 3, 4), "of the Wanderer", StatType.MovementSpeed),
+        Suffix("S12", 43, [210, 211, 212], [.. s_helmets, .. s_shoulders], s_oneTwoThree, "of Renewal", StatType.CooldownRecovery),
+        Suffix("S13", 44, [215, 216, 217], [Shield], s_smallPercent, "of the Bulwark", StatType.BlockPct),
+        Suffix("S14", 110, [284, 285, 286], [.. s_shoulders, .. s_chests, .. s_legs], s_smallPercent, "of Deep Roots", StatType.IncreasedMaximumLife),
     ];
 
     // The uniques: group id, modifier id, template, and the drafted lines (a stat and its value, and an "adds" line's
@@ -194,19 +207,22 @@ public static class ItemModifierSeed
         {
             foreach (FamilyGroup group in family.Groups)
             {
-                if (group.Rows.Length != family.Tiers.Length)
-                    throw new InvalidOperationException($"{family.Code} {group.Element} names {group.Rows.Length} row ids for {family.Tiers.Length} tiers.");
+                if (group.Rows.Length != s_tiers.Length || family.Tiers.Length != s_tiers.Length)
+                {
+                    throw new InvalidOperationException(
+                        $"{family.Code} {group.Element} needs a row id and a range for each of the {s_tiers.Length} tiers.");
+                }
 
                 AddGroup(group.Id, family.Kind, family.Code, group.Element, group.Name);
-                for (int tier = 0; tier < family.Tiers.Length; tier++)
+                for (int tier = 0; tier < s_tiers.Length; tier++)
                 {
                     int id = group.Rows[tier];
-                    AddModifier(id, group.Id, (byte)(tier + 1), s_tierLevels[tier]);
+                    AddModifier(id, group.Id, s_tiers[tier], s_tierLevels[tier]);
                     (int low, int high) = family.Tiers[tier];
                     stats.Add(family.Adds
-                        ? Line(id, 0, group.Stat, (low, (low + high) / 2), ((low + high) / 2, high))
+                        ? Line(id, 0, group.Stat, (low, low), (high, high))
                         : Line(id, 0, group.Stat, (low, high), null));
-                    weights.AddRange(family.RollsOn.Order().Select(kind =>
+                    weights.AddRange(group.RollsOn.Order().Select(kind =>
                         new ItemModifierWeight { ModifierId = id, BaseKind = kind, Weight = s_tierWeights[tier] }));
                 }
             }

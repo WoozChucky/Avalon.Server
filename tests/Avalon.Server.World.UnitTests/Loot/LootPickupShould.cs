@@ -88,9 +88,9 @@ public class LootPickupShould
         var id = new ItemInstanceId(Guid.CreateVersion7());
         List<ItemInstanceModifier> modifiers =
         [
-            Modifier(id, CatalogKeys.ModifierId("P11 T1"), 0, (0, StatType.Health, 8, null)),
-            Modifier(id, CatalogKeys.ModifierId("P2 T3"), 1, (0, StatType.AddedFireDamage, 3, 6)),
-            Modifier(id, CatalogKeys.ModifierId("S1 T3"), 2, (0, StatType.Strength, 7, null)),
+            Modifier(id, CatalogKeys.ModifierId("P11 T9"), 0, (0, StatType.Health, 2, null)),
+            Modifier(id, CatalogKeys.ModifierId("P2 T7"), 1, (0, StatType.AddedFireDamage, 2, 3)),
+            Modifier(id, CatalogKeys.ModifierId("S1 T7"), 2, (0, StatType.Strength, 3, null)),
         ];
         var baseStats = new ItemBaseStats { Armour = 9 };
         var rolled = new RolledItem(id, chest.Id, ItemRarity.Rare, 9, "Thorn Bite", baseStats, modifiers);

@@ -96,13 +96,13 @@ public class ItemRollerShould
                     var context = new DropContext(itemLevel, (CreatureRarity)(i % 4), false);
                     RolledItem rolled = roller.Roll(named, context, s_items)!;
                     AssertWithinTheRules(rolled, kind, itemLevel, ids);
-                    threeResistances |= kind == ItemBaseKind.Ring && rolled.Rarity == ItemRarity.Rare
+                    threeResistances |= kind == ItemBaseKind.Amulet && rolled.Rarity == ItemRarity.Rare
                                         && rolled.Modifiers.Count(m => Catalog.Find(m.ModifierId)!.Group.Code == "S5") == 3;
                 }
             }
         }
 
-        Assert.True(threeResistances, "no rare ring carried three resistance families");
+        Assert.True(threeResistances, "no rare amulet carried three resistance families");
     }
 
     [Fact]
@@ -138,8 +138,8 @@ public class ItemRollerShould
         ItemModifierStat Line(string key) => Catalog.Find(CatalogKeys.ModifierId(key))!.Stats.Single();
         var script = new ScriptedLootRandom(
             [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [Armour(13).Max, 3, Line("P11 T1").Min, Line("P12 T1").Min, Line("P13 T1").Min, 0, 0,
-             2, Line("P8 Fire T1").Min, Line("S1 T1").Min]);
+            [Armour(13).Max, 3, Line("P11 T9").Min, Line("P12 T9").Min, Line("P13 T9").Min, 0, 0,
+             2, Line("P8 Fire T9").Min, Line("S1 T9").Min]);
         List<RolledDrop> again = [Drop(37), Drop(68)];
 
         Roller(script).RollDrops(again, context, s_items);
@@ -151,8 +151,8 @@ public class ItemRollerShould
             again.Select(drop => drop.Rolled!.BaseStats));
         Assert.Equal(
             [
-                (string[])["P11 T1", "P12 T1", "P13 T1"],
-                ["P8 Fire T1", "S1 T1"],
+                (string[])["P11 T9", "P12 T9", "P13 T9"],
+                ["P8 Fire T9", "S1 T9"],
             ],
             again.Select(drop => drop.Rolled!.Modifiers.Select(m => KeyOf(m.ModifierId)).ToArray()));
     }

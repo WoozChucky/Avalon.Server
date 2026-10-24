@@ -14,8 +14,8 @@ Five World database tables, all balance tables (seeded with `HasData`, changed o
 - `ItemModifierGroups`: one row per **exclusive group**. An item never carries two modifiers of one group. A group is an
   affix family (`Code` such as `P8` or `S13`, and `Element` for a family split by element), a unique's own modifier, or
   one base's implicits. Kind and name live here only.
-- `ItemModifiers`: one row per tier of a group (`Tier` 1-5, `RequiredItemLevel`), or a unique's or implicit group's
-  single row with no tier.
+- `ItemModifiers`: one row per tier of a group (`Tier` 1-9, counting down, and `RequiredItemLevel`), or a unique's or
+  implicit group's single row with no tier.
 - `ItemModifierStats`: a row's stat lines, each a range (`Min`-`Max`), and for an "adds X to Y" line a second range
   (`Min2`-`Max2`) for its high end. A row may have several lines.
 - `ItemModifierWeights`: how likely a prefix or suffix row is on each base kind. No row, or weight 0, means it never
@@ -88,8 +88,8 @@ A creature's or a chest's drops roll when they drop, on the tick, in the kill or
 - **Item level:** a creature's level; a chest's or a barrel's is drawn within its depth band, else the map's level range,
   else 1. The roll holds every item level at least 1 (`DropContext`), whatever its maker passes, since a copy at 0 could
   not be saved.
-- **Base tier:** a base becomes the best tier of its line the item level reaches (item level 4 a tier-1 base, 5 the
-  tier-2), and rolls that tier's implicits.
+- **Base tier:** a base becomes the best tier of its line the item level reaches (item level 4 a T9 base, 5 the
+  T8), and rolls that tier's implicits.
 - **Rarity:** drawn by the creature's rarity (`Game:Items:Rarity`; a chest or a barrel by the Normal odds). A unique
   rolls its own modifier.
 - **The boss's rare:** a Boss kill none of whose drops rolled Rare has its first drop that rolled a rarity rolled again,
@@ -121,24 +121,35 @@ reference](configuration-reference.md)), checked at startup:
 
 ## Weights
 
-Every prefix and suffix row weighs **1000, 800, 600, 400 and 200** for tiers 1 to 5 on each base kind its family rolls
-on, and has no weight anywhere else. The families' "Rolls on" column below is that table: "armour" is all eighteen armour
-kinds, "plate", "leather" and "cloth" an armour type's six, and "helmets", "shoulders", "gloves" and "boots" that slot in
-all three types. Trinkets roll nothing.
+Every prefix and suffix row weighs **1000, 800 and 600** for T9, T8 and T7 on each base kind its group rolls on, and
+has no weight anywhere else. The families' "Rolls on" column below is that table: "armour" is all eighteen armour kinds,
+"plate", "leather" and "cloth" an armour type's six, and "helmets", "shoulders", "chests", "gloves", "legs" and "boots"
+that slot in all three types. Trinkets roll nothing.
+
+Each family rolls on a few fitting slots only, so a slot has an identity and a roll stays readable, and so that one
+full set of the best level-10 items stays within the starting zone's gear budget (each resistance at most 25 %, attack
+and cast speed 10 %, movement speed 8 %, crit chance +6 %, life +75 flat and +26 % increased, each main attribute +15),
+counting implicits and unique lines, which stack with an affix of the same stat. A split family may roll some of its
+elements on a slot and not others: each resistance rolls on one armour slot of its own (fire on helmets, cold on boots,
+lightning on legs, blight on chests) besides the shield, the caster off-hand and the amulet.
 
 ## Local and global
 
 A **local** modifier applies to the item it sits on: added damage, increased physical damage and attack speed on a
 weapon change that weapon's hits only, and an armour piece's flat or increased defence changes that piece's defence only.
-Every other modifier is **global** and applies to the character, among them the added damage "to attacks" (rings,
-amulets, gloves) and "to spells" (rings, amulets, caster off-hands).
+Every other modifier is **global** and applies to the character, among them the added damage "to attacks" (gloves)
+and "to spells" (rings).
 
 ## Tiers
 
-Tiers unlock at item level **1, 4, 7, 10 and 13**; the level cap is 15. S7 (global attack speed) and S13 (block) have
-four tiers. An "adds X to Y" line rolls twice: the copy rolls its low end and its high end within the tier, and every hit
-then rolls between them. The tier's drafted range X-Y is seeded as the low end's range X to m and the high end's m to Y,
-with m the floor of their mean.
+Tiers count down: **T9 is the weakest and T1 the best.** Every family has T9, T8 and T7, the starting zone's, unlocking
+at item level **1, 4 and 7**; T6 to T1 are kept for higher item levels and later content. Each tier beats the one below
+at its best value (`SeedIntegrityShould.Beat_the_tier_below_at_its_best_value`). The fourth and fifth tiers of the
+first catalog are gone (World migration `RevalueAffixesForTheStartingZone`), their ids never reused; its first three
+tiers kept their ids as T9, T8 and T7.
+
+An "adds X to Y" line names its two ends exactly: its low end X and its high end Y are seeded as fixed numbers (`Min` =
+`Max` = X, `Min2` = `Max2` = Y), and every hit rolls between them. "adds 1" is 1 to 1.
 
 ## Naming
 
@@ -178,19 +189,19 @@ with m the floor of their mean.
 | P5 |  | Festering | Prefix | AddedBlightDamage | Sword, Mace, Staff, Bow |
 | P6 |  | Honed | Prefix | LocalIncreasedPhysicalDamage | Sword, Mace, Staff, Bow |
 | P7 |  | Whispering | Prefix | IncreasedSpellDamage | Mace, Staff, CasterOffHand |
-| P8 | Fire | Ashen | Prefix | IncreasedFireDamage | Staff, CasterOffHand, Amulet, Ring |
-| P8 | Cold | Hoarfrost | Prefix | IncreasedColdDamage | Staff, CasterOffHand, Amulet, Ring |
-| P8 | Lightning | Galvanic | Prefix | IncreasedLightningDamage | Staff, CasterOffHand, Amulet, Ring |
-| P8 | Blight | Mouldering | Prefix | IncreasedBlightDamage | Staff, CasterOffHand, Amulet, Ring |
-| P9 | Physical | Thorn-tipped | Prefix | AddedPhysicalDamageToAttacks | gloves, Amulet, Ring |
-| P9 | Fire | Thorn-tipped | Prefix | AddedFireDamageToAttacks | gloves, Amulet, Ring |
-| P9 | Cold | Thorn-tipped | Prefix | AddedColdDamageToAttacks | gloves, Amulet, Ring |
-| P9 | Lightning | Thorn-tipped | Prefix | AddedLightningDamageToAttacks | gloves, Amulet, Ring |
-| P9 | Blight | Thorn-tipped | Prefix | AddedBlightDamageToAttacks | gloves, Amulet, Ring |
-| P10 | Fire | Ember-sung | Prefix | AddedFireDamageToSpells | CasterOffHand, Amulet, Ring |
-| P10 | Cold | Ember-sung | Prefix | AddedColdDamageToSpells | CasterOffHand, Amulet, Ring |
-| P10 | Lightning | Ember-sung | Prefix | AddedLightningDamageToSpells | CasterOffHand, Amulet, Ring |
-| P11 |  | Hale | Prefix | Health | armour, Shield, Amulet, Ring |
+| P8 | Fire | Ashen | Prefix | IncreasedFireDamage | shoulders, Staff, CasterOffHand, Amulet, Ring |
+| P8 | Cold | Hoarfrost | Prefix | IncreasedColdDamage | shoulders, Staff, CasterOffHand, Amulet, Ring |
+| P8 | Lightning | Galvanic | Prefix | IncreasedLightningDamage | shoulders, Staff, CasterOffHand, Amulet, Ring |
+| P8 | Blight | Mouldering | Prefix | IncreasedBlightDamage | shoulders, Staff, CasterOffHand, Amulet, Ring |
+| P9 | Physical | Thorn-tipped | Prefix | AddedPhysicalDamageToAttacks | gloves |
+| P9 | Fire | Thorn-tipped | Prefix | AddedFireDamageToAttacks | gloves |
+| P9 | Cold | Thorn-tipped | Prefix | AddedColdDamageToAttacks | gloves |
+| P9 | Lightning | Thorn-tipped | Prefix | AddedLightningDamageToAttacks | gloves |
+| P9 | Blight | Thorn-tipped | Prefix | AddedBlightDamageToAttacks | gloves |
+| P10 | Fire | Ember-sung | Prefix | AddedFireDamageToSpells | Ring |
+| P10 | Cold | Ember-sung | Prefix | AddedColdDamageToSpells | Ring |
+| P10 | Lightning | Ember-sung | Prefix | AddedLightningDamageToSpells | Ring |
+| P11 |  | Hale | Prefix | Health | helmets, chests, legs, boots, Shield, Amulet |
 | P12 |  | Barkbound | Prefix | Armor | plate, Shield |
 | P13 |  | Ironbark | Prefix | LocalIncreasedArmor | plate, Shield |
 | P14 |  | Fleet-footed | Prefix | Evasion | leather |
@@ -199,74 +210,76 @@ with m the floor of their mean.
 | P17 |  | Glamoured | Prefix | LocalIncreasedWard | cloth, CasterOffHand |
 | P18 |  | Lingering | Prefix | IncreasedDamageOverTime | Staff, CasterOffHand, Amulet |
 | P19 |  | Mending | Prefix | IncreasedHealing | Mace, Staff, CasterOffHand, Amulet |
-| S1 |  | of the Ox-root | Suffix | Strength | armour, Sword, Mace, Bow, Shield, Amulet, Ring |
-| S2 |  | of the Hare | Suffix | Agility | armour, Sword, Staff, Bow, Amulet, Ring |
-| S3 |  | of the Owl | Suffix | Intellect | armour, Sword, Mace, Staff, CasterOffHand, Amulet, Ring |
-| S4 |  | of the Old Oak | Suffix | Stamina | armour, Shield, Amulet, Ring |
-| S5 | Fire | of the Hearth | Suffix | FireResistance | armour, Shield, Amulet, Ring |
-| S5 | Cold | of the Thaw | Suffix | ColdResistance | armour, Shield, Amulet, Ring |
-| S5 | Lightning | of Grounding | Suffix | LightningResistance | armour, Shield, Amulet, Ring |
-| S5 | Blight | of the Clean Spring | Suffix | BlightResistance | armour, Shield, Amulet, Ring |
+| S1 |  | of the Ox-root | Suffix | Strength | chests, Ring |
+| S2 |  | of the Hare | Suffix | Agility | legs, Ring |
+| S3 |  | of the Owl | Suffix | Intellect | shoulders, Ring |
+| S4 |  | of the Old Oak | Suffix | Stamina | boots |
+| S5 | Fire | of the Hearth | Suffix | FireResistance | helmets, Shield, CasterOffHand, Amulet |
+| S5 | Cold | of the Thaw | Suffix | ColdResistance | boots, Shield, CasterOffHand, Amulet |
+| S5 | Lightning | of Grounding | Suffix | LightningResistance | legs, Shield, CasterOffHand, Amulet |
+| S5 | Blight | of the Clean Spring | Suffix | BlightResistance | chests, Shield, CasterOffHand, Amulet |
 | S6 |  | of Haste | Suffix | LocalAttackSpeed | Sword, Mace, Staff, Bow |
-| S7 |  | of Quick Hands | Suffix | AttackSpeed | gloves, Ring |
-| S8 |  | of Cadence | Suffix | CastSpeed | Mace, Staff, CasterOffHand, Amulet, Ring |
-| S9 |  | of the Keen Eye | Suffix | CritPct | Sword, Mace, Staff, Bow, CasterOffHand, Amulet, Ring |
-| S10 |  | of Ruin | Suffix | CritMultiplier | Sword, Mace, Staff, Bow, Amulet |
+| S7 |  | of Quick Hands | Suffix | AttackSpeed | gloves |
+| S8 |  | of Cadence | Suffix | CastSpeed | gloves, Staff, CasterOffHand |
+| S9 |  | of the Keen Eye | Suffix | CritPct | gloves, Sword, Mace, Staff, Bow |
+| S10 |  | of Ruin | Suffix | CritMultiplier | helmets, gloves, Sword, Mace, Staff, Bow, CasterOffHand |
 | S11 |  | of the Wanderer | Suffix | MovementSpeed | boots |
-| S12 |  | of Renewal | Suffix | CooldownRecovery | helmets, shoulders, Amulet |
+| S12 |  | of Renewal | Suffix | CooldownRecovery | helmets, shoulders |
 | S13 |  | of the Bulwark | Suffix | BlockPct | Shield |
+| S14 |  | of Deep Roots | Suffix | IncreasedMaximumLife | shoulders, chests, legs |
 
 ### Tiers
 
-Each cell is the tier's range, then its weight on every base kind the family rolls on. An "adds" line reads as the range of its low end, then "to" and the range of its high end. A dash marks a tier the family does not have.
+Each cell is the tier's range, then its weight on every base kind the family rolls on. An "adds" line reads as its low end, then "to" and its high end. Tiers count down: T9 is the weakest. A dash marks a tier the family does not have.
 
-| Code | Element | T1 | T2 | T3 | T4 | T5 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Item level | | 1 | 4 | 7 | 10 | 13 |
-| P1 |  | 1 to 1-2 · 1000 | 2-3 to 3-4 · 800 | 3-4 to 4-6 · 600 | 5-6 to 6-8 · 400 | 6-8 to 8-11 · 200 |
-| P2 |  | 1-2 to 2-3 · 1000 | 2-3 to 3-5 · 800 | 3-5 to 5-7 · 600 | 4-7 to 7-10 · 400 | 6-9 to 9-13 · 200 |
-| P3 |  | 1 to 1-2 · 1000 | 2-3 to 3-4 · 800 | 3-4 to 4-6 · 600 | 4-6 to 6-8 · 400 | 5-8 to 8-11 · 200 |
-| P4 |  | 1-2 to 2-4 · 1000 | 1-4 to 4-7 · 800 | 1-5 to 5-10 · 600 | 2-8 to 8-14 · 400 | 2-10 to 10-18 · 200 |
-| P5 |  | 1 to 1-2 · 1000 | 2-3 to 3-4 · 800 | 3-4 to 4-6 · 600 | 4-6 to 6-8 · 400 | 5-8 to 8-11 · 200 |
-| P6 |  | 10-19 · 1000 | 20-34 · 800 | 35-49 · 600 | 50-64 · 400 | 65-79 · 200 |
-| P7 |  | 8-12 · 1000 | 13-20 · 800 | 21-30 · 600 | 31-40 · 400 | 41-50 · 200 |
-| P8 | Fire | 5-9 · 1000 | 10-14 · 800 | 15-19 · 600 | 20-24 · 400 | 25-29 · 200 |
-| P8 | Cold | 5-9 · 1000 | 10-14 · 800 | 15-19 · 600 | 20-24 · 400 | 25-29 · 200 |
-| P8 | Lightning | 5-9 · 1000 | 10-14 · 800 | 15-19 · 600 | 20-24 · 400 | 25-29 · 200 |
-| P8 | Blight | 5-9 · 1000 | 10-14 · 800 | 15-19 · 600 | 20-24 · 400 | 25-29 · 200 |
-| P9 | Physical | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P9 | Fire | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P9 | Cold | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P9 | Lightning | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P9 | Blight | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P10 | Fire | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P10 | Cold | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P10 | Lightning | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P11 |  | 5-9 · 1000 | 10-19 · 800 | 20-29 · 600 | 30-44 · 400 | 45-59 · 200 |
-| P12 |  | 2-4 · 1000 | 4-8 · 800 | 8-14 · 600 | 14-22 · 400 | 22-32 · 200 |
-| P13 |  | 10-19 · 1000 | 20-34 · 800 | 35-49 · 600 | 50-64 · 400 | 65-79 · 200 |
-| P14 |  | 10-19 · 1000 | 20-39 · 800 | 40-64 · 600 | 65-94 · 400 | 95-129 · 200 |
-| P15 |  | 10-19 · 1000 | 20-34 · 800 | 35-49 · 600 | 50-64 · 400 | 65-79 · 200 |
-| P16 |  | 3-5 · 1000 | 6-10 · 800 | 11-17 · 600 | 18-26 · 400 | 27-37 · 200 |
-| P17 |  | 10-19 · 1000 | 20-34 · 800 | 35-49 · 600 | 50-64 · 400 | 65-79 · 200 |
-| P18 |  | 6-10 · 1000 | 11-16 · 800 | 17-22 · 600 | 23-28 · 400 | 29-34 · 200 |
-| P19 |  | 6-10 · 1000 | 11-16 · 800 | 17-22 · 600 | 23-28 · 400 | 29-34 · 200 |
-| S1 |  | 1-3 · 1000 | 4-6 · 800 | 7-10 · 600 | 11-15 · 400 | 16-20 · 200 |
-| S2 |  | 1-3 · 1000 | 4-6 · 800 | 7-10 · 600 | 11-15 · 400 | 16-20 · 200 |
-| S3 |  | 1-3 · 1000 | 4-6 · 800 | 7-10 · 600 | 11-15 · 400 | 16-20 · 200 |
-| S4 |  | 1-3 · 1000 | 4-6 · 800 | 7-10 · 600 | 11-15 · 400 | 16-20 · 200 |
-| S5 | Fire | 6-11 · 1000 | 12-17 · 800 | 18-23 · 600 | 24-29 · 400 | 30-35 · 200 |
-| S5 | Cold | 6-11 · 1000 | 12-17 · 800 | 18-23 · 600 | 24-29 · 400 | 30-35 · 200 |
-| S5 | Lightning | 6-11 · 1000 | 12-17 · 800 | 18-23 · 600 | 24-29 · 400 | 30-35 · 200 |
-| S5 | Blight | 6-11 · 1000 | 12-17 · 800 | 18-23 · 600 | 24-29 · 400 | 30-35 · 200 |
-| S6 |  | 5-7 · 1000 | 8-10 · 800 | 11-13 · 600 | 14-16 · 400 | 17-19 · 200 |
-| S7 |  | 3-4 · 1000 | 5-6 · 800 | 7-8 · 600 | 9-10 · 400 | - |
-| S8 |  | 4-6 · 1000 | 7-9 · 800 | 10-12 · 600 | 13-15 · 400 | 16-18 · 200 |
-| S9 |  | 1 · 1000 | 2 · 800 | 3 · 600 | 4 · 400 | 5 · 200 |
-| S10 |  | 8-12 · 1000 | 13-17 · 800 | 18-22 · 600 | 23-27 · 400 | 28-32 · 200 |
-| S11 |  | 5 · 1000 | 8 · 800 | 11 · 600 | 14 · 400 | 17 · 200 |
-| S12 |  | 3-4 · 1000 | 5-6 · 800 | 7-8 · 600 | 9-10 · 400 | 11-12 · 200 |
-| S13 |  | 3-4 · 1000 | 5-6 · 800 | 7-8 · 600 | 9-10 · 400 | - |
+| Code | Element | T9 | T8 | T7 |
+| --- | --- | --- | --- | --- |
+| Item level | | 1 | 4 | 7 |
+| P1 |  | 1 to 1 · 1000 | 1 to 2 · 800 | 2 to 3 · 600 |
+| P2 |  | 1 to 1 · 1000 | 1 to 2 · 800 | 2 to 3 · 600 |
+| P3 |  | 1 to 1 · 1000 | 1 to 2 · 800 | 2 to 3 · 600 |
+| P4 |  | 1 to 2 · 1000 | 1 to 3 · 800 | 1 to 4 · 600 |
+| P5 |  | 1 to 1 · 1000 | 1 to 2 · 800 | 2 to 3 · 600 |
+| P6 |  | 5-8 · 1000 | 9-12 · 800 | 13-16 · 600 |
+| P7 |  | 2-3 · 1000 | 3-4 · 800 | 5-6 · 600 |
+| P8 | Fire | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| P8 | Cold | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| P8 | Lightning | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| P8 | Blight | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| P9 | Physical | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P9 | Fire | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P9 | Cold | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P9 | Lightning | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P9 | Blight | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P10 | Fire | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P10 | Cold | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P10 | Lightning | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P11 |  | 1-2 · 1000 | 3-4 · 800 | 5 · 600 |
+| P12 |  | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| P13 |  | 5-8 · 1000 | 9-12 · 800 | 13-16 · 600 |
+| P14 |  | 5-8 · 1000 | 9-14 · 800 | 15-20 · 600 |
+| P15 |  | 5-8 · 1000 | 9-12 · 800 | 13-16 · 600 |
+| P16 |  | 1-2 · 1000 | 2-4 · 800 | 4-6 · 600 |
+| P17 |  | 5-8 · 1000 | 9-12 · 800 | 13-16 · 600 |
+| P18 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| P19 |  | 2-3 · 1000 | 3-4 · 800 | 5-6 · 600 |
+| S1 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S2 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S3 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S4 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S5 | Fire | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| S5 | Cold | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| S5 | Lightning | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| S5 | Blight | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| S6 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S7 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S8 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S9 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S10 |  | 2-3 · 1000 | 4-5 · 800 | 5-6 · 600 |
+| S11 |  | 2 · 1000 | 3 · 800 | 4 · 600 |
+| S12 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S13 |  | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| S14 |  | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
 
 ### Implicits
 

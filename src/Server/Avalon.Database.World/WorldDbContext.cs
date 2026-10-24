@@ -1810,8 +1810,8 @@ public class WorldDbContext : DbContext
     }
 
     /// <summary>
-    /// The catalog rows (#1179): a tier of an affix group, or a unique's or implicit group's single row with no tier. Kind
-    /// and name live on the group only; that a prefix or suffix row has a tier and a unique or implicit row none spans the
+    /// The catalog rows (#1179): a tier of an affix group (1 to 9, counting down: T9 the weakest), or a unique's or
+    /// implicit group's single row with no tier. Kind and name live on the group only; that a prefix or suffix row has a tier and a unique or implicit row none spans the
     /// two tables, so no column check can: ItemModifierCatalog leaves out a row that breaks it, and SeedIntegrityShould
     /// holds the seed to it.
     /// </summary>
@@ -1819,7 +1819,7 @@ public class WorldDbContext : DbContext
     {
         builder.ToTable("ItemModifiers", t =>
         {
-            t.HasCheckConstraint("CK_ItemModifiers_Tier", "\"Tier\" IS NULL OR \"Tier\" BETWEEN 1 AND 5");
+            t.HasCheckConstraint("CK_ItemModifiers_Tier", "\"Tier\" IS NULL OR \"Tier\" BETWEEN 1 AND 9");
             t.HasCheckConstraint("CK_ItemModifiers_RequiredItemLevel", "\"RequiredItemLevel\" > 0");
         });
         builder.HasKey(m => m.Id);

@@ -14,7 +14,10 @@ public class ItemModifier
 
     public ItemModifierGroup Group { get; set; } = null!;
 
-    /// <summary>1 to 5 on a prefix or suffix row; null on a unique or implicit row.</summary>
+    /// <summary>
+    /// The tier's rank on a prefix or suffix row, 1 to 9, counting down: T9 is the weakest and T1 the best (the starting
+    /// zone's families have T9, T8 and T7); null on a unique or implicit row. A rank, never an id.
+    /// </summary>
     public byte? Tier { get; set; }
 
     /// <summary>The item level a drop needs to roll this row; 1 for a unique or an implicit.</summary>

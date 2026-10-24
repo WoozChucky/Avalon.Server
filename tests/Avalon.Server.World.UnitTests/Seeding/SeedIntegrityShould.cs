@@ -2099,9 +2099,10 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
 
     /// <summary>
     /// #1179: the modifier catalog whole, as the database holds it. Its counts (its ids are held by
-    /// <see cref="Keep_every_catalog_row_at_its_committed_id" />); the rules that span its tables (a code on every affix
-    /// group, an element only on a split family's, one stat set per group, a tier on every affix row and on no other); the
-    /// tiers' item levels and weights; the second range on exactly the "adds" lines; no weight on a unique or a trinket;
+    /// <see cref="Keep_every_catalog_row_at_its_committed_id" />): 45 affix groups of three tiers each, T9, T8 and T7 (Part
+    /// B's fourth and fifth tiers are gone, and no row has a tier from 1 to 6), weighing on the 222 pairs of a group and a
+    /// base kind it rolls on; the rules that span its tables (a code on every affix group, an element only on a split
+    /// family's, one stat set per group, a tier on every affix row and on no other); the tiers' item levels and weights; the second range on exactly the "adds" lines; no weight on a unique or a trinket;
     /// and the template links: each unique links its own unique row, and nothing else links anything (a base's defence is
     /// its base stats, so Part B's per-base implicits, groups 50-109 and rows 224-283, are gone, their ids unused). The
     /// catalog loads all of it without leaving any out.
@@ -2119,16 +2120,15 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
         var groupOf = modifiers.ToDictionary(m => m.Id, m => groups.Single(g => g.Id == m.GroupId));
 
         int Count(ItemModifierKind kind) => groups.Count(g => g.Kind == kind);
-        Assert.Equal((49, 28, 16, 5, 0), (groups.Count, Count(ItemModifierKind.Prefix), Count(ItemModifierKind.Suffix),
+        Assert.Equal((50, 28, 17, 5, 0), (groups.Count, Count(ItemModifierKind.Prefix), Count(ItemModifierKind.Suffix),
             Count(ItemModifierKind.Unique), Count(ItemModifierKind.Implicit)));
-        Assert.Equal((223, 234, 1780, 5),
+        Assert.Equal((140, 151, 666, 5),
             (modifiers.Count, modifiers.Sum(m => m.Stats.Count), modifiers.Sum(m => m.Weights.Count), links.Count));
 
         var templateOfGroup = links.ToDictionary(l => groupOf[l.ModifierId].Id, l => l.TemplateId.Value);
 
         string[] split = ["P8", "P9", "P10", "S5"];
-        ushort[] levels = [1, 4, 7, 10, 13];
-        int[] weights = [1000, 800, 600, 400, 200];
+        Dictionary<byte, (ushort Level, int Weight)> tiers = new() { [9] = (1, 1000), [8] = (4, 800), [7] = (7, 600) };
         foreach (ItemModifierGroup group in groups)
         {
             List<ItemModifier> rows = [.. modifiers.Where(m => m.GroupId == group.Id)];
@@ -2137,14 +2137,16 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
             {
                 Assert.NotNull(group.Code);
                 Assert.Equal(split.Contains(group.Code), group.Element is not null);
-                int tiers = group.Code is "S7" or "S13" ? 4 : 5;
-                Assert.Equal(Enumerable.Range(1, tiers).Select(t => (byte?)t), rows.Select(m => m.Tier).Order());
+                Assert.Equal(new byte?[] { 7, 8, 9 }, rows.Select(m => m.Tier).Order());
                 foreach (ItemModifier row in rows)
                 {
-                    Assert.Equal(levels[row.Tier!.Value - 1], row.RequiredItemLevel);
+                    Assert.Equal(tiers[row.Tier!.Value].Level, row.RequiredItemLevel);
                     Assert.NotEmpty(row.Weights);
-                    Assert.All(row.Weights, w => Assert.Equal(weights[row.Tier!.Value - 1], w.Weight));
+                    Assert.All(row.Weights, w => Assert.Equal(tiers[row.Tier!.Value].Weight, w.Weight));
                 }
+
+                // Every tier of a group rolls on the same base kinds.
+                Assert.Single(rows.Select(m => string.Join(" ", m.Weights.Select(w => w.BaseKind).Order())).Distinct());
             }
             else
             {
@@ -2174,22 +2176,24 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
 
         ItemModifierCatalog catalog = ItemsPatch.Build(templates.Values, await new ItemModifierRepository(database,
             NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None), NullLogger.Instance).Modifiers;
-        Assert.Equal(223, catalog.Count);
+        Assert.Equal(140, catalog.Count);
         Assert.All(links, l => Assert.Equal(l.ModifierId, Assert.Single(catalog.LinkedTo(l.TemplateId)).Id));
     }
 
     [Theory]
-    [InlineData("P1 T1", StatType.AddedPhysicalDamage, 1, 1, 1, 2, (ushort)1)]
-    [InlineData("P4 T5", StatType.AddedLightningDamage, 2, 10, 10, 18, (ushort)13)]
-    [InlineData("P6 T3", StatType.LocalIncreasedPhysicalDamage, 35, 49, null, null, (ushort)7)]
-    [InlineData("P8 Cold T3", StatType.IncreasedColdDamage, 15, 19, null, null, (ushort)7)]
-    [InlineData("P9 Physical T1", StatType.AddedPhysicalDamageToAttacks, 1, 1, 1, 2, (ushort)1)]
-    [InlineData("P14 T5", StatType.Evasion, 95, 129, null, null, (ushort)13)]
-    [InlineData("S5 Blight T2", StatType.BlightResistance, 12, 17, null, null, (ushort)4)]
-    [InlineData("S7 T4", StatType.AttackSpeed, 9, 10, null, null, (ushort)10)]
-    [InlineData("S9 T3", StatType.CritPct, 3, 3, null, null, (ushort)7)]
-    [InlineData("S11 T5", StatType.MovementSpeed, 17, 17, null, null, (ushort)13)]
-    [InlineData("S13 T1", StatType.BlockPct, 3, 4, null, null, (ushort)1)]
+    [InlineData("P1 T9", StatType.AddedPhysicalDamage, 1, 1, 1, 1, (ushort)1)]
+    [InlineData("P1 T7", StatType.AddedPhysicalDamage, 2, 2, 3, 3, (ushort)7)]
+    [InlineData("P4 T8", StatType.AddedLightningDamage, 1, 1, 3, 3, (ushort)4)]
+    [InlineData("P6 T7", StatType.LocalIncreasedPhysicalDamage, 13, 16, null, null, (ushort)7)]
+    [InlineData("P8 Cold T8", StatType.IncreasedColdDamage, 2, 3, null, null, (ushort)4)]
+    [InlineData("P9 Physical T7", StatType.AddedPhysicalDamageToAttacks, 1, 1, 3, 3, (ushort)7)]
+    [InlineData("P11 T7", StatType.Health, 5, 5, null, null, (ushort)7)]
+    [InlineData("P14 T8", StatType.Evasion, 9, 14, null, null, (ushort)4)]
+    [InlineData("S5 Blight T8", StatType.BlightResistance, 2, 3, null, null, (ushort)4)]
+    [InlineData("S7 T7", StatType.AttackSpeed, 3, 3, null, null, (ushort)7)]
+    [InlineData("S11 T9", StatType.MovementSpeed, 2, 2, null, null, (ushort)1)]
+    [InlineData("S13 T9", StatType.BlockPct, 1, 2, null, null, (ushort)1)]
+    [InlineData("S14 T7", StatType.IncreasedMaximumLife, 3, 4, null, null, (ushort)7)]
     public void Seed_catalog_rows_as_the_catalog_lists_them(string key, StatType stat, int min, int max, int? min2, int? max2,
         ushort requiredItemLevel)
     {
@@ -2204,27 +2208,26 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
     }
 
     /// <summary>
-    /// #1179: the "By slot" table, one row per line (each armour slot in one of its families): the catalog codes with a
-    /// family weighing above 0 on the kind. A split code is listed when every one of its element families is, and none
-    /// may roll there alone.
+    /// #1179: where each family rolls, one row per base kind (the content table's "Families per slot"): the catalog codes
+    /// with a group weighing above 0 on the kind. A split code is written bare when every one of its elements rolls there,
+    /// and with its element ("S5 Fire") when only that one does.
     /// </summary>
     [Theory]
-    [InlineData(ItemBaseKind.PlateHead, "P11 P12 P13", "S1 S2 S3 S4 S5 S12")]
-    [InlineData(ItemBaseKind.LeatherShoulders, "P11 P14 P15", "S1 S2 S3 S4 S5 S12")]
-    [InlineData(ItemBaseKind.ClothChest, "P11 P16 P17", "S1 S2 S3 S4 S5")]
-    [InlineData(ItemBaseKind.LeatherHands, "P9 P11 P14 P15", "S1 S2 S3 S4 S5 S7")]
-    [InlineData(ItemBaseKind.PlateLegs, "P11 P12 P13", "S1 S2 S3 S4 S5")]
-    [InlineData(ItemBaseKind.ClothFeet, "P11 P16 P17", "S1 S2 S3 S4 S5 S11")]
-    [InlineData(ItemBaseKind.Sword, "P1 P2 P3 P4 P5 P6", "S1 S2 S3 S6 S9 S10")]
-    [InlineData(ItemBaseKind.Mace, "P1 P2 P3 P4 P5 P6 P7 P19", "S1 S3 S6 S8 S9 S10")]
-    [InlineData(ItemBaseKind.Staff, "P1 P2 P3 P4 P5 P6 P7 P8 P18 P19", "S2 S3 S6 S8 S9 S10")]
-    [InlineData(ItemBaseKind.Bow, "P1 P2 P3 P4 P5 P6", "S1 S2 S6 S9 S10")]
-    [InlineData(ItemBaseKind.Shield, "P11 P12 P13", "S1 S4 S5 S13")]
-    [InlineData(ItemBaseKind.CasterOffHand, "P7 P8 P10 P16 P17 P18 P19", "S3 S8 S9")]
-    [InlineData(ItemBaseKind.Amulet, "P8 P9 P10 P11 P18 P19", "S1 S2 S3 S4 S5 S8 S9 S10 S12")]
-    [InlineData(ItemBaseKind.Ring, "P8 P9 P10 P11", "S1 S2 S3 S4 S5 S7 S8 S9")]
+    [InlineData(ItemBaseKind.PlateHead, "P11 P12 P13", "S5 Fire S10 S12")]
+    [InlineData(ItemBaseKind.LeatherShoulders, "P8 P14 P15", "S3 S12 S14")]
+    [InlineData(ItemBaseKind.ClothChest, "P11 P16 P17", "S1 S5 Blight S14")]
+    [InlineData(ItemBaseKind.PlateHands, "P9 P12 P13", "S7 S8 S9 S10")]
+    [InlineData(ItemBaseKind.LeatherLegs, "P11 P14 P15", "S2 S5 Lightning S14")]
+    [InlineData(ItemBaseKind.ClothFeet, "P11 P16 P17", "S4 S5 Cold S11")]
+    [InlineData(ItemBaseKind.Amulet, "P8 P11 P18 P19", "S5")]
+    [InlineData(ItemBaseKind.Ring, "P8 P10", "S1 S2 S3")]
+    [InlineData(ItemBaseKind.Sword, "P1 P2 P3 P4 P5 P6", "S6 S9 S10")]
+    [InlineData(ItemBaseKind.Mace, "P1 P2 P3 P4 P5 P6 P7 P19", "S6 S9 S10")]
+    [InlineData(ItemBaseKind.Staff, "P1 P2 P3 P4 P5 P6 P7 P8 P18 P19", "S6 S8 S9 S10")]
+    [InlineData(ItemBaseKind.Shield, "P11 P12 P13", "S5 S13")]
+    [InlineData(ItemBaseKind.CasterOffHand, "P7 P8 P16 P17 P18 P19", "S5 S8 S10")]
     [InlineData(ItemBaseKind.Trinket, "", "")]
-    public void Let_each_base_kind_roll_exactly_its_by_slot_families(ItemBaseKind kind, string prefixes, string suffixes)
+    public void Let_each_base_kind_roll_exactly_its_families(ItemBaseKind kind, string prefixes, string suffixes)
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
@@ -2241,16 +2244,38 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
             foreach (IGrouping<string, ItemModifierGroup> code in groups.Where(g => g.Kind == affix)
                          .GroupBy(g => g.Code!).OrderBy(c => int.Parse(c.Key[1..])))
             {
-                int rolls = code.Count(g => rolling.Contains(g.Id));
-                Assert.True(rolls == 0 || rolls == code.Count(), $"{code.Key} rolls on {kind} for only some of its elements");
-                if (rolls > 0)
+                ItemModifierGroup[] rolls = [.. code.Where(g => rolling.Contains(g.Id))];
+                if (rolls.Length == code.Count())
                     codes.Add(code.Key);
+                else
+                    codes.AddRange(rolls.Select(g => $"{code.Key} {g.Element}"));
             }
 
             return string.Join(" ", codes);
         }
 
         Assert.Equal((prefixes, suffixes), (Codes(ItemModifierKind.Prefix), Codes(ItemModifierKind.Suffix)));
+    }
+
+    /// <summary>
+    /// #1179: the tiers progress. In every affix group each tier's best value (its maximum, or an "adds" line's high end)
+    /// is above the one below it: T8 beats T9 and T7 beats T8, so a better tier never reads as a worse one.
+    /// </summary>
+    [Fact]
+    public void Beat_the_tier_below_at_its_best_value()
+    {
+        Dictionary<int, ItemModifierGroup> groups = ItemModifierSeed.Groups().ToDictionary(g => g.Id);
+        ILookup<int, ItemModifierStat> lines = ItemModifierSeed.Stats().ToLookup(s => s.ModifierId);
+
+        foreach (IGrouping<int, ItemModifier> rows in ItemModifierSeed.Modifiers()
+                     .Where(m => groups[m.GroupId].Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix)
+                     .GroupBy(m => m.GroupId))
+        {
+            int[] best = [.. rows.OrderByDescending(m => m.Tier).Select(m => lines[m.Id].Single()).Select(line => line.Max2 ?? line.Max)];
+            ItemModifierGroup group = groups[rows.Key];
+            Assert.True(best.Zip(best.Skip(1)).All(pair => pair.First < pair.Second),
+                $"{group.Code} {group.Element}: best values {string.Join(" / ", best)} from T9 up");
+        }
     }
 
     /// <summary>

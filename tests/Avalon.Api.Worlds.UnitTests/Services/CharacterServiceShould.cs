@@ -44,14 +44,14 @@ public sealed class CharacterServiceShould : IDisposable
     /// Instances live in the Character database and templates in the World database, so the
     /// template is looked up by id rather than joined. The copy's own rarity, item level and modifiers come from the
     /// instance (#1179), in the order the item shows them, whatever order the rows were read in, each with its kind
-    /// from the world's catalog; a magic copy is named by its prefix and its suffix. The copy is a caster off-hand: its
-    /// prefix (Ember-sung, cold) a two-range line, its suffix (of the Owl) a plain one.
+    /// from the world's catalog; a magic copy is named by its prefix and its suffix. The copy is a ring: its prefix
+    /// (Ember-sung, cold, T8) a two-range line, its suffix (of the Owl, T8) a plain one.
     /// </summary>
     [Fact]
     public async Task Look_up_each_items_template_in_the_world_database()
     {
-        int emberSung = Seeded("P10", Avalon.Network.Packets.Combat.DamageType.Cold, 1);
-        int owl = Seeded("S3", null, 1);
+        int emberSung = Seeded("P10", Avalon.Network.Packets.Combat.DamageType.Cold, 8);
+        int owl = Seeded("S3", null, 8);
         var id = new CharacterId(42);
         var itemId = new ItemInstanceId(Guid.CreateVersion7());
 
@@ -70,7 +70,7 @@ public sealed class CharacterServiceShould : IDisposable
         {
             new()
             {
-                Id = itemId, TemplateId = new ItemTemplateId(75), CharacterId = id, Count = 4, Durability = 7,
+                Id = itemId, TemplateId = new ItemTemplateId(68), CharacterId = id, Count = 4, Durability = 7,
                 Rarity = Avalon.Common.ItemRarity.Magic, ItemLevel = 7,
                 Modifiers =
                 [
@@ -98,7 +98,7 @@ public sealed class CharacterServiceShould : IDisposable
         templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<ItemTemplate>
             {
-                new() { Id = new ItemTemplateId(75), Name = "Gloamwood Orb", Rarity = Avalon.Common.ItemRarity.Common, DisplayId = 12 },
+                new() { Id = new ItemTemplateId(68), Name = "Copper Band", Rarity = Avalon.Common.ItemRarity.Common, DisplayId = 68 },
             });
 
         var service = new CharacterService(characters, slots, items,
@@ -113,11 +113,11 @@ public sealed class CharacterServiceShould : IDisposable
         Assert.Equal(4u, item.Count);
         Assert.Equal(7u, item.Durability);
         Assert.NotNull(item.Template);
-        Assert.Equal(75ul, item.Template!.Id);
-        Assert.Equal("Gloamwood Orb", item.Template.Name);
-        Assert.Equal(12u, item.Template.DisplayId);
+        Assert.Equal(68ul, item.Template!.Id);
+        Assert.Equal("Copper Band", item.Template.Name);
+        Assert.Equal(68u, item.Template.DisplayId);
         Assert.Equal((Avalon.Api.Contract.ItemRarity.Magic, (ushort)7), (item.Rarity, item.ItemLevel));
-        Assert.Equal("Ember-sung Gloamwood Orb of the Owl", item.Name);
+        Assert.Equal("Ember-sung Copper Band of the Owl", item.Name);
         Assert.Equal(
             $"{emberSung} Prefix [AddedColdDamageToSpells 1 2] {owl} Suffix [Intellect 2 ]",
             string.Join(' ', item.Modifiers.Select(m =>

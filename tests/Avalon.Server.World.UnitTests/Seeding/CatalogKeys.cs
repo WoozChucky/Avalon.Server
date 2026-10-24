@@ -4,8 +4,8 @@ using Avalon.Domain.World;
 namespace Avalon.Server.World.UnitTests.Seeding;
 
 /// <summary>
-/// Names a seeded catalog modifier the way the catalog does (#1179), so no test holds an id: "P2 T2" (a family's tier),
-/// "P8 Fire T1" or "S5 Blight T2" (an element of a split family), "unique 65" (the unique template's own modifier) and
+/// Names a seeded catalog modifier the way the catalog does (#1179), so no test holds an id: "P2 T8" (a family's tier),
+/// "P8 Fire T9" or "S5 Blight T8" (an element of a split family), "unique 65" (the unique template's own modifier) and
 /// "implicit 37" (the base template's implicit row).
 /// </summary>
 internal static class CatalogKeys
