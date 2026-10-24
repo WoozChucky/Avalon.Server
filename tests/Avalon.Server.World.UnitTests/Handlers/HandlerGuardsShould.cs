@@ -92,7 +92,7 @@ public class HandlerGuardsShould
             case NetworkPacketType.CMSG_QUEST_ACCEPT:
                 new QuestAcceptHandler(
                         new QuestService(world, Substitute.For<IServiceProvider>(), economy, Substitute.For<ILootRandom>(),
-                            TimeProvider.System, NullLogger<QuestService>.Instance),
+                            Substitute.For<IItemRoller>(), TimeProvider.System, NullLogger<QuestService>.Instance),
                         NullLogger<QuestAcceptHandler>.Instance)
                     .Execute(connection, new CQuestAcceptPacket { QuestId = 1, NpcGuid = 7 });
                 break;

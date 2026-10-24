@@ -17,6 +17,7 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Quests;
 using Avalon.World.Scripts;
+using Avalon.World.Testing.Scenarios;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -85,8 +86,9 @@ internal sealed class QuestTestWorld
         World.InstanceRegistry.GetInstanceById(Arg.Any<Guid>()).Returns(ci => ci.Arg<Guid>() == Instance.InstanceId ? Instance : null);
 
         Economy = TestEconomy.Over(World);
+        Roller = TestEconomy.Roller(new ItemIdAllocator());
         ILogger<QuestService> logger = log is null ? NullLogger<QuestService>.Instance : new Logger<QuestService>(log);
-        Quests = new QuestService(World, services, Economy, random, Clock, logger, parties);
+        Quests = new QuestService(World, services, Economy, random, Roller, Clock, logger, parties);
     }
 
     public ManualTimerClock Clock { get; } = new();
@@ -96,6 +98,7 @@ internal sealed class QuestTestWorld
     public IMapInstance Instance { get; }
     public ICharacterEconomy Economy { get; }
     public SteadyLootRandom Random { get; }
+    public IItemRoller Roller { get; }
     public QuestService Quests { get; }
 
     public static async Task<QuestTestWorld> CreateAsync(
@@ -147,6 +150,10 @@ internal sealed class QuestTestWorld
         return new QuestTestWorld(data, config, services ?? Substitute.For<IServiceProvider>(), new SteadyLootRandom(0), parties, log);
     }
 
+    /// <summary>The world over the World database's seed (#1179): its quests, NPCs, dialogue, item templates and modifiers.</summary>
+    public static QuestTestWorld OverSeed() => new(ScenarioReferenceData.Shared.Data, new GameConfiguration(),
+        Substitute.For<IServiceProvider>(), new SteadyLootRandom(0), parties: null, log: null);
+
     /// <summary>
     /// A quest service over this world's economy and clock whose every call that reads the world throws, standing
     /// in for a quest or quest script that fails: the callers must contain it.
@@ -155,7 +162,7 @@ internal sealed class QuestTestWorld
     {
         IWorld broken = Substitute.For<IWorld>();
         broken.Data.Returns(_ => throw new InvalidOperationException("quest data unavailable"));
-        return new QuestService(broken, Substitute.For<IServiceProvider>(), Economy, Random, Clock, NullLogger<QuestService>.Instance);
+        return new QuestService(broken, Substitute.For<IServiceProvider>(), Economy, Random, Roller, Clock, NullLogger<QuestService>.Instance);
     }
 
     /// <summary>
@@ -165,7 +172,7 @@ internal sealed class QuestTestWorld
     public QuestService QuietQuests()
     {
         var quiet = new QuietWorld(Data);
-        return new QuestService(quiet, _services, TestEconomy.Over(quiet), Random, Clock,
+        return new QuestService(quiet, _services, TestEconomy.Over(quiet), Random, Roller, Clock,
             NullLogger<QuestService>.Instance);
     }
 
@@ -243,6 +250,6 @@ internal static class InertQuestService
         world.Configuration.Returns(new GameConfiguration());
         world.InstanceRegistry.GetInstanceById(Arg.Any<Guid>()).Returns((IMapInstance?)null);
         return new QuestService(world, Substitute.For<IServiceProvider>(), Substitute.For<ICharacterEconomy>(),
-            new SteadyLootRandom(0), TimeProvider.System, NullLogger<QuestService>.Instance);
+            new SteadyLootRandom(0), Substitute.For<IItemRoller>(), TimeProvider.System, NullLogger<QuestService>.Instance);
     }
 }

@@ -13,9 +13,10 @@ namespace Avalon.World.Quests;
 /// Whether a turn-in can go ahead, changing nothing (#433): ready; the last stage's Collect items all in the bag, in
 /// stacks not offered in a trade (#1175: an offered stack is not the quest's to take, so it counts for nothing); the
 /// pick one of the quest's choice set, or none for a quest without one (#711); every reward template, fixed and
-/// picked, known and not Unique; the fixed rewards and the pick fit the bag as it will be once every quest item has
-/// left it, less the slots a completing trade reserved; the gold under the cap, counting the gold that trade is about to
-/// pay. Everything after it is ordered so nothing can refuse, as VendorRules is for a trade.
+/// picked, known and one a quest may pay (not flagged Unique, not of Unique rarity, #1179); the fixed rewards and the
+/// pick fit the bag as it will be once every quest item has left it, less the slots a completing trade reserved; the
+/// gold under the cap, counting the gold that trade is about to pay. Everything after it is ordered so nothing can
+/// refuse, as VendorRules is for a trade.
 /// </summary>
 public static class QuestTurnInRules
 {
@@ -43,9 +44,10 @@ public static class QuestTurnInRules
         {
             // A reload removed a reward's template after the catalog was built: nothing is paid rather than part.
             // The catalog refuses a Unique reward, but /reload items can make one Unique since: TryAdd could then
-            // refuse it after the quest items left, so the turn-in is refused instead.
+            // refuse it after the quest items left (flagged Unique), or it would pay a unique (Unique rarity), so the
+            // turn-in is refused instead.
             if (findTemplate(reward.ItemTemplateId) is not { } template
-                || (template.Flags & ItemTemplateFlags.Unique) != 0)
+                || ItemUseRules.QuestRewardProblem(template) is not null)
             {
                 return QuestResult.Error;
             }
@@ -57,7 +59,7 @@ public static class QuestTurnInRules
         if (choice is not null)
         {
             if (findTemplate(choice.ItemTemplateId) is not { } picked
-                || (picked.Flags & ItemTemplateFlags.Unique) != 0)
+                || ItemUseRules.QuestRewardProblem(picked) is not null)
             {
                 return QuestResult.Error;
             }
@@ -86,6 +88,12 @@ public static class QuestTurnInRules
 
         return QuestResult.Ok;
     }
+
+    /// <summary>
+    /// Whether a reward is rolled Magic as it is paid (#1179, B-R22): its template is a Common base. Any other reward is
+    /// paid as a plain copy of its template.
+    /// </summary>
+    public static bool RollsMagic(ItemTemplate reward) => reward.Rarity == ItemRarity.Common && reward.BaseKind is not null;
 
     /// <summary>The item in the Bag the turn-in may take: every stack but those offered in a trade (#1175).</summary>
     private static long Collectable(CharacterEntity character, ItemTemplateId item) =>

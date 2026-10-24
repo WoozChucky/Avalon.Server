@@ -239,7 +239,8 @@ public sealed class ScenarioWorld : IDisposable
             provider.GetRequiredService<IItemIdAllocator>(), provider.GetRequiredService<IItemRoller>()));
         services.AddSingleton(provider => new QuestService(_world, provider,
             provider.GetRequiredService<ICharacterEconomy>(),
-            new LootRandom(new Random(unchecked(seed + QuestSeedOffset))), Clock, new Logger<QuestService>(_errorLog),
+            new LootRandom(new Random(unchecked(seed + QuestSeedOffset))), provider.GetRequiredService<IItemRoller>(), Clock,
+            new Logger<QuestService>(_errorLog),
             provider.GetRequiredService<PartyService>()));
     }
 

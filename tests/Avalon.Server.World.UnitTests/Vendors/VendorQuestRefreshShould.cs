@@ -1,8 +1,10 @@
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.Vendor;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Quests;
 using Avalon.World.Handlers;
+using Avalon.World.Inventory;
 using Avalon.World.Quests;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -25,7 +27,8 @@ public class VendorQuestRefreshShould : IAsyncLifetime
         _w = await VendorWorld.CreateAsync(
             [QuestTestData.Quest(GatedQuest, giver: Smith.Value, ender: Smith.Value).WithStage(0, QuestTestData.Talk(71, Smith.Value))]);
         _w.Quests = QuestProgress.Instance;
-        _quests = new QuestService(_w.World, Substitute.For<IServiceProvider>(), _w.Economy, new SteadyLootRandom(0), _w.Clock,
+        _quests = new QuestService(_w.World, Substitute.For<IServiceProvider>(), _w.Economy, new SteadyLootRandom(0),
+            TestEconomy.Roller(new ItemIdAllocator()), _w.Clock,
             NullLogger<QuestService>.Instance);
         Assert.True(_w.Data.Quests.TryGet(GatedQuest, out _));
     }

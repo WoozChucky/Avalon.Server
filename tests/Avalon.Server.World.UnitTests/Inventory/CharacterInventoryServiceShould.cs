@@ -289,14 +289,15 @@ public class CharacterInventoryServiceShould
 
     /// <summary>
     /// Review Focus 1 (#1179, B-R12): however a copy of a base is made (bought, given by an item script, paid as a quest's
-    /// unrolled reward, or handed to a new character), it carries its base's implicits: one modifier per link, in link
-    /// order, ordinals from 0, every value within its line's range, and the write that stores the copy writes them. Potion 1,
-    /// made the same way, carries none.
+    /// reward, or handed to a new character), it carries its base's implicits: one modifier per link, in link order,
+    /// ordinals from 0, every value within its line's range, and the write that stores the copy writes them. A quest's
+    /// reward is rolled Magic (B-R22), so its affixes follow the implicits; every other copy carries the implicits alone.
+    /// Potion 1, made the same way, carries none.
     /// </summary>
     [Theory]
     [InlineData("vendor purchase")]
     [InlineData("item script add")]
-    [InlineData("unrolled quest reward")]
+    [InlineData("quest reward")]
     [InlineData("starting item")]
     public async Task Give_every_copy_of_a_base_its_implicits_however_it_is_made(string how)
     {
@@ -342,7 +343,7 @@ public class CharacterInventoryServiceShould
                 Assert.True(use.GiveItem(potion, 1));
                 copies = HeldAndWritten(c.Character);
                 break;
-            case "unrolled quest reward":
+            case "quest reward":
                 w.Accept(c, QuestId);
                 w.Quests.AddProgress(c.Character, QuestId, KillId, 1);
                 Creature giver = w.Place(Giver);
@@ -361,13 +362,16 @@ public class CharacterInventoryServiceShould
         {
             IReadOnlyList<ItemModifier> links = w.Data.ItemModifiers.LinkedTo(copy.Template);
             Assert.Equal(copy.Template == made, links.Count > 0);
-            Assert.Equal(links.Select(link => link.Id), copy.Held.Select(modifier => modifier.ModifierId));
-            Assert.Equal(Enumerable.Range(0, links.Count).Select(ordinal => (byte)ordinal), copy.Held.Select(modifier => modifier.Ordinal));
+            List<ItemInstanceModifier> implicits = [.. copy.Held.Take(links.Count)];
+            if (how != "quest reward" || copy.Template != made)
+                Assert.Equal(links.Count, copy.Held.Count);
+            Assert.Equal(links.Select(link => link.Id), implicits.Select(modifier => modifier.ModifierId));
+            Assert.Equal(Enumerable.Range(0, links.Count).Select(ordinal => (byte)ordinal), implicits.Select(modifier => modifier.Ordinal));
             for (int i = 0; i < links.Count; i++)
             {
-                Assert.Equal(links[i].Stats.Select(line => (line.Index, line.Stat)), copy.Held[i].Values.Select(v => (v.Index, v.Stat)));
-                Assert.All(links[i].Stats.Zip(copy.Held[i].Values), pair => Assert.InRange(pair.Second.Value, pair.First.Min, pair.First.Max));
-                Assert.All(copy.Held[i].Values, value => Assert.Null(value.Value2));
+                Assert.Equal(links[i].Stats.Select(line => (line.Index, line.Stat)), implicits[i].Values.Select(v => (v.Index, v.Stat)));
+                Assert.All(links[i].Stats.Zip(implicits[i].Values), pair => Assert.InRange(pair.Second.Value, pair.First.Min, pair.First.Max));
+                Assert.All(implicits[i].Values, value => Assert.Null(value.Value2));
             }
 
             Assert.Equal(TestModifiers.Describe(copy.Held), TestModifiers.Describe(copy.Written));

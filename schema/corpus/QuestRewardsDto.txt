@@ -36,20 +36,25 @@ variant populated
     element 0
       field 1 ItemTemplateId : ulong = 65535
       field 2 Count : uint = 1000000
+      field 3 Rarity : ItemRarity = Rare (2)
     element 1
       field 1 ItemTemplateId : ulong = 7
       field 2 Count : uint = 7
+      field 3 Rarity : ItemRarity = Unique (3)
   field 4 Choices : List<QuestRewardItemDto> = 2 elements
     element 0
       field 1 ItemTemplateId : ulong = 65535
       field 2 Count : uint = 1000000
+      field 3 Rarity : ItemRarity = Rare (2)
     element 1
       field 1 ItemTemplateId : ulong = 7
       field 2 Count : uint = 7
-  bytes 41
-    08 ac 02 10 80 d0 ac f3 0e 1a 08 08 ff ff 03 10
-    c0 84 3d 1a 04 08 07 10 07 22 08 08 ff ff 03 10
-    c0 84 3d 22 04 08 07 10 07
+      field 3 Rarity : ItemRarity = Unique (3)
+  bytes 49
+    08 ac 02 10 80 d0 ac f3 0e 1a 0a 08 ff ff 03 10
+    c0 84 3d 18 02 1a 06 08 07 10 07 18 03 22 0a 08
+    ff ff 03 10 c0 84 3d 18 02 22 06 08 07 10 07 18
+    03
 
 variant maxima
   field 1 Experience : uint = 4294967295
@@ -58,32 +63,38 @@ variant maxima
     element 0
       field 1 ItemTemplateId : ulong = 18446744073709551615
       field 2 Count : uint = 4294967295
+      field 3 Rarity : ItemRarity = Unique (3)
     element 1
       field 1 ItemTemplateId : ulong = 18446744073709551615
       field 2 Count : uint = 4294967295
+      field 3 Rarity : ItemRarity = Unique (3)
     element 2
       field 1 ItemTemplateId : ulong = 18446744073709551615
       field 2 Count : uint = 4294967295
+      field 3 Rarity : ItemRarity = Unique (3)
   field 4 Choices : List<QuestRewardItemDto> = 3 elements
     element 0
       field 1 ItemTemplateId : ulong = 18446744073709551615
       field 2 Count : uint = 4294967295
+      field 3 Rarity : ItemRarity = Unique (3)
     element 1
       field 1 ItemTemplateId : ulong = 18446744073709551615
       field 2 Count : uint = 4294967295
+      field 3 Rarity : ItemRarity = Unique (3)
     element 2
       field 1 ItemTemplateId : ulong = 18446744073709551615
       field 2 Count : uint = 4294967295
-  bytes 131
+      field 3 Rarity : ItemRarity = Unique (3)
+  bytes 143
     08 ff ff ff ff 0f 10 ff ff ff ff ff ff ff ff ff
-    01 1a 11 08 ff ff ff ff ff ff ff ff ff 01 10 ff
-    ff ff ff 0f 1a 11 08 ff ff ff ff ff ff ff ff ff
-    01 10 ff ff ff ff 0f 1a 11 08 ff ff ff ff ff ff
-    ff ff ff 01 10 ff ff ff ff 0f 22 11 08 ff ff ff
-    ff ff ff ff ff ff 01 10 ff ff ff ff 0f 22 11 08
-    ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff 0f
-    22 11 08 ff ff ff ff ff ff ff ff ff 01 10 ff ff
-    ff ff 0f
+    01 1a 13 08 ff ff ff ff ff ff ff ff ff 01 10 ff
+    ff ff ff 0f 18 03 1a 13 08 ff ff ff ff ff ff ff
+    ff ff 01 10 ff ff ff ff 0f 18 03 1a 13 08 ff ff
+    ff ff ff ff ff ff ff 01 10 ff ff ff ff 0f 18 03
+    22 13 08 ff ff ff ff ff ff ff ff ff 01 10 ff ff
+    ff ff 0f 18 03 22 13 08 ff ff ff ff ff ff ff ff
+    ff 01 10 ff ff ff ff 0f 18 03 22 13 08 ff ff ff
+    ff ff ff ff ff ff 01 10 ff ff ff ff 0f 18 03
 
 variant minima
   field 1 Experience : uint = 0
@@ -92,10 +103,12 @@ variant minima
     element 0
       field 1 ItemTemplateId : ulong = 0
       field 2 Count : uint = 0
+      field 3 Rarity : ItemRarity = Common (0)
   field 4 Choices : List<QuestRewardItemDto> = 1 element
     element 0
       field 1 ItemTemplateId : ulong = 0
       field 2 Count : uint = 0
+      field 3 Rarity : ItemRarity = Common (0)
   bytes 4
     1a 00 22 00
 
@@ -106,17 +119,22 @@ variant varint-edges
     element 0
       field 1 ItemTemplateId : ulong = 2097151
       field 2 Count : uint = 128
+      field 3 Rarity : ItemRarity = <not a declared member> (4)
     element 1
       field 1 ItemTemplateId : ulong = 16384
       field 2 Count : uint = 268435455
+      field 3 Rarity : ItemRarity = <not a declared member> (4)
   field 4 Choices : List<QuestRewardItemDto> = 2 elements
     element 0
       field 1 ItemTemplateId : ulong = 2097151
       field 2 Count : uint = 128
+      field 3 Rarity : ItemRarity = <not a declared member> (4)
     element 1
       field 1 ItemTemplateId : ulong = 16384
       field 2 Count : uint = 268435455
-  bytes 48
-    08 ff 7f 10 ff ff ff 7f 1a 07 08 ff ff 7f 10 80
-    01 1a 09 08 80 80 01 10 ff ff ff 7f 22 07 08 ff
-    ff 7f 10 80 01 22 09 08 80 80 01 10 ff ff ff 7f
+      field 3 Rarity : ItemRarity = <not a declared member> (4)
+  bytes 56
+    08 ff 7f 10 ff ff ff 7f 1a 09 08 ff ff 7f 10 80
+    01 18 04 1a 0b 08 80 80 01 10 ff ff ff 7f 18 04
+    22 09 08 ff ff 7f 10 80 01 18 04 22 0b 08 80 80
+    01 10 ff ff ff 7f 18 04

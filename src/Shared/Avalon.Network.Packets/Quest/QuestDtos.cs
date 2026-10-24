@@ -1,3 +1,4 @@
+using Avalon.Common;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Quest;
@@ -66,6 +67,12 @@ public class QuestRewardItemDto
 {
     [ProtoMember(1)] public ulong ItemTemplateId { get; set; }
     [ProtoMember(2)] public uint Count { get; set; }
+
+    /// <summary>
+    /// The rarity the reward is paid at (#1179): Magic for a Common base, which is rolled at turn-in, else the
+    /// template's own, so a reward window can say the item is rolled.
+    /// </summary>
+    [ProtoMember(3)] public ItemRarity Rarity { get; set; }
 }
 
 /// <summary>A quest's rewards: experience, gold, the fixed items and the choice set.</summary>

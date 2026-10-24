@@ -5,8 +5,11 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
+using Avalon.World.Public.Characters;
+using Avalon.World.Public.Dialogue;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
@@ -199,7 +202,7 @@ public class QuestTurnInShould
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync();
         w.Data.ItemTemplates.Single(t => t.Id.Value == Tonic).Flags |= ItemTemplateFlags.Unique;
         ILogger<QuestService> logger = NSubstitute.Substitute.For<Microsoft.Extensions.Logging.ILogger<QuestService>>();
-        var quests = new QuestService(w.World, NSubstitute.Substitute.For<IServiceProvider>(), w.Economy, w.Random, w.Clock, logger);
+        var quests = new QuestService(w.World, NSubstitute.Substitute.For<IServiceProvider>(), w.Economy, w.Random, w.Roller, w.Clock, logger);
 
         Assert.Equal(QuestResult.Error, quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));
 
@@ -295,6 +298,84 @@ public class QuestTurnInShould
             Assert.Contains(log.Errors, e => e.Message.Contains($"Quest {Tusks} ", StringComparison.Ordinal)
                 && e.Message.Contains($"{Blade}", StringComparison.Ordinal));
         }
+    }
+
+    /// <summary>
+    /// #1179 (B-R22), over the World database's seed: a fixed or picked reward whose template is a Common base is rolled
+    /// Magic at the quest's level as it is paid, its implicits first, then one or two affixes the level allows; the
+    /// offer says so.
+    /// </summary>
+    [Fact]
+    public void Roll_a_magic_reward_on_the_picked_base_at_the_quests_level()
+    {
+        const uint AlphasHowl = 3, MotherOfThorns = 8, EarnItFancy = 11;
+        var w = QuestTestWorld.OverSeed();
+        QuestClient c = w.Join(level: 8);
+
+        Creature borin = ReadyAtSeed(w, c, AlphasHowl);
+        DialogueNodeView root = w.Data.Dialogue.GetRoot(borin.Metadata.Id)!;
+        Assert.True(w.Quests.TryChoose(c.Connection, c.Character, borin, root, -(int)AlphasHowl));
+        QuestRewardsDto offered = Assert.Single(c.Read<SQuestOfferPacket>(NetworkPacketType.SMSG_QUEST_OFFER)).Quest!.Rewards!;
+        Assert.All(offered.Items.Concat(offered.Choices), reward => Assert.Equal(ItemRarity.Magic, reward.Rarity));
+        Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, AlphasHowl, borin.Guid.RawValue, choiceItemTemplateId: 32));
+        AssertMagic(c, w, Paid(c, 32), itemLevel: 2);
+        AssertMagic(c, w, Paid(c, 69), itemLevel: 2);
+
+        Creature uriel = ReadyAtSeed(w, c, MotherOfThorns);
+        Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, MotherOfThorns, uriel.Guid.RawValue));
+        AssertMagic(c, w, Paid(c, 68), itemLevel: 7);
+
+        Creature hilde = ReadyAtSeed(w, c, EarnItFancy);
+        Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, EarnItFancy, hilde.Guid.RawValue, choiceItemTemplateId: 37));
+        InventoryItem chest = Paid(c, 37);
+        AssertMagic(c, w, chest, itemLevel: 4);
+        ItemInstanceModifier first = c.Character.ItemModifiers.Of(chest.InstanceId)[0];
+        Assert.Equal((CatalogKeys.ModifierId("implicit 37"), (byte)0), (first.ModifierId, first.Ordinal));
+    }
+
+    /// <summary>
+    /// Starts a seeded quest and finishes every objective through the service (a Collect objective's items put in the
+    /// Bag and recounted), then opens a conversation with its ender, which is returned.
+    /// </summary>
+    private static Creature ReadyAtSeed(QuestTestWorld w, QuestClient c, uint questId)
+    {
+        Assert.True(w.Data.Quests.TryGet(questId, out QuestView? quest));
+        c.Character.Quests.Start(questId, DateTime.UnixEpoch);
+        foreach (QuestObjectiveView objective in quest!.Stages.SelectMany(stage => stage.Objectives))
+        {
+            if (objective.Type == QuestObjectiveType.Collect)
+            {
+                w.Economy.InventoryOf(c.Character).TryAdd(objective.ItemTemplateId!, objective.Count);
+                QuestFlusher.Flush(c.Connection, w.Quests);
+            }
+            else
+            {
+                Assert.True(w.Quests.AddProgress(c.Character, questId, objective.Id, objective.Count));
+            }
+        }
+
+        Assert.Equal(CharacterQuestState.ReadyToTurnIn, c.Character.Quests.Get(questId)!.State);
+        Creature ender = w.Place(quest.EnderCreatureId.Value);
+        w.Talk(c, ender);
+        return ender;
+    }
+
+    private static InventoryItem Paid(QuestClient c, ulong template) =>
+        Assert.Single(c.Character.Container(InventoryType.Bag).Items, item => item.TemplateId.Value == template);
+
+    /// <summary>Magic at the level, with one or two affixes after its implicits, each one the level allows.</summary>
+    private static void AssertMagic(QuestClient c, QuestTestWorld w, InventoryItem item, ushort itemLevel)
+    {
+        Assert.Equal((ItemRarity.Magic, itemLevel, 1u), (item.Rarity, item.ItemLevel, item.Count));
+        List<ItemModifier> rolled = [.. c.Character.ItemModifiers.Of(item.InstanceId).Select(m => w.Data.ItemModifiers.Find(m.ModifierId)!)];
+        int implicits = rolled.TakeWhile(m => m.Group.Kind == ItemModifierKind.Implicit).Count();
+        List<ItemModifier> affixes = [.. rolled.Skip(implicits)];
+        Assert.InRange(affixes.Count, 1, 2);
+        Assert.All(affixes, affix =>
+        {
+            Assert.True(affix.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix, $"{affix.Id} is {affix.Group.Kind}");
+            Assert.True(affix.RequiredItemLevel <= itemLevel, $"{affix.Id} needs item level {affix.RequiredItemLevel}");
+        });
     }
 
     /// <summary>Review Focus 3.</summary>
