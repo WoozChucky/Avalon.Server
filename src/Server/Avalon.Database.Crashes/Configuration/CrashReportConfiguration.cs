@@ -16,6 +16,7 @@ public sealed class CrashReportConfiguration : IEntityTypeConfiguration<CrashRep
             table.HasCheckConstraint("ck_crash_reports_source_size", "source_size >= 0");
             table.HasCheckConstraint("ck_crash_reports_expiry", "expires_at <= received_at + INTERVAL '90 days' AND expires_at > received_at");
             table.HasCheckConstraint("ck_crash_reports_attempts", "attempt_count >= 0 AND consecutive_tool_failures >= 0");
+            table.HasCheckConstraint("ck_crash_reports_campaign_attempts", "retry_campaign_attempt_count >= 0 AND retry_campaign_attempt_count <= attempt_count");
             table.HasCheckConstraint("ck_crash_reports_lease", "(status = 'processing') = (lease_owner IS NOT NULL AND lease_until IS NOT NULL)");
             table.HasCheckConstraint("ck_crash_reports_processed", "(status = 'processed') = (group_id IS NOT NULL AND stack IS NOT NULL AND processed_at IS NOT NULL AND signature_version IS NOT NULL)");
             table.HasCheckConstraint("ck_crash_reports_no_failed_input", "status NOT IN ('rejected','failed') OR (meta IS NULL AND stack IS NULL AND log_tail IS NULL AND version IS NULL AND git_hash IS NULL AND client_crashed_at IS NULL)");
@@ -26,6 +27,7 @@ public sealed class CrashReportConfiguration : IEntityTypeConfiguration<CrashRep
             table.HasCheckConstraint("ck_crash_reports_log_size", "log_tail IS NULL OR octet_length(log_tail) <= 65536");
         });
         builder.HasKey(x => x.Id);
+        builder.Property(x => x.RetryCampaignAttemptCount).HasDefaultValue(0L);
         builder.Property(x => x.Id).HasConversion(x => x.Value, x => new CrashReportId(x)).ValueGeneratedNever();
         builder.Property(x => x.GroupId).HasConversion(x => x == null ? (Guid?)null : x.Value, x => x == null ? null : new CrashGroupId(x.Value));
         builder.HasOne<CrashGroup>().WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Restrict);

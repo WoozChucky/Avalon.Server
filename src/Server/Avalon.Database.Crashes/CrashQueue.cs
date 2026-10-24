@@ -111,6 +111,7 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
 
             report.Status = CrashReportStatus.Processing;
             report.AttemptCount++;
+            report.RetryCampaignAttemptCount++;
             report.FirstAttemptAt ??= current;
             report.RetryCampaignStartedAt ??= current;
             report.NextAttemptAt = null;
@@ -134,7 +135,8 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
             return new CrashLease(report.Id, report.LeaseOwner.Value,
                 new StoredCrashObject(report.ObjectKey, report.SourceETag, report.SourceSize, report.ReceivedAt),
                 report.AttemptCount, report.ConsecutiveToolFailures, report.FirstAttemptAt.Value,
-                report.RetryCampaignStartedAt.Value, report.ExpiresAt, report.LeaseUntil.Value);
+                report.RetryCampaignStartedAt.Value, report.ExpiresAt, report.LeaseUntil.Value)
+            { RetryCampaignAttemptCount = report.RetryCampaignAttemptCount };
         }
     }
 
@@ -178,6 +180,16 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
             return false;
 
         DateTimeOffset completionDeadline = Min(report.LeaseUntil!.Value, report.ExpiresAt);
+        if (result.Status == CrashReportStatus.Processed && result.ProcessedDeadline is { } processedUntil)
+            completionDeadline = Min(completionDeadline, processedUntil);
+        TimeSpan remaining = completionDeadline - CurrentTime(now, startedAt);
+        if (remaining <= TimeSpan.Zero)
+            return false;
+        // Acceptance/reconciliation is checked above. A new write cannot cross its ephemeral attempt deadline.
+        using CancellationTokenSource? finalizationDeadline = result.ProcessedDeadline is null ? null : new(remaining, _timeProvider);
+        using CancellationTokenSource? finalization = finalizationDeadline is null ? null : CancellationTokenSource.CreateLinkedTokenSource(ct, finalizationDeadline.Token);
+        if (finalization is not null)
+            ct = finalization.Token;
 
         if (result.Status == CrashReportStatus.Processed)
         {

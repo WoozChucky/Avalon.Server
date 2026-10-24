@@ -2,6 +2,7 @@
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <ProjectReference Include="../Avalon.Crashes/Avalon.Crashes.csproj" />
   </ItemGroup>
 </Project>

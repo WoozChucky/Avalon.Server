@@ -10,3 +10,12 @@ public sealed class IntegrationFactAttribute : FactAttribute
             Skip = "Opt in with AVALON_CRASHES_INTEGRATION=1 and AVALON_CRASHES_TEST_POSTGRES.";
     }
 }
+
+public sealed class IntegrationTheoryAttribute : TheoryAttribute
+{
+    public IntegrationTheoryAttribute()
+    {
+        if (Environment.GetEnvironmentVariable("AVALON_CRASHES_INTEGRATION") != "1")
+            Skip = "Opt in with AVALON_CRASHES_INTEGRATION=1 and AVALON_CRASHES_TEST_POSTGRES.";
+    }
+}

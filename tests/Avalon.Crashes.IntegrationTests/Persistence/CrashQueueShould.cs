@@ -68,6 +68,7 @@ public sealed class CrashQueueShould : IAsyncLifetime
         await using CrashesDbContext db = _postgres.Factory.CreateDbContext();
         CrashReport report = await db.Reports.AsNoTracking().SingleAsync();
         Assert.Equal(1L, report.AttemptCount);
+        Assert.Equal(1L, report.RetryCampaignAttemptCount);
         Assert.Equal(s_now, report.FirstAttemptAt);
         Assert.Equal(s_now, report.RetryCampaignStartedAt);
         Assert.Equal(first.OwnerToken, report.LeaseOwner);
@@ -79,6 +80,7 @@ public sealed class CrashQueueShould : IAsyncLifetime
         Assert.Null(await _postgres.Queue.ClaimAsync(s_now.AddMinutes(33), default));
         report = await db.Reports.AsNoTracking().SingleAsync();
         Assert.Equal(3L, report.AttemptCount);
+        Assert.Equal(3L, report.RetryCampaignAttemptCount);
         Assert.Equal(3L, report.ConsecutiveToolFailures);
         Assert.Equal(CrashReportStatus.Failed, report.Status);
     }

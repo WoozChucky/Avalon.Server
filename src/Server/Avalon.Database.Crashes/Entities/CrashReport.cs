@@ -18,6 +18,7 @@ public sealed class CrashReport
     public CrashFailureCode? ReasonCode { get; set; }
     public string? ReasonDetail { get; set; }
     public long AttemptCount { get; set; }
+    public long RetryCampaignAttemptCount { get; set; }
     public DateTimeOffset? FirstAttemptAt { get; set; }
     public DateTimeOffset? RetryCampaignStartedAt { get; set; }
     public long ConsecutiveToolFailures { get; set; }

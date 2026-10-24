@@ -423,6 +423,12 @@ namespace Avalon.Database.Crashes.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("received_at");
 
+                    b.Property<long>("RetryCampaignAttemptCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("retry_campaign_attempt_count");
+
                     b.Property<DateTimeOffset?>("RetryCampaignStartedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("retry_campaign_started_at");
@@ -480,6 +486,8 @@ namespace Avalon.Database.Crashes.Migrations
                     b.ToTable("crash_reports", null, t =>
                         {
                             t.HasCheckConstraint("ck_crash_reports_attempts", "attempt_count >= 0 AND consecutive_tool_failures >= 0");
+
+                            t.HasCheckConstraint("ck_crash_reports_campaign_attempts", "retry_campaign_attempt_count >= 0 AND retry_campaign_attempt_count <= attempt_count");
 
                             t.HasCheckConstraint("ck_crash_reports_driver_source", "gpu_driver_source IS NULL OR gpu_driver_source IN ('faulting_module','loaded_module','unknown')");
 

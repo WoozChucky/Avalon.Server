@@ -12,4 +12,8 @@ public sealed record CrashLease(
     DateTimeOffset FirstAttemptAt,
     DateTimeOffset RetryCampaignStartedAt,
     DateTimeOffset ExpiresAt,
-    DateTimeOffset LeaseUntil);
+    DateTimeOffset LeaseUntil)
+{
+    /// <summary>Attempts in the current campaign, including this claim; manual retry resets the durable value before claiming.</summary>
+    public long RetryCampaignAttemptCount { get; init; } = AttemptCount;
+}
