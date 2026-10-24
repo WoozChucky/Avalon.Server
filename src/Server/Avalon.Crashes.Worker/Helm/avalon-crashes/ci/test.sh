@@ -61,6 +61,32 @@ grep -q -- '--paused' <<<"$paused"
 for setting in replicaCount=2 retentionDays=91 storage.bucket=symbols symbols.convertedBucket=symbols storage.endpoint=http://garage.example.test; do
   if helm template t . -f ci/test-values.yaml --set "$setting" >/dev/null 2>&1; then echo "unsafe setting accepted: $setting"; exit 1; fi
 done
+# CronJobs reserve eleven characters for generated Job names, leaving at most 52.
+# Keep short names stable and distinguish long names with identical truncated prefixes.
+python -c '
+import re,subprocess,yaml
+cases=[("t",None),("crashes-"+"a"*30,None),("r"*53,None),
+       ("t","x"*44),("t","x"*45),("t","x"*62+"a"),("t","x"*62+"b"),
+       ("t","x"*35+"-"+"x"*27),("t","x"*43+"-")]
+errors=[]; names=[]
+for release,override in cases:
+    args=["helm","template",release,".","-f","ci/test-values.yaml"]
+    if override is not None: args += ["--set-string","fullnameOverride="+override]
+    def render():
+        docs=list(yaml.safe_load_all(subprocess.check_output(args,text=True)))
+        return next(d for d in docs if d and d["kind"]=="CronJob")
+    job=render(); name=job["metadata"]["name"]; names.append(name)
+    if len(name)>52: errors.append(f"CronJob name exceeds 52: {len(name)} {name}")
+    if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?",name): errors.append("invalid DNS label: "+name)
+    if not name.endswith("-cleanup"): errors.append("missing cleanup suffix: "+name)
+    if name != render()["metadata"]["name"]: errors.append("unstable cleanup name")
+assert names[0]=="t-avalon-crashes-cleanup", "short release name changed"
+assert names[3]=="x"*44+"-cleanup", "exact 52-character boundary changed"
+assert names[8]=="x"*43+"-cleanup", "short trailing-hyphen normalization changed"
+if names[5]==names[6]: errors.append("long overrides collide after truncation")
+assert not errors, "\n".join(errors)
+print("CronJob naming: nine release/override/boundary/stability cases passed")
+'
 # An optional product-image gate, after project-local publish and docker build.
 if [[ -n "${CRASHES_IMAGE:-}" ]]; then
   image_manifest=$(docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges --network none --entrypoint /bin/cat "$CRASHES_IMAGE" /opt/avalon-native/tools.lock.json)

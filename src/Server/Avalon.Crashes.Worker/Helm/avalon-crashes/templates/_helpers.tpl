@@ -4,6 +4,15 @@
 {{- define "avalon-crashes.fullname" -}}
 {{- default (printf "%s-%s" .Release.Name (include "avalon-crashes.name" .)) .Values.fullnameOverride | trunc 54 | trimSuffix "-" -}}
 {{- end -}}
+{{/* CronJobs allow 52 characters: reserve 8 for -cleanup, hash the untruncated name to avoid prefix collisions. */}}
+{{- define "avalon-crashes.cleanupName" -}}
+{{- $name := default (printf "%s-%s" .Release.Name (include "avalon-crashes.name" .)) .Values.fullnameOverride -}}
+{{- if gt (len $name) 44 -}}
+{{- printf "%s-%s-cleanup" ($name | trunc 35 | trimSuffix "-") ($name | sha256sum | trunc 8) -}}
+{{- else -}}
+{{- printf "%s-cleanup" ($name | trimSuffix "-") -}}
+{{- end -}}
+{{- end -}}
 {{- define "avalon-crashes.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "avalon-crashes.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
