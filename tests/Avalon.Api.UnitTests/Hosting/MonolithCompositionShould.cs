@@ -129,6 +129,7 @@ public sealed class MonolithCompositionShould : IAsyncDisposable
             "CorsMiddleware",
             "GameInternalRoutes",
             "SteamOpenIdCallbackMiddleware",
+            "CrashApiRegistration",
             "AuthenticationMiddleware",
             "GameWorkloadAuthentication",
             "ApiRateLimiting",

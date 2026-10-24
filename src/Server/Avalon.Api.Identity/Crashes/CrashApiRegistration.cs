@@ -2,6 +2,7 @@ using Avalon.Crashes.Queries;
 using Avalon.Crashes.Triage;
 using Avalon.Database.Crashes;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OpenApi;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -14,6 +15,12 @@ public static class CrashApiRegistration
         services.Configure<CrashApiOptions>(configuration.GetSection("Application:Crashes"));
         services.TryAddSingleton(TimeProvider.System);
         services.AddAuthorization(CrashAdminPolicy.Configure);
+        // Hosting registers v1 once. Extend its options without registering a duplicate document.
+        services.Configure<OpenApiOptions>("v1", options =>
+        {
+            options.AddSchemaTransformer<CrashOpenApiTransformer>();
+            options.AddOperationTransformer<CrashOpenApiTransformer>();
+        });
         // Deliberately lazy: disabled endpoints, startup and OpenAPI never create crash persistence.
         services.AddSingleton<IDbContextFactory<CrashesDbContext>>(_ => new CrashesDbContextFactory(
             new CrashDatabaseOptions { ConnectionString = configuration["Database:Crashes:ConnectionString"] ?? string.Empty }));

@@ -13,13 +13,14 @@ namespace Avalon.Api.Identity.Crashes;
 [Authorize(Policy = CrashAdminPolicy.Name)]
 [Route("admin/crashes/groups")]
 [ServiceFilter<CrashFeatureGate>]
-[ProducesResponseType<ProblemDetails>(400)]
+[ProducesResponseType<ProblemDetails>(400, "application/problem+json")]
 [ProducesResponseType<ProblemDetails>(401)]
 [ProducesResponseType<ProblemDetails>(403)]
-[ProducesResponseType<ProblemDetails>(503)]
+[ProducesResponseType<ProblemDetails>(503, "application/problem+json")]
 public sealed class CrashGroupsController(ICrashReadStore reads, ICrashTriageStore triage, TimeProvider timeProvider) : ControllerBase
 {
     [HttpGet(Name = "ListCrashGroups")]
+    [EndpointDescription("List crash groups, including groups with no retained reports when unfiltered. reportCount is the lifetime total and survives report expiry; retainedReportCount covers unexpired reports, matchingReportCount applies the version/since filters. dailyCounts contains 30 UTC date/count pairs for retained matching reports. asOf, retentionDays (90) and effectiveSince declare the retained window. Group status values are new, investigating, fixed and ignored. Pages are live views, not a frozen snapshot.")]
     [ProducesResponseType<CrashGroupPageDto>(200)]
     public async Task<IActionResult> ListCrashGroups([FromQuery] string? status, [FromQuery] string? version,
         [FromQuery] DateTimeOffset? since, [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
@@ -39,8 +40,9 @@ public sealed class CrashGroupsController(ICrashReadStore reads, ICrashTriageSto
     }
 
     [HttpGet("{id}", Name = "GetCrashGroup")]
+    [EndpointDescription("Get long-lived group triage and the newest retained crashing-thread stack, independent of the reports page. Breakdowns and report summaries cover the unexpired window declared by asOf, windowStart, windowEnd and retainedReportCount; reportCount remains the lifetime total. When all reports expire, the group still returns 200 with latestReportId, latestStackReceivedAt, latestStack and latestStackQuality null, empty breakdowns and zero recent reports. Missing groups return 404 CRASH_GROUP_NOT_FOUND.")]
     [ProducesResponseType<CrashGroupDetailDto>(200)]
-    [ProducesResponseType<ProblemDetails>(404)]
+    [ProducesResponseType<ProblemDetails>(404, "application/problem+json")]
     public async Task<IActionResult> GetCrashGroup(Guid id, [FromQuery] int reportsPage = 1, [FromQuery] int reportsPageSize = 25, CancellationToken ct = default)
     {
         if (!CrashQuery.IsAllowed(Request.Query, "reportsPage", "reportsPageSize")
@@ -57,8 +59,8 @@ public sealed class CrashGroupsController(ICrashReadStore reads, ICrashTriageSto
     [HttpPatch("{id}", Name = "UpdateCrashGroup")]
     [EndpointDescription("Update long-lived engineering triage notes; never include logs, names, paths or report material. Omitted fields are unchanged; explicit null clears nullable fields. Requires triageRevision. Maximum JSON body 16 KiB; invalid or oversized input returns 400 CRASH_INVALID_INPUT.")]
     [ProducesResponseType<CrashGroupTriageDto>(200)]
-    [ProducesResponseType<ProblemDetails>(404)]
-    [ProducesResponseType<ProblemDetails>(409)]
+    [ProducesResponseType<ProblemDetails>(404, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(409, "application/problem+json")]
     public async Task<IActionResult> UpdateCrashGroup(Guid id, [FromBody] UpdateCrashGroupRequest request, CancellationToken ct)
     {
         if (Request.Query.Count != 0)
