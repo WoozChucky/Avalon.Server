@@ -48,7 +48,7 @@ public class PublicPreviewController(
         ItemTemplate? template = await items.FindByIdAsync(new ItemTemplateId(id), track: false, ct);
         if (template is null) return NotFoundPage();
 
-        ItemModifierCatalog catalog = await modifiers.GetCatalogAsync(ct);
+        ItemModifierCatalog catalog = await modifiers.GetLinkedToAsync(template, ct);
         PublicItemDto item = template.ToPublicDto(catalog.LinkedTo(template.Id));
         return Page(open, LinkPreviewPage.Render(item.Name, LinkPreviewText.Describe(item),
             PagePath("item", id, world, chosen), site.Base, previews.Value.ColourOf(item.Rarity), previews.Value.Site));

@@ -20,29 +20,21 @@ using AbilityTags = Avalon.Network.Packets.Abilities.AbilityTags;
 
 namespace Avalon.Api.Worlds.UnitTests.Services;
 
-public class CharacterServiceShould
+public sealed class CharacterServiceShould : IDisposable
 {
-    /// <summary>The seeded world's modifier catalog (#1179), read as the API reads it.</summary>
-    private static readonly Lazy<ItemModifierCatalog> s_catalog = new(() =>
-    {
-        using var sqlite = new SqliteWorlds(1);
-        return new ItemModifierRepository(
-                new DelegateDbContextFactory<WorldDbContext>(() => sqlite.CreateWorld(new Avalon.Domain.Auth.WorldId(1))),
-                NullLoggerFactory.Instance)
-            .GetCatalogAsync(CancellationToken.None).GetAwaiter().GetResult();
-    });
+    // The seeded world, whose modifier catalog (#1179) the service reads as the API does: only the rows the items carry.
+    private readonly SqliteWorlds _world = new(1);
 
-    private static IItemModifierRepository Modifiers(ItemModifierCatalog catalog)
-    {
-        IItemModifierRepository modifiers = Substitute.For<IItemModifierRepository>();
-        modifiers.GetCatalogAsync(Arg.Any<CancellationToken>()).Returns(catalog);
-        return modifiers;
-    }
+    public void Dispose() => _world.Dispose();
 
-    /// <summary>A seeded affix's id, named by its family's code and tier: no test holds an id (#1179).</summary>
-    private static int Seeded(string code, byte tier)
+    private IItemModifierRepository Modifiers() => new ItemModifierRepository(
+        new DelegateDbContextFactory<WorldDbContext>(() => _world.CreateWorld(new Avalon.Domain.Auth.WorldId(1))),
+        NullLoggerFactory.Instance);
+
+    /// <summary>A seeded affix's id, named by its family's code, element and tier: no test holds an id (#1179).</summary>
+    private static int Seeded(string code, Avalon.Network.Packets.Combat.DamageType element, byte tier)
     {
-        int group = ItemModifierSeed.Groups().Single(g => g.Code == code && g.Element is null).Id;
+        int group = ItemModifierSeed.Groups().Single(g => g.Code == code && g.Element == element).Id;
         return ItemModifierSeed.Modifiers().Single(m => m.GroupId == group && m.Tier == tier).Id;
     }
 
@@ -54,13 +46,14 @@ public class CharacterServiceShould
     /// Instances live in the Character database and templates in the World database, so the
     /// template is looked up by id rather than joined. The copy's own rarity, item level and modifiers come from the
     /// instance (#1179), in the order the item shows them, whatever order the rows were read in, each with its kind
-    /// from the world's catalog; a magic copy is named by its prefix, and its implicit names nothing.
+    /// from the world's catalog; a magic copy is named by its prefix, and its implicit names nothing. The copy is a caster
+    /// off-hand: its implicit has two lines, and its prefix (Ember-sung, cold) a two-range one.
     /// </summary>
     [Fact]
     public async Task Look_up_each_items_template_in_the_world_database()
     {
-        int hale = Seeded("P11", 1);
-        int armour = ImplicitOf(37);
+        int emberSung = Seeded("P10", Avalon.Network.Packets.Combat.DamageType.Cold, 1);
+        int ward = ImplicitOf(75);
         var id = new CharacterId(42);
         var itemId = new ItemInstanceId(Guid.CreateVersion7());
 
@@ -79,22 +72,28 @@ public class CharacterServiceShould
         {
             new()
             {
-                Id = itemId, TemplateId = new ItemTemplateId(37), CharacterId = id, Count = 4, Durability = 7,
+                Id = itemId, TemplateId = new ItemTemplateId(75), CharacterId = id, Count = 4, Durability = 7,
                 Rarity = Avalon.Common.ItemRarity.Magic, ItemLevel = 7,
                 Modifiers =
                 [
                     new ItemInstanceModifier
                     {
-                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = hale, Ordinal = 1,
-                        Values = [new ItemInstanceModifierValue { Index = 0, Stat = Avalon.Domain.World.StatType.Health, Value = 5 }],
+                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = emberSung, Ordinal = 1,
+                        Values =
+                        [
+                            new ItemInstanceModifierValue
+                            {
+                                Index = 0, Stat = Avalon.Domain.World.StatType.AddedColdDamageToSpells, Value = 1, Value2 = 2,
+                            },
+                        ],
                     },
                     new ItemInstanceModifier
                     {
-                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = armour, Ordinal = 0,
+                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = ward, Ordinal = 0,
                         Values =
                         [
-                            new ItemInstanceModifierValue { Index = 1, Stat = Avalon.Domain.World.StatType.AddedColdDamage, Value = 2, Value2 = 5 },
-                            new ItemInstanceModifierValue { Index = 0, Stat = Avalon.Domain.World.StatType.Armor, Value = 8 },
+                            new ItemInstanceModifierValue { Index = 1, Stat = Avalon.Domain.World.StatType.IncreasedSpellDamage, Value = 12 },
+                            new ItemInstanceModifierValue { Index = 0, Stat = Avalon.Domain.World.StatType.Ward, Value = 30 },
                         ],
                     },
                 ],
@@ -105,12 +104,12 @@ public class CharacterServiceShould
         templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<ItemTemplate>
             {
-                new() { Id = new ItemTemplateId(37), Name = "Ironbound Chestguard", Rarity = Avalon.Common.ItemRarity.Common, DisplayId = 12 },
+                new() { Id = new ItemTemplateId(75), Name = "Gloamwood Orb", Rarity = Avalon.Common.ItemRarity.Common, DisplayId = 12 },
             });
 
         var service = new CharacterService(characters, slots, items,
             Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
-            Modifiers(s_catalog.Value), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
+            Modifiers(), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
             Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
@@ -120,13 +119,13 @@ public class CharacterServiceShould
         Assert.Equal(4u, item.Count);
         Assert.Equal(7u, item.Durability);
         Assert.NotNull(item.Template);
-        Assert.Equal(37ul, item.Template!.Id);
-        Assert.Equal("Ironbound Chestguard", item.Template.Name);
+        Assert.Equal(75ul, item.Template!.Id);
+        Assert.Equal("Gloamwood Orb", item.Template.Name);
         Assert.Equal(12u, item.Template.DisplayId);
         Assert.Equal((Avalon.Api.Contract.ItemRarity.Magic, (ushort)7), (item.Rarity, item.ItemLevel));
-        Assert.Equal("Hale Ironbound Chestguard", item.Name);
+        Assert.Equal("Ember-sung Gloamwood Orb", item.Name);
         Assert.Equal(
-            $"{armour} Implicit [Armor 8 , AddedColdDamage 2 5] {hale} Prefix [Health 5 ]",
+            $"{ward} Implicit [Ward 30 , IncreasedSpellDamage 12 ] {emberSung} Prefix [AddedColdDamageToSpells 1 2]",
             string.Join(' ', item.Modifiers.Select(m =>
                 $"{m.ModifierId} {m.Kind} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value} {v.Value2}"))}]")));
     }
@@ -165,7 +164,7 @@ public class CharacterServiceShould
 
         var service = new CharacterService(characters, slots, items,
             Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
-            Modifiers(s_catalog.Value), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
+            Modifiers(), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
             Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);

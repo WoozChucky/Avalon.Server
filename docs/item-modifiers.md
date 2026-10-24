@@ -32,9 +32,19 @@ Nothing computes meaning from an id; a tier, a group or a kind is always read fr
 `ItemModifierCatalog` loads the catalog for the world server and the REST API. It logs and leaves out a row with no stat
 line, a prefix or suffix row without a tier or a unique or implicit row with one, a unique or implicit row that carries
 a weight, and a template's links when they name a missing row, a prefix or a suffix, or mix a unique modifier with
-anything else. The items area (`ItemsPatch.Build`) also holds each template's links against its rarity: a unique
-template links exactly its one unique modifier, a common base only implicits, and a template that breaks this keeps
-none of its links.
+anything else. Each template's links are also held against its rarity (`ItemModifierCatalog.RarityRefusal`): a unique
+template links exactly its one unique modifier, a common base only implicits. The world's items area (`ItemsPatch.Build`)
+logs and leaves out a template whose links break this, whole, so no copy of it is ever made (a stat-less unique, or a
+unique standing in its line as a base); a unique template whose one modifier the catalog left out is kept, and its
+drops are removed when they roll.
+
+The REST API never reads the whole catalog. A tooltip or a link preview reads one template's links and the rows they
+name, with their groups and stat lines and no weights (`IItemModifierRepository.GetLinkedToAsync`), held to the same
+rules on that subset (but the weight one, which needs the weights; `SeedIntegrityShould` holds that no unique or
+implicit carries one), and the template's links dropped when they break its rarity. A character's inventory reads only
+the rows its items carry (`GetByIdsAsync`), for their kinds and their names. A live template edit that changes an
+item's rarity is refused, keyed `rarity`, when the template's links would break it at the new rarity
+([live template editing](live-template-editing.md)).
 
 ## Rarity
 
@@ -54,12 +64,12 @@ sit on one piece. Weapons keep their damage and attack time on the base; rings, 
 A base's template carries no defence line of its own (World migration `MoveBaseStatsToImplicits`): the stats fold reads
 the copy's implicit values as that item's own defence, scaled by its local increases like any other armour, evasion or
 ward line. A copy made outright goes through `IItemRoller.RollPlain`: `IInventoryService.TryAdd` (a vendor purchase, an
-item script's add, a quest's reward, a pickup of a drop that did not roll) and `CharacterCreateHandler` (a starting
-item). A drop rolls its copy, implicits first, when it drops ([drops](#drops)), and its pickup adds that copy. Either way
-the rows enter the character's `ItemModifierStore` marked for the save that inserts the copy, or are inserted with a new
-character. The
-copies owned before implicits existed got theirs at the drafted value (Character migration `AddImplicitsToOwnedItems`,
-[inventory and saves](inventory-and-saves.md)), so none lost defence.
+item script's add, a quest reward that is not a base, a pickup of a drop that did not roll) and
+`CharacterCreateHandler` (a starting item). A drop rolls its copy, implicits first, when it drops ([drops](#drops)),
+and its pickup adds that copy. Either way the rows enter the character's `ItemModifierStore` marked for the save that
+inserts the copy, or are inserted with a new character. The copies owned before implicits existed got theirs at the
+drafted value (Character migration `AddImplicitsToOwnedItems`, [inventory and saves](inventory-and-saves.md)), so none
+lost defence.
 
 ## Rolling
 
@@ -76,7 +86,8 @@ elements, up to three resistances.
 A creature's or a chest's drops roll when they drop, on the tick, in the kill or the use (`IItemRoller.RollDrops`):
 
 - **Item level:** a creature's level; a chest's or a barrel's is drawn within its depth band, else the map's level range,
-  else 1.
+  else 1. The roll holds every item level at least 1 (`DropContext`), whatever its maker passes, since a copy at 0 could
+  not be saved.
 - **Base tier:** a base becomes the best tier of its line the item level reaches (item level 4 a tier-1 base, 5 the
   tier-2), and rolls that tier's implicits.
 - **Rarity:** drawn by the creature's rarity (`Game:Items:Rarity`; a chest or a barrel by the Normal odds). A unique
@@ -100,9 +111,11 @@ reference](configuration-reference.md)), checked at startup:
 ## Quest rewards and vendors
 
 - **A quest reward** that is a base rolls Magic at turn-in, once the room check has passed: its item level is the
-  quest's level requirement, its tier the best its line reaches there, and the offer shows it as Magic
-  (`QuestRewardItemDto.Rarity`, [quests](quests.md)). Any other reward is a plain copy.
-- **A vendor** sells only Common items (`VendorCatalog` refuses any other row), each a plain copy with its implicits. A
+  quest's level requirement (at least 1), its tier the best its line reaches there, which the turn-in's Unique and room
+  checks judge too, and the offer shows it as Magic with the tier it is paid as (`QuestRewardItemDto.Rarity` and
+  `PaidItemTemplateId`, [quests](quests.md)). Any other reward is a plain copy.
+- **A vendor** sells only Common items (`VendorCatalog` refuses any other row, and a row whose item a `/reload items`
+  made Unique since is hidden and refused, `VendorRules.IsSoldNew`), each a plain copy with its implicits. A
   sale pays the template's `SellPrice` times the copy's rarity factor (`Game:Items:SellFactor`: Magic 2, Rare 4,
   Unique 6, Common 1; [vendors](inventory-and-saves.md)).
 
@@ -129,18 +142,23 @@ with m the floor of their mean.
 
 ## Naming
 
-- A magic item is named `<prefix name> <base name> <suffix name>`, a missing part dropped. The name is computed whenever
-  the item is described, so renaming a family or a base renames every copy.
+- A magic item is named `<prefix name> <base name> <suffix name>`, a missing part dropped. The name is worked out
+  from the current items generation, so renaming a family or a base (a seed migration, then `/reload items`) renames every copy.
 - A rare item gets a two-word name when it rolls, kept on the copy (`ItemInstances.RareName`), so editing the word lists
   never renames an item a player holds. The first word comes from one list, the second from a list that follows the
   kind: weapons (sword, mace, staff, bow), jewellery (amulet, ring, caster off-hand) or armour (armour pieces and
   shields); the lists are code (`RareNames`).
 - Common and unique items show the template's name.
 - `ItemNames.Display` (`Avalon.Domain`) gives the name, or null where the template's name is the item's, from a magic
-  copy's lowest-ordinal prefix and suffix. It runs when a copy is described, never per tick: `ItemSlotDto` field 11
+  copy's lowest-ordinal prefix and suffix. It runs when a copy is first described in an items generation, never per
+  tick: `ItemSlotDto` field 11
   (the login snapshot, inventory updates, item replies, the bank, the buyback), `TradeItemDto` field 8 and
   `LootDropDto` field 11 send it as an optional string, absent for a common or unique copy, and the REST inventory
-  read's item `name` likewise. A magic copy's name is one string built as it is described; nothing caches it.
+  read's item `name` likewise. The world holds a magic copy's name as a field beside its modifiers
+  (`DescribedName`, on the copy's entry in `ItemModifierStore` and on a drop on the ground), keyed by the items
+  generation it was worked out in, so describing the same copy again builds no string, a reload's rename reaches it at
+  its next describe, and a copy whose modifiers change is a new entry. A rare copy keeps its stored name even when a
+  reload removed its template.
 - A family has one name for all its tiers (the tier shows as a number), one per element on a split family. Implicits and
   unique modifiers never name an item.
 

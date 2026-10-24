@@ -147,8 +147,10 @@ public class CharacterService : ICharacterService
         // template is looked up by id rather than joined.
         IReadOnlyList<ItemTemplate> templates = await _itemTemplateRepository.GetByIdsAsync(
             instances.Select(i => i.TemplateId), cancellationToken);
-        // The world's modifier catalog (#1179): each modifier's kind, and the prefix and suffix that name a magic copy.
-        ItemModifierCatalog catalog = await _itemModifierRepository.GetCatalogAsync(cancellationToken);
+        // The catalog rows the items carry and nothing more (#1179): each modifier's kind, and the prefix and suffix that
+        // name a magic copy.
+        ItemModifierCatalog catalog = await _itemModifierRepository.GetByIdsAsync(
+            [.. instances.SelectMany(i => i.Modifiers).Select(m => m.ModifierId).Distinct()], cancellationToken);
 
         var instanceById = instances.ToDictionary(i => i.Id);
         var templateById = templates.ToDictionary(t => t.Id);

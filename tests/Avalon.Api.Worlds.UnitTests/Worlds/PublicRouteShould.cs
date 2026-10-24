@@ -69,7 +69,7 @@ public sealed class PublicRouteShould : IAsyncLifetime
     private static IItemModifierRepository NoModifiers()
     {
         IItemModifierRepository modifiers = Substitute.For<IItemModifierRepository>();
-        modifiers.GetCatalogAsync(Arg.Any<CancellationToken>())
+        modifiers.GetLinkedToAsync(Arg.Any<ItemTemplate>(), Arg.Any<CancellationToken>())
             .Returns(_ => new ItemModifierCatalog([], [], NullLogger.Instance));
         return modifiers;
     }

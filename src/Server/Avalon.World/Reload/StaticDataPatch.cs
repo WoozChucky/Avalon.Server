@@ -95,9 +95,12 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     public ItemTemplate? Find(ItemTemplateId id) => id is null ? null : _templates.Find(id.Value);
 
     /// <summary>
-    /// The patch, with each template's links held against its rarity (#1179, B-R2's half the catalog cannot see): a
-    /// Unique template links exactly one Unique modifier, a Common one only Implicit modifiers, and no other template
-    /// links any. A template that breaks it is logged and keeps none of its links, as the catalog's own refusals do.
+    /// The patch, with each template's links held against its rarity (#1179, the half of the link rules the catalog
+    /// cannot see, ItemModifierCatalog.RarityRefusal): a Unique template links exactly one Unique modifier, a Common one only Implicit
+    /// modifiers, and no other template links any. A template that breaks it is logged and left out whole, with its
+    /// links, so the world never makes a copy of it, rather than kept with its links stripped (a stat-less unique, or a
+    /// unique standing in its line as a base). A template that links nothing is kept: a Unique one whose modifier the
+    /// catalog refused has its drops removed by the roll.
     /// </summary>
     public static ItemsPatch Build(IReadOnlyCollection<ItemTemplate> templates, ItemModifierCatalog modifiers, ILogger logger)
     {
@@ -105,26 +108,16 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
         foreach (ItemTemplate template in templates)
         {
             IReadOnlyList<ItemModifier> linked = modifiers.LinkedTo(template.Id);
-            if (linked.Count == 0)
+            if (linked.Count == 0 || ItemModifierCatalog.RarityRefusal(template.Rarity, linked) is not { } reason)
                 continue;
 
-            string? reason = template.Rarity switch
-            {
-                ItemRarity.Unique when linked is not [{ Group.Kind: ItemModifierKind.Unique }] =>
-                    "a unique template links exactly one unique modifier",
-                ItemRarity.Common when linked.Any(m => m.Group.Kind != ItemModifierKind.Implicit) =>
-                    "a common template links only implicit modifiers",
-                ItemRarity.Unique or ItemRarity.Common => null,
-                _ => $"a {template.Rarity} template links no modifier",
-            };
-            if (reason is null)
-                continue;
-
-            logger.LogError("Item template {TemplateId} keeps none of its modifier links: {Reason}", template.Id.Value, reason);
+            logger.LogError("Item template {TemplateId} is left out: {Reason}", template.Id.Value, reason);
             refused.Add(template.Id.Value);
         }
 
-        return new ItemsPatch(templates, refused.Count == 0 ? modifiers : modifiers.WithoutLinksOf(refused));
+        return refused.Count == 0
+            ? new ItemsPatch(templates, modifiers)
+            : new ItemsPatch([.. templates.Where(t => !refused.Contains(t.Id.Value))], modifiers.WithoutLinksOf(refused));
     }
 
     /// <summary>

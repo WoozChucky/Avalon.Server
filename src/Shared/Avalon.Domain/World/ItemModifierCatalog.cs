@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Microsoft.Extensions.Logging;
 
@@ -17,8 +18,8 @@ public readonly record struct ItemModifierCandidate(ItemModifier Modifier, int W
 /// modifier with any other link (a unique template links its one Unique modifier, a common one only Implicits). The
 /// template is then left with no links at all, never with part of them.</item>
 /// </list>
-/// Which template is unique is the template's own fact: the items area holds the links against it
-/// (ItemsPatch.Build), leaving out with <see cref="WithoutLinksOf" /> a template whose links break it.
+/// Which template is unique is the template's own fact: <see cref="RarityRefusal" /> holds the links against it, and the
+/// items area (ItemsPatch.Build) leaves out a template whose links break it, with <see cref="WithoutLinksOf" />.
 /// </summary>
 public sealed class ItemModifierCatalog
 {
@@ -100,6 +101,23 @@ public sealed class ItemModifierCatalog
     public IReadOnlyList<ItemModifierCandidate> CandidatesFor(ItemBaseKind kind) =>
         (int)kind >= 0 && (int)kind < _candidates.Length ? _candidates[(int)kind] : [];
 
+    /// <summary>
+    /// Why a template of <paramref name="rarity" /> may not link <paramref name="linked" /> (the half of the link rules that needs the
+    /// template, which the catalog cannot see), or null when it may: a Unique template links exactly one Unique modifier,
+    /// a Common one only Implicit modifiers (none is fine), and a template of any other rarity links nothing. The world's
+    /// items area leaves out a template whose links break it (ItemsPatch.Build), the API's reads drop its links, and a
+    /// template edit that would break it is refused.
+    /// </summary>
+    public static string? RarityRefusal(ItemRarity rarity, IReadOnlyList<ItemModifier> linked) => rarity switch
+    {
+        ItemRarity.Unique when linked is not [{ Group.Kind: ItemModifierKind.Unique }] =>
+            "a unique template links exactly one unique modifier",
+        ItemRarity.Common when linked.Any(m => m.Group.Kind != ItemModifierKind.Implicit) =>
+            "a common template links only implicit modifiers",
+        ItemRarity.Unique or ItemRarity.Common => null,
+        _ => linked.Count > 0 ? $"a {rarity} template links no modifier" : null,
+    };
+
     private static int WeightOn(ItemModifier modifier, ItemBaseKind kind)
     {
         foreach (ItemModifierWeight weight in modifier.Weights)
@@ -121,7 +139,11 @@ public sealed class ItemModifierCatalog
 
         bool affix = modifier.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix;
         if (affix != modifier.Tier is not null)
-            return affix ? "a prefix or suffix row has no tier" : $"a {modifier.Group.Kind} row has a tier, but it has none";
+        {
+            return affix
+                ? "a prefix or suffix row has no tier"
+                : $"a {modifier.Group.Kind} row has a tier, which only prefix and suffix rows have";
+        }
 
         if (modifier.Group.Kind is ItemModifierKind.Unique or ItemModifierKind.Implicit && modifier.Weights.Count > 0)
             return $"a {modifier.Group.Kind} modifier carries a weight, but it only ever rolls through a template link";

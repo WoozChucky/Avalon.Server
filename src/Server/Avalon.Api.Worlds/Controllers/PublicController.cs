@@ -25,7 +25,7 @@ public class PublicController(
     {
         ItemTemplate? template = await items.FindByIdAsync(new ItemTemplateId(id), track: false, ct);
         if (template is null) return NotFound();
-        ItemModifierCatalog catalog = await modifiers.GetCatalogAsync(ct);
+        ItemModifierCatalog catalog = await modifiers.GetLinkedToAsync(template, ct);
         SetCacheControl();
         return Ok(template.ToPublicDto(catalog.LinkedTo(template.Id)));
     }

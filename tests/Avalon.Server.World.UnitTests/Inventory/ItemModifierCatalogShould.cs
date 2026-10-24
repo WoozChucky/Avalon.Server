@@ -7,9 +7,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Avalon.Server.World.UnitTests.Inventory;
 
 /// <summary>
-/// #1179, B-R10: what the items area leaves out of the modifier catalog rather than trust. Over a sound catalog (a
+/// #1179: what the items area leaves out of the modifier catalog rather than trust. Over a sound catalog (a
 /// prefix that rolls on swords, a unique template linking its unique row, a common base linking its implicit row), one
-/// breach at a time: the row or the template's links it breaks are left out, and nothing else is.
+/// breach at a time: the row or the template's links it breaks are left out, and a template whose links break its
+/// rarity is left out whole; nothing else is.
 /// </summary>
 public class ItemModifierCatalogShould
 {
@@ -20,18 +21,18 @@ public class ItemModifierCatalogShould
     private const ulong CommonTemplate = 11;
 
     [Theory]
-    [InlineData("nothing", 0, 0ul)]
-    [InlineData("a modifier with no stat line", Prefix, 0ul)]
-    [InlineData("a prefix row without a tier", Prefix, 0ul)]
-    [InlineData("a unique row with a tier", Unique, 0ul)]
-    [InlineData("a weight on a unique", Unique, 0ul)]
-    [InlineData("a weight on an implicit", Implicit, 0ul)]
-    [InlineData("a link to a prefix", 0, CommonTemplate)]
-    [InlineData("a link to a missing modifier", 0, CommonTemplate)]
-    [InlineData("a unique linked beside another modifier", 0, UniqueTemplate)]
-    [InlineData("a common template linking a unique", 0, CommonTemplate)]
-    [InlineData("a unique template linking an implicit", 0, UniqueTemplate)]
-    public void Leave_out_what_breaks_the_catalogs_rules(string breach, int leftOut, ulong linksLeftOut)
+    [InlineData("nothing", 0, 0ul, 0ul)]
+    [InlineData("a modifier with no stat line", Prefix, 0ul, 0ul)]
+    [InlineData("a prefix row without a tier", Prefix, 0ul, 0ul)]
+    [InlineData("a unique row with a tier", Unique, 0ul, 0ul)]
+    [InlineData("a weight on a unique", Unique, 0ul, 0ul)]
+    [InlineData("a weight on an implicit", Implicit, 0ul, 0ul)]
+    [InlineData("a link to a prefix", 0, CommonTemplate, 0ul)]
+    [InlineData("a link to a missing modifier", 0, CommonTemplate, 0ul)]
+    [InlineData("a unique linked beside another modifier", 0, UniqueTemplate, 0ul)]
+    [InlineData("a common template linking a unique", 0, CommonTemplate, CommonTemplate)]
+    [InlineData("a unique template linking an implicit", 0, UniqueTemplate, UniqueTemplate)]
+    public void Leave_out_what_breaks_the_catalogs_rules(string breach, int leftOut, ulong linksLeftOut, ulong templateLeftOut)
     {
         ItemModifier prefix = Row(Prefix, ItemModifierKind.Prefix, tier: 1);
         prefix.Weights.Add(new ItemModifierWeight { ModifierId = Prefix, BaseKind = ItemBaseKind.Sword, Weight = 1000 });
@@ -84,8 +85,14 @@ public class ItemModifierCatalogShould
             .. links.SelectMany(pair => pair.Value.Select((modifier, index) =>
                 new ItemTemplateModifier { TemplateId = pair.Key, Index = (byte)index, ModifierId = modifier })),
         ];
-        ItemModifierCatalog catalog = ItemsPatch.Build(templates,
-            new ItemModifierCatalog([prefix, unique, @implicit], rows, NullLogger.Instance), NullLogger.Instance).Modifiers;
+        var patch = ItemsPatch.Build(templates,
+            new ItemModifierCatalog([prefix, unique, @implicit], rows, NullLogger.Instance), NullLogger.Instance);
+        ItemModifierCatalog catalog = patch.Modifiers;
+
+        // A template whose links break its rarity is left out whole, never kept with its links stripped.
+        Assert.Equal(
+            [UniqueTemplate != templateLeftOut, CommonTemplate != templateLeftOut],
+            new[] { UniqueTemplate, CommonTemplate }.Select(id => patch.Find(new ItemTemplateId(id)) is not null));
 
         Assert.Equal(
             [Prefix != leftOut, Unique != leftOut, Implicit != leftOut],

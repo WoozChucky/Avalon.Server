@@ -161,7 +161,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     private static IItemModifierRepository NoModifiers()
     {
         IItemModifierRepository modifiers = Substitute.For<IItemModifierRepository>();
-        modifiers.GetCatalogAsync(Arg.Any<CancellationToken>())
+        modifiers.GetLinkedToAsync(Arg.Any<ItemTemplate>(), Arg.Any<CancellationToken>())
             .Returns(_ => new ItemModifierCatalog([], [], NullLogger.Instance));
         return modifiers;
     }
@@ -295,7 +295,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         ItemModifierCatalog catalog = await new ItemModifierRepository(
                 new DelegateDbContextFactory<WorldDbContext>(() => sqlite.CreateWorld(new WorldId(Open))),
                 NullLoggerFactory.Instance)
-            .GetCatalogAsync(CancellationToken.None);
+            .GetLinkedToAsync(template, CancellationToken.None);
 
         string[] parts = LinkPreviewText.Describe(template.ToPublicDto(catalog.LinkedTo(template.Id))).Split(" · ");
 

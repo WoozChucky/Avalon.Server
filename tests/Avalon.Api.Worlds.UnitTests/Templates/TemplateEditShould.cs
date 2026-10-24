@@ -363,6 +363,8 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "item", "baseKind", "PlateChest", "baseKind" },                   // on the starter sword: a chest kind in the main hand (#1179)
         { "item", "requiredLevel", 40000, "requiredLevel" },                // past the copy's smallint item level (#1179)
         { "item", "rarity", "Magic", "rarity" },                            // a template is Common or Unique (#1179)
+        { "item", "rarity", "Common", "rarity" },                           // on Thornheart Signet, whose unique modifier a Common template may not link (#1179)
+        { "item", "rarity", "Unique", "rarity" },                           // on the Copper Band: it links no unique modifier, and quests pay it (#1179)
         { "item", "damageType1", null, "damageType1" },                     // on the starter sword: a damage range is typed (#1179)
     };
 
@@ -404,6 +406,8 @@ public sealed class TemplateEditShould : IAsyncLifetime
             ("item", "maxStackSize") when value is 5 => 37UL,
             ("item", "statValue1") => 37UL,
             ("item", "baseKind") => value is "PlateChest" ? 32UL : 1UL,
+            ("item", "rarity") when value is "Common" => 65UL,
+            ("item", "rarity") when value is "Unique" => 68UL,
             ("ability", _) => 200UL,
             ("creature", "fireResistance" or "wardModifier") => 7UL,
             ("aura", "control") => TestWard,
