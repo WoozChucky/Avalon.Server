@@ -60,11 +60,11 @@ public sealed class ItemModifierStore
     }
 
     /// <summary>
-    /// A copy made just now arrives with the modifiers its roll made for it alone (#1179): the roll keeps no reference to
-    /// that list, so it becomes the item's own entry, not copied, and a making allocates its rows and their lists only.
-    /// A list of any other type is copied, as <see cref="Put" /> does; nothing for none.
+    /// A copy made just now arrives with the modifiers its roll made for it alone (#1179, RolledItem.Modifiers): the roll
+    /// hands that list over, so it becomes the item's own entry, not copied, and a making allocates its rows and their
+    /// lists only. Nothing for none.
     /// </summary>
-    internal void PutMade(ItemInstanceId item, IReadOnlyList<ItemInstanceModifier> made)
+    internal void PutMade(ItemInstanceId item, List<ItemInstanceModifier> made)
     {
         if (made.Count == 0)
         {
@@ -72,7 +72,7 @@ public sealed class ItemModifierStore
             return;
         }
 
-        _byItem[item] = made as List<ItemInstanceModifier> ?? [.. made];
+        _byItem[item] = made;
     }
 
     /// <summary>The item leaves: its list goes with it, and the entry is gone. An empty list for an item without one.</summary>

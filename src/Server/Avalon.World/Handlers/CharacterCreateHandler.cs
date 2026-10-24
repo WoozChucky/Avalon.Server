@@ -83,7 +83,7 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
                 Rarity = rolled.Rarity,
                 ItemLevel = rolled.ItemLevel,
                 UpdatedAt = DateTime.UtcNow,
-                Modifiers = [.. rolled.Modifiers]
+                Modifiers = rolled.Modifiers
             };
             items.Add(item); slots.Add(new() { ItemId = item.Id, Container = InventoryType.Bag, Slot = (byte)(slots.Count) });
         }

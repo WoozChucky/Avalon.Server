@@ -31,7 +31,7 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds) : I
         if (links.Count == 0)
             return new RolledItem(instanceId, template.Id, template.Rarity, itemLevel, RareName: null, []);
 
-        // A list, not an array: the character's modifier store keeps it as the copy's own entry (ItemModifierStore.PutMade).
+        // The copy's own list, which the character's modifier store keeps as its entry (ItemModifierStore.PutMade).
         var modifiers = new List<ItemInstanceModifier>(links.Count);
         for (int ordinal = 0; ordinal < links.Count; ordinal++)
             modifiers.Add(Roll(instanceId, links[ordinal], (byte)ordinal));
