@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Configuration;
@@ -85,4 +86,13 @@ public sealed class SellFactors
     public int Rare { get; set; } = 4;
 
     public int Unique { get; set; } = 6;
+
+    /// <summary>The factor of a copy of <paramref name="rarity" />: 1 for Common, and for a value that names no rarity.</summary>
+    public uint For(ItemRarity rarity) => rarity switch
+    {
+        ItemRarity.Magic => (uint)Magic,
+        ItemRarity.Rare => (uint)Rare,
+        ItemRarity.Unique => (uint)Unique,
+        _ => 1,
+    };
 }

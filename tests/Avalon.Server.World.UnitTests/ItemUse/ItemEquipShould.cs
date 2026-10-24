@@ -134,10 +134,13 @@ public class ItemEquipShould
         {
             "a stack of gear" => (StackedBand, 2u),
             "an off hand beside a worn two-hander" => (Buckler, 1u),
+            "a second copy of a UniqueEquipped trinket" => (WardStone, 1u),
             _ => throw new ArgumentOutOfRangeException(nameof(name)),
         };
         if (template == Buckler)
             Worn(Item(EquipmentSlots.MainHand, Greatsword));
+        if (template == WardStone)
+            Worn(Item(EquipmentSlots.Trinket1, WardStone));   // so the use aims at the free second trinket slot
         Bag(Item(0, template, count));
 
         Assert.Equal(expected, Equip(0, template));
@@ -148,6 +151,7 @@ public class ItemEquipShould
     {
         { "a stack of gear", ItemUseResult.NotUsable },   // no stack is ever worn
         { "an off hand beside a worn two-hander", ItemUseResult.Blocked },
+        { "a second copy of a UniqueEquipped trinket", ItemUseResult.UniqueEquipped },   // #1179
     };
 
     /// <summary>A use of a worn item takes it off to the lowest free Bag slot, interrupting a cast just before it moves.</summary>

@@ -207,7 +207,7 @@ public static class InventoryMove
     /// <summary>
     /// Whether a whole <paramref name="item" /> may go to <paramref name="destination" />. Anything
     /// may go to the Bag or the Bank. Equipment takes one item of a template whose slot fits, and
-    /// never an item whose template is gone.
+    /// never an item whose template is gone; of a UniqueEquipped template, only while no other slot wears a copy (#1179).
     /// </summary>
     private static ItemRequestResult CanGo(
         CharacterEntity character, ItemTemplate? template, InventoryItem item, SlotRef destination)
@@ -233,7 +233,26 @@ public static class InventoryMove
         if (!template.MeetsAttributes(stats.Strength, stats.Agility, stats.Intellect))
             return ItemRequestResult.AttributesTooLow;
 
+        if ((template.Flags & ItemTemplateFlags.UniqueEquipped) != 0 && WornElsewhere(character, item, destination))
+            return ItemRequestResult.UniqueEquipped;
+
         return ItemRequestResult.Ok;
+    }
+
+    /// <summary>
+    /// Whether an Equipment slot other than <paramref name="destination" /> holds another copy of <paramref name="item" />'s
+    /// template. The slot it goes to does not count, since what it holds is swapped out, and neither does the item itself,
+    /// so the worn copy may move to another slot. A loop over the container's own values, so a move allocates nothing.
+    /// </summary>
+    private static bool WornElsewhere(CharacterEntity character, InventoryItem item, SlotRef destination)
+    {
+        foreach (InventoryItem worn in character.Container(InventoryType.Equipment).Held)
+        {
+            if (worn.TemplateId == item.TemplateId && worn.Slot != destination.Slot && worn.InstanceId != item.InstanceId)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>

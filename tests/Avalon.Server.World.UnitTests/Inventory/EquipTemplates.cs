@@ -179,6 +179,29 @@ internal static class EquipTemplates
         StatValue4 = 2,
     };
 
+    /// <summary>A trinket only one copy of may be worn at a time (#1179).</summary>
+    public static readonly ItemTemplate WardStone = new()
+    {
+        Id = new ItemTemplateId(613),
+        Name = "Ward Stone",
+        Class = ItemClass.Armor,
+        SubClass = ItemSubClass.Trinket,
+        MaxStackSize = 1,
+        Slot = ItemSlotType.Trinket,
+        Flags = ItemTemplateFlags.UniqueEquipped,
+    };
+
+    /// <summary>A trinket with no uniqueness: two copies may be worn at once (#1179).</summary>
+    public static readonly ItemTemplate Talisman = new()
+    {
+        Id = new ItemTemplateId(614),
+        Name = "Talisman",
+        Class = ItemClass.Armor,
+        SubClass = ItemSubClass.Trinket,
+        MaxStackSize = 1,
+        Slot = ItemSlotType.Trinket,
+    };
+
     /// <summary>Not in any catalogue: stands for an item whose template a reload removed.</summary>
     public static readonly ItemTemplate Ghost = new()
     {
@@ -191,7 +214,7 @@ internal static class EquipTemplates
     private static readonly Dictionary<ItemTemplateId, ItemTemplate> s_mine = new[]
     {
         Longsword, Axe, Greatsword, Shortbow, Buckler, IronHelm, Circlet, Band, StackedBand, Ruby, Heirloom, Chestguard,
-        VigorAmulet,
+        VigorAmulet, WardStone, Talisman,
     }.ToDictionary(t => t.Id);
 
     /// <summary>These, then TestCharacters' Potion, Sword, Relic, Pebble and Hoard. Never Ghost.</summary>

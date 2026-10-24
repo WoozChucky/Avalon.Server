@@ -11,14 +11,18 @@ public static class ItemUseRules
 {
     /// <summary>
     /// Whether <paramref name="item"/> may be sold by a stock row priced at <paramref name="priceOverride"/>
-    /// (null: the item's BuyPrice). A quest item comes only from its quest, and a price below the SellPrice would
-    /// let a player buy and sell it forever for a profit.
+    /// (null: the item's BuyPrice). A quest item comes only from its quest, a vendor sells commons only (#1179: a
+    /// unique comes only from a drop), and a price below the SellPrice would let a player buy and sell it forever for a
+    /// profit.
     /// </summary>
     public static string? VendorStockProblem(ItemTemplate item, uint? priceOverride)
     {
         ulong id = item.Id.Value;
         if ((item.Flags & ItemTemplateFlags.QuestItem) != 0)
             return $"item template {id} is a quest item; quest items are never sold";
+
+        if (item.Rarity != ItemRarity.Common)
+            return $"item template {id} is {item.Rarity}, not Common; vendors sell common items only";
 
         uint price = priceOverride ?? item.BuyPrice;
         if (price < item.SellPrice)

@@ -157,6 +157,16 @@ public class InventoryMoveShould
         new("Refuse swapping a two-hander in while the off hand is held",
             [At(Eq(EquipmentSlots.MainHand), Longsword), At(Eq(EquipmentSlots.OffHand), Buckler), At(Bag(0), Greatsword)],
             Bag(0), Eq(EquipmentSlots.MainHand), null, ItemRequestResult.Blocked),
+        // #1179: two copies of a template may be worn, unless it is UniqueEquipped; then the one worn may still move or be
+        // swapped for another copy.
+        new("Refuse a second copy of a UniqueEquipped trinket", [At(Eq(EquipmentSlots.Trinket1), WardStone), At(Bag(0), WardStone)],
+            Bag(0), Eq(EquipmentSlots.Trinket2), null, ItemRequestResult.UniqueEquipped),
+        new("Wear a second copy of a trinket that is not UniqueEquipped", [At(Eq(EquipmentSlots.Trinket1), Talisman), At(Bag(0), Talisman)],
+            Bag(0), Eq(EquipmentSlots.Trinket2), null, ItemRequestResult.Ok, MoveKind.Move, 1),
+        new("Move a worn UniqueEquipped trinket to the other trinket slot", [At(Eq(EquipmentSlots.Trinket1), WardStone)],
+            Eq(EquipmentSlots.Trinket1), Eq(EquipmentSlots.Trinket2), null, ItemRequestResult.Ok, MoveKind.Move, 1),
+        new("Swap a worn UniqueEquipped trinket for another copy", [At(Eq(EquipmentSlots.Trinket1), WardStone), At(Bag(0), WardStone)],
+            Bag(0), Eq(EquipmentSlots.Trinket1), null, ItemRequestResult.Ok, MoveKind.Swap, 1),
         new("Refuse a swap that would put a bag item in the wrong equipment slot",
             [At(Eq(EquipmentSlots.MainHand), Longsword), At(Bag(0), Potion)],
             Eq(EquipmentSlots.MainHand), Bag(0), null, ItemRequestResult.WrongEquipSlot),

@@ -1043,18 +1043,22 @@ public sealed class TemplateEditShould : IAsyncLifetime
         return body["errors"]?.AsObject() ?? throw new InvalidOperationException(body.ToJsonString());
     }
 
-    [Fact]
-    public async Task Refuse_making_an_item_a_quest_item_while_a_vendor_sells_it()
+    /// <summary>A vendor sells neither a quest item nor anything but a common item (#1179).</summary>
+    [Theory]
+    [InlineData("flags", "quest item")]
+    [InlineData("rarity", "not Common")]
+    public async Task Refuse_making_an_item_one_no_vendor_sells_while_a_vendor_sells_it(string field, string reason)
     {
         ulong id = FirstId("item");
-        SetItem(id, i => i.Flags = Avalon.Domain.World.ItemTemplateFlags.None);
+        SetItem(id, i => { i.Flags = Avalon.Domain.World.ItemTemplateFlags.None; i.Rarity = Avalon.Common.ItemRarity.Common; });
         int stock = StockOf(id);
 
-        JsonObject errors = await PutItemErrorsAsync(id, j => j["flags"] = 2048);
+        JsonObject errors = await PutItemErrorsAsync(id,
+            j => j[field] = field == "flags" ? JsonValue.Create(2048) : JsonValue.Create("Unique"));
 
-        string message = errors["flags"]!.AsArray()[0]!.GetValue<string>();
+        string message = errors[field]!.AsArray()[0]!.GetValue<string>();
         Assert.Contains($"stock row {stock} of creature template {SeededCreature()}", message, StringComparison.Ordinal);
-        Assert.Contains("quest item", message, StringComparison.Ordinal);
+        Assert.Contains(reason, message, StringComparison.Ordinal);
     }
 
     [Fact]

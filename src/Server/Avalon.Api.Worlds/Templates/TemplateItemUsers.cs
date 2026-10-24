@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.World;
@@ -20,7 +21,8 @@ public static class TemplateItemUsers
         EntityEntry<ItemTemplate> entry = db.Entry(edited);
         bool flags = entry.Property(i => i.Flags).IsModified;
         bool prices = entry.Property(i => i.BuyPrice).IsModified || entry.Property(i => i.SellPrice).IsModified;
-        if (!flags && !prices)
+        bool rarity = entry.Property(i => i.Rarity).IsModified;
+        if (!flags && !prices && !rarity)
             return;
 
         var before = (ItemTemplate)entry.OriginalValues.ToObject();
@@ -32,7 +34,9 @@ public static class TemplateItemUsers
             string? problem = ItemUseRules.VendorStockProblem(edited, row.PriceOverride);
             if (problem is null || ItemUseRules.VendorStockProblem(before, row.PriceOverride) is not null)
                 continue;
-            string field = edited.Flags.HasFlag(ItemTemplateFlags.QuestItem) ? "flags" : "sellPrice";
+            string field = edited.Flags.HasFlag(ItemTemplateFlags.QuestItem) ? "flags"
+                : edited.Rarity != ItemRarity.Common ? "rarity"
+                : "sellPrice";
             errors.Add(field, $"Vendor stock row {row.Id} of creature template {row.CreatureTemplateId.Value} would be refused: {problem}.");
         }
 

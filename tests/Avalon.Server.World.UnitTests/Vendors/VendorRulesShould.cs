@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
@@ -20,7 +21,7 @@ namespace Avalon.Server.World.UnitTests.Vendors;
 public class VendorRulesShould
 {
     public sealed record Held(SlotRef At, ItemTemplate Template, uint Count = 1, uint Durability = 0, bool Locked = false,
-        bool Rolled = false);
+        bool Rolled = false, ItemRarity? Rarity = null);
 
     private static SlotRef Bag(byte slot) => new(InventoryType.Bag, slot);
 
@@ -29,8 +30,8 @@ public class VendorRulesShould
     private static SlotRef Eq(byte slot) => new(InventoryType.Equipment, slot);
 
     private static Held At(SlotRef slot, ItemTemplate template, uint count = 1, uint durability = 0, bool locked = false,
-        bool rolled = false) =>
-        new(slot, template, count, durability, locked, rolled);
+        bool rolled = false, ItemRarity? rarity = null) =>
+        new(slot, template, count, durability, locked, rolled, rarity);
 
     /// <summary>Keepsakes in Bag slots 0-28: one slot, 29, is free.</summary>
     private static Held[] AllButLastSlot => Enumerable.Range(0, 29).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
@@ -38,7 +39,8 @@ public class VendorRulesShould
     private static Held[] FullBag => Enumerable.Range(0, 30).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
 
     /// <summary>
-    /// A Held marked Locked is offered in a trade (#1175), and one marked Rolled carries a modifier (#1179);
+    /// A Held marked Locked is offered in a trade (#1175), one marked Rolled carries a modifier, and one given a Rarity
+    /// is a copy of that rarity, else of its template's (#1179);
     /// <paramref name="heldGold" /> is gold offered. A completing trade reserves <paramref name="reserved" /> and
     /// expects <paramref name="incomingGold" /> and one <paramref name="incoming" />.
     /// </summary>
@@ -49,7 +51,10 @@ public class VendorRulesShould
         foreach (IGrouping<InventoryType, Held> container in held.GroupBy(h => h.At.Container))
         {
             character.Container(container.Key).Load(
-                container.Select(h => TestCharacters.Item(h.At.Slot, h.Template, h.Count, h.Durability)).ToList());
+                container.Select(h => TestCharacters.Item(h.At.Slot, h.Template, h.Count, h.Durability) with
+                {
+                    Rarity = h.Rarity ?? h.Template.Rarity,
+                }).ToList());
         }
 
         foreach (Held h in held.Where(h => h.Locked))
@@ -319,6 +324,15 @@ public class VendorRulesShould
         new("Sell armour at full durability", [At(Bag(0), Plate, durability: 69)], 0, null, VendorResult.Ok, Payment: 20),
         new("Sell a potion at durability 0", [At(Bag(0), Tonic, 1, durability: 0)], 0, null, VendorResult.Ok, Payment: 4),
 
+        // #1179: a sale pays the sell price times Game:Items:SellFactor for the copy's rarity (Common 1).
+        new("Sell a common copy at its sell price", [At(Bag(0), IronwoodSword, durability: 42)], 0, null, VendorResult.Ok, Payment: 30),
+        new("Sell a magic copy at twice its sell price", [At(Bag(0), IronwoodSword, durability: 42, rarity: ItemRarity.Magic)], 0, null,
+            VendorResult.Ok, Payment: 60),
+        new("Sell a rare copy at four times its sell price", [At(Bag(0), IronwoodSword, durability: 42, rarity: ItemRarity.Rare)], 0, null,
+            VendorResult.Ok, Payment: 120),
+        new("Sell a unique at six times its sell price", [At(Bag(0), ThornheartSignet, durability: 69)], 0, null, VendorResult.Ok,
+            Payment: 1200),
+
         // 1. Alive. 2. Shop open.
         new("Answer Dead before anything else", [], 255, 0, VendorResult.Dead, Shop: false, Dead: true),
         new("Answer ShopClosed with no shop open", [At(Bag(0), Tonic, 5)], 3, 0, VendorResult.ShopClosed, Shop: false),
@@ -359,7 +373,7 @@ public class VendorRulesShould
         SellCase row = s_sellCases.Single(c => c.Name == name);
         CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead, incomingGold: row.IncomingGold);
 
-        SellDecision decision = VendorRules.DecideSell(character, row.Shop, row.BagSlot, row.Count, Find, row.MaxGold);
+        SellDecision decision = VendorRules.DecideSell(character, row.Shop, row.BagSlot, row.Count, Find, row.MaxGold, new SellFactors());
 
         Assert.Equal(row.Expected, decision.Result);
         if (row.Expected == VendorResult.Ok)

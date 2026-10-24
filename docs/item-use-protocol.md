@@ -73,6 +73,7 @@ acknowledgement. A connection with no character gets no answer at all.
 | 17 | `Stunned` | The character is stunned (crowd control, [aura protocol](aura-protocol.md) section 10): it uses no item, gear included, until the stun ends. A silence refuses no item use. |
 | 18 | `Locked` | The item is offered in a face-to-face trade ([trade protocol](trade-protocol.md) section 6): it is neither used nor worn until it leaves the trade. A cast whose item becomes locked before the bar ends is answered `Interrupted`. |
 | 19 | `AttributesTooLow` | The gear requires more Strength, Agility or Intellect than the character has, as its last stats refresh derived them (gear worn and auras included, so the item a swap would take off still counts) (#1178). |
+| 20 | `UniqueEquipped` | The gear's template is UniqueEquipped and another equipment slot already wears a copy of it: only one copy is worn at a time (#1179). Two copies of any other item may be worn. |
 
 ## 4. The checks, in order
 

@@ -66,6 +66,12 @@ public enum ItemRequestResult : byte
     /// included), is below what the item requires (#1178). Only a move into Equipment is checked.
     /// </summary>
     AttributesTooLow = 15,
+
+    /// <summary>
+    /// The item's template is UniqueEquipped and another equipment slot already holds a copy of it (#1179): only one copy
+    /// is worn at a time. Moving the worn copy, or swapping it for another, is allowed.
+    /// </summary>
+    UniqueEquipped = 16,
 }
 
 /// <summary>

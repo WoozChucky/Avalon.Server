@@ -1,3 +1,4 @@
+using Avalon.World.Configuration;
 using System.Diagnostics.Metrics;
 using Avalon.Combat;
 using Avalon.Common;
@@ -324,7 +325,7 @@ public sealed class CharacterSaverShould : IDisposable
         CharacterEntity character = await LoadAsync(7);
         Assert.Equal(Describe(a, b), Describe(character.ItemModifiers.Of(x.InstanceId)));
         var vendor = new VendorTrade(character, InventoryFor(character, Vendors.VendorTestData.Find),
-            new CharacterWallet(character, ulong.MaxValue), Vendors.VendorTestData.Find, ulong.MaxValue);
+            new CharacterWallet(character, ulong.MaxValue), Vendors.VendorTestData.Find, ulong.MaxValue, new SellFactors());
         CharacterSaver saver = Saver();
 
         Assert.Equal(Avalon.Network.Packets.Vendor.VendorResult.Ok, vendor.TrySell(shopOpen: true, 4, null));

@@ -59,4 +59,7 @@ public enum ItemUseResult : byte
 
     /// <summary>The character's attributes are below what the item requires to be worn (#1178).</summary>
     AttributesTooLow = 19,
+
+    /// <summary>A copy of this UniqueEquipped item is already worn in another equipment slot (#1179).</summary>
+    UniqueEquipped = 20,
 }
