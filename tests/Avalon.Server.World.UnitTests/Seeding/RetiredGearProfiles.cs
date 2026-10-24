@@ -1,3 +1,4 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
@@ -8,7 +9,8 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// The balance tool's starter and forest gear profiles as the seed held them before #1179 replaced them with bases: each
 /// class's weapon and five armour pieces, and the starter Warrior with the Rusted Sword. The #1178 carry-over theories
 /// pin today's numbers through these rows, so they keep the old rows' values (the fields the stats read: slot, class,
-/// damage, attack time and stat lines) once the seeded rows are gone.
+/// damage, attack time and stat lines) once the seeded rows are gone. Each is worn as a copy: a weapon's damage and attack
+/// time are the base stats its copy rolled (#1179), as a base carries them now, at the old row's values.
 /// </summary>
 internal static class RetiredGearProfiles
 {
@@ -29,11 +31,11 @@ internal static class RetiredGearProfiles
         ["rusted"] = new() { [CharacterClass.Warrior] = [4, 36, 37, 38, 39, 40] },
     };
 
-    /// <summary>The six retired rows <paramref name="profile" /> gave <paramref name="characterClass" />, made fresh.</summary>
-    public static List<ItemTemplate> For(string profile, CharacterClass characterClass) =>
+    /// <summary>The six retired rows <paramref name="profile" /> gave <paramref name="characterClass" />, made fresh and worn.</summary>
+    public static List<WornItem> For(string profile, CharacterClass characterClass) =>
         s_profiles[profile][characterClass].Select(Row).ToList();
 
-    private static ItemTemplate Row(ulong id) => id switch
+    private static WornItem Row(ulong id) => id switch
     {
         4 => Weapon(4, "Rusted Sword", CharacterClass.Warrior, ItemSubClass.OneHanded, 4, 6, 792, null),
         6 => Weapon(6, "Briarstring Bow", CharacterClass.Hunter, ItemSubClass.Ranged, 5, 7, 801, StatType.Agility),
@@ -75,9 +77,10 @@ internal static class RetiredGearProfiles
         _ => throw new ArgumentOutOfRangeException(nameof(id), id, "no retired profile row"),
     };
 
-    private static ItemTemplate Weapon(
-        ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, uint min, uint max, uint attackTimeMs,
-        StatType? attribute) => new()
+    private static WornItem Weapon(
+        ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, int min, int max, int attackTimeMs,
+        StatType? attribute) => new(
+        new ItemTemplate
         {
             Id = id,
             Name = name,
@@ -87,17 +90,17 @@ internal static class RetiredGearProfiles
             Slot = ItemSlotType.MainHand,
             AllowedClasses = [characterClass],
             RequiredLevel = 1,
-            DamageMin1 = min,
-            DamageMax1 = max,
             DamageType1 = DamageType.Physical,
-            AttackTimeMs = attackTimeMs,
             StatType1 = attribute,
             StatValue1 = attribute is null ? null : 1,
-        };
+        },
+        new ItemBaseStats { DamageMin = min, DamageMax = max, AttackTime = attackTimeMs },
+        null);
 
-    private static ItemTemplate Armour(
+    private static WornItem Armour(
         ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, ItemSlotType slot,
-        params (StatType Type, uint Value)[] stats) => new()
+        params (StatType Type, uint Value)[] stats) => new(
+        new ItemTemplate
         {
             Id = id,
             Name = name,
@@ -113,5 +116,7 @@ internal static class RetiredGearProfiles
             StatValue2 = stats[1].Value,
             StatType3 = stats.Length > 2 ? stats[2].Type : null,
             StatValue3 = stats.Length > 2 ? stats[2].Value : null,
-        };
+        },
+        default,
+        null);
 }

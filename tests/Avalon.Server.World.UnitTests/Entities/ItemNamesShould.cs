@@ -10,7 +10,7 @@ namespace Avalon.Server.World.UnitTests.Entities;
 /// <summary>
 /// An item's name as it is described (#1179), over the seeded catalog and templates: a magic item from its prefix
 /// and suffix around the template's name, a rare by the two words its roll stored, and common and unique items (null) by
-/// the template's own. An implicit never names an item.
+/// the template's own.
 /// </summary>
 public class ItemNamesShould
 {
@@ -23,7 +23,6 @@ public class ItemNamesShould
     [InlineData(32UL, ItemRarity.Magic, new[] { "S6 T3" }, null, "Ironwood Sword of Haste")]
     [InlineData(32UL, ItemRarity.Magic, new[] { "P8 Fire T1" }, null, "Ashen Ironwood Sword")]
     [InlineData(32UL, ItemRarity.Rare, new[] { "P1 T1", "P2 T2", "S6 T3" }, "Thorn Bite", "Thorn Bite")]
-    [InlineData(37UL, ItemRarity.Magic, new[] { "implicit 37", "P11 T1" }, null, "Hale Ironbound Chestguard")]
     public void Name_an_item_from_its_rarity_and_affixes(
         ulong template, ItemRarity rarity, string[] modifiers, string? rareName, string? expected)
     {

@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Public.Characters;
@@ -44,11 +45,14 @@ public sealed class ItemModifierStore
         modifiers.Count > 0 || !baseStats.IsEmpty;
 
     /// <summary>
-    /// The item's live list itself, in ordinal order, or null for an item without modifiers: what the stats refresh folds,
-    /// read through the concrete list. Nothing may change it.
+    /// The item as the stats refresh folds it, worn as <paramref name="template" />, in one lookup: its base stats by value
+    /// (none for an item without them) and its live modifier list itself, in ordinal order, read through the concrete list,
+    /// or null for an item without modifiers. Nothing may change the list.
     /// </summary>
-    internal List<ItemInstanceModifier>? ListOf(ItemInstanceId item) =>
-        _byItem.TryGetValue(item, out Entry entry) ? entry.Modifiers : null;
+    internal WornItem WornOf(ItemTemplate template, ItemInstanceId item) =>
+        _byItem.TryGetValue(item, out Entry entry)
+            ? new WornItem(template, entry.BaseStats, entry.Modifiers)
+            : new WornItem(template, default, null);
 
     /// <summary>
     /// The name <paramref name="item" /> is described by in <paramref name="items" /> (<see cref="ItemSlotDtoMapper.NameOf" />):

@@ -1684,7 +1684,8 @@ public class WorldDbContext : DbContext
 
         // The equipment (#1179): 74 bases and 5 uniques, ItemBaseSeed's. Ids 5-8, 12-26 and 32-50 are bases under
         // their old ids, 58, 64 and 65 uniques, 66-103 new; 4, 27-31 and 51-55 are gone. None carries a stat line: a
-        // base's defence is its implicit modifier, a unique's stats its unique modifier (ItemModifierSeed).
+        // base's defence and a weapon's damage are its base stats (ItemBaseSeed.BaseStats), a unique's stats its unique
+        // modifier (ItemModifierSeed).
         builder.HasData(ItemBaseSeed.Equipment());
 
         // Item 56 (#432): Tobin's Greater Health Potion, sold for gold plus two Health Potions. A use restores

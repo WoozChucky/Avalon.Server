@@ -281,12 +281,11 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     }
 
     /// <summary>
-    /// What every copy of a seeded item rolls within (#1179), read through the world's catalog: a base's implicit (the
-    /// plate chest's armour) and a unique's own lines, each as a range, an "adds X to Y" line with both.
+    /// What every copy of a seeded item rolls within (#1179), read through the world's catalog: a unique's own lines,
+    /// each as a range, an "adds X to Y" line with both.
     /// </summary>
     [Theory]
     [InlineData(65UL, new[] { "Unique", "+24-36 Health", "Adds 2 to 3-5 Physical Damage to Attacks", "+3-5% Crit" })]
-    [InlineData(37UL, new[] { "Common", "7-9 Armor" })]
     public async Task Describe_what_every_copy_of_a_seeded_item_rolls_within(ulong id, string[] expected)
     {
         using var sqlite = new SqliteWorlds(Open);

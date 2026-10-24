@@ -336,7 +336,7 @@ public class CharacterService : ICharacterService
             .ToList();
         if (worn.Count == 0) return [];
 
-        // Loaded with their modifiers and the modifiers' values.
+        // Loaded with their base stats, their modifiers and the modifiers' values.
         var instances = (await _itemInstanceRepository.GetByCharacterIdAsync(id, cancellationToken))
             .ToDictionary(i => i.Id);
         IEnumerable<ItemTemplateId> templateIds = worn
@@ -352,7 +352,8 @@ public class CharacterService : ICharacterService
                 && templates.TryGetValue(instance.TemplateId, out ItemTemplate? template)
                 && EquipmentSlots.Accepts(row.Slot, template.Slot))
             {
-                result.Add(new WornItem(template, instance.Modifiers.Count > 0 ? instance.Modifiers : null));
+                result.Add(new WornItem(template, ItemBaseStats.Of(instance.BaseStats),
+                    instance.Modifiers.Count > 0 ? instance.Modifiers : null));
             }
         }
 

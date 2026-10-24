@@ -35,7 +35,7 @@ public class OverridesShould
               "CreatureBaseStats.4.Health": 90,
               "CreatureTemplate.8.HealthModifier": 1.2,
               "CreatureRarityModifiers.Elite.DamageMultiplier": 1.5,
-              "Item.7.DamageMax1": 12 }
+              "Item.7.BuyPrice": 300 }
             """);
 
         Assert.Equal(28u, tables.ClassLevelStats.Single(r => r.Class == CharacterClass.Warrior && r.Level == 3).Strength);
@@ -44,7 +44,7 @@ public class OverridesShould
         Assert.Equal(90u, tables.CreatureBaseStats.Single(r => r.Level == 4).Health);
         Assert.Equal(1.2f, tables.CreatureTemplates.Single(t => t.Id.Value == 8).HealthModifier);
         Assert.Equal(1.5f, tables.CreatureRarityModifiers.Single(r => r.Rarity == CreatureRarity.Elite).DamageMultiplier);
-        Assert.Equal(12u, tables.ItemTemplates.Single(t => t.Id.Value == 7).DamageMax1);
+        Assert.Equal(300u, tables.ItemTemplates.Single(t => t.Id.Value == 7).BuyPrice);
     }
 
     [Fact]

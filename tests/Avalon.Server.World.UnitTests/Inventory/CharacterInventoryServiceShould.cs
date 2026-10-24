@@ -402,7 +402,6 @@ public class CharacterInventoryServiceShould
             Assert.Equal(copy.BaseStats, copy.WrittenBaseStats);
 
             IReadOnlyList<ItemModifier> links = w.Data.ItemModifiers.LinkedTo(copy.Template);
-            Assert.Equal(copy.Template == made, links.Count > 0);
             List<ItemInstanceModifier> implicits = [.. copy.Held.Take(links.Count)];
             if (how != "quest reward" || copy.Template != made)
                 Assert.Equal(links.Count, copy.Held.Count);

@@ -88,7 +88,7 @@ public class LootPickupShould
         var id = new ItemInstanceId(Guid.CreateVersion7());
         List<ItemInstanceModifier> modifiers =
         [
-            Modifier(id, CatalogKeys.ModifierId("implicit 37"), 0, (0, StatType.Armor, 8, null)),
+            Modifier(id, CatalogKeys.ModifierId("P11 T1"), 0, (0, StatType.Health, 8, null)),
             Modifier(id, CatalogKeys.ModifierId("P2 T3"), 1, (0, StatType.AddedFireDamage, 3, 6)),
             Modifier(id, CatalogKeys.ModifierId("S1 T3"), 2, (0, StatType.Strength, 7, null)),
         ];

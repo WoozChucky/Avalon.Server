@@ -131,7 +131,7 @@ public class AbilityAmountsFlusherShould
             Agility = 20,
             Intellect = 20,
         };
-        DerivedCharacterStats Wearing(ItemTemplate weapon) => CharacterStatsCalculator.Calculate(warriorOne, Worn.Of(weapon),
+        DerivedCharacterStats Wearing(WornItem weapon) => CharacterStatsCalculator.Calculate(warriorOne, [weapon],
             TestCombat.FactorsOf(CharacterClass.Warrior), TestCombat.Formula);
 
         AbilityTemplate cleave = AbilityTestData.Cone(200);
@@ -161,7 +161,8 @@ public class AbilityAmountsFlusherShould
 
     private static (DamageTypeMask, uint, uint) Pace(AbilityAmountInfo a) => (a.Types, a.CooldownMs, a.CastTimeMs);
 
-    private static ItemTemplate Weapon(ulong id, uint attackTimeMs) => new()
+    /// <summary>A sword worn as a copy that rolled 4-7 at <paramref name="attackTimeMs" /> (#1179).</summary>
+    private static WornItem Weapon(ulong id, int attackTimeMs) => new(new ItemTemplate
     {
         Id = new ItemTemplateId(id),
         Name = "Sword",
@@ -169,11 +170,8 @@ public class AbilityAmountsFlusherShould
         SubClass = ItemSubClass.OneHanded,
         Slot = ItemSlotType.MainHand,
         MaxStackSize = 1,
-        DamageMin1 = 4,
-        DamageMax1 = 7,
         DamageType1 = DamageType.Physical,
-        AttackTimeMs = attackTimeMs,
-    };
+    }, new ItemBaseStats { DamageMin = 4, DamageMax = 7, AttackTime = attackTimeMs }, null);
 
     /// <summary>A refresh that moves no amount (here only the crit chance) sends nothing.</summary>
     [Fact]

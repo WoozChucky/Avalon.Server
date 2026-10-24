@@ -8,15 +8,16 @@ namespace Avalon.Database.World.Seeding;
 public readonly record struct DraftedBaseStat(ulong TemplateId, ItemBaseStat Stat, int Value);
 
 /// <summary>
-/// The seeded equipment (#1179): 74 bases and 5 uniques. A base is Common, lists no classes and carries no stat line:
-/// a weapon its damage and attack time, every base its requirements, in three tiers at required levels 1, 5 and 10 (the
-/// attribute asks none, 30 and 45). Plate asks Strength, leather Agility, cloth Intellect. A base's defence (an armour
-/// piece's armour, evasion or ward, a shield's armour and block, a caster off-hand's ward and spell damage) is its
-/// implicit modifier, and a unique's stats its unique modifier, both rolled per copy (ItemModifierSeed). Numbers are
-/// rounded half away from zero and at least 1; every base sells for a quarter of its price. The model's HasData reads
-/// these; consumables and quest items stay in WorldDbContext, with no base kind.
+/// The seeded equipment (#1179): 74 bases and 5 uniques. A base is Common, lists no classes and carries no stat line,
+/// only its requirements, in three tiers at required levels 1, 5 and 10 (the attribute asks none, 30 and 45). Plate asks
+/// Strength, leather Agility, cloth Intellect. A base's defence (an armour piece's armour, evasion or ward, a shield's
+/// armour and block, a caster off-hand's ward) and a weapon's damage and attack time are its base stats, below, which
+/// every copy rolls; a weapon's template names the type of its damage (its damage and attack-time columns are no longer
+/// read). A unique's stats are its unique modifier, rolled per copy (ItemModifierSeed). Numbers are rounded half away
+/// from zero and at least 1; every base sells for a quarter of its price. The model's HasData reads these; consumables
+/// and quest items stay in WorldDbContext, with no base kind.
 /// <para>
-/// Every base also authors a range for each base stat its kind carries (ItemBaseStatRules), which every copy rolls:
+/// Every base authors a range for each base stat its kind carries (ItemBaseStatRules), which every copy rolls:
 /// <see cref="Drafted" /> keeps each drafted value, and <see cref="BaseStats" /> spreads it by 20 %, or by 5 % for an
 /// attack time. The drafted values: a chest's 8 / 18 / 32 armour (plate), 40 / 90 / 160 evasion (leather) and
 /// 12 / 26 / 45 ward (cloth) by tier, the other slots a share of it (legs 80 %, head 60 %, shoulders 50 %, hands and

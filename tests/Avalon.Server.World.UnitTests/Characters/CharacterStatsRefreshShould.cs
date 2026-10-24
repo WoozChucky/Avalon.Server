@@ -1,8 +1,8 @@
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Inventory;
-using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
@@ -114,41 +114,67 @@ public class CharacterStatsRefreshShould
     }
 
     /// <summary>
-    /// Review Focus 3 (#1179): a base's defence is its copy's implicit, rolled when the copy was made, and its weapon damage
-    /// its current template's. A plate helm whose implicit rolled 6 armour gives 6; a live edit of the worn Ironwood Sword's
-    /// high end to 9 reaches the next refresh, and the helm's 6 stays.
+    /// Review Focus 3 (#1179, B2-R1): a base's defence and weapon damage are the base stats its copy rolled when it was
+    /// made, never its template's current ranges. A plate helm that rolled 6 armour gives 6 and an Ironwood Sword that
+    /// rolled 3-7 at 700 ms rolls 3-7 at 700; after a reload whose sword ranges 20-30 at its high end and whose helm 40-50,
+    /// the next refresh still reads 6 and 3-7 at 700.
     /// </summary>
     [Fact]
-    public void Read_defence_from_the_copy_and_weapon_damage_from_the_current_template()
+    public void Read_base_stats_from_the_copy_and_ignore_a_range_edit()
     {
         ItemTemplate helmBase = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 36);
         ItemTemplate sword = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 32);
-        ItemTemplate edited = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 32);
-        Assert.Equal(7u, sword.DamageMax1);
-        edited.DamageMax1 = 9;
+        ItemTemplate editedHelm = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 36);
+        ItemTemplate editedSword = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 32);
+        editedHelm.BaseStats = [new ItemTemplateBaseStat { TemplateId = helmBase.Id, Stat = ItemBaseStat.Armour, Min = 40, Max = 50 }];
+        editedSword.BaseStats =
+        [
+            new ItemTemplateBaseStat { TemplateId = sword.Id, Stat = ItemBaseStat.DamageMin, Min = 2, Max = 4 },
+            new ItemTemplateBaseStat { TemplateId = sword.Id, Stat = ItemBaseStat.DamageMax, Min = 20, Max = 30 },
+            new ItemTemplateBaseStat { TemplateId = sword.Id, Stat = ItemBaseStat.AttackTime, Min = 665, Max = 735 },
+        ];
 
         CharacterEntity bare = New();
         CharacterStatsRefresh.Apply(bare, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
         CharacterEntity character = New();
         InventoryItem helm = Item(EquipmentSlots.Head, helmBase);
         InventoryItem blade = Item(EquipmentSlots.MainHand, sword);
-        character.ItemModifiers.Load([new ItemInstance
-        {
-            Id = helm.InstanceId,
-            TemplateId = helmBase.Id,
-            Modifiers = [TestModifiers.Modifier(helm.InstanceId, CatalogKeys.ModifierId("implicit 36"), 0, (0, StatType.Armor, 6, null))],
-        }]);
+        character.ItemModifiers.Load(
+        [
+            new ItemInstance
+            {
+                Id = helm.InstanceId,
+                TemplateId = helmBase.Id,
+                BaseStats = [new ItemInstanceBaseStat { ItemInstanceId = helm.InstanceId, Stat = ItemBaseStat.Armour, Value = 6 }],
+            },
+            new ItemInstance
+            {
+                Id = blade.InstanceId,
+                TemplateId = sword.Id,
+                BaseStats =
+                [
+                    new ItemInstanceBaseStat { ItemInstanceId = blade.InstanceId, Stat = ItemBaseStat.DamageMin, Value = 3 },
+                    new ItemInstanceBaseStat { ItemInstanceId = blade.InstanceId, Stat = ItemBaseStat.DamageMax, Value = 7 },
+                    new ItemInstanceBaseStat { ItemInstanceId = blade.InstanceId, Stat = ItemBaseStat.AttackTime, Value = 700 },
+                ],
+            },
+        ]);
         character.Container(InventoryType.Equipment).Load([helm, blade]);
 
-        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, id => id == helmBase.Id ? helmBase : id == sword.Id ? sword : null,
-            CurrentValues.Refill, TestCombat.Formula);
-        (uint Armor, uint Max) before = (character.Stats!.Value.Armor, character.Stats.Value.Weapon.Max1);
-        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, id => id == helmBase.Id ? helmBase : id == edited.Id ? edited : null,
-            CurrentValues.Refill, TestCombat.Formula);
+        (uint Armor, uint Min, uint Max, uint Time) Refresh(ItemTemplate helmNow, ItemTemplate swordNow)
+        {
+            CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors,
+                id => id == helmNow.Id ? helmNow : id == swordNow.Id ? swordNow : null, CurrentValues.Refill, TestCombat.Formula);
+            DerivedCharacterStats stats = character.Stats!.Value;
+            return (stats.Armor, stats.Weapon.Min1, stats.Weapon.Max1, stats.Weapon.AttackTimeMs);
+        }
+
+        (uint Armor, uint Min, uint Max, uint Time) before = Refresh(helmBase, sword);
+        (uint Armor, uint Min, uint Max, uint Time) after = Refresh(editedHelm, editedSword);
 
         uint none = bare.Stats!.Value.Armor;
-        Assert.Equal((none + 6u, 7u), before);
-        Assert.Equal((none + 6u, 9u), (character.Stats.Value.Armor, character.Stats.Value.Weapon.Max1));
+        Assert.Equal((none + 6u, 3u, 7u, 700u), before);
+        Assert.Equal(before, after);
     }
 
     [Fact]

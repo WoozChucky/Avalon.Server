@@ -255,51 +255,49 @@ public class CharacterStatsCalculatorShould
     }
 
     /// <summary>
-    /// Review Focus 4 (#1179, A-R13, A-R14): a local line counts only on the item it sits on. The head's 50 % increased
-    /// armour scales its own 5 + 3 to 12, never the chest's 8, and the gloves' 100 % scales no armour of theirs; the main
-    /// hand's added damage, 40 % increased physical damage and 10 % attack speed are its own (4-7 to 6-10, added physical
-    /// 1-2 to 1-3, 792 ms to 720), never the offence block's; the ring's added damage to attacks and to spells is global.
-    /// The boots' 25 evasion at 82 % is exactly 45.5, rounded half away from zero to 46 in whole numbers (a double gives
-    /// 45.49999… from 25 x (1 + 0.82)).
+    /// Review Focus 4 (#1179, A-R13, A-R14, B2-R1): a local line counts only on the item it sits on, and scales the base
+    /// stats its copy rolled. The plate chest's 10 % increased armour scales its own 30 to 33, never the helmet's 10: 43,
+    /// plus Strength 23's 2; the gloves' 100 % scales no armour of theirs. The shield's 8 block chance adds as it is, never
+    /// scaled by its 50 % increased armour. The sword's rolled 3-7 at 700 ms takes its own 50 % increased physical damage
+    /// and 10 % attack speed (4.5 and 10.5, rounded half away from zero to 5-11; 700 / 1.1 to 636) and so does its added
+    /// physical damage (1-2 to 2-3), never the offence block; the ring's added damage to attacks and to spells is global.
+    /// The boots' rolled 25 evasion at 82 % is exactly 45.5, rounded half away from zero to 46 in whole numbers (a double
+    /// gives 45.49999… from 25 x (1 + 0.82)).
     /// </summary>
     [Theory]
-    [InlineData("armor", 20d)]
+    [InlineData("armor", 45d)]
+    [InlineData("block", 8d)]
     [InlineData("evasion", 46d)]
-    [InlineData("weapon min1", 6d)]
-    [InlineData("weapon max1", 10d)]
-    [InlineData("weapon added physical min", 1d)]
+    [InlineData("weapon min1", 5d)]
+    [InlineData("weapon max1", 11d)]
+    [InlineData("weapon added physical min", 2d)]
     [InlineData("weapon added physical max", 3d)]
     [InlineData("weapon added fire max", 5d)]
-    [InlineData("attack time", 720d)]
+    [InlineData("attack time", 636d)]
     [InlineData("attacks physical max", 3d)]
     [InlineData("spells cold max", 2d)]
     [InlineData("global increased physical", 0d)]
     public void Keep_local_modifiers_on_the_item_they_sit_on(string what, double expected)
     {
-        var formula = new CombatFormula { ArmorPerStrength = 0f };
-        var head = new ItemTemplate { Name = "Head", Slot = ItemSlotType.Head, StatType1 = StatType.Armor, StatValue1 = 5 };
-        var chest = new ItemTemplate { Name = "Chest", Slot = ItemSlotType.Chest, StatType1 = StatType.Armor, StatValue1 = 8 };
-        var mainHand = new ItemTemplate
-        {
-            Name = "Sword",
-            Slot = ItemSlotType.MainHand,
-            DamageMin1 = 4,
-            DamageMax1 = 7,
-            DamageType1 = DamageType.Physical,
-            AttackTimeMs = 792,
-        };
+        var formula = new CombatFormula { ArmorPerStrength = 0.1f };
+        var head = new ItemTemplate { Name = "Head", Slot = ItemSlotType.Head };
+        var chest = new ItemTemplate { Name = "Chest", Slot = ItemSlotType.Chest };
+        var shield = new ItemTemplate { Name = "Shield", Slot = ItemSlotType.OffHand };
+        var mainHand = new ItemTemplate { Name = "Sword", Slot = ItemSlotType.MainHand, DamageType1 = DamageType.Physical };
         var ring = new ItemTemplate { Name = "Ring", Slot = ItemSlotType.Finger };
         var gloves = new ItemTemplate { Name = "Gloves", Slot = ItemSlotType.Hands };
-        var boots = new ItemTemplate { Name = "Boots", Slot = ItemSlotType.Feet, StatType1 = StatType.Evasion, StatValue1 = 25 };
+        var boots = new ItemTemplate { Name = "Boots", Slot = ItemSlotType.Feet };
         WornItem[] worn =
         [
-            Rolled(head, (StatType.Armor, 3, null), (StatType.LocalIncreasedArmor, 50, null)),
-            Rolled(chest),
-            Rolled(mainHand, (StatType.AddedPhysicalDamage, 1, 2), (StatType.LocalIncreasedPhysicalDamage, 40, null),
+            Rolled(head, new ItemBaseStats { Armour = 10 }),
+            Rolled(chest, new ItemBaseStats { Armour = 30 }, (StatType.LocalIncreasedArmor, 10, null)),
+            Rolled(shield, new ItemBaseStats { BlockChance = 8 }, (StatType.LocalIncreasedArmor, 50, null)),
+            Rolled(mainHand, new ItemBaseStats { DamageMin = 3, DamageMax = 7, AttackTime = 700 },
+                (StatType.AddedPhysicalDamage, 1, 2), (StatType.LocalIncreasedPhysicalDamage, 50, null),
                 (StatType.AddedFireDamage, 2, 5), (StatType.LocalAttackSpeed, 10, null)),
             Rolled(ring, (StatType.AddedPhysicalDamageToAttacks, 1, 3), (StatType.AddedColdDamageToSpells, 1, 2)),
             Rolled(gloves, (StatType.LocalIncreasedArmor, 100, null)),
-            Rolled(boots, (StatType.LocalIncreasedEvasion, 82, null)),
+            Rolled(boots, new ItemBaseStats { Evasion = 25 }, (StatType.LocalIncreasedEvasion, 82, null)),
         ];
 
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Warrior, 1), worn,
@@ -308,6 +306,7 @@ public class CharacterStatsCalculatorShould
         double actual = what switch
         {
             "armor" => stats.Armor,
+            "block" => stats.BlockPct,
             "evasion" => stats.Evasion,
             "weapon min1" => stats.Weapon.Min1,
             "weapon max1" => stats.Weapon.Max1,
@@ -322,11 +321,19 @@ public class CharacterStatsCalculatorShould
         Assert.Equal(expected, actual);
     }
 
-    /// <summary>A copy of <paramref name="template" /> whose modifiers hold <paramref name="values" />, two to a modifier.</summary>
-    private static WornItem Rolled(ItemTemplate template, params (StatType Stat, int Value, int? Value2)[] values)
+    /// <summary>A copy of <paramref name="template" /> with no base stats whose modifiers hold <paramref name="values" />.</summary>
+    private static WornItem Rolled(ItemTemplate template, params (StatType Stat, int Value, int? Value2)[] values) =>
+        Rolled(template, default, values);
+
+    /// <summary>
+    /// A copy of <paramref name="template" /> that rolled <paramref name="baseStats" /> and whose modifiers hold
+    /// <paramref name="values" />, two to a modifier.
+    /// </summary>
+    private static WornItem Rolled(ItemTemplate template, ItemBaseStats baseStats,
+        params (StatType Stat, int Value, int? Value2)[] values)
     {
         var item = new ItemInstanceId(Guid.CreateVersion7());
-        return new WornItem(template, [.. values.Chunk(2).Select((pair, ordinal) => TestModifiers.Modifier(item, 1,
+        return new WornItem(template, baseStats, [.. values.Chunk(2).Select((pair, ordinal) => TestModifiers.Modifier(item, 1,
             (byte)ordinal, [.. pair.Select((v, i) => ((byte)i, v.Stat, v.Value, v.Value2))]))]);
     }
 

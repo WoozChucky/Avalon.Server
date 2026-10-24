@@ -5,7 +5,6 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
 using Avalon.Server.World.UnitTests.Inventory;
-using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Public.Characters;
@@ -308,7 +307,7 @@ public class QuestTurnInShould
 
     /// <summary>
     /// #1179, over the World database's seed: a fixed or picked reward whose template is a Common base is rolled
-    /// Magic at the quest's level as it is paid, its implicits first, then one or two affixes the level allows; the
+    /// Magic at the quest's level as it is paid, with one or two affixes the level allows after any implicit; the
     /// offer says so.
     /// </summary>
     [Fact]
@@ -333,10 +332,7 @@ public class QuestTurnInShould
 
         Creature hilde = ReadyAtSeed(w, c, EarnItFancy);
         Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, EarnItFancy, hilde.Guid.RawValue, choiceItemTemplateId: 37));
-        InventoryItem chest = Paid(c, 37);
-        AssertMagic(c, w, chest, itemLevel: 4);
-        ItemInstanceModifier first = c.Character.ItemModifiers.Of(chest.InstanceId)[0];
-        Assert.Equal((CatalogKeys.ModifierId("implicit 37"), (byte)0), (first.ModifierId, first.Ordinal));
+        AssertMagic(c, w, Paid(c, 37), itemLevel: 4);
     }
 
     /// <summary>

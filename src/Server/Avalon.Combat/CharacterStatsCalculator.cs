@@ -16,9 +16,10 @@ public static class CharacterStatsCalculator
     /// away from zero), and the formula's base crit plus gear crit; only power still reads the class's factors.
     /// Defence is the same for every class (#1178): armour, evasion and ward are gear plus Strength, Agility and Intellect
     /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances are gear's alone.
-    /// Every worn item gives its template's lines and its modifiers' (#1179); a defence line is its own item's: each item's
-    /// armour is <c>round(its Armor lines x max(0, 1 + its LocalIncreasedArmor / 100))</c>, half away from zero, and the
-    /// same for evasion and ward, so increased armour on one piece never scales another's. Weapon is the main hand's damage
+    /// Every worn item gives its template's lines, its copy's base stats and its modifiers' lines (#1179); a defence line is
+    /// its own item's: each item's armour is <c>round((its base Armour + its Armor lines) x max(0, 1 + its
+    /// LocalIncreasedArmor / 100))</c>, half away from zero, and the same for evasion and ward, so increased armour on one
+    /// piece never scales another's. A copy's base block chance adds to block unscaled. Weapon is the main hand's damage
     /// and attack time (the bare hand's with none) with its own local lines and Offence the offence block (#1178), each
     /// attribute with gear. <paramref name="auras" />, when given, is folded in after gear: the result is what the
     /// character has now. The offence block takes them through CharacterOffence alone, so they count once there.
@@ -123,10 +124,10 @@ public static class CharacterStatsCalculator
         public float FireResistance, ColdResistance, LightningResistance, BlightResistance;
 
         /// <summary>
-        /// Every line of every worn item, read by index and through <see cref="ItemLines" />: nothing is allocated. Each
-        /// item's defence lines are summed apart and scaled by its own local increased defence before they join the total;
-        /// every other line also goes to the offence block's sums (<see cref="CharacterOffence.Add" />), so the walk is the
-        /// only one.
+        /// Every line of every worn item, read by index and through <see cref="ItemLines" />, and its copy's base stats, read
+        /// in place: nothing is allocated. Each item's base defence and defence lines are summed apart and scaled by its own
+        /// local increased defence before they join the total; its base block chance joins block as it is; every other line
+        /// also goes to the offence block's sums (<see cref="CharacterOffence.Add" />), so the walk is the only one.
         /// </summary>
         public static GearTotals Of(IReadOnlyList<WornItem> worn, ref OffenceStats offence, ref DamageRanges toAttacks,
             ref DamageRanges toSpells)
@@ -135,7 +136,8 @@ public static class CharacterStatsCalculator
             for (int i = 0; i < worn.Count; i++)
             {
                 WornItem item = worn[i];
-                ItemDefence defence = default;
+                var defence = ItemDefence.Of(item.BaseStats);
+                totals.BlockPct += item.BaseStats.BlockChance.GetValueOrDefault();
                 foreach (ItemLine line in ItemLines.Of(item))
                 {
                     if (defence.Add(line))
@@ -178,10 +180,21 @@ public static class CharacterStatsCalculator
         }
     }
 
-    /// <summary>One item's own defence (#1179, A-R13): its flat armour, evasion and ward lines and its local increases.</summary>
+    /// <summary>
+    /// One item's own defence (#1179, A-R13): its copy's base armour, evasion and ward, its flat armour, evasion and ward
+    /// lines, and its local increases, which scale both.
+    /// </summary>
     private struct ItemDefence
     {
         private long _armor, _evasion, _ward, _increasedArmor, _increasedEvasion, _increasedWard;
+
+        /// <summary>An item's defence before its lines: the base stats its copy rolled.</summary>
+        public static ItemDefence Of(in ItemBaseStats baseStats) => new()
+        {
+            _armor = baseStats.Armour.GetValueOrDefault(),
+            _evasion = baseStats.Evasion.GetValueOrDefault(),
+            _ward = baseStats.Ward.GetValueOrDefault(),
+        };
 
         public readonly long Armor => Scaled(_armor, _increasedArmor);
 

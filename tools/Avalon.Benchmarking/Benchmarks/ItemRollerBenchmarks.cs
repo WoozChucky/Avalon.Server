@@ -17,19 +17,19 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// Making one copy of an item with its base stats and modifiers (#1179), once per drop, purchase, reward or starting item,
 /// never per tick or per hit, over the seeded templates and modifier catalog. Both make a plate chest at item level 15,
 /// the Ironroot Chestguard (86, the line's best tier there). <see cref="RollPlain" /> is a common copy as a vendor
-/// purchase or an item script makes it: its armour, then its one implicit (Armor). <see cref="RollRare" /> is a drop's
-/// full roll, forced Rare, in the roll's draw order: the rarity draw, the base tier, the base stats (its armour), the
-/// implicit's value, the affix count, each affix's weighted pick among the chest's candidates and its values, and the
-/// two-word name. The draws come from a fixed sequence reset before each roll, so every operation makes the same item;
-/// setup picks the first seed whose rare carries its implicit and six affixes, so a change to the draw order moves the
-/// seed rather than the measured item, and fails the run when none of the first seeds does. Expected allocations: the
-/// copy (<see cref="RolledItem" />, its base stats inside it by value, no object of their own), its modifier rows, each
-/// row's value list and value, and the copy's modifier list; the rare's name besides.
+/// purchase or an item script makes it: its armour and no modifier, as no base links an implicit.
+/// <see cref="RollRare" /> is a drop's full roll, forced Rare, in the roll's draw order: the rarity draw, the
+/// base tier, the base stats (its armour), the affix count, each affix's weighted pick among the chest's candidates and
+/// its values, and the two-word name. The draws come from a fixed sequence reset before each roll, so every operation
+/// makes the same item; setup picks the first seed whose rare carries six affixes, so a change to the draw order moves
+/// the seed rather than the measured item, and fails the run when none of the first seeds does. Expected allocations:
+/// the copy (<see cref="RolledItem" />, its base stats inside it by value, no object of their own), its modifier rows,
+/// each row's value list and value, and the copy's modifier list; the rare's name besides.
 /// </summary>
 [MemoryDiagnoser]
 public class ItemRollerBenchmarks
 {
-    private const int ExpectedRareModifiers = 7;
+    private const int ExpectedRareModifiers = 6;
 
     // How many seeds setup tries for a rare of ExpectedRareModifiers; the affix count alone (3-6) lands on six about one
     // seed in four.
@@ -51,11 +51,11 @@ public class ItemRollerBenchmarks
         _roller = new ItemRoller(_random, new ItemIdAllocator(), Options.Create(new GameConfiguration()));
 
         RolledItem plain = RollPlain();
-        if (plain.Modifiers.Count != 1 || plain.BaseStats.Armour is null)
+        if (plain.Modifiers.Count != 0 || plain.BaseStats.Armour is null)
         {
             throw new InvalidOperationException(
                 $"The plain chest rolled {plain.Modifiers.Count} modifiers and armour {plain.BaseStats.Armour}, " +
-                "not its armour and its one implicit.");
+                "not its armour alone.");
         }
 
         for (ulong seed = 1; seed <= SeedsTried; seed++)

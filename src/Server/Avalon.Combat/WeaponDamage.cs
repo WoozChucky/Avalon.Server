@@ -12,18 +12,19 @@ public readonly record struct WeaponDamage(uint Min1, uint Max1, DamageType? Typ
     uint AttackTimeMs, DamageRanges Added = default)
 {
     /// <summary>
-    /// A character's main hand: its ranges (a low end above its high end counting as the high end) and its attack time,
-    /// with the lines local to it folded in (#1179): its added damage by type goes to <see cref="Added" />; its local
-    /// increased physical damage scales each end of a physical range and of the added physical damage by
-    /// <c>max(0, 1 + sum / 100)</c>; its local attack speed makes the attack time <c>time / (1 + sum / 100)</c>, a sum of
-    /// 0 or below counting as none, as every speed does (<see cref="Speed" />). Each result is worked out in whole numbers
-    /// and rounded exactly half away from zero (<see cref="LocalScaling" />). No main hand, or one whose first range deals
-    /// nothing, rolls the formula's unarmed range as physical damage; a main hand with no attack time paces as unarmed.
+    /// A character's main hand: the damage range and attack time its copy rolled (#1179, its base stats; a low end above
+    /// its high end counting as the high end), typed by its template, with the lines local to it folded in: its added
+    /// damage by type goes to <see cref="Added" />; its local increased physical damage scales each end of a physical
+    /// range and of the added physical damage by <c>max(0, 1 + sum / 100)</c>; its local attack speed makes the attack time
+    /// <c>time / (1 + sum / 100)</c>, a sum of 0 or below counting as none, as every speed does (<see cref="Speed" />).
+    /// Each result is worked out in whole numbers and rounded exactly half away from zero (<see cref="LocalScaling" />). An
+    /// item's second range is empty and untyped. No main hand, or one whose copy rolled no damage above 0, rolls the
+    /// formula's unarmed range as physical damage; a main hand with no attack time paces as unarmed.
     /// </summary>
     public static WeaponDamage Of(WornItem? mainHand, CombatFormula f)
     {
         uint unarmedTime = f.UnarmedAttackTimeMs;
-        if (mainHand is not { } item || (item.Template.DamageMax1 ?? 0) == 0)
+        if (mainHand is not { } item || item.BaseStats.DamageMax is not > 0)
         {
             return new WeaponDamage(Math.Min(f.UnarmedDamageMin, f.UnarmedDamageMax), f.UnarmedDamageMax,
                 DamageType.Physical, 0, 0, null, unarmedTime);
@@ -45,20 +46,15 @@ public readonly record struct WeaponDamage(uint Min1, uint Max1, DamageType? Typ
             }
         }
 
-        ItemTemplate t = item.Template;
         added.Increase(DamageType.Physical, increasedPhysical);
 
-        uint max1 = t.DamageMax1 ?? 0;
-        uint max2 = t.DamageMax2 ?? 0;
-        long increased1 = t.DamageType1 == DamageType.Physical ? increasedPhysical : 0;
-        long increased2 = t.DamageType2 == DamageType.Physical ? increasedPhysical : 0;
-        uint time = t.AttackTimeMs is { } attackTime and > 0 ? attackTime : unarmedTime;
+        DamageType? type = item.Template.DamageType1;
+        uint max = (uint)item.BaseStats.DamageMax.GetValueOrDefault();
+        uint min = Math.Min((uint)Math.Max(0, item.BaseStats.DamageMin.GetValueOrDefault()), max);
+        long increased = type == DamageType.Physical ? increasedPhysical : 0;
+        uint time = item.BaseStats.AttackTime is { } attackTime and > 0 ? (uint)attackTime : unarmedTime;
 
-        return new WeaponDamage(
-            LocalScaling.Increase(Math.Min(t.DamageMin1 ?? 0, max1), increased1), LocalScaling.Increase(max1, increased1),
-            t.DamageType1,
-            LocalScaling.Increase(Math.Min(t.DamageMin2 ?? 0, max2), increased2), LocalScaling.Increase(max2, increased2),
-            t.DamageType2,
-            LocalScaling.Hasten(time, attackSpeed), added);
+        return new WeaponDamage(LocalScaling.Increase(min, increased), LocalScaling.Increase(max, increased), type,
+            0, 0, null, LocalScaling.Hasten(time, attackSpeed), added);
     }
 }

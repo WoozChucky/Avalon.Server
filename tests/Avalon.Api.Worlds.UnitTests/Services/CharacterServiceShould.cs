@@ -22,6 +22,9 @@ namespace Avalon.Api.Worlds.UnitTests.Services;
 
 public sealed class CharacterServiceShould : IDisposable
 {
+    // The Ironwood Sword (32) as a copy rolled it, within its seeded 2-4, 6-8 and 665-735 ms.
+    private static readonly ItemBaseStats s_rolledSword = new() { DamageMin = 3, DamageMax = 7, AttackTime = 700 };
+
     // The seeded world, whose modifier catalog (#1179) the service reads as the API does: only the rows the items carry.
     private readonly SqliteWorlds _world = new(1);
 
@@ -30,30 +33,25 @@ public sealed class CharacterServiceShould : IDisposable
     private IItemModifierRepository Modifiers() => new ItemModifierRepository(
         new DelegateDbContextFactory<WorldDbContext>(() => _world.CreateWorld(new Avalon.Domain.Auth.WorldId(1))),
         NullLoggerFactory.Instance);
-
-    /// <summary>A seeded affix's id, named by its family's code, element and tier: no test holds an id (#1179).</summary>
-    private static int Seeded(string code, Avalon.Network.Packets.Combat.DamageType element, byte tier)
+    /// <summary>A seeded affix's id, named by its family's code, element (null on an unsplit family) and tier: no test holds an id (#1179).</summary>
+    private static int Seeded(string code, Avalon.Network.Packets.Combat.DamageType? element, byte tier)
     {
         int group = ItemModifierSeed.Groups().Single(g => g.Code == code && g.Element == element).Id;
         return ItemModifierSeed.Modifiers().Single(m => m.GroupId == group && m.Tier == tier).Id;
     }
 
-    /// <summary>The seeded implicit's id of a base, named by the base.</summary>
-    private static int ImplicitOf(ulong template) =>
-        ItemModifierSeed.TemplateLinks().Single(link => link.TemplateId.Value == template).ModifierId;
-
     /// <summary>
     /// Instances live in the Character database and templates in the World database, so the
     /// template is looked up by id rather than joined. The copy's own rarity, item level and modifiers come from the
     /// instance (#1179), in the order the item shows them, whatever order the rows were read in, each with its kind
-    /// from the world's catalog; a magic copy is named by its prefix, and its implicit names nothing. The copy is a caster
-    /// off-hand: its implicit has two lines, and its prefix (Ember-sung, cold) a two-range one.
+    /// from the world's catalog; a magic copy is named by its prefix and its suffix. The copy is a caster off-hand: its
+    /// prefix (Ember-sung, cold) a two-range line, its suffix (of the Owl) a plain one.
     /// </summary>
     [Fact]
     public async Task Look_up_each_items_template_in_the_world_database()
     {
         int emberSung = Seeded("P10", Avalon.Network.Packets.Combat.DamageType.Cold, 1);
-        int ward = ImplicitOf(75);
+        int owl = Seeded("S3", null, 1);
         var id = new CharacterId(42);
         var itemId = new ItemInstanceId(Guid.CreateVersion7());
 
@@ -78,22 +76,18 @@ public sealed class CharacterServiceShould : IDisposable
                 [
                     new ItemInstanceModifier
                     {
-                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = emberSung, Ordinal = 1,
+                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = owl, Ordinal = 1,
+                        Values = [new ItemInstanceModifierValue { Index = 0, Stat = Avalon.Domain.World.StatType.Intellect, Value = 2 }],
+                    },
+                    new ItemInstanceModifier
+                    {
+                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = emberSung, Ordinal = 0,
                         Values =
                         [
                             new ItemInstanceModifierValue
                             {
                                 Index = 0, Stat = Avalon.Domain.World.StatType.AddedColdDamageToSpells, Value = 1, Value2 = 2,
                             },
-                        ],
-                    },
-                    new ItemInstanceModifier
-                    {
-                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = ward, Ordinal = 0,
-                        Values =
-                        [
-                            new ItemInstanceModifierValue { Index = 1, Stat = Avalon.Domain.World.StatType.IncreasedSpellDamage, Value = 12 },
-                            new ItemInstanceModifierValue { Index = 0, Stat = Avalon.Domain.World.StatType.Ward, Value = 30 },
                         ],
                     },
                 ],
@@ -123,9 +117,9 @@ public sealed class CharacterServiceShould : IDisposable
         Assert.Equal("Gloamwood Orb", item.Template.Name);
         Assert.Equal(12u, item.Template.DisplayId);
         Assert.Equal((Avalon.Api.Contract.ItemRarity.Magic, (ushort)7), (item.Rarity, item.ItemLevel));
-        Assert.Equal("Ember-sung Gloamwood Orb", item.Name);
+        Assert.Equal("Ember-sung Gloamwood Orb of the Owl", item.Name);
         Assert.Equal(
-            $"{ward} Implicit [Ward 30 , IncreasedSpellDamage 12 ] {emberSung} Prefix [AddedColdDamageToSpells 1 2]",
+            $"{emberSung} Prefix [AddedColdDamageToSpells 1 2] {owl} Suffix [Intellect 2 ]",
             string.Join(' ', item.Modifiers.Select(m =>
                 $"{m.ModifierId} {m.Kind} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value} {v.Value2}"))}]")));
     }
@@ -225,18 +219,30 @@ public sealed class CharacterServiceShould : IDisposable
     }
 
     /// <summary>
-    /// A saved copy of <paramref name="template" /> with one modifier per value, as the Character database loads it: its
-    /// modifiers and their values.
+    /// A saved copy of <paramref name="template" /> with no base stats and one modifier per value, as the Character
+    /// database loads it.
     /// </summary>
     private static ItemInstance Saved(ItemTemplate template,
+        params (Avalon.Domain.World.StatType Stat, int Value, int? Value2)[] values) => Saved(template, default, values);
+
+    /// <summary>
+    /// A saved copy of <paramref name="template" /> as the Character database loads it: a row per base stat it rolled,
+    /// and one modifier per value with its value.
+    /// </summary>
+    private static ItemInstance Saved(ItemTemplate template, ItemBaseStats baseStats,
         params (Avalon.Domain.World.StatType Stat, int Value, int? Value2)[] values)
     {
         var id = new ItemInstanceId(Guid.CreateVersion7());
+        List<ItemInstanceBaseStat> rows = [];
+        foreach ((ItemBaseStat stat, int value) in baseStats)
+            rows.Add(new ItemInstanceBaseStat { ItemInstanceId = id, Stat = stat, Value = value });
+
         return new ItemInstance
         {
             Id = id,
             TemplateId = template.Id,
             Count = 1,
+            BaseStats = rows,
             Modifiers = [.. values.Select((v, ordinal) =>
             {
                 var modifierId = Guid.CreateVersion7();
@@ -259,18 +265,19 @@ public sealed class CharacterServiceShould : IDisposable
     }
 
     /// <summary>
-    /// #1178, #1179 (Review Focus 5): the worlds service advertises exactly what the world server sends for the same saved
-    /// character: AbilityAmounts over the stats calculator's attacker for the same row and worn items, as the world builds
-    /// it at select. A saved level-1 Warrior (Strength 23: #1179's bases carry no attributes) in the starter sword and
-    /// armour: Cleave rolls 4..7 at 315 % effectiveness and 80.5 % increased physical attack damage, 22..39. With the same
-    /// ring on both fingers (10 % increased physical damage each), both count, as in the world: 100.5 %, 25..44. With the
+    /// #1178, #1179 (Review Focus 5, B2 Review Focus 3): the worlds service advertises exactly what the world server sends
+    /// for the same saved character: AbilityAmounts over the stats calculator's attacker for the same row and worn items,
+    /// as the world builds it at select, the sword's damage read from its saved base-stat rows. A saved level-1 Warrior
+    /// (Strength 23: #1179's bases carry no attributes) in the starter armour and an Ironwood Sword that rolled 3-7 at
+    /// 700 ms: Cleave rolls 3..7 at 315 % effectiveness and 80.5 % increased physical attack damage, 17..39. With the same
+    /// ring on both fingers (10 % increased physical damage each), both count, as in the world: 100.5 %, 18..44. With the
     /// sword's own added fire 2..5 and a Copper Band's added physical damage to attacks 1..3, each read from its saved
-    /// instance's modifiers: 34..72.
+    /// instance's modifiers: 29..72.
     /// </summary>
     [Theory]
-    [InlineData("starter gear", 22u, 39u)]
-    [InlineData("two rings", 25u, 44u)]
-    [InlineData("a modified sword and a global ring", 34u, 72u)]
+    [InlineData("starter gear", 17u, 39u)]
+    [InlineData("two rings", 18u, 44u)]
+    [InlineData("a modified sword and a global ring", 29u, 72u)]
     public async Task Advertise_the_amounts_the_world_sends_for_the_same_saved_character(string gear, uint min, uint max)
     {
         var id = new CharacterId(42);
@@ -285,7 +292,7 @@ public sealed class CharacterServiceShould : IDisposable
         switch (gear)
         {
             case "starter gear":
-                worn.Add(Saved(templates[32]));
+                worn.Add(Saved(templates[32], s_rolledSword));
                 break;
             case "two rings":
                 var ring = new ItemTemplate
@@ -297,10 +304,10 @@ public sealed class CharacterServiceShould : IDisposable
                     StatValue1 = 10,
                 };
                 templates[990] = ring;
-                worn.AddRange([Saved(templates[32]), Saved(ring), Saved(ring)]);
+                worn.AddRange([Saved(templates[32], s_rolledSword), Saved(ring), Saved(ring)]);
                 break;
             case "a modified sword and a global ring":
-                worn.Add(Saved(templates[32], (Avalon.Domain.World.StatType.AddedFireDamage, 2, 5)));
+                worn.Add(Saved(templates[32], s_rolledSword, (Avalon.Domain.World.StatType.AddedFireDamage, 2, 5)));
                 worn.Add(Saved(templates[68], (Avalon.Domain.World.StatType.AddedPhysicalDamageToAttacks, 1, 3)));
                 break;
             default:
@@ -310,7 +317,8 @@ public sealed class CharacterServiceShould : IDisposable
         List<ItemTemplate> wornTemplates = [.. worn.Select(item => templates[item.TemplateId.Value])];
         AbilityTemplate cleave = world.AbilityTemplates.AsEnumerable().Single(a => a.Id.Value == 200);
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row,
-            [.. worn.Select((item, i) => new WornItem(wornTemplates[i], item.Modifiers))], factors, formula);
+            [.. worn.Select((item, i) => new WornItem(wornTemplates[i], ItemBaseStats.Of(item.BaseStats), item.Modifiers))],
+            factors, formula);
         AbilityAmount sent = AbilityAmounts.For(stats.AttackerAt(1), AbilityMetadataMapper.From(cleave), default);
 
         CharacterAbilitiesDto? result = await AbilityService(id, cleave, stats.ToRow(id), worn, wornTemplates, formula)

@@ -130,9 +130,9 @@ public class CastPaceShould
             Agility = 20,
             Intellect = 20,
         };
-        ItemTemplate sword = Weapon(32, attackTimeMs: 792);
-        ItemTemplate slow = Weapon(1178_401, attackTimeMs: 900);
-        DerivedCharacterStats Wearing(ItemTemplate weapon) => CharacterStatsCalculator.Calculate(warriorOne, Worn.Of(weapon),
+        WornItem sword = Weapon(32, attackTimeMs: 792);
+        WornItem slow = Weapon(1178_401, attackTimeMs: 900);
+        DerivedCharacterStats Wearing(WornItem weapon) => CharacterStatsCalculator.Calculate(warriorOne, [weapon],
             TestCombat.FactorsOf(CharacterClass.Warrior), TestCombat.Formula);
 
         // A basic attack with a wind-up, so a weapon swap can land while it is queued.
@@ -172,7 +172,8 @@ public class CastPaceShould
         Assert.False(caster.Character.Spells.IsCasting);
     }
 
-    private static ItemTemplate Weapon(ulong id, uint attackTimeMs) => new()
+    /// <summary>A sword worn as a copy that rolled 4-7 at <paramref name="attackTimeMs" /> (#1179).</summary>
+    private static WornItem Weapon(ulong id, int attackTimeMs) => new(new ItemTemplate
     {
         Id = new ItemTemplateId(id),
         Name = "Sword",
@@ -180,13 +181,10 @@ public class CastPaceShould
         SubClass = ItemSubClass.OneHanded,
         Slot = ItemSlotType.MainHand,
         MaxStackSize = 1,
-        DamageMin1 = 4,
-        DamageMax1 = 7,
         DamageType1 = DamageType.Physical,
-        AttackTimeMs = attackTimeMs,
         StatType1 = StatType.Strength,
         StatValue1 = 1,
-    };
+    }, new ItemBaseStats { DamageMin = 4, DamageMax = 7, AttackTime = attackTimeMs }, null);
 
     [Fact]
     public void Change_nothing_with_no_speed()

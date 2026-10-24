@@ -272,66 +272,6 @@ Each cell is the tier's range, then its weight on every base kind the family rol
 
 | Template | Base | Kind | Lines |
 | --- | --- | --- | --- |
-| 12 | Barkplate Helm | PlateHead | Armor 9-13 |
-| 13 | Barkplate Chestguard | PlateChest | Armor 15-21 |
-| 14 | Barkplate Legguards | PlateLegs | Armor 12-16 |
-| 15 | Barkplate Gauntlets | PlateHands | Armor 6-8 |
-| 16 | Barkplate Boots | PlateFeet | Armor 6-8 |
-| 17 | Mossweave Hood | ClothHead | Ward 14-18 |
-| 18 | Mossweave Robe | ClothChest | Ward 22-30 |
-| 19 | Mossweave Leggings | ClothLegs | Ward 18-24 |
-| 20 | Mossweave Gloves | ClothHands | Ward 9-12 |
-| 21 | Mossweave Slippers | ClothFeet | Ward 9-12 |
-| 22 | Fernstalker Cap | LeatherHead | Evasion 46-62 |
-| 23 | Fernstalker Jerkin | LeatherChest | Evasion 77-104 |
-| 24 | Fernstalker Breeches | LeatherLegs | Evasion 61-83 |
-| 25 | Fernstalker Grips | LeatherHands | Evasion 31-41 |
-| 26 | Fernstalker Boots | LeatherFeet | Evasion 31-41 |
-| 36 | Ironbound Helm | PlateHead | Armor 4-6 |
-| 37 | Ironbound Chestguard | PlateChest | Armor 7-9 |
-| 38 | Ironbound Legguards | PlateLegs | Armor 5-7 |
-| 39 | Ironbound Gauntlets | PlateHands | Armor 3 |
-| 40 | Ironbound Boots | PlateFeet | Armor 3 |
-| 41 | Linen Hood | ClothHead | Ward 6-8 |
-| 42 | Linen Robe | ClothChest | Ward 10-14 |
-| 43 | Linen Leggings | ClothLegs | Ward 9-12 |
-| 44 | Linen Gloves | ClothHands | Ward 4-6 |
-| 45 | Linen Slippers | ClothFeet | Ward 4-6 |
-| 46 | Hide Cap | LeatherHead | Evasion 20-28 |
-| 47 | Hide Jerkin | LeatherChest | Evasion 34-46 |
-| 48 | Hide Breeches | LeatherLegs | Evasion 27-37 |
-| 49 | Hide Grips | LeatherHands | Evasion 14-18 |
-| 50 | Hide Boots | LeatherFeet | Evasion 14-18 |
-| 70 | Oak Buckler | Shield | Armor 5-7, BlockPct 4-6 |
-| 71 | Barkplate Shield | Shield | Armor 12-16, BlockPct 6-8 |
-| 72 | Ironroot Kite Shield | Shield | Armor 20-28, BlockPct 9-12 |
-| 73 | Ash Focus | CasterOffHand | Ward 7-9, IncreasedSpellDamage 4-6 |
-| 74 | Thornwood Focus | CasterOffHand | Ward 15-21, IncreasedSpellDamage 7-9 |
-| 75 | Gloamwood Orb | CasterOffHand | Ward 26-35, IncreasedSpellDamage 10-14 |
-| 76 | Ironbound Pauldrons | PlateShoulders | Armor 3-5 |
-| 77 | Hide Mantle | LeatherShoulders | Evasion 17-23 |
-| 78 | Linen Shoulderwraps | ClothShoulders | Ward 5-7 |
-| 79 | Barkplate Pauldrons | PlateShoulders | Armor 8-10 |
-| 80 | Fernstalker Mantle | LeatherShoulders | Evasion 38-52 |
-| 81 | Mossweave Shoulderwraps | ClothShoulders | Ward 11-15 |
-| 82 | Ironroot Pauldrons | PlateShoulders | Armor 14-18 |
-| 83 | Gloamhide Mantle | LeatherShoulders | Evasion 68-92 |
-| 84 | Duskweave Shoulderwraps | ClothShoulders | Ward 20-26 |
-| 85 | Ironroot Helm | PlateHead | Armor 16-22 |
-| 86 | Ironroot Chestguard | PlateChest | Armor 27-37 |
-| 87 | Ironroot Legguards | PlateLegs | Armor 22-30 |
-| 88 | Ironroot Gauntlets | PlateHands | Armor 11-15 |
-| 89 | Ironroot Boots | PlateFeet | Armor 11-15 |
-| 90 | Gloamhide Cap | LeatherHead | Evasion 82-110 |
-| 91 | Gloamhide Jerkin | LeatherChest | Evasion 136-184 |
-| 92 | Gloamhide Breeches | LeatherLegs | Evasion 109-147 |
-| 93 | Gloamhide Grips | LeatherHands | Evasion 54-74 |
-| 94 | Gloamhide Boots | LeatherFeet | Evasion 54-74 |
-| 95 | Duskweave Hood | ClothHead | Ward 23-31 |
-| 96 | Duskweave Robe | ClothChest | Ward 38-52 |
-| 97 | Duskweave Leggings | ClothLegs | Ward 31-41 |
-| 98 | Duskweave Gloves | ClothHands | Ward 15-21 |
-| 99 | Duskweave Slippers | ClothFeet | Ward 15-21 |
 
 ### Uniques
 

@@ -126,20 +126,19 @@ public class ItemRollerShould
         Assert.Equal(ItemRarity.Rare, upgraded.Rarity);
         Assert.Equal((13UL, 1u), (drops[2].ItemTemplateId!.Value, drops[2].Count));
         Assert.Equal(new ItemBaseStats { Armour = Armour(13).Min }, upgraded.BaseStats);
-        Assert.Equal(CatalogKeys.ModifierId("implicit 13"), upgraded.Modifiers[0].ModifierId);
-        Assert.Equal(1 + 3, upgraded.Modifiers.Count);
+        Assert.Equal(3, upgraded.Modifiers.Count);
         Assert.Equal("Thorn Shell", upgraded.RareName);
         Assert.Equal(ItemRarity.Magic, magic.Rarity);
 
         // A kill whose first base already rolled Rare upgrades nothing else. Every draw is scripted, in the contracted
         // order, so an extra, missing or reordered draw fails. Each pick of 0.0 lands on the first eligible row.
-        // The plate chest (13 at item level 5): rarity 0.5 (Rare), its armour, its implicit, the count 3, three prefixes
+        // The plate chest (13 at item level 5): rarity 0.5 (Rare), its armour, the count 3, three prefixes
         // (the next prefix group each time), their values, then the two words. The ring, which has no base stats: rarity
         // 0.0 (Magic), the count 2, a prefix, then a suffix (the prefix room is full), and their values.
         ItemModifierStat Line(string key) => Catalog.Find(CatalogKeys.ModifierId(key))!.Stats.Single();
         var script = new ScriptedLootRandom(
             [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [Armour(13).Max, Line("implicit 13").Min, 3, Line("P11 T1").Min, Line("P12 T1").Min, Line("P13 T1").Min, 0, 0,
+            [Armour(13).Max, 3, Line("P11 T1").Min, Line("P12 T1").Min, Line("P13 T1").Min, 0, 0,
              2, Line("P8 Fire T1").Min, Line("S1 T1").Min]);
         List<RolledDrop> again = [Drop(37), Drop(68)];
 
@@ -152,7 +151,7 @@ public class ItemRollerShould
             again.Select(drop => drop.Rolled!.BaseStats));
         Assert.Equal(
             [
-                (string[])["implicit 13", "P11 T1", "P12 T1", "P13 T1"],
+                (string[])["P11 T1", "P12 T1", "P13 T1"],
                 ["P8 Fire T1", "S1 T1"],
             ],
             again.Select(drop => drop.Rolled!.Modifiers.Select(m => KeyOf(m.ModifierId)).ToArray()));

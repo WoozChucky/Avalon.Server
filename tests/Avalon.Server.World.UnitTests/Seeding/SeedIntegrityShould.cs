@@ -41,31 +41,24 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// refuse an unknown creature id. <see cref="Seed_Every_Creature_The_Forest_Spawn_Table_References" />
 /// still pins the template ids the forest's table names.
 /// </remarks>
-public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTables)
-    : IClassFixture<SeedIntegrityShould.ModifierTables>
+public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTables)
+    : IClassFixture<SeedIntegrityShould.BaseStatTables>
 {
     /// <summary>
-    /// The seeded modifier catalog's links, kinds and stat lines (#1179), read once for the class: the base theories check
-    /// a template's implicit against them row by row.
+    /// The seeded bases' base-stat ranges (#1179), read once for the class: the base theories check a template's drafted
+    /// base stats against them row by row.
     /// </summary>
-    public sealed class ModifierTables
+    public sealed class BaseStatTables
     {
-        public ModifierTables()
+        public BaseStatTables()
         {
             using var database = SqliteDatabase.World();
             using WorldDbContext context = database.CreateDbContext();
-            Links = context.ItemTemplateModifiers.AsNoTracking().ToList();
-            Kinds = context.ItemModifiers.AsNoTracking().Include(m => m.Group).ToDictionary(m => m.Id, m => m.Group.Kind);
-            Stats = context.ItemModifierStats.AsNoTracking().ToList().ToLookup(l => l.ModifierId);
+            Ranges = context.ItemTemplateBaseStats.AsNoTracking().ToList().ToLookup(s => s.TemplateId.Value);
         }
 
-        public List<ItemTemplateModifier> Links { get; }
-
-        public Dictionary<int, ItemModifierKind> Kinds { get; }
-
-        public ILookup<int, ItemModifierStat> Stats { get; }
+        public ILookup<ulong, ItemTemplateBaseStat> Ranges { get; }
     }
-
     /// <summary>
     /// A creature whose level range reaches past the seeded <c>CreatureBaseStats</c> rows falls back to
     /// the highest one and logs a warning — survivable, but the creature is quietly the wrong strength.
@@ -1220,11 +1213,11 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
         CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
         ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().AsEnumerable().Single(f => f.Class == c);
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
-        List<ItemTemplate> worn = starter ? RetiredGearProfiles.For("starter", c) : [];
+        List<WornItem> worn = starter ? RetiredGearProfiles.For("starter", c) : [];
         AbilityTemplate basic = context.AbilityTemplates.AsNoTracking().AsEnumerable()
             .Single(a => (a.Flags & AbilityFlags.Basic) != 0 && a.AllowedClasses!.Contains(c));
 
-        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, Worn.Of([.. worn]), factors, formula);
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, factors, formula);
         var pace = CasterPace.From(stats.Offence, stats.Weapon.AttackTimeMs / 1000f, formula);
         double paceMs = AbilityPace.Cooldown(AbilityMetadataMapper.From(basic), pace) * 1000d;
 
@@ -1300,9 +1293,9 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
         CombatFormula formula = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
         ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().AsEnumerable().Single(f => f.Class == c);
         ClassLevelStat row = context.ClassLevelStats.AsNoTracking().AsEnumerable().Single(s => s.Class == c && s.Level == level);
-        List<ItemTemplate> worn = RetiredGearProfiles.For(gear, c);
+        List<WornItem> worn = RetiredGearProfiles.For(gear, c);
 
-        AttackerCombat caster = CharacterStatsCalculator.Calculate(row, Worn.Of([.. worn]), factors, formula).AttackerAt(level);
+        AttackerCombat caster = CharacterStatsCalculator.Calculate(row, worn, factors, formula).AttackerAt(level);
         AbilityMetadata metadata = AbilityMetadataMapper.From(ability);
         AuraTemplate? aura = viaAura
             ? context.AuraTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == ability.AuraId!.Value)
@@ -1647,66 +1640,66 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
 
     /// <summary>
     /// #1179: every armour base as the spec's tables set it: its kind, tier level, the family's attribute from tier 2 and
-    /// its price; a quarter of it back, every class, no stack, Common, and no stat line. Its defence is its implicit, drafted
-    /// from the family's (chest plate 8/18/32, leather 40/90/160, cloth 12/26/45; legs 80 %, head 60 %, shoulders 50 %,
-    /// hands and feet 40 %) and seeded as that value ±15 % (<see cref="AssertImplicit" />).
+    /// its price; a quarter of it back, every class, no stack, Common, and no stat line. Its defence is
+    /// its one base stat, drafted from the family's (chest plate 8/18/32, leather 40/90/160, cloth 12/26/45; legs 80 %, head
+    /// 60 %, shoulders 50 %, hands and feet 40 %), which its range spreads (<see cref="AssertDrafted" />).
     /// </summary>
     [Theory]
-    [InlineData(36ul, ItemBaseKind.PlateHead, (ushort)1, StatType.Armor, 5u, null, null, 60u)]
-    [InlineData(37ul, ItemBaseKind.PlateChest, (ushort)1, StatType.Armor, 8u, null, null, 100u)]
-    [InlineData(38ul, ItemBaseKind.PlateLegs, (ushort)1, StatType.Armor, 6u, null, null, 80u)]
-    [InlineData(39ul, ItemBaseKind.PlateHands, (ushort)1, StatType.Armor, 3u, null, null, 40u)]
-    [InlineData(40ul, ItemBaseKind.PlateFeet, (ushort)1, StatType.Armor, 3u, null, null, 40u)]
-    [InlineData(76ul, ItemBaseKind.PlateShoulders, (ushort)1, StatType.Armor, 4u, null, null, 50u)]
-    [InlineData(12ul, ItemBaseKind.PlateHead, (ushort)5, StatType.Armor, 11u, StatType.Strength, (ushort)30, 120u)]
-    [InlineData(13ul, ItemBaseKind.PlateChest, (ushort)5, StatType.Armor, 18u, StatType.Strength, (ushort)30, 200u)]
-    [InlineData(14ul, ItemBaseKind.PlateLegs, (ushort)5, StatType.Armor, 14u, StatType.Strength, (ushort)30, 160u)]
-    [InlineData(15ul, ItemBaseKind.PlateHands, (ushort)5, StatType.Armor, 7u, StatType.Strength, (ushort)30, 80u)]
-    [InlineData(16ul, ItemBaseKind.PlateFeet, (ushort)5, StatType.Armor, 7u, StatType.Strength, (ushort)30, 80u)]
-    [InlineData(79ul, ItemBaseKind.PlateShoulders, (ushort)5, StatType.Armor, 9u, StatType.Strength, (ushort)30, 100u)]
-    [InlineData(85ul, ItemBaseKind.PlateHead, (ushort)10, StatType.Armor, 19u, StatType.Strength, (ushort)45, 240u)]
-    [InlineData(86ul, ItemBaseKind.PlateChest, (ushort)10, StatType.Armor, 32u, StatType.Strength, (ushort)45, 400u)]
-    [InlineData(87ul, ItemBaseKind.PlateLegs, (ushort)10, StatType.Armor, 26u, StatType.Strength, (ushort)45, 320u)]
-    [InlineData(88ul, ItemBaseKind.PlateHands, (ushort)10, StatType.Armor, 13u, StatType.Strength, (ushort)45, 160u)]
-    [InlineData(89ul, ItemBaseKind.PlateFeet, (ushort)10, StatType.Armor, 13u, StatType.Strength, (ushort)45, 160u)]
-    [InlineData(82ul, ItemBaseKind.PlateShoulders, (ushort)10, StatType.Armor, 16u, StatType.Strength, (ushort)45, 200u)]
-    [InlineData(46ul, ItemBaseKind.LeatherHead, (ushort)1, StatType.Evasion, 24u, null, null, 60u)]
-    [InlineData(47ul, ItemBaseKind.LeatherChest, (ushort)1, StatType.Evasion, 40u, null, null, 100u)]
-    [InlineData(48ul, ItemBaseKind.LeatherLegs, (ushort)1, StatType.Evasion, 32u, null, null, 80u)]
-    [InlineData(49ul, ItemBaseKind.LeatherHands, (ushort)1, StatType.Evasion, 16u, null, null, 40u)]
-    [InlineData(50ul, ItemBaseKind.LeatherFeet, (ushort)1, StatType.Evasion, 16u, null, null, 40u)]
-    [InlineData(77ul, ItemBaseKind.LeatherShoulders, (ushort)1, StatType.Evasion, 20u, null, null, 50u)]
-    [InlineData(22ul, ItemBaseKind.LeatherHead, (ushort)5, StatType.Evasion, 54u, StatType.Agility, (ushort)30, 120u)]
-    [InlineData(23ul, ItemBaseKind.LeatherChest, (ushort)5, StatType.Evasion, 90u, StatType.Agility, (ushort)30, 200u)]
-    [InlineData(24ul, ItemBaseKind.LeatherLegs, (ushort)5, StatType.Evasion, 72u, StatType.Agility, (ushort)30, 160u)]
-    [InlineData(25ul, ItemBaseKind.LeatherHands, (ushort)5, StatType.Evasion, 36u, StatType.Agility, (ushort)30, 80u)]
-    [InlineData(26ul, ItemBaseKind.LeatherFeet, (ushort)5, StatType.Evasion, 36u, StatType.Agility, (ushort)30, 80u)]
-    [InlineData(80ul, ItemBaseKind.LeatherShoulders, (ushort)5, StatType.Evasion, 45u, StatType.Agility, (ushort)30, 100u)]
-    [InlineData(90ul, ItemBaseKind.LeatherHead, (ushort)10, StatType.Evasion, 96u, StatType.Agility, (ushort)45, 240u)]
-    [InlineData(91ul, ItemBaseKind.LeatherChest, (ushort)10, StatType.Evasion, 160u, StatType.Agility, (ushort)45, 400u)]
-    [InlineData(92ul, ItemBaseKind.LeatherLegs, (ushort)10, StatType.Evasion, 128u, StatType.Agility, (ushort)45, 320u)]
-    [InlineData(93ul, ItemBaseKind.LeatherHands, (ushort)10, StatType.Evasion, 64u, StatType.Agility, (ushort)45, 160u)]
-    [InlineData(94ul, ItemBaseKind.LeatherFeet, (ushort)10, StatType.Evasion, 64u, StatType.Agility, (ushort)45, 160u)]
-    [InlineData(83ul, ItemBaseKind.LeatherShoulders, (ushort)10, StatType.Evasion, 80u, StatType.Agility, (ushort)45, 200u)]
-    [InlineData(41ul, ItemBaseKind.ClothHead, (ushort)1, StatType.Ward, 7u, null, null, 60u)]
-    [InlineData(42ul, ItemBaseKind.ClothChest, (ushort)1, StatType.Ward, 12u, null, null, 100u)]
-    [InlineData(43ul, ItemBaseKind.ClothLegs, (ushort)1, StatType.Ward, 10u, null, null, 80u)]
-    [InlineData(44ul, ItemBaseKind.ClothHands, (ushort)1, StatType.Ward, 5u, null, null, 40u)]
-    [InlineData(45ul, ItemBaseKind.ClothFeet, (ushort)1, StatType.Ward, 5u, null, null, 40u)]
-    [InlineData(78ul, ItemBaseKind.ClothShoulders, (ushort)1, StatType.Ward, 6u, null, null, 50u)]
-    [InlineData(17ul, ItemBaseKind.ClothHead, (ushort)5, StatType.Ward, 16u, StatType.Intellect, (ushort)30, 120u)]
-    [InlineData(18ul, ItemBaseKind.ClothChest, (ushort)5, StatType.Ward, 26u, StatType.Intellect, (ushort)30, 200u)]
-    [InlineData(19ul, ItemBaseKind.ClothLegs, (ushort)5, StatType.Ward, 21u, StatType.Intellect, (ushort)30, 160u)]
-    [InlineData(20ul, ItemBaseKind.ClothHands, (ushort)5, StatType.Ward, 10u, StatType.Intellect, (ushort)30, 80u)]
-    [InlineData(21ul, ItemBaseKind.ClothFeet, (ushort)5, StatType.Ward, 10u, StatType.Intellect, (ushort)30, 80u)]
-    [InlineData(81ul, ItemBaseKind.ClothShoulders, (ushort)5, StatType.Ward, 13u, StatType.Intellect, (ushort)30, 100u)]
-    [InlineData(95ul, ItemBaseKind.ClothHead, (ushort)10, StatType.Ward, 27u, StatType.Intellect, (ushort)45, 240u)]
-    [InlineData(96ul, ItemBaseKind.ClothChest, (ushort)10, StatType.Ward, 45u, StatType.Intellect, (ushort)45, 400u)]
-    [InlineData(97ul, ItemBaseKind.ClothLegs, (ushort)10, StatType.Ward, 36u, StatType.Intellect, (ushort)45, 320u)]
-    [InlineData(98ul, ItemBaseKind.ClothHands, (ushort)10, StatType.Ward, 18u, StatType.Intellect, (ushort)45, 160u)]
-    [InlineData(99ul, ItemBaseKind.ClothFeet, (ushort)10, StatType.Ward, 18u, StatType.Intellect, (ushort)45, 160u)]
-    [InlineData(84ul, ItemBaseKind.ClothShoulders, (ushort)10, StatType.Ward, 23u, StatType.Intellect, (ushort)45, 200u)]
-    public void Seed_every_armour_base_as_the_spec_tables_set_it(ulong id, ItemBaseKind kind, ushort level, StatType stat,
+    [InlineData(36ul, ItemBaseKind.PlateHead, (ushort)1, ItemBaseStat.Armour, 5u, null, null, 60u)]
+    [InlineData(37ul, ItemBaseKind.PlateChest, (ushort)1, ItemBaseStat.Armour, 8u, null, null, 100u)]
+    [InlineData(38ul, ItemBaseKind.PlateLegs, (ushort)1, ItemBaseStat.Armour, 6u, null, null, 80u)]
+    [InlineData(39ul, ItemBaseKind.PlateHands, (ushort)1, ItemBaseStat.Armour, 3u, null, null, 40u)]
+    [InlineData(40ul, ItemBaseKind.PlateFeet, (ushort)1, ItemBaseStat.Armour, 3u, null, null, 40u)]
+    [InlineData(76ul, ItemBaseKind.PlateShoulders, (ushort)1, ItemBaseStat.Armour, 4u, null, null, 50u)]
+    [InlineData(12ul, ItemBaseKind.PlateHead, (ushort)5, ItemBaseStat.Armour, 11u, StatType.Strength, (ushort)30, 120u)]
+    [InlineData(13ul, ItemBaseKind.PlateChest, (ushort)5, ItemBaseStat.Armour, 18u, StatType.Strength, (ushort)30, 200u)]
+    [InlineData(14ul, ItemBaseKind.PlateLegs, (ushort)5, ItemBaseStat.Armour, 14u, StatType.Strength, (ushort)30, 160u)]
+    [InlineData(15ul, ItemBaseKind.PlateHands, (ushort)5, ItemBaseStat.Armour, 7u, StatType.Strength, (ushort)30, 80u)]
+    [InlineData(16ul, ItemBaseKind.PlateFeet, (ushort)5, ItemBaseStat.Armour, 7u, StatType.Strength, (ushort)30, 80u)]
+    [InlineData(79ul, ItemBaseKind.PlateShoulders, (ushort)5, ItemBaseStat.Armour, 9u, StatType.Strength, (ushort)30, 100u)]
+    [InlineData(85ul, ItemBaseKind.PlateHead, (ushort)10, ItemBaseStat.Armour, 19u, StatType.Strength, (ushort)45, 240u)]
+    [InlineData(86ul, ItemBaseKind.PlateChest, (ushort)10, ItemBaseStat.Armour, 32u, StatType.Strength, (ushort)45, 400u)]
+    [InlineData(87ul, ItemBaseKind.PlateLegs, (ushort)10, ItemBaseStat.Armour, 26u, StatType.Strength, (ushort)45, 320u)]
+    [InlineData(88ul, ItemBaseKind.PlateHands, (ushort)10, ItemBaseStat.Armour, 13u, StatType.Strength, (ushort)45, 160u)]
+    [InlineData(89ul, ItemBaseKind.PlateFeet, (ushort)10, ItemBaseStat.Armour, 13u, StatType.Strength, (ushort)45, 160u)]
+    [InlineData(82ul, ItemBaseKind.PlateShoulders, (ushort)10, ItemBaseStat.Armour, 16u, StatType.Strength, (ushort)45, 200u)]
+    [InlineData(46ul, ItemBaseKind.LeatherHead, (ushort)1, ItemBaseStat.Evasion, 24u, null, null, 60u)]
+    [InlineData(47ul, ItemBaseKind.LeatherChest, (ushort)1, ItemBaseStat.Evasion, 40u, null, null, 100u)]
+    [InlineData(48ul, ItemBaseKind.LeatherLegs, (ushort)1, ItemBaseStat.Evasion, 32u, null, null, 80u)]
+    [InlineData(49ul, ItemBaseKind.LeatherHands, (ushort)1, ItemBaseStat.Evasion, 16u, null, null, 40u)]
+    [InlineData(50ul, ItemBaseKind.LeatherFeet, (ushort)1, ItemBaseStat.Evasion, 16u, null, null, 40u)]
+    [InlineData(77ul, ItemBaseKind.LeatherShoulders, (ushort)1, ItemBaseStat.Evasion, 20u, null, null, 50u)]
+    [InlineData(22ul, ItemBaseKind.LeatherHead, (ushort)5, ItemBaseStat.Evasion, 54u, StatType.Agility, (ushort)30, 120u)]
+    [InlineData(23ul, ItemBaseKind.LeatherChest, (ushort)5, ItemBaseStat.Evasion, 90u, StatType.Agility, (ushort)30, 200u)]
+    [InlineData(24ul, ItemBaseKind.LeatherLegs, (ushort)5, ItemBaseStat.Evasion, 72u, StatType.Agility, (ushort)30, 160u)]
+    [InlineData(25ul, ItemBaseKind.LeatherHands, (ushort)5, ItemBaseStat.Evasion, 36u, StatType.Agility, (ushort)30, 80u)]
+    [InlineData(26ul, ItemBaseKind.LeatherFeet, (ushort)5, ItemBaseStat.Evasion, 36u, StatType.Agility, (ushort)30, 80u)]
+    [InlineData(80ul, ItemBaseKind.LeatherShoulders, (ushort)5, ItemBaseStat.Evasion, 45u, StatType.Agility, (ushort)30, 100u)]
+    [InlineData(90ul, ItemBaseKind.LeatherHead, (ushort)10, ItemBaseStat.Evasion, 96u, StatType.Agility, (ushort)45, 240u)]
+    [InlineData(91ul, ItemBaseKind.LeatherChest, (ushort)10, ItemBaseStat.Evasion, 160u, StatType.Agility, (ushort)45, 400u)]
+    [InlineData(92ul, ItemBaseKind.LeatherLegs, (ushort)10, ItemBaseStat.Evasion, 128u, StatType.Agility, (ushort)45, 320u)]
+    [InlineData(93ul, ItemBaseKind.LeatherHands, (ushort)10, ItemBaseStat.Evasion, 64u, StatType.Agility, (ushort)45, 160u)]
+    [InlineData(94ul, ItemBaseKind.LeatherFeet, (ushort)10, ItemBaseStat.Evasion, 64u, StatType.Agility, (ushort)45, 160u)]
+    [InlineData(83ul, ItemBaseKind.LeatherShoulders, (ushort)10, ItemBaseStat.Evasion, 80u, StatType.Agility, (ushort)45, 200u)]
+    [InlineData(41ul, ItemBaseKind.ClothHead, (ushort)1, ItemBaseStat.Ward, 7u, null, null, 60u)]
+    [InlineData(42ul, ItemBaseKind.ClothChest, (ushort)1, ItemBaseStat.Ward, 12u, null, null, 100u)]
+    [InlineData(43ul, ItemBaseKind.ClothLegs, (ushort)1, ItemBaseStat.Ward, 10u, null, null, 80u)]
+    [InlineData(44ul, ItemBaseKind.ClothHands, (ushort)1, ItemBaseStat.Ward, 5u, null, null, 40u)]
+    [InlineData(45ul, ItemBaseKind.ClothFeet, (ushort)1, ItemBaseStat.Ward, 5u, null, null, 40u)]
+    [InlineData(78ul, ItemBaseKind.ClothShoulders, (ushort)1, ItemBaseStat.Ward, 6u, null, null, 50u)]
+    [InlineData(17ul, ItemBaseKind.ClothHead, (ushort)5, ItemBaseStat.Ward, 16u, StatType.Intellect, (ushort)30, 120u)]
+    [InlineData(18ul, ItemBaseKind.ClothChest, (ushort)5, ItemBaseStat.Ward, 26u, StatType.Intellect, (ushort)30, 200u)]
+    [InlineData(19ul, ItemBaseKind.ClothLegs, (ushort)5, ItemBaseStat.Ward, 21u, StatType.Intellect, (ushort)30, 160u)]
+    [InlineData(20ul, ItemBaseKind.ClothHands, (ushort)5, ItemBaseStat.Ward, 10u, StatType.Intellect, (ushort)30, 80u)]
+    [InlineData(21ul, ItemBaseKind.ClothFeet, (ushort)5, ItemBaseStat.Ward, 10u, StatType.Intellect, (ushort)30, 80u)]
+    [InlineData(81ul, ItemBaseKind.ClothShoulders, (ushort)5, ItemBaseStat.Ward, 13u, StatType.Intellect, (ushort)30, 100u)]
+    [InlineData(95ul, ItemBaseKind.ClothHead, (ushort)10, ItemBaseStat.Ward, 27u, StatType.Intellect, (ushort)45, 240u)]
+    [InlineData(96ul, ItemBaseKind.ClothChest, (ushort)10, ItemBaseStat.Ward, 45u, StatType.Intellect, (ushort)45, 400u)]
+    [InlineData(97ul, ItemBaseKind.ClothLegs, (ushort)10, ItemBaseStat.Ward, 36u, StatType.Intellect, (ushort)45, 320u)]
+    [InlineData(98ul, ItemBaseKind.ClothHands, (ushort)10, ItemBaseStat.Ward, 18u, StatType.Intellect, (ushort)45, 160u)]
+    [InlineData(99ul, ItemBaseKind.ClothFeet, (ushort)10, ItemBaseStat.Ward, 18u, StatType.Intellect, (ushort)45, 160u)]
+    [InlineData(84ul, ItemBaseKind.ClothShoulders, (ushort)10, ItemBaseStat.Ward, 23u, StatType.Intellect, (ushort)45, 200u)]
+    public void Seed_every_armour_base_as_the_spec_tables_set_it(ulong id, ItemBaseKind kind, ushort level, ItemBaseStat stat,
         uint value, StatType? requirement, ushort? amount, uint buy)
     {
         using var database = SqliteDatabase.World();
@@ -1715,7 +1708,7 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
 
         Assert.Equal((kind, (ushort?)level, ItemClass.Armor, (uint)id), (piece.BaseKind, piece.RequiredLevel, piece.Class, piece.DisplayId));
         Assert.Empty(StatLinesOf(piece));
-        AssertImplicit(id, (stat, (int)value));
+        AssertDrafted(id, (stat, (int)value));
         Assert.Equal(
             (requirement == StatType.Strength ? amount : null, requirement == StatType.Agility ? amount : null,
                 requirement == StatType.Intellect ? amount : null),
@@ -1727,8 +1720,9 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
 
     /// <summary>
     /// #1179: every weapon and off-hand base. <paramref name="min" /> and <paramref name="max" /> are a
-    /// weapon's physical range, or an off-hand's two drafted implicit values (<see cref="AssertImplicit" />): a shield's
-    /// armour and block, a caster off-hand's ward and increased spell damage; neither carries a stat line. Each asks its attribute (a sword Strength, a mace Strength or Intellect, a staff
+    /// weapon's physical range on its template, or an off-hand's drafted base stats (<see cref="AssertDrafted" />): a
+    /// shield's armour and block, a caster off-hand's ward alone (its <paramref name="max" /> 0); neither carries a stat
+    /// line. Each asks its attribute (a sword Strength, a mace Strength or Intellect, a staff
     /// Intellect, a bow Agility, a shield Strength, a caster off-hand Intellect) from tier 2, 30 then 45, and costs 120,
     /// 240 or 480 by tier.
     /// </summary>
@@ -1748,9 +1742,9 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
     [InlineData(70ul, ItemBaseKind.Shield, (ushort)1, 6u, 5u, null, false)]
     [InlineData(71ul, ItemBaseKind.Shield, (ushort)5, 14u, 7u, null, false)]
     [InlineData(72ul, ItemBaseKind.Shield, (ushort)10, 24u, 10u, null, false)]
-    [InlineData(73ul, ItemBaseKind.CasterOffHand, (ushort)1, 8u, 5u, null, false)]
-    [InlineData(74ul, ItemBaseKind.CasterOffHand, (ushort)5, 18u, 8u, null, false)]
-    [InlineData(75ul, ItemBaseKind.CasterOffHand, (ushort)10, 30u, 12u, null, false)]
+    [InlineData(73ul, ItemBaseKind.CasterOffHand, (ushort)1, 8u, 0u, null, false)]
+    [InlineData(74ul, ItemBaseKind.CasterOffHand, (ushort)5, 18u, 0u, null, false)]
+    [InlineData(75ul, ItemBaseKind.CasterOffHand, (ushort)10, 30u, 0u, null, false)]
     public void Seed_every_weapon_and_off_hand_base(ulong id, ItemBaseKind kind, ushort level, uint min, uint max,
         uint? attackTimeMs, bool any)
     {
@@ -1762,11 +1756,12 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
             (item.BaseKind, item.RequiredLevel, item.AttackTimeMs, item.RequiresAnyAttribute));
         if (kind is ItemBaseKind.Shield or ItemBaseKind.CasterOffHand)
         {
-            (StatType defence, StatType implicitLine, ItemSubClass subClass) = kind == ItemBaseKind.Shield
-                ? (StatType.Armor, StatType.BlockPct, ItemSubClass.Shield)
-                : (StatType.Ward, StatType.IncreasedSpellDamage, ItemSubClass.CasterOffHand);
+            ItemSubClass subClass = kind == ItemBaseKind.Shield ? ItemSubClass.Shield : ItemSubClass.CasterOffHand;
             Assert.Equal((ItemClass.Armor, subClass, (ItemSlotType?)ItemSlotType.OffHand), (item.Class, item.SubClass, item.Slot));
-            AssertImplicit(id, (defence, (int)min), (implicitLine, (int)max));
+            if (kind == ItemBaseKind.Shield)
+                AssertDrafted(id, (ItemBaseStat.Armour, (int)min), (ItemBaseStat.BlockChance, (int)max));
+            else
+                AssertDrafted(id, (ItemBaseStat.Ward, (int)min));
             Assert.Null(item.DamageMax1);
         }
         else
@@ -2106,9 +2101,10 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
     /// #1179: the modifier catalog whole, as the database holds it. Its counts (its ids are held by
     /// <see cref="Keep_every_catalog_row_at_its_committed_id" />); the rules that span its tables (a code on every affix
     /// group, an element only on a split family's, one stat set per group, a tier on every affix row and on no other); the
-    /// tiers' item levels and weights; the second range on exactly the "adds" lines; no weight on a unique, an implicit
-    /// or a trinket; and the template links: each unique links its own unique row, and exactly the 60 defence-bearing
-    /// bases link one implicit each. The catalog loads all of it without leaving any out.
+    /// tiers' item levels and weights; the second range on exactly the "adds" lines; no weight on a unique or a trinket;
+    /// and the template links: each unique links its own unique row, and nothing else links anything (a base's defence is
+    /// its base stats, so Part B's per-base implicits, groups 50-109 and rows 224-283, are gone, their ids unused). The
+    /// catalog loads all of it without leaving any out.
     /// </summary>
     [Fact]
     public async Task Seed_the_catalog_whole()
@@ -2123,9 +2119,9 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
         var groupOf = modifiers.ToDictionary(m => m.Id, m => groups.Single(g => g.Id == m.GroupId));
 
         int Count(ItemModifierKind kind) => groups.Count(g => g.Kind == kind);
-        Assert.Equal((109, 28, 16, 5, 60), (groups.Count, Count(ItemModifierKind.Prefix), Count(ItemModifierKind.Suffix),
+        Assert.Equal((49, 28, 16, 5, 0), (groups.Count, Count(ItemModifierKind.Prefix), Count(ItemModifierKind.Suffix),
             Count(ItemModifierKind.Unique), Count(ItemModifierKind.Implicit)));
-        Assert.Equal((283, 300, 1780, 65),
+        Assert.Equal((223, 234, 1780, 5),
             (modifiers.Count, modifiers.Sum(m => m.Stats.Count), modifiers.Sum(m => m.Weights.Count), links.Count));
 
         var templateOfGroup = links.ToDictionary(l => groupOf[l.ModifierId].Id, l => l.TemplateId.Value);
@@ -2167,27 +2163,18 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
             Assert.Equal((AddsDamage(s.Stat), AddsDamage(s.Stat)), (s.Min2 is not null, s.Max2 is not null)));
         Assert.DoesNotContain(modifiers.SelectMany(m => m.Weights), w => w.BaseKind == ItemBaseKind.Trinket);
 
-        // A unique links its own unique row and nothing else; a common template links only implicits, and exactly
-        // the 60 bases with a defence (the 54 armour bases, the shields and the caster off-hands) link one each.
+        // A unique links its own unique row and nothing else, and no other template links anything.
         Assert.All(links, l => Assert.Equal(0, l.Index));
-        Assert.All(links, l => Assert.Equal(
-            templates[l.TemplateId.Value].Rarity == ItemRarity.Unique ? ItemModifierKind.Unique : ItemModifierKind.Implicit,
-            groupOf[l.ModifierId].Kind));
-        HashSet<ItemBaseKind> defended =
-            [.. Enum.GetValues<ItemBaseKind>().Where(k => ItemBaseKindSlots.SlotOf(k) is ItemSlotType.Head or ItemSlotType.Shoulder
-                or ItemSlotType.Chest or ItemSlotType.Hands or ItemSlotType.Legs or ItemSlotType.Feet), ItemBaseKind.Shield,
-                ItemBaseKind.CasterOffHand];
+        Assert.All(links, l => Assert.Equal(ItemModifierKind.Unique, groupOf[l.ModifierId].Kind));
         Assert.Equal(
-            templates.Values
-                .Where(t => t.Rarity == ItemRarity.Unique
-                            || (t.Rarity == ItemRarity.Common && t.BaseKind is { } kind && defended.Contains(kind)))
-                .Select(t => t.Id.Value).Order(),
+            templates.Values.Where(t => t.Rarity == ItemRarity.Unique).Select(t => t.Id.Value).Order(),
             links.Select(l => l.TemplateId.Value).Order());
-        Assert.Equal(60, links.Count(l => groupOf[l.ModifierId].Kind == ItemModifierKind.Implicit));
+        Assert.DoesNotContain(modifiers, m => m.Id is >= 224 and <= 283);
+        Assert.DoesNotContain(groups, g => g.Id is >= 50 and <= 109);
 
         ItemModifierCatalog catalog = ItemsPatch.Build(templates.Values, await new ItemModifierRepository(database,
             NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None), NullLogger.Instance).Modifiers;
-        Assert.Equal(283, catalog.Count);
+        Assert.Equal(223, catalog.Count);
         Assert.All(links, l => Assert.Equal(l.ModifierId, Assert.Single(catalog.LinkedTo(l.TemplateId)).Id));
     }
 
@@ -2267,9 +2254,9 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
     }
 
     /// <summary>
-    /// #1179: what every copy of a template rolls. The uniques' lines are their drafted values ±20 %, the implicits' their
-    /// bases' drafted defence (and a shield's block, a caster off-hand's spell damage) ±15 %, rounded half away from zero
-    /// and at least 1; Thornheart Signet's "adds 2 to 4" is its low end 2-2 and its high end 3-5.
+    /// #1179: what every copy of a template rolls beside its base stats. The uniques' lines are their drafted values
+    /// ±20 %, rounded half away from zero and at least 1; Thornheart Signet's "adds 2 to 4" is its low end 2-2 and its high
+    /// end 3-5.
     /// </summary>
     [Theory]
     [InlineData(58ul, StatType.Health, 10, 14, null, null)]
@@ -2288,16 +2275,6 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
     [InlineData(67ul, StatType.Health, 16, 24, null, null)]
     [InlineData(67ul, StatType.AttackSpeed, 5, 7, null, null)]
     [InlineData(67ul, StatType.CastSpeed, 5, 7, null, null)]
-    [InlineData(37ul, StatType.Armor, 7, 9, null, null)]
-    [InlineData(13ul, StatType.Armor, 15, 21, null, null)]
-    [InlineData(86ul, StatType.Armor, 27, 37, null, null)]
-    [InlineData(39ul, StatType.Armor, 3, 3, null, null)]
-    [InlineData(91ul, StatType.Evasion, 136, 184, null, null)]
-    [InlineData(96ul, StatType.Ward, 38, 52, null, null)]
-    [InlineData(70ul, StatType.Armor, 5, 7, null, null)]
-    [InlineData(70ul, StatType.BlockPct, 4, 6, null, null)]
-    [InlineData(75ul, StatType.Ward, 26, 35, null, null)]
-    [InlineData(75ul, StatType.IncreasedSpellDamage, 10, 14, null, null)]
     public void Seed_each_linked_modifiers_ranges(ulong templateId, StatType stat, int min, int max, int? min2, int? max2)
     {
         using var database = SqliteDatabase.World();
@@ -2335,19 +2312,17 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
     }
 
     /// <summary>
-    /// #1179: a base's defence is its one implicit modifier. Its drafted lines (<paramref name="drafted" />, in
-    /// order) are ItemModifierSeed's, and each is seeded as that value ±15 %, rounded half away from zero and at least 1.
+    /// #1179: a base's defence is its base stats. Its drafted values (<paramref name="drafted" />, in ItemBaseStat order)
+    /// are ItemBaseSeed's, and each is seeded as that value ±20 %, rounded half away from zero and at least 1.
     /// </summary>
-    private void AssertImplicit(ulong templateId, params (StatType Stat, int Value)[] drafted)
+    private void AssertDrafted(ulong templateId, params (ItemBaseStat Stat, int Value)[] drafted)
     {
         static int Spread(int value, int percent) =>
             Math.Max(1, (int)Math.Round(value * (100 + percent) / 100m, MidpointRounding.AwayFromZero));
 
-        Assert.Equal(drafted, ItemModifierSeed.Implicits().Where(i => i.TemplateId == templateId).Select(i => (i.Stat, i.Value)));
-        ItemTemplateModifier link = Assert.Single(modifierTables.Links, l => l.TemplateId.Value == templateId);
-        Assert.Equal(ItemModifierKind.Implicit, modifierTables.Kinds[link.ModifierId]);
+        Assert.Equal(drafted, ItemBaseSeed.Drafted().Where(d => d.TemplateId == templateId).Select(d => (d.Stat, d.Value)));
         Assert.Equal(
-            drafted.Select((line, index) => ((byte)index, line.Stat, Spread(line.Value, -15), Spread(line.Value, 15), (int?)null)),
-            modifierTables.Stats[link.ModifierId].OrderBy(l => l.Index).Select(l => (l.Index, l.Stat, l.Min, l.Max, l.Min2)));
+            drafted.Select(line => (line.Stat, Spread(line.Value, -20), Spread(line.Value, 20))),
+            baseStatTables.Ranges[templateId].OrderBy(s => s.Stat).Select(s => (s.Stat, s.Min, s.Max)));
     }
 }

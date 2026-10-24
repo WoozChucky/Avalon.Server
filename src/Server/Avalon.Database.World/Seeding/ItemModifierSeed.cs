@@ -4,32 +4,26 @@ using Avalon.Network.Packets.Combat;
 namespace Avalon.Database.World.Seeding;
 
 /// <summary>
-/// A base's implicit stat as drafted (#1179): the value its template carried before its defence became its implicit,
-/// which the seeded range spreads, and which every copy owned from before then was given (AddImplicitsToOwnedItems).
-/// </summary>
-public readonly record struct DraftedImplicit(ulong TemplateId, StatType Stat, int Value);
-
-/// <summary>
-/// The seeded modifier catalog (#1179), built from the compact tables below: the affix families and their tiers, the five
-/// uniques and the bases' drafted implicits. The model's HasData, the catalog exports, the doc page and the tests read
-/// it from here.
+/// The seeded modifier catalog (#1179), built from the compact tables below: the affix families and their tiers, and the
+/// five uniques. The model's HasData, the catalog exports, the doc page and the tests read it from here. A base's defence,
+/// block and weapon damage are not modifiers but its base stats (ItemBaseSeed); the per-base implicits that held a
+/// base's defence (groups 50-109, rows 224-283) are retired, and their ids are never used again.
 /// <list type="bullet">
-/// <item>Every element of a family split by element (P8, P9, P10, S5) is its own group; a unique is one group, and each
-/// base's implicits are one group named after the base.</item>
+/// <item>Every element of a family split by element (P8, P9, P10, S5) is its own group; a unique is one group.</item>
 /// <item>Ids are literal surrogates written in the tables: every group and every modifier row carries its own id, which
-/// means nothing and never changes, since items store the modifier id. A row added later takes the next free id, wherever
-/// it sits in the tables; SeedIntegrityShould holds every existing row to its committed id.</item>
+/// means nothing and never changes, since items store the modifier id. A row added later takes the next id above the
+/// highest ever used, wherever it sits in the tables; a deleted id is never reused. SeedIntegrityShould holds every
+/// existing row to its committed id.</item>
 /// <item>Tiers unlock at item level 1, 4, 7, 10 and 13 and weigh 1000, 800, 600, 400 and 200 on every base kind their
 /// family rolls on, and on no other. An "adds X-Y" line seeds its low end [X, m] and its high end [m, Y], with m the
 /// floor of their mean.</item>
-/// <item>A unique's lines are its drafted values ±20 %, an implicit's ±15 %, rounded half away from zero and at least 1;
-/// neither has a tier, a weight or an item-level gate.</item>
+/// <item>A unique's lines are its drafted values ±20 %, rounded half away from zero and at least 1; it has no tier, no
+/// weight and no item-level gate.</item>
 /// </list>
 /// </summary>
 public static class ItemModifierSeed
 {
     private const int UniqueSpreadPercent = 20;
-    private const int ImplicitSpreadPercent = 15;
 
     private static readonly ushort[] s_tierLevels = [1, 4, 7, 10, 13];
     private static readonly int[] s_tierWeights = [1000, 800, 600, 400, 200];
@@ -74,7 +68,7 @@ public static class ItemModifierSeed
     private static readonly (int, int)[] s_addedGlobal = [(1, 2), (1, 3), (2, 4), (2, 5), (3, 6)];
     private static readonly (int, int)[] s_overTime = [(6, 10), (11, 16), (17, 22), (23, 28), (29, 34)];
 
-    /// <summary>The catalog groups, each with its literal id: affix families, then uniques, then implicits.</summary>
+    /// <summary>The catalog groups, each with its literal id: affix families, then uniques.</summary>
     public static ItemModifierGroup[] Groups() => Build().Groups;
 
     /// <summary>The catalog rows, without navigations (HasData), each with its literal id.</summary>
@@ -86,15 +80,8 @@ public static class ItemModifierSeed
     /// <summary>Every prefix and suffix row's weight on each base kind it rolls on.</summary>
     public static ItemModifierWeight[] Weights() => Build().Weights;
 
-    /// <summary>The template links: each unique's own modifier and each base's implicit group's row.</summary>
+    /// <summary>The template links: each unique's own modifier.</summary>
     public static ItemTemplateModifier[] TemplateLinks() => Build().Links;
-
-    /// <summary>The bases' drafted implicit stats by template id, in each base's line order.</summary>
-    public static DraftedImplicit[] Implicits() =>
-    [
-        .. s_implicits.OrderBy(i => i.Template)
-            .SelectMany(i => i.Lines.Select(line => new DraftedImplicit(i.Template, line.Stat, line.Value))),
-    ];
 
     /// <summary>One group of a family: its id, element, name and stat, and its rows' ids by tier.</summary>
     private sealed record FamilyGroup(int Id, DamageType? Element, string Name, StatType Stat, int[] Rows);
@@ -188,77 +175,6 @@ public static class ItemModifierSeed
         (49, 223, 67, [(StatType.Health, 20, null), (StatType.AttackSpeed, 6, null), (StatType.CastSpeed, 6, null)]),
     ];
 
-    private static (int Group, int Row, ulong Template, (StatType Stat, int Value)[] Lines) Base(
-        int group, int row, ulong template, params (StatType Stat, int Value)[] lines) => (group, row, template, lines);
-
-    // The bases' implicits: group id, modifier id, template, and the drafted lines, the values the bases' templates carried
-    // until their defence moved here (an armour piece's defence, a shield's armour and block, a caster off-hand's ward and
-    // increased spell damage). The chest's values per family and tier are 8/18/32 armour, 40/90/160 evasion and 12/26/45
-    // ward; legs 80 %, head 60 %, shoulders 50 %, hands and feet 40 % of them, rounded.
-    private static readonly (int Group, int Row, ulong Template, (StatType Stat, int Value)[] Lines)[] s_implicits =
-    [
-        Base(50, 224, 12, (StatType.Armor, 11)),
-        Base(51, 225, 13, (StatType.Armor, 18)),
-        Base(52, 226, 14, (StatType.Armor, 14)),
-        Base(53, 227, 15, (StatType.Armor, 7)),
-        Base(54, 228, 16, (StatType.Armor, 7)),
-        Base(55, 229, 17, (StatType.Ward, 16)),
-        Base(56, 230, 18, (StatType.Ward, 26)),
-        Base(57, 231, 19, (StatType.Ward, 21)),
-        Base(58, 232, 20, (StatType.Ward, 10)),
-        Base(59, 233, 21, (StatType.Ward, 10)),
-        Base(60, 234, 22, (StatType.Evasion, 54)),
-        Base(61, 235, 23, (StatType.Evasion, 90)),
-        Base(62, 236, 24, (StatType.Evasion, 72)),
-        Base(63, 237, 25, (StatType.Evasion, 36)),
-        Base(64, 238, 26, (StatType.Evasion, 36)),
-        Base(65, 239, 36, (StatType.Armor, 5)),
-        Base(66, 240, 37, (StatType.Armor, 8)),
-        Base(67, 241, 38, (StatType.Armor, 6)),
-        Base(68, 242, 39, (StatType.Armor, 3)),
-        Base(69, 243, 40, (StatType.Armor, 3)),
-        Base(70, 244, 41, (StatType.Ward, 7)),
-        Base(71, 245, 42, (StatType.Ward, 12)),
-        Base(72, 246, 43, (StatType.Ward, 10)),
-        Base(73, 247, 44, (StatType.Ward, 5)),
-        Base(74, 248, 45, (StatType.Ward, 5)),
-        Base(75, 249, 46, (StatType.Evasion, 24)),
-        Base(76, 250, 47, (StatType.Evasion, 40)),
-        Base(77, 251, 48, (StatType.Evasion, 32)),
-        Base(78, 252, 49, (StatType.Evasion, 16)),
-        Base(79, 253, 50, (StatType.Evasion, 16)),
-        Base(80, 254, 70, (StatType.Armor, 6), (StatType.BlockPct, 5)),
-        Base(81, 255, 71, (StatType.Armor, 14), (StatType.BlockPct, 7)),
-        Base(82, 256, 72, (StatType.Armor, 24), (StatType.BlockPct, 10)),
-        Base(83, 257, 73, (StatType.Ward, 8), (StatType.IncreasedSpellDamage, 5)),
-        Base(84, 258, 74, (StatType.Ward, 18), (StatType.IncreasedSpellDamage, 8)),
-        Base(85, 259, 75, (StatType.Ward, 30), (StatType.IncreasedSpellDamage, 12)),
-        Base(86, 260, 76, (StatType.Armor, 4)),
-        Base(87, 261, 77, (StatType.Evasion, 20)),
-        Base(88, 262, 78, (StatType.Ward, 6)),
-        Base(89, 263, 79, (StatType.Armor, 9)),
-        Base(90, 264, 80, (StatType.Evasion, 45)),
-        Base(91, 265, 81, (StatType.Ward, 13)),
-        Base(92, 266, 82, (StatType.Armor, 16)),
-        Base(93, 267, 83, (StatType.Evasion, 80)),
-        Base(94, 268, 84, (StatType.Ward, 23)),
-        Base(95, 269, 85, (StatType.Armor, 19)),
-        Base(96, 270, 86, (StatType.Armor, 32)),
-        Base(97, 271, 87, (StatType.Armor, 26)),
-        Base(98, 272, 88, (StatType.Armor, 13)),
-        Base(99, 273, 89, (StatType.Armor, 13)),
-        Base(100, 274, 90, (StatType.Evasion, 96)),
-        Base(101, 275, 91, (StatType.Evasion, 160)),
-        Base(102, 276, 92, (StatType.Evasion, 128)),
-        Base(103, 277, 93, (StatType.Evasion, 64)),
-        Base(104, 278, 94, (StatType.Evasion, 64)),
-        Base(105, 279, 95, (StatType.Ward, 27)),
-        Base(106, 280, 96, (StatType.Ward, 45)),
-        Base(107, 281, 97, (StatType.Ward, 36)),
-        Base(108, 282, 98, (StatType.Ward, 18)),
-        Base(109, 283, 99, (StatType.Ward, 18)),
-    ];
-
     private static Built Build()
     {
         Dictionary<ulong, string> names = ItemBaseSeed.Equipment().ToDictionary(t => t.Id.Value, t => t.Name);
@@ -306,16 +222,6 @@ public static class ItemModifierSeed
                 stats.Add(Line(row, index, stat, ItemBaseSeed.Spread(value, UniqueSpreadPercent),
                     high is { } h ? ItemBaseSeed.Spread(h, UniqueSpreadPercent) : null));
             }
-
-            links.Add(new ItemTemplateModifier { TemplateId = template, Index = 0, ModifierId = row });
-        }
-
-        foreach ((int group, int row, ulong template, (StatType Stat, int Value)[] lines) in s_implicits)
-        {
-            AddGroup(group, ItemModifierKind.Implicit, null, null, names[template]);
-            AddModifier(row, group, null, 1);
-            for (int index = 0; index < lines.Length; index++)
-                stats.Add(Line(row, index, lines[index].Stat, ItemBaseSeed.Spread(lines[index].Value, ImplicitSpreadPercent), null));
 
             links.Add(new ItemTemplateModifier { TemplateId = template, Index = 0, ModifierId = row });
         }
