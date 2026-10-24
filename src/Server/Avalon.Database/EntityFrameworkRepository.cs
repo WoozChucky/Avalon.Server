@@ -19,14 +19,18 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
     protected Task<TContext> CreateContextAsync(CancellationToken cancellationToken = default) =>
         contextFactory.CreateDbContextAsync(cancellationToken);
 
+    /// <summary>
+    /// What every read here starts from: the entity's set, with whatever a repository always loads beside the row (its
+    /// child rows) included. Tracking is applied on top.
+    /// </summary>
+    protected virtual IQueryable<TEntity> Query(TContext context) => context.Set<TEntity>();
+
     public async Task<PagedResult<TEntity>> PaginateAsync(EntityPaginateFilter<TEntity> filter, bool track = false,
         CancellationToken cancellationToken = default)
     {
         await using TContext context = await CreateContextAsync(cancellationToken);
 
-        IQueryable<TEntity> query = track
-            ? context.Set<TEntity>().AsQueryable()
-            : context.Set<TEntity>().AsNoTracking().AsQueryable();
+        IQueryable<TEntity> query = track ? Query(context) : Query(context).AsNoTracking();
 
         Expression<Func<TEntity, bool>> queryFilters = filter.GetFilter();
 
@@ -57,17 +61,15 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
         await using TContext context = await CreateContextAsync(cancellationToken);
 
         return track
-            ? await context.Set<TEntity>().ToListAsync(cancellationToken)
-            : await context.Set<TEntity>().AsNoTracking().ToListAsync(cancellationToken);
+            ? await Query(context).ToListAsync(cancellationToken)
+            : await Query(context).AsNoTracking().ToListAsync(cancellationToken);
     }
 
     public async Task<TEntity?> FindByIdAsync(TKey id, bool track = false, CancellationToken cancellationToken = default)
     {
         await using TContext context = await CreateContextAsync(cancellationToken);
 
-        IQueryable<TEntity> query = track
-            ? context.Set<TEntity>()
-            : context.Set<TEntity>().AsNoTracking();
+        IQueryable<TEntity> query = track ? Query(context) : Query(context).AsNoTracking();
 
         return await query.FirstOrDefaultAsync(
             entity => EF.Property<TKey>(entity, nameof(IDbEntity<TKey>.Id))!.Equals(id), cancellationToken);
@@ -77,7 +79,7 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
     {
         await using TContext context = await CreateContextAsync(cancellationToken);
 
-        return await context.Set<TEntity>()
+        return await Query(context)
             .AsNoTracking()
             .Where(predicate)
             .ToListAsync(cancellationToken);

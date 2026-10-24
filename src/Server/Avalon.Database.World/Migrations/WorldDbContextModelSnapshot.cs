@@ -22971,6 +22971,725 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ItemTemplateBaseStat", b =>
+                {
+                    b.Property<decimal>("TemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<byte>("Stat")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("Max")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Min")
+                        .HasColumnType("integer");
+
+                    b.HasKey("TemplateId", "Stat");
+
+                    b.ToTable("ItemTemplateBaseStats", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemTemplateBaseStats_Range", "\"Min\" >= 0 AND \"Min\" <= \"Max\"");
+
+                            t.HasCheckConstraint("CK_ItemTemplateBaseStats_Stat", "\"Stat\" BETWEEN 0 AND 6");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            TemplateId = 5m,
+                            Stat = (byte)4,
+                            Max = 10,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 5m,
+                            Stat = (byte)5,
+                            Max = 18,
+                            Min = 12
+                        },
+                        new
+                        {
+                            TemplateId = 5m,
+                            Stat = (byte)6,
+                            Max = 1050,
+                            Min = 950
+                        },
+                        new
+                        {
+                            TemplateId = 6m,
+                            Stat = (byte)4,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 6m,
+                            Stat = (byte)5,
+                            Max = 13,
+                            Min = 9
+                        },
+                        new
+                        {
+                            TemplateId = 6m,
+                            Stat = (byte)6,
+                            Max = 840,
+                            Min = 760
+                        },
+                        new
+                        {
+                            TemplateId = 7m,
+                            Stat = (byte)4,
+                            Max = 7,
+                            Min = 5
+                        },
+                        new
+                        {
+                            TemplateId = 7m,
+                            Stat = (byte)5,
+                            Max = 12,
+                            Min = 8
+                        },
+                        new
+                        {
+                            TemplateId = 7m,
+                            Stat = (byte)6,
+                            Max = 735,
+                            Min = 665
+                        },
+                        new
+                        {
+                            TemplateId = 8m,
+                            Stat = (byte)4,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 8m,
+                            Stat = (byte)5,
+                            Max = 17,
+                            Min = 11
+                        },
+                        new
+                        {
+                            TemplateId = 8m,
+                            Stat = (byte)6,
+                            Max = 945,
+                            Min = 855
+                        },
+                        new
+                        {
+                            TemplateId = 12m,
+                            Stat = (byte)0,
+                            Max = 13,
+                            Min = 9
+                        },
+                        new
+                        {
+                            TemplateId = 13m,
+                            Stat = (byte)0,
+                            Max = 22,
+                            Min = 14
+                        },
+                        new
+                        {
+                            TemplateId = 14m,
+                            Stat = (byte)0,
+                            Max = 17,
+                            Min = 11
+                        },
+                        new
+                        {
+                            TemplateId = 15m,
+                            Stat = (byte)0,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 16m,
+                            Stat = (byte)0,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 17m,
+                            Stat = (byte)2,
+                            Max = 19,
+                            Min = 13
+                        },
+                        new
+                        {
+                            TemplateId = 18m,
+                            Stat = (byte)2,
+                            Max = 31,
+                            Min = 21
+                        },
+                        new
+                        {
+                            TemplateId = 19m,
+                            Stat = (byte)2,
+                            Max = 25,
+                            Min = 17
+                        },
+                        new
+                        {
+                            TemplateId = 20m,
+                            Stat = (byte)2,
+                            Max = 12,
+                            Min = 8
+                        },
+                        new
+                        {
+                            TemplateId = 21m,
+                            Stat = (byte)2,
+                            Max = 12,
+                            Min = 8
+                        },
+                        new
+                        {
+                            TemplateId = 22m,
+                            Stat = (byte)1,
+                            Max = 65,
+                            Min = 43
+                        },
+                        new
+                        {
+                            TemplateId = 23m,
+                            Stat = (byte)1,
+                            Max = 108,
+                            Min = 72
+                        },
+                        new
+                        {
+                            TemplateId = 24m,
+                            Stat = (byte)1,
+                            Max = 86,
+                            Min = 58
+                        },
+                        new
+                        {
+                            TemplateId = 25m,
+                            Stat = (byte)1,
+                            Max = 43,
+                            Min = 29
+                        },
+                        new
+                        {
+                            TemplateId = 26m,
+                            Stat = (byte)1,
+                            Max = 43,
+                            Min = 29
+                        },
+                        new
+                        {
+                            TemplateId = 32m,
+                            Stat = (byte)4,
+                            Max = 4,
+                            Min = 2
+                        },
+                        new
+                        {
+                            TemplateId = 32m,
+                            Stat = (byte)5,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 32m,
+                            Stat = (byte)6,
+                            Max = 735,
+                            Min = 665
+                        },
+                        new
+                        {
+                            TemplateId = 33m,
+                            Stat = (byte)4,
+                            Max = 6,
+                            Min = 4
+                        },
+                        new
+                        {
+                            TemplateId = 33m,
+                            Stat = (byte)5,
+                            Max = 11,
+                            Min = 7
+                        },
+                        new
+                        {
+                            TemplateId = 33m,
+                            Stat = (byte)6,
+                            Max = 1050,
+                            Min = 950
+                        },
+                        new
+                        {
+                            TemplateId = 34m,
+                            Stat = (byte)4,
+                            Max = 5,
+                            Min = 3
+                        },
+                        new
+                        {
+                            TemplateId = 34m,
+                            Stat = (byte)5,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 34m,
+                            Stat = (byte)6,
+                            Max = 840,
+                            Min = 760
+                        },
+                        new
+                        {
+                            TemplateId = 35m,
+                            Stat = (byte)4,
+                            Max = 5,
+                            Min = 3
+                        },
+                        new
+                        {
+                            TemplateId = 35m,
+                            Stat = (byte)5,
+                            Max = 11,
+                            Min = 7
+                        },
+                        new
+                        {
+                            TemplateId = 35m,
+                            Stat = (byte)6,
+                            Max = 945,
+                            Min = 855
+                        },
+                        new
+                        {
+                            TemplateId = 36m,
+                            Stat = (byte)0,
+                            Max = 6,
+                            Min = 4
+                        },
+                        new
+                        {
+                            TemplateId = 37m,
+                            Stat = (byte)0,
+                            Max = 10,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 38m,
+                            Stat = (byte)0,
+                            Max = 7,
+                            Min = 5
+                        },
+                        new
+                        {
+                            TemplateId = 39m,
+                            Stat = (byte)0,
+                            Max = 4,
+                            Min = 2
+                        },
+                        new
+                        {
+                            TemplateId = 40m,
+                            Stat = (byte)0,
+                            Max = 4,
+                            Min = 2
+                        },
+                        new
+                        {
+                            TemplateId = 41m,
+                            Stat = (byte)2,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 42m,
+                            Stat = (byte)2,
+                            Max = 14,
+                            Min = 10
+                        },
+                        new
+                        {
+                            TemplateId = 43m,
+                            Stat = (byte)2,
+                            Max = 12,
+                            Min = 8
+                        },
+                        new
+                        {
+                            TemplateId = 44m,
+                            Stat = (byte)2,
+                            Max = 6,
+                            Min = 4
+                        },
+                        new
+                        {
+                            TemplateId = 45m,
+                            Stat = (byte)2,
+                            Max = 6,
+                            Min = 4
+                        },
+                        new
+                        {
+                            TemplateId = 46m,
+                            Stat = (byte)1,
+                            Max = 29,
+                            Min = 19
+                        },
+                        new
+                        {
+                            TemplateId = 47m,
+                            Stat = (byte)1,
+                            Max = 48,
+                            Min = 32
+                        },
+                        new
+                        {
+                            TemplateId = 48m,
+                            Stat = (byte)1,
+                            Max = 38,
+                            Min = 26
+                        },
+                        new
+                        {
+                            TemplateId = 49m,
+                            Stat = (byte)1,
+                            Max = 19,
+                            Min = 13
+                        },
+                        new
+                        {
+                            TemplateId = 50m,
+                            Stat = (byte)1,
+                            Max = 19,
+                            Min = 13
+                        },
+                        new
+                        {
+                            TemplateId = 70m,
+                            Stat = (byte)0,
+                            Max = 7,
+                            Min = 5
+                        },
+                        new
+                        {
+                            TemplateId = 70m,
+                            Stat = (byte)3,
+                            Max = 6,
+                            Min = 4
+                        },
+                        new
+                        {
+                            TemplateId = 71m,
+                            Stat = (byte)0,
+                            Max = 17,
+                            Min = 11
+                        },
+                        new
+                        {
+                            TemplateId = 71m,
+                            Stat = (byte)3,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 72m,
+                            Stat = (byte)0,
+                            Max = 29,
+                            Min = 19
+                        },
+                        new
+                        {
+                            TemplateId = 72m,
+                            Stat = (byte)3,
+                            Max = 12,
+                            Min = 8
+                        },
+                        new
+                        {
+                            TemplateId = 73m,
+                            Stat = (byte)2,
+                            Max = 10,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 74m,
+                            Stat = (byte)2,
+                            Max = 22,
+                            Min = 14
+                        },
+                        new
+                        {
+                            TemplateId = 75m,
+                            Stat = (byte)2,
+                            Max = 36,
+                            Min = 24
+                        },
+                        new
+                        {
+                            TemplateId = 76m,
+                            Stat = (byte)0,
+                            Max = 5,
+                            Min = 3
+                        },
+                        new
+                        {
+                            TemplateId = 77m,
+                            Stat = (byte)1,
+                            Max = 24,
+                            Min = 16
+                        },
+                        new
+                        {
+                            TemplateId = 78m,
+                            Stat = (byte)2,
+                            Max = 7,
+                            Min = 5
+                        },
+                        new
+                        {
+                            TemplateId = 79m,
+                            Stat = (byte)0,
+                            Max = 11,
+                            Min = 7
+                        },
+                        new
+                        {
+                            TemplateId = 80m,
+                            Stat = (byte)1,
+                            Max = 54,
+                            Min = 36
+                        },
+                        new
+                        {
+                            TemplateId = 81m,
+                            Stat = (byte)2,
+                            Max = 16,
+                            Min = 10
+                        },
+                        new
+                        {
+                            TemplateId = 82m,
+                            Stat = (byte)0,
+                            Max = 19,
+                            Min = 13
+                        },
+                        new
+                        {
+                            TemplateId = 83m,
+                            Stat = (byte)1,
+                            Max = 96,
+                            Min = 64
+                        },
+                        new
+                        {
+                            TemplateId = 84m,
+                            Stat = (byte)2,
+                            Max = 28,
+                            Min = 18
+                        },
+                        new
+                        {
+                            TemplateId = 85m,
+                            Stat = (byte)0,
+                            Max = 23,
+                            Min = 15
+                        },
+                        new
+                        {
+                            TemplateId = 86m,
+                            Stat = (byte)0,
+                            Max = 38,
+                            Min = 26
+                        },
+                        new
+                        {
+                            TemplateId = 87m,
+                            Stat = (byte)0,
+                            Max = 31,
+                            Min = 21
+                        },
+                        new
+                        {
+                            TemplateId = 88m,
+                            Stat = (byte)0,
+                            Max = 16,
+                            Min = 10
+                        },
+                        new
+                        {
+                            TemplateId = 89m,
+                            Stat = (byte)0,
+                            Max = 16,
+                            Min = 10
+                        },
+                        new
+                        {
+                            TemplateId = 90m,
+                            Stat = (byte)1,
+                            Max = 115,
+                            Min = 77
+                        },
+                        new
+                        {
+                            TemplateId = 91m,
+                            Stat = (byte)1,
+                            Max = 192,
+                            Min = 128
+                        },
+                        new
+                        {
+                            TemplateId = 92m,
+                            Stat = (byte)1,
+                            Max = 154,
+                            Min = 102
+                        },
+                        new
+                        {
+                            TemplateId = 93m,
+                            Stat = (byte)1,
+                            Max = 77,
+                            Min = 51
+                        },
+                        new
+                        {
+                            TemplateId = 94m,
+                            Stat = (byte)1,
+                            Max = 77,
+                            Min = 51
+                        },
+                        new
+                        {
+                            TemplateId = 95m,
+                            Stat = (byte)2,
+                            Max = 32,
+                            Min = 22
+                        },
+                        new
+                        {
+                            TemplateId = 96m,
+                            Stat = (byte)2,
+                            Max = 54,
+                            Min = 36
+                        },
+                        new
+                        {
+                            TemplateId = 97m,
+                            Stat = (byte)2,
+                            Max = 43,
+                            Min = 29
+                        },
+                        new
+                        {
+                            TemplateId = 98m,
+                            Stat = (byte)2,
+                            Max = 22,
+                            Min = 14
+                        },
+                        new
+                        {
+                            TemplateId = 99m,
+                            Stat = (byte)2,
+                            Max = 22,
+                            Min = 14
+                        },
+                        new
+                        {
+                            TemplateId = 100m,
+                            Stat = (byte)4,
+                            Max = 11,
+                            Min = 7
+                        },
+                        new
+                        {
+                            TemplateId = 100m,
+                            Stat = (byte)5,
+                            Max = 19,
+                            Min = 13
+                        },
+                        new
+                        {
+                            TemplateId = 100m,
+                            Stat = (byte)6,
+                            Max = 735,
+                            Min = 665
+                        },
+                        new
+                        {
+                            TemplateId = 101m,
+                            Stat = (byte)4,
+                            Max = 14,
+                            Min = 10
+                        },
+                        new
+                        {
+                            TemplateId = 101m,
+                            Stat = (byte)5,
+                            Max = 25,
+                            Min = 17
+                        },
+                        new
+                        {
+                            TemplateId = 101m,
+                            Stat = (byte)6,
+                            Max = 945,
+                            Min = 855
+                        },
+                        new
+                        {
+                            TemplateId = 102m,
+                            Stat = (byte)4,
+                            Max = 16,
+                            Min = 10
+                        },
+                        new
+                        {
+                            TemplateId = 102m,
+                            Stat = (byte)5,
+                            Max = 26,
+                            Min = 18
+                        },
+                        new
+                        {
+                            TemplateId = 102m,
+                            Stat = (byte)6,
+                            Max = 1050,
+                            Min = 950
+                        },
+                        new
+                        {
+                            TemplateId = 103m,
+                            Stat = (byte)4,
+                            Max = 13,
+                            Min = 9
+                        },
+                        new
+                        {
+                            TemplateId = 103m,
+                            Stat = (byte)5,
+                            Max = 20,
+                            Min = 14
+                        },
+                        new
+                        {
+                            TemplateId = 103m,
+                            Stat = (byte)6,
+                            Max = 840,
+                            Min = 760
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ItemTemplateModifier", b =>
                 {
                     b.Property<decimal>("TemplateId")
@@ -27301,6 +28020,15 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ItemTemplateBaseStat", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemTemplate", null)
+                        .WithMany("BaseStats")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ItemTemplateModifier", b =>
                 {
                     b.HasOne("Avalon.Domain.World.ItemModifier", null)
@@ -27668,6 +28396,11 @@ namespace Avalon.Database.World.Migrations
                     b.Navigation("Stats");
 
                     b.Navigation("Weights");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemTemplate", b =>
+                {
+                    b.Navigation("BaseStats");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.LootTable", b =>

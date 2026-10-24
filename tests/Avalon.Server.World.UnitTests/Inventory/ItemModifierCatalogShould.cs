@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -103,6 +104,53 @@ public class ItemModifierCatalogShould
         Assert.Equal(CommonTemplate != linksLeftOut && Implicit != leftOut,
             catalog.LinkedTo(new ItemTemplateId(CommonTemplate)).Count > 0);
     }
+
+    /// <summary>
+    /// #1179: a template's own base-stat rows held to its kind (ItemBaseStatRules.Problem), beside a sound sword. The
+    /// template that breaks it is left out whole, and the log names it; the sword stays.
+    /// </summary>
+    [Theory]
+    [InlineData("a plate base without armour")]
+    [InlineData("a ring carrying armour")]
+    [InlineData("a weapon whose minimum reaches past its maximum")]
+    [InlineData("a range above its own maximum")]
+    [InlineData("a sword without a damage type")]
+    [InlineData("a shield with a damage type")]
+    public void Leave_out_a_template_whose_base_stats_break_its_kind(string breach)
+    {
+        const ulong Subject = 12;
+        ItemTemplate sword = Base(CommonTemplate, ItemBaseKind.Sword, DamageType.Physical,
+            (ItemBaseStat.DamageMin, 2, 4), (ItemBaseStat.DamageMax, 6, 8), (ItemBaseStat.AttackTime, 665, 735));
+        ItemTemplate broken = breach switch
+        {
+            "a plate base without armour" => Base(Subject, ItemBaseKind.PlateChest, null),
+            "a ring carrying armour" => Base(Subject, ItemBaseKind.Ring, null, (ItemBaseStat.Armour, 1, 2)),
+            "a weapon whose minimum reaches past its maximum" => Base(Subject, ItemBaseKind.Sword, DamageType.Physical,
+                (ItemBaseStat.DamageMin, 5, 9), (ItemBaseStat.DamageMax, 8, 12), (ItemBaseStat.AttackTime, 665, 735)),
+            "a range above its own maximum" => Base(Subject, ItemBaseKind.PlateChest, null, (ItemBaseStat.Armour, 10, 6)),
+            "a sword without a damage type" => Base(Subject, ItemBaseKind.Sword, null,
+                (ItemBaseStat.DamageMin, 2, 4), (ItemBaseStat.DamageMax, 6, 8), (ItemBaseStat.AttackTime, 665, 735)),
+            _ => Base(Subject, ItemBaseKind.Shield, DamageType.Physical, (ItemBaseStat.Armour, 5, 7), (ItemBaseStat.BlockChance, 4, 6)),
+        };
+        var log = new TestLog();
+
+        var patch = ItemsPatch.Build([sword, broken], new ItemModifierCatalog([], [], NullLogger.Instance), log);
+
+        Assert.Null(patch.Find(new ItemTemplateId(Subject)));
+        Assert.NotNull(patch.Find(new ItemTemplateId(CommonTemplate)));
+        Assert.Contains($"{Subject}", Assert.Single(log.Errors).Message);
+    }
+
+    private static ItemTemplate Base(ulong id, ItemBaseKind kind, DamageType? damageType,
+        params (ItemBaseStat Stat, int Min, int Max)[] ranges) => new()
+        {
+            Id = id,
+            Name = kind.ToString(),
+            Rarity = ItemRarity.Common,
+            BaseKind = kind,
+            DamageType1 = damageType,
+            BaseStats = [.. ranges.Select(r => new ItemTemplateBaseStat { TemplateId = id, Stat = r.Stat, Min = r.Min, Max = r.Max })],
+        };
 
     private static ItemModifier Row(int id, ItemModifierKind kind, byte? tier) => new()
     {

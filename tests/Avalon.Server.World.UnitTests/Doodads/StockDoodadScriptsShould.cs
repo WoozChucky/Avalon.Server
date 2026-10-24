@@ -5,6 +5,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auras;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Loot;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.State;
@@ -221,6 +222,15 @@ public class StockDoodadScriptsShould
         BaseKind = ItemBaseKind.Sword,
         RequiredLevel = 1,
         MaxStackSize = 1,
+
+        // A sound sword (#1179, ItemBaseStatRules): a damage type and its base-stat ranges, or the items area leaves it out.
+        DamageType1 = DamageType.Physical,
+        BaseStats =
+        [
+            new ItemTemplateBaseStat { TemplateId = 210, Stat = ItemBaseStat.DamageMin, Min = 2, Max = 4 },
+            new ItemTemplateBaseStat { TemplateId = 210, Stat = ItemBaseStat.DamageMax, Min = 6, Max = 8 },
+            new ItemTemplateBaseStat { TemplateId = 210, Stat = ItemBaseStat.AttackTime, Min = 665, Max = 735 },
+        ],
     };
 
     private static DoodadTemplateView Template(uint id, Type script, int? loot = null, int gold = 0, float radius = 0f,

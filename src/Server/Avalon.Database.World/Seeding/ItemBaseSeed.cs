@@ -4,6 +4,9 @@ using Avalon.Network.Packets.Combat;
 
 namespace Avalon.Database.World.Seeding;
 
+/// <summary>A base stat as drafted (#1179): the value its seeded range (<see cref="ItemBaseSeed.BaseStats" />) spreads.</summary>
+public readonly record struct DraftedBaseStat(ulong TemplateId, ItemBaseStat Stat, int Value);
+
 /// <summary>
 /// The seeded equipment (#1179): 74 bases and 5 uniques. A base is Common, lists no classes and carries no stat line:
 /// a weapon its damage and attack time, every base its requirements, in three tiers at required levels 1, 5 and 10 (the
@@ -12,9 +15,21 @@ namespace Avalon.Database.World.Seeding;
 /// implicit modifier, and a unique's stats its unique modifier, both rolled per copy (ItemModifierSeed). Numbers are
 /// rounded half away from zero and at least 1; every base sells for a quarter of its price. The model's HasData reads
 /// these; consumables and quest items stay in WorldDbContext, with no base kind.
+/// <para>
+/// Every base also authors a range for each base stat its kind carries (ItemBaseStatRules), which every copy rolls:
+/// <see cref="Drafted" /> keeps each drafted value, and <see cref="BaseStats" /> spreads it by 20 %, or by 5 % for an
+/// attack time. The drafted values: a chest's 8 / 18 / 32 armour (plate), 40 / 90 / 160 evasion (leather) and
+/// 12 / 26 / 45 ward (cloth) by tier, the other slots a share of it (legs 80 %, head 60 %, shoulders 50 %, hands and
+/// feet 40 %); a shield's 6 / 14 / 24 armour and 5 / 7 / 10 block; a caster off-hand's 8 / 18 / 30 ward; a weapon its
+/// kind's damage by tier (sword 3-7 / 6-10 / 9-16, bow 4-7 / 7-11 / 11-17, mace 4-9 / 7-14 / 12-21, staff 5-9 / 8-15 /
+/// 13-22) and its kind's pace (sword 700, bow 800, mace 900 and staff 1000 ms).
+/// </para>
 /// </summary>
 public static class ItemBaseSeed
 {
+    private const int BaseStatSpreadPercent = 20;
+    private const int AttackTimeSpreadPercent = 5;
+
     private const ushort Tier1Level = 1;
     private const ushort Tier2Level = 5;
     private const ushort Tier3Level = 10;
@@ -78,6 +93,98 @@ public static class ItemBaseSeed
         Unique(66, "Bramble Mother's Seed", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 5, 200),
         Unique(67, "Tuskroot Idol", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 4, 100),
     ];
+
+    /// <summary>Every base's drafted base stats, by template id and then stat.</summary>
+    public static DraftedBaseStat[] Drafted() =>
+    [
+        .. Equipment()
+            .Where(template => template.Rarity == ItemRarity.Common && template.BaseKind is not null)
+            .OrderBy(template => template.Id.Value)
+            .SelectMany(template => DraftedOf(template.Id.Value, template.BaseKind!.Value, TierOf(template.RequiredLevel))),
+    ];
+
+    /// <summary>
+    /// Every base's base-stat ranges (HasData): each drafted value spread by 20 %, an attack time by 5 %, each end rounded
+    /// half away from zero and at least 1.
+    /// </summary>
+    public static ItemTemplateBaseStat[] BaseStats() =>
+    [
+        .. Drafted().Select(drafted =>
+        {
+            (int min, int max) = Spread(drafted.Value,
+                drafted.Stat == ItemBaseStat.AttackTime ? AttackTimeSpreadPercent : BaseStatSpreadPercent);
+            return new ItemTemplateBaseStat { TemplateId = drafted.TemplateId, Stat = drafted.Stat, Min = min, Max = max };
+        }),
+    ];
+
+    /// <summary><paramref name="value" /> ± <paramref name="percent" /> %, each end rounded half away from zero and at least 1.</summary>
+    internal static (int Min, int Max) Spread(int value, int percent) =>
+        (Math.Max(1, RoundHundredths(value * (100 - percent))), Math.Max(1, RoundHundredths(value * (100 + percent))));
+
+    // A non-negative number of hundredths to the nearest whole, half away from zero, in integers so no binary fraction
+    // decides a tie (25.5 is 26).
+    private static int RoundHundredths(int hundredths) => ((2 * hundredths) + 100) / 200;
+
+    // A base's drafted base stats by its kind and tier (1, 2 or 3), in ItemBaseStat order.
+    private static IEnumerable<DraftedBaseStat> DraftedOf(ulong id, ItemBaseKind kind, int tier)
+    {
+        switch (kind)
+        {
+            case >= ItemBaseKind.PlateHead and <= ItemBaseKind.ClothFeet:
+                yield return ArmourDrafted(id, kind, tier);
+                break;
+            case ItemBaseKind.Shield:
+                yield return new DraftedBaseStat(id, ItemBaseStat.Armour, (int)Pick(tier, 6, 14, 24));
+                yield return new DraftedBaseStat(id, ItemBaseStat.BlockChance, (int)Pick(tier, 5, 7, 10));
+                break;
+            case ItemBaseKind.CasterOffHand:
+                yield return new DraftedBaseStat(id, ItemBaseStat.Ward, (int)Pick(tier, 8, 18, 30));
+                break;
+            case ItemBaseKind.Sword or ItemBaseKind.Mace or ItemBaseKind.Staff or ItemBaseKind.Bow:
+                ((int Min, int Max)[] damage, int attackTime) = kind switch
+                {
+                    ItemBaseKind.Sword => (new[] { (3, 7), (6, 10), (9, 16) }, 700),
+                    ItemBaseKind.Bow => (new[] { (4, 7), (7, 11), (11, 17) }, 800),
+                    ItemBaseKind.Mace => (new[] { (4, 9), (7, 14), (12, 21) }, 900),
+                    _ => (new[] { (5, 9), (8, 15), (13, 22) }, 1000),
+                };
+                yield return new DraftedBaseStat(id, ItemBaseStat.DamageMin, damage[tier - 1].Min);
+                yield return new DraftedBaseStat(id, ItemBaseStat.DamageMax, damage[tier - 1].Max);
+                yield return new DraftedBaseStat(id, ItemBaseStat.AttackTime, attackTime);
+                break;
+        }
+    }
+
+    // An armour piece's defence: its family's chest value at its tier, times its slot's share. The kinds run plate,
+    // leather, cloth, each head, shoulders, chest, hands, legs, feet.
+    private static DraftedBaseStat ArmourDrafted(ulong id, ItemBaseKind kind, int tier)
+    {
+        int offset = (int)kind - (int)ItemBaseKind.PlateHead;
+        (ItemBaseStat stat, uint chest) = (offset / 6) switch
+        {
+            0 => (ItemBaseStat.Armour, Pick(tier, 8, 18, 32)),
+            1 => (ItemBaseStat.Evasion, Pick(tier, 40, 90, 160)),
+            _ => (ItemBaseStat.Ward, Pick(tier, 12, 26, 45)),
+        };
+        int share = (offset % 6) switch
+        {
+            0 => 60,
+            1 => 50,
+            2 => 100,
+            4 => 80,
+            _ => 40,
+        };
+
+        return new DraftedBaseStat(id, stat, RoundHundredths((int)chest * share));
+    }
+
+    private static int TierOf(ushort? level) => level switch
+    {
+        Tier1Level => 1,
+        Tier2Level => 2,
+        Tier3Level => 3,
+        _ => throw new ArgumentOutOfRangeException(nameof(level), level, "A base is seeded at required level 1, 5 or 10."),
+    };
 
     // Tier-1 armour prices; tier 2 doubles them and tier 3 quadruples them.
     private static uint ArmourPrice(ArmourSlot slot, int tier) => (slot switch

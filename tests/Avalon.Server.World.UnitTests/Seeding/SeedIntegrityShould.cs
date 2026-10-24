@@ -1794,6 +1794,78 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
     }
 
     /// <summary>
+    /// #1179: a sample of every base's authored base-stat ranges, the content table's min-max columns: each drafted value
+    /// ±20 % (an attack time ±5 %), each end rounded half away from zero and at least 1.
+    /// </summary>
+    [Theory]
+    [InlineData(37ul, ItemBaseStat.Armour, 6, 10)]
+    [InlineData(86ul, ItemBaseStat.Armour, 26, 38)]
+    [InlineData(39ul, ItemBaseStat.Armour, 2, 4)]
+    [InlineData(91ul, ItemBaseStat.Evasion, 128, 192)]
+    [InlineData(96ul, ItemBaseStat.Ward, 36, 54)]
+    [InlineData(70ul, ItemBaseStat.Armour, 5, 7)]
+    [InlineData(70ul, ItemBaseStat.BlockChance, 4, 6)]
+    [InlineData(72ul, ItemBaseStat.BlockChance, 8, 12)]
+    [InlineData(75ul, ItemBaseStat.Ward, 24, 36)]
+    [InlineData(32ul, ItemBaseStat.DamageMin, 2, 4)]
+    [InlineData(32ul, ItemBaseStat.DamageMax, 6, 8)]
+    [InlineData(32ul, ItemBaseStat.AttackTime, 665, 735)]
+    [InlineData(101ul, ItemBaseStat.DamageMin, 10, 14)]
+    [InlineData(101ul, ItemBaseStat.DamageMax, 17, 25)]
+    [InlineData(101ul, ItemBaseStat.AttackTime, 855, 945)]
+    [InlineData(102ul, ItemBaseStat.DamageMax, 18, 26)]
+    [InlineData(6ul, ItemBaseStat.DamageMin, 6, 8)]
+    [InlineData(34ul, ItemBaseStat.AttackTime, 760, 840)]
+    [InlineData(33ul, ItemBaseStat.AttackTime, 950, 1050)]
+    public void Seed_each_bases_base_stat_ranges(ulong template, ItemBaseStat stat, int min, int max)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplateBaseStat row = context.ItemTemplateBaseStats.AsNoTracking().ToList()
+            .Single(s => s.TemplateId.Value == template && s.Stat == stat);
+
+        Assert.Equal((min, max), (row.Min, row.Max));
+    }
+
+    /// <summary>
+    /// #1179: every seeded template carries exactly the base stats its kind asks, each range sound and a damage type
+    /// exactly on a weapon (ItemBaseStatRules.Problem), so the world leaves none out; jewellery, trinkets and uniques
+    /// carry none. Within a kind's line, each tier's range starts at or above the tier below's end, so a better tier never
+    /// rolls worse; an attack time is the kind's pace and the same at every tier.
+    /// </summary>
+    [Fact]
+    public void Keep_every_bases_base_stats_to_its_kind()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        var templates = context.ItemTemplates.AsNoTracking().Include(t => t.BaseStats).ToList();
+
+        Assert.All(templates, t => Assert.True(ItemBaseStatRules.Problem(t) is null, $"{t.Name}: {ItemBaseStatRules.Problem(t)}"));
+        Assert.All(
+            templates.Where(t => t.Rarity == ItemRarity.Unique
+                                 || t.BaseKind is ItemBaseKind.Ring or ItemBaseKind.Amulet or ItemBaseKind.Trinket),
+            t => Assert.Empty(t.BaseStats));
+
+        foreach (IGrouping<ItemBaseKind, ItemTemplate> line in templates
+                     .Where(t => t.Rarity == ItemRarity.Common && t.BaseKind is not null)
+                     .GroupBy(t => t.BaseKind!.Value))
+        {
+            ItemTemplate[] tiers = [.. line.OrderBy(t => t.RequiredLevel)];
+            for (int tier = 1; tier < tiers.Length; tier++)
+            {
+                foreach (ItemTemplateBaseStat range in tiers[tier].BaseStats)
+                {
+                    ItemTemplateBaseStat below = tiers[tier - 1].BaseStats.Single(s => s.Stat == range.Stat);
+                    if (range.Stat == ItemBaseStat.AttackTime)
+                        Assert.Equal((below.Min, below.Max), (range.Min, range.Max));
+                    else
+                        Assert.True(range.Min >= below.Max, $"{tiers[tier].Name}'s {range.Stat} starts under {tiers[tier - 1].Name}'s end");
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// #1179: the five uniques as templates without stats: name, kind, slot, required level and prices only, Unique. A
     /// unique's stats are its unique modifier, rolled per copy when it drops, so no vendor row, quest reward, quest choice
     /// or starting item names one: those would hand out a copy made outright. Only loot names them (pinned below).
@@ -2047,7 +2119,7 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
         var modifiers = context.ItemModifiers.AsNoTracking().AsSplitQuery()
             .Include(m => m.Stats).Include(m => m.Weights).OrderBy(m => m.Id).ToList();
         var links = context.ItemTemplateModifiers.AsNoTracking().ToList();
-        var templates = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(t => t.Id.Value);
+        var templates = context.ItemTemplates.AsNoTracking().Include(t => t.BaseStats).ToList().ToDictionary(t => t.Id.Value);
         var groupOf = modifiers.ToDictionary(m => m.Id, m => groups.Single(g => g.Id == m.GroupId));
 
         int Count(ItemModifierKind kind) => groups.Count(g => g.Kind == kind);

@@ -118,11 +118,13 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     public ItemTemplate? Find(ItemTemplateId id) => id is null ? null : _templates.Find(id.Value);
 
     /// <summary>
-    /// The patch, with each template's links held against its rarity (#1179, the half of the link rules the catalog
-    /// cannot see, ItemModifierCatalog.RarityRefusal): a Unique template links exactly one Unique modifier, a Common one only Implicit
-    /// modifiers, and no other template links any. A template that breaks it is logged and left out whole, with its
-    /// links, so the world never makes a copy of it, rather than kept with its links stripped (a stat-less unique, or a
-    /// unique standing in its line as a base). A template that links nothing is kept: a Unique one whose modifier the
+    /// The patch, with each template held to two rules (#1179). Its links against its rarity (the half of the link rules
+    /// the catalog cannot see, ItemModifierCatalog.RarityRefusal): a Unique template links exactly one Unique modifier, a
+    /// Common one only Implicit modifiers, and no other template links any. Its own base-stat rows against its kind
+    /// (<see cref="ItemBaseStatRules.Problem" />): exactly the stats its kind carries, each range sound, and a damage type
+    /// exactly on a weapon. A template that breaks either is logged and left out whole, with its links, so the world never
+    /// makes a copy of it, rather than kept with its links or base stats stripped (a stat-less unique, a unique standing in
+    /// its line as a base, a chest without armour). A template that links nothing is kept: a Unique one whose modifier the
     /// catalog refused has its drops removed by the roll.
     /// </summary>
     public static ItemsPatch Build(IReadOnlyCollection<ItemTemplate> templates, ItemModifierCatalog modifiers, ILogger logger)
@@ -131,7 +133,9 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
         foreach (ItemTemplate template in templates)
         {
             IReadOnlyList<ItemModifier> linked = modifiers.LinkedTo(template.Id);
-            if (linked.Count == 0 || ItemModifierCatalog.RarityRefusal(template.Rarity, linked) is not { } reason)
+            string? reason = linked.Count == 0 ? null : ItemModifierCatalog.RarityRefusal(template.Rarity, linked);
+            reason ??= ItemBaseStatRules.Problem(template);
+            if (reason is null)
                 continue;
 
             logger.LogError("Item template {TemplateId} is left out: {Reason}", template.Id.Value, reason);

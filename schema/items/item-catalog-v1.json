@@ -16,6 +16,7 @@
       "sellPrice": 5,
       "allowedClasses": [],
       "requiresAnyAttribute": false,
+      "baseStats": [],
       "useScript": "RestoreHealth",
       "useCooldownMs": 30000,
       "useCooldownGroup": "potion",
@@ -36,6 +37,7 @@
       "sellPrice": 6,
       "allowedClasses": [],
       "requiresAnyAttribute": false,
+      "baseStats": [],
       "useScript": "RestorePower",
       "useCooldownMs": 30000,
       "useCooldownGroup": "potion",
@@ -56,6 +58,7 @@
       "sellPrice": 50,
       "allowedClasses": [],
       "requiresAnyAttribute": false,
+      "baseStats": [],
       "useScript": "TownPortalScroll",
       "useCastTimeMs": 3000,
       "useCooldownMs": 30000
@@ -82,7 +85,24 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "attackTimeMs": 800
+      "attackTimeMs": 800,
+      "baseStats": [
+        {
+          "stat": 4,
+          "min": 6,
+          "max": 10
+        },
+        {
+          "stat": 5,
+          "min": 12,
+          "max": 18
+        },
+        {
+          "stat": 6,
+          "min": 950,
+          "max": 1050
+        }
+      ]
     },
     {
       "id": 6,
@@ -106,7 +126,24 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "attackTimeMs": 801
+      "attackTimeMs": 801,
+      "baseStats": [
+        {
+          "stat": 4,
+          "min": 6,
+          "max": 8
+        },
+        {
+          "stat": 5,
+          "min": 9,
+          "max": 13
+        },
+        {
+          "stat": 6,
+          "min": 760,
+          "max": 840
+        }
+      ]
     },
     {
       "id": 7,
@@ -130,7 +167,24 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "attackTimeMs": 792
+      "attackTimeMs": 792,
+      "baseStats": [
+        {
+          "stat": 4,
+          "min": 5,
+          "max": 7
+        },
+        {
+          "stat": 5,
+          "min": 8,
+          "max": 12
+        },
+        {
+          "stat": 6,
+          "min": 665,
+          "max": 735
+        }
+      ]
     },
     {
       "id": 8,
@@ -155,7 +209,24 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "attackTimeMs": 784
+      "attackTimeMs": 784,
+      "baseStats": [
+        {
+          "stat": 4,
+          "min": 6,
+          "max": 8
+        },
+        {
+          "stat": 5,
+          "min": 11,
+          "max": 17
+        },
+        {
+          "stat": 6,
+          "min": 855,
+          "max": 945
+        }
+      ]
     },
     {
       "id": 9,
@@ -171,7 +242,8 @@
       "buyPrice": 20,
       "sellPrice": 5,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 10,
@@ -187,7 +259,8 @@
       "buyPrice": 20,
       "sellPrice": 5,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 11,
@@ -203,7 +276,8 @@
       "buyPrice": 20,
       "sellPrice": 5,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 12,
@@ -223,7 +297,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredStrength": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 9,
+          "max": 13
+        }
+      ]
     },
     {
       "id": 13,
@@ -243,7 +324,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredStrength": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 14,
+          "max": 22
+        }
+      ]
     },
     {
       "id": 14,
@@ -263,7 +351,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredStrength": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 11,
+          "max": 17
+        }
+      ]
     },
     {
       "id": 15,
@@ -283,7 +378,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredStrength": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 6,
+          "max": 8
+        }
+      ]
     },
     {
       "id": 16,
@@ -303,7 +405,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredStrength": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 6,
+          "max": 8
+        }
+      ]
     },
     {
       "id": 17,
@@ -323,7 +432,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredIntellect": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 13,
+          "max": 19
+        }
+      ]
     },
     {
       "id": 18,
@@ -343,7 +459,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredIntellect": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 21,
+          "max": 31
+        }
+      ]
     },
     {
       "id": 19,
@@ -363,7 +486,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredIntellect": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 17,
+          "max": 25
+        }
+      ]
     },
     {
       "id": 20,
@@ -383,7 +513,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredIntellect": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 8,
+          "max": 12
+        }
+      ]
     },
     {
       "id": 21,
@@ -403,7 +540,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredIntellect": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 8,
+          "max": 12
+        }
+      ]
     },
     {
       "id": 22,
@@ -423,7 +567,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredAgility": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 43,
+          "max": 65
+        }
+      ]
     },
     {
       "id": 23,
@@ -443,7 +594,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredAgility": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 72,
+          "max": 108
+        }
+      ]
     },
     {
       "id": 24,
@@ -463,7 +621,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredAgility": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 58,
+          "max": 86
+        }
+      ]
     },
     {
       "id": 25,
@@ -483,7 +648,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredAgility": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 29,
+          "max": 43
+        }
+      ]
     },
     {
       "id": 26,
@@ -503,7 +675,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredAgility": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 29,
+          "max": 43
+        }
+      ]
     },
     {
       "id": 32,
@@ -526,7 +705,24 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "attackTimeMs": 792
+      "attackTimeMs": 792,
+      "baseStats": [
+        {
+          "stat": 4,
+          "min": 2,
+          "max": 4
+        },
+        {
+          "stat": 5,
+          "min": 6,
+          "max": 8
+        },
+        {
+          "stat": 6,
+          "min": 665,
+          "max": 735
+        }
+      ]
     },
     {
       "id": 33,
@@ -549,7 +745,24 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "attackTimeMs": 800
+      "attackTimeMs": 800,
+      "baseStats": [
+        {
+          "stat": 4,
+          "min": 4,
+          "max": 6
+        },
+        {
+          "stat": 5,
+          "min": 7,
+          "max": 11
+        },
+        {
+          "stat": 6,
+          "min": 950,
+          "max": 1050
+        }
+      ]
     },
     {
       "id": 34,
@@ -572,7 +785,24 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "attackTimeMs": 801
+      "attackTimeMs": 801,
+      "baseStats": [
+        {
+          "stat": 4,
+          "min": 3,
+          "max": 5
+        },
+        {
+          "stat": 5,
+          "min": 6,
+          "max": 8
+        },
+        {
+          "stat": 6,
+          "min": 760,
+          "max": 840
+        }
+      ]
     },
     {
       "id": 35,
@@ -595,7 +825,24 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "attackTimeMs": 784
+      "attackTimeMs": 784,
+      "baseStats": [
+        {
+          "stat": 4,
+          "min": 3,
+          "max": 5
+        },
+        {
+          "stat": 5,
+          "min": 7,
+          "max": 11
+        },
+        {
+          "stat": 6,
+          "min": 855,
+          "max": 945
+        }
+      ]
     },
     {
       "id": 36,
@@ -614,7 +861,14 @@
       "slot": 0,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 4,
+          "max": 6
+        }
+      ]
     },
     {
       "id": 37,
@@ -633,7 +887,14 @@
       "slot": 3,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 6,
+          "max": 10
+        }
+      ]
     },
     {
       "id": 38,
@@ -652,7 +913,14 @@
       "slot": 5,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 5,
+          "max": 7
+        }
+      ]
     },
     {
       "id": 39,
@@ -671,7 +939,14 @@
       "slot": 4,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 2,
+          "max": 4
+        }
+      ]
     },
     {
       "id": 40,
@@ -690,7 +965,14 @@
       "slot": 6,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 2,
+          "max": 4
+        }
+      ]
     },
     {
       "id": 41,
@@ -709,7 +991,14 @@
       "slot": 0,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 6,
+          "max": 8
+        }
+      ]
     },
     {
       "id": 42,
@@ -728,7 +1017,14 @@
       "slot": 3,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 10,
+          "max": 14
+        }
+      ]
     },
     {
       "id": 43,
@@ -747,7 +1043,14 @@
       "slot": 5,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 8,
+          "max": 12
+        }
+      ]
     },
     {
       "id": 44,
@@ -766,7 +1069,14 @@
       "slot": 4,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 4,
+          "max": 6
+        }
+      ]
     },
     {
       "id": 45,
@@ -785,7 +1095,14 @@
       "slot": 6,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 4,
+          "max": 6
+        }
+      ]
     },
     {
       "id": 46,
@@ -804,7 +1121,14 @@
       "slot": 0,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 19,
+          "max": 29
+        }
+      ]
     },
     {
       "id": 47,
@@ -823,7 +1147,14 @@
       "slot": 3,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 32,
+          "max": 48
+        }
+      ]
     },
     {
       "id": 48,
@@ -842,7 +1173,14 @@
       "slot": 5,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 26,
+          "max": 38
+        }
+      ]
     },
     {
       "id": 49,
@@ -861,7 +1199,14 @@
       "slot": 4,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 13,
+          "max": 19
+        }
+      ]
     },
     {
       "id": 50,
@@ -880,7 +1225,14 @@
       "slot": 6,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 13,
+          "max": 19
+        }
+      ]
     },
     {
       "id": 56,
@@ -897,6 +1249,7 @@
       "sellPrice": 12,
       "allowedClasses": [],
       "requiresAnyAttribute": false,
+      "baseStats": [],
       "useScript": "RestoreHealth",
       "useCooldownMs": 30000,
       "useCooldownGroup": "potion",
@@ -916,7 +1269,8 @@
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 58,
@@ -935,7 +1289,8 @@
       "slot": 1,
       "allowedClasses": [],
       "requiredLevel": 3,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 59,
@@ -951,7 +1306,8 @@
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 60,
@@ -967,7 +1323,8 @@
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 61,
@@ -983,7 +1340,8 @@
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 62,
@@ -999,7 +1357,8 @@
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 63,
@@ -1015,7 +1374,8 @@
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 64,
@@ -1034,7 +1394,8 @@
       "slot": 7,
       "allowedClasses": [],
       "requiredLevel": 4,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 65,
@@ -1053,7 +1414,8 @@
       "slot": 7,
       "allowedClasses": [],
       "requiredLevel": 5,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 66,
@@ -1072,7 +1434,8 @@
       "slot": 11,
       "allowedClasses": [],
       "requiredLevel": 5,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 67,
@@ -1091,7 +1454,8 @@
       "slot": 11,
       "allowedClasses": [],
       "requiredLevel": 4,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 68,
@@ -1110,7 +1474,8 @@
       "slot": 7,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 69,
@@ -1129,7 +1494,8 @@
       "slot": 1,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": []
     },
     {
       "id": 70,
@@ -1148,7 +1514,19 @@
       "slot": 10,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 5,
+          "max": 7
+        },
+        {
+          "stat": 3,
+          "min": 4,
+          "max": 6
+        }
+      ]
     },
     {
       "id": 71,
@@ -1168,7 +1546,19 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredStrength": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 11,
+          "max": 17
+        },
+        {
+          "stat": 3,
+          "min": 6,
+          "max": 8
+        }
+      ]
     },
     {
       "id": 72,
@@ -1188,7 +1578,19 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredStrength": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 19,
+          "max": 29
+        },
+        {
+          "stat": 3,
+          "min": 8,
+          "max": 12
+        }
+      ]
     },
     {
       "id": 73,
@@ -1207,7 +1609,14 @@
       "slot": 10,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 6,
+          "max": 10
+        }
+      ]
     },
     {
       "id": 74,
@@ -1227,7 +1636,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredIntellect": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 14,
+          "max": 22
+        }
+      ]
     },
     {
       "id": 75,
@@ -1247,7 +1663,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredIntellect": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 24,
+          "max": 36
+        }
+      ]
     },
     {
       "id": 76,
@@ -1266,7 +1689,14 @@
       "slot": 2,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 3,
+          "max": 5
+        }
+      ]
     },
     {
       "id": 77,
@@ -1285,7 +1715,14 @@
       "slot": 2,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 16,
+          "max": 24
+        }
+      ]
     },
     {
       "id": 78,
@@ -1304,7 +1741,14 @@
       "slot": 2,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 5,
+          "max": 7
+        }
+      ]
     },
     {
       "id": 79,
@@ -1324,7 +1768,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredStrength": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 7,
+          "max": 11
+        }
+      ]
     },
     {
       "id": 80,
@@ -1344,7 +1795,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredAgility": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 36,
+          "max": 54
+        }
+      ]
     },
     {
       "id": 81,
@@ -1364,7 +1822,14 @@
       "allowedClasses": [],
       "requiredLevel": 5,
       "requiredIntellect": 30,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 10,
+          "max": 16
+        }
+      ]
     },
     {
       "id": 82,
@@ -1384,7 +1849,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredStrength": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 13,
+          "max": 19
+        }
+      ]
     },
     {
       "id": 83,
@@ -1404,7 +1876,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredAgility": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 64,
+          "max": 96
+        }
+      ]
     },
     {
       "id": 84,
@@ -1424,7 +1903,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredIntellect": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 18,
+          "max": 28
+        }
+      ]
     },
     {
       "id": 85,
@@ -1444,7 +1930,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredStrength": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 15,
+          "max": 23
+        }
+      ]
     },
     {
       "id": 86,
@@ -1464,7 +1957,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredStrength": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 26,
+          "max": 38
+        }
+      ]
     },
     {
       "id": 87,
@@ -1484,7 +1984,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredStrength": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 21,
+          "max": 31
+        }
+      ]
     },
     {
       "id": 88,
@@ -1504,7 +2011,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredStrength": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 10,
+          "max": 16
+        }
+      ]
     },
     {
       "id": 89,
@@ -1524,7 +2038,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredStrength": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 0,
+          "min": 10,
+          "max": 16
+        }
+      ]
     },
     {
       "id": 90,
@@ -1544,7 +2065,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredAgility": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 77,
+          "max": 115
+        }
+      ]
     },
     {
       "id": 91,
@@ -1564,7 +2092,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredAgility": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 128,
+          "max": 192
+        }
+      ]
     },
     {
       "id": 92,
@@ -1584,7 +2119,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredAgility": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 102,
+          "max": 154
+        }
+      ]
     },
     {
       "id": 93,
@@ -1604,7 +2146,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredAgility": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 51,
+          "max": 77
+        }
+      ]
     },
     {
       "id": 94,
@@ -1624,7 +2173,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredAgility": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 1,
+          "min": 51,
+          "max": 77
+        }
+      ]
     },
     {
       "id": 95,
@@ -1644,7 +2200,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredIntellect": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 22,
+          "max": 32
+        }
+      ]
     },
     {
       "id": 96,
@@ -1664,7 +2227,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredIntellect": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 36,
+          "max": 54
+        }
+      ]
     },
     {
       "id": 97,
@@ -1684,7 +2254,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredIntellect": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 29,
+          "max": 43
+        }
+      ]
     },
     {
       "id": 98,
@@ -1704,7 +2281,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredIntellect": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 14,
+          "max": 22
+        }
+      ]
     },
     {
       "id": 99,
@@ -1724,7 +2308,14 @@
       "allowedClasses": [],
       "requiredLevel": 10,
       "requiredIntellect": 45,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "baseStats": [
+        {
+          "stat": 2,
+          "min": 14,
+          "max": 22
+        }
+      ]
     },
     {
       "id": 100,
@@ -1748,7 +2339,24 @@
       "damageMin1": 11,
       "damageMax1": 17,
       "damageType1": 0,
-      "attackTimeMs": 792
+      "attackTimeMs": 792,
+      "baseStats": [
+        {
+          "stat": 4,
+          "min": 7,
+          "max": 11
+        },
+        {
+          "stat": 5,
+          "min": 13,
+          "max": 19
+        },
+        {
+          "stat": 6,
+          "min": 665,
+          "max": 735
+        }
+      ]
     },
     {
       "id": 101,
@@ -1773,7 +2381,24 @@
       "damageMin1": 11,
       "damageMax1": 17,
       "damageType1": 0,
-      "attackTimeMs": 784
+      "attackTimeMs": 784,
+      "baseStats": [
+        {
+          "stat": 4,
+          "min": 10,
+          "max": 14
+        },
+        {
+          "stat": 5,
+          "min": 17,
+          "max": 25
+        },
+        {
+          "stat": 6,
+          "min": 855,
+          "max": 945
+        }
+      ]
     },
     {
       "id": 102,
@@ -1797,7 +2422,24 @@
       "damageMin1": 11,
       "damageMax1": 17,
       "damageType1": 0,
-      "attackTimeMs": 800
+      "attackTimeMs": 800,
+      "baseStats": [
+        {
+          "stat": 4,
+          "min": 10,
+          "max": 16
+        },
+        {
+          "stat": 5,
+          "min": 18,
+          "max": 26
+        },
+        {
+          "stat": 6,
+          "min": 950,
+          "max": 1050
+        }
+      ]
     },
     {
       "id": 103,
@@ -1821,7 +2463,24 @@
       "damageMin1": 11,
       "damageMax1": 17,
       "damageType1": 0,
-      "attackTimeMs": 801
+      "attackTimeMs": 801,
+      "baseStats": [
+        {
+          "stat": 4,
+          "min": 9,
+          "max": 13
+        },
+        {
+          "stat": 5,
+          "min": 14,
+          "max": 20
+        },
+        {
+          "stat": 6,
+          "min": 760,
+          "max": 840
+        }
+      ]
     }
   ]
 }

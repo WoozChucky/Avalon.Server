@@ -69,6 +69,7 @@ public class WorldDbContext : DbContext
 
     public DbSet<CreatureTemplate> CreatureTemplates { get; set; } = null!;
     public DbSet<ItemTemplate> ItemTemplates { get; set; } = null!;
+    public DbSet<ItemTemplateBaseStat> ItemTemplateBaseStats { get; set; } = null!;
     public DbSet<ItemModifierGroup> ItemModifierGroups { get; set; } = null!;
     public DbSet<ItemModifier> ItemModifiers { get; set; } = null!;
     public DbSet<ItemModifierStat> ItemModifierStats { get; set; } = null!;
@@ -135,6 +136,7 @@ public class WorldDbContext : DbContext
     {
         Configure(modelBuilder.Entity<CreatureTemplate>());
         Configure(modelBuilder.Entity<ItemTemplate>());
+        Configure(modelBuilder.Entity<ItemTemplateBaseStat>());
         Configure(modelBuilder.Entity<ItemModifierGroup>());
         Configure(modelBuilder.Entity<ItemModifier>());
         Configure(modelBuilder.Entity<ItemModifierStat>());
@@ -1576,6 +1578,8 @@ public class WorldDbContext : DbContext
         // AllowedClasses maps by convention to smallint[], the class numbers, as AbilityTemplates.AllowedClasses does
         // (#921, #922): the class names never reach the database (#1142).
 
+        builder.HasMany(b => b.BaseStats).WithOne().HasForeignKey(s => s.TemplateId).OnDelete(DeleteBehavior.Cascade);
+
         builder.HasData(
             new ItemTemplate
             {
@@ -1756,6 +1760,25 @@ public class WorldDbContext : DbContext
         SellPrice = 0,
         Slot = null,
     };
+
+    /// <summary>
+    /// A base's authored base-stat ranges (#1179), one row per stat its kind carries (ItemBaseStatRules), gone with the
+    /// template. Stat 0-6 (ItemBaseStat); a range runs from at least 0 up to its maximum. A balance table: ItemBaseSeed's
+    /// drafted values, spread.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ItemTemplateBaseStat> builder)
+    {
+        builder.ToTable("ItemTemplateBaseStats", t =>
+        {
+            t.HasCheckConstraint("CK_ItemTemplateBaseStats_Stat", "\"Stat\" BETWEEN 0 AND 6");
+            t.HasCheckConstraint("CK_ItemTemplateBaseStats_Range", "\"Min\" >= 0 AND \"Min\" <= \"Max\"");
+        });
+        builder.HasKey(s => new { s.TemplateId, s.Stat });
+        builder.Property(s => s.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
+        builder.Property(s => s.Stat).HasColumnType("smallint");
+
+        builder.HasData(ItemBaseSeed.BaseStats());
+    }
 
     /// <summary>
     /// The modifier catalog's groups (#1179): one row per exclusive group, an affix family (each element of a split family

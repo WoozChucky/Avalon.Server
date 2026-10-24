@@ -112,6 +112,13 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     /// </summary>
     public uint? AttackTimeMs { get; set; }
 
+    /// <summary>
+    /// The base stats every copy rolls (#1179), one authored range per stat: exactly what
+    /// <see cref="ItemBaseStatRules.Of" /> asks of the template's kind and rarity, so empty for jewellery, a trinket, a
+    /// unique and an item that is no base. Loaded with the template.
+    /// </summary>
+    public List<ItemTemplateBaseStat> BaseStats { get; set; } = [];
+
     public StatType? StatType1 { get; set; }
 
     public uint? StatValue1 { get; set; }

@@ -303,8 +303,8 @@ public static class ItemModifierSeed
             for (int index = 0; index < lines.Length; index++)
             {
                 (StatType stat, int value, int? high) = lines[index];
-                stats.Add(Line(row, index, stat, Spread(value, UniqueSpreadPercent),
-                    high is { } h ? Spread(h, UniqueSpreadPercent) : null));
+                stats.Add(Line(row, index, stat, ItemBaseSeed.Spread(value, UniqueSpreadPercent),
+                    high is { } h ? ItemBaseSeed.Spread(h, UniqueSpreadPercent) : null));
             }
 
             links.Add(new ItemTemplateModifier { TemplateId = template, Index = 0, ModifierId = row });
@@ -315,7 +315,7 @@ public static class ItemModifierSeed
             AddGroup(group, ItemModifierKind.Implicit, null, null, names[template]);
             AddModifier(row, group, null, 1);
             for (int index = 0; index < lines.Length; index++)
-                stats.Add(Line(row, index, lines[index].Stat, Spread(lines[index].Value, ImplicitSpreadPercent), null));
+                stats.Add(Line(row, index, lines[index].Stat, ItemBaseSeed.Spread(lines[index].Value, ImplicitSpreadPercent), null));
 
             links.Add(new ItemTemplateModifier { TemplateId = template, Index = 0, ModifierId = row });
         }
@@ -335,12 +335,4 @@ public static class ItemModifierSeed
             Min2 = second?.Min,
             Max2 = second?.Max,
         };
-
-    /// <summary><paramref name="value" /> ± <paramref name="percent" /> %, each end rounded half away from zero and at least 1.</summary>
-    private static (int Min, int Max) Spread(int value, int percent) =>
-        (Math.Max(1, RoundHundredths(value * (100 - percent))), Math.Max(1, RoundHundredths(value * (100 + percent))));
-
-    // A non-negative number of hundredths to the nearest whole, half away from zero, in integers so no binary fraction
-    // decides a tie (25.5 is 26).
-    private static int RoundHundredths(int hundredths) => ((2 * hundredths) + 100) / 200;
 }
