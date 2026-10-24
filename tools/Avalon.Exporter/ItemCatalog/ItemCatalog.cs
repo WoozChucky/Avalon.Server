@@ -27,7 +27,7 @@ namespace Avalon.Exporter;
 /// silently drifts from it. Instead the rows are the entity itself, serialized directly: the schema
 /// (reflection over ItemTemplate's properties) and the catalog (this file, reflection-driven System.
 /// Text.Json over the same properties) agree by construction because there is only one list of
-/// fields, not two. ItemTemplate's one navigation is its base-stat rows (#1179), loaded with it and written nested
+/// fields, not two. ItemTemplate's one navigation is its base-stat rows (#1179), auto-included with it and written nested
 /// without their link back to the template (<see cref="ItemSchema.IsTemplateLink" />), as the schema describes them.
 /// </summary>
 public static class ItemCatalog
@@ -69,7 +69,12 @@ public static class ItemCatalog
 
         using var context = new WorldDbContext(NullLoggerFactory.Instance, options);
 
-        var templates = context.ItemTemplates.AsNoTracking().Include(t => t.BaseStats.OrderBy(s => s.Stat)).ToList();
+        var templates = context.ItemTemplates.AsNoTracking().ToList();
+
+        // The base-stat rows load with their template (the model auto-includes them) in no set order: ordered by stat
+        // here, so a re-export of the same data is an empty diff.
+        foreach (ItemTemplate template in templates)
+            template.BaseStats.Sort((x, y) => x.Stat.CompareTo(y.Stat));
 
         Lf.Write(path, Render(templates));
         Console.WriteLine($"wrote {path} ({templates.Count} item templates)");

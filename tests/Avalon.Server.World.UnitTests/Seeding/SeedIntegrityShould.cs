@@ -1838,7 +1838,7 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
-        var templates = context.ItemTemplates.AsNoTracking().Include(t => t.BaseStats).ToList();
+        var templates = context.ItemTemplates.AsNoTracking().ToList();
 
         Assert.All(templates, t => Assert.True(ItemBaseStatRules.Problem(t) is null, $"{t.Name}: {ItemBaseStatRules.Problem(t)}"));
         Assert.All(
@@ -2119,7 +2119,7 @@ public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTabl
         var modifiers = context.ItemModifiers.AsNoTracking().AsSplitQuery()
             .Include(m => m.Stats).Include(m => m.Weights).OrderBy(m => m.Id).ToList();
         var links = context.ItemTemplateModifiers.AsNoTracking().ToList();
-        var templates = context.ItemTemplates.AsNoTracking().Include(t => t.BaseStats).ToList().ToDictionary(t => t.Id.Value);
+        var templates = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(t => t.Id.Value);
         var groupOf = modifiers.ToDictionary(m => m.Id, m => groups.Single(g => g.Id == m.GroupId));
 
         int Count(ItemModifierKind kind) => groups.Count(g => g.Kind == kind);

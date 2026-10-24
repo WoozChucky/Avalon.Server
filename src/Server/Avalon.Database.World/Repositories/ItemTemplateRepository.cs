@@ -11,13 +11,9 @@ public interface IItemTemplateRepository : IRepository<ItemTemplate, ItemTemplat
         IEnumerable<ItemTemplateId> ids, CancellationToken cancellationToken = default);
 }
 
-/// <summary>The item templates, each read with its base-stat ranges (#1179), ordered by stat.</summary>
 public class ItemTemplateRepository(IDbContextFactory<WorldDbContext> contextFactory)
     : EntityFrameworkRepository<ItemTemplate, ItemTemplateId, WorldDbContext>(contextFactory), IItemTemplateRepository
 {
-    protected override IQueryable<ItemTemplate> Query(WorldDbContext context) =>
-        context.ItemTemplates.Include(t => t.BaseStats.OrderBy(s => s.Stat));
-
     public async Task<IReadOnlyList<ItemTemplate>> GetByIdsAsync(
         IEnumerable<ItemTemplateId> ids, CancellationToken cancellationToken = default)
     {
@@ -30,7 +26,7 @@ public class ItemTemplateRepository(IDbContextFactory<WorldDbContext> contextFac
 
         await using WorldDbContext context = await CreateContextAsync(cancellationToken);
 
-        return await Query(context)
+        return await context.ItemTemplates
             .AsNoTracking()
             .Where(t => idSet.Contains(t.Id))
             .ToListAsync(cancellationToken);

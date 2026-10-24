@@ -118,7 +118,7 @@ public class ItemModifierCatalogShould
     [InlineData("a shield with a damage type")]
     public void Leave_out_a_template_whose_base_stats_break_its_kind(string breach)
     {
-        const ulong Subject = 12;
+        const ulong Subject = 4242;
         ItemTemplate sword = Base(CommonTemplate, ItemBaseKind.Sword, DamageType.Physical,
             (ItemBaseStat.DamageMin, 2, 4), (ItemBaseStat.DamageMax, 6, 8), (ItemBaseStat.AttackTime, 665, 735));
         ItemTemplate broken = breach switch
@@ -138,7 +138,7 @@ public class ItemModifierCatalogShould
 
         Assert.Null(patch.Find(new ItemTemplateId(Subject)));
         Assert.NotNull(patch.Find(new ItemTemplateId(CommonTemplate)));
-        Assert.Contains($"{Subject}", Assert.Single(log.Errors).Message);
+        Assert.StartsWith($"Item template {Subject} is left out: ", Assert.Single(log.Errors).Message);
     }
 
     private static ItemTemplate Base(ulong id, ItemBaseKind kind, DamageType? damageType,

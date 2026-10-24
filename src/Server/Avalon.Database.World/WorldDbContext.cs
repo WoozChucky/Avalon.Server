@@ -1578,7 +1578,11 @@ public class WorldDbContext : DbContext
         // AllowedClasses maps by convention to smallint[], the class numbers, as AbilityTemplates.AllowedClasses does
         // (#921, #922): the class names never reach the database (#1142).
 
+        // A template's base-stat ranges (#1179) load with it on every read, whichever path makes it (the world, the API's
+        // template edit and previews, the exporters): a template read without them would break ItemBaseStatRules and be
+        // left out whole. Their order is not kept; readers index them by stat.
         builder.HasMany(b => b.BaseStats).WithOne().HasForeignKey(s => s.TemplateId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(b => b.BaseStats).AutoInclude();
 
         builder.HasData(
             new ItemTemplate
