@@ -1,10 +1,11 @@
 # Item modifiers
 
-An item template is a **base** (#1179): a kind of item with its own damage or defence, requirements and price. Each copy
-of a base carries its own **modifiers**, rolled when the copy is made and kept on the copy as rows of the Character
-database (`ItemInstanceModifiers`, [inventory and saves](inventory-and-saves.md)). This page is the modifier catalog:
-what can roll, where, at which item level and how likely. Its tables are generated from the seed and checked against it
-by `ItemModifierDocShould`; the prose around them is hand-written.
+An item template is a **base** (#1179): a kind of item with its own base-stat ranges (its defence, or a weapon's damage
+and attack time), requirements and price. Each copy of a base carries its own **base stats** and **modifiers**, rolled
+when the copy is made and kept on the copy as rows of the Character database (`ItemInstanceBaseStats`,
+`ItemInstanceModifiers`, [inventory and saves](inventory-and-saves.md)). This page is the modifier catalog and the
+bases: what can roll, where, at which item level and how likely. Its tables are generated from the seed and checked
+against it by `ItemModifierDocShould`; the prose around them is hand-written.
 
 ## The catalog
 
@@ -56,6 +57,38 @@ item's rarity is refused, keyed `rarity`, when the template's links would break 
 - **Unique**: hand-made on a named base: the base's base stats and implicit, then its one unique modifier, every line a
   range each copy rolls in.
 
+## Base stats
+
+A base's defence and a weapon's numbers are not modifiers but its **base stats** (`ItemBaseStat`: `Armour`, `Evasion`,
+`Ward`, `BlockChance`, `DamageMin`, `DamageMax` and `AttackTime`, in points, rating, points, percentage points, points,
+points and milliseconds before attack speed). Each base authors a range per stat in the World table
+`ItemTemplateBaseStats` (`TemplateId`, `Stat`, `Min`, `Max`; a balance table, loaded with its template), and each copy
+rolls one value per stat, uniform within the range, when it is made, kept in the Character table
+`ItemInstanceBaseStats` ([inventory and saves](inventory-and-saves.md)). A base carries exactly its kind's stats
+(`ItemBaseStatRules.Of`): plate armour, leather evasion, cloth ward, a shield armour and block, a caster off-hand ward,
+a sword, mace, staff or bow its damage range and attack time; a ring, an amulet or a trinket none. A weapon's template
+names only the type of its damage (`ItemTemplates.DamageType`). A unique's template carries none of its own: it rolls
+its base's ([implicits](#implicits)).
+
+`ItemsPatch.Build` logs and leaves out, whole, a template that breaks `ItemBaseStatRules.Problem`: base stats other than
+exactly its kind's, a range below 0 or with its minimum above its maximum, an attack time below 1 ms, a weapon whose
+highest minimum damage passes its lowest maximum, or a damage type anywhere but on a weapon kind (or none on one). A
+live template edit refuses the same, keyed `baseStats` or `damageType` ([live template editing](live-template-editing.md)).
+
+The seeded ranges come from one drafted value per base and stat (`ItemBaseSeed.Drafted`), spread by 20 % each way, or
+5 % for an attack time, each end rounded half away from zero and at least 1: a chest's armour 8 / 18 / 32 (plate),
+evasion 40 / 90 / 160 (leather) and ward 12 / 26 / 45 (cloth) by tier, the other slots a share of it (legs 80 %, head
+60 %, shoulders 50 %, hands and feet 40 %); a shield's armour 6 / 14 / 24 and block 5 / 7 / 10; a caster off-hand's ward
+8 / 18 / 30; a weapon its kind's damage by tier and its pace (sword 700, bow 800, mace 900 and staff 1000 ms). Each
+range is then its own row, retuned on its own; the Bases table below lists them all.
+
+A copy's base stats are that item's own: the stats fold adds its armour, evasion and ward to the item's defence, which
+the item's local "% increased" lines scale, and its block chance to block, unscaled; a main hand's damage range and
+attack time are what an Attack rolls, which its local increased physical damage and attack speed lines scale ([inventory
+and saves](inventory-and-saves.md), [the skill system](spell-system.md#4-hit-resolution)). An edit of a base's ranges
+reaches only the copies made after it, never one already made. Base stats count toward no affix limit and are outside
+the starting-zone budget.
+
 ## Implicits
 
 Every base carries exactly one implicit, themed by its kind (plate leans on life, armour and toughness, leather on
@@ -65,15 +98,13 @@ whose ranges are the affix family's of the same stat at the same tier (P7's for 
 damage, which no family gives; maximum power its own); a base links the row of its own tier, required level 1, 5 and 10
 being T9, T8 and T7. The generated tables below list every group and every base's implicit.
 
-A base's defence, block and weapon damage are not modifiers but its **base stats** (`ItemTemplateBaseStats`, rolled per
-copy into `ItemInstanceBaseStats`, [inventory and saves](inventory-and-saves.md)). Every copy rolls its base stats and
-then its implicit, however it is made (a drop, a vendor, a quest, a starting item). Implicits count toward neither affix
-limit and never block an affix: a resistance implicit and the same resistance suffix sit on one piece, and the starting
-zone's gear budget counts both.
+Every copy rolls its [base stats](#base-stats) and then its implicit, however it is made (a drop, a vendor, a quest, a
+starting item). Implicits count toward neither affix limit and never block an affix: a resistance implicit and the same
+resistance suffix sit on one piece, and the [starting-zone budget](#the-starting-zone-budget) counts both.
 
 A copy made outright goes through `IItemRoller.RollPlain`: `IInventoryService.TryAdd` (a vendor purchase, an item
 script's add, a quest reward that is not a base, a pickup of a drop that did not roll) and `CharacterCreateHandler` (a
-starting item). A drop rolls its copy, its implicit first, when it drops ([drops](#drops)), and its pickup adds that
+starting item). A drop rolls its copy, its base stats and implicit first, when it drops ([drops](#drops)), and its pickup adds that
 copy. Either way the rows enter the character's `ItemModifierStore` marked for the save that inserts the copy, or are
 inserted with a new character.
 
@@ -110,7 +141,7 @@ A creature's or a chest's drops roll when they drop, on the tick, in the kill or
 - **The boss's rare:** a Boss kill none of whose drops rolled Rare has its first drop that rolled a rarity rolled again,
   whole, as Rare. A unique is never touched.
 
-The copy lies on the ground whole, its id, rarity, item level, name and modifiers included, and whoever picks it up gets
+The copy lies on the ground whole, its id, rarity, item level, name, base stats and modifiers included, and whoever picks it up gets
 exactly that copy. A quest drop and any item that is not a base or a unique do not roll.
 
 The odds by the dropping creature's rarity are configuration (`Game:Items:Rarity`, [configuration
@@ -142,11 +173,35 @@ has no weight anywhere else. The families' "Rolls on" column below is that table
 that slot in all three types. Trinkets roll nothing.
 
 Each family rolls on a few fitting slots only, so a slot has an identity and a roll stays readable, and so that one
-full set of the best level-10 items stays within the starting zone's gear budget (each resistance at most 25 %, attack
-and cast speed 10 %, movement speed 8 %, crit chance +6 %, life +75 flat and +26 % increased, each main attribute +15),
-counting implicits and unique lines, which stack with an affix of the same stat. A split family may roll some of its
-elements on a slot and not others: each resistance rolls on one armour slot of its own (fire on helmets, cold on boots,
-lightning on legs, blight on chests) besides the shield, the caster off-hand and the amulet.
+full set of the best level-10 items stays within the [starting-zone budget](#the-starting-zone-budget). A split family
+may roll some of its elements on a slot and not others: each resistance rolls on one armour slot of its own (fire on
+helmets, cold on boots, lightning on legs, blight on chests) besides the shield, the caster off-hand and the amulet.
+
+## The starting-zone budget
+
+The starting zone takes a character to about level 10. Every T9-T7 affix value, every implicit and every unique line
+is sized so that one full best-in-slot level-10 set gives at most:
+
+| Stat | Ceiling |
+| --- | --- |
+| Each resistance | 25 % |
+| Attack speed (attack speed and local attack speed lines, and 0.1 % per point of Agility from gear) | 10 % |
+| Cast speed | 10 % |
+| Movement speed | 8 % |
+| Crit chance | +6 % |
+| Life | +75 flat (Stamina's life included) and +26 % increased: 40-60 % above each class's level-10 base |
+
+A set is counted at its worst case. Every slot (head, shoulders, chest, hands, legs, feet, amulet, two rings, two
+trinkets, and either a one-handed weapon with an off-hand or a two-handed weapon, whichever gives more) holds whichever
+level-10 item gives the stat most: a base rolled rare (its implicit, plus each affix group of the stat that rolls on its
+kind, at its best tier) or a unique (its base's implicit and its own lines), every line at its maximum (an "adds" line's
+high end). Implicits and unique lines stack with an affix of the same stat, so a slot can count twice. Life is (a
+class's level-10 base + flat life + Stamina's life) x (1 + increased maximum life / 100), rounded as the stats fold
+rounds it. `SeedIntegrityShould.Fit_the_starting_zone_budget` works each of these totals out from the seed and fails
+when one passes its ceiling, or when a class's life share leaves 40-60 %. The values were also sized to the design's
+further ceilings (each main attribute +15, crit multiplier +50 %, increased damage on one hit summed 60 %, increased
+healing 45 %, cooldown recovery 15 %, block from affixes and uniques 20 %), which no test holds. Base stats are not part
+of the budget. The tables below give every value.
 
 ## Local and global
 

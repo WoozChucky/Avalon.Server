@@ -391,8 +391,32 @@ else.
 Since #1179 part B2 each entry also carries the copy's base stats (field 12), from the same pool, and `Rolled` loads
 each chest's rolled base stats into the store as the select does. The entry grows by its one reference (8 B) and the
 lists add nothing: `InventoryAllocationShould`'s flush over chests carrying base stats and modifiers reads 576 B, the
-same five entries with the chests' base stats removed from the store read 576 B, and both equal the entries alone. The
-table above predates this.
+same five entries with the chests' base stats removed from the store read 576 B, and both equal the entries alone.
+
+The same benchmark at `2a7d11706` (part B2 before its docs), one run out of process, ten warmups and twenty measured
+iterations, the process pinned to one core (`--affinity 4`; BenchmarkDotNet runs it at high priority): BenchmarkDotNet
+0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, Release, 2026-10-24. With `Rolled`, every chest now
+carries its rolled armour too.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemRollerBenchmarks*" "*ItemStatsBenchmarks*" "*InventoryFlushBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+| Changed slots | Items | `Unpooled`, allocated | `Flusher`, allocated | `Unpooled`, mean | `Flusher`, mean |
+|---:|---|---:|---:|---:|---:|
+| 0 | gold only | 24 B | 0 B | 104.8 ns | 112.3 ns |
+| 1 | potions | 152 B | 152 B | 227.7 ns | 260.4 ns |
+| 1 | chests with base stats and modifiers | 456 B | 152 B | 503.4 ns | 534.8 ns |
+| 8 | potions | 1,048 B | 1,048 B | 1,148.4 ns | 1,158.4 ns |
+| 8 | chests with base stats and modifiers | 4,704 B | 1,048 B | 4,089.1 ns | 4,641.6 ns (± 575 ns) |
+| 30 | potions | 3,864 B | 3,864 B | 3,992.4 ns | 4,200.3 ns (± 344 ns) |
+| 30 | chests with base stats and modifiers | 17,816 B | 3,864 B | 15,504.8 ns | 14,864.9 ns |
+
+The flusher allocates the packet's entries and nothing for the copies' base stats, modifiers or names, with or without
+them: 152 B, 1,048 B and 3,864 B at 1, 8 and 30 slots, each 8 B a slot (the entry's base-stat reference) above the
+table before part B2, the potions included. Without the pool the chests would cost 304 B more at one slot, and about 457 B and
+465 B more a slot at 8 and 30. The means are one run out of process, not comparable with the in-process run above, and
+claim nothing beyond the allocations.
 
 **The quest flusher's bag check.** `QuestFlusher.TouchedTheBag` runs for every connection on every tick, to see
 whether a Bag slot changed. It walked the changed slots through the set's interface, which boxed the set's enumerator:
@@ -1890,6 +1914,22 @@ seven rounds, two runs each; no BenchmarkDotNet run):
   --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json`), and the
   Release gate then read 13,991 B (+0.06 %, within).
 
+**Part B2 (base stats).** A copy's base stats are read in place from its `WornItem` (an `ItemBaseStats` value): each
+item's base armour, evasion and ward join its own defence before its local increases scale it, a base block chance joins
+block, and the main hand's damage range and attack time come from its copy (`WeaponDamage.Of`). In the benchmark the
+sword's copy carries the damage and attack time its template carried before (5-7 at 792 ms), and every other piece keeps
+its defence as a template line, so the setup checks still hold. At `2a7d11706`, one run of the inventory section's
+command (out of process, ten warmups, twenty iterations, `--affinity 4`), 2026-10-24:
+
+| Operation | Mean / min / median | Allocated |
+|---|---:|---:|
+| `ItemStatsBenchmarks.Calculate` | 268.1 / 263.7 / 267.8 ns (± 3.0 ns) | 0 B |
+| `ItemStatsBenchmarks.CalculateModified` | 593.8 / 584.4 / 593.6 ns (± 6.0 ns) | 0 B |
+
+Nothing allocates. `Calculate` sits where the single walk left it (267-283 ns in the probe above), and
+`CalculateModified` reads below the probe's 686-727 ns; the probe and this run are measured differently, so nothing is
+claimed from that.
+
 ### Item roller — `Benchmarks/ItemRollerBenchmarks.cs` (#1179)
 
 Making one copy of an item with its modifiers (`ItemRoller`, [item modifiers](item-modifiers.md)), which runs once per
@@ -1934,6 +1974,25 @@ five measured iterations, the thread pinned to one core (`--affinity 1`), `DOTNE
 
 The bytes are exact: the plain copy's one modifier and the rare's seven no longer make a list each. The means are not
 comparable with the run above (in process, fewer iterations, another affinity) and claim nothing.
+
+**Part B2 (base stats).** Every copy now rolls its base stats before its implicit, and the chest's implicit is
+increased maximum life (its armour is a base stat). `RolledItem` holds the base stats by value (`ItemBaseStats`, seven
+nullable numbers, 56 B inside the record), with no object of their own. The rare is the first seed's whose roll gives the
+chest its armour, its implicit and six affixes, so a change to the draw order moves the seed, not the measured item. At
+`2a7d11706`, one run of the inventory section's command (out of process, ten warmups, twenty iterations,
+`--affinity 4`), 2026-10-24:
+
+| Operation | Mean / min / median | Allocated |
+|---|---:|---:|
+| `ItemRollerBenchmarks.RollPlain` | 163.8 / 156.0 / 160.4 ns (± 6.6 ns) | 384 B (+56 B) |
+| `ItemRollerBenchmarks.RollRare` | 1,170.5 / 1,142 / 1,163 ns (± 25 ns) | 1,536 B (+64 B) |
+
+`RollPlain` allocates its `RolledItem`, now 56 B larger for the base stats, its one implicit row with its value list and
+value, and its modifier list: Part B's 328 B plus the record's 56 B. `RollRare`'s 64 B are the record's 56 B and a
+different rare: the seed moved with the draw order, so its affixes and its name are not those measured before. The
+rare is about three times faster than the first run above: each affix now picks among the few families the chest's
+narrower slots allow (part B2's starting-zone values), not the old catalog's; the runs differ in method too, so that is
+direction, not a measurement of the change.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
