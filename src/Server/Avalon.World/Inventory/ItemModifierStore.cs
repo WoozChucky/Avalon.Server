@@ -59,6 +59,22 @@ public sealed class ItemModifierStore
         _byItem[item] = [.. modifiers];
     }
 
+    /// <summary>
+    /// A copy made just now arrives with the modifiers its roll made for it alone (#1179): the roll keeps no reference to
+    /// that list, so it becomes the item's own entry, not copied, and a making allocates its rows and their lists only.
+    /// A list of any other type is copied, as <see cref="Put" /> does; nothing for none.
+    /// </summary>
+    internal void PutMade(ItemInstanceId item, IReadOnlyList<ItemInstanceModifier> made)
+    {
+        if (made.Count == 0)
+        {
+            _byItem.Remove(item);
+            return;
+        }
+
+        _byItem[item] = made as List<ItemInstanceModifier> ?? [.. made];
+    }
+
     /// <summary>The item leaves: its list goes with it, and the entry is gone. An empty list for an item without one.</summary>
     internal IReadOnlyList<ItemInstanceModifier> Take(ItemInstanceId item) =>
         _byItem.Remove(item, out List<ItemInstanceModifier>? modifiers) ? modifiers : Array.Empty<ItemInstanceModifier>();

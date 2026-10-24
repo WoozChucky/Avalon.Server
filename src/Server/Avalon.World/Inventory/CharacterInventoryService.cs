@@ -398,8 +398,8 @@ public sealed class CharacterInventoryService(
     {
         RolledItem rolled = roller.RollPlain(template, ItemInstanceDefaults.InitialItemLevel(template), catalog);
         Create(InventoryType.Bag, new InventoryItem(slot, rolled.InstanceId, rolled.TemplateId, 1,
-            ItemInstanceDefaults.InitialDurability(template), ItemInstanceFlags.None, rolled.Rarity, rolled.ItemLevel),
-            rolled.Modifiers);
+            ItemInstanceDefaults.InitialDurability(template), ItemInstanceFlags.None, rolled.Rarity, rolled.ItemLevel));
+        owner.ItemModifiers.PutMade(rolled.InstanceId, rolled.Modifiers);
         owner.SaveState.ItemModifiersChanged(rolled.InstanceId);
     }
 
