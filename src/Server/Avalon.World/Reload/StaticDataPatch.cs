@@ -78,8 +78,8 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     private static long s_lastGeneration;
 
     private readonly KeyedRows<ulong, ItemTemplate> _templates = Keyed(Templates);
-    private readonly ItemTemplate[][] _lines = Lines(Templates);
     private readonly ItemModifierCatalog _modifiers = Modifiers;
+    private readonly BaseLines _lines = BaseLines.Of(Templates, Modifiers);
 
     /// <summary>
     /// This patch's stamp (#1179), unique in the process and never 0: what a name worked out from it is keyed by
@@ -88,20 +88,24 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     /// </summary>
     public long Generation { get; private init; } = NextGeneration();
 
-    /// <summary>The modifier catalog of this generation; replacing it stamps a new generation.</summary>
+    /// <summary>
+    /// The modifier catalog of this generation, which also draws the bases' lines; replacing it rebuilds them and stamps
+    /// a new generation.
+    /// </summary>
     public ItemModifierCatalog Modifiers
     {
         get => _modifiers;
         init
         {
             _modifiers = value;
+            _lines = BaseLines.Of(_templates, value);
             Generation = NextGeneration();
         }
     }
 
     /// <summary>
-    /// The templates, with their lookup by id (<see cref="KeyedRows{TKey,TRow}" />, #883) and their lines by base kind:
-    /// replaced with the patch, so a reload cannot leave a lookup behind.
+    /// The templates, with their lookup by id (<see cref="KeyedRows{TKey,TRow}" />, #883) and their lines: replaced with
+    /// the patch, so a reload cannot leave a lookup behind.
     /// </summary>
     public IReadOnlyCollection<ItemTemplate> Templates
     {
@@ -109,7 +113,7 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
         init
         {
             _templates = Keyed(value);
-            _lines = Lines(value);
+            _lines = BaseLines.Of(value, _modifiers);
             Generation = NextGeneration();
         }
     }
@@ -118,28 +122,47 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     public ItemTemplate? Find(ItemTemplateId id) => id is null ? null : _templates.Find(id.Value);
 
     /// <summary>
-    /// The patch, with each template held to two rules (#1179). Its links against its rarity (the half of the link rules
-    /// the catalog cannot see, ItemModifierCatalog.RarityRefusal): a Unique template links exactly one Unique modifier, a
-    /// Common one only Implicit modifiers, and no other template links any. Its own base-stat rows against its kind
-    /// (<see cref="ItemBaseStatRules.Problem" />): exactly the stats its kind carries, each range sound, and a damage type
-    /// exactly on a weapon. A template that breaks either is logged and left out whole, with its links, so the world never
-    /// makes a copy of it, rather than kept with its links or base stats stripped (a stat-less unique, a unique standing in
-    /// its line as a base, a chest without armour). A template that links nothing is kept: a Unique one whose modifier the
-    /// catalog refused has its drops removed by the roll.
+    /// The patch, with each template held to three rules (#1179). Its links against its rarity and kind (the half of the
+    /// link rules the catalog cannot see, ItemModifierCatalog.RarityRefusal): a Unique template links exactly one Unique
+    /// modifier, a Common base exactly one Implicit, and no other template links any. Its own base-stat rows against its
+    /// kind (<see cref="ItemBaseStatRules.Problem" />): exactly the stats its kind carries, each range sound, and a damage
+    /// type exactly on a weapon. And a Unique template's named base (<see cref="NamedBaseProblem" />): a Common base of its
+    /// kind, at or under its level, that is itself kept; no other template names one. A template that breaks any is
+    /// logged and left out whole, with its links, so the world never makes a copy of it, rather than kept with its links
+    /// or base stats stripped (a stat-less unique, a unique standing in its line as a base, a chest without armour, a base
+    /// without its implicit). A Unique template that links nothing is kept: one whose modifier the catalog refused has its
+    /// drops removed by the roll.
     /// </summary>
     public static ItemsPatch Build(IReadOnlyCollection<ItemTemplate> templates, ItemModifierCatalog modifiers, ILogger logger)
     {
         HashSet<ulong> refused = [];
-        foreach (ItemTemplate template in templates)
+        void Judge(ItemTemplate template, string? reason)
         {
-            IReadOnlyList<ItemModifier> linked = modifiers.LinkedTo(template.Id);
-            string? reason = linked.Count == 0 ? null : ItemModifierCatalog.RarityRefusal(template.Rarity, linked);
-            reason ??= ItemBaseStatRules.Problem(template);
             if (reason is null)
-                continue;
+                return;
 
             logger.LogError("Item template {TemplateId} is left out: {Reason}", template.Id.Value, reason);
             refused.Add(template.Id.Value);
+        }
+
+        // The bases and every other non-unique first, so each unique is judged against the bases that stay.
+        foreach (ItemTemplate template in templates.Where(t => t.Rarity != ItemRarity.Unique))
+        {
+            Judge(template, ItemModifierCatalog.RarityRefusal(template.Rarity, template.BaseKind, modifiers.LinkedTo(template.Id))
+                            ?? ItemBaseStatRules.Problem(template)
+                            ?? (template.BaseTemplateId is null ? null : "only a unique template names a base"));
+        }
+
+        var kept = templates
+            .Where(t => t.Rarity != ItemRarity.Unique && !refused.Contains(t.Id.Value))
+            .ToDictionary(t => t.Id.Value);
+        foreach (ItemTemplate unique in templates.Where(t => t.Rarity == ItemRarity.Unique))
+        {
+            IReadOnlyList<ItemModifier> linked = modifiers.LinkedTo(unique.Id);
+            ItemTemplate? named = unique.BaseTemplateId is { } id ? kept.GetValueOrDefault(id.Value) : null;
+            Judge(unique, (linked.Count == 0 ? null : ItemModifierCatalog.RarityRefusal(unique.Rarity, unique.BaseKind, linked))
+                          ?? ItemBaseStatRules.Problem(unique)
+                          ?? NamedBaseProblem(unique, named));
         }
 
         return refused.Count == 0
@@ -148,30 +171,95 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     }
 
     /// <summary>
-    /// The line of a base kind (#1179): its Common templates, the tiers, by required level and then id; empty for a kind
-    /// with none. Built once per patch.
+    /// Why <paramref name="unique" /> may not be made on <paramref name="named" /> (its <see cref="ItemTemplate.BaseTemplateId" />,
+    /// null when it names none or names a template that is missing or left out), or null when it may: the base is a Common
+    /// template of the unique's kind whose required level is at or under the unique's.
     /// </summary>
-    public IReadOnlyList<ItemTemplate> LineOf(ItemBaseKind kind) =>
-        (int)kind >= 0 && (int)kind < _lines.Length ? _lines[(int)kind] : [];
+    public static string? NamedBaseProblem(ItemTemplate unique, ItemTemplate? named) => named switch
+    {
+        null => unique.BaseTemplateId is { } id
+            ? $"its base {id.Value} is missing or left out"
+            : "a unique template names no base",
+        { Rarity: not ItemRarity.Common } or { BaseKind: null } => $"its base {named.Id.Value} is not a common base",
+        _ when named.BaseKind != unique.BaseKind =>
+            $"its base {named.Id.Value} is a {named.BaseKind}, not a {unique.BaseKind}",
+        _ when (named.RequiredLevel ?? 1) > (unique.RequiredLevel ?? 1) =>
+            $"its base {named.Id.Value} requires level {named.RequiredLevel ?? 1}, above the unique's {unique.RequiredLevel ?? 1}",
+        _ => null,
+    };
+
+    /// <summary>
+    /// The base a copy of <paramref name="template" /> rolls its base stats and implicit from (#1179): the template itself
+    /// for a Common base, its named base for a Unique template, and null for any other template (a consumable, a quest
+    /// item) or a unique whose base this patch does not hold.
+    /// </summary>
+    public ItemTemplate? BaseOf(ItemTemplate template) => template switch
+    {
+        { Rarity: ItemRarity.Common, BaseKind: not null } => template,
+        { Rarity: ItemRarity.Unique, BaseTemplateId: { } named } => Find(named),
+        _ => null,
+    };
+
+    /// <summary>
+    /// The line <paramref name="named" /> belongs to (#1179): the Common templates of its kind that link the same implicit
+    /// group, the tiers, by required level and then id; empty for a template that is no Common base of this patch. Built
+    /// once per patch.
+    /// </summary>
+    public IReadOnlyList<ItemTemplate> LineOf(ItemTemplate named) => _lines.Of(named);
+
+    /// <summary>The lines of <paramref name="kind" />, by each line's first id; empty for a kind with none.</summary>
+    public IReadOnlyList<IReadOnlyList<ItemTemplate>> LinesOf(ItemBaseKind kind) => _lines.Of(kind);
 
     private static long NextGeneration() => Interlocked.Increment(ref s_lastGeneration);
 
     private static KeyedRows<ulong, ItemTemplate> Keyed(IReadOnlyCollection<ItemTemplate> templates) =>
         KeyedRows<ulong, ItemTemplate>.Over(templates, static template => template.Id?.Value);
 
-    private static ItemTemplate[][] Lines(IReadOnlyCollection<ItemTemplate> templates)
+    /// <summary>
+    /// The bases' lines (#1179): per kind, the Common templates that link the same implicit group (by its id, or none),
+    /// each line sorted by required level then id, the kind's lines by their first id; and each base's own line by id.
+    /// </summary>
+    private sealed class BaseLines
     {
-        var lines = new ItemTemplate[s_kinds][];
-        for (int kind = 0; kind < s_kinds; kind++)
+        private readonly IReadOnlyList<ItemTemplate>[][] _byKind;
+        private readonly Dictionary<ulong, IReadOnlyList<ItemTemplate>> _byTemplate;
+
+        private BaseLines(IReadOnlyList<ItemTemplate>[][] byKind, Dictionary<ulong, IReadOnlyList<ItemTemplate>> byTemplate)
         {
-            lines[kind] = templates
-                .Where(template => template.Rarity == ItemRarity.Common && template.BaseKind == (ItemBaseKind)kind)
-                .OrderBy(template => template.RequiredLevel ?? 1)
-                .ThenBy(template => template.Id.Value)
-                .ToArray();
+            _byKind = byKind;
+            _byTemplate = byTemplate;
         }
 
-        return lines;
+        public static BaseLines Of(IReadOnlyCollection<ItemTemplate> templates, ItemModifierCatalog modifiers)
+        {
+            var byKind = new IReadOnlyList<ItemTemplate>[s_kinds][];
+            Dictionary<ulong, IReadOnlyList<ItemTemplate>> byTemplate = [];
+            for (int kind = 0; kind < s_kinds; kind++)
+            {
+                byKind[kind] =
+                [
+                    .. templates
+                        .Where(template => template.Rarity == ItemRarity.Common && template.BaseKind == (ItemBaseKind)kind)
+                        .GroupBy(template => modifiers.LinkedTo(template.Id) is [{ } linked, ..] ? linked.GroupId : 0)
+                        .Select(line => (IReadOnlyList<ItemTemplate>)line
+                            .OrderBy(template => template.RequiredLevel ?? 1).ThenBy(template => template.Id.Value).ToArray())
+                        .OrderBy(line => line[0].Id.Value),
+                ];
+                foreach (IReadOnlyList<ItemTemplate> line in byKind[kind])
+                {
+                    foreach (ItemTemplate template in line)
+                        byTemplate[template.Id.Value] = line;
+                }
+            }
+
+            return new BaseLines(byKind, byTemplate);
+        }
+
+        public IReadOnlyList<ItemTemplate> Of(ItemTemplate named) =>
+            named.Id is not null && _byTemplate.TryGetValue(named.Id.Value, out IReadOnlyList<ItemTemplate>? line) ? line : [];
+
+        public IReadOnlyList<IReadOnlyList<ItemTemplate>> Of(ItemBaseKind kind) =>
+            (int)kind >= 0 && (int)kind < _byKind.Length ? _byKind[(int)kind] : [];
     }
 
     public override string Describe() => $"{Templates.Count} item templates, {Modifiers.Count} item modifiers";

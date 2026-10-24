@@ -285,7 +285,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     /// each as a range, an "adds X to Y" line with both.
     /// </summary>
     [Theory]
-    [InlineData(65UL, new[] { "Unique", "+24-36 Health", "Adds 2 to 3-5 Physical Damage to Attacks", "+3-5% Crit" })]
+    [InlineData(65UL, new[] { "Unique", "+4-5 Health", "Adds 1 to 3 Physical Damage to Attacks", "+3-4% Crit Multiplier" })]
     public async Task Describe_what_every_copy_of_a_seeded_item_rolls_within(ulong id, string[] expected)
     {
         using var sqlite = new SqliteWorlds(Open);

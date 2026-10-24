@@ -101,6 +101,7 @@ public class CharacterInventoryServiceShould
             Id = 1,
             GroupId = 1,
             Group = group,
+            Tier = 9,
             RequiredItemLevel = 1,
             Stats = [new ItemModifierStat { ModifierId = 1, Index = 0, Stat = StatType.Health, Min = 1, Max = 2 }],
         };
@@ -401,7 +402,9 @@ public class CharacterInventoryServiceShould
 
             Assert.Equal(copy.BaseStats, copy.WrittenBaseStats);
 
+            // A base links its one implicit, the potion nothing.
             IReadOnlyList<ItemModifier> links = w.Data.ItemModifiers.LinkedTo(copy.Template);
+            Assert.Equal(copy.Template == made ? 1 : 0, links.Count);
             List<ItemInstanceModifier> implicits = [.. copy.Held.Take(links.Count)];
             if (how != "quest reward" || copy.Template != made)
                 Assert.Equal(links.Count, copy.Held.Count);

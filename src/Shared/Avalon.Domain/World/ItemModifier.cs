@@ -1,10 +1,10 @@
 namespace Avalon.Domain.World;
 
 /// <summary>
-/// One row of the modifier catalog (#1179): a tier of an affix family, or the single row of a unique's or a base's
-/// implicit group (no tier). What it gives is its <see cref="Stats" /> lines, each a range a copy rolls within; where it
-/// may roll is its <see cref="Weights" /> by base kind (a unique or an implicit has none: it is linked to its templates
-/// instead, through <see cref="ItemTemplateModifier" />).
+/// One row of the modifier catalog (#1179): a tier of an affix family or of an implicit group, or the single row of a
+/// unique (no tier). What it gives is its <see cref="Stats" /> lines, each a range a copy rolls within; where it may roll
+/// is its <see cref="Weights" /> by base kind (a unique or an implicit has none: it is linked to its templates instead,
+/// through <see cref="ItemTemplateModifier" />).
 /// </summary>
 public class ItemModifier
 {
@@ -15,12 +15,16 @@ public class ItemModifier
     public ItemModifierGroup Group { get; set; } = null!;
 
     /// <summary>
-    /// The tier's rank on a prefix or suffix row, 1 to 9, counting down: T9 is the weakest and T1 the best (the starting
-    /// zone's families have T9, T8 and T7); null on a unique or implicit row. A rank, never an id.
+    /// The tier's rank on a prefix, suffix or implicit row, 1 to 9, counting down: T9 is the weakest and T1 the best (the
+    /// starting zone's groups have T9, T8 and T7; a base links the implicit row of its own tier); null on a unique row. A
+    /// rank, never an id.
     /// </summary>
     public byte? Tier { get; set; }
 
-    /// <summary>The item level a drop needs to roll this row; 1 for a unique or an implicit.</summary>
+    /// <summary>
+    /// The item level a drop needs to roll this row; 1 for a unique. An implicit row's is its tier's (1, 4, 7), which no
+    /// roll reads: a base links the row of its own tier.
+    /// </summary>
     public ushort RequiredItemLevel { get; set; }
 
     public List<ItemModifierStat> Stats { get; set; } = [];

@@ -88,24 +88,35 @@ public static class ItemSchema
             }
 
             // Nullable means the declaration says the value may be absent: `T?` on a value type, or
-            // `string?` on a string (UseScript, UseCooldownGroup), read from the nullable
-            // annotation. Other reference types are not inferred -- a ValueObject wrapper like
-            // ItemTemplateId is a class but is never absent, and saying otherwise would tell the
-            // client that a primary key is optional. Name is a plain string, so it stays required:
-            // the catalog coalesces a missing one to "" rather than describing it as optional.
+            // `string?` on a string (UseScript, UseCooldownGroup) or `ItemTemplateId?` on a ValueObject
+            // wrapper (a unique's BaseTemplateId), read from the nullable annotation. A wrapper declared
+            // without one (the Id) is never absent, and saying otherwise would tell the client that a
+            // primary key is optional. Name is a plain string, so it stays required: the catalog
+            // coalesces a missing one to "" rather than describing it as optional.
             yield return new SchemaField(
                 Name: property.Name,
                 Type: TypeNameOf(actual),
-                Nullable: nullable is not null || IsNullableString(property),
+                Nullable: nullable is not null || IsNullableReference(property),
                 Element: null,
                 Enum: actual.IsEnum ? actual.Name : null,
                 Fields: null);
         }
     }
 
-    private static bool IsNullableString(PropertyInfo property) =>
-        property.PropertyType == typeof(string)
+    private static bool IsNullableReference(PropertyInfo property) =>
+        (property.PropertyType == typeof(string) || IsValueObject(property.PropertyType))
         && new NullabilityInfoContext().Create(property).WriteState == NullabilityState.Nullable;
+
+    private static bool IsValueObject(Type type)
+    {
+        for (Type? baseType = type.BaseType; baseType is not null; baseType = baseType.BaseType)
+        {
+            if (baseType.IsGenericType && baseType.Name.StartsWith("ValueObject", StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
 
     // Scalar shapes only -- List<T> is handled in Fields(), not here. See the comment there.
     private static string TypeNameOf(Type type)

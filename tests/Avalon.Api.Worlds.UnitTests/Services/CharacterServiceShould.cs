@@ -43,17 +43,23 @@ public sealed class CharacterServiceShould : IDisposable
     /// <summary>
     /// Instances live in the Character database and templates in the World database, so the
     /// template is looked up by id rather than joined. The copy's own rarity, item level and modifiers come from the
-    /// instance (#1179), in the order the item shows them, whatever order the rows were read in, each with its kind
-    /// from the world's catalog; a magic copy is named by its prefix and its suffix. The copy is a ring: its prefix
-    /// (Ember-sung, cold, T8) a two-range line, its suffix (of the Owl, T8) a plain one.
+    /// instance (#1179), in the order the item shows them, each with its values in index order, whatever order the rows
+    /// were read in, each with its kind from the world's catalog; a magic copy is named by its prefix and its suffix, and
+    /// its implicit names nothing. The magic copy is a ring: its implicit (the Copper Band's life), its prefix (Ember-sung,
+    /// cold, T8) a two-range line, its suffix (of the Owl, T8) a plain one. The unique copy, a Thornheart Signet, carries
+    /// its base's implicit and its own three lines, read back in reverse.
     /// </summary>
     [Fact]
     public async Task Look_up_each_items_template_in_the_world_database()
     {
         int emberSung = Seeded("P10", Avalon.Network.Packets.Combat.DamageType.Cold, 8);
         int owl = Seeded("S3", null, 8);
+        int life = ImplicitOf(68);
+        int lightning = ImplicitOf(125);
+        int signet = ItemModifierSeed.TemplateLinks().Single(l => l.TemplateId.Value == 65).ModifierId;
         var id = new CharacterId(42);
         var itemId = new ItemInstanceId(Guid.CreateVersion7());
+        var uniqueId = new ItemInstanceId(Guid.CreateVersion7());
 
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
@@ -63,7 +69,21 @@ public sealed class CharacterServiceShould : IDisposable
         slots.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<CharacterInventory>
         {
             new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 3, ItemId = itemId },
+            new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 4, ItemId = uniqueId },
         });
+
+        static ItemInstanceModifier Rolled(ItemInstanceId item, int modifierId, byte ordinal,
+            params (byte Index, Avalon.Domain.World.StatType Stat, int Value, int? Value2)[] values) => new()
+            {
+                Id = Guid.CreateVersion7(),
+                ItemInstanceId = item,
+                ModifierId = modifierId,
+                Ordinal = ordinal,
+                Values =
+                [
+                    .. values.Select(v => new ItemInstanceModifierValue { Index = v.Index, Stat = v.Stat, Value = v.Value, Value2 = v.Value2 }),
+                ],
+            };
 
         IItemInstanceRepository items = Substitute.For<IItemInstanceRepository>();
         items.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<ItemInstance>
@@ -74,22 +94,22 @@ public sealed class CharacterServiceShould : IDisposable
                 Rarity = Avalon.Common.ItemRarity.Magic, ItemLevel = 7,
                 Modifiers =
                 [
-                    new ItemInstanceModifier
-                    {
-                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = owl, Ordinal = 1,
-                        Values = [new ItemInstanceModifierValue { Index = 0, Stat = Avalon.Domain.World.StatType.Intellect, Value = 2 }],
-                    },
-                    new ItemInstanceModifier
-                    {
-                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = emberSung, Ordinal = 0,
-                        Values =
-                        [
-                            new ItemInstanceModifierValue
-                            {
-                                Index = 0, Stat = Avalon.Domain.World.StatType.AddedColdDamageToSpells, Value = 1, Value2 = 2,
-                            },
-                        ],
-                    },
+                    Rolled(itemId, owl, 2, (0, Avalon.Domain.World.StatType.Intellect, 2, null)),
+                    Rolled(itemId, emberSung, 1, (0, Avalon.Domain.World.StatType.AddedColdDamageToSpells, 1, 2)),
+                    Rolled(itemId, life, 0, (0, Avalon.Domain.World.StatType.Health, 2, null)),
+                ],
+            },
+            new()
+            {
+                Id = uniqueId, TemplateId = new ItemTemplateId(65), CharacterId = id, Count = 1,
+                Rarity = Avalon.Common.ItemRarity.Unique, ItemLevel = 5,
+                Modifiers =
+                [
+                    Rolled(uniqueId, signet, 1,
+                        (2, Avalon.Domain.World.StatType.CritMultiplier, 4, null),
+                        (1, Avalon.Domain.World.StatType.AddedPhysicalDamageToAttacks, 1, 3),
+                        (0, Avalon.Domain.World.StatType.Health, 5, null)),
+                    Rolled(uniqueId, lightning, 0, (0, Avalon.Domain.World.StatType.AddedLightningDamageToAttacks, 1, 2)),
                 ],
             },
         });
@@ -99,6 +119,7 @@ public sealed class CharacterServiceShould : IDisposable
             .Returns(new List<ItemTemplate>
             {
                 new() { Id = new ItemTemplateId(68), Name = "Copper Band", Rarity = Avalon.Common.ItemRarity.Common, DisplayId = 68 },
+                new() { Id = new ItemTemplateId(65), Name = "Thornheart Signet", Rarity = Avalon.Common.ItemRarity.Unique, DisplayId = 65 },
             });
 
         var service = new CharacterService(characters, slots, items,
@@ -108,8 +129,11 @@ public sealed class CharacterServiceShould : IDisposable
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
 
-        CharacterInventoryItemDto item = Assert.Single(inventory!.Items);
-        Assert.Equal(itemId.Value, item.ItemId);
+        static string Described(CharacterInventoryItemDto item) => string.Join(' ', item.Modifiers.Select(m =>
+            $"{m.ModifierId} {m.Kind} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value} {v.Value2}"))}]"));
+
+        Assert.Equal(2, inventory!.Items.Count);
+        CharacterInventoryItemDto item = Assert.Single(inventory.Items, i => i.ItemId == itemId.Value);
         Assert.Equal(4u, item.Count);
         Assert.Equal(7u, item.Durability);
         Assert.NotNull(item.Template);
@@ -119,10 +143,20 @@ public sealed class CharacterServiceShould : IDisposable
         Assert.Equal((Avalon.Api.Contract.ItemRarity.Magic, (ushort)7), (item.Rarity, item.ItemLevel));
         Assert.Equal("Ember-sung Copper Band of the Owl", item.Name);
         Assert.Equal(
-            $"{emberSung} Prefix [AddedColdDamageToSpells 1 2] {owl} Suffix [Intellect 2 ]",
-            string.Join(' ', item.Modifiers.Select(m =>
-                $"{m.ModifierId} {m.Kind} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value} {v.Value2}"))}]")));
+            $"{life} Implicit [Health 2 ] {emberSung} Prefix [AddedColdDamageToSpells 1 2] {owl} Suffix [Intellect 2 ]",
+            Described(item));
+
+        CharacterInventoryItemDto unique = Assert.Single(inventory.Items, i => i.ItemId == uniqueId.Value);
+        Assert.Null(unique.Name);
+        Assert.Equal(
+            $"{lightning} Implicit [AddedLightningDamageToAttacks 1 2] " +
+            $"{signet} Unique [Health 5 , AddedPhysicalDamageToAttacks 1 3, CritMultiplier 4 ]",
+            Described(unique));
     }
+
+    /// <summary>A seeded base's implicit row, named by the base (#1179): no test holds an id.</summary>
+    private static int ImplicitOf(ulong template) =>
+        ItemModifierSeed.TemplateLinks().Single(l => l.TemplateId.Value == template).ModifierId;
 
     /// <summary>
     /// A template with no slot (a potion, a scroll) has no slot type; it used to come back as Head,

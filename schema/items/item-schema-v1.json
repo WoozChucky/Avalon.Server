@@ -63,6 +63,11 @@
       "enum": "ItemBaseKind"
     },
     {
+      "name": "BaseTemplateId",
+      "type": "uint64",
+      "nullable": true
+    },
+    {
       "name": "BuyPrice",
       "type": "uint32",
       "nullable": false

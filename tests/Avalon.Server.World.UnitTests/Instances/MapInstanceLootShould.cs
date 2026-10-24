@@ -114,14 +114,14 @@ public class MapInstanceLootShould
     /// #546: a real hit that kills rolls the loot once, while the creature is still a hostile in its
     /// encounter and before anyone is told it died. #1179: the table's equipment drop is rolled into its copy as it
     /// drops, at the creature's level: the level-5 kill's plate chest (base 37) is the tier-2 chest (13) with the
-    /// base stats it rolled and no modifier, announced and left on the ground as that copy.
+    /// base stats and the implicit it rolled, announced and left on the ground as that copy.
     /// </summary>
     [Fact]
     public async Task Roll_A_Real_Kills_Loot_Once_Before_The_Encounter_Death_And_The_Death_Broadcast()
     {
         ILootRoller roller = Substitute.For<ILootRoller>();
-        // The Normal odds' Common at the first draw, then the chest's armour (14-22).
-        var draws = new ScriptedLootRandom([0.0], [20]);
+        // The Normal odds' Common at the first draw, then the chest's armour (14-22) and its implicit (2-3 % life).
+        var draws = new ScriptedLootRandom([0.0], [20, 2]);
         var itemRoller = new ItemRoller(draws, new ItemIdAllocator(), Options.Create(new GameConfiguration()));
         using MapInstance instance = await Build(roller: roller, itemRoller: itemRoller);
         MapInstanceClient killer = Join(instance, 460_111);
@@ -159,12 +159,12 @@ public class MapInstanceLootShould
         Assert.True(draws.Exhausted, "the drop did not roll as scripted");
         LootDropDto announced = Assert.Single(Assert.Single(Spawned(killer)).Drops);
         Assert.Equal((13UL, 1u, ItemRarity.Common, 5u), (announced.ItemTemplateId, announced.Count, announced.Rarity, announced.ItemLevel));
-        Assert.Empty(announced.Modifiers ?? []);
+        Assert.Equal(2, Assert.Single(Assert.Single(announced.Modifiers!).Values).Value);
 
         RolledItem onGround = Assert.Single(instance.Drops.All).Rolled!;
         Assert.Equal((13UL, ItemRarity.Common, (ushort)5, (string?)null),
             (onGround.TemplateId.Value, onGround.Rarity, onGround.ItemLevel, onGround.RareName));
-        Assert.Empty(onGround.Modifiers);
+        Assert.Equal(2, Assert.Single(Assert.Single(onGround.Modifiers).Values).Value);
         Assert.Equal(new ItemBaseStats { Armour = 20 }, onGround.BaseStats);
     }
 

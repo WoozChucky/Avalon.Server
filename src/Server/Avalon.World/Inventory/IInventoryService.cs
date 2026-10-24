@@ -22,7 +22,7 @@ public interface IInventoryService
     /// offered in a trade (#1175), nor to one carrying rolled rows (#1179), nor to a Bag slot a completing trade
     /// reserved; a Unique template counts the copies that trade is about to add. A count of 0 is Ok and
     /// changes nothing. A template that has base-stat ranges or links modifiers in the current catalog (a base's
-    /// implicits, a unique's own, #1179) makes one copy per slot, each rolling them now through IItemRoller.RollPlain,
+    /// implicit, a unique's own, #1179) makes one copy per slot, each rolling them now through IItemRoller.RollPlain,
     /// its rolled rows in the store and marked for the save that inserts it.
     /// </summary>
     InventoryAddResult TryAdd(ItemTemplateId templateId, uint count);

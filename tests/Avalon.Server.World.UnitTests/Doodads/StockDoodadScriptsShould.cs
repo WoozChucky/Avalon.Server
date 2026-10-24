@@ -297,10 +297,13 @@ public class StockDoodadScriptsShould
         public static async Task<Fixture> CreateAsync(uint? owner = null, PartyId? ownerParty = null,
             ICombatRandom? draws = null, PartyService? parties = null)
         {
-            StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
+            // The blade is a base, so it links an implicit (#1179) or the items area leaves it out.
+            TestStaticDataRepositories repositories = TestStaticData.Repositories(
                 items: () => [.. Items, s_blade],
                 loot: LootRepositories.Of(() => [Table(1, Item(1, s_blade))]),
-                auras: () => [AuraTestData.Fortified(8), AuraTestData.Fortified(9), AuraTestData.Fortified(10)]));
+                auras: () => [AuraTestData.Fortified(8), AuraTestData.Fortified(9), AuraTestData.Fortified(10)]);
+            StaticData data = await TestStaticData.LoadAsync(
+                repositories with { ItemModifiers = ItemModifierRepositories.ImplicitFor(s_blade) });
             return new Fixture(data, owner, ownerParty, draws, parties);
         }
 

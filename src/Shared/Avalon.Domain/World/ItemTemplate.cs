@@ -65,6 +65,13 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     /// </summary>
     public ItemBaseKind? BaseKind { get; set; }
 
+    /// <summary>
+    /// The base a Unique template is made on (#1179): a Common template of its own kind, at or under its required level,
+    /// whose base-stat ranges and implicit every copy of the unique rolls before its own modifier. Set on every Unique
+    /// template and on no other.
+    /// </summary>
+    public ItemTemplateId? BaseTemplateId { get; set; }
+
     public uint BuyPrice { get; set; }
 
     public uint SellPrice { get; set; }

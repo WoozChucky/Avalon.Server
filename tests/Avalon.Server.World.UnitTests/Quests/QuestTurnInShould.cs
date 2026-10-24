@@ -307,8 +307,9 @@ public class QuestTurnInShould
 
     /// <summary>
     /// #1179, over the World database's seed: a fixed or picked reward whose template is a Common base is rolled
-    /// Magic at the quest's level as it is paid, with one or two affixes the level allows after any implicit; the
-    /// offer says so.
+    /// Magic at the quest's level as it is paid, as its own line's best tier there (Mother of Thorns' Copper Band at level 7
+    /// is its line's T8, the Oakbark Band, never another line's ring), its implicit first, then one or two affixes the
+    /// level allows; the offer says so.
     /// </summary>
     [Fact]
     public void Roll_a_magic_reward_on_the_picked_base_at_the_quests_level()
@@ -328,7 +329,7 @@ public class QuestTurnInShould
 
         Creature uriel = ReadyAtSeed(w, c, MotherOfThorns);
         Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, MotherOfThorns, uriel.Guid.RawValue));
-        AssertMagic(c, w, Paid(c, 68), itemLevel: 7);
+        AssertMagic(c, w, Paid(c, 104), itemLevel: 7);
 
         Creature hilde = ReadyAtSeed(w, c, EarnItFancy);
         Assert.Equal(QuestResult.Ok, w.Quests.TurnIn(c.Connection, c.Character, EarnItFancy, hilde.Guid.RawValue, choiceItemTemplateId: 37));
@@ -365,13 +366,13 @@ public class QuestTurnInShould
     private static InventoryItem Paid(QuestClient c, ulong template) =>
         Assert.Single(c.Character.Container(InventoryType.Bag).Items, item => item.TemplateId.Value == template);
 
-    /// <summary>Magic at the level, with one or two affixes after its implicits, each one the level allows.</summary>
+    /// <summary>Magic at the level, its tier's implicit first, then one or two affixes, each one the level allows.</summary>
     private static void AssertMagic(QuestClient c, QuestTestWorld w, InventoryItem item, ushort itemLevel)
     {
         Assert.Equal((ItemRarity.Magic, itemLevel, 1u), (item.Rarity, item.ItemLevel, item.Count));
-        List<ItemModifier> rolled = [.. c.Character.ItemModifiers.Of(item.InstanceId).Select(m => w.Data.ItemModifiers.Find(m.ModifierId)!)];
-        int implicits = rolled.TakeWhile(m => m.Group.Kind == ItemModifierKind.Implicit).Count();
-        List<ItemModifier> affixes = [.. rolled.Skip(implicits)];
+        IReadOnlyList<ItemInstanceModifier> held = c.Character.ItemModifiers.Of(item.InstanceId);
+        Assert.Equal((Assert.Single(w.Data.ItemModifiers.LinkedTo(item.TemplateId)).Id, (byte)0), (held[0].ModifierId, held[0].Ordinal));
+        List<ItemModifier> affixes = [.. held.Skip(1).Select(m => w.Data.ItemModifiers.Find(m.ModifierId)!)];
         Assert.InRange(affixes.Count, 1, 2);
         Assert.All(affixes, affix =>
         {

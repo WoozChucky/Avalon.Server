@@ -49,7 +49,7 @@ public static class TemplateItemUsers
         if (rarity)
         {
             ItemModifierCatalog linked = await ItemModifierQueries.LinkedToAsync(db, id, NullLogger.Instance, ct);
-            if (ItemModifierCatalog.RarityRefusal(edited.Rarity, linked.LinkedTo(id)) is { } linkProblem)
+            if (ItemModifierCatalog.RarityRefusal(edited.Rarity, edited.BaseKind, linked.LinkedTo(id)) is { } linkProblem)
                 errors.Add("rarity", $"Item template {id.Value} would be left out by the world: {linkProblem}.");
         }
 

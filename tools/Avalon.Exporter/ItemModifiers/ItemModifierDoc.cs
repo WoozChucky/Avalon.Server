@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Avalon.Common;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 
@@ -9,8 +10,9 @@ namespace Avalon.Exporter;
 /// The generated block of <c>docs/item-modifiers.md</c> (#1179): the modifier catalog as <see cref="ItemModifierSeed" />
 /// seeds it, between two markers in a hand-written page. <c>item-modifier-doc</c> writes it, and ItemModifierDocShould
 /// fails when the committed block and the seed disagree. It lists the affix families (code, element, name, kind, stat and
-/// the base kinds they roll on), the tier table (each line's range and weight, by tier), the implicits per base and the
-/// uniques.
+/// the base kinds they roll on), the tier table (each line's range and weight, by tier), the implicit groups (their
+/// ranges by tier and where they come from), every base by kind and line (its tier, level, base-stat ranges and implicit)
+/// and the uniques with the bases they are made on.
 /// </summary>
 public static class ItemModifierDoc
 {
@@ -108,7 +110,7 @@ public static class ItemModifierDoc
         ILookup<int, ItemModifierStat> stats = ItemModifierSeed.Stats().ToLookup(s => s.ModifierId);
         ILookup<int, ItemModifierWeight> weights = ItemModifierSeed.Weights().ToLookup(w => w.ModifierId);
         ILookup<int, ItemModifier> rows = modifiers.ToLookup(m => m.GroupId);
-        Dictionary<int, ulong> templateOf = ItemModifierSeed.TemplateLinks().ToDictionary(l => l.ModifierId, l => l.TemplateId.Value);
+        ItemTemplateModifier[] links = ItemModifierSeed.TemplateLinks();
         Dictionary<ulong, ItemTemplate> templates = ItemBaseSeed.Equipment().ToDictionary(t => t.Id.Value);
 
         ItemModifierGroup[] affixes = [.. groups.Where(g => g.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix)];
@@ -167,25 +169,70 @@ public static class ItemModifierDoc
         }
 
         text.Append("\n### Implicits\n\n");
-        text.Append("| Template | Base | Kind | Lines |\n");
-        text.Append("| --- | --- | --- | --- |\n");
+        text.Append("Each implicit group gives one stat; a base links the row of its own tier. Its ranges are the source ");
+        text.Append("family's at the same tier, or its own.\n\n");
+        text.Append("| Group | Stat | Source |");
+        foreach (byte tier in tiers)
+            text.Append(CultureInfo.InvariantCulture, $" T{tier} |");
+        text.Append("\n| --- | --- | --- |");
+        foreach (byte _ in tiers)
+            text.Append(" --- |");
+        text.Append('\n');
         foreach (ItemModifierGroup group in groups.Where(g => g.Kind == ItemModifierKind.Implicit))
         {
-            ItemModifier row = rows[group.Id].Single();
-            ItemTemplate template = templates[templateOf[row.Id]];
             text.Append(CultureInfo.InvariantCulture,
-                $"| {template.Id.Value} | {group.Name} | {template.BaseKind} | {Lines(stats[row.Id], withStat: true)} |\n");
+                $"| {group.Id} | {stats[rows[group.Id].First().Id].Single().Stat} | {ItemModifierSeed.ImplicitSource(group.Id) ?? "own"} |");
+            foreach (byte tier in tiers)
+            {
+                ItemModifier? row = rows[group.Id].FirstOrDefault(m => m.Tier == tier);
+                text.Append(row is null ? " - |" : $" {Lines(stats[row.Id], withStat: false)} |");
+            }
+
+            text.Append('\n');
+        }
+
+        // Every base by kind and line (the bases of a kind that link one implicit group), tiers in order.
+        Dictionary<int, ItemModifier> byId = modifiers.ToDictionary(m => m.Id);
+        HashSet<int> implicitGroups = [.. groups.Where(g => g.Kind == ItemModifierKind.Implicit).Select(g => g.Id)];
+        var implicitOf = links
+            .Where(link => implicitGroups.Contains(byId[link.ModifierId].GroupId))
+            .ToDictionary(link => link.TemplateId.Value, link => byId[link.ModifierId]);
+        ILookup<ulong, ItemTemplateBaseStat> baseStats = ItemBaseSeed.BaseStats().ToLookup(s => s.TemplateId.Value);
+        text.Append("\n### Bases\n\n");
+        text.Append("Each kind's lines, by their first tier's id. A base's base stats are the ranges every copy rolls; its ");
+        text.Append("implicit is its line's group at the base's tier.\n\n");
+        text.Append("| Kind | Template | Name | Tier | Level | Base stats | Implicit |\n");
+        text.Append("| --- | --- | --- | --- | --- | --- | --- |\n");
+        foreach (IGrouping<ItemBaseKind, ItemTemplate> kind in templates.Values
+                     .Where(t => t.Rarity == ItemRarity.Common && t.BaseKind is not null)
+                     .GroupBy(t => t.BaseKind!.Value)
+                     .OrderBy(kind => kind.Key))
+        {
+            IEnumerable<ItemTemplate[]> lines = kind
+                .GroupBy(t => implicitOf[t.Id.Value].GroupId)
+                .Select(line => line.OrderBy(t => t.RequiredLevel ?? 1).ThenBy(t => t.Id.Value).ToArray())
+                .OrderBy(line => line[0].Id.Value);
+            foreach (ItemTemplate template in lines.SelectMany(line => line))
+            {
+                ItemModifier @implicit = implicitOf[template.Id.Value];
+                string ranges = string.Join(", ", baseStats[template.Id.Value].OrderBy(s => s.Stat)
+                    .Select(s => $"{s.Stat} {Span(s.Min, s.Max)}")) is { Length: > 0 } listed ? listed : "none";
+                text.Append(CultureInfo.InvariantCulture,
+                    $"| {kind.Key} | {template.Id.Value} | {template.Name} | T{@implicit.Tier} | {template.RequiredLevel} | {ranges} | {Lines(stats[@implicit.Id], withStat: true)} |\n");
+            }
         }
 
         text.Append("\n### Uniques\n\n");
-        text.Append("| Template | Unique | Kind | Lines |\n");
-        text.Append("| --- | --- | --- | --- |\n");
+        text.Append("A unique's copy rolls its base's base stats and implicit, then its own lines.\n\n");
+        text.Append("| Template | Unique | Kind | Base | Lines |\n");
+        text.Append("| --- | --- | --- | --- | --- |\n");
         foreach (ItemModifierGroup group in groups.Where(g => g.Kind == ItemModifierKind.Unique))
         {
             ItemModifier row = rows[group.Id].Single();
-            ItemTemplate template = templates[templateOf[row.Id]];
+            ItemTemplate template = templates[links.Single(l => l.ModifierId == row.Id).TemplateId.Value];
+            ItemTemplate @base = templates[template.BaseTemplateId!.Value];
             text.Append(CultureInfo.InvariantCulture,
-                $"| {template.Id.Value} | {group.Name} | {template.BaseKind} | {Lines(stats[row.Id], withStat: true)} |\n");
+                $"| {template.Id.Value} | {group.Name} | {template.BaseKind} | {@base.Id.Value} {@base.Name} | {Lines(stats[row.Id], withStat: true)} |\n");
         }
 
         return text.ToString();

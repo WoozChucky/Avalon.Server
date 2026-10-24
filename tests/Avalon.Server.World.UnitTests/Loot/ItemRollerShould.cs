@@ -53,6 +53,11 @@ public class ItemRollerShould
         Assert.Equal(expected, rolled.Rarity);
     }
 
+    /// <summary>
+    /// #1179: a named base becomes the best tier of its own line the item level reaches, with that tier's implicit first.
+    /// A named ring or amulet keeps its line (the Copper Band's, the Hearthstone Ring's, the Bone Charm's): only a drop
+    /// draws one.
+    /// </summary>
     [Theory]
     [InlineData(37UL, (ushort)0, 37UL)]   // no level (a quest without a requirement): the roll makes it 1, as a save requires
     [InlineData(37UL, (ushort)1, 37UL)]
@@ -61,20 +66,44 @@ public class ItemRollerShould
     [InlineData(37UL, (ushort)9, 13UL)]
     [InlineData(37UL, (ushort)10, 86UL)]
     [InlineData(13UL, (ushort)2, 37UL)]
-    [InlineData(68UL, (ushort)15, 68UL)]
+    [InlineData(68UL, (ushort)4, 68UL)]
+    [InlineData(68UL, (ushort)5, 104UL)]
+    [InlineData(68UL, (ushort)10, 105UL)]
+    [InlineData(112UL, (ushort)10, 114UL)]
+    [InlineData(69UL, (ushort)10, 131UL)]
     [InlineData(58UL, (ushort)1, 58UL)]
     public void Pick_the_best_base_tier_the_item_level_reaches(ulong named, ushort itemLevel, ulong dropped)
     {
-        int[] implicits = [.. CatalogKeys.All().Where(row => row.Key == $"implicit {dropped}").Select(row => row.ModifierId)];
-
         RolledItem rolled = Roller(EdgeRandom.Low())
             .Roll(Template(named), new DropContext(itemLevel, CreatureRarity.Normal, false), s_items)!;
 
+        // The base's one implicit, the dropped tier's own, comes first; a unique's is its base's.
+        ItemTemplate @base = s_items.BaseOf(Template(dropped))!;
         Assert.Equal(dropped, rolled.TemplateId.Value);
         Assert.Equal(Math.Max((ushort)1, itemLevel), rolled.ItemLevel);
-        Assert.Equal(implicits, rolled.Modifiers.Take(implicits.Length).Select(m => m.ModifierId));
-        Assert.DoesNotContain(rolled.Modifiers.Skip(implicits.Length),
-            m => Catalog.Find(m.ModifierId)!.Group.Kind == ItemModifierKind.Implicit);
+        Assert.Equal((Assert.Single(Catalog.LinkedTo(@base.Id)).Id, (byte)0), (rolled.Modifiers[0].ModifierId, rolled.Modifiers[0].Ordinal));
+        Assert.DoesNotContain(rolled.Modifiers.Skip(1), m => Catalog.Find(m.ModifierId)!.Group.Kind == ItemModifierKind.Implicit);
+    }
+
+    /// <summary>
+    /// #1179: a ring or amulet drop draws its line first, uniformly among its kind's lines (by their first tier's id),
+    /// then rolls that line's best tier the item level reaches, whichever line the loot entry named; a level-1 drop stays
+    /// the line's first tier. The plate chest's single line draws nothing (the strict script of
+    /// <see cref="Make_one_drop_rare_when_a_boss_kill_rolled_none" />).
+    /// </summary>
+    [Theory]
+    [InlineData(68UL, (ushort)5, 3L, 113UL)]   // the Hearthstone line at T8, the Kilnstone Ring
+    [InlineData(69UL, (ushort)10, 6L, 149UL)]  // the Dewdrop line at T7, the Wellspring Pendant
+    [InlineData(68UL, (ushort)1, 0L, 68UL)]
+    public void Draw_a_jewellery_drops_line_then_its_best_tier(ulong named, ushort itemLevel, long lineDraw, ulong dropped)
+    {
+        var random = EdgeRandom.LowAfter(lineDraw);
+        List<RolledDrop> drops = [Drop(named)];
+
+        Roller(random).RollDrops(drops, new DropContext(itemLevel, CreatureRarity.Normal, false), s_items);
+
+        Assert.Equal((0L, (long)s_items.LinesOf(Template(named).BaseKind!.Value).Count), random.FirstIntegerRange!.Value);
+        Assert.Equal(dropped, Assert.Single(drops).Rolled!.TemplateId.Value);
     }
 
     [Fact]
@@ -86,7 +115,8 @@ public class ItemRollerShould
 
         foreach (ItemBaseKind kind in Enum.GetValues<ItemBaseKind>())
         {
-            if (s_items.LineOf(kind) is not [{ } named, ..])
+            // A trinket base is made only as a unique's base, never rolled as a drop.
+            if (kind == ItemBaseKind.Trinket || s_items.LinesOf(kind) is not [[{ } named, ..], ..])
                 continue;
 
             foreach ((ushort itemLevel, int rolls) in new (ushort, int)[] { (15, 2000), (1, 300), (3, 300) })
@@ -119,40 +149,43 @@ public class ItemRollerShould
         RolledItem unique = drops[0].Rolled!, upgraded = drops[2].Rolled!, magic = drops[3].Rolled!;
         Assert.Equal(ItemRarity.Unique, unique.Rarity);
         Assert.Equal(Catalog.LinkedTo(Template(65).Id).Single().Stats.Select(line => line.Min),
-            unique.Modifiers.Single().Values.Select(value => value.Value));
+            unique.Modifiers[1].Values.Select(value => value.Value));
         Assert.Null(drops[1].Rolled);
         Assert.Equal(12UL, drops[1].Gold);
 
         Assert.Equal(ItemRarity.Rare, upgraded.Rarity);
         Assert.Equal((13UL, 1u), (drops[2].ItemTemplateId!.Value, drops[2].Count));
         Assert.Equal(new ItemBaseStats { Armour = Armour(13).Min }, upgraded.BaseStats);
-        Assert.Equal(3, upgraded.Modifiers.Count);
+        Assert.Equal(1 + 3, upgraded.Modifiers.Count);
         Assert.Equal("Thorn Shell", upgraded.RareName);
         Assert.Equal(ItemRarity.Magic, magic.Rarity);
 
         // A kill whose first base already rolled Rare upgrades nothing else. Every draw is scripted, in the contracted
         // order, so an extra, missing or reordered draw fails. Each pick of 0.0 lands on the first eligible row.
-        // The plate chest (13 at item level 5): rarity 0.5 (Rare), its armour, the count 3, three prefixes
-        // (the next prefix group each time), their values, then the two words. The ring, which has no base stats: rarity
-        // 0.0 (Magic), the count 2, a prefix, then a suffix (the prefix room is full), and their values.
+        // The plate chest (13 at item level 5), one line, so no line draw: rarity 0.5 (Rare), its armour, its implicit,
+        // the count 3, three prefixes (the next prefix group each time), their values, then the two words. The ring:
+        // its line (0, the Copper Band's, so the Oakbark Band at T8), rarity 0.0 (Magic), no base stats, its implicit, the
+        // count 2, a prefix, then a suffix (the prefix room is full), and their values.
         ItemModifierStat Line(string key) => Catalog.Find(CatalogKeys.ModifierId(key))!.Stats.Single();
         var script = new ScriptedLootRandom(
             [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [Armour(13).Max, 3, Line("P11 T9").Min, Line("P12 T9").Min, Line("P13 T9").Min, 0, 0,
-             2, Line("P8 Fire T9").Min, Line("S1 T9").Min]);
+            [Armour(13).Max, Line("implicit IncreasedMaximumLife T8").Min, 3, Line("P11 T9").Min, Line("P12 T9").Min,
+             Line("P13 T9").Min, 0, 0,
+             0, Line("implicit Health T8").Min, 2, Line("P8 Fire T9").Min, Line("S1 T9").Min]);
         List<RolledDrop> again = [Drop(37), Drop(68)];
 
         Roller(script).RollDrops(again, context, s_items);
 
         Assert.True(script.Exhausted, "the roll left scripted draws unused");
         Assert.Equal([ItemRarity.Rare, ItemRarity.Magic], again.Select(drop => drop.Rolled!.Rarity));
+        Assert.Equal([13UL, 104UL], again.Select(drop => drop.Rolled!.TemplateId.Value));
         Assert.Equal("Thorn Shell", again[0].Rolled!.RareName);
         Assert.Equal([new ItemBaseStats { Armour = Armour(13).Max }, default],
             again.Select(drop => drop.Rolled!.BaseStats));
         Assert.Equal(
             [
-                (string[])["P11 T9", "P12 T9", "P13 T9"],
-                ["P8 Fire T9", "S1 T9"],
+                (string[])["implicit IncreasedMaximumLife T8", "P11 T9", "P12 T9", "P13 T9"],
+                ["implicit Health T8", "P8 Fire T9", "S1 T9"],
             ],
             again.Select(drop => drop.Rolled!.Modifiers.Select(m => KeyOf(m.ModifierId)).ToArray()));
     }
@@ -173,8 +206,13 @@ public class ItemRollerShould
         Assert.Equal(64UL, Assert.Single(drops).ItemTemplateId!.Value);
     }
 
+    /// <summary>
+    /// #1179: a unique's copy rolls the base it names first, its base stats (none: jewellery and trinkets carry none) and
+    /// its implicit at ordinal 0, then its own modifier at ordinal 1, every value within its line. The Thornheart Signet's
+    /// "adds 1 to 3" names its ends exactly, so the lowest and the highest rolls both give 1 to 3.
+    /// </summary>
     [Fact]
-    public void Roll_each_unique_as_its_one_modifier_within_its_ranges()
+    public void Roll_each_unique_with_its_bases_implicit_and_its_own_lines()
     {
         ItemRoller roller = Roller(new LootRandom(new Random(1179)));
         var context = new DropContext(5, CreatureRarity.Normal, false);
@@ -182,6 +220,7 @@ public class ItemRollerShould
         foreach (ulong id in new ulong[] { 58, 64, 65, 66, 67 })
         {
             ItemModifier unique = Catalog.Find(CatalogKeys.ModifierId($"unique {id}"))!;
+            ItemModifier inherited = Assert.Single(Catalog.LinkedTo(Template(id).BaseTemplateId!));
             for (int i = 0; i < 500; i++)
             {
                 RolledItem rolled = roller.Roll(Template(id), context, s_items)!;
@@ -189,20 +228,22 @@ public class ItemRollerShould
                 Assert.Equal(ItemRarity.Unique, rolled.Rarity);
                 Assert.Equal(id, rolled.TemplateId.Value);
                 Assert.Null(rolled.RareName);
-                ItemInstanceModifier modifier = Assert.Single(rolled.Modifiers);
-                Assert.Equal((unique.Id, (byte)0), (modifier.ModifierId, modifier.Ordinal));
-                AssertValuesWithinLines(unique, modifier);
+                Assert.True(rolled.BaseStats.IsEmpty);
+                Assert.Equal([(inherited.Id, (byte)0), (unique.Id, (byte)1)],
+                    rolled.Modifiers.Select(m => (m.ModifierId, m.Ordinal)));
+                AssertValuesWithinLines(inherited, rolled.Modifiers[0]);
+                AssertValuesWithinLines(unique, rolled.Modifiers[1]);
             }
         }
 
         StatType adds = StatType.AddedPhysicalDamageToAttacks;
-        Assert.Equal((2, 3), Values(Roller(EdgeRandom.Low()), adds));
-        Assert.Equal((2, 5), Values(Roller(EdgeRandom.High()), adds));
+        Assert.Equal((1, 3), Values(Roller(EdgeRandom.Low()), adds));
+        Assert.Equal((1, 3), Values(Roller(EdgeRandom.High()), adds));
 
         static (int, int?) Values(ItemRoller roller, StatType stat)
         {
             RolledItem rolled = roller.Roll(Template(65), new DropContext(5, CreatureRarity.Normal, false), s_items)!;
-            ItemInstanceModifierValue value = rolled.Modifiers.Single().Values.Single(v => v.Stat == stat);
+            ItemInstanceModifierValue value = rolled.Modifiers[1].Values.Single(v => v.Stat == stat);
             return (value.Value, value.Value2);
         }
     }
@@ -297,18 +338,29 @@ public class ItemRollerShould
 
     /// <summary>
     /// Every number at one end of its range: the lowest (or highest) integer, and the listed doubles first, then 0.0 for
-    /// each later double (the first eligible row of a weighted pick).
+    /// each later double (the first eligible row of a weighted pick). <c>integers</c> are handed out first, as they are
+    /// (a jewellery drop's line), and the range the first integer draw asked for is kept.
     /// </summary>
-    private sealed class EdgeRandom(bool high, double[] doubles) : ILootRandom
+    private sealed class EdgeRandom(bool high, double[] doubles, long[] integers) : ILootRandom
     {
         private readonly Queue<double> _doubles = new(doubles);
+        private readonly Queue<long> _integers = new(integers);
 
-        public static EdgeRandom Low(params double[] doubles) => new(false, doubles);
+        public static EdgeRandom Low(params double[] doubles) => new(false, doubles, []);
 
-        public static EdgeRandom High(params double[] doubles) => new(true, doubles);
+        public static EdgeRandom LowAfter(params long[] integers) => new(false, [], integers);
+
+        public static EdgeRandom High(params double[] doubles) => new(true, doubles, []);
+
+        /// <summary>The range of the first NextInt64 request, or null before any.</summary>
+        public (long Min, long MaxExclusive)? FirstIntegerRange { get; private set; }
 
         public double NextDouble() => _doubles.TryDequeue(out double next) ? next : 0.0;
 
-        public long NextInt64(long minInclusive, long maxExclusive) => high ? maxExclusive - 1 : minInclusive;
+        public long NextInt64(long minInclusive, long maxExclusive)
+        {
+            FirstIntegerRange ??= (minInclusive, maxExclusive);
+            return _integers.TryDequeue(out long next) ? next : high ? maxExclusive - 1 : minInclusive;
+        }
     }
 }

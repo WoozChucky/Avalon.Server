@@ -4,12 +4,17 @@ using Avalon.Network.Packets.Combat;
 namespace Avalon.Database.World.Seeding;
 
 /// <summary>
-/// The seeded modifier catalog (#1179), built from the compact tables below: the affix families and their tiers, and the
-/// five uniques. The model's HasData, the catalog exports, the doc page and the tests read it from here. A base's defence,
-/// block and weapon damage are not modifiers but its base stats (ItemBaseSeed); the per-base implicits that held a
-/// base's defence (groups 50-109, rows 224-283) are retired, and their ids are never used again.
+/// The seeded modifier catalog (#1179), built from the compact tables below: the affix families and their tiers, the
+/// implicit groups, and the five uniques. The model's HasData, the catalog exports, the doc page and the tests read it
+/// from here. A base's defence, block and weapon damage are not modifiers but its base stats (ItemBaseSeed); the
+/// per-base implicits that held a base's defence (groups 50-109, rows 224-283) are retired, and their ids are never used
+/// again.
 /// <list type="bullet">
 /// <item>Every element of a family split by element (P8, P9, P10, S5) is its own group; a unique is one group.</item>
+/// <item>An implicit group gives one stat, with rows T9, T8 and T7 whose ranges are the affix family's of that stat at
+/// the same tier (P7's for increased projectile and physical damage, which no family gives; maximum power its own). It
+/// has no weight: every base links the row of its own tier (ItemBaseSeed.Implicits), and the bases of one kind that
+/// link one group are a line.</item>
 /// <item>Ids are literal surrogates written in the tables: every group and every modifier row carries its own id, which
 /// means nothing and never changes, since items store the modifier id. A row added later takes the next id above the
 /// highest ever used, wherever it sits in the tables; a deleted id is never reused (so the rows of the retired fourth
@@ -19,14 +24,12 @@ namespace Avalon.Database.World.Seeding;
 /// other; T6 to T1 are left for later content. The values fit the starting zone's gear budget, and each tier beats the
 /// one below at its best value. An "adds" line names its two ends exactly: "adds 1 to 3" seeds its low end 1-1 and its
 /// high end 3-3, and each hit rolls between them.</item>
-/// <item>A unique's lines are its drafted values ±20 %, rounded half away from zero and at least 1; it has no tier, no
-/// weight and no item-level gate.</item>
+/// <item>A unique's lines are authored ranges sized to the starting zone's gear budget; it has no tier, no weight and no
+/// item-level gate, and each copy rolls its named base's implicit before it.</item>
 /// </list>
 /// </summary>
 public static class ItemModifierSeed
 {
-    private const int UniqueSpreadPercent = 20;
-
     // The tiers every family has, weakest first, with their item levels and weights.
     private static readonly byte[] s_tiers = [9, 8, 7];
     private static readonly ushort[] s_tierLevels = [1, 4, 7];
@@ -78,7 +81,7 @@ public static class ItemModifierSeed
     private static readonly (int, int)[] s_addsLocal = [(1, 1), (1, 2), (2, 3)];
     private static readonly (int, int)[] s_addsGlobal = [(1, 1), (1, 2), (1, 3)];
 
-    /// <summary>The catalog groups, each with its literal id: affix families, then uniques.</summary>
+    /// <summary>The catalog groups, each with its literal id: affix families, implicits and uniques, by id.</summary>
     public static ItemModifierGroup[] Groups() => Build().Groups;
 
     /// <summary>The catalog rows, without navigations (HasData), each with its literal id.</summary>
@@ -90,7 +93,7 @@ public static class ItemModifierSeed
     /// <summary>Every prefix and suffix row's weight on each base kind it rolls on.</summary>
     public static ItemModifierWeight[] Weights() => Build().Weights;
 
-    /// <summary>The template links: each unique's own modifier.</summary>
+    /// <summary>The template links: each base's implicit row at its tier, and each unique's own modifier.</summary>
     public static ItemTemplateModifier[] TemplateLinks() => Build().Links;
 
     /// <summary>
@@ -177,15 +180,58 @@ public static class ItemModifierSeed
         Suffix("S14", 110, [284, 285, 286], [.. s_shoulders, .. s_chests, .. s_legs], s_smallPercent, "of Deep Roots", StatType.IncreasedMaximumLife),
     ];
 
-    // The uniques: group id, modifier id, template, and the drafted lines (a stat and its value, and an "adds" line's
-    // high end).
-    private static readonly (int Group, int Row, ulong Template, (StatType Stat, int Value, int? High)[] Lines)[] s_uniques =
+    /// <summary>
+    /// One implicit group: its id, name (the stat's words) and stat, its rows' ids by tier (T9, T8, T7), and where its
+    /// ranges come from: the affix family giving the same stat, the family <paramref name="Source" /> names (P7's tiers
+    /// for the two increased-damage lines no family gives), or its own <paramref name="Own" /> ranges.
+    /// </summary>
+    private sealed record ImplicitGroup(int Id, string Name, StatType Stat, int[] Rows, string? Source = null,
+        (int Low, int High)[]? Own = null);
+
+    // The implicit groups, one per stat a base's implicit gives (the content table's themes), shared by every base that
+    // gives it: each base links the row of its own tier (ItemBaseSeed.Implicits).
+    private static readonly ImplicitGroup[] s_implicits =
     [
-        (45, 219, 58, [(StatType.Health, 12, null), (StatType.Strength, 3, null), (StatType.Agility, 3, null), (StatType.IncreasedAttackDamage, 8, null)]),
-        (46, 220, 64, [(StatType.Health, 20, null), (StatType.BlightResistance, 12, null), (StatType.IncreasedHealing, 8, null)]),
-        (47, 221, 65, [(StatType.Health, 30, null), (StatType.AddedPhysicalDamageToAttacks, 2, 4), (StatType.CritPct, 4, null)]),
-        (48, 222, 66, [(StatType.Health, 25, null), (StatType.IncreasedDamageOverTime, 15, null), (StatType.BlightResistance, 10, null)]),
-        (49, 223, 67, [(StatType.Health, 20, null), (StatType.AttackSpeed, 6, null), (StatType.CastSpeed, 6, null)]),
+        new(111, "Fire Resistance", StatType.FireResistance, [287, 288, 289]),
+        new(112, "Cold Resistance", StatType.ColdResistance, [290, 291, 292]),
+        new(113, "Lightning Resistance", StatType.LightningResistance, [293, 294, 295]),
+        new(114, "Blight Resistance", StatType.BlightResistance, [296, 297, 298]),
+        new(115, "Increased Armor", StatType.LocalIncreasedArmor, [299, 300, 301]),
+        new(116, "Increased Health", StatType.IncreasedMaximumLife, [302, 303, 304]),
+        new(117, "Physical Damage to Attacks", StatType.AddedPhysicalDamageToAttacks, [305, 306, 307]),
+        new(118, "Strength", StatType.Strength, [308, 309, 310]),
+        new(119, "Stamina", StatType.Stamina, [311, 312, 313]),
+        new(120, "Crit Multiplier", StatType.CritMultiplier, [314, 315, 316]),
+        new(121, "Agility", StatType.Agility, [317, 318, 319]),
+        new(122, "Increased Evasion", StatType.LocalIncreasedEvasion, [320, 321, 322]),
+        new(123, "Increased Projectile Damage", StatType.IncreasedProjectileDamage, [323, 324, 325], Source: "P7"),
+        new(124, "Movement Speed", StatType.MovementSpeed, [326, 327, 328]),
+        new(125, "Cooldown Recovery", StatType.CooldownRecovery, [329, 330, 331]),
+        new(126, "Intellect", StatType.Intellect, [332, 333, 334]),
+        new(127, "Increased Spell Damage", StatType.IncreasedSpellDamage, [335, 336, 337]),
+        new(128, "Cast Speed", StatType.CastSpeed, [338, 339, 340]),
+        new(129, "Power", StatType.Power, [341, 342, 343], Own: [(10, 15), (20, 25), (30, 40)]),
+        new(130, "Health", StatType.Health, [344, 345, 346]),
+        new(131, "Increased Physical Damage", StatType.IncreasedPhysicalDamage, [347, 348, 349], Source: "P7"),
+        new(132, "Lightning Damage to Attacks", StatType.AddedLightningDamageToAttacks, [350, 351, 352]),
+        new(133, "Fire Damage to Spells", StatType.AddedFireDamageToSpells, [353, 354, 355]),
+        new(134, "Cold Damage to Spells", StatType.AddedColdDamageToSpells, [356, 357, 358]),
+        new(135, "Increased Damage Over Time", StatType.IncreasedDamageOverTime, [359, 360, 361]),
+        new(136, "Increased Healing", StatType.IncreasedHealing, [362, 363, 364]),
+    ];
+
+    /// <summary>A unique's line: its range, and an "adds" line's high end (<paramref name="Min2" /> to <paramref name="Max2" />).</summary>
+    private sealed record UniqueLine(StatType Stat, int Min, int Max, int? Min2 = null, int? Max2 = null);
+
+    // The uniques: group id, modifier id, template, and their own lines as authored (the content table's Uniques column,
+    // sized to the starting zone's gear budget). Each copy rolls its named base's implicit before them.
+    private static readonly (int Group, int Row, ulong Template, UniqueLine[] Lines)[] s_uniques =
+    [
+        (45, 219, 58, [new(StatType.Health, 4, 5), new(StatType.Strength, 2, 3), new(StatType.Agility, 2, 3), new(StatType.IncreasedAttackDamage, 6, 10)]),
+        (46, 220, 64, [new(StatType.Health, 4, 5), new(StatType.BlightResistance, 5, 6), new(StatType.IncreasedHealing, 5, 7)]),
+        (47, 221, 65, [new(StatType.Health, 4, 5), new(StatType.AddedPhysicalDamageToAttacks, 1, 1, 3, 3), new(StatType.CritMultiplier, 3, 4)]),
+        (48, 222, 66, [new(StatType.IncreasedMaximumLife, 4, 5), new(StatType.IncreasedDamageOverTime, 2, 3)]),
+        (49, 223, 67, [new(StatType.IncreasedMaximumLife, 4, 5), new(StatType.IncreasedAttackDamage, 5, 7), new(StatType.IncreasedMeleeDamage, 5, 7)]),
     ];
 
     private static Built Build()
@@ -228,23 +274,66 @@ public static class ItemModifierSeed
             }
         }
 
-        foreach ((int group, int row, ulong template, (StatType Stat, int Value, int? High)[] lines) in s_uniques)
+        foreach (ImplicitGroup group in s_implicits)
+        {
+            (bool adds, (int Low, int High)[] tiers) = group.Own is { } own
+                ? (false, own)
+                : (SourceOf(group).Adds, SourceOf(group).Tiers);
+            if (group.Rows.Length != s_tiers.Length || tiers.Length != s_tiers.Length)
+                throw new InvalidOperationException($"Implicit {group.Stat} needs a row id and a range for each of the {s_tiers.Length} tiers.");
+
+            AddGroup(group.Id, ItemModifierKind.Implicit, null, null, group.Name);
+            for (int tier = 0; tier < s_tiers.Length; tier++)
+            {
+                int id = group.Rows[tier];
+                AddModifier(id, group.Id, s_tiers[tier], s_tierLevels[tier]);
+                (int low, int high) = tiers[tier];
+                stats.Add(adds
+                    ? Line(id, 0, group.Stat, (low, low), (high, high))
+                    : Line(id, 0, group.Stat, (low, high), null));
+            }
+        }
+
+        foreach ((int group, int row, ulong template, UniqueLine[] lines) in s_uniques)
         {
             AddGroup(group, ItemModifierKind.Unique, null, null, names[template]);
             AddModifier(row, group, null, 1);
             for (int index = 0; index < lines.Length; index++)
             {
-                (StatType stat, int value, int? high) = lines[index];
-                stats.Add(Line(row, index, stat, ItemBaseSeed.Spread(value, UniqueSpreadPercent),
-                    high is { } h ? ItemBaseSeed.Spread(h, UniqueSpreadPercent) : null));
+                UniqueLine line = lines[index];
+                stats.Add(Line(row, index, line.Stat, (line.Min, line.Max),
+                    line.Min2 is { } min2 && line.Max2 is { } max2 ? (min2, max2) : null));
             }
 
             links.Add(new ItemTemplateModifier { TemplateId = template, Index = 0, ModifierId = row });
         }
 
+        // Every base links the row of its implicit group at its own tier.
+        Dictionary<ulong, ItemTemplate> templates = ItemBaseSeed.Equipment().ToDictionary(t => t.Id.Value);
+        foreach (BaseImplicit implicitLine in ItemBaseSeed.Implicits())
+        {
+            ImplicitGroup group = s_implicits.Single(g => g.Stat == implicitLine.Stat);
+            byte tier = ItemBaseSeed.ImplicitTierOf(templates[implicitLine.TemplateId].RequiredLevel);
+            int row = group.Rows[Array.IndexOf(s_tiers, tier)];
+            links.Add(new ItemTemplateModifier { TemplateId = implicitLine.TemplateId, Index = 0, ModifierId = row });
+        }
+
         return new Built(
-            [.. groups.OrderBy(g => g.Id)], [.. modifiers.OrderBy(m => m.Id)], [.. stats], [.. weights], [.. links]);
+            [.. groups.OrderBy(g => g.Id)], [.. modifiers.OrderBy(m => m.Id)], [.. stats], [.. weights],
+            [.. links.OrderBy(l => l.TemplateId.Value)]);
     }
+
+    /// <summary>
+    /// The code of the affix family an implicit group's ranges come from (#1179): the one it names, or the one giving the
+    /// same stat; null for a group with its own ranges (Power). What the doc page's Implicits table shows.
+    /// </summary>
+    public static string? ImplicitSource(int groupId) =>
+        s_implicits.Single(g => g.Id == groupId) is var group && group.Own is null ? SourceOf(group).Code : null;
+
+    // The family whose tiers an implicit group takes.
+    private static Family SourceOf(ImplicitGroup group) => group.Source is { } code
+        ? s_families.Single(family => family.Code == code)
+        : s_families.Single(family => family.Groups.Any(g => g.Stat == group.Stat));
 
     private static ItemModifierStat Line(int modifierId, int index, StatType stat, (int Min, int Max) range,
         (int Min, int Max)? second) => new()

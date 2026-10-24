@@ -57,7 +57,7 @@ public class ItemModifierRepository(IDbContextFactory<WorldDbContext> contextFac
         ItemModifierCatalog catalog = await ItemModifierQueries.LinkedToAsync(context, template.Id, logger, ct);
 
         IReadOnlyList<ItemModifier> linked = catalog.LinkedTo(template.Id);
-        if (linked.Count == 0 || ItemModifierCatalog.RarityRefusal(template.Rarity, linked) is not { } reason)
+        if (linked.Count == 0 || ItemModifierCatalog.RarityRefusal(template.Rarity, template.BaseKind, linked) is not { } reason)
             return catalog;
 
         logger.LogError("Item template {TemplateId} keeps none of its modifier links: {Reason}", template.Id.Value, reason);

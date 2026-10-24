@@ -1,4 +1,5 @@
 using Avalon.Common;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 
@@ -7,15 +8,22 @@ namespace Avalon.Database.World.Seeding;
 /// <summary>A base stat as drafted (#1179): the value its seeded range (<see cref="ItemBaseSeed.BaseStats" />) spreads.</summary>
 public readonly record struct DraftedBaseStat(ulong TemplateId, ItemBaseStat Stat, int Value);
 
+/// <summary>A base's implicit (#1179): the stat of the implicit group its template links, at the base's own tier.</summary>
+public readonly record struct BaseImplicit(ulong TemplateId, StatType Stat);
+
 /// <summary>
-/// The seeded equipment (#1179): 74 bases and 5 uniques. A base is Common, lists no classes and carries no stat line,
-/// only its requirements, in three tiers at required levels 1, 5 and 10 (the attribute asks none, 30 and 45). Plate asks
-/// Strength, leather Agility, cloth Intellect. A base's defence (an armour piece's armour, evasion or ward, a shield's
-/// armour and block, a caster off-hand's ward) and a weapon's damage and attack time are its base stats, below, which
-/// every copy rolls; a weapon's template names the type of its damage (its damage and attack-time columns are no longer
-/// read). A unique's stats are its unique modifier, rolled per copy (ItemModifierSeed). Numbers are rounded half away
-/// from zero and at least 1; every base sells for a quarter of its price. The model's HasData reads these; consumables
-/// and quest items stay in WorldDbContext, with no base kind.
+/// The seeded equipment (#1179): 122 bases and 5 uniques. A base is Common, lists no classes and carries no stat line,
+/// only its requirements, in three tiers at required levels 1, 5 and 10 (armour and weapons ask their attribute none, 30
+/// and 45; jewellery none). Plate asks Strength, leather Agility, cloth Intellect. Rings (nine lines) and amulets (seven)
+/// come in lines of three tiers, one line per implicit (ids 104-149); the two trinket bases (150, 151), one tier each,
+/// exist only for the trinket uniques to name, and nothing hands one out. A base's defence (an armour piece's armour,
+/// evasion or ward, a shield's armour and block, a caster off-hand's ward) and a weapon's damage and attack time are its
+/// base stats, below, which every copy rolls; a weapon's template names the type of its damage (its damage and
+/// attack-time columns are no longer read). Every base also carries one themed implicit (<see cref="Implicits" />),
+/// matched to its tier. A unique names its base (<see cref="ItemTemplate.BaseTemplateId" />), whose base stats and
+/// implicit every copy rolls before the unique's own modifier (ItemModifierSeed). Numbers are rounded half away from
+/// zero and at least 1; every base sells for a quarter of its price. The model's HasData reads these; consumables and
+/// quest items stay in WorldDbContext, with no base kind.
 /// <para>
 /// Every base authors a range for each base stat its kind carries (ItemBaseStatRules), which every copy rolls:
 /// <see cref="Drafted" /> keeps each drafted value, and <see cref="BaseStats" /> spreads it by 20 %, or by 5 % for an
@@ -82,18 +90,107 @@ public static class ItemBaseSeed
         OffHand(74, "Thornwood Focus", ItemBaseKind.CasterOffHand, ItemSubClass.CasterOffHand, 2, Attribute.Intellect),
         OffHand(75, "Gloamwood Orb", ItemBaseKind.CasterOffHand, ItemSubClass.CasterOffHand, 3, Attribute.Intellect),
 
-        // Jewellery: one base each, level 1, no implicit.
-        Jewellery(68, "Copper Band", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger),
-        Jewellery(69, "Bone Charm", ItemBaseKind.Amulet, ItemSubClass.Amulet, ItemSlotType.Neck),
+        // Jewellery: rings and amulets in lines of three tiers, each line its own implicit (s_rings, s_amulets).
+        .. s_rings.SelectMany(line => JewelleryLine(ItemBaseKind.Ring, line)),
+        .. s_amulets.SelectMany(line => JewelleryLine(ItemBaseKind.Amulet, line)),
 
-        // The uniques: hand-made, a required level and prices only. Their stats are their unique modifiers, rolled per
-        // copy, which the modifier catalog brings; until then nothing drops, sells or rewards them.
-        Unique(58, "Alpha's Fang Pendant", ItemBaseKind.Amulet, ItemSubClass.Amulet, ItemSlotType.Neck, 3, 50),
-        Unique(64, "Heartwood Band", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger, 4, 100),
-        Unique(65, "Thornheart Signet", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger, 5, 200),
-        Unique(66, "Bramble Mother's Seed", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 5, 200),
-        Unique(67, "Tuskroot Idol", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 4, 100),
+        // The trinket bases, which only uniques name: one tier each, never dropped, sold or given out.
+        .. s_trinkets.Select(trinket => Base(trinket.Id, trinket.Name, ItemBaseKind.Trinket, ItemClass.Armor,
+            ItemSubClass.Trinket, ItemSlotType.Trinket, tier: 1, buyPrice: 200)),
+
+        // The uniques: hand-made, a required level, prices and the base each is made on (one of its own kind, at or
+        // under its level), whose base stats and implicit every copy rolls. Their own stats are their unique modifiers,
+        // rolled per copy (ItemModifierSeed).
+        Unique(58, "Alpha's Fang Pendant", ItemBaseKind.Amulet, ItemSubClass.Amulet, ItemSlotType.Neck, 3, 50, 144),
+        Unique(64, "Heartwood Band", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger, 4, 100, 112),
+        Unique(65, "Thornheart Signet", ItemBaseKind.Ring, ItemSubClass.Ring, ItemSlotType.Finger, 5, 200, 125),
+        Unique(66, "Bramble Mother's Seed", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 5, 200, 150),
+        Unique(67, "Tuskroot Idol", ItemBaseKind.Trinket, ItemSubClass.Trinket, ItemSlotType.Trinket, 4, 100, 151),
     ];
+
+    /// <summary>
+    /// Every base's implicit stat (#1179), by template id: the content table's themed line, one per base. The tier is the
+    /// base's own (required level 1, 5 and 10 are T9, T8 and T7; a trinket base, at level 1, T9), and the modifier
+    /// catalog links the row of that stat's implicit group at that tier (ItemModifierSeed.TemplateLinks).
+    /// </summary>
+    public static BaseImplicit[] Implicits() =>
+    [
+        .. Equipment()
+            .Where(template => template.Rarity == ItemRarity.Common && template.BaseKind is not null)
+            .OrderBy(template => template.Id.Value)
+            .Select(template => new BaseImplicit(template.Id.Value, ImplicitOf(template.Id.Value, template.BaseKind!.Value))),
+    ];
+
+    /// <summary>The implicit tier of a base at <paramref name="level" />: 9, 8 or 7 at required level 1, 5 or 10.</summary>
+    public static byte ImplicitTierOf(ushort? level) => (byte)(10 - TierOf(level));
+
+    // The ring lines, T9 to T7: life, two attack lines, two spell lines and the four resistances (the content table's
+    // order, which the new ids 104-129 follow; the Copper Band, 68, is the life line's first tier).
+    private static readonly (StatType Stat, ulong[] Ids, string[] Names)[] s_rings =
+    [
+        (StatType.Health, [68, 104, 105], ["Copper Band", "Oakbark Band", "Elmroot Band"]),
+        (StatType.AddedPhysicalDamageToAttacks, [106, 107, 108], ["Thornwire Ring", "Briarsteel Ring", "Bramblefang Ring"]),
+        (StatType.AddedFireDamageToSpells, [109, 110, 111], ["Emberknot Ring", "Cinderknot Ring", "Ashcoil Ring"]),
+        (StatType.FireResistance, [112, 113, 114], ["Hearthstone Ring", "Kilnstone Ring", "Forgeheart Ring"]),
+        (StatType.ColdResistance, [115, 116, 117], ["Rimeglass Ring", "Frostglass Ring", "Winterglass Ring"]),
+        (StatType.LightningResistance, [118, 119, 120], ["Lodestone Ring", "Stormlode Ring", "Thunderlode Ring"]),
+        (StatType.BlightResistance, [121, 122, 123], ["Willowbark Ring", "Fenwillow Ring", "Elderwillow Ring"]),
+        (StatType.AddedLightningDamageToAttacks, [124, 125, 126], ["Sparkthorn Ring", "Stormthorn Ring", "Thunderthorn Ring"]),
+        (StatType.AddedColdDamageToSpells, [127, 128, 129], ["Frostbud Ring", "Rimebud Ring", "Winterbud Ring"]),
+    ];
+
+    // The amulet lines, T9 to T7: one per attribute, then damage over time, healing, crit multiplier and cooldown
+    // recovery (new ids 130-149; the Bone Charm, 69, is the Strength line's first tier).
+    private static readonly (StatType Stat, ulong[] Ids, string[] Names)[] s_amulets =
+    [
+        (StatType.Strength, [69, 130, 131], ["Bone Charm", "Tusk Charm", "Horn Charm"]),
+        (StatType.Agility, [132, 133, 134], ["Antler Charm", "Hartsong Charm", "Stagcrown Charm"]),
+        (StatType.Intellect, [135, 136, 137], ["Hollowfeather Charm", "Owlquill Charm", "Nightplume Charm"]),
+        (StatType.IncreasedDamageOverTime, [138, 139, 140], ["Gloam Pendant", "Mirk Pendant", "Nightmire Pendant"]),
+        (StatType.IncreasedHealing, [141, 142, 143], ["Mossheart Pendant", "Fernheart Pendant", "Elderheart Pendant"]),
+        (StatType.CritMultiplier, [144, 145, 146], ["Foxtooth Pendant", "Wolfstooth Pendant", "Bearclaw Pendant"]),
+        (StatType.CooldownRecovery, [147, 148, 149], ["Dewdrop Pendant", "Rainbead Pendant", "Wellspring Pendant"]),
+    ];
+
+    // The two trinket bases, at required level 1: the bases the trinket uniques are made on.
+    private static readonly (ulong Id, string Name, StatType Stat)[] s_trinkets =
+    [
+        (150, "Withered Seed", StatType.IncreasedHealing),
+        (151, "Carved Idol", StatType.CooldownRecovery),
+    ];
+
+    // A base's implicit stat: an armour piece's by its family and slot, a weapon's and an off-hand's by kind, a ring's or
+    // an amulet's by its line, a trinket base's its own.
+    private static StatType ImplicitOf(ulong id, ItemBaseKind kind) => kind switch
+    {
+        ItemBaseKind.PlateHead => StatType.FireResistance,
+        ItemBaseKind.PlateShoulders => StatType.LocalIncreasedArmor,
+        ItemBaseKind.PlateChest => StatType.IncreasedMaximumLife,
+        ItemBaseKind.PlateHands => StatType.AddedPhysicalDamageToAttacks,
+        ItemBaseKind.PlateLegs => StatType.Strength,
+        ItemBaseKind.PlateFeet => StatType.Stamina,
+        ItemBaseKind.LeatherHead => StatType.CritMultiplier,
+        ItemBaseKind.LeatherShoulders => StatType.Agility,
+        ItemBaseKind.LeatherChest => StatType.LocalIncreasedEvasion,
+        ItemBaseKind.LeatherHands => StatType.IncreasedProjectileDamage,
+        ItemBaseKind.LeatherLegs => StatType.LightningResistance,
+        ItemBaseKind.LeatherFeet => StatType.MovementSpeed,
+        ItemBaseKind.ClothHead => StatType.CooldownRecovery,
+        ItemBaseKind.ClothShoulders => StatType.Intellect,
+        ItemBaseKind.ClothChest => StatType.IncreasedSpellDamage,
+        ItemBaseKind.ClothHands => StatType.CastSpeed,
+        ItemBaseKind.ClothLegs => StatType.Power,
+        ItemBaseKind.ClothFeet => StatType.ColdResistance,
+        ItemBaseKind.Sword => StatType.CritMultiplier,
+        ItemBaseKind.Mace => StatType.IncreasedPhysicalDamage,
+        ItemBaseKind.Staff => StatType.IncreasedSpellDamage,
+        ItemBaseKind.Bow => StatType.IncreasedProjectileDamage,
+        ItemBaseKind.Shield => StatType.Health,
+        ItemBaseKind.CasterOffHand => StatType.IncreasedSpellDamage,
+        ItemBaseKind.Ring => s_rings.Single(line => line.Ids.Contains(id)).Stat,
+        ItemBaseKind.Amulet => s_amulets.Single(line => line.Ids.Contains(id)).Stat,
+        _ => s_trinkets.Single(trinket => trinket.Id == id).Stat,
+    };
 
     /// <summary>Every base's drafted base stats, by template id and then stat.</summary>
     public static DraftedBaseStat[] Drafted() =>
@@ -265,8 +362,18 @@ public static class ItemBaseSeed
         ulong id, string name, ItemBaseKind kind, ItemSubClass subClass, int tier, Attribute attribute) =>
         Base(id, name, kind, ItemClass.Armor, subClass, ItemSlotType.OffHand, tier, Pick(tier, 120, 240, 480), attribute);
 
-    private static ItemTemplate Jewellery(ulong id, string name, ItemBaseKind kind, ItemSubClass subClass, ItemSlotType slot) =>
-        Base(id, name, kind, ItemClass.Armor, subClass, slot, tier: 1, buyPrice: 200);
+    // A ring or amulet line's three tiers, which ask no attribute and cost 200, 400 and 800.
+    private static IEnumerable<ItemTemplate> JewelleryLine(ItemBaseKind kind, (StatType Stat, ulong[] Ids, string[] Names) line)
+    {
+        (ItemSubClass subClass, ItemSlotType slot) = kind == ItemBaseKind.Ring
+            ? (ItemSubClass.Ring, ItemSlotType.Finger)
+            : (ItemSubClass.Amulet, ItemSlotType.Neck);
+        for (int tier = 1; tier <= line.Ids.Length; tier++)
+        {
+            yield return Base(line.Ids[tier - 1], line.Names[tier - 1], kind, ItemClass.Armor, subClass, slot, tier,
+                Pick(tier, 200, 400, 800));
+        }
+    }
 
     private static ItemTemplate Base(
         ulong id, string name, ItemBaseKind kind, ItemClass itemClass, ItemSubClass subClass, ItemSlotType slot, int tier,
@@ -295,8 +402,13 @@ public static class ItemBaseSeed
     }
 
     private static ItemTemplate Unique(
-        ulong id, string name, ItemBaseKind kind, ItemSubClass subClass, ItemSlotType slot, ushort level, uint sellPrice) =>
-        Equipment(id, name, kind, ItemClass.Armor, subClass, slot, ItemRarity.Unique, 4 * sellPrice, level);
+        ulong id, string name, ItemBaseKind kind, ItemSubClass subClass, ItemSlotType slot, ushort level, uint sellPrice,
+        ulong baseTemplateId)
+    {
+        ItemTemplate unique = Equipment(id, name, kind, ItemClass.Armor, subClass, slot, ItemRarity.Unique, 4 * sellPrice, level);
+        unique.BaseTemplateId = new ItemTemplateId(baseTemplateId);
+        return unique;
+    }
 
     private static ItemTemplate Equipment(
         ulong id, string name, ItemBaseKind kind, ItemClass itemClass, ItemSubClass subClass, ItemSlotType slot,

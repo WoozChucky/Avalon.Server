@@ -96,5 +96,9 @@ public class ItemSchemaShould
 
         JsonElement id = fields.EnumerateArray().Single(f => f.GetProperty("name").GetString() == "Id");
         Assert.False(id.GetProperty("nullable").GetBoolean());
+
+        // A template id declared ItemTemplateId? (the base a unique names, #1179) is optional; the Id is not.
+        JsonElement baseTemplate = fields.EnumerateArray().Single(f => f.GetProperty("name").GetString() == "BaseTemplateId");
+        Assert.Equal(("uint64", true), (baseTemplate.GetProperty("type").GetString(), baseTemplate.GetProperty("nullable").GetBoolean()));
     }
 }

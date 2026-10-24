@@ -6107,6 +6107,552 @@ namespace Avalon.Database.World.Migrations
                             GroupId = 110,
                             RequiredItemLevel = (short)7,
                             Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 287,
+                            GroupId = 111,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 288,
+                            GroupId = 111,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 289,
+                            GroupId = 111,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 290,
+                            GroupId = 112,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 291,
+                            GroupId = 112,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 292,
+                            GroupId = 112,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 293,
+                            GroupId = 113,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 294,
+                            GroupId = 113,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 295,
+                            GroupId = 113,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 296,
+                            GroupId = 114,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 297,
+                            GroupId = 114,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 298,
+                            GroupId = 114,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 299,
+                            GroupId = 115,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 300,
+                            GroupId = 115,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 301,
+                            GroupId = 115,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 302,
+                            GroupId = 116,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 303,
+                            GroupId = 116,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 304,
+                            GroupId = 116,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 305,
+                            GroupId = 117,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 306,
+                            GroupId = 117,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 307,
+                            GroupId = 117,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 308,
+                            GroupId = 118,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 309,
+                            GroupId = 118,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 310,
+                            GroupId = 118,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 311,
+                            GroupId = 119,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 312,
+                            GroupId = 119,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 313,
+                            GroupId = 119,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 314,
+                            GroupId = 120,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 315,
+                            GroupId = 120,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 316,
+                            GroupId = 120,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 317,
+                            GroupId = 121,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 318,
+                            GroupId = 121,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 319,
+                            GroupId = 121,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 320,
+                            GroupId = 122,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 321,
+                            GroupId = 122,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 322,
+                            GroupId = 122,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 323,
+                            GroupId = 123,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 324,
+                            GroupId = 123,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 325,
+                            GroupId = 123,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 326,
+                            GroupId = 124,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 327,
+                            GroupId = 124,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 328,
+                            GroupId = 124,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 329,
+                            GroupId = 125,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 330,
+                            GroupId = 125,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 331,
+                            GroupId = 125,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 332,
+                            GroupId = 126,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 333,
+                            GroupId = 126,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 334,
+                            GroupId = 126,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 335,
+                            GroupId = 127,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 336,
+                            GroupId = 127,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 337,
+                            GroupId = 127,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 338,
+                            GroupId = 128,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 339,
+                            GroupId = 128,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 340,
+                            GroupId = 128,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 341,
+                            GroupId = 129,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 342,
+                            GroupId = 129,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 343,
+                            GroupId = 129,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 344,
+                            GroupId = 130,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 345,
+                            GroupId = 130,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 346,
+                            GroupId = 130,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 347,
+                            GroupId = 131,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 348,
+                            GroupId = 131,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 349,
+                            GroupId = 131,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 350,
+                            GroupId = 132,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 351,
+                            GroupId = 132,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 352,
+                            GroupId = 132,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 353,
+                            GroupId = 133,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 354,
+                            GroupId = 133,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 355,
+                            GroupId = 133,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 356,
+                            GroupId = 134,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 357,
+                            GroupId = 134,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 358,
+                            GroupId = 134,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 359,
+                            GroupId = 135,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 360,
+                            GroupId = 135,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 361,
+                            GroupId = 135,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 362,
+                            GroupId = 136,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 363,
+                            GroupId = 136,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 364,
+                            GroupId = 136,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         });
                 });
 
@@ -6508,6 +7054,162 @@ namespace Avalon.Database.World.Migrations
                             Code = "S14",
                             Kind = (byte)2,
                             Name = "of Deep Roots"
+                        },
+                        new
+                        {
+                            Id = 111,
+                            Kind = (byte)4,
+                            Name = "Fire Resistance"
+                        },
+                        new
+                        {
+                            Id = 112,
+                            Kind = (byte)4,
+                            Name = "Cold Resistance"
+                        },
+                        new
+                        {
+                            Id = 113,
+                            Kind = (byte)4,
+                            Name = "Lightning Resistance"
+                        },
+                        new
+                        {
+                            Id = 114,
+                            Kind = (byte)4,
+                            Name = "Blight Resistance"
+                        },
+                        new
+                        {
+                            Id = 115,
+                            Kind = (byte)4,
+                            Name = "Increased Armor"
+                        },
+                        new
+                        {
+                            Id = 116,
+                            Kind = (byte)4,
+                            Name = "Increased Health"
+                        },
+                        new
+                        {
+                            Id = 117,
+                            Kind = (byte)4,
+                            Name = "Physical Damage to Attacks"
+                        },
+                        new
+                        {
+                            Id = 118,
+                            Kind = (byte)4,
+                            Name = "Strength"
+                        },
+                        new
+                        {
+                            Id = 119,
+                            Kind = (byte)4,
+                            Name = "Stamina"
+                        },
+                        new
+                        {
+                            Id = 120,
+                            Kind = (byte)4,
+                            Name = "Crit Multiplier"
+                        },
+                        new
+                        {
+                            Id = 121,
+                            Kind = (byte)4,
+                            Name = "Agility"
+                        },
+                        new
+                        {
+                            Id = 122,
+                            Kind = (byte)4,
+                            Name = "Increased Evasion"
+                        },
+                        new
+                        {
+                            Id = 123,
+                            Kind = (byte)4,
+                            Name = "Increased Projectile Damage"
+                        },
+                        new
+                        {
+                            Id = 124,
+                            Kind = (byte)4,
+                            Name = "Movement Speed"
+                        },
+                        new
+                        {
+                            Id = 125,
+                            Kind = (byte)4,
+                            Name = "Cooldown Recovery"
+                        },
+                        new
+                        {
+                            Id = 126,
+                            Kind = (byte)4,
+                            Name = "Intellect"
+                        },
+                        new
+                        {
+                            Id = 127,
+                            Kind = (byte)4,
+                            Name = "Increased Spell Damage"
+                        },
+                        new
+                        {
+                            Id = 128,
+                            Kind = (byte)4,
+                            Name = "Cast Speed"
+                        },
+                        new
+                        {
+                            Id = 129,
+                            Kind = (byte)4,
+                            Name = "Power"
+                        },
+                        new
+                        {
+                            Id = 130,
+                            Kind = (byte)4,
+                            Name = "Health"
+                        },
+                        new
+                        {
+                            Id = 131,
+                            Kind = (byte)4,
+                            Name = "Increased Physical Damage"
+                        },
+                        new
+                        {
+                            Id = 132,
+                            Kind = (byte)4,
+                            Name = "Lightning Damage to Attacks"
+                        },
+                        new
+                        {
+                            Id = 133,
+                            Kind = (byte)4,
+                            Name = "Fire Damage to Spells"
+                        },
+                        new
+                        {
+                            Id = 134,
+                            Kind = (byte)4,
+                            Name = "Cold Damage to Spells"
+                        },
+                        new
+                        {
+                            Id = 135,
+                            Kind = (byte)4,
+                            Name = "Increased Damage Over Time"
+                        },
+                        new
+                        {
+                            Id = 136,
+                            Kind = (byte)4,
+                            Name = "Increased Healing"
                         });
                 });
 
@@ -7702,17 +8404,665 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            ModifierId = 287,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)15
+                        },
+                        new
+                        {
+                            ModifierId = 288,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)15
+                        },
+                        new
+                        {
+                            ModifierId = 289,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)15
+                        },
+                        new
+                        {
+                            ModifierId = 290,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)16
+                        },
+                        new
+                        {
+                            ModifierId = 291,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)16
+                        },
+                        new
+                        {
+                            ModifierId = 292,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)16
+                        },
+                        new
+                        {
+                            ModifierId = 293,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)17
+                        },
+                        new
+                        {
+                            ModifierId = 294,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)17
+                        },
+                        new
+                        {
+                            ModifierId = 295,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)17
+                        },
+                        new
+                        {
+                            ModifierId = 296,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 297,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 298,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 299,
+                            Index = (byte)0,
+                            Max = 8,
+                            Min = 5,
+                            Stat = (short)41
+                        },
+                        new
+                        {
+                            ModifierId = 300,
+                            Index = (byte)0,
+                            Max = 12,
+                            Min = 9,
+                            Stat = (short)41
+                        },
+                        new
+                        {
+                            ModifierId = 301,
+                            Index = (byte)0,
+                            Max = 16,
+                            Min = 13,
+                            Stat = (short)41
+                        },
+                        new
+                        {
+                            ModifierId = 302,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)53
+                        },
+                        new
+                        {
+                            ModifierId = 303,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)53
+                        },
+                        new
+                        {
+                            ModifierId = 304,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)53
+                        },
+                        new
+                        {
+                            ModifierId = 305,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 1,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)45
+                        },
+                        new
+                        {
+                            ModifierId = 306,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)45
+                        },
+                        new
+                        {
+                            ModifierId = 307,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 3,
+                            Stat = (short)45
+                        },
+                        new
+                        {
+                            ModifierId = 308,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)1
+                        },
+                        new
+                        {
+                            ModifierId = 309,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)1
+                        },
+                        new
+                        {
+                            ModifierId = 310,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)1
+                        },
+                        new
+                        {
+                            ModifierId = 311,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)0
+                        },
+                        new
+                        {
+                            ModifierId = 312,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)0
+                        },
+                        new
+                        {
+                            ModifierId = 313,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)0
+                        },
+                        new
+                        {
+                            ModifierId = 314,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)32
+                        },
+                        new
+                        {
+                            ModifierId = 315,
+                            Index = (byte)0,
+                            Max = 5,
+                            Min = 4,
+                            Stat = (short)32
+                        },
+                        new
+                        {
+                            ModifierId = 316,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 5,
+                            Stat = (short)32
+                        },
+                        new
+                        {
+                            ModifierId = 317,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)2
+                        },
+                        new
+                        {
+                            ModifierId = 318,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)2
+                        },
+                        new
+                        {
+                            ModifierId = 319,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)2
+                        },
+                        new
+                        {
+                            ModifierId = 320,
+                            Index = (byte)0,
+                            Max = 8,
+                            Min = 5,
+                            Stat = (short)42
+                        },
+                        new
+                        {
+                            ModifierId = 321,
+                            Index = (byte)0,
+                            Max = 12,
+                            Min = 9,
+                            Stat = (short)42
+                        },
+                        new
+                        {
+                            ModifierId = 322,
+                            Index = (byte)0,
+                            Max = 16,
+                            Min = 13,
+                            Stat = (short)42
+                        },
+                        new
+                        {
+                            ModifierId = 323,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)28
+                        },
+                        new
+                        {
+                            ModifierId = 324,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)28
+                        },
+                        new
+                        {
+                            ModifierId = 325,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 5,
+                            Stat = (short)28
+                        },
+                        new
+                        {
+                            ModifierId = 326,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)13
+                        },
+                        new
+                        {
+                            ModifierId = 327,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)13
+                        },
+                        new
+                        {
+                            ModifierId = 328,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 4,
+                            Stat = (short)13
+                        },
+                        new
+                        {
+                            ModifierId = 329,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)34
+                        },
+                        new
+                        {
+                            ModifierId = 330,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)34
+                        },
+                        new
+                        {
+                            ModifierId = 331,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)34
+                        },
+                        new
+                        {
+                            ModifierId = 332,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)3
+                        },
+                        new
+                        {
+                            ModifierId = 333,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)3
+                        },
+                        new
+                        {
+                            ModifierId = 334,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)3
+                        },
+                        new
+                        {
+                            ModifierId = 335,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 336,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 337,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 5,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 338,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)33
+                        },
+                        new
+                        {
+                            ModifierId = 339,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)33
+                        },
+                        new
+                        {
+                            ModifierId = 340,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)33
+                        },
+                        new
+                        {
+                            ModifierId = 341,
+                            Index = (byte)0,
+                            Max = 15,
+                            Min = 10,
+                            Stat = (short)11
+                        },
+                        new
+                        {
+                            ModifierId = 342,
+                            Index = (byte)0,
+                            Max = 25,
+                            Min = 20,
+                            Stat = (short)11
+                        },
+                        new
+                        {
+                            ModifierId = 343,
+                            Index = (byte)0,
+                            Max = 40,
+                            Min = 30,
+                            Stat = (short)11
+                        },
+                        new
+                        {
+                            ModifierId = 344,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 345,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 346,
+                            Index = (byte)0,
+                            Max = 5,
+                            Min = 5,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 347,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)20
+                        },
+                        new
+                        {
+                            ModifierId = 348,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)20
+                        },
+                        new
+                        {
+                            ModifierId = 349,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 5,
+                            Stat = (short)20
+                        },
+                        new
+                        {
+                            ModifierId = 350,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 1,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)48
+                        },
+                        new
+                        {
+                            ModifierId = 351,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)48
+                        },
+                        new
+                        {
+                            ModifierId = 352,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 3,
+                            Stat = (short)48
+                        },
+                        new
+                        {
+                            ModifierId = 353,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 1,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)50
+                        },
+                        new
+                        {
+                            ModifierId = 354,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)50
+                        },
+                        new
+                        {
+                            ModifierId = 355,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 3,
+                            Stat = (short)50
+                        },
+                        new
+                        {
+                            ModifierId = 356,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 1,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)51
+                        },
+                        new
+                        {
+                            ModifierId = 357,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)51
+                        },
+                        new
+                        {
+                            ModifierId = 358,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 3,
+                            Stat = (short)51
+                        },
+                        new
+                        {
+                            ModifierId = 359,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)30
+                        },
+                        new
+                        {
+                            ModifierId = 360,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)30
+                        },
+                        new
+                        {
+                            ModifierId = 361,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)30
+                        },
+                        new
+                        {
+                            ModifierId = 362,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)31
+                        },
+                        new
+                        {
+                            ModifierId = 363,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)31
+                        },
+                        new
+                        {
+                            ModifierId = 364,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 5,
+                            Stat = (short)31
+                        },
+                        new
+                        {
                             ModifierId = 219,
                             Index = (byte)0,
-                            Max = 14,
-                            Min = 10,
+                            Max = 5,
+                            Min = 4,
                             Stat = (short)10
                         },
                         new
                         {
                             ModifierId = 219,
                             Index = (byte)1,
-                            Max = 4,
+                            Max = 3,
                             Min = 2,
                             Stat = (short)1
                         },
@@ -7720,7 +9070,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 219,
                             Index = (byte)2,
-                            Max = 4,
+                            Max = 3,
                             Min = 2,
                             Stat = (short)2
                         },
@@ -7736,41 +9086,41 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 220,
                             Index = (byte)0,
-                            Max = 24,
-                            Min = 16,
+                            Max = 5,
+                            Min = 4,
                             Stat = (short)10
                         },
                         new
                         {
                             ModifierId = 220,
                             Index = (byte)1,
-                            Max = 14,
-                            Min = 10,
+                            Max = 6,
+                            Min = 5,
                             Stat = (short)18
                         },
                         new
                         {
                             ModifierId = 220,
                             Index = (byte)2,
-                            Max = 10,
-                            Min = 6,
+                            Max = 7,
+                            Min = 5,
                             Stat = (short)31
                         },
                         new
                         {
                             ModifierId = 221,
                             Index = (byte)0,
-                            Max = 36,
-                            Min = 24,
+                            Max = 5,
+                            Min = 4,
                             Stat = (short)10
                         },
                         new
                         {
                             ModifierId = 221,
                             Index = (byte)1,
-                            Max = 2,
-                            Max2 = 5,
-                            Min = 2,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
                             Min2 = 3,
                             Stat = (short)45
                         },
@@ -7778,41 +9128,33 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 221,
                             Index = (byte)2,
-                            Max = 5,
+                            Max = 4,
                             Min = 3,
-                            Stat = (short)7
+                            Stat = (short)32
                         },
                         new
                         {
                             ModifierId = 222,
                             Index = (byte)0,
-                            Max = 30,
-                            Min = 20,
-                            Stat = (short)10
+                            Max = 5,
+                            Min = 4,
+                            Stat = (short)53
                         },
                         new
                         {
                             ModifierId = 222,
                             Index = (byte)1,
-                            Max = 18,
-                            Min = 12,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)30
                         },
                         new
                         {
-                            ModifierId = 222,
-                            Index = (byte)2,
-                            Max = 12,
-                            Min = 8,
-                            Stat = (short)18
-                        },
-                        new
-                        {
                             ModifierId = 223,
                             Index = (byte)0,
-                            Max = 24,
-                            Min = 16,
-                            Stat = (short)10
+                            Max = 5,
+                            Min = 4,
+                            Stat = (short)53
                         },
                         new
                         {
@@ -7820,7 +9162,7 @@ namespace Avalon.Database.World.Migrations
                             Index = (byte)1,
                             Max = 7,
                             Min = 5,
-                            Stat = (short)12
+                            Stat = (short)25
                         },
                         new
                         {
@@ -7828,7 +9170,7 @@ namespace Avalon.Database.World.Migrations
                             Index = (byte)2,
                             Max = 7,
                             Min = 5,
-                            Stat = (short)33
+                            Stat = (short)29
                         });
                 });
 
@@ -11866,6 +13208,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<byte?>("BaseKind")
                         .HasColumnType("smallint");
 
+                    b.Property<decimal?>("BaseTemplateId")
+                        .HasColumnType("numeric(20,0)");
+
                     b.Property<long>("BuyPrice")
                         .HasColumnType("bigint");
 
@@ -12007,11 +13352,15 @@ namespace Avalon.Database.World.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BaseTemplateId");
+
                     b.ToTable("ItemTemplates", null, t =>
                         {
                             t.HasCheckConstraint("CK_ItemTemplates_AttackTimeMs", "\"AttackTimeMs\" IS NULL OR \"AttackTimeMs\" > 0");
 
                             t.HasCheckConstraint("CK_ItemTemplates_BaseKind", "\"BaseKind\" IS NULL OR \"BaseKind\" BETWEEN 1 AND 27");
+
+                            t.HasCheckConstraint("CK_ItemTemplates_BaseTemplate", "(\"Rarity\" = 3) = (\"BaseTemplateId\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_ItemTemplates_Rarity", "\"Rarity\" IN (0, 3)");
                         });
@@ -13532,6 +14881,474 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            Id = 104m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 104L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Oakbark Band",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 105m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 105L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Elmroot Band",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 106m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 106L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Thornwire Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 107m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 107L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Briarsteel Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 108m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 108L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Bramblefang Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 109m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 109L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Emberknot Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 110m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 110L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Cinderknot Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 111m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 111L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Ashcoil Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 112m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 112L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Hearthstone Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 113m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 113L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Kilnstone Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 114m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 114L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Forgeheart Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 115m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 115L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Rimeglass Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 116m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 116L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Frostglass Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 117m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 117L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Winterglass Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 118m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 118L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Lodestone Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 119m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 119L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Stormlode Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 120m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 120L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Thunderlode Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 121m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 121L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Willowbark Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 122m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 122L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Fenwillow Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 123m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 123L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Elderwillow Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 124m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 124L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Sparkthorn Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 125m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 125L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Stormthorn Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 126m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 126L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Thunderthorn Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 127m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 127L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Frostbud Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 128m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 128L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Rimebud Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 129m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 129L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Winterbud Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
                             Id = 69m,
                             AllowedClasses = new byte[0],
                             BaseKind = (byte)25,
@@ -13550,9 +15367,406 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            Id = 130m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 130L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Tusk Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 131m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 131L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Horn Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 132m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 132L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Antler Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 133m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 133L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Hartsong Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 134m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 134L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Stagcrown Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 135m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 135L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Hollowfeather Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 136m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 136L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Owlquill Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 137m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 137L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Nightplume Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 138m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 138L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Gloam Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 139m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 139L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Mirk Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 140m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 140L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Nightmire Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 141m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 141L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Mossheart Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 142m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 142L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Fernheart Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 143m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 143L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Elderheart Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 144m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 144L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Foxtooth Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 145m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 145L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Wolfstooth Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 146m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 146L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Bearclaw Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 147m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 147L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Dewdrop Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 148m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 148L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Rainbead Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 149m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 149L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Wellspring Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 150m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)27,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 150L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Withered Seed",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 11,
+                            SubClass = 210
+                        },
+                        new
+                        {
+                            Id = 151m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)27,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 151L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Carved Idol",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 11,
+                            SubClass = 210
+                        },
+                        new
+                        {
                             Id = 58m,
                             AllowedClasses = new byte[0],
                             BaseKind = (byte)25,
+                            BaseTemplateId = 144m,
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 58L,
@@ -13571,6 +15785,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 64m,
                             AllowedClasses = new byte[0],
                             BaseKind = (byte)26,
+                            BaseTemplateId = 112m,
                             BuyPrice = 400L,
                             Class = 2,
                             DisplayId = 64L,
@@ -13589,6 +15804,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 65m,
                             AllowedClasses = new byte[0],
                             BaseKind = (byte)26,
+                            BaseTemplateId = 125m,
                             BuyPrice = 800L,
                             Class = 2,
                             DisplayId = 65L,
@@ -13607,6 +15823,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 66m,
                             AllowedClasses = new byte[0],
                             BaseKind = (byte)27,
+                            BaseTemplateId = 150m,
                             BuyPrice = 800L,
                             Class = 2,
                             DisplayId = 66L,
@@ -13625,6 +15842,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 67m,
                             AllowedClasses = new byte[0],
                             BaseKind = (byte)27,
+                            BaseTemplateId = 151m,
                             BuyPrice = 400L,
                             Class = 2,
                             DisplayId = 67L,
@@ -14488,6 +16706,234 @@ namespace Avalon.Database.World.Migrations
                     b.HasData(
                         new
                         {
+                            TemplateId = 5m,
+                            Index = (byte)0,
+                            ModifierId = 336
+                        },
+                        new
+                        {
+                            TemplateId = 6m,
+                            Index = (byte)0,
+                            ModifierId = 324
+                        },
+                        new
+                        {
+                            TemplateId = 7m,
+                            Index = (byte)0,
+                            ModifierId = 315
+                        },
+                        new
+                        {
+                            TemplateId = 8m,
+                            Index = (byte)0,
+                            ModifierId = 348
+                        },
+                        new
+                        {
+                            TemplateId = 12m,
+                            Index = (byte)0,
+                            ModifierId = 288
+                        },
+                        new
+                        {
+                            TemplateId = 13m,
+                            Index = (byte)0,
+                            ModifierId = 303
+                        },
+                        new
+                        {
+                            TemplateId = 14m,
+                            Index = (byte)0,
+                            ModifierId = 309
+                        },
+                        new
+                        {
+                            TemplateId = 15m,
+                            Index = (byte)0,
+                            ModifierId = 306
+                        },
+                        new
+                        {
+                            TemplateId = 16m,
+                            Index = (byte)0,
+                            ModifierId = 312
+                        },
+                        new
+                        {
+                            TemplateId = 17m,
+                            Index = (byte)0,
+                            ModifierId = 330
+                        },
+                        new
+                        {
+                            TemplateId = 18m,
+                            Index = (byte)0,
+                            ModifierId = 336
+                        },
+                        new
+                        {
+                            TemplateId = 19m,
+                            Index = (byte)0,
+                            ModifierId = 342
+                        },
+                        new
+                        {
+                            TemplateId = 20m,
+                            Index = (byte)0,
+                            ModifierId = 339
+                        },
+                        new
+                        {
+                            TemplateId = 21m,
+                            Index = (byte)0,
+                            ModifierId = 291
+                        },
+                        new
+                        {
+                            TemplateId = 22m,
+                            Index = (byte)0,
+                            ModifierId = 315
+                        },
+                        new
+                        {
+                            TemplateId = 23m,
+                            Index = (byte)0,
+                            ModifierId = 321
+                        },
+                        new
+                        {
+                            TemplateId = 24m,
+                            Index = (byte)0,
+                            ModifierId = 294
+                        },
+                        new
+                        {
+                            TemplateId = 25m,
+                            Index = (byte)0,
+                            ModifierId = 324
+                        },
+                        new
+                        {
+                            TemplateId = 26m,
+                            Index = (byte)0,
+                            ModifierId = 327
+                        },
+                        new
+                        {
+                            TemplateId = 32m,
+                            Index = (byte)0,
+                            ModifierId = 314
+                        },
+                        new
+                        {
+                            TemplateId = 33m,
+                            Index = (byte)0,
+                            ModifierId = 335
+                        },
+                        new
+                        {
+                            TemplateId = 34m,
+                            Index = (byte)0,
+                            ModifierId = 323
+                        },
+                        new
+                        {
+                            TemplateId = 35m,
+                            Index = (byte)0,
+                            ModifierId = 347
+                        },
+                        new
+                        {
+                            TemplateId = 36m,
+                            Index = (byte)0,
+                            ModifierId = 287
+                        },
+                        new
+                        {
+                            TemplateId = 37m,
+                            Index = (byte)0,
+                            ModifierId = 302
+                        },
+                        new
+                        {
+                            TemplateId = 38m,
+                            Index = (byte)0,
+                            ModifierId = 308
+                        },
+                        new
+                        {
+                            TemplateId = 39m,
+                            Index = (byte)0,
+                            ModifierId = 305
+                        },
+                        new
+                        {
+                            TemplateId = 40m,
+                            Index = (byte)0,
+                            ModifierId = 311
+                        },
+                        new
+                        {
+                            TemplateId = 41m,
+                            Index = (byte)0,
+                            ModifierId = 329
+                        },
+                        new
+                        {
+                            TemplateId = 42m,
+                            Index = (byte)0,
+                            ModifierId = 335
+                        },
+                        new
+                        {
+                            TemplateId = 43m,
+                            Index = (byte)0,
+                            ModifierId = 341
+                        },
+                        new
+                        {
+                            TemplateId = 44m,
+                            Index = (byte)0,
+                            ModifierId = 338
+                        },
+                        new
+                        {
+                            TemplateId = 45m,
+                            Index = (byte)0,
+                            ModifierId = 290
+                        },
+                        new
+                        {
+                            TemplateId = 46m,
+                            Index = (byte)0,
+                            ModifierId = 314
+                        },
+                        new
+                        {
+                            TemplateId = 47m,
+                            Index = (byte)0,
+                            ModifierId = 320
+                        },
+                        new
+                        {
+                            TemplateId = 48m,
+                            Index = (byte)0,
+                            ModifierId = 293
+                        },
+                        new
+                        {
+                            TemplateId = 49m,
+                            Index = (byte)0,
+                            ModifierId = 323
+                        },
+                        new
+                        {
+                            TemplateId = 50m,
+                            Index = (byte)0,
+                            ModifierId = 326
+                        },
+                        new
+                        {
                             TemplateId = 58m,
                             Index = (byte)0,
                             ModifierId = 219
@@ -14515,6 +16961,510 @@ namespace Avalon.Database.World.Migrations
                             TemplateId = 67m,
                             Index = (byte)0,
                             ModifierId = 223
+                        },
+                        new
+                        {
+                            TemplateId = 68m,
+                            Index = (byte)0,
+                            ModifierId = 344
+                        },
+                        new
+                        {
+                            TemplateId = 69m,
+                            Index = (byte)0,
+                            ModifierId = 308
+                        },
+                        new
+                        {
+                            TemplateId = 70m,
+                            Index = (byte)0,
+                            ModifierId = 344
+                        },
+                        new
+                        {
+                            TemplateId = 71m,
+                            Index = (byte)0,
+                            ModifierId = 345
+                        },
+                        new
+                        {
+                            TemplateId = 72m,
+                            Index = (byte)0,
+                            ModifierId = 346
+                        },
+                        new
+                        {
+                            TemplateId = 73m,
+                            Index = (byte)0,
+                            ModifierId = 335
+                        },
+                        new
+                        {
+                            TemplateId = 74m,
+                            Index = (byte)0,
+                            ModifierId = 336
+                        },
+                        new
+                        {
+                            TemplateId = 75m,
+                            Index = (byte)0,
+                            ModifierId = 337
+                        },
+                        new
+                        {
+                            TemplateId = 76m,
+                            Index = (byte)0,
+                            ModifierId = 299
+                        },
+                        new
+                        {
+                            TemplateId = 77m,
+                            Index = (byte)0,
+                            ModifierId = 317
+                        },
+                        new
+                        {
+                            TemplateId = 78m,
+                            Index = (byte)0,
+                            ModifierId = 332
+                        },
+                        new
+                        {
+                            TemplateId = 79m,
+                            Index = (byte)0,
+                            ModifierId = 300
+                        },
+                        new
+                        {
+                            TemplateId = 80m,
+                            Index = (byte)0,
+                            ModifierId = 318
+                        },
+                        new
+                        {
+                            TemplateId = 81m,
+                            Index = (byte)0,
+                            ModifierId = 333
+                        },
+                        new
+                        {
+                            TemplateId = 82m,
+                            Index = (byte)0,
+                            ModifierId = 301
+                        },
+                        new
+                        {
+                            TemplateId = 83m,
+                            Index = (byte)0,
+                            ModifierId = 319
+                        },
+                        new
+                        {
+                            TemplateId = 84m,
+                            Index = (byte)0,
+                            ModifierId = 334
+                        },
+                        new
+                        {
+                            TemplateId = 85m,
+                            Index = (byte)0,
+                            ModifierId = 289
+                        },
+                        new
+                        {
+                            TemplateId = 86m,
+                            Index = (byte)0,
+                            ModifierId = 304
+                        },
+                        new
+                        {
+                            TemplateId = 87m,
+                            Index = (byte)0,
+                            ModifierId = 310
+                        },
+                        new
+                        {
+                            TemplateId = 88m,
+                            Index = (byte)0,
+                            ModifierId = 307
+                        },
+                        new
+                        {
+                            TemplateId = 89m,
+                            Index = (byte)0,
+                            ModifierId = 313
+                        },
+                        new
+                        {
+                            TemplateId = 90m,
+                            Index = (byte)0,
+                            ModifierId = 316
+                        },
+                        new
+                        {
+                            TemplateId = 91m,
+                            Index = (byte)0,
+                            ModifierId = 322
+                        },
+                        new
+                        {
+                            TemplateId = 92m,
+                            Index = (byte)0,
+                            ModifierId = 295
+                        },
+                        new
+                        {
+                            TemplateId = 93m,
+                            Index = (byte)0,
+                            ModifierId = 325
+                        },
+                        new
+                        {
+                            TemplateId = 94m,
+                            Index = (byte)0,
+                            ModifierId = 328
+                        },
+                        new
+                        {
+                            TemplateId = 95m,
+                            Index = (byte)0,
+                            ModifierId = 331
+                        },
+                        new
+                        {
+                            TemplateId = 96m,
+                            Index = (byte)0,
+                            ModifierId = 337
+                        },
+                        new
+                        {
+                            TemplateId = 97m,
+                            Index = (byte)0,
+                            ModifierId = 343
+                        },
+                        new
+                        {
+                            TemplateId = 98m,
+                            Index = (byte)0,
+                            ModifierId = 340
+                        },
+                        new
+                        {
+                            TemplateId = 99m,
+                            Index = (byte)0,
+                            ModifierId = 292
+                        },
+                        new
+                        {
+                            TemplateId = 100m,
+                            Index = (byte)0,
+                            ModifierId = 316
+                        },
+                        new
+                        {
+                            TemplateId = 101m,
+                            Index = (byte)0,
+                            ModifierId = 349
+                        },
+                        new
+                        {
+                            TemplateId = 102m,
+                            Index = (byte)0,
+                            ModifierId = 337
+                        },
+                        new
+                        {
+                            TemplateId = 103m,
+                            Index = (byte)0,
+                            ModifierId = 325
+                        },
+                        new
+                        {
+                            TemplateId = 104m,
+                            Index = (byte)0,
+                            ModifierId = 345
+                        },
+                        new
+                        {
+                            TemplateId = 105m,
+                            Index = (byte)0,
+                            ModifierId = 346
+                        },
+                        new
+                        {
+                            TemplateId = 106m,
+                            Index = (byte)0,
+                            ModifierId = 305
+                        },
+                        new
+                        {
+                            TemplateId = 107m,
+                            Index = (byte)0,
+                            ModifierId = 306
+                        },
+                        new
+                        {
+                            TemplateId = 108m,
+                            Index = (byte)0,
+                            ModifierId = 307
+                        },
+                        new
+                        {
+                            TemplateId = 109m,
+                            Index = (byte)0,
+                            ModifierId = 353
+                        },
+                        new
+                        {
+                            TemplateId = 110m,
+                            Index = (byte)0,
+                            ModifierId = 354
+                        },
+                        new
+                        {
+                            TemplateId = 111m,
+                            Index = (byte)0,
+                            ModifierId = 355
+                        },
+                        new
+                        {
+                            TemplateId = 112m,
+                            Index = (byte)0,
+                            ModifierId = 287
+                        },
+                        new
+                        {
+                            TemplateId = 113m,
+                            Index = (byte)0,
+                            ModifierId = 288
+                        },
+                        new
+                        {
+                            TemplateId = 114m,
+                            Index = (byte)0,
+                            ModifierId = 289
+                        },
+                        new
+                        {
+                            TemplateId = 115m,
+                            Index = (byte)0,
+                            ModifierId = 290
+                        },
+                        new
+                        {
+                            TemplateId = 116m,
+                            Index = (byte)0,
+                            ModifierId = 291
+                        },
+                        new
+                        {
+                            TemplateId = 117m,
+                            Index = (byte)0,
+                            ModifierId = 292
+                        },
+                        new
+                        {
+                            TemplateId = 118m,
+                            Index = (byte)0,
+                            ModifierId = 293
+                        },
+                        new
+                        {
+                            TemplateId = 119m,
+                            Index = (byte)0,
+                            ModifierId = 294
+                        },
+                        new
+                        {
+                            TemplateId = 120m,
+                            Index = (byte)0,
+                            ModifierId = 295
+                        },
+                        new
+                        {
+                            TemplateId = 121m,
+                            Index = (byte)0,
+                            ModifierId = 296
+                        },
+                        new
+                        {
+                            TemplateId = 122m,
+                            Index = (byte)0,
+                            ModifierId = 297
+                        },
+                        new
+                        {
+                            TemplateId = 123m,
+                            Index = (byte)0,
+                            ModifierId = 298
+                        },
+                        new
+                        {
+                            TemplateId = 124m,
+                            Index = (byte)0,
+                            ModifierId = 350
+                        },
+                        new
+                        {
+                            TemplateId = 125m,
+                            Index = (byte)0,
+                            ModifierId = 351
+                        },
+                        new
+                        {
+                            TemplateId = 126m,
+                            Index = (byte)0,
+                            ModifierId = 352
+                        },
+                        new
+                        {
+                            TemplateId = 127m,
+                            Index = (byte)0,
+                            ModifierId = 356
+                        },
+                        new
+                        {
+                            TemplateId = 128m,
+                            Index = (byte)0,
+                            ModifierId = 357
+                        },
+                        new
+                        {
+                            TemplateId = 129m,
+                            Index = (byte)0,
+                            ModifierId = 358
+                        },
+                        new
+                        {
+                            TemplateId = 130m,
+                            Index = (byte)0,
+                            ModifierId = 309
+                        },
+                        new
+                        {
+                            TemplateId = 131m,
+                            Index = (byte)0,
+                            ModifierId = 310
+                        },
+                        new
+                        {
+                            TemplateId = 132m,
+                            Index = (byte)0,
+                            ModifierId = 317
+                        },
+                        new
+                        {
+                            TemplateId = 133m,
+                            Index = (byte)0,
+                            ModifierId = 318
+                        },
+                        new
+                        {
+                            TemplateId = 134m,
+                            Index = (byte)0,
+                            ModifierId = 319
+                        },
+                        new
+                        {
+                            TemplateId = 135m,
+                            Index = (byte)0,
+                            ModifierId = 332
+                        },
+                        new
+                        {
+                            TemplateId = 136m,
+                            Index = (byte)0,
+                            ModifierId = 333
+                        },
+                        new
+                        {
+                            TemplateId = 137m,
+                            Index = (byte)0,
+                            ModifierId = 334
+                        },
+                        new
+                        {
+                            TemplateId = 138m,
+                            Index = (byte)0,
+                            ModifierId = 359
+                        },
+                        new
+                        {
+                            TemplateId = 139m,
+                            Index = (byte)0,
+                            ModifierId = 360
+                        },
+                        new
+                        {
+                            TemplateId = 140m,
+                            Index = (byte)0,
+                            ModifierId = 361
+                        },
+                        new
+                        {
+                            TemplateId = 141m,
+                            Index = (byte)0,
+                            ModifierId = 362
+                        },
+                        new
+                        {
+                            TemplateId = 142m,
+                            Index = (byte)0,
+                            ModifierId = 363
+                        },
+                        new
+                        {
+                            TemplateId = 143m,
+                            Index = (byte)0,
+                            ModifierId = 364
+                        },
+                        new
+                        {
+                            TemplateId = 144m,
+                            Index = (byte)0,
+                            ModifierId = 314
+                        },
+                        new
+                        {
+                            TemplateId = 145m,
+                            Index = (byte)0,
+                            ModifierId = 315
+                        },
+                        new
+                        {
+                            TemplateId = 146m,
+                            Index = (byte)0,
+                            ModifierId = 316
+                        },
+                        new
+                        {
+                            TemplateId = 147m,
+                            Index = (byte)0,
+                            ModifierId = 329
+                        },
+                        new
+                        {
+                            TemplateId = 148m,
+                            Index = (byte)0,
+                            ModifierId = 330
+                        },
+                        new
+                        {
+                            TemplateId = 149m,
+                            Index = (byte)0,
+                            ModifierId = 331
+                        },
+                        new
+                        {
+                            TemplateId = 150m,
+                            Index = (byte)0,
+                            ModifierId = 362
+                        },
+                        new
+                        {
+                            TemplateId = 151m,
+                            Index = (byte)0,
+                            ModifierId = 329
                         });
                 });
 
@@ -18436,6 +21386,14 @@ namespace Avalon.Database.World.Migrations
                         .HasForeignKey("ModifierId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemTemplate", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("BaseTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.ItemTemplateBaseStat", b =>

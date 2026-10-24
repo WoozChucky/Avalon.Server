@@ -142,6 +142,13 @@ public class TemplateVersionShould
         Type? valueObject = ValueObjectType(type);
         if (valueObject is not null)
         {
+            // An absent one (a unique's base, #1179) becomes one.
+            if (current is null)
+            {
+                return Activator.CreateInstance(type, Convert.ChangeType(1, valueObject.GetGenericArguments()[0],
+                    System.Globalization.CultureInfo.InvariantCulture));
+            }
+
             dynamic raw = type.GetProperty("Value")!.GetValue(current)!;
             return Activator.CreateInstance(type, checked(raw + 1));
         }
