@@ -165,7 +165,6 @@ public partial class CharacterDbContext : DbContext
         // Keyed by the modifier's own id, not its place: a modifier keeps its id when its item's modifiers are reordered.
         builder.HasKey(m => new { m.TradeId, m.ItemInstanceModifierId });
         builder.Property(m => m.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
-        builder.Property(m => m.ModifierId).HasColumnType("smallint");
         builder.HasMany(m => m.Values)
             .WithOne()
             .HasForeignKey(v => new { v.TradeId, v.ItemInstanceModifierId })
@@ -367,15 +366,13 @@ public partial class CharacterDbContext : DbContext
     /// <summary>
     /// An item's modifiers (#1179). Keyed by an id the world server allocates, so a modifier kept across saves is updated
     /// in place. No unique index on the item and the ordinal: a reorder saved row by row would trip it. ModifierId names
-    /// a catalog row in the World database, so it has no foreign key, as an item's TemplateId has none. The column is
-    /// smallint, so catalog modifier ids stay at or below 32767.
+    /// a catalog row in the World database, so it has no foreign key, as an item's TemplateId has none.
     /// </summary>
     private static void Configure(EntityTypeBuilder<ItemInstanceModifier> builder)
     {
         builder.HasKey(m => m.Id);
         builder.Property(m => m.Id).ValueGeneratedNever();
         builder.Property(m => m.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
-        builder.Property(m => m.ModifierId).HasColumnType("smallint");
         builder.HasMany(m => m.Values)
             .WithOne()
             .HasForeignKey(v => v.ItemInstanceModifierId)

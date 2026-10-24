@@ -64,28 +64,61 @@ public sealed record AbilitiesPatch(AbilityCatalog Catalog) : StaticDataPatch(Re
     public override string Describe() => Catalog.Describe();
 }
 
-public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates)
+/// <summary>
+/// The item templates and the modifier catalog (#1179), one generation: a /reload items reloads both, so a template and
+/// the modifiers it links are never from two reads. The catalog is not live-editable (balance tables, migrations only).
+/// </summary>
+public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, ItemModifierCatalog Modifiers)
     : StaticDataPatch(ReloadArea.Items)
 {
+    private static readonly int s_kinds = Enum.GetValues<ItemBaseKind>().Max(kind => (int)kind) + 1;
+
     private readonly KeyedRows<ulong, ItemTemplate> _templates = Keyed(Templates);
+    private readonly ItemTemplate[][] _lines = Lines(Templates);
 
     /// <summary>
-    /// The templates, with their lookup by id (<see cref="KeyedRows{TKey,TRow}" />, #883): one object, replaced with
-    /// the patch, so a reload cannot leave a lookup behind.
+    /// The templates, with their lookup by id (<see cref="KeyedRows{TKey,TRow}" />, #883) and their lines by base kind:
+    /// replaced with the patch, so a reload cannot leave a lookup behind.
     /// </summary>
     public IReadOnlyCollection<ItemTemplate> Templates
     {
         get => _templates;
-        init => _templates = Keyed(value);
+        init
+        {
+            _templates = Keyed(value);
+            _lines = Lines(value);
+        }
     }
 
     /// <summary>The template of that id, or null: by key, where a reader walked the templates.</summary>
     public ItemTemplate? Find(ItemTemplateId id) => id is null ? null : _templates.Find(id.Value);
 
+    /// <summary>
+    /// The line of a base kind (#1179): its Common templates, the tiers, by required level and then id; empty for a kind
+    /// with none. Built once per patch.
+    /// </summary>
+    public IReadOnlyList<ItemTemplate> LineOf(ItemBaseKind kind) =>
+        (int)kind >= 0 && (int)kind < _lines.Length ? _lines[(int)kind] : [];
+
     private static KeyedRows<ulong, ItemTemplate> Keyed(IReadOnlyCollection<ItemTemplate> templates) =>
         KeyedRows<ulong, ItemTemplate>.Over(templates, static template => template.Id?.Value);
 
-    public override string Describe() => $"{Templates.Count} item templates";
+    private static ItemTemplate[][] Lines(IReadOnlyCollection<ItemTemplate> templates)
+    {
+        var lines = new ItemTemplate[s_kinds][];
+        for (int kind = 0; kind < s_kinds; kind++)
+        {
+            lines[kind] = templates
+                .Where(template => template.Rarity == ItemRarity.Common && template.BaseKind == (ItemBaseKind)kind)
+                .OrderBy(template => template.RequiredLevel ?? 1)
+                .ThenBy(template => template.Id.Value)
+                .ToArray();
+        }
+
+        return lines;
+    }
+
+    public override string Describe() => $"{Templates.Count} item templates, {Modifiers.Count} item modifiers";
 }
 
 public sealed record ProgressionPatch(

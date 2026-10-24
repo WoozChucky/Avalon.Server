@@ -258,7 +258,7 @@ public class ReferenceDataReloaderShould
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
 
-        StaticData data = new(createInfos, classLevelStats, itemTemplates, abilityTemplates,
+        StaticData data = new(createInfos, classLevelStats, itemTemplates, ItemModifierRepositories.Empty(), abilityTemplates,
             characterLevelExperiences, templates, baseStats, rarities,
             localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
 

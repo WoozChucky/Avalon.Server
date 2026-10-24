@@ -819,7 +819,7 @@ public class CharacterSelectChainShould : IDisposable
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 
-        var data = new StaticData(createInfos, stats, items, abilityTemplates, levels,
+        var data = new StaticData(createInfos, stats, items, ItemModifierRepositories.Empty(), abilityTemplates, levels,
             creatureTemplates, baseStats, rarities,
             localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         data.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();

@@ -8,6 +8,7 @@
       "subClass": 0,
       "flags": 256,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 40,
       "displayId": 1,
       "rarity": 0,
@@ -18,7 +19,8 @@
       "useScript": "RestoreHealth",
       "useCooldownMs": 30000,
       "useCooldownGroup": "potion",
-      "useValue": 30
+      "useValue": 30,
+      "modifiers": []
     },
     {
       "id": 2,
@@ -27,6 +29,7 @@
       "subClass": 0,
       "flags": 256,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 40,
       "displayId": 2,
       "rarity": 0,
@@ -37,7 +40,8 @@
       "useScript": "RestorePower",
       "useCooldownMs": 30000,
       "useCooldownGroup": "potion",
-      "useValue": 30
+      "useValue": 30,
+      "modifiers": []
     },
     {
       "id": 3,
@@ -46,6 +50,7 @@
       "subClass": 2,
       "flags": 256,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 40,
       "displayId": 3,
       "rarity": 0,
@@ -55,7 +60,8 @@
       "requiresAnyAttribute": false,
       "useScript": "TownPortalScroll",
       "useCastTimeMs": 3000,
-      "useCooldownMs": 30000
+      "useCooldownMs": 30000,
+      "modifiers": []
     },
     {
       "id": 5,
@@ -64,6 +70,7 @@
       "subClass": 101,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": true,
       "maxStackSize": 1,
       "displayId": 5,
       "rarity": 0,
@@ -78,7 +85,8 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "attackTimeMs": 800
+      "attackTimeMs": 800,
+      "modifiers": []
     },
     {
       "id": 6,
@@ -87,6 +95,7 @@
       "subClass": 102,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": true,
       "maxStackSize": 1,
       "displayId": 6,
       "rarity": 0,
@@ -101,7 +110,8 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "attackTimeMs": 801
+      "attackTimeMs": 801,
+      "modifiers": []
     },
     {
       "id": 7,
@@ -110,6 +120,7 @@
       "subClass": 100,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 7,
       "rarity": 0,
@@ -124,7 +135,8 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "attackTimeMs": 792
+      "attackTimeMs": 792,
+      "modifiers": []
     },
     {
       "id": 8,
@@ -133,6 +145,7 @@
       "subClass": 100,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 8,
       "rarity": 0,
@@ -148,7 +161,8 @@
       "damageMin1": 7,
       "damageMax1": 11,
       "damageType1": 0,
-      "attackTimeMs": 784
+      "attackTimeMs": 784,
+      "modifiers": []
     },
     {
       "id": 9,
@@ -157,13 +171,15 @@
       "subClass": 2,
       "flags": 0,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 20,
       "displayId": 9,
       "rarity": 0,
       "buyPrice": 20,
       "sellPrice": 5,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": []
     },
     {
       "id": 10,
@@ -172,13 +188,15 @@
       "subClass": 2,
       "flags": 0,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 20,
       "displayId": 10,
       "rarity": 0,
       "buyPrice": 20,
       "sellPrice": 5,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": []
     },
     {
       "id": 11,
@@ -187,13 +205,15 @@
       "subClass": 2,
       "flags": 0,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 20,
       "displayId": 11,
       "rarity": 0,
       "buyPrice": 20,
       "sellPrice": 5,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": []
     },
     {
       "id": 12,
@@ -202,6 +222,7 @@
       "subClass": 201,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 12,
       "rarity": 0,
@@ -214,7 +235,14 @@
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 11
+      "statValue1": 11,
+      "modifiers": [
+        {
+          "templateId": 12,
+          "index": 0,
+          "modifierId": 224
+        }
+      ]
     },
     {
       "id": 13,
@@ -223,6 +251,7 @@
       "subClass": 202,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 13,
       "rarity": 0,
@@ -235,7 +264,14 @@
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 18
+      "statValue1": 18,
+      "modifiers": [
+        {
+          "templateId": 13,
+          "index": 0,
+          "modifierId": 225
+        }
+      ]
     },
     {
       "id": 14,
@@ -244,6 +280,7 @@
       "subClass": 203,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 14,
       "rarity": 0,
@@ -256,7 +293,14 @@
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 14
+      "statValue1": 14,
+      "modifiers": [
+        {
+          "templateId": 14,
+          "index": 0,
+          "modifierId": 226
+        }
+      ]
     },
     {
       "id": 15,
@@ -265,6 +309,7 @@
       "subClass": 205,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 15,
       "rarity": 0,
@@ -277,7 +322,14 @@
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 7
+      "statValue1": 7,
+      "modifiers": [
+        {
+          "templateId": 15,
+          "index": 0,
+          "modifierId": 227
+        }
+      ]
     },
     {
       "id": 16,
@@ -286,6 +338,7 @@
       "subClass": 204,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 16,
       "rarity": 0,
@@ -298,7 +351,14 @@
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 7
+      "statValue1": 7,
+      "modifiers": [
+        {
+          "templateId": 16,
+          "index": 0,
+          "modifierId": 228
+        }
+      ]
     },
     {
       "id": 17,
@@ -307,6 +367,7 @@
       "subClass": 201,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 17,
       "rarity": 0,
@@ -319,7 +380,14 @@
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 16
+      "statValue1": 16,
+      "modifiers": [
+        {
+          "templateId": 17,
+          "index": 0,
+          "modifierId": 229
+        }
+      ]
     },
     {
       "id": 18,
@@ -328,6 +396,7 @@
       "subClass": 202,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 18,
       "rarity": 0,
@@ -340,7 +409,14 @@
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 26
+      "statValue1": 26,
+      "modifiers": [
+        {
+          "templateId": 18,
+          "index": 0,
+          "modifierId": 230
+        }
+      ]
     },
     {
       "id": 19,
@@ -349,6 +425,7 @@
       "subClass": 203,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 19,
       "rarity": 0,
@@ -361,7 +438,14 @@
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 21
+      "statValue1": 21,
+      "modifiers": [
+        {
+          "templateId": 19,
+          "index": 0,
+          "modifierId": 231
+        }
+      ]
     },
     {
       "id": 20,
@@ -370,6 +454,7 @@
       "subClass": 205,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 20,
       "rarity": 0,
@@ -382,7 +467,14 @@
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 10
+      "statValue1": 10,
+      "modifiers": [
+        {
+          "templateId": 20,
+          "index": 0,
+          "modifierId": 232
+        }
+      ]
     },
     {
       "id": 21,
@@ -391,6 +483,7 @@
       "subClass": 204,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 21,
       "rarity": 0,
@@ -403,7 +496,14 @@
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 10
+      "statValue1": 10,
+      "modifiers": [
+        {
+          "templateId": 21,
+          "index": 0,
+          "modifierId": 233
+        }
+      ]
     },
     {
       "id": 22,
@@ -412,6 +512,7 @@
       "subClass": 201,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 22,
       "rarity": 0,
@@ -424,7 +525,14 @@
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 54
+      "statValue1": 54,
+      "modifiers": [
+        {
+          "templateId": 22,
+          "index": 0,
+          "modifierId": 234
+        }
+      ]
     },
     {
       "id": 23,
@@ -433,6 +541,7 @@
       "subClass": 202,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 23,
       "rarity": 0,
@@ -445,7 +554,14 @@
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 90
+      "statValue1": 90,
+      "modifiers": [
+        {
+          "templateId": 23,
+          "index": 0,
+          "modifierId": 235
+        }
+      ]
     },
     {
       "id": 24,
@@ -454,6 +570,7 @@
       "subClass": 203,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 24,
       "rarity": 0,
@@ -466,7 +583,14 @@
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 72
+      "statValue1": 72,
+      "modifiers": [
+        {
+          "templateId": 24,
+          "index": 0,
+          "modifierId": 236
+        }
+      ]
     },
     {
       "id": 25,
@@ -475,6 +599,7 @@
       "subClass": 205,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 25,
       "rarity": 0,
@@ -487,7 +612,14 @@
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 36
+      "statValue1": 36,
+      "modifiers": [
+        {
+          "templateId": 25,
+          "index": 0,
+          "modifierId": 237
+        }
+      ]
     },
     {
       "id": 26,
@@ -496,6 +628,7 @@
       "subClass": 204,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 26,
       "rarity": 0,
@@ -508,7 +641,14 @@
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 36
+      "statValue1": 36,
+      "modifiers": [
+        {
+          "templateId": 26,
+          "index": 0,
+          "modifierId": 238
+        }
+      ]
     },
     {
       "id": 32,
@@ -517,6 +657,7 @@
       "subClass": 100,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 32,
       "rarity": 0,
@@ -530,7 +671,8 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "attackTimeMs": 792
+      "attackTimeMs": 792,
+      "modifiers": []
     },
     {
       "id": 33,
@@ -539,6 +681,7 @@
       "subClass": 101,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": true,
       "maxStackSize": 1,
       "displayId": 33,
       "rarity": 0,
@@ -552,7 +695,8 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "attackTimeMs": 800
+      "attackTimeMs": 800,
+      "modifiers": []
     },
     {
       "id": 34,
@@ -561,6 +705,7 @@
       "subClass": 102,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": true,
       "maxStackSize": 1,
       "displayId": 34,
       "rarity": 0,
@@ -574,7 +719,8 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "attackTimeMs": 801
+      "attackTimeMs": 801,
+      "modifiers": []
     },
     {
       "id": 35,
@@ -583,6 +729,7 @@
       "subClass": 100,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 35,
       "rarity": 0,
@@ -596,7 +743,8 @@
       "damageMin1": 4,
       "damageMax1": 7,
       "damageType1": 0,
-      "attackTimeMs": 784
+      "attackTimeMs": 784,
+      "modifiers": []
     },
     {
       "id": 36,
@@ -605,6 +753,7 @@
       "subClass": 201,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 36,
       "rarity": 0,
@@ -616,7 +765,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 5
+      "statValue1": 5,
+      "modifiers": [
+        {
+          "templateId": 36,
+          "index": 0,
+          "modifierId": 239
+        }
+      ]
     },
     {
       "id": 37,
@@ -625,6 +781,7 @@
       "subClass": 202,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 37,
       "rarity": 0,
@@ -636,7 +793,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 8
+      "statValue1": 8,
+      "modifiers": [
+        {
+          "templateId": 37,
+          "index": 0,
+          "modifierId": 240
+        }
+      ]
     },
     {
       "id": 38,
@@ -645,6 +809,7 @@
       "subClass": 203,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 38,
       "rarity": 0,
@@ -656,7 +821,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 6
+      "statValue1": 6,
+      "modifiers": [
+        {
+          "templateId": 38,
+          "index": 0,
+          "modifierId": 241
+        }
+      ]
     },
     {
       "id": 39,
@@ -665,6 +837,7 @@
       "subClass": 205,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 39,
       "rarity": 0,
@@ -676,7 +849,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 3
+      "statValue1": 3,
+      "modifiers": [
+        {
+          "templateId": 39,
+          "index": 0,
+          "modifierId": 242
+        }
+      ]
     },
     {
       "id": 40,
@@ -685,6 +865,7 @@
       "subClass": 204,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 40,
       "rarity": 0,
@@ -696,7 +877,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 3
+      "statValue1": 3,
+      "modifiers": [
+        {
+          "templateId": 40,
+          "index": 0,
+          "modifierId": 243
+        }
+      ]
     },
     {
       "id": 41,
@@ -705,6 +893,7 @@
       "subClass": 201,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 41,
       "rarity": 0,
@@ -716,7 +905,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 7
+      "statValue1": 7,
+      "modifiers": [
+        {
+          "templateId": 41,
+          "index": 0,
+          "modifierId": 244
+        }
+      ]
     },
     {
       "id": 42,
@@ -725,6 +921,7 @@
       "subClass": 202,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 42,
       "rarity": 0,
@@ -736,7 +933,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 12
+      "statValue1": 12,
+      "modifiers": [
+        {
+          "templateId": 42,
+          "index": 0,
+          "modifierId": 245
+        }
+      ]
     },
     {
       "id": 43,
@@ -745,6 +949,7 @@
       "subClass": 203,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 43,
       "rarity": 0,
@@ -756,7 +961,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 10
+      "statValue1": 10,
+      "modifiers": [
+        {
+          "templateId": 43,
+          "index": 0,
+          "modifierId": 246
+        }
+      ]
     },
     {
       "id": 44,
@@ -765,6 +977,7 @@
       "subClass": 205,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 44,
       "rarity": 0,
@@ -776,7 +989,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 5
+      "statValue1": 5,
+      "modifiers": [
+        {
+          "templateId": 44,
+          "index": 0,
+          "modifierId": 247
+        }
+      ]
     },
     {
       "id": 45,
@@ -785,6 +1005,7 @@
       "subClass": 204,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 45,
       "rarity": 0,
@@ -796,7 +1017,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 5
+      "statValue1": 5,
+      "modifiers": [
+        {
+          "templateId": 45,
+          "index": 0,
+          "modifierId": 248
+        }
+      ]
     },
     {
       "id": 46,
@@ -805,6 +1033,7 @@
       "subClass": 201,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 46,
       "rarity": 0,
@@ -816,7 +1045,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 24
+      "statValue1": 24,
+      "modifiers": [
+        {
+          "templateId": 46,
+          "index": 0,
+          "modifierId": 249
+        }
+      ]
     },
     {
       "id": 47,
@@ -825,6 +1061,7 @@
       "subClass": 202,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 47,
       "rarity": 0,
@@ -836,7 +1073,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 40
+      "statValue1": 40,
+      "modifiers": [
+        {
+          "templateId": 47,
+          "index": 0,
+          "modifierId": 250
+        }
+      ]
     },
     {
       "id": 48,
@@ -845,6 +1089,7 @@
       "subClass": 203,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 48,
       "rarity": 0,
@@ -856,7 +1101,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 32
+      "statValue1": 32,
+      "modifiers": [
+        {
+          "templateId": 48,
+          "index": 0,
+          "modifierId": 251
+        }
+      ]
     },
     {
       "id": 49,
@@ -865,6 +1117,7 @@
       "subClass": 205,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 49,
       "rarity": 0,
@@ -876,7 +1129,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 16
+      "statValue1": 16,
+      "modifiers": [
+        {
+          "templateId": 49,
+          "index": 0,
+          "modifierId": 252
+        }
+      ]
     },
     {
       "id": 50,
@@ -885,6 +1145,7 @@
       "subClass": 204,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 50,
       "rarity": 0,
@@ -896,7 +1157,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 16
+      "statValue1": 16,
+      "modifiers": [
+        {
+          "templateId": 50,
+          "index": 0,
+          "modifierId": 253
+        }
+      ]
     },
     {
       "id": 56,
@@ -905,6 +1173,7 @@
       "subClass": 0,
       "flags": 256,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 40,
       "displayId": 56,
       "rarity": 0,
@@ -915,7 +1184,8 @@
       "useScript": "RestoreHealth",
       "useCooldownMs": 30000,
       "useCooldownGroup": "potion",
-      "useValue": 60
+      "useValue": 60,
+      "modifiers": []
     },
     {
       "id": 57,
@@ -924,13 +1194,15 @@
       "subClass": 300,
       "flags": 2304,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 20,
       "displayId": 57,
       "rarity": 0,
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": []
     },
     {
       "id": 58,
@@ -939,6 +1211,7 @@
       "subClass": 206,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 58,
       "rarity": 3,
@@ -948,7 +1221,14 @@
       "slot": 1,
       "allowedClasses": [],
       "requiredLevel": 3,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": [
+        {
+          "templateId": 58,
+          "index": 0,
+          "modifierId": 219
+        }
+      ]
     },
     {
       "id": 59,
@@ -957,13 +1237,15 @@
       "subClass": 300,
       "flags": 2304,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 20,
       "displayId": 59,
       "rarity": 0,
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": []
     },
     {
       "id": 60,
@@ -972,13 +1254,15 @@
       "subClass": 300,
       "flags": 2304,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 20,
       "displayId": 60,
       "rarity": 0,
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": []
     },
     {
       "id": 61,
@@ -987,13 +1271,15 @@
       "subClass": 300,
       "flags": 2304,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 20,
       "displayId": 61,
       "rarity": 0,
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": []
     },
     {
       "id": 62,
@@ -1002,13 +1288,15 @@
       "subClass": 300,
       "flags": 2304,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 20,
       "displayId": 62,
       "rarity": 0,
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": []
     },
     {
       "id": 63,
@@ -1017,13 +1305,15 @@
       "subClass": 300,
       "flags": 2304,
       "stackable": true,
+      "isTwoHanded": false,
       "maxStackSize": 20,
       "displayId": 63,
       "rarity": 0,
       "buyPrice": 0,
       "sellPrice": 0,
       "allowedClasses": [],
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": []
     },
     {
       "id": 64,
@@ -1032,6 +1322,7 @@
       "subClass": 207,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 64,
       "rarity": 3,
@@ -1041,7 +1332,14 @@
       "slot": 7,
       "allowedClasses": [],
       "requiredLevel": 4,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": [
+        {
+          "templateId": 64,
+          "index": 0,
+          "modifierId": 220
+        }
+      ]
     },
     {
       "id": 65,
@@ -1050,6 +1348,7 @@
       "subClass": 207,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 65,
       "rarity": 3,
@@ -1059,7 +1358,14 @@
       "slot": 7,
       "allowedClasses": [],
       "requiredLevel": 5,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": [
+        {
+          "templateId": 65,
+          "index": 0,
+          "modifierId": 221
+        }
+      ]
     },
     {
       "id": 66,
@@ -1068,6 +1374,7 @@
       "subClass": 210,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 66,
       "rarity": 3,
@@ -1077,7 +1384,14 @@
       "slot": 11,
       "allowedClasses": [],
       "requiredLevel": 5,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": [
+        {
+          "templateId": 66,
+          "index": 0,
+          "modifierId": 222
+        }
+      ]
     },
     {
       "id": 67,
@@ -1086,6 +1400,7 @@
       "subClass": 210,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 67,
       "rarity": 3,
@@ -1095,7 +1410,14 @@
       "slot": 11,
       "allowedClasses": [],
       "requiredLevel": 4,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": [
+        {
+          "templateId": 67,
+          "index": 0,
+          "modifierId": 223
+        }
+      ]
     },
     {
       "id": 68,
@@ -1104,6 +1426,7 @@
       "subClass": 207,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 68,
       "rarity": 0,
@@ -1113,7 +1436,8 @@
       "slot": 7,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": []
     },
     {
       "id": 69,
@@ -1122,6 +1446,7 @@
       "subClass": 206,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 69,
       "rarity": 0,
@@ -1131,7 +1456,8 @@
       "slot": 1,
       "allowedClasses": [],
       "requiredLevel": 1,
-      "requiresAnyAttribute": false
+      "requiresAnyAttribute": false,
+      "modifiers": []
     },
     {
       "id": 70,
@@ -1140,6 +1466,7 @@
       "subClass": 200,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 70,
       "rarity": 0,
@@ -1153,7 +1480,14 @@
       "statType1": 4,
       "statValue1": 6,
       "statType2": 5,
-      "statValue2": 5
+      "statValue2": 5,
+      "modifiers": [
+        {
+          "templateId": 70,
+          "index": 0,
+          "modifierId": 254
+        }
+      ]
     },
     {
       "id": 71,
@@ -1162,6 +1496,7 @@
       "subClass": 200,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 71,
       "rarity": 0,
@@ -1176,7 +1511,14 @@
       "statType1": 4,
       "statValue1": 14,
       "statType2": 5,
-      "statValue2": 7
+      "statValue2": 7,
+      "modifiers": [
+        {
+          "templateId": 71,
+          "index": 0,
+          "modifierId": 255
+        }
+      ]
     },
     {
       "id": 72,
@@ -1185,6 +1527,7 @@
       "subClass": 200,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 72,
       "rarity": 0,
@@ -1199,7 +1542,14 @@
       "statType1": 4,
       "statValue1": 24,
       "statType2": 5,
-      "statValue2": 10
+      "statValue2": 10,
+      "modifiers": [
+        {
+          "templateId": 72,
+          "index": 0,
+          "modifierId": 256
+        }
+      ]
     },
     {
       "id": 73,
@@ -1208,6 +1558,7 @@
       "subClass": 209,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 73,
       "rarity": 0,
@@ -1221,7 +1572,14 @@
       "statType1": 14,
       "statValue1": 8,
       "statType2": 26,
-      "statValue2": 5
+      "statValue2": 5,
+      "modifiers": [
+        {
+          "templateId": 73,
+          "index": 0,
+          "modifierId": 257
+        }
+      ]
     },
     {
       "id": 74,
@@ -1230,6 +1588,7 @@
       "subClass": 209,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 74,
       "rarity": 0,
@@ -1244,7 +1603,14 @@
       "statType1": 14,
       "statValue1": 18,
       "statType2": 26,
-      "statValue2": 8
+      "statValue2": 8,
+      "modifiers": [
+        {
+          "templateId": 74,
+          "index": 0,
+          "modifierId": 258
+        }
+      ]
     },
     {
       "id": 75,
@@ -1253,6 +1619,7 @@
       "subClass": 209,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 75,
       "rarity": 0,
@@ -1267,7 +1634,14 @@
       "statType1": 14,
       "statValue1": 30,
       "statType2": 26,
-      "statValue2": 12
+      "statValue2": 12,
+      "modifiers": [
+        {
+          "templateId": 75,
+          "index": 0,
+          "modifierId": 259
+        }
+      ]
     },
     {
       "id": 76,
@@ -1276,6 +1650,7 @@
       "subClass": 208,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 76,
       "rarity": 0,
@@ -1287,7 +1662,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 4
+      "statValue1": 4,
+      "modifiers": [
+        {
+          "templateId": 76,
+          "index": 0,
+          "modifierId": 260
+        }
+      ]
     },
     {
       "id": 77,
@@ -1296,6 +1678,7 @@
       "subClass": 208,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 77,
       "rarity": 0,
@@ -1307,7 +1690,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 20
+      "statValue1": 20,
+      "modifiers": [
+        {
+          "templateId": 77,
+          "index": 0,
+          "modifierId": 261
+        }
+      ]
     },
     {
       "id": 78,
@@ -1316,6 +1706,7 @@
       "subClass": 208,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 78,
       "rarity": 0,
@@ -1327,7 +1718,14 @@
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 6
+      "statValue1": 6,
+      "modifiers": [
+        {
+          "templateId": 78,
+          "index": 0,
+          "modifierId": 262
+        }
+      ]
     },
     {
       "id": 79,
@@ -1336,6 +1734,7 @@
       "subClass": 208,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 79,
       "rarity": 0,
@@ -1348,7 +1747,14 @@
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 9
+      "statValue1": 9,
+      "modifiers": [
+        {
+          "templateId": 79,
+          "index": 0,
+          "modifierId": 263
+        }
+      ]
     },
     {
       "id": 80,
@@ -1357,6 +1763,7 @@
       "subClass": 208,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 80,
       "rarity": 0,
@@ -1369,7 +1776,14 @@
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 45
+      "statValue1": 45,
+      "modifiers": [
+        {
+          "templateId": 80,
+          "index": 0,
+          "modifierId": 264
+        }
+      ]
     },
     {
       "id": 81,
@@ -1378,6 +1792,7 @@
       "subClass": 208,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 81,
       "rarity": 0,
@@ -1390,7 +1805,14 @@
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 13
+      "statValue1": 13,
+      "modifiers": [
+        {
+          "templateId": 81,
+          "index": 0,
+          "modifierId": 265
+        }
+      ]
     },
     {
       "id": 82,
@@ -1399,6 +1821,7 @@
       "subClass": 208,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 82,
       "rarity": 0,
@@ -1411,7 +1834,14 @@
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 16
+      "statValue1": 16,
+      "modifiers": [
+        {
+          "templateId": 82,
+          "index": 0,
+          "modifierId": 266
+        }
+      ]
     },
     {
       "id": 83,
@@ -1420,6 +1850,7 @@
       "subClass": 208,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 83,
       "rarity": 0,
@@ -1432,7 +1863,14 @@
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 80
+      "statValue1": 80,
+      "modifiers": [
+        {
+          "templateId": 83,
+          "index": 0,
+          "modifierId": 267
+        }
+      ]
     },
     {
       "id": 84,
@@ -1441,6 +1879,7 @@
       "subClass": 208,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 84,
       "rarity": 0,
@@ -1453,7 +1892,14 @@
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 23
+      "statValue1": 23,
+      "modifiers": [
+        {
+          "templateId": 84,
+          "index": 0,
+          "modifierId": 268
+        }
+      ]
     },
     {
       "id": 85,
@@ -1462,6 +1908,7 @@
       "subClass": 201,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 85,
       "rarity": 0,
@@ -1474,7 +1921,14 @@
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 19
+      "statValue1": 19,
+      "modifiers": [
+        {
+          "templateId": 85,
+          "index": 0,
+          "modifierId": 269
+        }
+      ]
     },
     {
       "id": 86,
@@ -1483,6 +1937,7 @@
       "subClass": 202,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 86,
       "rarity": 0,
@@ -1495,7 +1950,14 @@
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 32
+      "statValue1": 32,
+      "modifiers": [
+        {
+          "templateId": 86,
+          "index": 0,
+          "modifierId": 270
+        }
+      ]
     },
     {
       "id": 87,
@@ -1504,6 +1966,7 @@
       "subClass": 203,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 87,
       "rarity": 0,
@@ -1516,7 +1979,14 @@
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 26
+      "statValue1": 26,
+      "modifiers": [
+        {
+          "templateId": 87,
+          "index": 0,
+          "modifierId": 271
+        }
+      ]
     },
     {
       "id": 88,
@@ -1525,6 +1995,7 @@
       "subClass": 205,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 88,
       "rarity": 0,
@@ -1537,7 +2008,14 @@
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 13
+      "statValue1": 13,
+      "modifiers": [
+        {
+          "templateId": 88,
+          "index": 0,
+          "modifierId": 272
+        }
+      ]
     },
     {
       "id": 89,
@@ -1546,6 +2024,7 @@
       "subClass": 204,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 89,
       "rarity": 0,
@@ -1558,7 +2037,14 @@
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
       "statType1": 4,
-      "statValue1": 13
+      "statValue1": 13,
+      "modifiers": [
+        {
+          "templateId": 89,
+          "index": 0,
+          "modifierId": 273
+        }
+      ]
     },
     {
       "id": 90,
@@ -1567,6 +2053,7 @@
       "subClass": 201,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 90,
       "rarity": 0,
@@ -1579,7 +2066,14 @@
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 96
+      "statValue1": 96,
+      "modifiers": [
+        {
+          "templateId": 90,
+          "index": 0,
+          "modifierId": 274
+        }
+      ]
     },
     {
       "id": 91,
@@ -1588,6 +2082,7 @@
       "subClass": 202,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 91,
       "rarity": 0,
@@ -1600,7 +2095,14 @@
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 160
+      "statValue1": 160,
+      "modifiers": [
+        {
+          "templateId": 91,
+          "index": 0,
+          "modifierId": 275
+        }
+      ]
     },
     {
       "id": 92,
@@ -1609,6 +2111,7 @@
       "subClass": 203,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 92,
       "rarity": 0,
@@ -1621,7 +2124,14 @@
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 128
+      "statValue1": 128,
+      "modifiers": [
+        {
+          "templateId": 92,
+          "index": 0,
+          "modifierId": 276
+        }
+      ]
     },
     {
       "id": 93,
@@ -1630,6 +2140,7 @@
       "subClass": 205,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 93,
       "rarity": 0,
@@ -1642,7 +2153,14 @@
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 64
+      "statValue1": 64,
+      "modifiers": [
+        {
+          "templateId": 93,
+          "index": 0,
+          "modifierId": 277
+        }
+      ]
     },
     {
       "id": 94,
@@ -1651,6 +2169,7 @@
       "subClass": 204,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 94,
       "rarity": 0,
@@ -1663,7 +2182,14 @@
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
       "statType1": 6,
-      "statValue1": 64
+      "statValue1": 64,
+      "modifiers": [
+        {
+          "templateId": 94,
+          "index": 0,
+          "modifierId": 278
+        }
+      ]
     },
     {
       "id": 95,
@@ -1672,6 +2198,7 @@
       "subClass": 201,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 95,
       "rarity": 0,
@@ -1684,7 +2211,14 @@
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 27
+      "statValue1": 27,
+      "modifiers": [
+        {
+          "templateId": 95,
+          "index": 0,
+          "modifierId": 279
+        }
+      ]
     },
     {
       "id": 96,
@@ -1693,6 +2227,7 @@
       "subClass": 202,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 96,
       "rarity": 0,
@@ -1705,7 +2240,14 @@
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 45
+      "statValue1": 45,
+      "modifiers": [
+        {
+          "templateId": 96,
+          "index": 0,
+          "modifierId": 280
+        }
+      ]
     },
     {
       "id": 97,
@@ -1714,6 +2256,7 @@
       "subClass": 203,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 97,
       "rarity": 0,
@@ -1726,7 +2269,14 @@
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 36
+      "statValue1": 36,
+      "modifiers": [
+        {
+          "templateId": 97,
+          "index": 0,
+          "modifierId": 281
+        }
+      ]
     },
     {
       "id": 98,
@@ -1735,6 +2285,7 @@
       "subClass": 205,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 98,
       "rarity": 0,
@@ -1747,7 +2298,14 @@
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 18
+      "statValue1": 18,
+      "modifiers": [
+        {
+          "templateId": 98,
+          "index": 0,
+          "modifierId": 282
+        }
+      ]
     },
     {
       "id": 99,
@@ -1756,6 +2314,7 @@
       "subClass": 204,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 99,
       "rarity": 0,
@@ -1768,7 +2327,14 @@
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
       "statType1": 14,
-      "statValue1": 18
+      "statValue1": 18,
+      "modifiers": [
+        {
+          "templateId": 99,
+          "index": 0,
+          "modifierId": 283
+        }
+      ]
     },
     {
       "id": 100,
@@ -1777,6 +2343,7 @@
       "subClass": 100,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 100,
       "rarity": 0,
@@ -1791,7 +2358,8 @@
       "damageMin1": 11,
       "damageMax1": 17,
       "damageType1": 0,
-      "attackTimeMs": 792
+      "attackTimeMs": 792,
+      "modifiers": []
     },
     {
       "id": 101,
@@ -1800,6 +2368,7 @@
       "subClass": 100,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": false,
       "maxStackSize": 1,
       "displayId": 101,
       "rarity": 0,
@@ -1815,7 +2384,8 @@
       "damageMin1": 11,
       "damageMax1": 17,
       "damageType1": 0,
-      "attackTimeMs": 784
+      "attackTimeMs": 784,
+      "modifiers": []
     },
     {
       "id": 102,
@@ -1824,6 +2394,7 @@
       "subClass": 101,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": true,
       "maxStackSize": 1,
       "displayId": 102,
       "rarity": 0,
@@ -1838,7 +2409,8 @@
       "damageMin1": 11,
       "damageMax1": 17,
       "damageType1": 0,
-      "attackTimeMs": 800
+      "attackTimeMs": 800,
+      "modifiers": []
     },
     {
       "id": 103,
@@ -1847,6 +2419,7 @@
       "subClass": 102,
       "flags": 0,
       "stackable": false,
+      "isTwoHanded": true,
       "maxStackSize": 1,
       "displayId": 103,
       "rarity": 0,
@@ -1861,7 +2434,8 @@
       "damageMin1": 11,
       "damageMax1": 17,
       "damageType1": 0,
-      "attackTimeMs": 801
+      "attackTimeMs": 801,
+      "modifiers": []
     }
   ]
 }

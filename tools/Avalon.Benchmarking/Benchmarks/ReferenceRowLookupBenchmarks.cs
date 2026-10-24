@@ -2,6 +2,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Reload;
 using BenchmarkDotNet.Attributes;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Benchmarking.Benchmarks;
 
@@ -35,7 +36,7 @@ public class ReferenceRowLookupBenchmarks
         // As StaticData held them: FindAllAsync(...).AsReadOnly() for the items, the list GetAllAsync returns for the levels.
         _items = Enumerable.Range(1, Rows)
             .Select(id => new ItemTemplate { Id = new ItemTemplateId((ulong)id), Name = "Bench" }).ToList().AsReadOnly();
-        _itemsPatch = new ItemsPatch(_items);
+        _itemsPatch = new ItemsPatch(_items, new ItemModifierCatalog([], [], NullLogger.Instance));
         _itemIds = _items.Select(template => new ItemTemplateId(template.Id.Value)).ToArray();
 
         _levels = Enumerable.Range(1, Rows)

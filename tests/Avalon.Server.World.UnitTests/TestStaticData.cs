@@ -34,7 +34,7 @@ internal sealed record TestStaticDataRepositories(
     IDoodadTemplateRepository? Doodads = null)
 {
     public StaticData ToStaticData(Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) =>
-        new(CreateInfos, ClassStats, Items, Abilities, Levels, Creatures, BaseStats, Rarities, Texts, Dialogue, Loot,
+        new(CreateInfos, ClassStats, Items, ItemModifierRepositories.Empty(), Abilities, Levels, Creatures, BaseStats, Rarities, Texts, Dialogue, Loot,
             loggerFactory ?? NullLoggerFactory.Instance, Vendors, Combat, Quests, Scripts, Auras, Doodads);
 }
 

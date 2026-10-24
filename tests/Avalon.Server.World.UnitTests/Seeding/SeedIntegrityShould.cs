@@ -4,6 +4,7 @@ using Avalon.Common.Accounts;
 using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Combat;
@@ -1960,5 +1961,220 @@ public class SeedIntegrityShould
         Assert.Equal([1u, 2u, 3u, 4u, 5u, 6u], catalog.Templates.Select(t => t.Id.Value));
         // The forest set runs its scripts; the caravan's strongbox and notice board need none, as a use only credits the quest.
         Assert.All(catalog.Templates, t => Assert.Equal(t.Id.Value <= 4, t.ScriptType is not null));
+    }
+
+    /// <summary>
+    /// #1179: the modifier catalog whole, as the database holds it. Its counts; its ids, plain surrogates in the seed's
+    /// order (the affix families by code and element, the uniques, the implicit groups by base); the rules that span its
+    /// tables (a code on every affix group, an element only on a split family's, one stat set per group, a tier on every
+    /// affix row and on no other); the tiers' item levels and weights; the second range on exactly the "adds" lines; no
+    /// weight on a unique, an implicit or a trinket; and the template links: each unique links its own unique row, and
+    /// exactly the 60 defence-bearing bases link one implicit each. The catalog loads all of it without leaving any out.
+    /// </summary>
+    [Fact]
+    public async Task Seed_the_catalog_whole()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        var groups = context.ItemModifierGroups.AsNoTracking().OrderBy(g => g.Id).ToList();
+        var modifiers = context.ItemModifiers.AsNoTracking().AsSplitQuery()
+            .Include(m => m.Stats).Include(m => m.Weights).OrderBy(m => m.Id).ToList();
+        var links = context.ItemTemplateModifiers.AsNoTracking().ToList();
+        var templates = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(t => t.Id.Value);
+        var groupOf = modifiers.ToDictionary(m => m.Id, m => groups.Single(g => g.Id == m.GroupId));
+
+        int Count(ItemModifierKind kind) => groups.Count(g => g.Kind == kind);
+        Assert.Equal((109, 28, 16, 5, 60), (groups.Count, Count(ItemModifierKind.Prefix), Count(ItemModifierKind.Suffix),
+            Count(ItemModifierKind.Unique), Count(ItemModifierKind.Implicit)));
+        Assert.Equal((283, 300, 1780, 65),
+            (modifiers.Count, modifiers.Sum(m => m.Stats.Count), modifiers.Sum(m => m.Weights.Count), links.Count));
+
+        var templateOfGroup = links.ToDictionary(l => groupOf[l.ModifierId].Id, l => l.TemplateId.Value);
+        Assert.Equal(Enumerable.Range(1, 109), groups.Select(g => g.Id));
+        Assert.Equal(Enumerable.Range(1, 109), groups
+            .OrderBy(g => g.Kind)
+            .ThenBy(g => g.Code is null ? 0 : int.Parse(g.Code[1..]))
+            .ThenBy(g => g.Element)
+            .ThenBy(g => templateOfGroup.GetValueOrDefault(g.Id))
+            .Select(g => g.Id));
+        Assert.Equal(Enumerable.Range(1, 283), modifiers.Select(m => m.Id));
+        Assert.Equal(Enumerable.Range(1, 283), modifiers.OrderBy(m => m.GroupId).ThenBy(m => m.Tier).Select(m => m.Id));
+
+        string[] split = ["P8", "P9", "P10", "S5"];
+        ushort[] levels = [1, 4, 7, 10, 13];
+        int[] weights = [1000, 800, 600, 400, 200];
+        foreach (ItemModifierGroup group in groups)
+        {
+            List<ItemModifier> rows = [.. modifiers.Where(m => m.GroupId == group.Id)];
+            Assert.Single(rows.Select(m => string.Join(" ", m.Stats.OrderBy(s => s.Index).Select(s => s.Stat))).Distinct());
+            if (group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix)
+            {
+                Assert.NotNull(group.Code);
+                Assert.Equal(split.Contains(group.Code), group.Element is not null);
+                int tiers = group.Code is "S7" or "S13" ? 4 : 5;
+                Assert.Equal(Enumerable.Range(1, tiers).Select(t => (byte?)t), rows.Select(m => m.Tier));
+                foreach (ItemModifier row in rows)
+                {
+                    Assert.Equal(levels[row.Tier!.Value - 1], row.RequiredItemLevel);
+                    Assert.NotEmpty(row.Weights);
+                    Assert.All(row.Weights, w => Assert.Equal(weights[row.Tier!.Value - 1], w.Weight));
+                }
+            }
+            else
+            {
+                Assert.Equal((null, null), (group.Code, group.Element));
+                ItemModifier row = Assert.Single(rows);
+                Assert.Equal(((byte?)null, (ushort)1), (row.Tier, row.RequiredItemLevel));
+                Assert.Empty(row.Weights);
+                Assert.Equal(templates[templateOfGroup[group.Id]].Name, group.Name);
+            }
+        }
+
+        static bool AddsDamage(StatType stat) =>
+            stat is >= StatType.AddedPhysicalDamage and <= StatType.AddedBlightDamage
+                or >= StatType.AddedPhysicalDamageToAttacks and <= StatType.AddedLightningDamageToSpells;
+        Assert.All(modifiers.SelectMany(m => m.Stats), s =>
+            Assert.Equal((AddsDamage(s.Stat), AddsDamage(s.Stat)), (s.Min2 is not null, s.Max2 is not null)));
+        Assert.DoesNotContain(modifiers.SelectMany(m => m.Weights), w => w.BaseKind == ItemBaseKind.Trinket);
+
+        // B-R2: a unique links its own unique row and nothing else; a common template links only implicits, and exactly
+        // the 60 bases with a defence (the 54 armour bases, the shields and the caster off-hands) link one each.
+        Assert.All(links, l => Assert.Equal(0, l.Index));
+        Assert.All(links, l => Assert.Equal(
+            templates[l.TemplateId.Value].Rarity == ItemRarity.Unique ? ItemModifierKind.Unique : ItemModifierKind.Implicit,
+            groupOf[l.ModifierId].Kind));
+        HashSet<ItemBaseKind> defended =
+            [.. Enum.GetValues<ItemBaseKind>().Where(k => (int)k <= 18), ItemBaseKind.Shield, ItemBaseKind.CasterOffHand];
+        Assert.Equal(
+            templates.Values
+                .Where(t => t.Rarity == ItemRarity.Unique
+                            || (t.Rarity == ItemRarity.Common && t.BaseKind is { } kind && defended.Contains(kind)))
+                .Select(t => t.Id.Value).Order(),
+            links.Select(l => l.TemplateId.Value).Order());
+        Assert.Equal(60, links.Count(l => groupOf[l.ModifierId].Kind == ItemModifierKind.Implicit));
+
+        ItemModifierCatalog catalog = await new ItemModifierRepository(database, NullLoggerFactory.Instance)
+            .GetCatalogAsync(CancellationToken.None);
+        Assert.Equal(283, catalog.Count);
+        Assert.All(links, l => Assert.Equal(l.ModifierId, Assert.Single(catalog.LinkedTo(l.TemplateId)).Id));
+    }
+
+    [Theory]
+    [InlineData("P1 T1", StatType.AddedPhysicalDamage, 1, 1, 1, 2, (ushort)1)]
+    [InlineData("P4 T5", StatType.AddedLightningDamage, 2, 10, 10, 18, (ushort)13)]
+    [InlineData("P6 T3", StatType.LocalIncreasedPhysicalDamage, 35, 49, null, null, (ushort)7)]
+    [InlineData("P8 Cold T3", StatType.IncreasedColdDamage, 15, 19, null, null, (ushort)7)]
+    [InlineData("P9 Physical T1", StatType.AddedPhysicalDamageToAttacks, 1, 1, 1, 2, (ushort)1)]
+    [InlineData("P14 T5", StatType.Evasion, 95, 129, null, null, (ushort)13)]
+    [InlineData("S5 Blight T2", StatType.BlightResistance, 12, 17, null, null, (ushort)4)]
+    [InlineData("S7 T4", StatType.AttackSpeed, 9, 10, null, null, (ushort)10)]
+    [InlineData("S9 T3", StatType.CritPct, 3, 3, null, null, (ushort)7)]
+    [InlineData("S11 T5", StatType.MovementSpeed, 17, 17, null, null, (ushort)13)]
+    [InlineData("S13 T1", StatType.BlockPct, 3, 4, null, null, (ushort)1)]
+    public void Seed_catalog_rows_as_the_catalog_lists_them(string key, StatType stat, int min, int max, int? min2, int? max2,
+        ushort requiredItemLevel)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        int id = CatalogKeys.ModifierId(key);
+        ItemModifier row = context.ItemModifiers.AsNoTracking().Include(m => m.Stats).Single(m => m.Id == id);
+
+        ItemModifierStat line = Assert.Single(row.Stats);
+        Assert.Equal((stat, min, max, min2, max2, requiredItemLevel),
+            (line.Stat, line.Min, line.Max, line.Min2, line.Max2, row.RequiredItemLevel));
+    }
+
+    /// <summary>
+    /// #1179: the "By slot" table, one row per line (each armour slot in one of its families): the catalog codes with a
+    /// family weighing above 0 on the kind. A split code is listed when every one of its element families is, and none
+    /// may roll there alone.
+    /// </summary>
+    [Theory]
+    [InlineData(ItemBaseKind.PlateHead, "P11 P12 P13", "S1 S2 S3 S4 S5 S12")]
+    [InlineData(ItemBaseKind.LeatherShoulders, "P11 P14 P15", "S1 S2 S3 S4 S5 S12")]
+    [InlineData(ItemBaseKind.ClothChest, "P11 P16 P17", "S1 S2 S3 S4 S5")]
+    [InlineData(ItemBaseKind.LeatherHands, "P9 P11 P14 P15", "S1 S2 S3 S4 S5 S7")]
+    [InlineData(ItemBaseKind.PlateLegs, "P11 P12 P13", "S1 S2 S3 S4 S5")]
+    [InlineData(ItemBaseKind.ClothFeet, "P11 P16 P17", "S1 S2 S3 S4 S5 S11")]
+    [InlineData(ItemBaseKind.Sword, "P1 P2 P3 P4 P5 P6", "S1 S2 S3 S6 S9 S10")]
+    [InlineData(ItemBaseKind.Mace, "P1 P2 P3 P4 P5 P6 P7 P19", "S1 S3 S6 S8 S9 S10")]
+    [InlineData(ItemBaseKind.Staff, "P1 P2 P3 P4 P5 P6 P7 P8 P18 P19", "S2 S3 S6 S8 S9 S10")]
+    [InlineData(ItemBaseKind.Bow, "P1 P2 P3 P4 P5 P6", "S1 S2 S6 S9 S10")]
+    [InlineData(ItemBaseKind.Shield, "P11 P12 P13", "S1 S4 S5 S13")]
+    [InlineData(ItemBaseKind.CasterOffHand, "P7 P8 P10 P16 P17 P18 P19", "S3 S8 S9")]
+    [InlineData(ItemBaseKind.Amulet, "P8 P9 P10 P11 P18 P19", "S1 S2 S3 S4 S5 S8 S9 S10 S12")]
+    [InlineData(ItemBaseKind.Ring, "P8 P9 P10 P11", "S1 S2 S3 S4 S5 S7 S8 S9")]
+    [InlineData(ItemBaseKind.Trinket, "", "")]
+    public void Let_each_base_kind_roll_exactly_its_by_slot_families(ItemBaseKind kind, string prefixes, string suffixes)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        var groups = context.ItemModifierGroups.AsNoTracking().ToList();
+        HashSet<int> rolling =
+        [
+            .. context.ItemModifiers.AsNoTracking().Include(m => m.Weights).ToList()
+                .Where(m => m.Weights.Any(w => w.BaseKind == kind && w.Weight > 0)).Select(m => m.GroupId),
+        ];
+
+        string Codes(ItemModifierKind affix)
+        {
+            List<string> codes = [];
+            foreach (IGrouping<string, ItemModifierGroup> code in groups.Where(g => g.Kind == affix)
+                         .GroupBy(g => g.Code!).OrderBy(c => int.Parse(c.Key[1..])))
+            {
+                int rolls = code.Count(g => rolling.Contains(g.Id));
+                Assert.True(rolls == 0 || rolls == code.Count(), $"{code.Key} rolls on {kind} for only some of its elements");
+                if (rolls > 0)
+                    codes.Add(code.Key);
+            }
+
+            return string.Join(" ", codes);
+        }
+
+        Assert.Equal((prefixes, suffixes), (Codes(ItemModifierKind.Prefix), Codes(ItemModifierKind.Suffix)));
+    }
+
+    /// <summary>
+    /// #1179: what every copy of a template rolls. The uniques' lines are their drafted values ±20 %, the implicits' their
+    /// bases' drafted defence (and a shield's block, a caster off-hand's spell damage) ±15 %, rounded half away from zero
+    /// and at least 1; Thornheart Signet's "adds 2 to 4" is its low end 2-2 and its high end 3-5.
+    /// </summary>
+    [Theory]
+    [InlineData(58ul, StatType.Health, 10, 14, null, null)]
+    [InlineData(58ul, StatType.Strength, 2, 4, null, null)]
+    [InlineData(58ul, StatType.Agility, 2, 4, null, null)]
+    [InlineData(58ul, StatType.IncreasedAttackDamage, 6, 10, null, null)]
+    [InlineData(64ul, StatType.Health, 16, 24, null, null)]
+    [InlineData(64ul, StatType.BlightResistance, 10, 14, null, null)]
+    [InlineData(64ul, StatType.IncreasedHealing, 6, 10, null, null)]
+    [InlineData(65ul, StatType.Health, 24, 36, null, null)]
+    [InlineData(65ul, StatType.AddedPhysicalDamageToAttacks, 2, 2, 3, 5)]
+    [InlineData(65ul, StatType.CritPct, 3, 5, null, null)]
+    [InlineData(66ul, StatType.Health, 20, 30, null, null)]
+    [InlineData(66ul, StatType.IncreasedDamageOverTime, 12, 18, null, null)]
+    [InlineData(66ul, StatType.BlightResistance, 8, 12, null, null)]
+    [InlineData(67ul, StatType.Health, 16, 24, null, null)]
+    [InlineData(67ul, StatType.AttackSpeed, 5, 7, null, null)]
+    [InlineData(67ul, StatType.CastSpeed, 5, 7, null, null)]
+    [InlineData(37ul, StatType.Armor, 7, 9, null, null)]
+    [InlineData(13ul, StatType.Armor, 15, 21, null, null)]
+    [InlineData(86ul, StatType.Armor, 27, 37, null, null)]
+    [InlineData(39ul, StatType.Armor, 3, 3, null, null)]
+    [InlineData(91ul, StatType.Evasion, 136, 184, null, null)]
+    [InlineData(96ul, StatType.Ward, 38, 52, null, null)]
+    [InlineData(70ul, StatType.Armor, 5, 7, null, null)]
+    [InlineData(70ul, StatType.BlockPct, 4, 6, null, null)]
+    [InlineData(75ul, StatType.Ward, 26, 35, null, null)]
+    [InlineData(75ul, StatType.IncreasedSpellDamage, 10, 14, null, null)]
+    public void Seed_each_linked_modifiers_ranges(ulong templateId, StatType stat, int min, int max, int? min2, int? max2)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemTemplateModifier link = Assert.Single(context.ItemTemplateModifiers.AsNoTracking().ToList(),
+            l => l.TemplateId.Value == templateId);
+        ItemModifierStat line = context.ItemModifierStats.AsNoTracking().ToList()
+            .Single(s => s.ModifierId == link.ModifierId && s.Stat == stat);
+
+        Assert.Equal((min, max, min2, max2), (line.Min, line.Max, line.Min2, line.Max2));
     }
 }

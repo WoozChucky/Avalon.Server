@@ -185,7 +185,7 @@ public class MapInstanceVendorShould
             BuyPrice = 15,
             SellPrice = Tonic.SellPrice,
         };
-        _data.Apply(new ItemsPatch(Items.Select(t => t.Id == Tonic.Id ? dearerTonic : t).ToList()));
+        _data.Apply(new ItemsPatch(Items.Select(t => t.Id == Tonic.Id ? dearerTonic : t).ToList(), ItemModifierRepositories.EmptyCatalog()));
         instance.Update(s_tick);
 
         Assert.Equal(15u, Assert.Single(first.Lists()).Entries.Single(e => e.Sequence == TonicSequence).Price);

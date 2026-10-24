@@ -169,6 +169,12 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     /// <summary>The script's own number: for RestoreHealth and RestorePower, the percentage of the maximum restored.</summary>
     public uint? UseValue { get; set; }
+
+    /// <summary>
+    /// The catalog modifiers every copy rolls when it is made (#1179), in index order: a base's implicits or a unique's
+    /// own modifier; empty for none. Loaded only where a reader asks for them.
+    /// </summary>
+    public List<ItemTemplateModifier> Modifiers { get; set; } = [];
 }
 
 /// <summary>A stat an item gives: the stored numbers, the retired ones (8 and 9, the old damage stats) never reused.</summary>

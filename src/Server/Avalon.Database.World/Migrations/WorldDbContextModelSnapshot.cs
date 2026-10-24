@@ -5104,6 +5104,15975 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ItemModifier", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("GroupId")
+                        .HasColumnType("integer");
+
+                    b.Property<short>("RequiredItemLevel")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte?>("Tier")
+                        .HasColumnType("smallint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroupId", "Tier")
+                        .IsUnique();
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("GroupId", "Tier"), false);
+
+                    b.ToTable("ItemModifiers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemModifiers_RequiredItemLevel", "\"RequiredItemLevel\" > 0");
+
+                            t.HasCheckConstraint("CK_ItemModifiers_Tier", "\"Tier\" IS NULL OR \"Tier\" BETWEEN 1 AND 5");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            GroupId = 1,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 2,
+                            GroupId = 1,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 3,
+                            GroupId = 1,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 4,
+                            GroupId = 1,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 5,
+                            GroupId = 1,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 6,
+                            GroupId = 2,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 7,
+                            GroupId = 2,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 8,
+                            GroupId = 2,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 9,
+                            GroupId = 2,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 10,
+                            GroupId = 2,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 11,
+                            GroupId = 3,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 12,
+                            GroupId = 3,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 13,
+                            GroupId = 3,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 14,
+                            GroupId = 3,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 15,
+                            GroupId = 3,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 16,
+                            GroupId = 4,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 17,
+                            GroupId = 4,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 18,
+                            GroupId = 4,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 19,
+                            GroupId = 4,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 20,
+                            GroupId = 4,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 21,
+                            GroupId = 5,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 22,
+                            GroupId = 5,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 23,
+                            GroupId = 5,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 24,
+                            GroupId = 5,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 25,
+                            GroupId = 5,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 26,
+                            GroupId = 6,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 27,
+                            GroupId = 6,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 28,
+                            GroupId = 6,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 29,
+                            GroupId = 6,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 30,
+                            GroupId = 6,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 31,
+                            GroupId = 7,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 32,
+                            GroupId = 7,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 33,
+                            GroupId = 7,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 34,
+                            GroupId = 7,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 35,
+                            GroupId = 7,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 36,
+                            GroupId = 8,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 37,
+                            GroupId = 8,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 38,
+                            GroupId = 8,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 39,
+                            GroupId = 8,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 40,
+                            GroupId = 8,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 41,
+                            GroupId = 9,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 42,
+                            GroupId = 9,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 43,
+                            GroupId = 9,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 44,
+                            GroupId = 9,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 45,
+                            GroupId = 9,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 46,
+                            GroupId = 10,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 47,
+                            GroupId = 10,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 48,
+                            GroupId = 10,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 49,
+                            GroupId = 10,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 50,
+                            GroupId = 10,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 51,
+                            GroupId = 11,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 52,
+                            GroupId = 11,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 53,
+                            GroupId = 11,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 54,
+                            GroupId = 11,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 55,
+                            GroupId = 11,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 56,
+                            GroupId = 12,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 57,
+                            GroupId = 12,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 58,
+                            GroupId = 12,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 59,
+                            GroupId = 12,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 60,
+                            GroupId = 12,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 61,
+                            GroupId = 13,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 62,
+                            GroupId = 13,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 63,
+                            GroupId = 13,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 64,
+                            GroupId = 13,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 65,
+                            GroupId = 13,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 66,
+                            GroupId = 14,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 67,
+                            GroupId = 14,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 68,
+                            GroupId = 14,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 69,
+                            GroupId = 14,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 70,
+                            GroupId = 14,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 71,
+                            GroupId = 15,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 72,
+                            GroupId = 15,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 73,
+                            GroupId = 15,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 74,
+                            GroupId = 15,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 75,
+                            GroupId = 15,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 76,
+                            GroupId = 16,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 77,
+                            GroupId = 16,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 78,
+                            GroupId = 16,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 79,
+                            GroupId = 16,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 80,
+                            GroupId = 16,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 81,
+                            GroupId = 17,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 82,
+                            GroupId = 17,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 83,
+                            GroupId = 17,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 84,
+                            GroupId = 17,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 85,
+                            GroupId = 17,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 86,
+                            GroupId = 18,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 87,
+                            GroupId = 18,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 88,
+                            GroupId = 18,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 89,
+                            GroupId = 18,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 90,
+                            GroupId = 18,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 91,
+                            GroupId = 19,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 92,
+                            GroupId = 19,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 93,
+                            GroupId = 19,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 94,
+                            GroupId = 19,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 95,
+                            GroupId = 19,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 96,
+                            GroupId = 20,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 97,
+                            GroupId = 20,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 98,
+                            GroupId = 20,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 99,
+                            GroupId = 20,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 100,
+                            GroupId = 20,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 101,
+                            GroupId = 21,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 102,
+                            GroupId = 21,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 103,
+                            GroupId = 21,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 104,
+                            GroupId = 21,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 105,
+                            GroupId = 21,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 106,
+                            GroupId = 22,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 107,
+                            GroupId = 22,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 108,
+                            GroupId = 22,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 109,
+                            GroupId = 22,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 110,
+                            GroupId = 22,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 111,
+                            GroupId = 23,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 112,
+                            GroupId = 23,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 113,
+                            GroupId = 23,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 114,
+                            GroupId = 23,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 115,
+                            GroupId = 23,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 116,
+                            GroupId = 24,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 117,
+                            GroupId = 24,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 118,
+                            GroupId = 24,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 119,
+                            GroupId = 24,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 120,
+                            GroupId = 24,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 121,
+                            GroupId = 25,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 122,
+                            GroupId = 25,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 123,
+                            GroupId = 25,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 124,
+                            GroupId = 25,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 125,
+                            GroupId = 25,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 126,
+                            GroupId = 26,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 127,
+                            GroupId = 26,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 128,
+                            GroupId = 26,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 129,
+                            GroupId = 26,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 130,
+                            GroupId = 26,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 131,
+                            GroupId = 27,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 132,
+                            GroupId = 27,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 133,
+                            GroupId = 27,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 134,
+                            GroupId = 27,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 135,
+                            GroupId = 27,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 136,
+                            GroupId = 28,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 137,
+                            GroupId = 28,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 138,
+                            GroupId = 28,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 139,
+                            GroupId = 28,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 140,
+                            GroupId = 28,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 141,
+                            GroupId = 29,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 142,
+                            GroupId = 29,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 143,
+                            GroupId = 29,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 144,
+                            GroupId = 29,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 145,
+                            GroupId = 29,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 146,
+                            GroupId = 30,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 147,
+                            GroupId = 30,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 148,
+                            GroupId = 30,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 149,
+                            GroupId = 30,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 150,
+                            GroupId = 30,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 151,
+                            GroupId = 31,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 152,
+                            GroupId = 31,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 153,
+                            GroupId = 31,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 154,
+                            GroupId = 31,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 155,
+                            GroupId = 31,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 156,
+                            GroupId = 32,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 157,
+                            GroupId = 32,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 158,
+                            GroupId = 32,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 159,
+                            GroupId = 32,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 160,
+                            GroupId = 32,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 161,
+                            GroupId = 33,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 162,
+                            GroupId = 33,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 163,
+                            GroupId = 33,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 164,
+                            GroupId = 33,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 165,
+                            GroupId = 33,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 166,
+                            GroupId = 34,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 167,
+                            GroupId = 34,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 168,
+                            GroupId = 34,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 169,
+                            GroupId = 34,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 170,
+                            GroupId = 34,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 171,
+                            GroupId = 35,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 172,
+                            GroupId = 35,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 173,
+                            GroupId = 35,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 174,
+                            GroupId = 35,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 175,
+                            GroupId = 35,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 176,
+                            GroupId = 36,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 177,
+                            GroupId = 36,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 178,
+                            GroupId = 36,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 179,
+                            GroupId = 36,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 180,
+                            GroupId = 36,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 181,
+                            GroupId = 37,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 182,
+                            GroupId = 37,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 183,
+                            GroupId = 37,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 184,
+                            GroupId = 37,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 185,
+                            GroupId = 37,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 186,
+                            GroupId = 38,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 187,
+                            GroupId = 38,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 188,
+                            GroupId = 38,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 189,
+                            GroupId = 38,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 190,
+                            GroupId = 39,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 191,
+                            GroupId = 39,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 192,
+                            GroupId = 39,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 193,
+                            GroupId = 39,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 194,
+                            GroupId = 39,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 195,
+                            GroupId = 40,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 196,
+                            GroupId = 40,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 197,
+                            GroupId = 40,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 198,
+                            GroupId = 40,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 199,
+                            GroupId = 40,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 200,
+                            GroupId = 41,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 201,
+                            GroupId = 41,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 202,
+                            GroupId = 41,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 203,
+                            GroupId = 41,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 204,
+                            GroupId = 41,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 205,
+                            GroupId = 42,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 206,
+                            GroupId = 42,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 207,
+                            GroupId = 42,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 208,
+                            GroupId = 42,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 209,
+                            GroupId = 42,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 210,
+                            GroupId = 43,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 211,
+                            GroupId = 43,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 212,
+                            GroupId = 43,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 213,
+                            GroupId = 43,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 214,
+                            GroupId = 43,
+                            RequiredItemLevel = (short)13,
+                            Tier = (byte)5
+                        },
+                        new
+                        {
+                            Id = 215,
+                            GroupId = 44,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)1
+                        },
+                        new
+                        {
+                            Id = 216,
+                            GroupId = 44,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)2
+                        },
+                        new
+                        {
+                            Id = 217,
+                            GroupId = 44,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)3
+                        },
+                        new
+                        {
+                            Id = 218,
+                            GroupId = 44,
+                            RequiredItemLevel = (short)10,
+                            Tier = (byte)4
+                        },
+                        new
+                        {
+                            Id = 219,
+                            GroupId = 45,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 220,
+                            GroupId = 46,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 221,
+                            GroupId = 47,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 222,
+                            GroupId = 48,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 223,
+                            GroupId = 49,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 224,
+                            GroupId = 50,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 225,
+                            GroupId = 51,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 226,
+                            GroupId = 52,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 227,
+                            GroupId = 53,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 228,
+                            GroupId = 54,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 229,
+                            GroupId = 55,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 230,
+                            GroupId = 56,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 231,
+                            GroupId = 57,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 232,
+                            GroupId = 58,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 233,
+                            GroupId = 59,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 234,
+                            GroupId = 60,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 235,
+                            GroupId = 61,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 236,
+                            GroupId = 62,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 237,
+                            GroupId = 63,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 238,
+                            GroupId = 64,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 239,
+                            GroupId = 65,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 240,
+                            GroupId = 66,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 241,
+                            GroupId = 67,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 242,
+                            GroupId = 68,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 243,
+                            GroupId = 69,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 244,
+                            GroupId = 70,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 245,
+                            GroupId = 71,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 246,
+                            GroupId = 72,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 247,
+                            GroupId = 73,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 248,
+                            GroupId = 74,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 249,
+                            GroupId = 75,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 250,
+                            GroupId = 76,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 251,
+                            GroupId = 77,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 252,
+                            GroupId = 78,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 253,
+                            GroupId = 79,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 254,
+                            GroupId = 80,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 255,
+                            GroupId = 81,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 256,
+                            GroupId = 82,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 257,
+                            GroupId = 83,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 258,
+                            GroupId = 84,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 259,
+                            GroupId = 85,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 260,
+                            GroupId = 86,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 261,
+                            GroupId = 87,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 262,
+                            GroupId = 88,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 263,
+                            GroupId = 89,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 264,
+                            GroupId = 90,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 265,
+                            GroupId = 91,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 266,
+                            GroupId = 92,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 267,
+                            GroupId = 93,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 268,
+                            GroupId = 94,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 269,
+                            GroupId = 95,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 270,
+                            GroupId = 96,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 271,
+                            GroupId = 97,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 272,
+                            GroupId = 98,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 273,
+                            GroupId = 99,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 274,
+                            GroupId = 100,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 275,
+                            GroupId = 101,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 276,
+                            GroupId = 102,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 277,
+                            GroupId = 103,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 278,
+                            GroupId = 104,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 279,
+                            GroupId = 105,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 280,
+                            GroupId = 106,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 281,
+                            GroupId = 107,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 282,
+                            GroupId = 108,
+                            RequiredItemLevel = (short)1
+                        },
+                        new
+                        {
+                            Id = 283,
+                            GroupId = 109,
+                            RequiredItemLevel = (short)1
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemModifierGroup", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<short?>("Element")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("Kind")
+                        .HasColumnType("smallint");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code", "Element")
+                        .IsUnique()
+                        .HasFilter("\"Code\" IS NOT NULL");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("Code", "Element"), false);
+
+                    b.ToTable("ItemModifierGroups", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemModifierGroups_Code", "(\"Kind\" IN (1, 2)) = (\"Code\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_ItemModifierGroups_Element", "\"Element\" IS NULL OR (\"Kind\" IN (1, 2) AND \"Element\" BETWEEN 0 AND 4)");
+
+                            t.HasCheckConstraint("CK_ItemModifierGroups_Kind", "\"Kind\" IN (1, 2, 3, 4)");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Code = "P1",
+                            Kind = (byte)1,
+                            Name = "Briar-edged"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Code = "P2",
+                            Kind = (byte)1,
+                            Name = "Smouldering"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Code = "P3",
+                            Kind = (byte)1,
+                            Name = "Rimed"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Code = "P4",
+                            Kind = (byte)1,
+                            Name = "Crackling"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Code = "P5",
+                            Kind = (byte)1,
+                            Name = "Festering"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Code = "P6",
+                            Kind = (byte)1,
+                            Name = "Honed"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Code = "P7",
+                            Kind = (byte)1,
+                            Name = "Whispering"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Code = "P8",
+                            Element = (short)1,
+                            Kind = (byte)1,
+                            Name = "Ashen"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Code = "P8",
+                            Element = (short)2,
+                            Kind = (byte)1,
+                            Name = "Hoarfrost"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Code = "P8",
+                            Element = (short)3,
+                            Kind = (byte)1,
+                            Name = "Galvanic"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Code = "P8",
+                            Element = (short)4,
+                            Kind = (byte)1,
+                            Name = "Mouldering"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Code = "P9",
+                            Element = (short)0,
+                            Kind = (byte)1,
+                            Name = "Thorn-tipped"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Code = "P9",
+                            Element = (short)1,
+                            Kind = (byte)1,
+                            Name = "Thorn-tipped"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Code = "P9",
+                            Element = (short)2,
+                            Kind = (byte)1,
+                            Name = "Thorn-tipped"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Code = "P9",
+                            Element = (short)3,
+                            Kind = (byte)1,
+                            Name = "Thorn-tipped"
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Code = "P9",
+                            Element = (short)4,
+                            Kind = (byte)1,
+                            Name = "Thorn-tipped"
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Code = "P10",
+                            Element = (short)1,
+                            Kind = (byte)1,
+                            Name = "Ember-sung"
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Code = "P10",
+                            Element = (short)2,
+                            Kind = (byte)1,
+                            Name = "Ember-sung"
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Code = "P10",
+                            Element = (short)3,
+                            Kind = (byte)1,
+                            Name = "Ember-sung"
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Code = "P11",
+                            Kind = (byte)1,
+                            Name = "Hale"
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Code = "P12",
+                            Kind = (byte)1,
+                            Name = "Barkbound"
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Code = "P13",
+                            Kind = (byte)1,
+                            Name = "Ironbark"
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Code = "P14",
+                            Kind = (byte)1,
+                            Name = "Fleet-footed"
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Code = "P15",
+                            Kind = (byte)1,
+                            Name = "Mistwoven"
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Code = "P16",
+                            Kind = (byte)1,
+                            Name = "Veilwoven"
+                        },
+                        new
+                        {
+                            Id = 26,
+                            Code = "P17",
+                            Kind = (byte)1,
+                            Name = "Glamoured"
+                        },
+                        new
+                        {
+                            Id = 27,
+                            Code = "P18",
+                            Kind = (byte)1,
+                            Name = "Lingering"
+                        },
+                        new
+                        {
+                            Id = 28,
+                            Code = "P19",
+                            Kind = (byte)1,
+                            Name = "Mending"
+                        },
+                        new
+                        {
+                            Id = 29,
+                            Code = "S1",
+                            Kind = (byte)2,
+                            Name = "of the Ox-root"
+                        },
+                        new
+                        {
+                            Id = 30,
+                            Code = "S2",
+                            Kind = (byte)2,
+                            Name = "of the Hare"
+                        },
+                        new
+                        {
+                            Id = 31,
+                            Code = "S3",
+                            Kind = (byte)2,
+                            Name = "of the Owl"
+                        },
+                        new
+                        {
+                            Id = 32,
+                            Code = "S4",
+                            Kind = (byte)2,
+                            Name = "of the Old Oak"
+                        },
+                        new
+                        {
+                            Id = 33,
+                            Code = "S5",
+                            Element = (short)1,
+                            Kind = (byte)2,
+                            Name = "of the Hearth"
+                        },
+                        new
+                        {
+                            Id = 34,
+                            Code = "S5",
+                            Element = (short)2,
+                            Kind = (byte)2,
+                            Name = "of the Thaw"
+                        },
+                        new
+                        {
+                            Id = 35,
+                            Code = "S5",
+                            Element = (short)3,
+                            Kind = (byte)2,
+                            Name = "of Grounding"
+                        },
+                        new
+                        {
+                            Id = 36,
+                            Code = "S5",
+                            Element = (short)4,
+                            Kind = (byte)2,
+                            Name = "of the Clean Spring"
+                        },
+                        new
+                        {
+                            Id = 37,
+                            Code = "S6",
+                            Kind = (byte)2,
+                            Name = "of Haste"
+                        },
+                        new
+                        {
+                            Id = 38,
+                            Code = "S7",
+                            Kind = (byte)2,
+                            Name = "of Quick Hands"
+                        },
+                        new
+                        {
+                            Id = 39,
+                            Code = "S8",
+                            Kind = (byte)2,
+                            Name = "of Cadence"
+                        },
+                        new
+                        {
+                            Id = 40,
+                            Code = "S9",
+                            Kind = (byte)2,
+                            Name = "of the Keen Eye"
+                        },
+                        new
+                        {
+                            Id = 41,
+                            Code = "S10",
+                            Kind = (byte)2,
+                            Name = "of Ruin"
+                        },
+                        new
+                        {
+                            Id = 42,
+                            Code = "S11",
+                            Kind = (byte)2,
+                            Name = "of the Wanderer"
+                        },
+                        new
+                        {
+                            Id = 43,
+                            Code = "S12",
+                            Kind = (byte)2,
+                            Name = "of Renewal"
+                        },
+                        new
+                        {
+                            Id = 44,
+                            Code = "S13",
+                            Kind = (byte)2,
+                            Name = "of the Bulwark"
+                        },
+                        new
+                        {
+                            Id = 45,
+                            Kind = (byte)3,
+                            Name = "Alpha's Fang Pendant"
+                        },
+                        new
+                        {
+                            Id = 46,
+                            Kind = (byte)3,
+                            Name = "Heartwood Band"
+                        },
+                        new
+                        {
+                            Id = 47,
+                            Kind = (byte)3,
+                            Name = "Thornheart Signet"
+                        },
+                        new
+                        {
+                            Id = 48,
+                            Kind = (byte)3,
+                            Name = "Bramble Mother's Seed"
+                        },
+                        new
+                        {
+                            Id = 49,
+                            Kind = (byte)3,
+                            Name = "Tuskroot Idol"
+                        },
+                        new
+                        {
+                            Id = 50,
+                            Kind = (byte)4,
+                            Name = "Barkplate Helm"
+                        },
+                        new
+                        {
+                            Id = 51,
+                            Kind = (byte)4,
+                            Name = "Barkplate Chestguard"
+                        },
+                        new
+                        {
+                            Id = 52,
+                            Kind = (byte)4,
+                            Name = "Barkplate Legguards"
+                        },
+                        new
+                        {
+                            Id = 53,
+                            Kind = (byte)4,
+                            Name = "Barkplate Gauntlets"
+                        },
+                        new
+                        {
+                            Id = 54,
+                            Kind = (byte)4,
+                            Name = "Barkplate Boots"
+                        },
+                        new
+                        {
+                            Id = 55,
+                            Kind = (byte)4,
+                            Name = "Mossweave Hood"
+                        },
+                        new
+                        {
+                            Id = 56,
+                            Kind = (byte)4,
+                            Name = "Mossweave Robe"
+                        },
+                        new
+                        {
+                            Id = 57,
+                            Kind = (byte)4,
+                            Name = "Mossweave Leggings"
+                        },
+                        new
+                        {
+                            Id = 58,
+                            Kind = (byte)4,
+                            Name = "Mossweave Gloves"
+                        },
+                        new
+                        {
+                            Id = 59,
+                            Kind = (byte)4,
+                            Name = "Mossweave Slippers"
+                        },
+                        new
+                        {
+                            Id = 60,
+                            Kind = (byte)4,
+                            Name = "Fernstalker Cap"
+                        },
+                        new
+                        {
+                            Id = 61,
+                            Kind = (byte)4,
+                            Name = "Fernstalker Jerkin"
+                        },
+                        new
+                        {
+                            Id = 62,
+                            Kind = (byte)4,
+                            Name = "Fernstalker Breeches"
+                        },
+                        new
+                        {
+                            Id = 63,
+                            Kind = (byte)4,
+                            Name = "Fernstalker Grips"
+                        },
+                        new
+                        {
+                            Id = 64,
+                            Kind = (byte)4,
+                            Name = "Fernstalker Boots"
+                        },
+                        new
+                        {
+                            Id = 65,
+                            Kind = (byte)4,
+                            Name = "Ironbound Helm"
+                        },
+                        new
+                        {
+                            Id = 66,
+                            Kind = (byte)4,
+                            Name = "Ironbound Chestguard"
+                        },
+                        new
+                        {
+                            Id = 67,
+                            Kind = (byte)4,
+                            Name = "Ironbound Legguards"
+                        },
+                        new
+                        {
+                            Id = 68,
+                            Kind = (byte)4,
+                            Name = "Ironbound Gauntlets"
+                        },
+                        new
+                        {
+                            Id = 69,
+                            Kind = (byte)4,
+                            Name = "Ironbound Boots"
+                        },
+                        new
+                        {
+                            Id = 70,
+                            Kind = (byte)4,
+                            Name = "Linen Hood"
+                        },
+                        new
+                        {
+                            Id = 71,
+                            Kind = (byte)4,
+                            Name = "Linen Robe"
+                        },
+                        new
+                        {
+                            Id = 72,
+                            Kind = (byte)4,
+                            Name = "Linen Leggings"
+                        },
+                        new
+                        {
+                            Id = 73,
+                            Kind = (byte)4,
+                            Name = "Linen Gloves"
+                        },
+                        new
+                        {
+                            Id = 74,
+                            Kind = (byte)4,
+                            Name = "Linen Slippers"
+                        },
+                        new
+                        {
+                            Id = 75,
+                            Kind = (byte)4,
+                            Name = "Hide Cap"
+                        },
+                        new
+                        {
+                            Id = 76,
+                            Kind = (byte)4,
+                            Name = "Hide Jerkin"
+                        },
+                        new
+                        {
+                            Id = 77,
+                            Kind = (byte)4,
+                            Name = "Hide Breeches"
+                        },
+                        new
+                        {
+                            Id = 78,
+                            Kind = (byte)4,
+                            Name = "Hide Grips"
+                        },
+                        new
+                        {
+                            Id = 79,
+                            Kind = (byte)4,
+                            Name = "Hide Boots"
+                        },
+                        new
+                        {
+                            Id = 80,
+                            Kind = (byte)4,
+                            Name = "Oak Buckler"
+                        },
+                        new
+                        {
+                            Id = 81,
+                            Kind = (byte)4,
+                            Name = "Barkplate Shield"
+                        },
+                        new
+                        {
+                            Id = 82,
+                            Kind = (byte)4,
+                            Name = "Ironroot Kite Shield"
+                        },
+                        new
+                        {
+                            Id = 83,
+                            Kind = (byte)4,
+                            Name = "Ash Focus"
+                        },
+                        new
+                        {
+                            Id = 84,
+                            Kind = (byte)4,
+                            Name = "Thornwood Focus"
+                        },
+                        new
+                        {
+                            Id = 85,
+                            Kind = (byte)4,
+                            Name = "Gloamwood Orb"
+                        },
+                        new
+                        {
+                            Id = 86,
+                            Kind = (byte)4,
+                            Name = "Ironbound Pauldrons"
+                        },
+                        new
+                        {
+                            Id = 87,
+                            Kind = (byte)4,
+                            Name = "Hide Mantle"
+                        },
+                        new
+                        {
+                            Id = 88,
+                            Kind = (byte)4,
+                            Name = "Linen Shoulderwraps"
+                        },
+                        new
+                        {
+                            Id = 89,
+                            Kind = (byte)4,
+                            Name = "Barkplate Pauldrons"
+                        },
+                        new
+                        {
+                            Id = 90,
+                            Kind = (byte)4,
+                            Name = "Fernstalker Mantle"
+                        },
+                        new
+                        {
+                            Id = 91,
+                            Kind = (byte)4,
+                            Name = "Mossweave Shoulderwraps"
+                        },
+                        new
+                        {
+                            Id = 92,
+                            Kind = (byte)4,
+                            Name = "Ironroot Pauldrons"
+                        },
+                        new
+                        {
+                            Id = 93,
+                            Kind = (byte)4,
+                            Name = "Gloamhide Mantle"
+                        },
+                        new
+                        {
+                            Id = 94,
+                            Kind = (byte)4,
+                            Name = "Duskweave Shoulderwraps"
+                        },
+                        new
+                        {
+                            Id = 95,
+                            Kind = (byte)4,
+                            Name = "Ironroot Helm"
+                        },
+                        new
+                        {
+                            Id = 96,
+                            Kind = (byte)4,
+                            Name = "Ironroot Chestguard"
+                        },
+                        new
+                        {
+                            Id = 97,
+                            Kind = (byte)4,
+                            Name = "Ironroot Legguards"
+                        },
+                        new
+                        {
+                            Id = 98,
+                            Kind = (byte)4,
+                            Name = "Ironroot Gauntlets"
+                        },
+                        new
+                        {
+                            Id = 99,
+                            Kind = (byte)4,
+                            Name = "Ironroot Boots"
+                        },
+                        new
+                        {
+                            Id = 100,
+                            Kind = (byte)4,
+                            Name = "Gloamhide Cap"
+                        },
+                        new
+                        {
+                            Id = 101,
+                            Kind = (byte)4,
+                            Name = "Gloamhide Jerkin"
+                        },
+                        new
+                        {
+                            Id = 102,
+                            Kind = (byte)4,
+                            Name = "Gloamhide Breeches"
+                        },
+                        new
+                        {
+                            Id = 103,
+                            Kind = (byte)4,
+                            Name = "Gloamhide Grips"
+                        },
+                        new
+                        {
+                            Id = 104,
+                            Kind = (byte)4,
+                            Name = "Gloamhide Boots"
+                        },
+                        new
+                        {
+                            Id = 105,
+                            Kind = (byte)4,
+                            Name = "Duskweave Hood"
+                        },
+                        new
+                        {
+                            Id = 106,
+                            Kind = (byte)4,
+                            Name = "Duskweave Robe"
+                        },
+                        new
+                        {
+                            Id = 107,
+                            Kind = (byte)4,
+                            Name = "Duskweave Leggings"
+                        },
+                        new
+                        {
+                            Id = 108,
+                            Kind = (byte)4,
+                            Name = "Duskweave Gloves"
+                        },
+                        new
+                        {
+                            Id = 109,
+                            Kind = (byte)4,
+                            Name = "Duskweave Slippers"
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemModifierStat", b =>
+                {
+                    b.Property<int>("ModifierId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte>("Index")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("Max")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Max2")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Min")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Min2")
+                        .HasColumnType("integer");
+
+                    b.Property<short>("Stat")
+                        .HasColumnType("smallint");
+
+                    b.HasKey("ModifierId", "Index");
+
+                    b.ToTable("ItemModifierStats", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemModifierStats_Range", "\"Min\" <= \"Max\" AND (\"Min2\" IS NULL) = (\"Max2\" IS NULL) AND (\"Min2\" IS NULL OR \"Min2\" <= \"Max2\")");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            ModifierId = 1,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)35
+                        },
+                        new
+                        {
+                            ModifierId = 2,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 4,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)35
+                        },
+                        new
+                        {
+                            ModifierId = 3,
+                            Index = (byte)0,
+                            Max = 4,
+                            Max2 = 6,
+                            Min = 3,
+                            Min2 = 4,
+                            Stat = (short)35
+                        },
+                        new
+                        {
+                            ModifierId = 4,
+                            Index = (byte)0,
+                            Max = 6,
+                            Max2 = 8,
+                            Min = 5,
+                            Min2 = 6,
+                            Stat = (short)35
+                        },
+                        new
+                        {
+                            ModifierId = 5,
+                            Index = (byte)0,
+                            Max = 8,
+                            Max2 = 11,
+                            Min = 6,
+                            Min2 = 8,
+                            Stat = (short)35
+                        },
+                        new
+                        {
+                            ModifierId = 6,
+                            Index = (byte)0,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)36
+                        },
+                        new
+                        {
+                            ModifierId = 7,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 5,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)36
+                        },
+                        new
+                        {
+                            ModifierId = 8,
+                            Index = (byte)0,
+                            Max = 5,
+                            Max2 = 7,
+                            Min = 3,
+                            Min2 = 5,
+                            Stat = (short)36
+                        },
+                        new
+                        {
+                            ModifierId = 9,
+                            Index = (byte)0,
+                            Max = 7,
+                            Max2 = 10,
+                            Min = 4,
+                            Min2 = 7,
+                            Stat = (short)36
+                        },
+                        new
+                        {
+                            ModifierId = 10,
+                            Index = (byte)0,
+                            Max = 9,
+                            Max2 = 13,
+                            Min = 6,
+                            Min2 = 9,
+                            Stat = (short)36
+                        },
+                        new
+                        {
+                            ModifierId = 11,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)37
+                        },
+                        new
+                        {
+                            ModifierId = 12,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 4,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)37
+                        },
+                        new
+                        {
+                            ModifierId = 13,
+                            Index = (byte)0,
+                            Max = 4,
+                            Max2 = 6,
+                            Min = 3,
+                            Min2 = 4,
+                            Stat = (short)37
+                        },
+                        new
+                        {
+                            ModifierId = 14,
+                            Index = (byte)0,
+                            Max = 6,
+                            Max2 = 8,
+                            Min = 4,
+                            Min2 = 6,
+                            Stat = (short)37
+                        },
+                        new
+                        {
+                            ModifierId = 15,
+                            Index = (byte)0,
+                            Max = 8,
+                            Max2 = 11,
+                            Min = 5,
+                            Min2 = 8,
+                            Stat = (short)37
+                        },
+                        new
+                        {
+                            ModifierId = 16,
+                            Index = (byte)0,
+                            Max = 2,
+                            Max2 = 4,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)38
+                        },
+                        new
+                        {
+                            ModifierId = 17,
+                            Index = (byte)0,
+                            Max = 4,
+                            Max2 = 7,
+                            Min = 1,
+                            Min2 = 4,
+                            Stat = (short)38
+                        },
+                        new
+                        {
+                            ModifierId = 18,
+                            Index = (byte)0,
+                            Max = 5,
+                            Max2 = 10,
+                            Min = 1,
+                            Min2 = 5,
+                            Stat = (short)38
+                        },
+                        new
+                        {
+                            ModifierId = 19,
+                            Index = (byte)0,
+                            Max = 8,
+                            Max2 = 14,
+                            Min = 2,
+                            Min2 = 8,
+                            Stat = (short)38
+                        },
+                        new
+                        {
+                            ModifierId = 20,
+                            Index = (byte)0,
+                            Max = 10,
+                            Max2 = 18,
+                            Min = 2,
+                            Min2 = 10,
+                            Stat = (short)38
+                        },
+                        new
+                        {
+                            ModifierId = 21,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)39
+                        },
+                        new
+                        {
+                            ModifierId = 22,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 4,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)39
+                        },
+                        new
+                        {
+                            ModifierId = 23,
+                            Index = (byte)0,
+                            Max = 4,
+                            Max2 = 6,
+                            Min = 3,
+                            Min2 = 4,
+                            Stat = (short)39
+                        },
+                        new
+                        {
+                            ModifierId = 24,
+                            Index = (byte)0,
+                            Max = 6,
+                            Max2 = 8,
+                            Min = 4,
+                            Min2 = 6,
+                            Stat = (short)39
+                        },
+                        new
+                        {
+                            ModifierId = 25,
+                            Index = (byte)0,
+                            Max = 8,
+                            Max2 = 11,
+                            Min = 5,
+                            Min2 = 8,
+                            Stat = (short)39
+                        },
+                        new
+                        {
+                            ModifierId = 26,
+                            Index = (byte)0,
+                            Max = 19,
+                            Min = 10,
+                            Stat = (short)40
+                        },
+                        new
+                        {
+                            ModifierId = 27,
+                            Index = (byte)0,
+                            Max = 34,
+                            Min = 20,
+                            Stat = (short)40
+                        },
+                        new
+                        {
+                            ModifierId = 28,
+                            Index = (byte)0,
+                            Max = 49,
+                            Min = 35,
+                            Stat = (short)40
+                        },
+                        new
+                        {
+                            ModifierId = 29,
+                            Index = (byte)0,
+                            Max = 64,
+                            Min = 50,
+                            Stat = (short)40
+                        },
+                        new
+                        {
+                            ModifierId = 30,
+                            Index = (byte)0,
+                            Max = 79,
+                            Min = 65,
+                            Stat = (short)40
+                        },
+                        new
+                        {
+                            ModifierId = 31,
+                            Index = (byte)0,
+                            Max = 12,
+                            Min = 8,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 32,
+                            Index = (byte)0,
+                            Max = 20,
+                            Min = 13,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 33,
+                            Index = (byte)0,
+                            Max = 30,
+                            Min = 21,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 34,
+                            Index = (byte)0,
+                            Max = 40,
+                            Min = 31,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 35,
+                            Index = (byte)0,
+                            Max = 50,
+                            Min = 41,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 36,
+                            Index = (byte)0,
+                            Max = 9,
+                            Min = 5,
+                            Stat = (short)21
+                        },
+                        new
+                        {
+                            ModifierId = 37,
+                            Index = (byte)0,
+                            Max = 14,
+                            Min = 10,
+                            Stat = (short)21
+                        },
+                        new
+                        {
+                            ModifierId = 38,
+                            Index = (byte)0,
+                            Max = 19,
+                            Min = 15,
+                            Stat = (short)21
+                        },
+                        new
+                        {
+                            ModifierId = 39,
+                            Index = (byte)0,
+                            Max = 24,
+                            Min = 20,
+                            Stat = (short)21
+                        },
+                        new
+                        {
+                            ModifierId = 40,
+                            Index = (byte)0,
+                            Max = 29,
+                            Min = 25,
+                            Stat = (short)21
+                        },
+                        new
+                        {
+                            ModifierId = 41,
+                            Index = (byte)0,
+                            Max = 9,
+                            Min = 5,
+                            Stat = (short)22
+                        },
+                        new
+                        {
+                            ModifierId = 42,
+                            Index = (byte)0,
+                            Max = 14,
+                            Min = 10,
+                            Stat = (short)22
+                        },
+                        new
+                        {
+                            ModifierId = 43,
+                            Index = (byte)0,
+                            Max = 19,
+                            Min = 15,
+                            Stat = (short)22
+                        },
+                        new
+                        {
+                            ModifierId = 44,
+                            Index = (byte)0,
+                            Max = 24,
+                            Min = 20,
+                            Stat = (short)22
+                        },
+                        new
+                        {
+                            ModifierId = 45,
+                            Index = (byte)0,
+                            Max = 29,
+                            Min = 25,
+                            Stat = (short)22
+                        },
+                        new
+                        {
+                            ModifierId = 46,
+                            Index = (byte)0,
+                            Max = 9,
+                            Min = 5,
+                            Stat = (short)23
+                        },
+                        new
+                        {
+                            ModifierId = 47,
+                            Index = (byte)0,
+                            Max = 14,
+                            Min = 10,
+                            Stat = (short)23
+                        },
+                        new
+                        {
+                            ModifierId = 48,
+                            Index = (byte)0,
+                            Max = 19,
+                            Min = 15,
+                            Stat = (short)23
+                        },
+                        new
+                        {
+                            ModifierId = 49,
+                            Index = (byte)0,
+                            Max = 24,
+                            Min = 20,
+                            Stat = (short)23
+                        },
+                        new
+                        {
+                            ModifierId = 50,
+                            Index = (byte)0,
+                            Max = 29,
+                            Min = 25,
+                            Stat = (short)23
+                        },
+                        new
+                        {
+                            ModifierId = 51,
+                            Index = (byte)0,
+                            Max = 9,
+                            Min = 5,
+                            Stat = (short)24
+                        },
+                        new
+                        {
+                            ModifierId = 52,
+                            Index = (byte)0,
+                            Max = 14,
+                            Min = 10,
+                            Stat = (short)24
+                        },
+                        new
+                        {
+                            ModifierId = 53,
+                            Index = (byte)0,
+                            Max = 19,
+                            Min = 15,
+                            Stat = (short)24
+                        },
+                        new
+                        {
+                            ModifierId = 54,
+                            Index = (byte)0,
+                            Max = 24,
+                            Min = 20,
+                            Stat = (short)24
+                        },
+                        new
+                        {
+                            ModifierId = 55,
+                            Index = (byte)0,
+                            Max = 29,
+                            Min = 25,
+                            Stat = (short)24
+                        },
+                        new
+                        {
+                            ModifierId = 56,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)45
+                        },
+                        new
+                        {
+                            ModifierId = 57,
+                            Index = (byte)0,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)45
+                        },
+                        new
+                        {
+                            ModifierId = 58,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 4,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)45
+                        },
+                        new
+                        {
+                            ModifierId = 59,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 5,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)45
+                        },
+                        new
+                        {
+                            ModifierId = 60,
+                            Index = (byte)0,
+                            Max = 4,
+                            Max2 = 6,
+                            Min = 3,
+                            Min2 = 4,
+                            Stat = (short)45
+                        },
+                        new
+                        {
+                            ModifierId = 61,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)46
+                        },
+                        new
+                        {
+                            ModifierId = 62,
+                            Index = (byte)0,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)46
+                        },
+                        new
+                        {
+                            ModifierId = 63,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 4,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)46
+                        },
+                        new
+                        {
+                            ModifierId = 64,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 5,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)46
+                        },
+                        new
+                        {
+                            ModifierId = 65,
+                            Index = (byte)0,
+                            Max = 4,
+                            Max2 = 6,
+                            Min = 3,
+                            Min2 = 4,
+                            Stat = (short)46
+                        },
+                        new
+                        {
+                            ModifierId = 66,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)47
+                        },
+                        new
+                        {
+                            ModifierId = 67,
+                            Index = (byte)0,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)47
+                        },
+                        new
+                        {
+                            ModifierId = 68,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 4,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)47
+                        },
+                        new
+                        {
+                            ModifierId = 69,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 5,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)47
+                        },
+                        new
+                        {
+                            ModifierId = 70,
+                            Index = (byte)0,
+                            Max = 4,
+                            Max2 = 6,
+                            Min = 3,
+                            Min2 = 4,
+                            Stat = (short)47
+                        },
+                        new
+                        {
+                            ModifierId = 71,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)48
+                        },
+                        new
+                        {
+                            ModifierId = 72,
+                            Index = (byte)0,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)48
+                        },
+                        new
+                        {
+                            ModifierId = 73,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 4,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)48
+                        },
+                        new
+                        {
+                            ModifierId = 74,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 5,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)48
+                        },
+                        new
+                        {
+                            ModifierId = 75,
+                            Index = (byte)0,
+                            Max = 4,
+                            Max2 = 6,
+                            Min = 3,
+                            Min2 = 4,
+                            Stat = (short)48
+                        },
+                        new
+                        {
+                            ModifierId = 76,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)49
+                        },
+                        new
+                        {
+                            ModifierId = 77,
+                            Index = (byte)0,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)49
+                        },
+                        new
+                        {
+                            ModifierId = 78,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 4,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)49
+                        },
+                        new
+                        {
+                            ModifierId = 79,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 5,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)49
+                        },
+                        new
+                        {
+                            ModifierId = 80,
+                            Index = (byte)0,
+                            Max = 4,
+                            Max2 = 6,
+                            Min = 3,
+                            Min2 = 4,
+                            Stat = (short)49
+                        },
+                        new
+                        {
+                            ModifierId = 81,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)50
+                        },
+                        new
+                        {
+                            ModifierId = 82,
+                            Index = (byte)0,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)50
+                        },
+                        new
+                        {
+                            ModifierId = 83,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 4,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)50
+                        },
+                        new
+                        {
+                            ModifierId = 84,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 5,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)50
+                        },
+                        new
+                        {
+                            ModifierId = 85,
+                            Index = (byte)0,
+                            Max = 4,
+                            Max2 = 6,
+                            Min = 3,
+                            Min2 = 4,
+                            Stat = (short)50
+                        },
+                        new
+                        {
+                            ModifierId = 86,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)51
+                        },
+                        new
+                        {
+                            ModifierId = 87,
+                            Index = (byte)0,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)51
+                        },
+                        new
+                        {
+                            ModifierId = 88,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 4,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)51
+                        },
+                        new
+                        {
+                            ModifierId = 89,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 5,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)51
+                        },
+                        new
+                        {
+                            ModifierId = 90,
+                            Index = (byte)0,
+                            Max = 4,
+                            Max2 = 6,
+                            Min = 3,
+                            Min2 = 4,
+                            Stat = (short)51
+                        },
+                        new
+                        {
+                            ModifierId = 91,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)52
+                        },
+                        new
+                        {
+                            ModifierId = 92,
+                            Index = (byte)0,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)52
+                        },
+                        new
+                        {
+                            ModifierId = 93,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 4,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)52
+                        },
+                        new
+                        {
+                            ModifierId = 94,
+                            Index = (byte)0,
+                            Max = 3,
+                            Max2 = 5,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)52
+                        },
+                        new
+                        {
+                            ModifierId = 95,
+                            Index = (byte)0,
+                            Max = 4,
+                            Max2 = 6,
+                            Min = 3,
+                            Min2 = 4,
+                            Stat = (short)52
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            Index = (byte)0,
+                            Max = 9,
+                            Min = 5,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            Index = (byte)0,
+                            Max = 19,
+                            Min = 10,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            Index = (byte)0,
+                            Max = 29,
+                            Min = 20,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            Index = (byte)0,
+                            Max = 44,
+                            Min = 30,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            Index = (byte)0,
+                            Max = 59,
+                            Min = 45,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 101,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 2,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 102,
+                            Index = (byte)0,
+                            Max = 8,
+                            Min = 4,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 103,
+                            Index = (byte)0,
+                            Max = 14,
+                            Min = 8,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 104,
+                            Index = (byte)0,
+                            Max = 22,
+                            Min = 14,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 105,
+                            Index = (byte)0,
+                            Max = 32,
+                            Min = 22,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 106,
+                            Index = (byte)0,
+                            Max = 19,
+                            Min = 10,
+                            Stat = (short)41
+                        },
+                        new
+                        {
+                            ModifierId = 107,
+                            Index = (byte)0,
+                            Max = 34,
+                            Min = 20,
+                            Stat = (short)41
+                        },
+                        new
+                        {
+                            ModifierId = 108,
+                            Index = (byte)0,
+                            Max = 49,
+                            Min = 35,
+                            Stat = (short)41
+                        },
+                        new
+                        {
+                            ModifierId = 109,
+                            Index = (byte)0,
+                            Max = 64,
+                            Min = 50,
+                            Stat = (short)41
+                        },
+                        new
+                        {
+                            ModifierId = 110,
+                            Index = (byte)0,
+                            Max = 79,
+                            Min = 65,
+                            Stat = (short)41
+                        },
+                        new
+                        {
+                            ModifierId = 111,
+                            Index = (byte)0,
+                            Max = 19,
+                            Min = 10,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 112,
+                            Index = (byte)0,
+                            Max = 39,
+                            Min = 20,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 113,
+                            Index = (byte)0,
+                            Max = 64,
+                            Min = 40,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 114,
+                            Index = (byte)0,
+                            Max = 94,
+                            Min = 65,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 115,
+                            Index = (byte)0,
+                            Max = 129,
+                            Min = 95,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 116,
+                            Index = (byte)0,
+                            Max = 19,
+                            Min = 10,
+                            Stat = (short)42
+                        },
+                        new
+                        {
+                            ModifierId = 117,
+                            Index = (byte)0,
+                            Max = 34,
+                            Min = 20,
+                            Stat = (short)42
+                        },
+                        new
+                        {
+                            ModifierId = 118,
+                            Index = (byte)0,
+                            Max = 49,
+                            Min = 35,
+                            Stat = (short)42
+                        },
+                        new
+                        {
+                            ModifierId = 119,
+                            Index = (byte)0,
+                            Max = 64,
+                            Min = 50,
+                            Stat = (short)42
+                        },
+                        new
+                        {
+                            ModifierId = 120,
+                            Index = (byte)0,
+                            Max = 79,
+                            Min = 65,
+                            Stat = (short)42
+                        },
+                        new
+                        {
+                            ModifierId = 121,
+                            Index = (byte)0,
+                            Max = 5,
+                            Min = 3,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 122,
+                            Index = (byte)0,
+                            Max = 10,
+                            Min = 6,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 123,
+                            Index = (byte)0,
+                            Max = 17,
+                            Min = 11,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 124,
+                            Index = (byte)0,
+                            Max = 26,
+                            Min = 18,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 125,
+                            Index = (byte)0,
+                            Max = 37,
+                            Min = 27,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 126,
+                            Index = (byte)0,
+                            Max = 19,
+                            Min = 10,
+                            Stat = (short)43
+                        },
+                        new
+                        {
+                            ModifierId = 127,
+                            Index = (byte)0,
+                            Max = 34,
+                            Min = 20,
+                            Stat = (short)43
+                        },
+                        new
+                        {
+                            ModifierId = 128,
+                            Index = (byte)0,
+                            Max = 49,
+                            Min = 35,
+                            Stat = (short)43
+                        },
+                        new
+                        {
+                            ModifierId = 129,
+                            Index = (byte)0,
+                            Max = 64,
+                            Min = 50,
+                            Stat = (short)43
+                        },
+                        new
+                        {
+                            ModifierId = 130,
+                            Index = (byte)0,
+                            Max = 79,
+                            Min = 65,
+                            Stat = (short)43
+                        },
+                        new
+                        {
+                            ModifierId = 131,
+                            Index = (byte)0,
+                            Max = 10,
+                            Min = 6,
+                            Stat = (short)30
+                        },
+                        new
+                        {
+                            ModifierId = 132,
+                            Index = (byte)0,
+                            Max = 16,
+                            Min = 11,
+                            Stat = (short)30
+                        },
+                        new
+                        {
+                            ModifierId = 133,
+                            Index = (byte)0,
+                            Max = 22,
+                            Min = 17,
+                            Stat = (short)30
+                        },
+                        new
+                        {
+                            ModifierId = 134,
+                            Index = (byte)0,
+                            Max = 28,
+                            Min = 23,
+                            Stat = (short)30
+                        },
+                        new
+                        {
+                            ModifierId = 135,
+                            Index = (byte)0,
+                            Max = 34,
+                            Min = 29,
+                            Stat = (short)30
+                        },
+                        new
+                        {
+                            ModifierId = 136,
+                            Index = (byte)0,
+                            Max = 10,
+                            Min = 6,
+                            Stat = (short)31
+                        },
+                        new
+                        {
+                            ModifierId = 137,
+                            Index = (byte)0,
+                            Max = 16,
+                            Min = 11,
+                            Stat = (short)31
+                        },
+                        new
+                        {
+                            ModifierId = 138,
+                            Index = (byte)0,
+                            Max = 22,
+                            Min = 17,
+                            Stat = (short)31
+                        },
+                        new
+                        {
+                            ModifierId = 139,
+                            Index = (byte)0,
+                            Max = 28,
+                            Min = 23,
+                            Stat = (short)31
+                        },
+                        new
+                        {
+                            ModifierId = 140,
+                            Index = (byte)0,
+                            Max = 34,
+                            Min = 29,
+                            Stat = (short)31
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 1,
+                            Stat = (short)1
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 4,
+                            Stat = (short)1
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            Index = (byte)0,
+                            Max = 10,
+                            Min = 7,
+                            Stat = (short)1
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            Index = (byte)0,
+                            Max = 15,
+                            Min = 11,
+                            Stat = (short)1
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            Index = (byte)0,
+                            Max = 20,
+                            Min = 16,
+                            Stat = (short)1
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 1,
+                            Stat = (short)2
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 4,
+                            Stat = (short)2
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            Index = (byte)0,
+                            Max = 10,
+                            Min = 7,
+                            Stat = (short)2
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            Index = (byte)0,
+                            Max = 15,
+                            Min = 11,
+                            Stat = (short)2
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            Index = (byte)0,
+                            Max = 20,
+                            Min = 16,
+                            Stat = (short)2
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 1,
+                            Stat = (short)3
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 4,
+                            Stat = (short)3
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            Index = (byte)0,
+                            Max = 10,
+                            Min = 7,
+                            Stat = (short)3
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            Index = (byte)0,
+                            Max = 15,
+                            Min = 11,
+                            Stat = (short)3
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            Index = (byte)0,
+                            Max = 20,
+                            Min = 16,
+                            Stat = (short)3
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 1,
+                            Stat = (short)0
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 4,
+                            Stat = (short)0
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            Index = (byte)0,
+                            Max = 10,
+                            Min = 7,
+                            Stat = (short)0
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            Index = (byte)0,
+                            Max = 15,
+                            Min = 11,
+                            Stat = (short)0
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            Index = (byte)0,
+                            Max = 20,
+                            Min = 16,
+                            Stat = (short)0
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            Index = (byte)0,
+                            Max = 11,
+                            Min = 6,
+                            Stat = (short)15
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            Index = (byte)0,
+                            Max = 17,
+                            Min = 12,
+                            Stat = (short)15
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            Index = (byte)0,
+                            Max = 23,
+                            Min = 18,
+                            Stat = (short)15
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            Index = (byte)0,
+                            Max = 29,
+                            Min = 24,
+                            Stat = (short)15
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            Index = (byte)0,
+                            Max = 35,
+                            Min = 30,
+                            Stat = (short)15
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            Index = (byte)0,
+                            Max = 11,
+                            Min = 6,
+                            Stat = (short)16
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            Index = (byte)0,
+                            Max = 17,
+                            Min = 12,
+                            Stat = (short)16
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            Index = (byte)0,
+                            Max = 23,
+                            Min = 18,
+                            Stat = (short)16
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            Index = (byte)0,
+                            Max = 29,
+                            Min = 24,
+                            Stat = (short)16
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            Index = (byte)0,
+                            Max = 35,
+                            Min = 30,
+                            Stat = (short)16
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            Index = (byte)0,
+                            Max = 11,
+                            Min = 6,
+                            Stat = (short)17
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            Index = (byte)0,
+                            Max = 17,
+                            Min = 12,
+                            Stat = (short)17
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            Index = (byte)0,
+                            Max = 23,
+                            Min = 18,
+                            Stat = (short)17
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            Index = (byte)0,
+                            Max = 29,
+                            Min = 24,
+                            Stat = (short)17
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            Index = (byte)0,
+                            Max = 35,
+                            Min = 30,
+                            Stat = (short)17
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            Index = (byte)0,
+                            Max = 11,
+                            Min = 6,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            Index = (byte)0,
+                            Max = 17,
+                            Min = 12,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            Index = (byte)0,
+                            Max = 23,
+                            Min = 18,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            Index = (byte)0,
+                            Max = 29,
+                            Min = 24,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            Index = (byte)0,
+                            Max = 35,
+                            Min = 30,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 181,
+                            Index = (byte)0,
+                            Max = 7,
+                            Min = 5,
+                            Stat = (short)44
+                        },
+                        new
+                        {
+                            ModifierId = 182,
+                            Index = (byte)0,
+                            Max = 10,
+                            Min = 8,
+                            Stat = (short)44
+                        },
+                        new
+                        {
+                            ModifierId = 183,
+                            Index = (byte)0,
+                            Max = 13,
+                            Min = 11,
+                            Stat = (short)44
+                        },
+                        new
+                        {
+                            ModifierId = 184,
+                            Index = (byte)0,
+                            Max = 16,
+                            Min = 14,
+                            Stat = (short)44
+                        },
+                        new
+                        {
+                            ModifierId = 185,
+                            Index = (byte)0,
+                            Max = 19,
+                            Min = 17,
+                            Stat = (short)44
+                        },
+                        new
+                        {
+                            ModifierId = 186,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)12
+                        },
+                        new
+                        {
+                            ModifierId = 187,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 5,
+                            Stat = (short)12
+                        },
+                        new
+                        {
+                            ModifierId = 188,
+                            Index = (byte)0,
+                            Max = 8,
+                            Min = 7,
+                            Stat = (short)12
+                        },
+                        new
+                        {
+                            ModifierId = 189,
+                            Index = (byte)0,
+                            Max = 10,
+                            Min = 9,
+                            Stat = (short)12
+                        },
+                        new
+                        {
+                            ModifierId = 190,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 4,
+                            Stat = (short)33
+                        },
+                        new
+                        {
+                            ModifierId = 191,
+                            Index = (byte)0,
+                            Max = 9,
+                            Min = 7,
+                            Stat = (short)33
+                        },
+                        new
+                        {
+                            ModifierId = 192,
+                            Index = (byte)0,
+                            Max = 12,
+                            Min = 10,
+                            Stat = (short)33
+                        },
+                        new
+                        {
+                            ModifierId = 193,
+                            Index = (byte)0,
+                            Max = 15,
+                            Min = 13,
+                            Stat = (short)33
+                        },
+                        new
+                        {
+                            ModifierId = 194,
+                            Index = (byte)0,
+                            Max = 18,
+                            Min = 16,
+                            Stat = (short)33
+                        },
+                        new
+                        {
+                            ModifierId = 195,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)7
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)7
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)7
+                        },
+                        new
+                        {
+                            ModifierId = 198,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 4,
+                            Stat = (short)7
+                        },
+                        new
+                        {
+                            ModifierId = 199,
+                            Index = (byte)0,
+                            Max = 5,
+                            Min = 5,
+                            Stat = (short)7
+                        },
+                        new
+                        {
+                            ModifierId = 200,
+                            Index = (byte)0,
+                            Max = 12,
+                            Min = 8,
+                            Stat = (short)32
+                        },
+                        new
+                        {
+                            ModifierId = 201,
+                            Index = (byte)0,
+                            Max = 17,
+                            Min = 13,
+                            Stat = (short)32
+                        },
+                        new
+                        {
+                            ModifierId = 202,
+                            Index = (byte)0,
+                            Max = 22,
+                            Min = 18,
+                            Stat = (short)32
+                        },
+                        new
+                        {
+                            ModifierId = 203,
+                            Index = (byte)0,
+                            Max = 27,
+                            Min = 23,
+                            Stat = (short)32
+                        },
+                        new
+                        {
+                            ModifierId = 204,
+                            Index = (byte)0,
+                            Max = 32,
+                            Min = 28,
+                            Stat = (short)32
+                        },
+                        new
+                        {
+                            ModifierId = 205,
+                            Index = (byte)0,
+                            Max = 5,
+                            Min = 5,
+                            Stat = (short)13
+                        },
+                        new
+                        {
+                            ModifierId = 206,
+                            Index = (byte)0,
+                            Max = 8,
+                            Min = 8,
+                            Stat = (short)13
+                        },
+                        new
+                        {
+                            ModifierId = 207,
+                            Index = (byte)0,
+                            Max = 11,
+                            Min = 11,
+                            Stat = (short)13
+                        },
+                        new
+                        {
+                            ModifierId = 208,
+                            Index = (byte)0,
+                            Max = 14,
+                            Min = 14,
+                            Stat = (short)13
+                        },
+                        new
+                        {
+                            ModifierId = 209,
+                            Index = (byte)0,
+                            Max = 17,
+                            Min = 17,
+                            Stat = (short)13
+                        },
+                        new
+                        {
+                            ModifierId = 210,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)34
+                        },
+                        new
+                        {
+                            ModifierId = 211,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 5,
+                            Stat = (short)34
+                        },
+                        new
+                        {
+                            ModifierId = 212,
+                            Index = (byte)0,
+                            Max = 8,
+                            Min = 7,
+                            Stat = (short)34
+                        },
+                        new
+                        {
+                            ModifierId = 213,
+                            Index = (byte)0,
+                            Max = 10,
+                            Min = 9,
+                            Stat = (short)34
+                        },
+                        new
+                        {
+                            ModifierId = 214,
+                            Index = (byte)0,
+                            Max = 12,
+                            Min = 11,
+                            Stat = (short)34
+                        },
+                        new
+                        {
+                            ModifierId = 215,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)5
+                        },
+                        new
+                        {
+                            ModifierId = 216,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 5,
+                            Stat = (short)5
+                        },
+                        new
+                        {
+                            ModifierId = 217,
+                            Index = (byte)0,
+                            Max = 8,
+                            Min = 7,
+                            Stat = (short)5
+                        },
+                        new
+                        {
+                            ModifierId = 218,
+                            Index = (byte)0,
+                            Max = 10,
+                            Min = 9,
+                            Stat = (short)5
+                        },
+                        new
+                        {
+                            ModifierId = 219,
+                            Index = (byte)0,
+                            Max = 14,
+                            Min = 10,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 219,
+                            Index = (byte)1,
+                            Max = 4,
+                            Min = 2,
+                            Stat = (short)1
+                        },
+                        new
+                        {
+                            ModifierId = 219,
+                            Index = (byte)2,
+                            Max = 4,
+                            Min = 2,
+                            Stat = (short)2
+                        },
+                        new
+                        {
+                            ModifierId = 219,
+                            Index = (byte)3,
+                            Max = 10,
+                            Min = 6,
+                            Stat = (short)25
+                        },
+                        new
+                        {
+                            ModifierId = 220,
+                            Index = (byte)0,
+                            Max = 24,
+                            Min = 16,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 220,
+                            Index = (byte)1,
+                            Max = 14,
+                            Min = 10,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 220,
+                            Index = (byte)2,
+                            Max = 10,
+                            Min = 6,
+                            Stat = (short)31
+                        },
+                        new
+                        {
+                            ModifierId = 221,
+                            Index = (byte)0,
+                            Max = 36,
+                            Min = 24,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 221,
+                            Index = (byte)1,
+                            Max = 2,
+                            Max2 = 5,
+                            Min = 2,
+                            Min2 = 3,
+                            Stat = (short)45
+                        },
+                        new
+                        {
+                            ModifierId = 221,
+                            Index = (byte)2,
+                            Max = 5,
+                            Min = 3,
+                            Stat = (short)7
+                        },
+                        new
+                        {
+                            ModifierId = 222,
+                            Index = (byte)0,
+                            Max = 30,
+                            Min = 20,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 222,
+                            Index = (byte)1,
+                            Max = 18,
+                            Min = 12,
+                            Stat = (short)30
+                        },
+                        new
+                        {
+                            ModifierId = 222,
+                            Index = (byte)2,
+                            Max = 12,
+                            Min = 8,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 223,
+                            Index = (byte)0,
+                            Max = 24,
+                            Min = 16,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 223,
+                            Index = (byte)1,
+                            Max = 7,
+                            Min = 5,
+                            Stat = (short)12
+                        },
+                        new
+                        {
+                            ModifierId = 223,
+                            Index = (byte)2,
+                            Max = 7,
+                            Min = 5,
+                            Stat = (short)33
+                        },
+                        new
+                        {
+                            ModifierId = 224,
+                            Index = (byte)0,
+                            Max = 13,
+                            Min = 9,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 225,
+                            Index = (byte)0,
+                            Max = 21,
+                            Min = 15,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 226,
+                            Index = (byte)0,
+                            Max = 16,
+                            Min = 12,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 227,
+                            Index = (byte)0,
+                            Max = 8,
+                            Min = 6,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 228,
+                            Index = (byte)0,
+                            Max = 8,
+                            Min = 6,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 229,
+                            Index = (byte)0,
+                            Max = 18,
+                            Min = 14,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 230,
+                            Index = (byte)0,
+                            Max = 30,
+                            Min = 22,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 231,
+                            Index = (byte)0,
+                            Max = 24,
+                            Min = 18,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 232,
+                            Index = (byte)0,
+                            Max = 12,
+                            Min = 9,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 233,
+                            Index = (byte)0,
+                            Max = 12,
+                            Min = 9,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 234,
+                            Index = (byte)0,
+                            Max = 62,
+                            Min = 46,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 235,
+                            Index = (byte)0,
+                            Max = 104,
+                            Min = 77,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 236,
+                            Index = (byte)0,
+                            Max = 83,
+                            Min = 61,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 237,
+                            Index = (byte)0,
+                            Max = 41,
+                            Min = 31,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 238,
+                            Index = (byte)0,
+                            Max = 41,
+                            Min = 31,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 239,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 4,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 240,
+                            Index = (byte)0,
+                            Max = 9,
+                            Min = 7,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 241,
+                            Index = (byte)0,
+                            Max = 7,
+                            Min = 5,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 242,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 243,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 244,
+                            Index = (byte)0,
+                            Max = 8,
+                            Min = 6,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 245,
+                            Index = (byte)0,
+                            Max = 14,
+                            Min = 10,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 246,
+                            Index = (byte)0,
+                            Max = 12,
+                            Min = 9,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 247,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 4,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 248,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 4,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 249,
+                            Index = (byte)0,
+                            Max = 28,
+                            Min = 20,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 250,
+                            Index = (byte)0,
+                            Max = 46,
+                            Min = 34,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 251,
+                            Index = (byte)0,
+                            Max = 37,
+                            Min = 27,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 252,
+                            Index = (byte)0,
+                            Max = 18,
+                            Min = 14,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 253,
+                            Index = (byte)0,
+                            Max = 18,
+                            Min = 14,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 254,
+                            Index = (byte)0,
+                            Max = 7,
+                            Min = 5,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 254,
+                            Index = (byte)1,
+                            Max = 6,
+                            Min = 4,
+                            Stat = (short)5
+                        },
+                        new
+                        {
+                            ModifierId = 255,
+                            Index = (byte)0,
+                            Max = 16,
+                            Min = 12,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 255,
+                            Index = (byte)1,
+                            Max = 8,
+                            Min = 6,
+                            Stat = (short)5
+                        },
+                        new
+                        {
+                            ModifierId = 256,
+                            Index = (byte)0,
+                            Max = 28,
+                            Min = 20,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 256,
+                            Index = (byte)1,
+                            Max = 12,
+                            Min = 9,
+                            Stat = (short)5
+                        },
+                        new
+                        {
+                            ModifierId = 257,
+                            Index = (byte)0,
+                            Max = 9,
+                            Min = 7,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 257,
+                            Index = (byte)1,
+                            Max = 6,
+                            Min = 4,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 258,
+                            Index = (byte)0,
+                            Max = 21,
+                            Min = 15,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 258,
+                            Index = (byte)1,
+                            Max = 9,
+                            Min = 7,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 259,
+                            Index = (byte)0,
+                            Max = 35,
+                            Min = 26,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 259,
+                            Index = (byte)1,
+                            Max = 14,
+                            Min = 10,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 260,
+                            Index = (byte)0,
+                            Max = 5,
+                            Min = 3,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 261,
+                            Index = (byte)0,
+                            Max = 23,
+                            Min = 17,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 262,
+                            Index = (byte)0,
+                            Max = 7,
+                            Min = 5,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 263,
+                            Index = (byte)0,
+                            Max = 10,
+                            Min = 8,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 264,
+                            Index = (byte)0,
+                            Max = 52,
+                            Min = 38,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 265,
+                            Index = (byte)0,
+                            Max = 15,
+                            Min = 11,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 266,
+                            Index = (byte)0,
+                            Max = 18,
+                            Min = 14,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 267,
+                            Index = (byte)0,
+                            Max = 92,
+                            Min = 68,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 268,
+                            Index = (byte)0,
+                            Max = 26,
+                            Min = 20,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 269,
+                            Index = (byte)0,
+                            Max = 22,
+                            Min = 16,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 270,
+                            Index = (byte)0,
+                            Max = 37,
+                            Min = 27,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 271,
+                            Index = (byte)0,
+                            Max = 30,
+                            Min = 22,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 272,
+                            Index = (byte)0,
+                            Max = 15,
+                            Min = 11,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 273,
+                            Index = (byte)0,
+                            Max = 15,
+                            Min = 11,
+                            Stat = (short)4
+                        },
+                        new
+                        {
+                            ModifierId = 274,
+                            Index = (byte)0,
+                            Max = 110,
+                            Min = 82,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 275,
+                            Index = (byte)0,
+                            Max = 184,
+                            Min = 136,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 276,
+                            Index = (byte)0,
+                            Max = 147,
+                            Min = 109,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 277,
+                            Index = (byte)0,
+                            Max = 74,
+                            Min = 54,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 278,
+                            Index = (byte)0,
+                            Max = 74,
+                            Min = 54,
+                            Stat = (short)6
+                        },
+                        new
+                        {
+                            ModifierId = 279,
+                            Index = (byte)0,
+                            Max = 31,
+                            Min = 23,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 280,
+                            Index = (byte)0,
+                            Max = 52,
+                            Min = 38,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 281,
+                            Index = (byte)0,
+                            Max = 41,
+                            Min = 31,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 282,
+                            Index = (byte)0,
+                            Max = 21,
+                            Min = 15,
+                            Stat = (short)14
+                        },
+                        new
+                        {
+                            ModifierId = 283,
+                            Index = (byte)0,
+                            Max = 21,
+                            Min = 15,
+                            Stat = (short)14
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemModifierWeight", b =>
+                {
+                    b.Property<int>("ModifierId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte>("BaseKind")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("Weight")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ModifierId", "BaseKind");
+
+                    b.ToTable("ItemModifierWeights", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemModifierWeights_BaseKind", "\"BaseKind\" BETWEEN 1 AND 27");
+
+                            t.HasCheckConstraint("CK_ItemModifierWeights_Weight", "\"Weight\" >= 0");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            ModifierId = 1,
+                            BaseKind = (byte)19,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 1,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 1,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 1,
+                            BaseKind = (byte)22,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 2,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 2,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 2,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 2,
+                            BaseKind = (byte)22,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 3,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 3,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 3,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 3,
+                            BaseKind = (byte)22,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 4,
+                            BaseKind = (byte)19,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 4,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 4,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 4,
+                            BaseKind = (byte)22,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 5,
+                            BaseKind = (byte)19,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 5,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 5,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 5,
+                            BaseKind = (byte)22,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 6,
+                            BaseKind = (byte)19,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 6,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 6,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 6,
+                            BaseKind = (byte)22,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 7,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 7,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 7,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 7,
+                            BaseKind = (byte)22,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 8,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 8,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 8,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 8,
+                            BaseKind = (byte)22,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 9,
+                            BaseKind = (byte)19,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 9,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 9,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 9,
+                            BaseKind = (byte)22,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 10,
+                            BaseKind = (byte)19,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 10,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 10,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 10,
+                            BaseKind = (byte)22,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 11,
+                            BaseKind = (byte)19,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 11,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 11,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 11,
+                            BaseKind = (byte)22,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 12,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 12,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 12,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 12,
+                            BaseKind = (byte)22,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 13,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 13,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 13,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 13,
+                            BaseKind = (byte)22,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 14,
+                            BaseKind = (byte)19,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 14,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 14,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 14,
+                            BaseKind = (byte)22,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 15,
+                            BaseKind = (byte)19,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 15,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 15,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 15,
+                            BaseKind = (byte)22,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 16,
+                            BaseKind = (byte)19,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 16,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 16,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 16,
+                            BaseKind = (byte)22,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 17,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 17,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 17,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 17,
+                            BaseKind = (byte)22,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 18,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 18,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 18,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 18,
+                            BaseKind = (byte)22,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 19,
+                            BaseKind = (byte)19,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 19,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 19,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 19,
+                            BaseKind = (byte)22,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 20,
+                            BaseKind = (byte)19,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 20,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 20,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 20,
+                            BaseKind = (byte)22,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 21,
+                            BaseKind = (byte)19,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 21,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 21,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 21,
+                            BaseKind = (byte)22,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 22,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 22,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 22,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 22,
+                            BaseKind = (byte)22,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 23,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 23,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 23,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 23,
+                            BaseKind = (byte)22,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 24,
+                            BaseKind = (byte)19,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 24,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 24,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 24,
+                            BaseKind = (byte)22,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 25,
+                            BaseKind = (byte)19,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 25,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 25,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 25,
+                            BaseKind = (byte)22,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 26,
+                            BaseKind = (byte)19,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 26,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 26,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 26,
+                            BaseKind = (byte)22,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 27,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 27,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 27,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 27,
+                            BaseKind = (byte)22,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 28,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 28,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 28,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 28,
+                            BaseKind = (byte)22,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 29,
+                            BaseKind = (byte)19,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 29,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 29,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 29,
+                            BaseKind = (byte)22,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 30,
+                            BaseKind = (byte)19,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 30,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 30,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 30,
+                            BaseKind = (byte)22,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 31,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 31,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 31,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 32,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 32,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 32,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 33,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 33,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 33,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 34,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 34,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 34,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 35,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 35,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 35,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 36,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 36,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 36,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 36,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 37,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 37,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 37,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 37,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 38,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 38,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 38,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 38,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 39,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 39,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 39,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 39,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 40,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 40,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 40,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 40,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 41,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 41,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 41,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 41,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 42,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 42,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 42,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 42,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 43,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 43,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 43,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 43,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 44,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 44,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 44,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 44,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 45,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 45,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 45,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 45,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 46,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 46,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 46,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 46,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 47,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 47,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 47,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 47,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 48,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 48,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 48,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 48,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 49,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 49,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 49,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 49,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 50,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 50,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 50,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 50,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 51,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 51,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 51,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 51,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 52,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 52,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 52,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 52,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 53,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 53,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 53,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 53,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 54,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 54,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 54,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 54,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 55,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 55,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 55,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 55,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 56,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 56,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 56,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 56,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 56,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 57,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 57,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 57,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 57,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 57,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 58,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 58,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 58,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 58,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 58,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 59,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 59,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 59,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 59,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 59,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 60,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 60,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 60,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 60,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 60,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 61,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 61,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 61,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 61,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 61,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 62,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 62,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 62,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 62,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 62,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 63,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 63,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 63,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 63,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 63,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 64,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 64,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 64,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 64,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 64,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 65,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 65,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 65,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 65,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 65,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 66,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 66,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 66,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 66,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 66,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 67,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 67,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 67,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 67,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 67,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 68,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 68,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 68,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 68,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 68,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 69,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 69,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 69,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 69,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 69,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 70,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 70,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 70,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 70,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 70,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 71,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 71,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 71,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 71,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 71,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 72,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 72,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 72,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 72,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 72,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 73,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 73,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 73,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 73,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 73,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 74,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 74,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 74,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 74,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 74,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 75,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 75,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 75,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 75,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 75,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 76,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 76,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 76,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 76,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 76,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 77,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 77,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 77,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 77,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 77,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 78,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 78,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 78,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 78,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 78,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 79,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 79,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 79,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 79,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 79,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 80,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 80,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 80,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 80,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 80,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 81,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 81,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 81,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 82,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 82,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 82,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 83,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 83,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 83,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 84,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 84,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 84,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 85,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 85,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 85,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 86,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 86,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 86,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 87,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 87,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 87,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 88,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 88,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 88,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 89,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 89,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 89,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 90,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 90,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 90,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 91,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 91,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 91,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 92,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 92,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 92,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 93,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 93,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 93,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 94,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 94,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 94,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 95,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 95,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 95,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)1,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)3,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)7,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)9,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)13,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)15,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)17,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)18,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)23,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 96,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)23,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 97,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)17,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)23,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 98,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)1,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)2,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)3,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)5,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)6,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)7,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)8,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)9,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)11,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)12,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)13,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)14,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)15,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)17,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)18,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)23,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 99,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)1,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)2,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)3,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)5,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)6,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)7,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)8,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)9,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)11,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)12,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)13,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)14,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)15,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)17,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)18,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)23,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 100,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 101,
+                            BaseKind = (byte)1,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 101,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 101,
+                            BaseKind = (byte)3,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 101,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 101,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 101,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 101,
+                            BaseKind = (byte)23,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 102,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 102,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 102,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 102,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 102,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 102,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 102,
+                            BaseKind = (byte)23,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 103,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 103,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 103,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 103,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 103,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 103,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 103,
+                            BaseKind = (byte)23,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 104,
+                            BaseKind = (byte)1,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 104,
+                            BaseKind = (byte)2,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 104,
+                            BaseKind = (byte)3,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 104,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 104,
+                            BaseKind = (byte)5,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 104,
+                            BaseKind = (byte)6,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 104,
+                            BaseKind = (byte)23,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 105,
+                            BaseKind = (byte)1,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 105,
+                            BaseKind = (byte)2,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 105,
+                            BaseKind = (byte)3,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 105,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 105,
+                            BaseKind = (byte)5,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 105,
+                            BaseKind = (byte)6,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 105,
+                            BaseKind = (byte)23,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 106,
+                            BaseKind = (byte)1,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 106,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 106,
+                            BaseKind = (byte)3,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 106,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 106,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 106,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 106,
+                            BaseKind = (byte)23,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 107,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 107,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 107,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 107,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 107,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 107,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 107,
+                            BaseKind = (byte)23,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 108,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 108,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 108,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 108,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 108,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 108,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 108,
+                            BaseKind = (byte)23,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 109,
+                            BaseKind = (byte)1,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 109,
+                            BaseKind = (byte)2,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 109,
+                            BaseKind = (byte)3,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 109,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 109,
+                            BaseKind = (byte)5,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 109,
+                            BaseKind = (byte)6,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 109,
+                            BaseKind = (byte)23,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 110,
+                            BaseKind = (byte)1,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 110,
+                            BaseKind = (byte)2,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 110,
+                            BaseKind = (byte)3,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 110,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 110,
+                            BaseKind = (byte)5,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 110,
+                            BaseKind = (byte)6,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 110,
+                            BaseKind = (byte)23,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 111,
+                            BaseKind = (byte)7,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 111,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 111,
+                            BaseKind = (byte)9,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 111,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 111,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 111,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 112,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 112,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 112,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 112,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 112,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 112,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 113,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 113,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 113,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 113,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 113,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 113,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 114,
+                            BaseKind = (byte)7,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 114,
+                            BaseKind = (byte)8,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 114,
+                            BaseKind = (byte)9,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 114,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 114,
+                            BaseKind = (byte)11,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 114,
+                            BaseKind = (byte)12,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 115,
+                            BaseKind = (byte)7,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 115,
+                            BaseKind = (byte)8,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 115,
+                            BaseKind = (byte)9,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 115,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 115,
+                            BaseKind = (byte)11,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 115,
+                            BaseKind = (byte)12,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 116,
+                            BaseKind = (byte)7,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 116,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 116,
+                            BaseKind = (byte)9,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 116,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 116,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 116,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 117,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 117,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 117,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 117,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 117,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 117,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 118,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 118,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 118,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 118,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 118,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 118,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 119,
+                            BaseKind = (byte)7,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 119,
+                            BaseKind = (byte)8,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 119,
+                            BaseKind = (byte)9,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 119,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 119,
+                            BaseKind = (byte)11,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 119,
+                            BaseKind = (byte)12,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 120,
+                            BaseKind = (byte)7,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 120,
+                            BaseKind = (byte)8,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 120,
+                            BaseKind = (byte)9,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 120,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 120,
+                            BaseKind = (byte)11,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 120,
+                            BaseKind = (byte)12,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 121,
+                            BaseKind = (byte)13,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 121,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 121,
+                            BaseKind = (byte)15,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 121,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 121,
+                            BaseKind = (byte)17,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 121,
+                            BaseKind = (byte)18,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 121,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 122,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 122,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 122,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 122,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 122,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 122,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 122,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 123,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 123,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 123,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 123,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 123,
+                            BaseKind = (byte)17,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 123,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 123,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 124,
+                            BaseKind = (byte)13,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 124,
+                            BaseKind = (byte)14,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 124,
+                            BaseKind = (byte)15,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 124,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 124,
+                            BaseKind = (byte)17,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 124,
+                            BaseKind = (byte)18,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 124,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 125,
+                            BaseKind = (byte)13,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 125,
+                            BaseKind = (byte)14,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 125,
+                            BaseKind = (byte)15,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 125,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 125,
+                            BaseKind = (byte)17,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 125,
+                            BaseKind = (byte)18,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 125,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 126,
+                            BaseKind = (byte)13,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 126,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 126,
+                            BaseKind = (byte)15,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 126,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 126,
+                            BaseKind = (byte)17,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 126,
+                            BaseKind = (byte)18,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 126,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 127,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 127,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 127,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 127,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 127,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 127,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 127,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 128,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 128,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 128,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 128,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 128,
+                            BaseKind = (byte)17,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 128,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 128,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 129,
+                            BaseKind = (byte)13,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 129,
+                            BaseKind = (byte)14,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 129,
+                            BaseKind = (byte)15,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 129,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 129,
+                            BaseKind = (byte)17,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 129,
+                            BaseKind = (byte)18,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 129,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 130,
+                            BaseKind = (byte)13,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 130,
+                            BaseKind = (byte)14,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 130,
+                            BaseKind = (byte)15,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 130,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 130,
+                            BaseKind = (byte)17,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 130,
+                            BaseKind = (byte)18,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 130,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 131,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 131,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 131,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 132,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 132,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 132,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 133,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 133,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 133,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 134,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 134,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 134,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 135,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 135,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 135,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 136,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 136,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 136,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 136,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 137,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 137,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 137,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 137,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 138,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 138,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 138,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 138,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 139,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 139,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 139,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 139,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 140,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 140,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 140,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 140,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)1,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)3,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)7,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)9,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)13,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)15,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)17,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)18,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)19,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)22,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)23,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 141,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)22,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)23,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)17,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)22,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)23,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)1,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)2,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)3,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)5,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)6,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)7,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)8,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)9,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)11,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)12,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)13,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)14,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)15,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)17,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)18,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)19,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)22,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)23,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 144,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)1,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)2,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)3,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)5,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)6,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)7,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)8,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)9,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)11,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)12,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)13,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)14,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)15,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)17,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)18,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)19,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)22,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)23,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 145,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)1,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)3,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)7,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)9,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)13,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)15,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)17,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)18,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)19,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)22,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)22,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)17,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)22,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)1,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)2,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)3,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)5,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)6,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)7,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)8,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)9,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)11,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)12,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)13,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)14,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)15,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)17,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)18,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)19,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)22,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 149,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)1,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)2,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)3,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)5,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)6,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)7,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)8,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)9,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)11,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)12,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)13,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)14,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)15,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)17,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)18,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)19,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)22,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 150,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)1,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)3,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)7,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)9,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)13,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)15,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)17,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)18,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)19,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)17,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)1,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)2,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)3,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)5,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)6,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)7,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)8,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)9,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)11,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)12,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)13,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)14,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)15,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)17,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)18,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)19,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 154,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)1,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)2,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)3,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)5,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)6,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)7,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)8,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)9,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)11,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)12,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)13,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)14,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)15,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)17,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)18,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)19,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 155,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)1,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)3,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)7,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)9,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)13,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)15,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)17,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)18,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)23,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)23,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)17,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)23,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)1,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)2,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)3,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)5,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)6,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)7,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)8,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)9,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)11,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)12,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)13,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)14,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)15,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)17,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)18,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)23,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 159,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)1,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)2,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)3,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)5,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)6,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)7,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)8,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)9,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)11,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)12,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)13,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)14,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)15,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)17,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)18,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)23,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 160,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)1,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)3,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)7,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)9,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)13,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)15,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)17,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)18,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)23,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)23,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 162,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)17,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)23,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 163,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)1,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)2,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)3,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)5,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)6,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)7,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)8,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)9,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)11,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)12,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)13,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)14,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)15,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)17,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)18,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)23,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 164,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)1,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)2,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)3,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)5,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)6,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)7,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)8,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)9,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)11,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)12,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)13,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)14,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)15,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)17,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)18,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)23,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 165,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)1,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)3,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)7,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)9,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)13,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)15,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)17,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)18,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)23,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 166,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)23,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 167,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)17,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)23,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 168,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)1,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)2,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)3,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)5,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)6,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)7,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)8,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)9,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)11,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)12,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)13,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)14,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)15,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)17,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)18,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)23,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 169,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)1,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)2,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)3,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)5,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)6,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)7,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)8,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)9,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)11,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)12,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)13,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)14,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)15,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)17,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)18,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)23,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 170,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)1,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)3,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)7,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)9,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)13,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)15,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)17,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)18,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)23,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 171,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)23,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 172,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)17,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)23,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 173,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)1,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)2,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)3,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)5,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)6,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)7,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)8,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)9,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)11,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)12,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)13,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)14,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)15,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)17,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)18,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)23,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 174,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)1,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)2,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)3,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)5,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)6,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)7,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)8,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)9,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)11,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)12,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)13,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)14,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)15,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)17,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)18,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)23,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 175,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)1,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)3,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)7,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)9,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)13,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)15,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)17,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)18,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)23,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 176,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)23,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 177,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)17,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)23,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 178,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)1,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)2,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)3,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)5,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)6,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)7,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)8,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)9,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)11,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)12,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)13,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)14,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)15,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)17,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)18,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)23,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 179,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)1,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)2,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)3,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)4,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)5,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)6,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)7,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)8,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)9,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)10,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)11,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)12,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)13,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)14,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)15,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)16,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)17,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)18,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)23,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 180,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 181,
+                            BaseKind = (byte)19,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 181,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 181,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 181,
+                            BaseKind = (byte)22,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 182,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 182,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 182,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 182,
+                            BaseKind = (byte)22,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 183,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 183,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 183,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 183,
+                            BaseKind = (byte)22,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 184,
+                            BaseKind = (byte)19,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 184,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 184,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 184,
+                            BaseKind = (byte)22,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 185,
+                            BaseKind = (byte)19,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 185,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 185,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 185,
+                            BaseKind = (byte)22,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 186,
+                            BaseKind = (byte)4,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 186,
+                            BaseKind = (byte)10,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 186,
+                            BaseKind = (byte)16,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 186,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 187,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 187,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 187,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 187,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 188,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 188,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 188,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 188,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 189,
+                            BaseKind = (byte)4,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 189,
+                            BaseKind = (byte)10,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 189,
+                            BaseKind = (byte)16,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 189,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 190,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 190,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 190,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 190,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 190,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 191,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 191,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 191,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 191,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 191,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 192,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 192,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 192,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 192,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 192,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 193,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 193,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 193,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 193,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 193,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 194,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 194,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 194,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 194,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 194,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 195,
+                            BaseKind = (byte)19,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 195,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 195,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 195,
+                            BaseKind = (byte)22,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 195,
+                            BaseKind = (byte)24,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 195,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 195,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)22,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)22,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 198,
+                            BaseKind = (byte)19,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 198,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 198,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 198,
+                            BaseKind = (byte)22,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 198,
+                            BaseKind = (byte)24,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 198,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 198,
+                            BaseKind = (byte)26,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 199,
+                            BaseKind = (byte)19,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 199,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 199,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 199,
+                            BaseKind = (byte)22,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 199,
+                            BaseKind = (byte)24,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 199,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 199,
+                            BaseKind = (byte)26,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 200,
+                            BaseKind = (byte)19,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 200,
+                            BaseKind = (byte)20,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 200,
+                            BaseKind = (byte)21,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 200,
+                            BaseKind = (byte)22,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 200,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 201,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 201,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 201,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 201,
+                            BaseKind = (byte)22,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 201,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 202,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 202,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 202,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 202,
+                            BaseKind = (byte)22,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 202,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 203,
+                            BaseKind = (byte)19,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 203,
+                            BaseKind = (byte)20,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 203,
+                            BaseKind = (byte)21,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 203,
+                            BaseKind = (byte)22,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 203,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 204,
+                            BaseKind = (byte)19,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 204,
+                            BaseKind = (byte)20,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 204,
+                            BaseKind = (byte)21,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 204,
+                            BaseKind = (byte)22,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 204,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 205,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 205,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 205,
+                            BaseKind = (byte)18,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 206,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 206,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 206,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 207,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 207,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 207,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 208,
+                            BaseKind = (byte)6,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 208,
+                            BaseKind = (byte)12,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 208,
+                            BaseKind = (byte)18,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 209,
+                            BaseKind = (byte)6,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 209,
+                            BaseKind = (byte)12,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 209,
+                            BaseKind = (byte)18,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 210,
+                            BaseKind = (byte)1,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 210,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 210,
+                            BaseKind = (byte)7,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 210,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 210,
+                            BaseKind = (byte)13,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 210,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 210,
+                            BaseKind = (byte)25,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 211,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 211,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 211,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 211,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 211,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 211,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 211,
+                            BaseKind = (byte)25,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 212,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 212,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 212,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 212,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 212,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 212,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 212,
+                            BaseKind = (byte)25,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 213,
+                            BaseKind = (byte)1,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 213,
+                            BaseKind = (byte)2,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 213,
+                            BaseKind = (byte)7,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 213,
+                            BaseKind = (byte)8,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 213,
+                            BaseKind = (byte)13,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 213,
+                            BaseKind = (byte)14,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 213,
+                            BaseKind = (byte)25,
+                            Weight = 400
+                        },
+                        new
+                        {
+                            ModifierId = 214,
+                            BaseKind = (byte)1,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 214,
+                            BaseKind = (byte)2,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 214,
+                            BaseKind = (byte)7,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 214,
+                            BaseKind = (byte)8,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 214,
+                            BaseKind = (byte)13,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 214,
+                            BaseKind = (byte)14,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 214,
+                            BaseKind = (byte)25,
+                            Weight = 200
+                        },
+                        new
+                        {
+                            ModifierId = 215,
+                            BaseKind = (byte)23,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 216,
+                            BaseKind = (byte)23,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 217,
+                            BaseKind = (byte)23,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 218,
+                            BaseKind = (byte)23,
+                            Weight = 400
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ItemTemplate", b =>
                 {
                     b.Property<decimal>("Id")
@@ -7131,6 +23100,416 @@ namespace Avalon.Database.World.Migrations
                             RequiresAnyAttribute = false,
                             SellPrice = 0L,
                             SubClass = 300
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemTemplateModifier", b =>
+                {
+                    b.Property<decimal>("TemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<byte>("Index")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("ModifierId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("TemplateId", "Index");
+
+                    b.HasIndex("ModifierId");
+
+                    b.ToTable("ItemTemplateModifiers", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            TemplateId = 58m,
+                            Index = (byte)0,
+                            ModifierId = 219
+                        },
+                        new
+                        {
+                            TemplateId = 64m,
+                            Index = (byte)0,
+                            ModifierId = 220
+                        },
+                        new
+                        {
+                            TemplateId = 65m,
+                            Index = (byte)0,
+                            ModifierId = 221
+                        },
+                        new
+                        {
+                            TemplateId = 66m,
+                            Index = (byte)0,
+                            ModifierId = 222
+                        },
+                        new
+                        {
+                            TemplateId = 67m,
+                            Index = (byte)0,
+                            ModifierId = 223
+                        },
+                        new
+                        {
+                            TemplateId = 12m,
+                            Index = (byte)0,
+                            ModifierId = 224
+                        },
+                        new
+                        {
+                            TemplateId = 13m,
+                            Index = (byte)0,
+                            ModifierId = 225
+                        },
+                        new
+                        {
+                            TemplateId = 14m,
+                            Index = (byte)0,
+                            ModifierId = 226
+                        },
+                        new
+                        {
+                            TemplateId = 15m,
+                            Index = (byte)0,
+                            ModifierId = 227
+                        },
+                        new
+                        {
+                            TemplateId = 16m,
+                            Index = (byte)0,
+                            ModifierId = 228
+                        },
+                        new
+                        {
+                            TemplateId = 17m,
+                            Index = (byte)0,
+                            ModifierId = 229
+                        },
+                        new
+                        {
+                            TemplateId = 18m,
+                            Index = (byte)0,
+                            ModifierId = 230
+                        },
+                        new
+                        {
+                            TemplateId = 19m,
+                            Index = (byte)0,
+                            ModifierId = 231
+                        },
+                        new
+                        {
+                            TemplateId = 20m,
+                            Index = (byte)0,
+                            ModifierId = 232
+                        },
+                        new
+                        {
+                            TemplateId = 21m,
+                            Index = (byte)0,
+                            ModifierId = 233
+                        },
+                        new
+                        {
+                            TemplateId = 22m,
+                            Index = (byte)0,
+                            ModifierId = 234
+                        },
+                        new
+                        {
+                            TemplateId = 23m,
+                            Index = (byte)0,
+                            ModifierId = 235
+                        },
+                        new
+                        {
+                            TemplateId = 24m,
+                            Index = (byte)0,
+                            ModifierId = 236
+                        },
+                        new
+                        {
+                            TemplateId = 25m,
+                            Index = (byte)0,
+                            ModifierId = 237
+                        },
+                        new
+                        {
+                            TemplateId = 26m,
+                            Index = (byte)0,
+                            ModifierId = 238
+                        },
+                        new
+                        {
+                            TemplateId = 36m,
+                            Index = (byte)0,
+                            ModifierId = 239
+                        },
+                        new
+                        {
+                            TemplateId = 37m,
+                            Index = (byte)0,
+                            ModifierId = 240
+                        },
+                        new
+                        {
+                            TemplateId = 38m,
+                            Index = (byte)0,
+                            ModifierId = 241
+                        },
+                        new
+                        {
+                            TemplateId = 39m,
+                            Index = (byte)0,
+                            ModifierId = 242
+                        },
+                        new
+                        {
+                            TemplateId = 40m,
+                            Index = (byte)0,
+                            ModifierId = 243
+                        },
+                        new
+                        {
+                            TemplateId = 41m,
+                            Index = (byte)0,
+                            ModifierId = 244
+                        },
+                        new
+                        {
+                            TemplateId = 42m,
+                            Index = (byte)0,
+                            ModifierId = 245
+                        },
+                        new
+                        {
+                            TemplateId = 43m,
+                            Index = (byte)0,
+                            ModifierId = 246
+                        },
+                        new
+                        {
+                            TemplateId = 44m,
+                            Index = (byte)0,
+                            ModifierId = 247
+                        },
+                        new
+                        {
+                            TemplateId = 45m,
+                            Index = (byte)0,
+                            ModifierId = 248
+                        },
+                        new
+                        {
+                            TemplateId = 46m,
+                            Index = (byte)0,
+                            ModifierId = 249
+                        },
+                        new
+                        {
+                            TemplateId = 47m,
+                            Index = (byte)0,
+                            ModifierId = 250
+                        },
+                        new
+                        {
+                            TemplateId = 48m,
+                            Index = (byte)0,
+                            ModifierId = 251
+                        },
+                        new
+                        {
+                            TemplateId = 49m,
+                            Index = (byte)0,
+                            ModifierId = 252
+                        },
+                        new
+                        {
+                            TemplateId = 50m,
+                            Index = (byte)0,
+                            ModifierId = 253
+                        },
+                        new
+                        {
+                            TemplateId = 70m,
+                            Index = (byte)0,
+                            ModifierId = 254
+                        },
+                        new
+                        {
+                            TemplateId = 71m,
+                            Index = (byte)0,
+                            ModifierId = 255
+                        },
+                        new
+                        {
+                            TemplateId = 72m,
+                            Index = (byte)0,
+                            ModifierId = 256
+                        },
+                        new
+                        {
+                            TemplateId = 73m,
+                            Index = (byte)0,
+                            ModifierId = 257
+                        },
+                        new
+                        {
+                            TemplateId = 74m,
+                            Index = (byte)0,
+                            ModifierId = 258
+                        },
+                        new
+                        {
+                            TemplateId = 75m,
+                            Index = (byte)0,
+                            ModifierId = 259
+                        },
+                        new
+                        {
+                            TemplateId = 76m,
+                            Index = (byte)0,
+                            ModifierId = 260
+                        },
+                        new
+                        {
+                            TemplateId = 77m,
+                            Index = (byte)0,
+                            ModifierId = 261
+                        },
+                        new
+                        {
+                            TemplateId = 78m,
+                            Index = (byte)0,
+                            ModifierId = 262
+                        },
+                        new
+                        {
+                            TemplateId = 79m,
+                            Index = (byte)0,
+                            ModifierId = 263
+                        },
+                        new
+                        {
+                            TemplateId = 80m,
+                            Index = (byte)0,
+                            ModifierId = 264
+                        },
+                        new
+                        {
+                            TemplateId = 81m,
+                            Index = (byte)0,
+                            ModifierId = 265
+                        },
+                        new
+                        {
+                            TemplateId = 82m,
+                            Index = (byte)0,
+                            ModifierId = 266
+                        },
+                        new
+                        {
+                            TemplateId = 83m,
+                            Index = (byte)0,
+                            ModifierId = 267
+                        },
+                        new
+                        {
+                            TemplateId = 84m,
+                            Index = (byte)0,
+                            ModifierId = 268
+                        },
+                        new
+                        {
+                            TemplateId = 85m,
+                            Index = (byte)0,
+                            ModifierId = 269
+                        },
+                        new
+                        {
+                            TemplateId = 86m,
+                            Index = (byte)0,
+                            ModifierId = 270
+                        },
+                        new
+                        {
+                            TemplateId = 87m,
+                            Index = (byte)0,
+                            ModifierId = 271
+                        },
+                        new
+                        {
+                            TemplateId = 88m,
+                            Index = (byte)0,
+                            ModifierId = 272
+                        },
+                        new
+                        {
+                            TemplateId = 89m,
+                            Index = (byte)0,
+                            ModifierId = 273
+                        },
+                        new
+                        {
+                            TemplateId = 90m,
+                            Index = (byte)0,
+                            ModifierId = 274
+                        },
+                        new
+                        {
+                            TemplateId = 91m,
+                            Index = (byte)0,
+                            ModifierId = 275
+                        },
+                        new
+                        {
+                            TemplateId = 92m,
+                            Index = (byte)0,
+                            ModifierId = 276
+                        },
+                        new
+                        {
+                            TemplateId = 93m,
+                            Index = (byte)0,
+                            ModifierId = 277
+                        },
+                        new
+                        {
+                            TemplateId = 94m,
+                            Index = (byte)0,
+                            ModifierId = 278
+                        },
+                        new
+                        {
+                            TemplateId = 95m,
+                            Index = (byte)0,
+                            ModifierId = 279
+                        },
+                        new
+                        {
+                            TemplateId = 96m,
+                            Index = (byte)0,
+                            ModifierId = 280
+                        },
+                        new
+                        {
+                            TemplateId = 97m,
+                            Index = (byte)0,
+                            ModifierId = 281
+                        },
+                        new
+                        {
+                            TemplateId = 98m,
+                            Index = (byte)0,
+                            ModifierId = 282
+                        },
+                        new
+                        {
+                            TemplateId = 99m,
+                            Index = (byte)0,
+                            ModifierId = 283
                         });
                 });
 
@@ -10706,6 +27085,50 @@ namespace Avalon.Database.World.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ItemModifier", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemModifierGroup", "Group")
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Group");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemModifierStat", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemModifier", null)
+                        .WithMany("Stats")
+                        .HasForeignKey("ModifierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemModifierWeight", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemModifier", null)
+                        .WithMany("Weights")
+                        .HasForeignKey("ModifierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemTemplateModifier", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemModifier", null)
+                        .WithMany()
+                        .HasForeignKey("ModifierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.ItemTemplate", null)
+                        .WithMany("Modifiers")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.LootTableEntry", b =>
                 {
                     b.HasOne("Avalon.Domain.World.ItemTemplate", null)
@@ -11051,6 +27474,18 @@ namespace Avalon.Database.World.Migrations
             modelBuilder.Entity("Avalon.Domain.World.DoodadTemplate", b =>
                 {
                     b.Navigation("AuraOutcomes");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemModifier", b =>
+                {
+                    b.Navigation("Stats");
+
+                    b.Navigation("Weights");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemTemplate", b =>
+                {
+                    b.Navigation("Modifiers");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.LootTable", b =>

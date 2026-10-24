@@ -26,7 +26,7 @@ public sealed class CharacterInventoryItemDto
 public sealed class CharacterInventoryModifierDto
 {
     /// <summary>The catalog modifier it rolled.</summary>
-    public ushort ModifierId { get; set; }
+    public int ModifierId { get; set; }
     /// <summary>Its rolled numbers, in the order of the catalog's stat lines.</summary>
     public List<CharacterInventoryModifierValueDto> Values { get; set; } = [];
 }

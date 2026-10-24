@@ -133,6 +133,7 @@ public class WorldUpdateReloadShould
             createInfos,
             stats,
             items,
+            ItemModifierRepositories.Empty(),
             abilityTemplates,
             levels,
             creatureTemplates,

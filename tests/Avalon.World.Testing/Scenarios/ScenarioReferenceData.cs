@@ -10,6 +10,7 @@ using Avalon.World.Scripts;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.World.Testing.Scenarios;
@@ -144,6 +145,7 @@ public sealed class ScenarioReferenceData
 
         var services = new ServiceCollection();
         services.AddSingleton<IDbContextFactory<WorldDbContext>>(database);
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.AddWorldRepositories();
         ServiceProvider repositories = services.BuildServiceProvider();
 
@@ -154,6 +156,7 @@ public sealed class ScenarioReferenceData
             repositories.GetRequiredService<ICharacterCreateInfoRepository>(),
             repositories.GetRequiredService<IClassLevelStatRepository>(),
             repositories.GetRequiredService<IItemTemplateRepository>(),
+            repositories.GetRequiredService<IItemModifierRepository>(),
             repositories.GetRequiredService<IAbilityTemplateRepository>(),
             repositories.GetRequiredService<ICharacterLevelExperienceRepository>(),
             repositories.GetRequiredService<ICreatureTemplateRepository>(),

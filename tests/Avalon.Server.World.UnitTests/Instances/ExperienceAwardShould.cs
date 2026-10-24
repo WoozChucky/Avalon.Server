@@ -268,7 +268,7 @@ public class ExperienceAwardShould
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
 
-        var data = new StaticData(createInfos, stats, items, abilities, levels,
+        var data = new StaticData(createInfos, stats, items, ItemModifierRepositories.Empty(), abilities, levels,
             creatureTemplates, baseStats, rarities,
             localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         data.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();

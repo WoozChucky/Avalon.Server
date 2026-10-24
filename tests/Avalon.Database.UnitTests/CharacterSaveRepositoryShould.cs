@@ -279,7 +279,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
                 .SingleAsync(i => i.TradeId == record.Id);
             Assert.Equal((sword.Id, ItemRarity.Rare, (ushort)9), (moved.ItemInstanceId, moved.Rarity, moved.ItemLevel));
             TradeRecordItemModifier modifier = Assert.Single(moved.Modifiers);
-            Assert.Equal((modifierId, (byte)0, (ushort)202), (modifier.ItemInstanceModifierId, modifier.Ordinal, modifier.ModifierId));
+            Assert.Equal((modifierId, (byte)0, 202), (modifier.ItemInstanceModifierId, modifier.Ordinal, modifier.ModifierId));
             Assert.Equal([(StatType.AddedFireDamage, 2, (int?)5), (StatType.Strength, 4, null)],
                 modifier.Values.OrderBy(v => v.Index).Select(v => (v.Stat, v.Value, v.Value2)));
         }

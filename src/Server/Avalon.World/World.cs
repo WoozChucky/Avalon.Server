@@ -130,6 +130,7 @@ public class World : IWorld
         ICharacterCreateInfoRepository characterCreateInfoRepository,
         IClassLevelStatRepository classLevelStatRepository,
         IItemTemplateRepository itemTemplateRepository,
+        IItemModifierRepository itemModifierRepository,
         IAbilityTemplateRepository abilityTemplateRepository,
         ICharacterLevelExperienceRepository characterLevelExperienceRepository,
         ICreatureTemplateRepository creatureTemplateRepository,
@@ -164,6 +165,7 @@ public class World : IWorld
         _scriptHotReloader = scriptHotReloader;
         _chunkLibrary = chunkLibrary;
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
+            itemModifierRepository,
             abilityTemplateRepository, characterLevelExperienceRepository, creatureTemplateRepository,
             creatureBaseStatRepository, creatureRarityModifierRepository, localizedTextRepository,
             dialogueRepository, lootTableRepository, loggerFactory, vendorStockRepository, combatDataRepository,

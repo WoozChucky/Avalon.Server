@@ -41,7 +41,7 @@ public sealed class ItemModifierDtoPool
                 target.Add(_modifiers.TryPop(out ItemModifierDto? modifier) ? modifier : new ItemModifierDto());
 
             ItemModifierDto entry = target[i];
-            entry.ModifierId = modifiers[i].ModifierId;
+            entry.ModifierId = (uint)modifiers[i].ModifierId;
             RefillValues(entry.Values, modifiers[i].Values);
         }
 

@@ -66,6 +66,17 @@ internal static class Exports
             root => ItemCatalog.Write(Path.Combine(root, ItemCatalog.DirectoryName, ItemCatalog.FileName)),
             ItemCatalog.Readiness),
 
+        new("item-modifier-catalog", ItemModifierCatalogExport.DirectoryName + "/" + ItemModifierCatalogExport.FileName,
+            "the item modifier catalog: groups, tiers, stat ranges and each template's linked modifiers (from the seed)",
+            root => ItemModifierCatalogExport.Write(
+                Path.Combine(root, ItemModifierCatalogExport.DirectoryName, ItemModifierCatalogExport.FileName))),
+
+        new("item-modifier-doc", "../" + ItemModifierDoc.DocsDirectory + "/" + ItemModifierDoc.FileName,
+            "the generated block of the item modifier page, from the seed (the page sits beside the output root)",
+            root => ItemModifierDoc.Write(Path.Combine(
+                Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(root)) ?? root,
+                ItemModifierDoc.DocsDirectory, ItemModifierDoc.FileName))),
+
         new("ability-catalog", AbilityCatalogExport.DirectoryName + "/" + AbilityCatalogExport.FileName,
             "the ability rows the client names and draws casts from (needs a World database)",
             root => AbilityCatalogExport.Write(

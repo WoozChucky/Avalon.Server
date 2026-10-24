@@ -62,7 +62,7 @@ public class VendorListBuilderShould : IAsyncLifetime
     [Fact]
     public void Leave_out_a_row_whose_item_template_is_gone()
     {
-        _w.Data.Apply(new ItemsPatch(Items.Where(i => i.Id != Tonic.Id).ToList()));
+        _w.Data.Apply(new ItemsPatch(Items.Where(i => i.Id != Tonic.Id).ToList(), ItemModifierRepositories.EmptyCatalog()));
 
         SVendorListPacket list = Build();
 
@@ -87,7 +87,7 @@ public class VendorListBuilderShould : IAsyncLifetime
             BuyPrice = Tonic.BuyPrice,
             SellPrice = Tonic.SellPrice,
         };
-        _w.Data.Apply(new ItemsPatch(Items.Select(i => i.Id == Tonic.Id ? flagged : i).ToList()));
+        _w.Data.Apply(new ItemsPatch(Items.Select(i => i.Id == Tonic.Id ? flagged : i).ToList(), ItemModifierRepositories.EmptyCatalog()));
 
         SVendorListPacket list = Build();
 
@@ -131,7 +131,7 @@ public class VendorListBuilderShould : IAsyncLifetime
         CharacterEntity character = _w.Main.Character;
         character.Buyback.Push(new BuybackEntry(TestCharacters.Carried(TestCharacters.Item(3, Blade, durability: 42)), 25));
         character.Buyback.Push(new BuybackEntry(TestCharacters.Carried(TestCharacters.Item(4, Tonic, count: 5)), 20));
-        _w.Data.Apply(new ItemsPatch(Items.Select(i => i.Id == Tonic.Id ? flagged : i).ToList()));
+        _w.Data.Apply(new ItemsPatch(Items.Select(i => i.Id == Tonic.Id ? flagged : i).ToList(), ItemModifierRepositories.EmptyCatalog()));
 
         SVendorListPacket list = Build();
 

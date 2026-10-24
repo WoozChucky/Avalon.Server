@@ -27,7 +27,8 @@ namespace Avalon.Exporter;
 /// silently drifts from it. Instead the rows are the entity itself, serialized directly: the schema
 /// (reflection over ItemTemplate's properties) and the catalog (this file, reflection-driven System.
 /// Text.Json over the same properties) agree by construction because there is only one list of
-/// fields, not two. ItemTemplate has no navigation properties, so this is safe.
+/// fields, not two. Its one navigation, Modifiers (#1179), is loaded with the rows and holds plain links (template id,
+/// index, modifier id) with no way back to the template, so serializing it is safe.
 /// </summary>
 public static class ItemCatalog
 {
@@ -67,7 +68,7 @@ public static class ItemCatalog
 
         using var context = new WorldDbContext(NullLoggerFactory.Instance, options);
 
-        var templates = context.ItemTemplates.AsNoTracking().ToList();
+        var templates = context.ItemTemplates.AsNoTracking().Include(t => t.Modifiers.OrderBy(l => l.Index)).ToList();
 
         Lf.Write(path, Render(templates));
         Console.WriteLine($"wrote {path} ({templates.Count} item templates)");

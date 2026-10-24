@@ -304,7 +304,7 @@ public class CreatureSpawnerShould
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
 
-        var data = new StaticData(createInfos, classLevelStats, itemTemplates, abilityTemplates,
+        var data = new StaticData(createInfos, classLevelStats, itemTemplates, ItemModifierRepositories.Empty(), abilityTemplates,
             characterLevelExperiences, templateRepository, baseStatRepository, rarityRepository,
             localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         data.LoadAsync().GetAwaiter().GetResult();
@@ -407,7 +407,7 @@ public class CreatureSpawnerShould
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
 
-        var data = new StaticData(createInfos, classLevelStats, itemTemplates, abilityTemplates,
+        var data = new StaticData(createInfos, classLevelStats, itemTemplates, ItemModifierRepositories.Empty(), abilityTemplates,
             characterLevelExperiences, templateRepository, baseStatRepository, rarityRepository,
             localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         data.LoadAsync().GetAwaiter().GetResult();

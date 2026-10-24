@@ -38,6 +38,6 @@ internal static class TestModifiers
     private static string Rolled(ItemInstanceModifier m) =>
         Line(m.ModifierId, m.Ordinal, m.Values.Select(v => (v.Index, v.Stat, v.Value, v.Value2)));
 
-    private static string Line(ushort modifierId, byte ordinal, IEnumerable<(byte Index, StatType Stat, int Value, int? Value2)> values) =>
+    private static string Line(int modifierId, byte ordinal, IEnumerable<(byte Index, StatType Stat, int Value, int? Value2)> values) =>
         $"{modifierId}@{ordinal}: " + string.Join(", ", values.Select(v => $"{v.Index} {v.Stat} {v.Value}..{v.Value2}"));
 }

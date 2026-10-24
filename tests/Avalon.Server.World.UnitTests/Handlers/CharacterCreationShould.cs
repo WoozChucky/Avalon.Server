@@ -384,6 +384,7 @@ public class CharacterCreationShould : IDisposable
             new CharacterCreateInfoRepository(_world),
             new ClassLevelStatRepository(_world),
             new ItemTemplateRepository(_world),
+            new ItemModifierRepository(_world, NullLoggerFactory.Instance),
             new AbilityTemplateRepository(_world),
             new CharacterLevelExperienceRepository(_world),
             new CreatureTemplateRepository(_world),

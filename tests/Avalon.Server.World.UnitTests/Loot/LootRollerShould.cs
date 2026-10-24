@@ -189,12 +189,12 @@ public class LootRollerShould
         ghost.ItemTemplateId = new ItemTemplateId(999);
         LootCatalog catalog = Catalog(Table(1, ghost, Item(2, Potion, min: 45, max: 45)));
 
-        IReadOnlyCollection<ItemTemplate> loaded = new ItemsPatch(Items).Templates;
+        IReadOnlyCollection<ItemTemplate> loaded = new ItemsPatch(Items, ItemModifierRepositories.EmptyCatalog()).Templates;
         Assert.Equal([20u, 20u, 5u],
             Scripted([0.0, 0.0], [45]).Roll(BoarTemplate(1), catalog, loaded).Select(d => d.Count));
 
         var largerStack = new ItemTemplate { Id = Potion.Id, Name = Potion.Name, Class = Potion.Class, MaxStackSize = 50 };
-        IReadOnlyCollection<ItemTemplate> reloaded = new ItemsPatch([Sword, largerStack]).Templates;
+        IReadOnlyCollection<ItemTemplate> reloaded = new ItemsPatch([Sword, largerStack], ItemModifierRepositories.EmptyCatalog()).Templates;
         Assert.Equal([45u], Scripted([0.0, 0.0], [45]).Roll(BoarTemplate(1), catalog, reloaded).Select(d => d.Count));
     }
 

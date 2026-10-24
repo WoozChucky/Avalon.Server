@@ -507,8 +507,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<Guid>("ItemInstanceId")
                         .HasColumnType("uuid");
 
-                    b.Property<short>("ModifierId")
-                        .HasColumnType("smallint");
+                    b.Property<int>("ModifierId")
+                        .HasColumnType("integer");
 
                     b.Property<byte>("Ordinal")
                         .HasColumnType("smallint");
@@ -597,8 +597,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<Guid>("ItemInstanceId")
                         .HasColumnType("uuid");
 
-                    b.Property<short>("ModifierId")
-                        .HasColumnType("smallint");
+                    b.Property<int>("ModifierId")
+                        .HasColumnType("integer");
 
                     b.Property<byte>("Ordinal")
                         .HasColumnType("smallint");

@@ -15,7 +15,7 @@ public class ItemInstanceModifier
 
     public ItemInstanceId ItemInstanceId { get; set; } = default!;
 
-    public ushort ModifierId { get; set; }
+    public int ModifierId { get; set; }
 
     /// <summary>Its place among the item's modifiers, the order they are shown in.</summary>
     public byte Ordinal { get; set; }

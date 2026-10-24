@@ -64,7 +64,7 @@ public class TradeRecordItemModifier
     public byte Ordinal { get; set; }
 
     /// <summary>The catalog modifier (<see cref="ItemInstanceModifier.ModifierId" />).</summary>
-    public ushort ModifierId { get; set; }
+    public int ModifierId { get; set; }
     public List<TradeRecordItemModifierValue> Values { get; set; } = [];
 }
 

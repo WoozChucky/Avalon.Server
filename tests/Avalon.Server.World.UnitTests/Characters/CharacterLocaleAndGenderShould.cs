@@ -138,6 +138,7 @@ public class CharacterLocaleAndGenderShould
             createInfos,
             stats,
             items,
+            ItemModifierRepositories.Empty(),
             abilityTemplates,
             levels,
             creatureTemplates,

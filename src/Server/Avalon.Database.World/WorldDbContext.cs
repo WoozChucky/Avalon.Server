@@ -69,6 +69,11 @@ public class WorldDbContext : DbContext
 
     public DbSet<CreatureTemplate> CreatureTemplates { get; set; } = null!;
     public DbSet<ItemTemplate> ItemTemplates { get; set; } = null!;
+    public DbSet<ItemModifierGroup> ItemModifierGroups { get; set; } = null!;
+    public DbSet<ItemModifier> ItemModifiers { get; set; } = null!;
+    public DbSet<ItemModifierStat> ItemModifierStats { get; set; } = null!;
+    public DbSet<ItemModifierWeight> ItemModifierWeights { get; set; } = null!;
+    public DbSet<ItemTemplateModifier> ItemTemplateModifiers { get; set; } = null!;
     public DbSet<MapTemplate> MapTemplates { get; set; } = null!;
     public DbSet<QuestTemplate> QuestTemplates { get; set; } = null!;
     public DbSet<QuestStage> QuestStages { get; set; } = null!;
@@ -130,6 +135,11 @@ public class WorldDbContext : DbContext
     {
         Configure(modelBuilder.Entity<CreatureTemplate>());
         Configure(modelBuilder.Entity<ItemTemplate>());
+        Configure(modelBuilder.Entity<ItemModifierGroup>());
+        Configure(modelBuilder.Entity<ItemModifier>());
+        Configure(modelBuilder.Entity<ItemModifierStat>());
+        Configure(modelBuilder.Entity<ItemModifierWeight>());
+        Configure(modelBuilder.Entity<ItemTemplateModifier>());
         Configure(modelBuilder.Entity<MapTemplate>());
         Configure(modelBuilder.Entity<QuestTemplate>());
         Configure(modelBuilder.Entity<QuestStage>());
@@ -1745,6 +1755,93 @@ public class WorldDbContext : DbContext
         SellPrice = 0,
         Slot = null,
     };
+
+    /// <summary>
+    /// The modifier catalog's groups (#1179): one row per exclusive group, an affix family (each element of a split family
+    /// its own), a unique or a base's implicits. A code and an element name one group; uniques and implicits have neither,
+    /// so the unique index covers the coded rows only.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ItemModifierGroup> builder)
+    {
+        builder.ToTable("ItemModifierGroups", t =>
+        {
+            t.HasCheckConstraint("CK_ItemModifierGroups_Kind", "\"Kind\" IN (1, 2, 3, 4)");
+            t.HasCheckConstraint("CK_ItemModifierGroups_Code", "(\"Kind\" IN (1, 2)) = (\"Code\" IS NOT NULL)");
+            t.HasCheckConstraint("CK_ItemModifierGroups_Element",
+                "\"Element\" IS NULL OR (\"Kind\" IN (1, 2) AND \"Element\" BETWEEN 0 AND 4)");
+        });
+        builder.HasKey(g => g.Id);
+        builder.Property(g => g.Id).ValueGeneratedNever();
+        builder.Property(g => g.Code).HasMaxLength(8);
+        builder.Property(g => g.Element).HasColumnType("smallint");
+        builder.Property(g => g.Name).HasMaxLength(40).IsRequired();
+        builder.HasIndex(g => new { g.Code, g.Element }).IsUnique().AreNullsDistinct(false).HasFilter("\"Code\" IS NOT NULL");
+
+        builder.HasData(ItemModifierSeed.Groups());
+    }
+
+    /// <summary>
+    /// The catalog rows (#1179): a tier of an affix group, or a unique's or implicit group's single row with no tier. Kind
+    /// and name live on the group only; that a prefix or suffix row has a tier and a unique or implicit row none spans the
+    /// two tables, so ItemModifierCatalog and SeedIntegrityShould hold it.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ItemModifier> builder)
+    {
+        builder.ToTable("ItemModifiers", t =>
+        {
+            t.HasCheckConstraint("CK_ItemModifiers_Tier", "\"Tier\" IS NULL OR \"Tier\" BETWEEN 1 AND 5");
+            t.HasCheckConstraint("CK_ItemModifiers_RequiredItemLevel", "\"RequiredItemLevel\" > 0");
+        });
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.Id).ValueGeneratedNever();
+        builder.Property(m => m.RequiredItemLevel).HasColumnType("smallint");
+        builder.HasOne(m => m.Group).WithMany().HasForeignKey(m => m.GroupId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(m => new { m.GroupId, m.Tier }).IsUnique().AreNullsDistinct(false);
+        builder.HasMany(m => m.Stats).WithOne().HasForeignKey(s => s.ModifierId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(m => m.Weights).WithOne().HasForeignKey(w => w.ModifierId).OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasData(ItemModifierSeed.Modifiers());
+    }
+
+    /// <summary>A catalog row's stat lines (#1179); an "adds X to Y" line has the second range, every other line none.</summary>
+    private static void Configure(EntityTypeBuilder<ItemModifierStat> builder)
+    {
+        builder.ToTable("ItemModifierStats", t => t.HasCheckConstraint("CK_ItemModifierStats_Range",
+            "\"Min\" <= \"Max\" AND (\"Min2\" IS NULL) = (\"Max2\" IS NULL) AND (\"Min2\" IS NULL OR \"Min2\" <= \"Max2\")"));
+        builder.HasKey(s => new { s.ModifierId, s.Index });
+        builder.Property(s => s.Stat).HasColumnType("smallint");
+
+        builder.HasData(ItemModifierSeed.Stats());
+    }
+
+    /// <summary>A prefix or suffix row's weight on a base kind (#1179); no row, or 0, means it never rolls there.</summary>
+    private static void Configure(EntityTypeBuilder<ItemModifierWeight> builder)
+    {
+        builder.ToTable("ItemModifierWeights", t =>
+        {
+            t.HasCheckConstraint("CK_ItemModifierWeights_Weight", "\"Weight\" >= 0");
+            t.HasCheckConstraint("CK_ItemModifierWeights_BaseKind", "\"BaseKind\" BETWEEN 1 AND 27");
+        });
+        builder.HasKey(w => new { w.ModifierId, w.BaseKind });
+
+        builder.HasData(ItemModifierSeed.Weights());
+    }
+
+    /// <summary>
+    /// What every copy of a template rolls when it is made (#1179): a base's implicits or a unique's own modifier, in
+    /// index order. Gone with the template; a linked modifier cannot be deleted.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ItemTemplateModifier> builder)
+    {
+        builder.ToTable("ItemTemplateModifiers");
+        builder.HasKey(l => new { l.TemplateId, l.Index });
+        builder.Property(l => l.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
+        builder.HasOne<ItemTemplate>().WithMany(t => t.Modifiers).HasForeignKey(l => l.TemplateId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<ItemModifier>().WithMany().HasForeignKey(l => l.ModifierId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(ItemModifierSeed.TemplateLinks());
+    }
 
     private static void Configure(EntityTypeBuilder<MapTemplate> builder)
     {
