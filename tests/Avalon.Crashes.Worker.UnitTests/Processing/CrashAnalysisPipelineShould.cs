@@ -1,6 +1,8 @@
+using System.Diagnostics.Metrics;
 using System.Security.Cryptography;
 using System.Text;
 using Avalon.Crashes.UnitTests;
+using Avalon.Crashes.Worker.Diagnostics;
 using Avalon.Crashes.Worker.Processing;
 using Avalon.Crashes.Worker.Storage;
 using Avalon.Crashes.Worker.Symbols;
@@ -11,6 +13,22 @@ namespace Avalon.Crashes.Worker.UnitTests.Processing;
 
 public sealed class CrashAnalysisPipelineShould
 {
+    [Fact]
+    public async Task Should_preserve_valid_analysis_and_count_a_failed_cache_upload()
+    {
+        await using var fixture = new Fixture();
+        await fixture.RunAsync();
+        long failures = 0;
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, meter) => { if (instrument.Name == "avalon.crashes.cache_upload_failures") meter.EnableMeasurementEvents(instrument); };
+        listener.SetMeasurementEventCallback<long>((_, count, _, _) => Interlocked.Add(ref failures, count));
+        listener.Start();
+        fixture.Store.FailUpload = true;
+        CrashAnalysis analysis = await fixture.RunAsync();
+        Assert.Equal("Game::Tick", analysis.Threads[0].Frames[0].Function);
+        Assert.Equal(1, failures);
+    }
+
     [Fact]
     public async Task Should_validate_resolve_walk_and_project_with_missing_public_symbols()
     {
@@ -78,13 +96,14 @@ public sealed class CrashAnalysisPipelineShould
         private readonly CrashWorkspace _workspaces;
         private readonly CrashAnalysisPipeline _pipeline;
         private readonly PublicSymbolClient _public;
+        private readonly CrashMetrics _metrics = new();
         public Fixture(long downloadBytes = 1024 * 1024, long scratchBytes = 2L * 1024 * 1024 * 1024)
         {
             _workspaces = new(new() { ScratchRoot = Scratch, ScratchLimitBytes = scratchBytes });
             var options = new CrashSymbolOptions { CacheRoot = Path.Combine(_root, "cache"), DownloadBytes = downloadBytes, PublicEnabled = false };
             _public = new(new CrashSymbolResolverShould.Handler(), options);
             var resolver = new CrashSymbolResolver(options, Store, new(options), _public, new CrashSymbolResolverShould.Lock(), Runner, _workspaces);
-            _pipeline = new(Objects, new(), resolver, Runner, options);
+            _pipeline = new(Objects, new(), resolver, Runner, options, _metrics);
         }
         public async Task<CrashAnalysis> RunAsync()
         {
@@ -94,6 +113,7 @@ public sealed class CrashAnalysisPipelineShould
         public ValueTask DisposeAsync()
         {
             _public.Dispose();
+            _metrics.Dispose();
             if (Directory.Exists(_root)) Directory.Delete(_root, true);
             return ValueTask.CompletedTask;
         }
@@ -116,6 +136,7 @@ public sealed class CrashAnalysisPipelineShould
     {
         public long InitialBudget { get; private set; }
         public bool MissingRuntime { get; set; }
+        public bool FailUpload { get; set; }
         public async Task<SymbolCacheMetadata?> DownloadConvertedAsync(ModuleIdentity identity, string cacheVersion, string destination, long maxBytes, SymbolDownloadBudget budget, CancellationToken ct)
         {
             InitialBudget = budget.UsedBytes;
@@ -128,7 +149,8 @@ public sealed class CrashAnalysisPipelineShould
         }
         public Task DownloadOriginalAsync(ModuleIdentity identity, bool pdb, string destination, long maxBytes, SymbolDownloadBudget budget, CancellationToken ct)
             => throw new CrashSymbolException(CrashFailureCode.MissingRuntimeSymbols);
-        public Task UploadConvertedAsync(ModuleIdentity identity, SymbolCacheMetadata metadata, string source, CancellationToken ct) => Task.CompletedTask;
+        public Task UploadConvertedAsync(ModuleIdentity identity, SymbolCacheMetadata metadata, string source, CancellationToken ct) =>
+            FailUpload ? Task.FromException(new CrashSymbolException(CrashFailureCode.StorageUnavailable)) : Task.CompletedTask;
     }
 
     private sealed class Runner : ICrashToolRunner

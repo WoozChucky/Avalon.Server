@@ -11,7 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Avalon.Database.Crashes;
 
-public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, TimeProvider? timeProvider = null) : ICrashQueue
+public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, TimeProvider? timeProvider = null,
+    ICrashQueueObserver? observer = null) : ICrashQueue
 {
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
     private static readonly TimeSpan s_leaseDuration = TimeSpan.FromMinutes(10);
@@ -40,6 +41,7 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
         string? reason = !CrashObjectKey.TryParse(source.Key, out _) ? "invalid_object_key"
             : source.Size > CrashLimits.ArchiveBytes ? "archive_too_large" : null;
         string status = reason is null ? "pending" : "rejected";
+        bool firstRejection = reason is not null;
         int inserted = await db.Database.ExecuteSqlAsync($"""
             INSERT INTO crash_reports (id, object_key, source_etag, source_size, received_at, expires_at, status, reason_code, attempt_count, consecutive_tool_failures, quality_flags)
             VALUES ({id}, {source.Key}, {source.ETag}, {source.Size}, {receivedAt}, {expiresAt}, {status}, {reason}, 0, 0, 'none')
@@ -47,6 +49,7 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
             """, ct);
         if (inserted == 0)
         {
+            firstRejection = false;
             CrashReport existing = await db.Reports.FromSql($"SELECT * FROM crash_reports WHERE object_key = {source.Key} FOR UPDATE").SingleAsync(ct);
             if (existing.ExpiresAt <= CurrentTime(now, startedAt))
                 return false;
@@ -54,6 +57,7 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
             if (IsActive(existing.Status) && !MatchesSource(existing, source))
             {
                 FinishWithoutInput(existing, CrashReportStatus.Rejected, CrashFailureCode.ObjectChanged, null);
+                firstRejection = existing.LastManualRetryAt is null;
                 await db.SaveChangesAsync(ct);
             }
         }
@@ -61,6 +65,8 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
             return false;
 
         await transaction.CommitAsync(ct);
+        if (firstRejection)
+            Observe(() => observer?.Terminal(VersionOf(source.Key), CrashReportStatus.Rejected));
         return inserted == 1 && expiresAt > CurrentTime(now, startedAt);
     }
 
@@ -91,7 +97,8 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
                 continue;
             }
 
-            if (report.Status == CrashReportStatus.Processing)
+            bool recovered = report.Status == CrashReportStatus.Processing;
+            if (recovered)
             {
                 // An abandoned in-flight attempt is a resource failure, even if its process never returned a result.
                 report.ConsecutiveToolFailures++;
@@ -102,9 +109,17 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
                 FinishWithoutInput(report, CrashReportStatus.Failed, report.ReasonCode ?? CrashFailureCode.ResourceLimit, null);
                 await db.SaveChangesAsync(ct);
                 if (report.ExpiresAt <= CurrentTime(now, startedAt))
+                {
                     await transaction.RollbackAsync(ct);
+                }
                 else
+                {
                     await transaction.CommitAsync(ct);
+                    if (report.LastManualRetryAt is null)
+                        Observe(() => observer?.Terminal(VersionOf(report.ObjectKey), CrashReportStatus.Failed));
+                    if (recovered)
+                        Observe(() => observer?.LeaseRecovered());
+                }
                 db.ChangeTracker.Clear();
                 continue;
             }
@@ -127,6 +142,8 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
                 continue;
             }
             await transaction.CommitAsync(ct);
+            if (recovered)
+                Observe(() => observer?.LeaseRecovered());
             if (deadline <= CurrentTime(now, startedAt))
             {
                 db.ChangeTracker.Clear();
@@ -191,12 +208,14 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
         if (finalization is not null)
             ct = finalization.Token;
 
+        bool groupCreated = false;
         if (result.Status == CrashReportStatus.Processed)
         {
             CrashAnalysis analysis = result.Analysis ?? throw new InvalidOperationException("Processed analysis is required.");
             SignatureIdentity signature = result.Signature ?? throw new InvalidOperationException("Processed signature is required.");
             (string stack, string meta) = SerializeAnalysis(analysis);
             CrashGroup group = await FindOrCreateGroupAsync(db, report, analysis.Metadata.Version, signature, ct);
+            groupCreated = group.ReportCount == 0;
             if (completionDeadline <= CurrentTime(now, startedAt))
                 return false;
 
@@ -249,7 +268,22 @@ public sealed class CrashQueue(IDbContextFactory<CrashesDbContext> factory, Time
             return false;
 
         await transaction.CommitAsync(ct);
+        if (report.Status == CrashReportStatus.RetryWait)
+            Observe(() => observer?.Retry());
+        else if (report.LastManualRetryAt is null)
+            Observe(() => observer?.Terminal(report.Version ?? VersionOf(report.ObjectKey), report.Status));
+        if (groupCreated)
+            Observe(() => observer?.GroupCreated());
         return true;
+    }
+
+    private static string? VersionOf(string key) => CrashObjectKey.TryParse(key, out CrashObjectKey? parsed) ? parsed!.Version : null;
+
+    private static void Observe(Action observation)
+    {
+        // Telemetry is best effort; exporter failures cannot change a committed queue outcome.
+        try { observation(); }
+        catch { }
     }
 
     private static async Task<CrashGroup> FindOrCreateGroupAsync(CrashesDbContext db, CrashReport report, string version, SignatureIdentity signature, CancellationToken ct)

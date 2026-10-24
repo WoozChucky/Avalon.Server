@@ -378,3 +378,26 @@ On a world with a limit, `places.taken` at the limit with `queue.length` above z
 ## Correlated tick phase traces
 
 For bounded, opt-in visibility, tracking and replication phase records correlated with individual slow ticks, see [tick phase traces](tick-profiling.md).
+
+## Crash analysis worker
+
+The standalone worker uses meter `avalon-crashes`. Its health endpoints are internal HTTP on port 8080 in every environment: `/alive` checks the independent loop heartbeat; `/health` checks startup migration/purge, tools and required dependencies. Paused startup still migrates, purges and validates tools, without discovery or claims. Database recovery must finish a fresh purge before intake resumes.
+
+| Instrument | Kind and labels |
+|---|---|
+| `avalon.crashes.reports` | Counter, `version` and terminal `status`; at most 100 validated version labels plus `other` per worker process |
+| `avalon.crashes.groups_new` | Counter, no labels |
+| `avalon.crashes.processing.duration` | Histogram, seconds, no labels |
+| `avalon.crashes.tool_failures` | Counter, finite `tool` (`conversion`, `stackwalk`) and `reason` |
+| `avalon.crashes.retries`, `avalon.crashes.lease_recoveries` | Counters, no labels |
+| `avalon.crashes.symbol_cache` | Counter, `result` (`hit`, `miss`), local cache lookup before resolution |
+| `avalon.crashes.public_symbol_failures`, `avalon.crashes.cache_upload_failures` | Counters, no labels; optional symbol/cache failures do not invalidate a valid analysis |
+| `avalon.crashes.analysis_quality` | Counter, finite `quality` flag, each observed analysis |
+| `avalon.crashes.queue_depth`, `avalon.crashes.expired_rows` | Gauges, last observed database counts |
+| `avalon.crashes.oldest_age`, `avalon.crashes.inventory_sweep_age` | Gauges, seconds at the last maintenance observation; sweep age `-1` means no completed sweep |
+| `avalon.crashes.cleanup_last_success`, `avalon.crashes.retention_cutoff` | Gauges, Unix seconds; a stale cleanup timestamp is an incident, not evidence of physical deletion |
+| `avalon.crashes.scratch_bytes`, `avalon.crashes.cache_bytes` | Gauges, bytes; `-1` means the scan could not finish |
+
+Report/group counters observe committed transitions only. Reconciliation and explicit manual-retry campaigns do not recount a report's first terminal transition. An uncertain commit acknowledgement can lose an event: these are best-effort operational counters, not billing records. Group creation after a manual retry is still counted.
+
+Worker privacy overrides are local to its host. Shared service defaults remain unchanged. HTTP, ASP.NET and EF tracing are filtered out, non-worker metric streams are dropped, and only the controlled `process` span is exported. Only the worker's finite diagnostic log category is enabled; before any exporter its exception, message, scopes and arbitrary attributes are removed. The remaining log attributes can contain a server UUID and a typed finite failure reason. No request URL, SQL parameter, object key, signature or native stderr enters exported telemetry. Required symbol-store failure stays degraded until that store succeeds; a crash-bucket listing cannot clear it. Public-symbol and converted-cache failures remain optional quality/efficiency signals.

@@ -1,12 +1,13 @@
 using Avalon.Crashes.Analysis;
 using Avalon.Crashes.Validation;
+using Avalon.Crashes.Worker.Diagnostics;
 using Avalon.Crashes.Worker.Storage;
 using Avalon.Crashes.Worker.Symbols;
 
 namespace Avalon.Crashes.Worker.Processing;
 
 public sealed class CrashAnalysisPipeline(ICrashObjectStore objects, CrashArchiveReader archives,
-    CrashSymbolResolver symbols, ICrashToolRunner runner, CrashSymbolOptions options) : ICrashAnalysisPipeline
+    CrashSymbolResolver symbols, ICrashToolRunner runner, CrashSymbolOptions options, CrashMetrics? metrics = null) : ICrashAnalysisPipeline
 {
     public async Task<CrashAnalysis> AnalyzeAsync(StoredCrashObject source, CrashAttemptWorkspace workspace, CancellationToken ct)
     {
@@ -28,6 +29,7 @@ public sealed class CrashAnalysisPipeline(ICrashObjectStore objects, CrashArchiv
         CrashInput input = extracted!;
 
         SymbolResolution resolution = await symbols.ResolveAsync(input, workspace, budget, ct);
+        if (resolution.CacheUploadFailed) metrics?.CacheUploadFailed();
         ToolRunResult walk = await runner.RunAsync(new(CrashToolKind.Stackwalk,
             ["--json", input.DumpPath, resolution.BreakpadRoot], workspace, TimeSpan.FromSeconds(60), 45, 16L * 1024 * 1024, 64 * 1024), ct);
         ct.ThrowIfCancellationRequested();
@@ -46,6 +48,8 @@ public sealed class CrashAnalysisPipeline(ICrashObjectStore objects, CrashArchiv
         if (output.Length > 16L * 1024 * 1024)
             throw new CrashInputException(CrashFailureCode.ResourceLimit);
         byte[] json = await File.ReadAllBytesAsync(walk.OutputPath, ct);
-        return StackwalkProjector.Project(json, input with { Quality = resolution.Quality }, resolution.Processor);
+        CrashAnalysis analysis = StackwalkProjector.Project(json, input with { Quality = resolution.Quality }, resolution.Processor);
+        metrics?.Quality(analysis.Quality);
+        return analysis;
     }
 }

@@ -1,6 +1,5 @@
 using System.Data.Common;
 using Avalon.Crashes.Persistence;
-using Microsoft.Extensions.Hosting;
 
 namespace Avalon.Crashes.Worker.Processing;
 

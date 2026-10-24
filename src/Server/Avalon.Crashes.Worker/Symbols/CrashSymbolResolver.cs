@@ -1,4 +1,5 @@
 using Avalon.Crashes.Persistence;
+using Avalon.Crashes.Worker.Diagnostics;
 using Avalon.Crashes.Worker.Processing;
 
 namespace Avalon.Crashes.Worker.Symbols;
@@ -14,10 +15,12 @@ public sealed class CrashSymbolResolver
     private readonly ICrashToolRunner _runner;
     private readonly CrashWorkspace _workspaces;
     private readonly TimeProvider _time;
+    private readonly CrashMetrics? _metrics;
     private readonly SemaphoreSlim _converter = new(1, 1);
 
     public CrashSymbolResolver(CrashSymbolOptions options, ICrashSymbolStore store, SymbolCache cache,
-        PublicSymbolClient publicClient, ICrashSymbolLock symbolLock, ICrashToolRunner runner, CrashWorkspace workspaces, TimeProvider? timeProvider = null)
+        PublicSymbolClient publicClient, ICrashSymbolLock symbolLock, ICrashToolRunner runner, CrashWorkspace workspaces, TimeProvider? timeProvider = null,
+        CrashMetrics? metrics = null)
     {
         options.Validate();
         _options = options;
@@ -28,6 +31,7 @@ public sealed class CrashSymbolResolver
         _runner = runner;
         _workspaces = workspaces;
         _time = timeProvider ?? TimeProvider.System;
+        _metrics = metrics;
     }
 
     /// <summary>Caller owns the main lease and eight-minute attempt token. Pass one budget already charged for the archive.</summary>
@@ -104,6 +108,7 @@ public sealed class CrashSymbolResolver
     {
         SymbolFiles.Require(module);
         string? local = await _cache.MaterializeAsync(module, main, ct);
+        _metrics?.Cache(local is not null);
         if (local is not null)
             return await UploadAsync(module, local, ct);
         await using IAsyncDisposable lease = await _lock.AcquireAsync(_options.CacheVersion, SymbolFiles.LockIdentity(module), ct);
@@ -151,7 +156,10 @@ public sealed class CrashSymbolResolver
         {
             PublicSymbolResult result = await _public.FetchAsync(module, conversion, budget, ct);
             if (result.Status != PublicSymbolStatus.Available)
+            {
+                _metrics?.PublicFailure();
                 throw new CrashSymbolException(CrashFailureCode.MissingRuntimeSymbols);
+            }
             pdb = result.PdbPath!;
         }
         await _converter.WaitAsync(ct);

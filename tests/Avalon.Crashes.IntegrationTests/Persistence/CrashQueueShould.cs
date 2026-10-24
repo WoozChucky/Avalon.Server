@@ -429,8 +429,8 @@ public sealed class CrashQueueShould : IAsyncLifetime
         Assert.Empty(await db.Groups.ToListAsync());
         Assert.Null((await db.Reports.SingleAsync()).Stack);
         CrashLease unexpiredReport = await DiscoverAndClaimAsync();
-        Assert.False(await _postgres.Queue.RenewAsync(unexpiredReport, s_now.AddMinutes(10), default));
-        Assert.False(await _postgres.Queue.CompleteAsync(unexpiredReport, Processed(), s_now.AddMinutes(10), default));
+        Assert.False(await _postgres.Queue.RenewAsync(unexpiredReport, unexpiredReport.LeaseUntil, default));
+        Assert.False(await _postgres.Queue.CompleteAsync(unexpiredReport, Processed(), unexpiredReport.LeaseUntil, default));
     }
 
     [IntegrationFact]
