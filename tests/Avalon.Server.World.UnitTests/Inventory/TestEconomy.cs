@@ -1,6 +1,8 @@
 using Avalon.World;
+using Avalon.World.Configuration;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.World.UnitTests.Inventory;
 
@@ -14,5 +16,6 @@ internal static class TestEconomy
     }
 
     /// <summary>A roller over <paramref name="ids" />, its numbers seeded.</summary>
-    public static ItemRoller Roller(IItemIdAllocator ids) => new(new LootRandom(new Random(1179)), ids);
+    public static ItemRoller Roller(IItemIdAllocator ids) =>
+        new(new LootRandom(new Random(1179)), ids, Options.Create(new GameConfiguration()));
 }

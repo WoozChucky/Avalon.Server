@@ -93,6 +93,8 @@ public static class ServiceExtensions
         services.AddSingleton<IValidateOptions<GameConfiguration>>(new TickThreadCpuValidation(LinuxCpuAffinity.Instance));
         // #710: a quest reset setting out of range stops the start.
         services.AddSingleton<IValidateOptions<GameConfiguration>>(new QuestResetValidation());
+        // #1179: rarity odds that cannot be drawn, or a sell factor below 1, stop the start.
+        services.AddSingleton<IValidateOptions<GameConfiguration>>(new ItemConfigurationValidation());
 
         // The send threads and the session layer (#875): Network:SendThreads, MaxPendingBytes, MaxWriteStall,
         // PacketEncryption. And the receive queue's depth cap (#927): MaxReceiveQueueDepth.

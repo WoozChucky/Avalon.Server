@@ -233,7 +233,8 @@ public sealed class ScenarioWorld : IDisposable
         // ids are the same every time), and the quest service, which an instance tells of every kill and Tick flushes.
         services.AddSingleton<IItemIdAllocator>(new SequentialItemIds());
         services.AddSingleton<IItemRoller>(provider => new ItemRoller(
-            new LootRandom(new Random(unchecked(seed + ItemSeedOffset))), provider.GetRequiredService<IItemIdAllocator>()));
+            new LootRandom(new Random(unchecked(seed + ItemSeedOffset))), provider.GetRequiredService<IItemIdAllocator>(),
+            Options.Create(configuration)));
         services.AddSingleton<ICharacterEconomy>(provider => new CharacterEconomy(_world,
             provider.GetRequiredService<IItemIdAllocator>(), provider.GetRequiredService<IItemRoller>()));
         services.AddSingleton(provider => new QuestService(_world, provider,
