@@ -11,7 +11,9 @@ public interface ICrashAnalysisPipeline
     Task<CrashAnalysis> AnalyzeAsync(StoredCrashObject source, CrashAttemptWorkspace workspace, CancellationToken ct);
 }
 
-public sealed record CrashProcessingBackoffState(CrashFailureCode Reason, DateTimeOffset RetryAt);
+public enum CrashBackoffDependency { Unknown, Discovery, CrashRead, RequiredSymbols, Tools }
+public sealed record CrashProcessingBackoffState(CrashFailureCode Reason, DateTimeOffset RetryAt,
+    CrashBackoffDependency Dependency = CrashBackoffDependency.Unknown);
 
 public sealed class CrashProcessingBackoff
 {
@@ -19,15 +21,22 @@ public sealed class CrashProcessingBackoff
     public CrashProcessingBackoffState? State => Volatile.Read(ref _state);
 
     /// <summary>A single finite outage reason and bounded retry deadline; no report or exception content.</summary>
-    public void Degrade(CrashFailureCode reason, DateTimeOffset now)
+    public void Degrade(CrashFailureCode reason, DateTimeOffset now, CrashBackoffDependency dependency = CrashBackoffDependency.Unknown)
     {
         if (reason is not (CrashFailureCode.AccessDenied or CrashFailureCode.ConfigurationInvalid))
             throw new ArgumentOutOfRangeException(nameof(reason));
-        Interlocked.Exchange(ref _state, new(reason, now.AddMinutes(5)));
+        Interlocked.Exchange(ref _state, new(reason, now.AddMinutes(5), dependency));
     }
 
     /// <summary>Call only after a successful probe of the failing dependency, or a fully successful analysis.</summary>
     public void Clear() => Interlocked.Exchange(ref _state, null);
+
+    /// <summary>A probe may clear only the same outage it observed before starting, never a newer or unrelated failure.</summary>
+    public void Recovered(CrashProcessingBackoffState? observed, CrashBackoffDependency dependency)
+    {
+        if (dependency != CrashBackoffDependency.Unknown && observed?.Dependency == dependency)
+            Interlocked.CompareExchange(ref _state, null, observed);
+    }
 }
 
 public sealed class CrashProcessor
@@ -102,8 +111,8 @@ public sealed class CrashProcessor
                 result = _retry.Decide(CrashFailureCode.ToolTimeout, lease, _time.GetUtcNow());
             }
             catch (CrashInputException ex) { result = Failure(ex.Code, lease); }
-            catch (CrashSymbolException ex) { result = Failure(ex.Code, lease); }
-            catch (CrashStorageException ex) { result = Failure(ex.Code, lease); }
+            catch (CrashSymbolException ex) { result = Failure(ex.Code, lease, CrashBackoffDependency.RequiredSymbols); }
+            catch (CrashStorageException ex) { result = Failure(ex.Code, lease, CrashBackoffDependency.CrashRead); }
             catch (CrashScratchLimitException) { result = Failure(CrashFailureCode.ResourceLimit, lease); }
             catch (Exception ex) when (IsInfrastructure(ex)) { result = Failure(CrashFailureCode.StorageUnavailable, lease); }
 
@@ -155,10 +164,10 @@ public sealed class CrashProcessor
             await _queue.CompleteAsync(lease, _retry.Decide(CrashFailureCode.ToolTimeout, lease, _time.GetUtcNow()), _time.GetUtcNow(), ct);
     }
 
-    private CrashAttemptResult Failure(CrashFailureCode code, CrashLease lease)
+    private CrashAttemptResult Failure(CrashFailureCode code, CrashLease lease, CrashBackoffDependency dependency = CrashBackoffDependency.Unknown)
     {
         if (code is CrashFailureCode.AccessDenied or CrashFailureCode.ConfigurationInvalid)
-            _backoff.Degrade(code, _time.GetUtcNow());
+            _backoff.Degrade(code, _time.GetUtcNow(), code == CrashFailureCode.ConfigurationInvalid ? CrashBackoffDependency.Unknown : dependency);
         return _retry.Decide(code, lease, _time.GetUtcNow());
     }
 

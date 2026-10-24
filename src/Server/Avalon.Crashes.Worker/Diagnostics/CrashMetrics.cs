@@ -7,8 +7,11 @@ namespace Avalon.Crashes.Worker.Diagnostics;
 public sealed class CrashMetrics : IDisposable, ICrashQueueObserver
 {
     public const string MeterName = "avalon-crashes";
+    public const int ReportSeriesLimit = 606; // current and retiring cohorts: 2 * (100 versions + other) * 3 statuses
+    public static readonly TimeSpan VersionInactivityWindow = TimeSpan.FromHours(24);
+    private static readonly string[] s_terminalStatuses = ["processed", "rejected", "failed"];
     private readonly Meter _meter = new(MeterName);
-    private readonly Counter<long> _reports;
+    private readonly TimeProvider _time;
     private readonly Counter<long> _groups;
     private readonly Counter<long> _retries;
     private readonly Counter<long> _recoveries;
@@ -18,11 +21,13 @@ public sealed class CrashMetrics : IDisposable, ICrashQueueObserver
     private readonly Counter<long> _uploadFailures;
     private readonly Counter<long> _quality;
     private readonly Histogram<double> _duration;
-    private readonly HashSet<string> _versions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, VersionSeries> _versions = new(StringComparer.Ordinal);
+    private readonly long[] _otherReports = new long[3];
     private CrashOperationalSnapshot _snapshot = new(0, 0, 0, 0, 0, 0, 0, 0);
-    public CrashMetrics()
+    public CrashMetrics(TimeProvider? timeProvider = null)
     {
-        _reports = _meter.CreateCounter<long>("avalon.crashes.reports");
+        _time = timeProvider ?? TimeProvider.System;
+        _meter.CreateObservableCounter("avalon.crashes.reports", ObserveReports);
         _groups = _meter.CreateCounter<long>("avalon.crashes.groups_new");
         _retries = _meter.CreateCounter<long>("avalon.crashes.retries");
         _recoveries = _meter.CreateCounter<long>("avalon.crashes.lease_recoveries");
@@ -45,20 +50,52 @@ public sealed class CrashMetrics : IDisposable, ICrashQueueObserver
     {
         if (status is not (CrashReportStatus.Processed or CrashReportStatus.Failed or CrashReportStatus.Rejected))
             return;
-        _reports.Add(1, new KeyValuePair<string, object?>("version", VersionLabel(version)),
-            new KeyValuePair<string, object?>("status", status.ToString().ToLowerInvariant()));
-    }
-    public string VersionLabel(string? version)
-    {
-        if (version is null || !CrashObjectKey.IsVersion(version))
-            return "other";
         lock (_versions)
         {
-            if (_versions.Contains(version)) return version;
-            if (_versions.Count >= 100) return "other";
-            _versions.Add(version);
-            return version;
+            long[] counts = _otherReports;
+            if (version is not null && version != "other" && CrashObjectKey.IsVersion(version))
+            {
+                if (!_versions.TryGetValue(version, out VersionSeries? series) && _versions.Count < 100)
+                    _versions.Add(version, series = new VersionSeries());
+                if (series is not null)
+                {
+                    series.LastSeen = _time.GetTimestamp();
+                    counts = series.Counts;
+                }
+            }
+            counts[status switch { CrashReportStatus.Processed => 0, CrashReportStatus.Rejected => 1, _ => 2 }]++;
         }
+    }
+
+    private IEnumerable<Measurement<long>> ObserveReports()
+    {
+        lock (_versions)
+        {
+            // Retire only at collection boundaries. The delta reader observes absence and reclaims old SDK points
+            // before a newly admitted/reactivated series is observed by the next collection.
+            foreach (string version in _versions.Where(x => _time.GetElapsedTime(x.Value.LastSeen) >= VersionInactivityWindow).Select(x => x.Key).ToArray())
+                _versions.Remove(version);
+            var observations = new List<Measurement<long>>(303);
+            foreach ((string version, VersionSeries series) in _versions)
+                AddObservations(observations, version, series.Counts);
+            AddObservations(observations, "other", _otherReports);
+            return observations;
+        }
+    }
+
+    private static void AddObservations(List<Measurement<long>> observations, string version, long[] counts)
+    {
+        for (int i = 0; i < counts.Length; i++)
+        {
+            if (counts[i] > 0)
+                observations.Add(new(counts[i], new KeyValuePair<string, object?>("version", version), new KeyValuePair<string, object?>("status", s_terminalStatuses[i])));
+        }
+    }
+
+    private sealed class VersionSeries
+    {
+        public long LastSeen;
+        public long[] Counts { get; } = new long[3];
     }
     public void GroupCreated() => _groups.Add(1);
     public void Retry() => _retries.Add(1);

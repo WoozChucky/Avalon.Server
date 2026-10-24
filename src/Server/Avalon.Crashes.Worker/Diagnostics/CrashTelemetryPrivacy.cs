@@ -21,6 +21,8 @@ public static class CrashTelemetryPrivacy
 
     public static void AfterDefaults(IHostApplicationBuilder builder)
     {
+        // Delta readers reclaim inactive points; a rotating label dictionary under cumulative aggregation would not.
+        builder.Services.PostConfigureAll<MetricReaderOptions>(o => o.TemporalityPreference = MetricReaderTemporalityPreference.Delta);
         builder.Services.PostConfigure<HttpClientTraceInstrumentationOptions>(o => o.FilterHttpRequestMessage = _ => false);
         builder.Services.PostConfigure<EntityFrameworkInstrumentationOptions>(o => o.Filter = (_, _) => false);
         builder.Services.PostConfigure<AspNetCoreTraceInstrumentationOptions>(o => { o.Filter = _ => false; o.RecordException = false; });
@@ -39,7 +41,8 @@ public static class CrashTelemetryPrivacy
         builder.Services.AddOpenTelemetry()
             .WithTracing(t => t.SetSampler(new PrivateTraces()).AddSource(CrashMetrics.MeterName))
             .WithMetrics(m => m.AddMeter(CrashMetrics.MeterName).AddView(instrument =>
-                instrument.Meter.Name == CrashMetrics.MeterName ? null : MetricStreamConfiguration.Drop));
+                instrument.Meter.Name != CrashMetrics.MeterName ? MetricStreamConfiguration.Drop
+                    : instrument.Name == "avalon.crashes.reports" ? new MetricStreamConfiguration { CardinalityLimit = CrashMetrics.ReportSeriesLimit } : null));
     }
 
     private sealed class PrivateTraces : Sampler

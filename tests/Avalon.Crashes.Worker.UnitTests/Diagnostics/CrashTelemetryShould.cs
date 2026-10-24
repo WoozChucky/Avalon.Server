@@ -4,6 +4,8 @@ using Avalon.Crashes.Worker.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -12,8 +14,91 @@ using Xunit;
 
 namespace Avalon.Crashes.Worker.UnitTests.Diagnostics;
 
+[Collection("Crash telemetry")]
 public sealed class CrashTelemetryShould
 {
+    [Fact]
+    public void Should_rotate_inactive_versions_without_retaining_unbounded_export_series_or_recounting()
+    {
+        var clock = new FakeTimeProvider();
+        using var metrics = new CrashMetrics(clock);
+        var batches = new List<ReportBatch>();
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        CrashTelemetryPrivacy.BeforeDefaults(builder);
+        builder.AddServiceDefaults();
+        CrashTelemetryPrivacy.AfterDefaults(builder);
+        var exporter = new Capture<Metric>(metric =>
+        {
+            if (metric.Name != "avalon.crashes.reports") return string.Empty;
+            var points = new Dictionary<(string Version, string Status), long>();
+            foreach (ref readonly MetricPoint point in metric.GetMetricPoints())
+            {
+                string? version = null;
+                string? status = null;
+                foreach (KeyValuePair<string, object?> tag in point.Tags)
+                {
+                    if (tag.Key == "version") version = (string)tag.Value!;
+                    else if (tag.Key == "status") status = (string)tag.Value!;
+                    else Assert.Fail("Unexpected metric label, including SDK overflow.");
+                }
+                points.Add((version!, status!), point.GetSumLong());
+            }
+            batches.Add(new(metric.Temporality, points));
+            return string.Empty;
+        });
+        builder.Services.AddOpenTelemetry().WithMetrics(m => m.AddReader(services => new BaseExportingMetricReader(exporter)
+        {
+            TemporalityPreference = services.GetRequiredService<IOptions<MetricReaderOptions>>().Value.TemporalityPreference
+        }));
+        using IHost host = builder.Build();
+        MeterProvider provider = host.Services.GetRequiredService<MeterProvider>();
+        ReportBatch Collect()
+        {
+            batches.Clear();
+            Assert.True(provider.ForceFlush());
+            return batches.Count == 0 ? new(AggregationTemporality.Delta, []) : Assert.Single(batches);
+        }
+
+        CrashReportStatus[] statuses = [CrashReportStatus.Processed, CrashReportStatus.Rejected, CrashReportStatus.Failed];
+        for (int i = 0; i < 100; i++)
+            foreach (CrashReportStatus status in statuses) metrics.Terminal($"1.2.{i}", status);
+        metrics.Terminal("not/a/version", CrashReportStatus.Failed);
+        ReportBatch initial = Collect();
+        Assert.Equal(301, initial.Points.Count);
+        Assert.Equal(301, initial.Points.Values.Sum());
+        Assert.Equal(0, Collect().Points.Values.Sum());
+
+        clock.Advance(TimeSpan.FromHours(23));
+        metrics.Terminal("1.2.0", CrashReportStatus.Processed);
+        Assert.Equal(1, Collect().Points.Values.Sum());
+        clock.Advance(TimeSpan.FromHours(2));
+        Assert.Equal(0, Collect().Points.Values.Sum()); // collection retires the other99, not the recently used release
+        metrics.Terminal("2.0.0", CrashReportStatus.Processed);
+        ReportBatch fresh = Collect();
+        Assert.Equal(1, fresh.Points[("2.0.0", "processed")]);
+        Assert.DoesNotContain(fresh.Points.Keys, p => p.Version == "1.2.1");
+        metrics.Terminal("1.2.0", CrashReportStatus.Processed);
+        metrics.Terminal("1.2.1", CrashReportStatus.Processed); // same label reactivated after retirement
+        Assert.Equal(2, Collect().Points.Values.Sum());
+        Assert.Equal(0, Collect().Points.Values.Sum());
+
+        // More cohorts than the SDK's default lifetime cardinality: every collection still admits new labels.
+        for (int generation = 3; generation < 15; generation++)
+        {
+            clock.Advance(TimeSpan.FromHours(25));
+            Assert.Equal(0, Collect().Points.Values.Sum());
+            for (int i = 0; i < 101; i++)
+                foreach (CrashReportStatus status in statuses) metrics.Terminal($"{generation}.0.{i}", status);
+            ReportBatch batch = Collect();
+            Assert.Equal(AggregationTemporality.Delta, batch.Temporality);
+            Assert.Equal(303, batch.Points.Count);
+            Assert.Equal(303, batch.Points.Values.Sum());
+            Assert.Equal(101, batch.Points.Keys.Select(p => p.Version).Distinct().Count());
+            Assert.Equal(1, batch.Points[($"{generation}.0.99", "processed")]);
+            Assert.Equal(0, Collect().Points.Values.Sum());
+        }
+    }
+
     [Fact]
     public void Should_bound_versions_and_not_export_unvalidated_labels()
     {
@@ -29,6 +114,7 @@ public sealed class CrashTelemetryShould
         listener.Start();
         for (int i = 0; i < 200; i++) metrics.Terminal($"1.2.{i}", CrashReportStatus.Processed);
         metrics.Terminal("secret/key?token=sentinel", CrashReportStatus.Failed);
+        listener.RecordObservableInstruments();
         Assert.Equal(101, labels.Count);
         Assert.Contains("other", labels);
         Assert.DoesNotContain("secret/key?token=sentinel", labels);
@@ -93,4 +179,8 @@ public sealed class CrashTelemetryShould
             return ExportResult.Success;
         }
     }
+    private sealed record ReportBatch(AggregationTemporality Temporality, Dictionary<(string Version, string Status), long> Points);
 }
+
+[CollectionDefinition("Crash telemetry", DisableParallelization = true)]
+public sealed class CrashTelemetryCollection;

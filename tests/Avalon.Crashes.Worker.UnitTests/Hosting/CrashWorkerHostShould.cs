@@ -1,5 +1,6 @@
 using Avalon.Crashes.Persistence;
 using Avalon.Crashes.Worker.Diagnostics;
+using Avalon.Crashes.Worker.Discovery;
 using Avalon.Crashes.Worker.Maintenance;
 using Avalon.Crashes.Worker.Processing;
 using Avalon.Crashes.Worker.Storage;
@@ -9,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
@@ -16,6 +18,51 @@ namespace Avalon.Crashes.Worker.UnitTests.Hosting;
 
 public sealed class CrashWorkerHostShould
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Should_recover_discovery_denial_without_a_processable_report_but_preserve_symbol_denial(bool rejectedOnly)
+    {
+        var clock = new FakeTimeProvider();
+        var state = new CrashWorkerState(clock) { ToolsReady = true };
+        state.Purged(state.DatabaseGeneration);
+        var backoff = new CrashProcessingBackoff();
+        var objects = new DiscoveryObjects(clock) { RejectedOnly = rejectedOnly };
+        var queue = new DiscoveryQueue();
+        string scratch = Path.Combine(Path.GetTempPath(), "probe-crash-" + Guid.NewGuid().ToString("N"));
+        var workspace = new CrashWorkspace(new() { ScratchRoot = scratch });
+        var processor = new CrashProcessor(queue, objects, workspace, new DeniedSymbolsPipeline(), new(), backoff, clock);
+        using var metrics = new CrashMetrics();
+        var runtime = new CrashWorkerRuntime(null!, null!, null!, workspace, null!, new CrashDiscovery(objects, new Cursor(), queue, clock),
+            queue, processor, backoff, state, metrics, new(), new(), clock, NullLoggerFactory.Instance);
+        var health = new CrashHealthCheck(state, backoff);
+        try
+        {
+            await runtime.DiscoverAsync(default);
+            Assert.NotNull(backoff.State);
+            clock.Advance(TimeSpan.FromMinutes(6));
+            objects.Denied = false;
+            await runtime.DiscoverAsync(default);
+            await runtime.ProcessOneAsync(default);
+            Assert.Equal(HealthStatus.Healthy, (await health.CheckHealthAsync(new())).Status);
+            Assert.Equal(rejectedOnly, queue.Discovered > 0);
+
+            queue.NextLease = new(Guid.NewGuid(), Guid.NewGuid(), new("1.2.3/2000-01-01/11111111111111111111111111111111.zip", "etag", 1, clock.GetUtcNow()),
+                1, 0, clock.GetUtcNow(), clock.GetUtcNow(), clock.GetUtcNow().AddDays(90), clock.GetUtcNow().AddMinutes(10));
+            await runtime.ProcessOneAsync(default);
+            CrashProcessingBackoffState denial = Assert.IsType<CrashProcessingBackoffState>(backoff.State);
+            clock.Advance(TimeSpan.FromMinutes(6));
+            await runtime.DiscoverAsync(default);
+            Assert.Same(denial, backoff.State);
+            Assert.Equal(HealthStatus.Unhealthy, (await health.CheckHealthAsync(new())).Status);
+            var recoveredSymbols = new CrashHealthySymbolStore(new Symbols { Available = true }, state, backoff);
+            await recoveredSymbols.DownloadOriginalAsync(null!, false, "unused", 1, new(), default);
+            Assert.Null(backoff.State);
+            Assert.Equal(HealthStatus.Healthy, (await health.CheckHealthAsync(new())).Status);
+        }
+        finally { if (Directory.Exists(scratch)) Directory.Delete(scratch, true); }
+    }
+
     [Fact]
     public async Task Should_keep_a_required_symbols_outage_degraded_until_that_dependency_recovers()
     {
@@ -86,6 +133,11 @@ public sealed class CrashWorkerHostShould
         Assert.Equal(HealthStatus.Unhealthy, (await health.CheckHealthAsync(new())).Status);
         backoff.Clear();
         Assert.Equal(HealthStatus.Healthy, (await health.CheckHealthAsync(new())).Status);
+        backoff.Degrade(CrashFailureCode.ConfigurationInvalid, clock.GetUtcNow());
+        CrashProcessingBackoffState configuration = backoff.State!;
+        backoff.Recovered(configuration, CrashBackoffDependency.Tools);
+        backoff.Recovered(configuration, CrashBackoffDependency.Unknown);
+        Assert.Same(configuration, backoff.State);
     }
 
     [Fact]
@@ -202,5 +254,34 @@ public sealed class CrashWorkerHostShould
         public Task<SymbolCacheMetadata?> DownloadConvertedAsync(ModuleIdentity identity, string cacheVersion, string destination, long maxBytes, SymbolDownloadBudget budget, CancellationToken ct) => throw new NotSupportedException();
         public Task UploadConvertedAsync(ModuleIdentity identity, SymbolCacheMetadata metadata, string source, CancellationToken ct) =>
             Task.FromException(new CrashSymbolException(CrashFailureCode.StorageUnavailable));
+    }
+    private sealed class Cursor : ICrashDiscoveryStore
+    {
+        public Task<DiscoveryCursor> LoadAsync(CancellationToken ct) => Task.FromResult(new DiscoveryCursor());
+        public Task SaveAsync(DiscoveryCursor cursor, CancellationToken ct) => Task.CompletedTask;
+    }
+    private sealed class DiscoveryObjects(TimeProvider clock) : ICrashObjectStore
+    {
+        public bool Denied = true;
+        public bool RejectedOnly;
+        public Task<CrashObjectPage> ListAsync(string prefix, string? delimiter, string? continuationToken, CancellationToken ct) => Denied
+            ? Task.FromException<CrashObjectPage>(new CrashStorageException(CrashFailureCode.AccessDenied))
+            : Task.FromResult(new CrashObjectPage(RejectedOnly ? [new("invalid-key", "etag", 1, clock.GetUtcNow())] : [], [], null));
+        public Task<StoredCrashObject?> HeadAsync(string key, CancellationToken ct) => throw new NotSupportedException();
+        public Task DownloadAsync(StoredCrashObject expected, string destination, long maxBytes, CancellationToken ct) => throw new NotSupportedException();
+    }
+    private sealed class DiscoveryQueue : ICrashQueue
+    {
+        public int Discovered;
+        public CrashLease? NextLease;
+        public Task<bool> DiscoverAsync(StoredCrashObject source, DateTimeOffset now, CancellationToken ct) { Discovered++; return Task.FromResult(true); }
+        public Task<CrashLease?> ClaimAsync(DateTimeOffset now, CancellationToken ct) { CrashLease? next = NextLease; NextLease = null; return Task.FromResult(next); }
+        public Task<bool> RenewAsync(CrashLease lease, DateTimeOffset now, CancellationToken ct) => Task.FromResult(true);
+        public Task<bool> CompleteAsync(CrashLease lease, CrashAttemptResult result, DateTimeOffset now, CancellationToken ct) => Task.FromResult(true);
+    }
+    private sealed class DeniedSymbolsPipeline : ICrashAnalysisPipeline
+    {
+        public Task<CrashAnalysis> AnalyzeAsync(StoredCrashObject source, CrashAttemptWorkspace workspace, CancellationToken ct) =>
+            Task.FromException<CrashAnalysis>(new CrashSymbolException(CrashFailureCode.AccessDenied));
     }
 }

@@ -61,9 +61,9 @@ public static class CrashWorkerRegistration
         builder.Services.AddSingleton<CrashToolRunner>();
         builder.Services.AddSingleton<ICrashToolRunner, CrashMeasuredToolRunner>();
         builder.Services.AddSingleton<S3CrashObjectStore>();
-        builder.Services.AddSingleton<ICrashObjectStore>(s => new CrashHealthyObjectStore(s.GetRequiredService<S3CrashObjectStore>(), s.GetRequiredService<CrashWorkerState>()));
+        builder.Services.AddSingleton<ICrashObjectStore>(s => new CrashHealthyObjectStore(s.GetRequiredService<S3CrashObjectStore>(), s.GetRequiredService<CrashWorkerState>(), s.GetRequiredService<CrashProcessingBackoff>()));
         builder.Services.AddSingleton<S3CrashSymbolStore>();
-        builder.Services.AddSingleton<ICrashSymbolStore>(s => new CrashHealthySymbolStore(s.GetRequiredService<S3CrashSymbolStore>(), s.GetRequiredService<CrashWorkerState>()));
+        builder.Services.AddSingleton<ICrashSymbolStore>(s => new CrashHealthySymbolStore(s.GetRequiredService<S3CrashSymbolStore>(), s.GetRequiredService<CrashWorkerState>(), s.GetRequiredService<CrashProcessingBackoff>()));
         builder.Services.AddSingleton<SymbolCache>();
         builder.Services.AddSingleton<PublicSymbolClient>();
         builder.Services.AddSingleton<CrashSymbolResolver>();

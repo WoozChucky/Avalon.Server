@@ -21,9 +21,11 @@ public sealed class CrashWorkerRuntime(CrashMigrator migrator, CrashRetentionSer
 
     public async Task ValidateAsync(CancellationToken ct)
     {
+        CrashProcessingBackoffState? observed = backoff.State;
         await workspace.CleanupStaleAsync(ct);
         if (await tools.ValidateToolsAsync(ct) != ToolFailureKind.None)
             throw new InvalidOperationException("Native tools unavailable.");
+        backoff.Recovered(observed, CrashBackoffDependency.Tools);
     }
 
     public async Task CleanupAsync(CancellationToken ct)
@@ -43,16 +45,18 @@ public sealed class CrashWorkerRuntime(CrashMigrator migrator, CrashRetentionSer
 
     public async Task DiscoverAsync(CancellationToken ct)
     {
-        if (backoff.State is { } unavailable && unavailable.RetryAt > time.GetUtcNow()) return;
+        CrashProcessingBackoffState? observed = backoff.State;
+        if (observed is { } unavailable && unavailable.RetryAt > time.GetUtcNow()) return;
         try
         {
             await discovery.RunCycleAsync(time.GetUtcNow(), ct);
             state.StorageReady = true;
+            backoff.Recovered(observed, CrashBackoffDependency.Discovery);
         }
         catch (CrashStorageException ex)
         {
             state.StorageReady = false;
-            if (ex.Code == CrashFailureCode.AccessDenied) backoff.Degrade(ex.Code, time.GetUtcNow());
+            if (ex.Code == CrashFailureCode.AccessDenied) backoff.Degrade(ex.Code, time.GetUtcNow(), CrashBackoffDependency.Discovery);
             loggers.CreateLogger("Avalon.Crashes.Worker.Events").LogWarning("Worker dependency {reason}", ex.Code);
         }
     }
