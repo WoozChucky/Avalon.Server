@@ -30,7 +30,18 @@ public static class CrashProblemMapper
         _ => Invalid(),
     };
 
-    public static bool IsUnavailable(Exception exception, CancellationToken ct) => exception is DbException or TimeoutException
-        || exception is OperationCanceledException && !ct.IsCancellationRequested
-        || exception is DbUpdateException { InnerException: { } inner } && IsUnavailable(inner, ct);
+    public static bool IsUnavailable(Exception exception, CancellationToken ct)
+    {
+        // A provider can wrap cancellation in a DbException; it remains a client abort, not feature unavailability.
+        if (ct.IsCancellationRequested)
+        {
+            for (Exception? current = exception; current is not null; current = current.InnerException)
+            {
+                if (current is OperationCanceledException) return false;
+            }
+        }
+        return exception is DbException or TimeoutException or OperationCanceledException
+            // EF's read execution strategy wraps Npgsql failures in InvalidOperationException.
+            || exception is { InnerException: { } inner } and (DbUpdateException or InvalidOperationException) && IsUnavailable(inner, ct);
+    }
 }

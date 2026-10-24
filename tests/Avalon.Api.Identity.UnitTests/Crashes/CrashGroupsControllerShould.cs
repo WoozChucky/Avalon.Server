@@ -7,8 +7,9 @@ using Avalon.Crashes;
 using Avalon.Database.Crashes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using NSubstitute.ExceptionExtensions;
+using Npgsql;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 using Xunit;
 
 namespace Avalon.Api.Identity.UnitTests.Crashes;
@@ -122,22 +123,45 @@ public class CrashGroupsControllerShould
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Bound_body_and_map_store_timeout_without_database_detail(bool wrapped)
+    [InlineData("direct")]
+    [InlineData("ef-update")]
+    [InlineData("ef-read")]
+    public async Task Bound_body_and_map_store_timeout_without_database_detail(string wrapper)
     {
         await using CrashApiFixture fixture = await CrashApiFixture.StartAsync();
         using HttpResponseMessage large = await fixture.PatchAsync("{\"triageRevision\":0,\"notes\":\"" + new string('x', 16384) + "\"}");
         await AssertInvalidAsync(large);
+        var cause = new TimeoutException("secret database hostname");
+        Exception failure = wrapper switch
+        {
+            "ef-update" => new DbUpdateException("secret SQL", cause),
+            "ef-read" => new InvalidOperationException("An exception has been raised that is likely due to a transient failure.",
+                new NpgsqlException("secret database read", cause)),
+            _ => cause,
+        };
         fixture.Reads.ListGroupsAsync(Arg.Any<CrashGroupFilter>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(wrapped ? new DbUpdateException("secret SQL", new TimeoutException("secret database hostname"))
-                : new TimeoutException("secret database hostname"));
+            .ThrowsAsync(failure);
         using HttpResponseMessage timeout = await fixture.Host.Client.GetAsync("/admin/crashes/groups");
         Assert.Equal(HttpStatusCode.ServiceUnavailable, timeout.StatusCode);
         Assert.True(timeout.Headers.CacheControl?.NoStore);
         string body = await timeout.Content.ReadAsStringAsync();
         Assert.Contains("CRASH_ANALYSIS_UNAVAILABLE", body, StringComparison.Ordinal);
         Assert.DoesNotContain("secret", body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Leave_unrelated_invalid_operations_as_programming_errors(bool withInner)
+    {
+        await using CrashApiFixture fixture = await CrashApiFixture.StartAsync();
+        var failure = new InvalidOperationException("secret programming error", withInner ? new ArgumentException("secret argument") : null);
+        fixture.Reads.ListGroupsAsync(Arg.Any<CrashGroupFilter>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(failure);
+        using HttpResponseMessage response = await fixture.Host.Client.GetAsync("/admin/crashes/groups");
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.True(response.Headers.CacheControl?.NoStore);
+        Assert.DoesNotContain("CRASH_ANALYSIS_UNAVAILABLE", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]

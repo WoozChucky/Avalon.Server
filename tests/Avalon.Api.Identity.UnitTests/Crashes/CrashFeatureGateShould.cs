@@ -8,6 +8,7 @@ using Avalon.Database.Crashes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
+using Npgsql;
 using NSubstitute;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
@@ -81,6 +82,18 @@ public class CrashFeatureGateShould
         Assert.Equal(2, factory.Count);
         clock.Advance(TimeSpan.FromSeconds(5));
         Assert.False(await retry);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Preserve_client_cancellation_inside_a_provider_exception(bool clientCancelled)
+    {
+        using var cancellation = new CancellationTokenSource();
+        if (clientCancelled) cancellation.Cancel();
+        var failure = new InvalidOperationException("EF execution strategy",
+            new NpgsqlException("Database read", new OperationCanceledException(cancellation.Token)));
+        Assert.Equal(!clientCancelled, CrashProblemMapper.IsUnavailable(failure, cancellation.Token));
     }
 
     private sealed class SlowFactory : IDbContextFactory<CrashesDbContext>
