@@ -35,8 +35,8 @@ public class InventoryAllocationShould
 {
     private const int Rounds = 100;
 
-    // Out of order, with one slot empty and one named twice: a potion, a sword, a seeded plate chest carrying its implicit
-    // and a magic one carrying its implicit and its affixes (#1179).
+    // Out of order, with one slot empty and one named twice: a potion, a sword, a seeded plate chest carrying its base
+    // stats and its implicit and a magic one carrying its base stats, its implicit and its affixes (#1179).
     private static readonly SlotRef[] s_slots =
     [
         new(InventoryType.Bag, 3), new(InventoryType.Bag, 9), new(InventoryType.Bag, 1), new(InventoryType.Bag, 2),
@@ -64,6 +64,9 @@ public class InventoryAllocationShould
         RolledItem magic = roller.Roll(s_chest, new DropContext(10, CreatureRarity.Normal, ForceMagic: true), s_items)!;
         Assert.Equal(InventoryAddResult.Ok, inventory.TryAddRolled(magic));
         Assert.NotNull(_character.ItemModifiers.NameOf(At(_character, InventoryType.Bag, 2), s_items));
+        // Both chests send their base stats, from the pool as their modifiers are.
+        Assert.All([1, 2], slot => Assert.False(
+            _character.ItemModifiers.BaseStatsOf(At(_character, InventoryType.Bag, (byte)slot).InstanceId).IsEmpty));
         _character.ClientChanges.Clear();
         _connection = new QuietConnection(_character);
     }
@@ -154,7 +157,7 @@ public class InventoryAllocationShould
 
     /// <summary>
     /// The entries a packet naming the first <paramref name="count" /> slots carries: the array, and each slot with its
-    /// item, and nothing for the items' modifiers and names (#1179), which the pool and the store already hold.
+    /// item, and nothing for the items' modifiers, base stats and names (#1179), which the pool and the store already hold.
     /// </summary>
     private InventorySlotUpdateDto[] Entries(int count)
     {

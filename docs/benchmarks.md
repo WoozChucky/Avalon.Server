@@ -388,6 +388,12 @@ modifiers, which both pay; the means are one run and within their errors of each
 potion, a sword, an empty slot, a plain chest with its implicit and a magic chest allocate the entries and nothing
 else.
 
+Since #1179 part B2 each entry also carries the copy's base stats (field 12), from the same pool, and `Rolled` loads
+each chest's rolled base stats into the store as the select does. The entry grows by its one reference (8 B) and the
+lists add nothing: `InventoryAllocationShould`'s flush over chests carrying base stats and modifiers reads 576 B, the
+same five entries with the chests' base stats removed from the store read 576 B, and both equal the entries alone. The
+table above predates this.
+
 **The quest flusher's bag check.** `QuestFlusher.TouchedTheBag` runs for every connection on every tick, to see
 whether a Bag slot changed. It walked the changed slots through the set's interface, which boxed the set's enumerator:
 40 B per connection on every tick with any slot change, a cost the finding did not list. It now uses the struct
@@ -4866,9 +4872,24 @@ pickups in the minute). `ForestCombatScenarioShould` runs the scenario twice in 
 outcome (every count above) and the same bytes per window, and kills and deaths in it; the second run's creatures
 carry higher ids (the process-wide object id counter), which changes neither.
 
-**Gate.** Committed at **14,374 B per window** (20.0 B per player per tick, 240 B per tick) since #1179 part B, 391 B over
-the 13,983 B before it and outside the gate (which then failed above 14,239 B). Measured with the runner in Release on
-the developer machine, step by step:
+**Gate.** Committed at **14,337 B per window** (19.9 B per player per tick, 239 B per tick) since #1179 part B2 (base
+stats), 115 B over the 14,222 B before it and inside the gate (which fails above 14,478 B); regenerated once for the
+part's per-copy data, step by step (the first two figures read by the gate as each step landed, the last by the runner
+in Release on the developer machine, which reads 14,311 B without it):
+- 14,236 B (+14 B) once every copy rolls its base stats when it is made: each copy (`RolledItem`) the fighters' kills
+  drop carries its 56-byte `ItemBaseStats` by value.
+- 14,311 B (+75 B) once every base links one themed, tier-matched implicit, which each copy made of it rolls with its
+  values.
+- 14,337 B (+26 B) once slots, trade rows and drops carry each copy's base stats on the wire (`ItemSlotDto` 12,
+  `TradeItemDto` 9, `LootDropDto` 12). Each entry grows by one reference (8 B per inventory entry and per drop a
+  snapshot describes); the base-stat lists come from `ItemModifierDtoPool` as the modifier lists do, so a steady flush
+  makes none, and only the pools' first fill shows. With the kill messages' base stats switched off and nothing else
+  changed the fight reads 14,324 B: 13 B is the kill messages' base-stat entries, 13 B the larger entries.
+
+Debug reads the same, and the regeneration changed no other scenario. Before it, committed at 14,222 B from
+`5034e1723`, part B's last regeneration, and earlier in part B at 14,374 B, 391 B over the 13,983 B before it and
+outside the gate (which then failed above 14,239 B). Measured with the runner in Release on the developer machine, step
+by step:
 - 14,407 B at `28a5cb3de`, part B before this step: every copy made rolls its base's implicits, so each armour piece
   the fighters pick up is made with its modifier rows and values, and the inventory update carries them.
 - 14,154 B (-253 B) once a kill's or a chest's loot roll fills the instance's reused list (`KillBuffers.Rolled`) rather

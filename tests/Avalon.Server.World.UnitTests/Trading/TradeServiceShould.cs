@@ -193,7 +193,7 @@ public class TradeServiceShould
         Trader b = w.Online(2, gold: 100);
         InventoryItem rare = Item(0, Sword) with { Rarity = ItemRarity.Rare, ItemLevel = 9 };
         InventoryItem magic = Item(1, Sword) with { Rarity = ItemRarity.Magic, ItemLevel = 4 };
-        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(rare, default,
+        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(rare, new ItemBaseStats { Armour = 8 },
         [
             Modifier(rare.InstanceId, 10103, 0, (0, StatType.Strength, 8, null), (1, StatType.Armor, 3, null)),
             Modifier(rare.InstanceId, 203, 1, (0, StatType.AddedFireDamage, 3, 7)),
@@ -204,7 +204,7 @@ public class TradeServiceShould
 
         Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, 0, 0));
         Assert.Equal(2u, a.States().Last().Revision);
-        Assert.Equal("Rare 9: 10103 [Strength 8.., Armor 3..] 203 [AddedFireDamage 3..7]",
+        Assert.Equal("Rare 9: Armour 8; 10103 [Strength 8.., Armor 3..] 203 [AddedFireDamage 3..7]",
             Shown(Assert.Single(b.States().Last().Partner.Items)));
         Assert.Equal(TradeResult.Ok, w.Trades.Confirm(a.Id, 2));
         Assert.True(b.States().Last().Partner.Confirmed);
@@ -222,22 +222,26 @@ public class TradeServiceShould
         Assert.Equal(TradeResult.Ok, w.Trades.Confirm(a.Id, 3));
         Assert.True(b.States().Last().Partner.Confirmed);
 
-        // The same trade slot, now holding an item with fewer modifiers and values: none of the rare's are left.
+        // The same trade slot, now holding an item with fewer modifiers and values and no base stats: none of the rare's
+        // are left.
         Assert.Equal(TradeResult.Ok, w.Trades.RemoveItem(a.Id, 0));
         Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, 1, 0));
         Assert.False(b.States().Last().Partner.Confirmed);
-        Assert.Equal("Magic 4: 204 [AddedColdDamage 2..5]", Shown(Assert.Single(b.States().Last().Partner.Items)));
+        TradeItemDto shown = Assert.Single(b.States().Last().Partner.Items);
+        Assert.Equal("Magic 4: 204 [AddedColdDamage 2..5]", Shown(shown));
+        Assert.Null(shown.BaseStats);
 
         // And back to the rare, built again from the entries the smaller item left over.
         Assert.Equal(TradeResult.Ok, w.Trades.RemoveItem(a.Id, 0));
         Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, 0, 0));
-        Assert.Equal("Rare 9: 10103 [Strength 8.., Armor 3..] 203 [AddedFireDamage 3..7]",
+        Assert.Equal("Rare 9: Armour 8; 10103 [Strength 8.., Armor 3..] 203 [AddedFireDamage 3..7]",
             Shown(Assert.Single(b.States().Last().Partner.Items)));
     }
 
-    /// <summary>An offered item as the client reads it: rarity, item level, then each modifier's values.</summary>
+    /// <summary>An offered item as the client reads it: rarity, item level, its base stats, then each modifier's values.</summary>
     private static string Shown(TradeItemDto item) =>
-        $"{item.Rarity} {item.ItemLevel}: " + string.Join(" ", (item.Modifiers ?? []).Select(m =>
+        $"{item.Rarity} {item.ItemLevel}: " + string.Concat((item.BaseStats ?? []).Select(b => $"{b.Stat} {b.Value}; ")) +
+        string.Join(" ", (item.Modifiers ?? []).Select(m =>
             $"{m.ModifierId} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value}..{v.Value2}"))}]"));
 
     public static TheoryData<string, TradeResult, TradeResult> Closes => new()

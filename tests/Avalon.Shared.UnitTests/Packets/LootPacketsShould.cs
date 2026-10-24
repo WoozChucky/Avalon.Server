@@ -105,5 +105,6 @@ public class LootPacketsShould
         Assert.Equal("4002", Hex(Only(d => d.Rarity = ItemRarity.Rare)));
         Assert.Equal("4809", Hex(Only(d => d.ItemLevel = 9)));
         Assert.Equal("5202" + "0803", Hex(Only(d => d.Modifiers = [new ItemModifierDto { ModifierId = 3 }])));
+        Assert.Equal("6204" + "0802" + "1008", Hex(Only(d => d.BaseStats = [new ItemBaseStatDto { Stat = BaseStat.Ward, Value = 8 }])));
     }
 }

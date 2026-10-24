@@ -91,6 +91,13 @@ variant populated
                 field 2 Value : int = 1000
                 field 3 Value2 : int? = -3
         field 11 Name : string = "Ωμέγα ΔΕΛΤΑ" (11 chars, 21 bytes utf-8)
+        field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
+          element 0
+            field 1 Stat : BaseStat = DamageMax (5)
+            field 2 Value : int = -9
+          element 1
+            field 1 Stat : BaseStat = DamageMin (4)
+            field 2 Value : int = -262144
       field 3 Price : ulong = 19
     element 1
       field 1 Index : uint = 65535
@@ -128,13 +135,20 @@ variant populated
                 field 2 Value : int = 1000
                 field 3 Value2 : int? = -3
         field 11 Name : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
+        field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
+          element 0
+            field 1 Stat : BaseStat = DamageMax (5)
+            field 2 Value : int = -9
+          element 1
+            field 1 Stat : BaseStat = DamageMin (4)
+            field 2 Value : int = -262144
       field 3 Price : ulong = 65535
-  bytes 396
+  bytes 456
     08 ac 02 12 1f 08 ac 02 10 2a 18 80 d0 ac f3 0e
     20 13 2a 08 08 80 d0 ac f3 0e 10 2a 2a 06 08 c0
     84 3d 10 13 12 22 08 80 d0 ac f3 0e 10 13 18 c0
     84 3d 20 ff ff 03 2a 08 08 80 d0 ac f3 0e 10 2a
-    2a 06 08 c0 84 3d 10 13 1a 9e 01 08 07 12 97 01
+    2a 06 08 c0 84 3d 10 13 1a bc 01 08 07 12 b5 01
     08 01 10 13 18 80 d0 ac f3 0e 22 12 09 5b ad 8f
     0f cb d9 9f 46 11 a1 65 70 86 77 28 95 0e 28 2a
     30 ac 02 38 ac 02 40 01 48 c0 84 3d 52 27 08 07
@@ -144,17 +158,21 @@ variant populated
     f0 a2 04 18 f7 ff ff ff ff ff ff ff ff 01 12 10
     08 13 10 e8 07 18 fd ff ff ff ff ff ff ff ff 01
     5a 15 ce a9 ce bc ce ad ce b3 ce b1 20 ce 94 ce
-    95 ce 9b ce a4 ce 91 18 13 1a a0 01 08 ff ff 03
-    12 95 01 08 02 10 2a 18 c0 84 3d 22 12 09 04 03
-    02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28
-    13 30 2a 38 2a 40 03 48 80 d0 ac f3 0e 52 27 08
-    07 12 11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff ff
-    ff ff ff 01 12 10 08 13 10 e8 07 18 fd ff ff ff
-    ff ff ff ff ff 01 52 29 08 c0 84 3d 12 11 08 0f
-    10 f0 a2 04 18 f7 ff ff ff ff ff ff ff ff 01 12
-    10 08 13 10 e8 07 18 fd ff ff ff ff ff ff ff ff
-    01 5a 15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a
-    80 20 61 73 74 72 61 6c 18 ff ff 03
+    95 ce 9b ce a4 ce 91 62 0d 08 05 10 f7 ff ff ff
+    ff ff ff ff ff 01 62 0d 08 04 10 80 80 f0 ff ff
+    ff ff ff ff 01 18 13 1a be 01 08 ff ff 03 12 b3
+    01 08 02 10 2a 18 c0 84 3d 22 12 09 04 03 02 01
+    06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28 13 30
+    2a 38 2a 40 03 48 80 d0 ac f3 0e 52 27 08 07 12
+    11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff ff ff ff
+    ff 01 12 10 08 13 10 e8 07 18 fd ff ff ff ff ff
+    ff ff ff 01 52 29 08 c0 84 3d 12 11 08 0f 10 f0
+    a2 04 18 f7 ff ff ff ff ff ff ff ff 01 12 10 08
+    13 10 e8 07 18 fd ff ff ff ff ff ff ff ff 01 5a
+    15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20
+    61 73 74 72 61 6c 62 0d 08 05 10 f7 ff ff ff ff
+    ff ff ff ff 01 62 0d 08 04 10 80 80 f0 ff ff ff
+    ff ff ff 01 18 ff ff 03
 
 variant maxima
   field 1 VendorGuid : ulong = 18446744073709551615
@@ -264,6 +282,16 @@ variant maxima
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
         field 11 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+        field 12 BaseStats : List<ItemBaseStatDto> = 3 elements
+          element 0
+            field 1 Stat : BaseStat = AttackTime (6)
+            field 2 Value : int = 2147483647
+          element 1
+            field 1 Stat : BaseStat = AttackTime (6)
+            field 2 Value : int = 2147483647
+          element 2
+            field 1 Stat : BaseStat = AttackTime (6)
+            field 2 Value : int = 2147483647
       field 3 Price : ulong = 18446744073709551615
     element 1
       field 1 Index : uint = 4294967295
@@ -324,6 +352,16 @@ variant maxima
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
         field 11 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+        field 12 BaseStats : List<ItemBaseStatDto> = 3 elements
+          element 0
+            field 1 Stat : BaseStat = AttackTime (6)
+            field 2 Value : int = 2147483647
+          element 1
+            field 1 Stat : BaseStat = AttackTime (6)
+            field 2 Value : int = 2147483647
+          element 2
+            field 1 Stat : BaseStat = AttackTime (6)
+            field 2 Value : int = 2147483647
       field 3 Price : ulong = 18446744073709551615
     element 2
       field 1 Index : uint = 4294967295
@@ -384,8 +422,18 @@ variant maxima
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
         field 11 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+        field 12 BaseStats : List<ItemBaseStatDto> = 3 elements
+          element 0
+            field 1 Stat : BaseStat = AttackTime (6)
+            field 2 Value : int = 2147483647
+          element 1
+            field 1 Stat : BaseStat = AttackTime (6)
+            field 2 Value : int = 2147483647
+          element 2
+            field 1 Stat : BaseStat = AttackTime (6)
+            field 2 Value : int = 2147483647
       field 3 Price : ulong = 18446744073709551615
-  bytes 1454
+  bytes 1544
     08 ff ff ff ff ff ff ff ff ff 01 12 5b 08 ff ff
     ff ff 0f 10 ff ff ff ff ff ff ff ff ff 01 18 ff
     ff ff ff ff ff ff ff ff 01 20 ff ff ff ff 0f 2a
@@ -404,7 +452,7 @@ variant maxima
     ff ff ff ff ff 01 10 ff ff ff ff 0f 2a 11 08 ff
     ff ff ff ff ff ff ff ff 01 10 ff ff ff ff 0f 2a
     11 08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff
-    ff 0f 1a 81 03 08 ff ff ff ff 0f 12 ed 02 08 02
+    ff 0f 1a 9f 03 08 ff ff ff ff 0f 12 8b 03 08 02
     10 ff 01 18 ff ff ff ff ff ff ff ff ff 01 22 12
     09 ff ff ff ff ff ff ff ff 11 ff ff ff ff ff ff
     ff ff 28 ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff
@@ -427,9 +475,37 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 18 ff ff ff ff
-    ff ff ff ff ff 01 1a 81 03 08 ff ff ff ff 0f 12
-    ed 02 08 02 10 ff 01 18 ff ff ff ff ff ff ff ff
+    a9 78 ce a9 78 ce a9 78 ce a9 78 62 08 08 06 10
+    ff ff ff ff 07 62 08 08 06 10 ff ff ff ff 07 62
+    08 08 06 10 ff ff ff ff 07 18 ff ff ff ff ff ff
+    ff ff ff 01 1a 9f 03 08 ff ff ff ff 0f 12 8b 03
+    08 02 10 ff 01 18 ff ff ff ff ff ff ff ff ff 01
+    22 12 09 ff ff ff ff ff ff ff ff 11 ff ff ff ff
+    ff ff ff ff 28 ff ff ff ff 0f 30 ff ff ff ff 0f
+    38 ff ff ff ff 0f 40 03 48 ff ff ff ff 0f 52 36
+    08 ff ff ff ff 0f 12 0e 08 35 10 ff ff ff ff 07
+    18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07
+    18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07
+    18 ff ff ff ff 07 52 36 08 ff ff ff ff 0f 12 0e
+    08 35 10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e
+    08 35 10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e
+    08 35 10 ff ff ff ff 07 18 ff ff ff ff 07 52 36
+    08 ff ff ff ff 0f 12 0e 08 35 10 ff ff ff ff 07
+    18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07
+    18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07
+    18 ff ff ff ff 07 5a 84 01 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 62 08 08
+    06 10 ff ff ff ff 07 62 08 08 06 10 ff ff ff ff
+    07 62 08 08 06 10 ff ff ff ff 07 18 ff ff ff ff
+    ff ff ff ff ff 01 1a 9f 03 08 ff ff ff ff 0f 12
+    8b 03 08 02 10 ff 01 18 ff ff ff ff ff ff ff ff
     ff 01 22 12 09 ff ff ff ff ff ff ff ff 11 ff ff
     ff ff ff ff ff ff 28 ff ff ff ff 0f 30 ff ff ff
     ff 0f 38 ff ff ff ff 0f 40 03 48 ff ff ff ff 0f
@@ -451,32 +527,10 @@ variant maxima
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 18
-    ff ff ff ff ff ff ff ff ff 01 1a 81 03 08 ff ff
-    ff ff 0f 12 ed 02 08 02 10 ff 01 18 ff ff ff ff
-    ff ff ff ff ff 01 22 12 09 ff ff ff ff ff ff ff
-    ff 11 ff ff ff ff ff ff ff ff 28 ff ff ff ff 0f
-    30 ff ff ff ff 0f 38 ff ff ff ff 0f 40 03 48 ff
-    ff ff ff 0f 52 36 08 ff ff ff ff 0f 12 0e 08 35
-    10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35
-    10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35
-    10 ff ff ff ff 07 18 ff ff ff ff 07 52 36 08 ff
-    ff ff ff 0f 12 0e 08 35 10 ff ff ff ff 07 18 ff
-    ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18 ff
-    ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18 ff
-    ff ff ff 07 52 36 08 ff ff ff ff 0f 12 0e 08 35
-    10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35
-    10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35
-    10 ff ff ff ff 07 18 ff ff ff ff 07 5a 84 01 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 18 ff ff ff ff ff ff ff ff ff 01
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 62
+    08 08 06 10 ff ff ff ff 07 62 08 08 06 10 ff ff
+    ff ff 07 62 08 08 06 10 ff ff ff ff 07 18 ff ff
+    ff ff ff ff ff ff ff 01
 
 variant minima
   field 1 VendorGuid : ulong = 0
@@ -512,11 +566,16 @@ variant minima
                 field 2 Value : int = -2147483648
                 field 3 Value2 : int? = -2147483648
         field 11 Name : string = "\0" (1 chars, 1 bytes utf-8)
+        field 12 BaseStats : List<ItemBaseStatDto> = 1 element
+          element 0
+            field 1 Stat : BaseStat = Armour (0)
+            field 2 Value : int = -2147483648
       field 3 Price : ulong = 0
-  bytes 39
-    12 04 20 00 2a 00 1a 1f 12 1d 52 18 12 16 10 80
+  bytes 52
+    12 04 20 00 2a 00 1a 2c 12 2a 52 18 12 16 10 80
     80 80 80 f8 ff ff ff ff 01 18 80 80 80 80 f8 ff
-    ff ff ff 01 5a 01 00
+    ff ff ff 01 5a 01 00 62 0b 10 80 80 80 80 f8 ff
+    ff ff ff 01
 
 variant varint-edges
   field 1 VendorGuid : ulong = 268435456
@@ -582,6 +641,13 @@ variant varint-edges
                 field 2 Value : int = 2097152
                 field 3 Value2 : int? = 16384
         field 11 Name : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+        field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
+          element 0
+            field 1 Stat : BaseStat = <not a declared member> (7)
+            field 2 Value : int = 2097151
+          element 1
+            field 1 Stat : BaseStat = <not a declared member> (7)
+            field 2 Value : int = 2097152
       field 3 Price : ulong = 16383
     element 1
       field 1 Index : uint = 2097151
@@ -619,15 +685,22 @@ variant varint-edges
                 field 2 Value : int = 2097152
                 field 3 Value2 : int? = 16384
         field 11 Name : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
+        field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
+          element 0
+            field 1 Stat : BaseStat = <not a declared member> (7)
+            field 2 Value : int = 2097151
+          element 1
+            field 1 Stat : BaseStat = <not a declared member> (7)
+            field 2 Value : int = 2097152
       field 3 Price : ulong = 128
-  bytes 595
+  bytes 629
     08 80 80 80 80 01 12 28 08 80 80 80 80 01 10 ff
     ff ff ff 7f 18 80 80 80 80 80 01 20 ff 7f 2a 08
     08 80 01 10 ff ff ff 7f 2a 06 08 ff 7f 10 80 01
     12 23 08 ff ff 7f 10 80 80 80 80 01 18 7f 20 80
     80 80 01 2a 08 08 80 01 10 ff ff ff 7f 2a 06 08
-    ff 7f 10 80 01 1a fe 01 08 80 80 80 80 01 12 f2
-    01 08 03 10 80 01 18 80 01 22 12 09 04 03 02 01
+    ff 7f 10 80 01 1a 8f 02 08 80 80 80 80 01 12 83
+    02 08 03 10 80 01 18 80 01 22 12 09 04 03 02 01
     06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28 ff ff
     ff 7f 30 ff ff 7f 38 ff ff ff 7f 40 04 48 ff ff
     ff 7f 52 1d 08 ff 7f 12 0b 08 36 10 ff ff ff 7f
@@ -642,20 +715,22 @@ variant varint-edges
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 18 ff 7f 1a fa 01 08 ff ff 7f 12 f0 01
-    08 03 10 7f 18 ff 7f 22 12 09 04 03 02 01 06 05
-    08 07 11 09 0a 0b 0c 0d 0e 0f 10 28 80 01 30 80
-    80 80 80 01 38 80 01 40 04 48 80 01 52 1d 08 ff
-    7f 12 0b 08 36 10 ff ff ff 7f 18 ff ff 7f 12 0b
-    08 36 10 80 80 80 01 18 80 80 01 52 1f 08 80 80
-    80 01 12 0b 08 36 10 ff ff ff 7f 18 ff ff 7f 12
-    0b 08 36 10 80 80 80 01 18 80 80 01 5a 81 01 c3
-    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
-    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
-    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
-    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
-    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 7a
+    78 78 78 62 06 08 07 10 ff ff 7f 62 07 08 07 10
+    80 80 80 01 18 ff 7f 1a 8b 02 08 ff ff 7f 12 81
+    02 08 03 10 7f 18 ff 7f 22 12 09 04 03 02 01 06
+    05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28 80 01 30
+    80 80 80 80 01 38 80 01 40 04 48 80 01 52 1d 08
+    ff 7f 12 0b 08 36 10 ff ff ff 7f 18 ff ff 7f 12
+    0b 08 36 10 80 80 80 01 18 80 80 01 52 1f 08 80
+    80 80 01 12 0b 08 36 10 ff ff ff 7f 18 ff ff 7f
+    12 0b 08 36 10 80 80 80 01 18 80 80 01 5a 81 01
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    18 80 01
+    7a 62 06 08 07 10 ff ff 7f 62 07 08 07 10 80 80
+    80 01 18 80 01

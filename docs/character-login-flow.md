@@ -285,6 +285,14 @@ public class ItemSlotDto
     [ProtoMember(9)] public uint ItemLevel { get; set; } // the copy's (#1179)
     [ProtoMember(10)] public List<ItemModifierDto>? Modifiers { get; set; } // in the order the item shows them; null for none
     [ProtoMember(11)] public string? Name { get; set; } // a magic or rare copy's (#1179); null: the template's name is the item's
+    [ProtoMember(12)] public List<ItemBaseStatDto>? BaseStats { get; set; } // the copy's own (#1179), in base-stat order; null for none
+}
+
+[ProtoContract]
+public class ItemBaseStatDto
+{
+    [ProtoMember(1)] public BaseStat Stat { get; set; } // Armour, Evasion, Ward, BlockChance, DamageMin, DamageMax, AttackTime
+    [ProtoMember(2)] public int Value { get; set; } // points, rating, points, percentage points, points, points, milliseconds
 }
 
 [ProtoContract]

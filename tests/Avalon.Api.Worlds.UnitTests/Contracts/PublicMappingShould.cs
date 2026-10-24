@@ -144,6 +144,7 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.Domain.World.ItemModifierKind), typeof(Avalon.Api.Contract.ItemModifierKind))]
     [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Api.Contract.StatType))]
     [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Network.Packets.Items.ItemStat))]
+    [InlineData(typeof(Avalon.Domain.World.ItemBaseStat), typeof(Avalon.Network.Packets.Items.BaseStat))]
     [InlineData(typeof(Avalon.Network.Packets.Combat.DamageType), typeof(Avalon.Api.Contract.DamageType))]
     [InlineData(typeof(Avalon.Network.Packets.State.PowerType), typeof(Avalon.Api.Contract.PowerType))]
     [InlineData(typeof(Avalon.World.Public.Enums.SpellRange), typeof(Avalon.Api.Contract.SpellRange))]
