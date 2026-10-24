@@ -188,8 +188,9 @@ public static class VendorRules
         if (selling == 0 || selling > item.Count)
             return new SellDecision(VendorResult.InvalidCount, null);
 
-        // #1179: an item carrying modifiers is one of a kind and is sold whole (TakeOut refuses to split it).
-        if (selling < item.Count && character.ItemModifiers.Of(item.InstanceId).Count > 0)
+        // #1179: an item carrying rolled rows (modifiers or base stats) is one of a kind and is sold whole (TakeOut refuses
+        // to split it).
+        if (selling < item.Count && character.ItemModifiers.IsOneOfAKind(item.InstanceId))
             return new SellDecision(VendorResult.InvalidCount, null);
 
         // CharacterWallet.TryAddGold's own rule, so the apply cannot disagree: gold a completing trade is about to pay

@@ -311,9 +311,10 @@ public sealed class CharacterSaverShould : IDisposable
     }
 
     /// <summary>
-    /// #1179: rarity, item level and modifiers are facts of the instance, so they outlive a sale saved while the item sits
-    /// in the buyback list (its rows, modifiers included, are deleted then), the buyback, its save and a reload: the
-    /// bought-back item carries its modifiers back to the database under their own ids.
+    /// #1179: rarity, item level, base stats and modifiers are facts of the instance, so they outlive a sale saved while
+    /// the item sits in the buyback list (its rows, modifiers and base stats included, are deleted then), the buyback, its
+    /// save and a reload: the bought-back item carries its base stats and its modifiers back to the database, the
+    /// modifiers under their own ids.
     /// </summary>
     [Fact]
     public async Task Keep_an_items_rarity_level_and_modifiers_through_a_sale_buyback_save_and_reload()
@@ -321,9 +322,13 @@ public sealed class CharacterSaverShould : IDisposable
         InventoryItem x = Item(4, Vendors.VendorTestData.Blade, durability: 42) with { Rarity = ItemRarity.Magic, ItemLevel = 7 };
         ItemInstanceModifier a = Modifier(x.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5));
         ItemInstanceModifier b = Modifier(x.InstanceId, 10103, 1, (0, StatType.Strength, 8, null), (1, StatType.Armor, 3, null));
-        await SeedAsync(7, stored: [x], modifiers: [b, a]);
+        var rolled = new ItemBaseStats { DamageMin = 4, DamageMax = 9, AttackTime = 760 };
+        ItemInstanceBaseStat Row(ItemBaseStat stat, int value) => new() { ItemInstanceId = x.InstanceId, Stat = stat, Value = value };
+        await SeedAsync(7, stored: [x], modifiers: [b, a],
+            baseStats: [Row(ItemBaseStat.AttackTime, 760), Row(ItemBaseStat.DamageMin, 4), Row(ItemBaseStat.DamageMax, 9)]);
         CharacterEntity character = await LoadAsync(7);
         Assert.Equal(Describe(a, b), Describe(character.ItemModifiers.Of(x.InstanceId)));
+        Assert.Equal(rolled, character.ItemModifiers.BaseStatsOf(x.InstanceId));
         var vendor = new VendorTrade(character, InventoryFor(character, Vendors.VendorTestData.Find),
             new CharacterWallet(character, ulong.MaxValue), Vendors.VendorTestData.Find, ulong.MaxValue, new SellFactors());
         CharacterSaver saver = Saver();
@@ -342,6 +347,7 @@ public sealed class CharacterSaverShould : IDisposable
         InventoryItem back = Assert.Single(reloaded.Container(InventoryType.Bag).Items);
         Assert.Equal((x.InstanceId, ItemRarity.Magic, (ushort)7), (back.InstanceId, back.Rarity, back.ItemLevel));
         Assert.Equal(Describe(a, b), Describe(reloaded.ItemModifiers.Of(x.InstanceId)));
+        Assert.Equal(rolled, reloaded.ItemModifiers.BaseStatsOf(x.InstanceId));
     }
 
     [Fact]
@@ -653,10 +659,11 @@ public sealed class CharacterSaverShould : IDisposable
     /// and loads <paramref name="held" /> (default: the same) into memory.
     /// </summary>
     private async Task<CharacterEntity> SeedAsync(uint id, InventoryItem[]? stored = null, InventoryItem[]? held = null, ulong gold = 0,
-        ItemInstanceModifier[]? modifiers = null)
+        ItemInstanceModifier[]? modifiers = null, ItemInstanceBaseStat[]? baseStats = null)
     {
         stored ??= [];
         modifiers ??= [];
+        baseStats ??= [];
         CharacterEntity character = New(id, gold);
         CharacterId owner = character.Data!.Id;
 
@@ -685,7 +692,7 @@ public sealed class CharacterSaverShould : IDisposable
             }).ToList());
         }
 
-        if (modifiers.Length > 0)
+        if (modifiers.Length > 0 || baseStats.Length > 0)
         {
             // Rows of their own, not the caller's objects: the context's fix-up would otherwise fill them in.
             await using CharacterDbContext context = _db.CreateDbContext();
@@ -695,6 +702,7 @@ public sealed class CharacterSaverShould : IDisposable
                 row.Values.AddRange(m.Values.Select(v => v.Copy()));
                 return row;
             }));
+            context.AddRange(baseStats.Select(s => new ItemInstanceBaseStat { ItemInstanceId = s.ItemInstanceId, Stat = s.Stat, Value = s.Value }));
             await context.SaveChangesAsync();
         }
 

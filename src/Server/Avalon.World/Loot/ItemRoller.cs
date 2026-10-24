@@ -17,19 +17,20 @@ namespace Avalon.World.Loot;
 public interface IItemRoller
 {
     /// <summary>
-    /// A plain copy of <paramref name="template" /> at <paramref name="itemLevel" />: its template's rarity and only the
-    /// modifiers every copy of it rolls, one per link of <paramref name="catalog" />, ordinals from 0 in link order,
-    /// each value uniform within its line's range. A template that links nothing makes a copy with none.
+    /// A plain copy of <paramref name="template" /> at <paramref name="itemLevel" />: its template's rarity, its base stats
+    /// (each uniform within its template's range, in ItemBaseStat order) and only the modifiers every copy of it rolls, one
+    /// per link of <paramref name="items" />' catalog, ordinals from 0 in link order, each value uniform within its line's
+    /// range. A template with neither makes a copy with none.
     /// </summary>
-    RolledItem RollPlain(ItemTemplate template, ushort itemLevel, ItemModifierCatalog catalog);
+    RolledItem RollPlain(ItemTemplate template, ushort itemLevel, ItemsPatch items);
 
     /// <summary>
     /// The full roll of a made copy, at the context's item level:
     /// <list type="bullet">
     /// <item>a Unique template rolls rarity Unique and its one linked modifier;</item>
     /// <item>a Common template with a base kind becomes the best tier of its line the item level reaches, rolls a rarity
-    /// by the context's odds (Magic outright when it forces Magic), its implicits, then its affixes by weight, and a rare
-    /// its two-word name.</item>
+    /// by the context's odds (Magic outright when it forces Magic), its base stats, its implicits, then its affixes by
+    /// weight, and a rare its two-word name.</item>
     /// </list>
     /// Null for any other template, which does not roll, and for a Unique template the catalog left without its modifier.
     /// </summary>
@@ -48,9 +49,9 @@ public interface IItemRoller
 /// <summary>
 /// <see cref="IItemRoller" /> over the loot random and the server's id allocator: the copy's id and each modifier's id
 /// are handed out at the roll, so nothing is renamed when the copy is added. Stateless past its settings, so one serves
-/// every thread. The draws come in one order, which the scripted tests follow: the rarity, the implicits' values by link
-/// and line, the affix count, then per affix one weighted pick and its values by line (the low end, then the high), and
-/// last a rare's two words. A unique draws only its lines' values.
+/// every thread. The draws come in one order, which the scripted tests follow: the rarity, the base stats in ItemBaseStat
+/// order, the implicits' values by link and line, the affix count, then per affix one weighted pick and its values by line
+/// (the low end, then the high), and last a rare's two words. A unique draws its base stats, then its lines' values.
 /// </summary>
 public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOptions<GameConfiguration> options)
     : IItemRoller
@@ -68,17 +69,18 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
 
     private readonly CreatureRarityOdds _odds = options.Value.Items.Rarity;
 
-    public RolledItem RollPlain(ItemTemplate template, ushort itemLevel, ItemModifierCatalog catalog)
+    public RolledItem RollPlain(ItemTemplate template, ushort itemLevel, ItemsPatch items)
     {
         ItemInstanceId instanceId = itemIds.Next();
-        IReadOnlyList<ItemModifier> links = catalog.LinkedTo(template.Id);
+        ItemBaseStats baseStats = RollBaseStats(template);
+        IReadOnlyList<ItemModifier> links = items.Modifiers.LinkedTo(template.Id);
         if (links.Count == 0)
-            return new RolledItem(instanceId, template.Id, template.Rarity, itemLevel, RareName: null, s_none);
+            return new RolledItem(instanceId, template.Id, template.Rarity, itemLevel, RareName: null, baseStats, s_none);
 
         // The copy's own list, which the character's modifier store keeps as its entry (ItemModifierStore.PutMade).
         var modifiers = new List<ItemInstanceModifier>(links.Count);
         RollLinks(modifiers, instanceId, links);
-        return new RolledItem(instanceId, template.Id, template.Rarity, itemLevel, RareName: null, modifiers);
+        return new RolledItem(instanceId, template.Id, template.Rarity, itemLevel, RareName: null, baseStats, modifiers);
     }
 
     public RolledItem? Roll(ItemTemplate template, in DropContext context, ItemsPatch items)
@@ -193,18 +195,20 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
             return null;
 
         ItemInstanceId instanceId = itemIds.Next();
+        ItemBaseStats baseStats = RollBaseStats(template);
         var modifiers = new List<ItemInstanceModifier>(links.Count);
         RollLinks(modifiers, instanceId, links);
-        return new RolledItem(instanceId, template.Id, ItemRarity.Unique, itemLevel, RareName: null, modifiers);
+        return new RolledItem(instanceId, template.Id, ItemRarity.Unique, itemLevel, RareName: null, baseStats, modifiers);
     }
 
     /// <summary>
-    /// A base's copy at <paramref name="rarity" />: its implicits, then (Magic or Rare) its affixes, then a rare's name.
-    /// The list is sized for the most the rarity can carry, so it never grows.
+    /// A base's copy at <paramref name="rarity" />: its base stats, its implicits, then (Magic or Rare) its affixes, then a
+    /// rare's name. The list is sized for the most the rarity can carry, so it never grows.
     /// </summary>
     private RolledItem RollBase(ItemTemplate template, ItemBaseKind kind, ItemRarity rarity, ushort itemLevel,
         ItemModifierCatalog catalog, ItemInstanceId instanceId)
     {
+        ItemBaseStats baseStats = RollBaseStats(template);
         IReadOnlyList<ItemModifier> links = catalog.LinkedTo(template.Id);
         int room = rarity switch
         {
@@ -224,7 +228,31 @@ public sealed class ItemRoller(ILootRandom random, IItemIdAllocator itemIds, IOp
                 rareName = RareNames.Draw(kind, random);
         }
 
-        return new RolledItem(instanceId, template.Id, rarity, itemLevel, rareName, modifiers);
+        return new RolledItem(instanceId, template.Id, rarity, itemLevel, rareName, baseStats, modifiers);
+    }
+
+    /// <summary>
+    /// The copy's base stats: each of its template's ranges (#1179), uniform in [Min, Max], drawn in ItemBaseStat order
+    /// whatever order the rows were read in. None for a template without ranges. By value: nothing is allocated.
+    /// </summary>
+    private ItemBaseStats RollBaseStats(ItemTemplate template)
+    {
+        List<ItemTemplateBaseStat> ranges = template.BaseStats;
+        ItemBaseStats rolled = default;
+        if (ranges.Count == 0)
+            return rolled;
+
+        for (ItemBaseStat stat = ItemBaseStat.Armour; stat <= ItemBaseStat.AttackTime; stat++)
+        {
+            for (int i = 0; i < ranges.Count; i++)
+            {
+                ItemTemplateBaseStat range = ranges[i];
+                if (range.Stat == stat)
+                    rolled = rolled.With(stat, Uniform(range.Min, range.Max));
+            }
+        }
+
+        return rolled;
     }
 
     private void RollLinks(List<ItemInstanceModifier> modifiers, ItemInstanceId instanceId, IReadOnlyList<ItemModifier> links)

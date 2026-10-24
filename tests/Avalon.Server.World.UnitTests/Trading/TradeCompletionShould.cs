@@ -37,6 +37,12 @@ public class TradeCompletionShould
         TradeRecordItem given = Assert.Single(record.Items, i => i.GiverCharacterId == a.Character.Data!.Id);
         Assert.Equal((sword.InstanceId, ItemRarity.Magic, (ushort)7), (given.ItemInstanceId, given.Rarity, given.ItemLevel));
         Assert.Equal(rolls, DescribeRolls(given.Modifiers));
+        Assert.Equal([(ItemBaseStat.DamageMin, 4), (ItemBaseStat.DamageMax, 9), (ItemBaseStat.AttackTime, 760)],
+            given.BaseStats.OrderBy(s => s.Stat).Select(s => (s.Stat, s.Value)));
+        // The receiver's side of the paired save writes the sword's base stats as its own.
+        ItemModifierWrite received = TradeSaveBatch.Apply(new CharacterSaveBatch(b.Character.Data!, [], [], [], []), second,
+            DateTime.UnixEpoch).Modifiers!;
+        Assert.Equal(s_swordBaseStats, ItemBaseStats.Of(received.BaseStats.Where(s => s.ItemInstanceId == sword.InstanceId)));
         Assert.Equal((30UL, 0UL), (record.FirstGold, record.SecondGold));
         Assert.Equal(sword.InstanceId, At(a, 0).InstanceId);          // memory unchanged while the save is in flight
         Assert.Equal(TradeResult.Completing, w.Trades.Cancel(a.Id));
@@ -84,6 +90,7 @@ public class TradeCompletionShould
             // #1179: the receiver holds the sword's modifiers under their own ids, and the giver's next save names neither
             // (CharacterSaverShould writes the paired save itself).
             Assert.Equal(modifiers, Describe(b.Character.ItemModifiers.Of(sword.InstanceId)));
+            Assert.Equal(s_swordBaseStats, b.Character.ItemModifiers.BaseStatsOf(sword.InstanceId));
             Assert.Empty(a.Character.ItemModifiers.Of(sword.InstanceId));
             CharacterSaveBatch next = CharacterSaveSnapshot.Take(a.Character).Batch;
             Assert.DoesNotContain(sword.InstanceId, next.UpsertItems.Select(i => i.Id).Concat(next.DeleteItems));
@@ -163,10 +170,12 @@ public class TradeCompletionShould
         Assert.Equal([a.Character.Data!.Id, b.Character.Data!.Id], w.Saver.Released);
     }
 
+    private static readonly ItemBaseStats s_swordBaseStats = new() { DamageMin = 4, DamageMax = 9, AttackTime = 760 };
+
     /// <summary>
     /// A holds the Sword at Bag 0 and 100 gold and offers both and 30 gold; B offers its Potion ×5 at Bag 0; both
-    /// confirm the current revision, so the paired save is in flight. The Sword is Magic, item level 7, with two
-    /// modifiers, and was added this session: New, its modifiers marked, never saved (#1179).
+    /// confirm the current revision, so the paired save is in flight. The Sword is Magic, item level 7, with its base
+    /// stats and two modifiers, and was added this session: New, its rolled rows marked, never saved (#1179).
     /// </summary>
     internal static (TradeTestWorld W, Trader A, Trader B, InventoryItem Sword, InventoryItem Potion) Confirmed()
     {
@@ -177,6 +186,7 @@ public class TradeCompletionShould
         InventoryItem potion = Item(0, Potion, count: 5);
         b.Character.Container(InventoryType.Bag).Load([potion]);
         Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(sword,
+            s_swordBaseStats,
         [
             Modifier(sword.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5)),
             Modifier(sword.InstanceId, 10103, 1, (0, StatType.Strength, 8, null), (1, StatType.Armor, 3, null)),

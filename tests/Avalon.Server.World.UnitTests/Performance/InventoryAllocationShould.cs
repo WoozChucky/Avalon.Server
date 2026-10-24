@@ -60,7 +60,7 @@ public class InventoryAllocationShould
         _character.Container(InventoryType.Bag).Load([Item(0, Potion, count: 5), Item(3, Sword)]);
         var roller = new ItemRoller(new LootRandom(new Random(1179)), new ItemIdAllocator(), Options.Create(new GameConfiguration()));
         CharacterInventoryService inventory = InventoryFor(_character, s_items.Find);
-        Assert.Equal(InventoryAddResult.Ok, inventory.TryAddRolled(roller.RollPlain(s_chest, 1, s_items.Modifiers)));
+        Assert.Equal(InventoryAddResult.Ok, inventory.TryAddRolled(roller.RollPlain(s_chest, 1, s_items)));
         RolledItem magic = roller.Roll(s_chest, new DropContext(10, CreatureRarity.Normal, ForceMagic: true), s_items)!;
         Assert.Equal(InventoryAddResult.Ok, inventory.TryAddRolled(magic));
         Assert.NotNull(_character.ItemModifiers.NameOf(At(_character, InventoryType.Bag, 2), s_items));

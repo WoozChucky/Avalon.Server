@@ -91,7 +91,7 @@ public class InventoryFlushBenchmarks
                 continue;
             }
 
-            RolledItem copy = slot % 2 == 0 ? roller.RollPlain(chest, 1, _items.Modifiers) : roller.Roll(chest, magic, _items)!;
+            RolledItem copy = slot % 2 == 0 ? roller.RollPlain(chest, 1, _items) : roller.Roll(chest, magic, _items)!;
             held[slot] = new InventoryItem(slot, copy.InstanceId, copy.TemplateId, 1, 0, ItemInstanceFlags.None,
                 copy.Rarity, copy.ItemLevel, copy.RareName);
             instances.Add(new ItemInstance { Id = copy.InstanceId, TemplateId = copy.TemplateId, Modifiers = copy.Modifiers });

@@ -63,22 +63,23 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
             Power1 = (int)Math.Min(stats.MaxPower, (uint)int.MaxValue)
         };
         var items = new List<ItemInstance>(); var slots = new List<CharacterInventory>();
-        ItemModifierCatalog modifiers = world.Data.ItemModifiers;
+        ItemsPatch itemData = world.Data.Items;
         foreach (ItemTemplateId templateId in createInfo.StartingItems)
         {
-            ItemTemplate? template = world.Data.FindItemTemplate(templateId);
+            ItemTemplate? template = itemData.Find(templateId);
             if (template is null)
             {
                 logger.LogWarning("Starting item {TemplateId} not found", templateId); continue;
             }
-            // #1179: a starting item is made as any copy is, rolling the modifiers its template links; they are
-            // inserted with it. A copy with modifiers is one of a kind, so it is never a stack.
-            RolledItem rolled = itemRoller.RollPlain(template, ItemInstanceDefaults.InitialItemLevel(template), modifiers);
+            // #1179: a starting item is made as any copy is, rolling its base stats and the modifiers its template links;
+            // they are inserted with it. A copy that rolled either is one of a kind, so it is never a stack.
+            RolledItem rolled = itemRoller.RollPlain(template, ItemInstanceDefaults.InitialItemLevel(template), itemData);
+            bool oneOfAKind = rolled.Modifiers.Count > 0 || !rolled.BaseStats.IsEmpty;
             var item = new ItemInstance
             {
                 Id = rolled.InstanceId,
                 TemplateId = template.Id,
-                Count = template.Stackable && rolled.Modifiers.Count == 0 ? template.MaxStackSize : 1,
+                Count = template.Stackable && !oneOfAKind ? template.MaxStackSize : 1,
                 Durability = ItemInstanceDefaults.InitialDurability(template),
                 Rarity = rolled.Rarity,
                 ItemLevel = rolled.ItemLevel,
@@ -88,6 +89,8 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
             // shares one for every copy without modifiers.
             if (rolled.Modifiers.Count > 0)
                 item.Modifiers = rolled.Modifiers;
+            foreach ((ItemBaseStat stat, int value) in rolled.BaseStats)
+                item.BaseStats.Add(new ItemInstanceBaseStat { ItemInstanceId = rolled.InstanceId, Stat = stat, Value = value });
             items.Add(item); slots.Add(new() { ItemId = item.Id, Container = InventoryType.Bag, Slot = (byte)(slots.Count) });
         }
         var batch = new CharacterCreationBatch(row, stats.ToRow(new(0)),

@@ -119,7 +119,8 @@ public static class TradeRules
                 return null;
             }
 
-            items[i] = new CarriedItem(held, offer.Character.ItemModifiers.Of(held.InstanceId));
+            items[i] = new CarriedItem(held, offer.Character.ItemModifiers.BaseStatsOf(held.InstanceId),
+                offer.Character.ItemModifiers.Of(held.InstanceId));
         }
 
         return items;

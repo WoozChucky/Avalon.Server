@@ -21,22 +21,26 @@ public sealed record CharacterQuestWrite(
     IReadOnlyList<CharacterCompletedQuest> Completed);
 
 /// <summary>
-/// The modifier rows of some of a batch's items (#1179), as flat rows. Each item in <paramref name="Items" /> ends up
-/// with exactly <paramref name="Modifiers" />' rows for it: its other modifiers are deleted with their values, each one
-/// here is updated when its id exists and inserted otherwise, and its value rows are replaced by
-/// <paramref name="Values" />' rows for it. A modifier here carries no values of its own (its <c>Values</c> is empty):
-/// every value row is in <paramref name="Values" />. Every item named must be one its batch upserts.
+/// The rolled rows of some of a batch's items (#1179), as flat rows: their modifiers and their base stats. Each item in
+/// <paramref name="Items" /> ends up with exactly <paramref name="Modifiers" />' rows for it: its other modifiers are
+/// deleted with their values, each one here is updated when its id exists and inserted otherwise, and its value rows are
+/// replaced by <paramref name="Values" />' rows for it. Its base-stat rows are replaced by <paramref name="BaseStats" />'
+/// rows for it. A modifier here carries no values of its own (its <c>Values</c> is empty): every value row is in
+/// <paramref name="Values" />. Every item named must be one its batch upserts, and every base-stat row must sit on one of
+/// them.
 /// </summary>
 /// <remarks>
 /// Single use, like the batch that carries it. While the write tracks these rows, EF's relationship fix-up adds the
-/// modifiers to the batch's <see cref="ItemInstance.Modifiers" /> and the values to each
-/// <see cref="ItemInstanceModifier.Values" />. A second write of the same objects would then reach those rows through a
-/// navigation, and the repository's one-row rule refuses that. Build fresh rows for every save, as the snapshot does.
+/// modifiers to the batch's <see cref="ItemInstance.Modifiers" />, the base stats to its <see cref="ItemInstance.BaseStats" />
+/// and the values to each <see cref="ItemInstanceModifier.Values" />. A second write of the same objects would then reach
+/// those rows through a navigation, and the repository's one-row rule refuses that. Build fresh rows for every save, as the
+/// snapshot does.
 /// </remarks>
 public sealed record ItemModifierWrite(
     IReadOnlyList<ItemInstanceId> Items,
     IReadOnlyList<ItemInstanceModifier> Modifiers,
-    IReadOnlyList<ItemInstanceModifierValue> Values);
+    IReadOnlyList<ItemInstanceModifierValue> Values,
+    IReadOnlyList<ItemInstanceBaseStat> BaseStats);
 
 /// <summary>
 /// What one character's save writes: its whole row, and only the items and slots whose save state
@@ -45,7 +49,8 @@ public sealed record ItemModifierWrite(
 /// <paramref name="Quests" />, when present, is the quest rows to rewrite (#433).
 /// <paramref name="Ignores" />, when present, is the ignore entries to rewrite (#723).
 /// <paramref name="Auras" />, when present, replaces every aura row of the character.
-/// <paramref name="Modifiers" />, when present, rewrites the modifier rows of some of the upserted items (#1179).
+/// <paramref name="Modifiers" />, when present, rewrites the rolled rows (modifiers and base stats) of some of the upserted
+/// items (#1179).
 /// </summary>
 public sealed record CharacterSaveBatch(
     Domain.Characters.Character Row,
@@ -196,14 +201,18 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
             await context.ItemInstances.Where(i => removed.Contains(i.Id)).ExecuteDeleteAsync(token);
         }
 
-        // An item whose modifiers are rewritten loses every modifier not in its set, the values going by cascade, and
-        // the value rows of those in it, which are inserted again below: one statement each per batch.
+        // An item whose rolled rows are rewritten loses every modifier not in its set, the values going by cascade, the
+        // value rows of those in it and all its base-stat rows, which are inserted again below: one statement each per
+        // batch.
         foreach (CharacterSaveBatch batch in batches)
         {
             if (batch.Modifiers is not { Items.Count: > 0 } modifiers)
                 continue;
 
             var rewritten = modifiers.Items.ToList();
+            await context.ItemInstanceBaseStats
+                .Where(s => rewritten.Contains(s.ItemInstanceId))
+                .ExecuteDeleteAsync(token);
             var kept = modifiers.Modifiers.Select(m => m.Id).ToList();
             await context.ItemInstanceModifiers
                 .Where(m => rewritten.Contains(m.ItemInstanceId) && !kept.Contains(m.Id))
@@ -239,8 +248,15 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
                 }
             }
 
-            if (batch.Modifiers is { Modifiers.Count: > 0 } modifierWrite)
-                await UpsertModifiersAsync(context, modifierWrite, token);
+            if (batch.Modifiers is { } rolledWrite)
+            {
+                if (rolledWrite.Modifiers.Count > 0)
+                    await UpsertModifiersAsync(context, rolledWrite, token);
+
+                // Deleted above, so each is inserted.
+                foreach (ItemInstanceBaseStat baseStat in rolledWrite.BaseStats)
+                    context.TrackForInsert(baseStat);
+            }
 
             if (batch.UpsertSlots.Count > 0)
             {

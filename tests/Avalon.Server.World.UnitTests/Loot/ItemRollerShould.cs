@@ -125,6 +125,7 @@ public class ItemRollerShould
 
         Assert.Equal(ItemRarity.Rare, upgraded.Rarity);
         Assert.Equal((13UL, 1u), (drops[2].ItemTemplateId!.Value, drops[2].Count));
+        Assert.Equal(new ItemBaseStats { Armour = Armour(13).Min }, upgraded.BaseStats);
         Assert.Equal(CatalogKeys.ModifierId("implicit 13"), upgraded.Modifiers[0].ModifierId);
         Assert.Equal(1 + 3, upgraded.Modifiers.Count);
         Assert.Equal("Thorn Shell", upgraded.RareName);
@@ -132,13 +133,13 @@ public class ItemRollerShould
 
         // A kill whose first base already rolled Rare upgrades nothing else. Every draw is scripted, in the contracted
         // order, so an extra, missing or reordered draw fails. Each pick of 0.0 lands on the first eligible row.
-        // The plate chest (13 at item level 5): rarity 0.5 (Rare), its implicit, the count 3, three prefixes (the next
-        // prefix group each time), their values, then the two words. The ring: rarity 0.0 (Magic), the count 2, a prefix,
-        // then a suffix (the prefix room is full), and their values.
+        // The plate chest (13 at item level 5): rarity 0.5 (Rare), its armour, its implicit, the count 3, three prefixes
+        // (the next prefix group each time), their values, then the two words. The ring, which has no base stats: rarity
+        // 0.0 (Magic), the count 2, a prefix, then a suffix (the prefix room is full), and their values.
         ItemModifierStat Line(string key) => Catalog.Find(CatalogKeys.ModifierId(key))!.Stats.Single();
         var script = new ScriptedLootRandom(
             [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [Line("implicit 13").Min, 3, Line("P11 T1").Min, Line("P12 T1").Min, Line("P13 T1").Min, 0, 0,
+            [Armour(13).Max, Line("implicit 13").Min, 3, Line("P11 T1").Min, Line("P12 T1").Min, Line("P13 T1").Min, 0, 0,
              2, Line("P8 Fire T1").Min, Line("S1 T1").Min]);
         List<RolledDrop> again = [Drop(37), Drop(68)];
 
@@ -147,6 +148,8 @@ public class ItemRollerShould
         Assert.True(script.Exhausted, "the roll left scripted draws unused");
         Assert.Equal([ItemRarity.Rare, ItemRarity.Magic], again.Select(drop => drop.Rolled!.Rarity));
         Assert.Equal("Thorn Shell", again[0].Rolled!.RareName);
+        Assert.Equal([new ItemBaseStats { Armour = Armour(13).Max }, default],
+            again.Select(drop => drop.Rolled!.BaseStats));
         Assert.Equal(
             [
                 (string[])["implicit 13", "P11 T1", "P12 T1", "P13 T1"],
@@ -156,6 +159,9 @@ public class ItemRollerShould
     }
 
     private static string KeyOf(int modifierId) => CatalogKeys.All().Single(row => row.ModifierId == modifierId).Key;
+
+    private static ItemTemplateBaseStat Armour(ulong template) =>
+        Template(template).BaseStats.Single(range => range.Stat == ItemBaseStat.Armour);
 
     [Fact]
     public void Drop_no_unique_whose_modifier_the_catalog_left_out()
@@ -212,6 +218,18 @@ public class ItemRollerShould
     {
         IReadOnlyList<ItemModifier> implicits = Catalog.LinkedTo(rolled.TemplateId);
         Assert.Equal(itemLevel, rolled.ItemLevel);
+
+        // Exactly the base stats its kind carries, each within the rolled template's range.
+        ItemTemplate template = Template(rolled.TemplateId.Value);
+        List<ItemBaseStat> stats = [];
+        foreach ((ItemBaseStat stat, int value) in rolled.BaseStats)
+        {
+            stats.Add(stat);
+            ItemTemplateBaseStat range = template.BaseStats.Single(r => r.Stat == stat);
+            Assert.InRange(value, range.Min, range.Max);
+        }
+
+        Assert.Equal(ItemBaseStatRules.Of(template.BaseKind, template.Rarity), stats);
         Assert.Equal(implicits.Select(m => m.Id), rolled.Modifiers.Take(implicits.Count).Select(m => m.ModifierId));
         Assert.Equal(Enumerable.Range(0, rolled.Modifiers.Count), rolled.Modifiers.Select(m => (int)m.Ordinal));
 

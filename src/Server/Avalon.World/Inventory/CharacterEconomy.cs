@@ -2,6 +2,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Entities;
 using Avalon.World.Loot;
+using Avalon.World.Reload;
 
 namespace Avalon.World.Inventory;
 
@@ -30,7 +31,7 @@ public sealed class CharacterEconomy : ICharacterEconomy
     // Made once: handing the method itself to each service made a delegate per call (#883). They read the item
     // templates and the modifier catalog as they are when called, so a reload still applies to the next operation.
     private readonly Func<ItemTemplateId, ItemTemplate?> _findTemplate;
-    private readonly Func<ItemModifierCatalog> _currentCatalog;
+    private readonly Func<ItemsPatch> _currentItems;
 
     public CharacterEconomy(IWorld world, IItemIdAllocator itemIds, IItemRoller roller)
     {
@@ -38,13 +39,13 @@ public sealed class CharacterEconomy : ICharacterEconomy
         _itemIds = itemIds;
         _roller = roller;
         _findTemplate = FindTemplate;
-        _currentCatalog = CurrentCatalog;
+        _currentItems = CurrentItems;
     }
 
     /// <summary>
     /// The character's one inventory service from this economy, made on first use and kept on the character (#883):
     /// it is asked for per item request, pickup, vendor trade and quest reward, and holds nothing but the character,
-    /// the template and catalog lookups, the id allocator and the roller. A character another economy made one for gets
+    /// the template and items lookups, the id allocator and the roller. A character another economy made one for gets
     /// its own from this one.
     /// </summary>
     public IInventoryService InventoryOf(CharacterEntity character)
@@ -53,7 +54,7 @@ public sealed class CharacterEconomy : ICharacterEconomy
         if (ReferenceEquals(economy, this) && kept is not null)
             return kept;
 
-        var service = new CharacterInventoryService(character, _findTemplate, _itemIds, _roller, _currentCatalog);
+        var service = new CharacterInventoryService(character, _findTemplate, _itemIds, _roller, _currentItems);
         character.EconomyInventory = (this, service);
         return service;
     }
@@ -68,5 +69,5 @@ public sealed class CharacterEconomy : ICharacterEconomy
     private ItemTemplate? FindTemplate(ItemTemplateId id) =>
         _world.Data.FindItemTemplate(id);
 
-    private ItemModifierCatalog CurrentCatalog() => _world.Data.ItemModifiers;
+    private ItemsPatch CurrentItems() => _world.Data.Items;
 }

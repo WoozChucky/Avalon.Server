@@ -55,9 +55,12 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
             {
                 upsertItems.Add(ItemRow(item, row.Id, now));
 
-                // #1179: only an item this batch upserts carries its modifiers, so a deleted one never names them.
+                // #1179: only an item this batch upserts carries its rolled rows, so a deleted one never names them.
                 if (mark.Modifiers)
-                    (modifiers ??= new ModifierRows()).Add(id, character.ItemModifiers.Of(id));
+                {
+                    (modifiers ??= new ModifierRows()).Add(id, character.ItemModifiers.BaseStatsOf(id),
+                        character.ItemModifiers.Of(id));
+                }
             }
             else
             {
@@ -241,20 +244,28 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
 
 /// <summary>
 /// The flat rows of one save's <see cref="ItemModifierWrite" /> (#1179), built on the tick from deep copies of the live
-/// modifiers, so the write shares no object the tick changes, and each save has rows of its own (a write is single use).
+/// modifiers and from each item's base stats (a value), so the write shares no object the tick changes, and each save has
+/// rows of its own (a write is single use).
 /// </summary>
 internal sealed class ModifierRows
 {
     private readonly List<ItemInstanceId> _items = [];
     private readonly List<ItemInstanceModifier> _modifiers = [];
     private readonly List<ItemInstanceModifierValue> _values = [];
+    private readonly List<ItemInstanceBaseStat> _baseStats = [];
 
     public bool IsEmpty => _items.Count == 0;
 
-    /// <summary>The item's whole current set, empty when it has none: its stored modifiers not in it are deleted.</summary>
-    public void Add(ItemInstanceId item, IReadOnlyList<ItemInstanceModifier> modifiers)
+    /// <summary>
+    /// The item's whole current set of rolled rows, its base stats and its modifiers, either empty when it has none: its
+    /// stored rows not in it are deleted.
+    /// </summary>
+    public void Add(ItemInstanceId item, in ItemBaseStats baseStats, IReadOnlyList<ItemInstanceModifier> modifiers)
     {
         _items.Add(item);
+        foreach ((ItemBaseStat stat, int value) in baseStats)
+            _baseStats.Add(new ItemInstanceBaseStat { ItemInstanceId = item, Stat = stat, Value = value });
+
         // By index: a foreach through the interface boxed an enumerator per item.
         for (int i = 0; i < modifiers.Count; i++)
         {
@@ -278,6 +289,12 @@ internal sealed class ModifierRows
                 _items.Add(item);
         }
 
+        foreach (ItemInstanceBaseStat baseStat in write.BaseStats)
+        {
+            if (!replaced.Contains(baseStat.ItemInstanceId))
+                _baseStats.Add(baseStat);
+        }
+
         HashSet<Guid> kept = [];
         foreach (ItemInstanceModifier modifier in write.Modifiers)
         {
@@ -295,5 +312,5 @@ internal sealed class ModifierRows
         }
     }
 
-    public ItemModifierWrite? ToWrite() => IsEmpty ? null : new ItemModifierWrite(_items, _modifiers, _values);
+    public ItemModifierWrite? ToWrite() => IsEmpty ? null : new ItemModifierWrite(_items, _modifiers, _values, _baseStats);
 }

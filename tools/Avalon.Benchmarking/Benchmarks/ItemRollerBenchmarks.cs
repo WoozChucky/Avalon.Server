@@ -62,7 +62,7 @@ public class ItemRollerBenchmarks
     public RolledItem RollPlain()
     {
         _random.Reset();
-        return _roller.RollPlain(_chest, 15, _items.Modifiers);
+        return _roller.RollPlain(_chest, 15, _items);
     }
 
     [Benchmark]

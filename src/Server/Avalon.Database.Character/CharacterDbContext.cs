@@ -67,6 +67,7 @@ public partial class CharacterDbContext : DbContext
     public DbSet<ItemInstance> ItemInstances { get; set; } = null!;
     public DbSet<ItemInstanceModifier> ItemInstanceModifiers { get; set; } = null!;
     public DbSet<ItemInstanceModifierValue> ItemInstanceModifierValues { get; set; } = null!;
+    public DbSet<ItemInstanceBaseStat> ItemInstanceBaseStats { get; set; } = null!;
     public DbSet<CharacterQuest> CharacterQuests { get; set; } = null!;
     public DbSet<CharacterQuestObjective> CharacterQuestObjectives { get; set; } = null!;
     public DbSet<CharacterCompletedQuest> CharacterCompletedQuests { get; set; } = null!;
@@ -108,6 +109,7 @@ public partial class CharacterDbContext : DbContext
         Configure(modelBuilder.Entity<ItemInstance>());
         Configure(modelBuilder.Entity<ItemInstanceModifier>());
         Configure(modelBuilder.Entity<ItemInstanceModifierValue>());
+        Configure(modelBuilder.Entity<ItemInstanceBaseStat>());
         Configure(modelBuilder.Entity<CharacterQuest>());
         Configure(modelBuilder.Entity<CharacterQuestObjective>());
         Configure(modelBuilder.Entity<CharacterCompletedQuest>());
@@ -122,6 +124,7 @@ public partial class CharacterDbContext : DbContext
         Configure(modelBuilder.Entity<TradeRecordItem>());
         Configure(modelBuilder.Entity<TradeRecordItemModifier>());
         Configure(modelBuilder.Entity<TradeRecordItemModifierValue>());
+        Configure(modelBuilder.Entity<TradeRecordItemBaseStat>());
     }
 
     /// <summary>
@@ -155,11 +158,28 @@ public partial class CharacterDbContext : DbContext
         // As on the item itself: a rare copy, and only a rare one, carries its two words.
         builder.ToTable(t => t.HasCheckConstraint("CK_TradeRecordItems_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)"));
         builder.HasIndex(i => i.ItemInstanceId);
-        // The record's own copy of the item's modifiers (#1179), written with it as one graph.
+        // The record's own copy of the item's base stats and modifiers (#1179), written with it as one graph.
+        builder.HasMany(i => i.BaseStats)
+            .WithOne()
+            .HasForeignKey(s => new { s.TradeId, s.ItemInstanceId })
+            .OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(i => i.Modifiers)
             .WithOne()
             .HasForeignKey(m => new { m.TradeId, m.ItemInstanceId })
             .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    /// <summary>A traded item's base stats as they moved (#1179), checked as the item's own are.</summary>
+    private static void Configure(EntityTypeBuilder<TradeRecordItemBaseStat> builder)
+    {
+        builder.ToTable("TradeRecordItemBaseStats", t =>
+        {
+            t.HasCheckConstraint("CK_TradeRecordItemBaseStats_Stat", "\"Stat\" BETWEEN 0 AND 6");
+            t.HasCheckConstraint("CK_TradeRecordItemBaseStats_Value", "\"Value\" >= 0");
+        });
+        builder.HasKey(s => new { s.TradeId, s.ItemInstanceId, s.Stat });
+        builder.Property(s => s.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
+        builder.Property(s => s.Stat).HasColumnType("smallint");
     }
 
     private static void Configure(EntityTypeBuilder<TradeRecordItemModifier> builder)
@@ -362,11 +382,31 @@ public partial class CharacterDbContext : DbContext
             t.HasCheckConstraint("CK_ItemInstances_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
         });
 
-        // Its modifiers are its own rows, gone with it.
+        // Its modifiers and base stats are its own rows, gone with it.
         builder.HasMany(b => b.Modifiers)
             .WithOne()
             .HasForeignKey(m => m.ItemInstanceId)
             .OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(b => b.BaseStats)
+            .WithOne()
+            .HasForeignKey(s => s.ItemInstanceId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    /// <summary>
+    /// A copy's rolled base stats (#1179), one row per stat: Stat 0-6 (ItemBaseStat), a value of at least 0. Kept as rolled,
+    /// so an edit of the template's ranges never changes a copy.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ItemInstanceBaseStat> builder)
+    {
+        builder.ToTable("ItemInstanceBaseStats", t =>
+        {
+            t.HasCheckConstraint("CK_ItemInstanceBaseStats_Stat", "\"Stat\" BETWEEN 0 AND 6");
+            t.HasCheckConstraint("CK_ItemInstanceBaseStats_Value", "\"Value\" >= 0");
+        });
+        builder.HasKey(s => new { s.ItemInstanceId, s.Stat });
+        builder.Property(s => s.ItemInstanceId).HasConversion(v => v.Value, v => new ItemInstanceId(v)).IsRequired();
+        builder.Property(s => s.Stat).HasColumnType("smallint");
     }
 
     /// <summary>

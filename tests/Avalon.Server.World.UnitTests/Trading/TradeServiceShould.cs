@@ -193,12 +193,12 @@ public class TradeServiceShould
         Trader b = w.Online(2, gold: 100);
         InventoryItem rare = Item(0, Sword) with { Rarity = ItemRarity.Rare, ItemLevel = 9 };
         InventoryItem magic = Item(1, Sword) with { Rarity = ItemRarity.Magic, ItemLevel = 4 };
-        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(rare,
+        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(rare, default,
         [
             Modifier(rare.InstanceId, 10103, 0, (0, StatType.Strength, 8, null), (1, StatType.Armor, 3, null)),
             Modifier(rare.InstanceId, 203, 1, (0, StatType.AddedFireDamage, 3, 7)),
         ])));
-        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(magic,
+        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(magic, default,
             [Modifier(magic.InstanceId, 204, 0, (0, StatType.AddedColdDamage, 2, 5))])));
         w.Open(a, b);
 

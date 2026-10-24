@@ -155,7 +155,7 @@ public class InventoryUpdateFlusherShould
         InventoryItem rare = Item(0, Sword) with { Rarity = ItemRarity.Rare, ItemLevel = 9, RareName = "Thorn Bite" };
 
         InventoryFor(character).TryRemove(banked.InstanceId, 1);
-        InventoryFor(character).TryAddInstance(new CarriedItem(rare,
+        InventoryFor(character).TryAddInstance(new CarriedItem(rare, default,
             [TestModifiers.Modifier(rare.InstanceId, 203, 0, (0, StatType.AddedFireDamage, 3, 7))]));
         InventoryUpdateFlusher.Flush(connection, s_items, new ItemModifierDtoPool());
 

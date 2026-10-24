@@ -6,7 +6,7 @@ namespace Avalon.Database.Character.Repositories;
 
 public interface IItemInstanceRepository : IRepository<ItemInstance, ItemInstanceId>
 {
-    /// <summary>The character's item instances: template id, count, durability, charges, flags, rarity, item level and modifiers with their values.</summary>
+    /// <summary>The character's item instances: template id, count, durability, charges, flags, rarity, item level, modifiers with their values and base stats.</summary>
     Task<IReadOnlyList<ItemInstance>> GetByCharacterIdAsync(
         CharacterId characterId, CancellationToken cancellationToken = default);
 }
@@ -24,6 +24,7 @@ public class ItemInstanceRepository(IDbContextFactory<CharacterDbContext> contex
             .AsNoTracking()
             .Where(x => x.CharacterId == characterId)
             .Include(i => i.Modifiers).ThenInclude(m => m.Values)
+            .Include(i => i.BaseStats)
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
     }

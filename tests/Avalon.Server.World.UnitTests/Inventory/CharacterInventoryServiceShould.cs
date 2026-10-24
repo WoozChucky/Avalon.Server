@@ -314,18 +314,19 @@ public class CharacterInventoryServiceShould
     }
 
     /// <summary>
-    /// Review Focus 1 (#1179): however a copy of a base is made (bought, given by an item script, paid as a quest's
-    /// reward, or handed to a new character), it carries its base's implicits: one modifier per link, in link order,
-    /// ordinals from 0, every value within its line's range, and the write that stores the copy writes them. A quest's
-    /// reward is rolled Magic, so its affixes follow the implicits; every other copy carries the implicits alone.
-    /// Potion 1, made the same way, carries none.
+    /// #1179: however a copy of a base is made (bought, given by an item script, paid as a quest's reward, or handed to a
+    /// new character), it carries its base stats, exactly the stats its template has a range for, each rolled within
+    /// its range, and its base's implicits: one modifier per link, in link order, ordinals from 0, every value within its
+    /// line's range. The copy is marked, and the write that stores it writes both. A quest's reward is rolled Magic, so its
+    /// affixes follow the implicits; every other copy carries the implicits alone. Potion 1, made the same way, carries
+    /// neither and is not marked.
     /// </summary>
     [Theory]
     [InlineData("vendor purchase")]
     [InlineData("item script add")]
     [InlineData("quest reward")]
     [InlineData("starting item")]
-    public async Task Give_every_copy_of_a_base_its_implicits_however_it_is_made(string how)
+    public async Task Give_every_copy_its_base_stats_and_implicits_however_it_is_made(string how)
     {
         const uint QuestId = 7901, KillId = 79011;
         using var seed = SqliteDatabase.World();
@@ -382,10 +383,22 @@ public class CharacterInventoryServiceShould
                 break;
         }
 
-        // The base's copy carries its links, the potion none.
+        // The base's copy carries its base stats and its links, the potion neither.
         Assert.Equal(new[] { made.Value, potion.Value }.Order(), copies.Select(copy => copy.Template.Value).Order());
         foreach (MadeCopy copy in copies)
         {
+            List<ItemTemplateBaseStat> ranges = w.Data.FindItemTemplate(copy.Template)!.BaseStats;
+            Assert.Equal(copy.Template == made, ranges.Count > 0);
+            Assert.Equal(copy.Template == made, copy.Marked);
+            Assert.Equal(ranges.Select(range => range.Stat).Order(), Stats(copy.BaseStats));
+            foreach ((ItemBaseStat stat, int value) in copy.BaseStats)
+            {
+                ItemTemplateBaseStat range = ranges.Single(r => r.Stat == stat);
+                Assert.InRange(value, range.Min, range.Max);
+            }
+
+            Assert.Equal(copy.BaseStats, copy.WrittenBaseStats);
+
             IReadOnlyList<ItemModifier> links = w.Data.ItemModifiers.LinkedTo(copy.Template);
             Assert.Equal(copy.Template == made, links.Count > 0);
             List<ItemInstanceModifier> implicits = [.. copy.Held.Take(links.Count)];
@@ -404,9 +417,22 @@ public class CharacterInventoryServiceShould
         }
     }
 
-    /// <summary>A copy as it was made: its template, its modifiers as held, and as the write that stores it carries them.</summary>
+    /// <summary>
+    /// A copy as it was made: its template, its modifiers and base stats as held, and as the write that stores it carries
+    /// them, and whether that write rewrites its rolled rows at all (its save mark).
+    /// </summary>
     private sealed record MadeCopy(
-        ItemTemplateId Template, IReadOnlyList<ItemInstanceModifier> Held, IReadOnlyList<ItemInstanceModifier> Written);
+        ItemTemplateId Template, IReadOnlyList<ItemInstanceModifier> Held, IReadOnlyList<ItemInstanceModifier> Written,
+        ItemBaseStats BaseStats, ItemBaseStats WrittenBaseStats, bool Marked);
+
+    private static List<ItemBaseStat> Stats(ItemBaseStats baseStats)
+    {
+        List<ItemBaseStat> stats = [];
+        foreach ((ItemBaseStat stat, _) in baseStats)
+            stats.Add(stat);
+
+        return stats;
+    }
 
     /// <summary>A warrior's create info, listing <paramref name="items" /> as its starting items.</summary>
     private static ICharacterCreateInfoRepository StartingWith(params ItemTemplateId[] items)
@@ -418,8 +444,8 @@ public class CharacterInventoryServiceShould
     }
 
     /// <summary>
-    /// Every Bag item's modifiers in the store, and what the next save writes of them: the write's rows for the item, its
-    /// values put back on each, or none when the save does not rewrite the item's set.
+    /// Every Bag item's modifiers and base stats in the store, and what the next save writes of them: the write's rows for
+    /// the item, its values put back on each, or none when the save does not rewrite the item's set.
     /// </summary>
     private static List<MadeCopy> HeldAndWritten(CharacterEntity character)
     {
@@ -438,12 +464,18 @@ public class CharacterInventoryServiceShould
 
         return
         [
-            .. character.Container(InventoryType.Bag).Items.Select(item =>
-                new MadeCopy(item.TemplateId, character.ItemModifiers.Of(item.InstanceId), WrittenFor(item.InstanceId))),
+            .. character.Container(InventoryType.Bag).Items.Select(item => new MadeCopy(item.TemplateId,
+                character.ItemModifiers.Of(item.InstanceId), WrittenFor(item.InstanceId),
+                character.ItemModifiers.BaseStatsOf(item.InstanceId),
+                ItemBaseStats.Of((write?.BaseStats ?? []).Where(s => s.ItemInstanceId == item.InstanceId)),
+                write?.Items.Contains(item.InstanceId) == true)),
         ];
     }
 
-    /// <summary>A warrior created through the handler: each starting item as the creation inserts it, its modifiers with it.</summary>
+    /// <summary>
+    /// A warrior created through the handler: each starting item as the creation inserts it, its modifiers and base stats
+    /// with it (the insert is the write, so it counts as marked).
+    /// </summary>
     private static async Task<List<MadeCopy>> CreatedAsync(IWorld world)
     {
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
@@ -466,6 +498,11 @@ public class CharacterInventoryServiceShould
             .Single(call => call.GetMethodInfo().Name == nameof(IWorldConnection.EnqueueContinuation)).GetArguments()[0]!;
 
         Assert.NotNull(created);
-        return [.. created.Items.Select(item => new MadeCopy(item.TemplateId, item.Modifiers, item.Modifiers))];
+        return
+        [
+            .. created.Items.Select(item => new MadeCopy(item.TemplateId, item.Modifiers, item.Modifiers,
+                ItemBaseStats.Of(item.BaseStats), ItemBaseStats.Of(item.BaseStats),
+                item.Modifiers.Count > 0 || item.BaseStats.Count > 0)),
+        ];
     }
 }

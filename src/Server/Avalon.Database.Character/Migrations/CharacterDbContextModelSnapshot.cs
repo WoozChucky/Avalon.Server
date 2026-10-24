@@ -503,6 +503,30 @@ namespace Avalon.Database.Character.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemBaseStat", b =>
+                {
+                    b.Property<Guid>("TradeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ItemInstanceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte>("Stat")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("Value")
+                        .HasColumnType("integer");
+
+                    b.HasKey("TradeId", "ItemInstanceId", "Stat");
+
+                    b.ToTable("TradeRecordItemBaseStats", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TradeRecordItemBaseStats_Stat", "\"Stat\" BETWEEN 0 AND 6");
+
+                            t.HasCheckConstraint("CK_TradeRecordItemBaseStats_Value", "\"Value\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemModifier", b =>
                 {
                     b.Property<Guid>("TradeId")
@@ -599,6 +623,27 @@ namespace Avalon.Database.Character.Migrations
                             t.HasCheckConstraint("CK_ItemInstances_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_ItemInstances_Rarity", "\"Rarity\" BETWEEN 0 AND 3");
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemInstanceBaseStat", b =>
+                {
+                    b.Property<Guid>("ItemInstanceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<byte>("Stat")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("Value")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ItemInstanceId", "Stat");
+
+                    b.ToTable("ItemInstanceBaseStats", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemInstanceBaseStats_Stat", "\"Stat\" BETWEEN 0 AND 6");
+
+                            t.HasCheckConstraint("CK_ItemInstanceBaseStats_Value", "\"Value\" >= 0");
                         });
                 });
 
@@ -747,6 +792,15 @@ namespace Avalon.Database.Character.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemBaseStat", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.TradeRecordItem", null)
+                        .WithMany("BaseStats")
+                        .HasForeignKey("TradeId", "ItemInstanceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemModifier", b =>
                 {
                     b.HasOne("Avalon.Domain.Characters.TradeRecordItem", null)
@@ -770,6 +824,15 @@ namespace Avalon.Database.Character.Migrations
                     b.HasOne("Avalon.Domain.Characters.Character", null)
                         .WithMany()
                         .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemInstanceBaseStat", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemInstance", null)
+                        .WithMany("BaseStats")
+                        .HasForeignKey("ItemInstanceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -799,6 +862,8 @@ namespace Avalon.Database.Character.Migrations
 
             modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItem", b =>
                 {
+                    b.Navigation("BaseStats");
+
                     b.Navigation("Modifiers");
                 });
 
@@ -809,6 +874,8 @@ namespace Avalon.Database.Character.Migrations
 
             modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
                 {
+                    b.Navigation("BaseStats");
+
                     b.Navigation("Modifiers");
                 });
 

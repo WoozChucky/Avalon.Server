@@ -6,6 +6,7 @@ using Avalon.Domain.World;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
+using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Server.World.UnitTests.Inventory;
@@ -54,20 +55,21 @@ internal static class TestCharacters
     public static InventoryItem Item(byte slot, ItemTemplate template, uint count = 1, uint durability = 0, uint charges = 0) =>
         new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None, template.Rarity, 1, RareName: null, charges);
 
-    /// <summary>The item outside a container with no modifiers, as a sale or a trade carries it (#1179).</summary>
-    public static CarriedItem Carried(InventoryItem item) => new(item, []);
+    /// <summary>The item outside a container with no rolled rows, as a sale or a trade carries it (#1179).</summary>
+    public static CarriedItem Carried(InventoryItem item) => new(item, default, []);
 
     /// <summary>
     /// An inventory over this catalogue, or over <paramref name="find" /> when given one, and over the modifier catalog
-    /// <paramref name="modifiers" /> when given one (#1179), else an empty one: nothing it adds rolls modifiers.
+    /// <paramref name="modifiers" /> when given one (#1179), else an empty one: a copy it adds rolls its template's base-stat
+    /// ranges, and modifiers only from that catalog.
     /// </summary>
     public static CharacterInventoryService InventoryFor(
         CharacterEntity character, Func<ItemTemplateId, ItemTemplate?>? find = null, IItemIdAllocator? ids = null,
         ItemModifierCatalog? modifiers = null)
     {
         ids ??= new ItemIdAllocator();
-        ItemModifierCatalog catalog = modifiers ?? ItemModifierRepositories.EmptyCatalog();
-        return new CharacterInventoryService(character, find ?? Find, ids, TestEconomy.Roller(ids), () => catalog);
+        var items = new ItemsPatch([], modifiers ?? ItemModifierRepositories.EmptyCatalog());
+        return new CharacterInventoryService(character, find ?? Find, ids, TestEconomy.Roller(ids), () => items);
     }
 
     public static InventoryItem At(CharacterEntity character, InventoryType container, byte slot)

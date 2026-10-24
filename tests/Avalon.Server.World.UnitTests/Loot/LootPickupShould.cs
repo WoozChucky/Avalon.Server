@@ -77,8 +77,8 @@ public class LootPickupShould
 
     /// <summary>
     /// #1179: a drop that rolled its copy is that copy until it is picked up. A picker with a full Bag is refused and the
-    /// copy stays on the ground as it lay; the next picker gets exactly it (its id, rarity, item level, name and modifier
-    /// rows), and the next save writes it with them.
+    /// copy stays on the ground as it lay; the next picker gets exactly it (its id, rarity, item level, name, base stats
+    /// and modifier rows), and the next save writes it with them.
     /// </summary>
     [Fact]
     public void Put_the_ground_instance_in_the_bag_exactly()
@@ -92,7 +92,8 @@ public class LootPickupShould
             Modifier(id, CatalogKeys.ModifierId("P2 T3"), 1, (0, StatType.AddedFireDamage, 3, 6)),
             Modifier(id, CatalogKeys.ModifierId("S1 T3"), 2, (0, StatType.Strength, 7, null)),
         ];
-        var rolled = new RolledItem(id, chest.Id, ItemRarity.Rare, 9, "Thorn Bite", modifiers);
+        var baseStats = new ItemBaseStats { Armour = 9 };
+        var rolled = new RolledItem(id, chest.Id, ItemRarity.Rare, 9, "Thorn Bite", baseStats, modifiers);
         Drop(item: chest.Id, owner: null, freeForAllAt: s_now, rolled: rolled);
         string asRolled = Describe(modifiers);
 
@@ -109,11 +110,13 @@ public class LootPickupShould
         Assert.Equal((id, chest.Id, 1u, ItemRarity.Rare, (ushort)9, "Thorn Bite"),
             (bagged.InstanceId, bagged.TemplateId, bagged.Count, bagged.Rarity, bagged.ItemLevel, bagged.RareName));
         Assert.Equal(asRolled, Describe(_picker.ItemModifiers.Of(id)));
+        Assert.Equal(baseStats, _picker.ItemModifiers.BaseStatsOf(id));
 
         CharacterSaveBatch save = CharacterSaveSnapshot.Take(_picker).Batch;
         ItemInstance row = Assert.Single(save.UpsertItems);
         Assert.Equal((id, ItemRarity.Rare, (ushort)9, "Thorn Bite"), (row.Id, row.Rarity, row.ItemLevel, row.RareName));
         ItemModifierWrite written = save.Modifiers!;
+        Assert.Equal(baseStats, ItemBaseStats.Of(written.BaseStats.Where(s => s.ItemInstanceId == id)));
         Assert.Equal(asRolled, Describe([.. written.Modifiers.Where(m => m.ItemInstanceId == id).OrderBy(m => m.Ordinal)
             .Select(m => new ItemInstanceModifier
             {

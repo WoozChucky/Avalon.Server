@@ -115,14 +115,14 @@ public class MapInstanceLootShould
     /// #546: a real hit that kills rolls the loot once, while the creature is still a hostile in its
     /// encounter and before anyone is told it died. #1179: the table's equipment drop is rolled into its copy as it
     /// drops, at the creature's level: the level-5 kill's plate chest (base 37) is the tier-2 chest (13) with its
-    /// implicit, announced and left on the ground as that copy.
+    /// base stats and implicit, announced and left on the ground as that copy.
     /// </summary>
     [Fact]
     public async Task Roll_A_Real_Kills_Loot_Once_Before_The_Encounter_Death_And_The_Death_Broadcast()
     {
         ILootRoller roller = Substitute.For<ILootRoller>();
-        // The Normal odds' Common at the first draw, then the implicit's Armor (15-21).
-        var draws = new ScriptedLootRandom([0.0], [18]);
+        // The Normal odds' Common at the first draw, then the chest's armour (14-22), then the implicit's Armor (15-21).
+        var draws = new ScriptedLootRandom([0.0], [20, 18]);
         var itemRoller = new ItemRoller(draws, new ItemIdAllocator(), Options.Create(new GameConfiguration()));
         using MapInstance instance = await Build(roller: roller, itemRoller: itemRoller);
         MapInstanceClient killer = Join(instance, 460_111);
@@ -169,6 +169,7 @@ public class MapInstanceLootShould
             (onGround.TemplateId.Value, onGround.Rarity, onGround.ItemLevel, onGround.RareName));
         Assert.Equal(implicitArmor.ModifierId, (uint)Assert.Single(onGround.Modifiers).ModifierId);
         Assert.Equal(18, Assert.Single(Assert.Single(onGround.Modifiers).Values).Value);
+        Assert.Equal(new ItemBaseStats { Armour = 20 }, onGround.BaseStats);
     }
 
     /// <summary>
