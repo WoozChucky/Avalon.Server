@@ -1,6 +1,7 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Hosting.Worlds;
+using Avalon.Api.Worlds.Services;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
@@ -25,9 +26,9 @@ public class PublicController(
     {
         ItemTemplate? template = await items.FindByIdAsync(new ItemTemplateId(id), track: false, ct);
         if (template is null) return NotFound();
-        ItemModifierCatalog catalog = await modifiers.GetLinkedToAsync(template, ct);
+        PublicItemDto item = await PublicItems.ToPublicAsync(template, items, modifiers, ct);
         SetCacheControl();
-        return Ok(template.ToPublicDto(catalog.LinkedTo(template.Id)));
+        return Ok(item);
     }
 
     [HttpGet("ability/{id:long}", Name = "GetPublicAbility")]

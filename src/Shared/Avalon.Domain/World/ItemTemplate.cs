@@ -101,23 +101,11 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     /// </summary>
     public bool RequiresAnyAttribute { get; set; }
 
-    public uint? DamageMin1 { get; set; }
-
-    public uint? DamageMax1 { get; set; }
-
-    public DamageType? DamageType1 { get; set; }
-
-    public uint? DamageMin2 { get; set; }
-
-    public uint? DamageMax2 { get; set; }
-
-    public DamageType? DamageType2 { get; set; }
-
     /// <summary>
-    /// Milliseconds between a weapon's basic attacks before attack speed (#1178), above 0; null for an item that is not
-    /// a weapon.
+    /// The type of a weapon's damage (#1178): set on a template of a weapon kind and on no other (#1179,
+    /// <see cref="ItemBaseStatRules" />). A weapon's damage range and attack time are base stats, which every copy rolls.
     /// </summary>
-    public uint? AttackTimeMs { get; set; }
+    public DamageType? DamageType { get; set; }
 
     /// <summary>
     /// The base stats every copy rolls (#1179), one authored range per stat: exactly what

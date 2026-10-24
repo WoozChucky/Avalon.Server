@@ -116,41 +116,10 @@
       "nullable": false
     },
     {
-      "name": "DamageMin1",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "DamageMax1",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "DamageType1",
+      "name": "DamageType",
       "type": "enum",
       "nullable": true,
       "enum": "DamageType"
-    },
-    {
-      "name": "DamageMin2",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "DamageMax2",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "DamageType2",
-      "type": "enum",
-      "nullable": true,
-      "enum": "DamageType"
-    },
-    {
-      "name": "AttackTimeMs",
-      "type": "uint32",
-      "nullable": true
     },
     {
       "name": "BaseStats",

@@ -194,6 +194,14 @@ public class CharacterService : ICharacterService
                 SlotType = (Avalon.Api.Contract.ItemSlotType?)template.Slot,
                 RequiredLevel = template.RequiredLevel ?? 0,
             },
+            // The read loads the rows in no particular order; by stat, as every reader of base stats shows them.
+            BaseStats = instance is null
+                ? []
+                : [.. instance.BaseStats.OrderBy(s => s.Stat).Select(s => new CharacterInventoryBaseStatDto
+                {
+                    Stat = (Avalon.Api.Contract.ItemBaseStat)s.Stat,
+                    Value = s.Value,
+                })],
         };
     }
 

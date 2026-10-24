@@ -181,7 +181,7 @@ public class CastPaceShould
         SubClass = ItemSubClass.OneHanded,
         Slot = ItemSlotType.MainHand,
         MaxStackSize = 1,
-        DamageType1 = DamageType.Physical,
+        DamageType = DamageType.Physical,
         StatType1 = StatType.Strength,
         StatValue1 = 1,
     }, new ItemBaseStats { DamageMin = 4, DamageMax = 7, AttackTime = attackTimeMs }, null);

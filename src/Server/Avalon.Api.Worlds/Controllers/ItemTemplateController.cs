@@ -122,13 +122,15 @@ public class ItemTemplateController : BaseController
         RequiredAgility = t.RequiredAgility,
         RequiredIntellect = t.RequiredIntellect,
         RequiresAnyAttribute = t.RequiresAnyAttribute,
-        AttackTimeMs = t.AttackTimeMs,
-        DamageMin1 = t.DamageMin1,
-        DamageMax1 = t.DamageMax1,
-        DamageType1 = (Avalon.Api.Contract.DamageType?)t.DamageType1,
-        DamageMin2 = t.DamageMin2,
-        DamageMax2 = t.DamageMax2,
-        DamageType2 = (Avalon.Api.Contract.DamageType?)t.DamageType2,
+        DamageType = (Avalon.Api.Contract.DamageType?)t.DamageType,
+        BaseTemplateId = t.BaseTemplateId?.Value,
+        // The rows load in no particular order; by stat, as the version covers them.
+        BaseStats = [.. t.BaseStats.OrderBy(s => s.Stat).Select(s => new ItemTemplateBaseStatDto
+        {
+            Stat = (Avalon.Api.Contract.ItemBaseStat)s.Stat,
+            Min = s.Min,
+            Max = s.Max,
+        })],
         StatType1 = (Avalon.Api.Contract.StatType?)t.StatType1,
         StatValue1 = t.StatValue1,
         StatType2 = (Avalon.Api.Contract.StatType?)t.StatType2,

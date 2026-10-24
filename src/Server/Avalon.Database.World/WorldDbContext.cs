@@ -1558,12 +1558,12 @@ public class WorldDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<ItemTemplate> builder)
     {
-        // #1178: a weapon's basic attack time is above 0; an item that is not a weapon has none. #1179: a template is
-        // Common or Unique (Magic and Rare exist only on an instance); its base kind is one of the 27 kinds, or null
-        // for an item that is no base; a Unique template names the base it is made on, and no other template names one.
+        // #1179: a template is Common or Unique (Magic and Rare exist only on an instance); its base kind is one of the
+        // 27 kinds, or null for an item that is no base; a Unique template names the base it is made on, and no other
+        // template names one. A weapon's damage range and attack time are its base stats (ItemTemplateBaseStats); the
+        // template keeps only the type of its damage.
         builder.ToTable("ItemTemplates", t =>
         {
-            t.HasCheckConstraint("CK_ItemTemplates_AttackTimeMs", "\"AttackTimeMs\" IS NULL OR \"AttackTimeMs\" > 0");
             t.HasCheckConstraint("CK_ItemTemplates_Rarity", "\"Rarity\" IN (0, 3)");
             t.HasCheckConstraint("CK_ItemTemplates_BaseKind", "\"BaseKind\" IS NULL OR \"BaseKind\" BETWEEN 1 AND 27");
             t.HasCheckConstraint("CK_ItemTemplates_BaseTemplate", "(\"Rarity\" = 3) = (\"BaseTemplateId\" IS NOT NULL)");

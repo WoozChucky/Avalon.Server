@@ -283,7 +283,7 @@ public class CharacterStatsCalculatorShould
         var head = new ItemTemplate { Name = "Head", Slot = ItemSlotType.Head };
         var chest = new ItemTemplate { Name = "Chest", Slot = ItemSlotType.Chest };
         var shield = new ItemTemplate { Name = "Shield", Slot = ItemSlotType.OffHand };
-        var mainHand = new ItemTemplate { Name = "Sword", Slot = ItemSlotType.MainHand, DamageType1 = DamageType.Physical };
+        var mainHand = new ItemTemplate { Name = "Sword", Slot = ItemSlotType.MainHand, DamageType = DamageType.Physical };
         var ring = new ItemTemplate { Name = "Ring", Slot = ItemSlotType.Finger };
         var gloves = new ItemTemplate { Name = "Gloves", Slot = ItemSlotType.Hands };
         var boots = new ItemTemplate { Name = "Boots", Slot = ItemSlotType.Feet };

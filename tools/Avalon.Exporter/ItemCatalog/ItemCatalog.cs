@@ -118,7 +118,7 @@ public static class ItemCatalog
     /// responses, and out of scope to change here. A type-level [JsonConverter] attribute beats
     /// anything in JsonSerializerOptions.Converters, so without this modifier the reflection-driven
     /// serialization below would emit ["Warrior", "Wizard", ...] while item-schema-v1.json and every
-    /// sibling enum field (class, subClass, rarity, flags, damageType1, statType1) emit the numeric
+    /// sibling enum field (class, subClass, rarity, flags, damageType, statType1) emit the numeric
     /// vocabulary the schema promises. Setting CustomConverter on the property itself outranks a
     /// type-level attribute -- the same precedence a property-level [JsonConverter] would have --
     /// which is why this works where adding to Converters would not.

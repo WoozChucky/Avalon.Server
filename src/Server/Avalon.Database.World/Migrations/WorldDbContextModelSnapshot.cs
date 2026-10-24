@@ -13202,9 +13202,6 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired()
                         .HasColumnType("smallint[]");
 
-                    b.Property<long?>("AttackTimeMs")
-                        .HasColumnType("bigint");
-
                     b.Property<byte?>("BaseKind")
                         .HasColumnType("smallint");
 
@@ -13217,22 +13214,7 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("Class")
                         .HasColumnType("integer");
 
-                    b.Property<long?>("DamageMax1")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("DamageMax2")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("DamageMin1")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("DamageMin2")
-                        .HasColumnType("bigint");
-
-                    b.Property<int?>("DamageType1")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("DamageType2")
+                    b.Property<int?>("DamageType")
                         .HasColumnType("integer");
 
                     b.Property<long>("DisplayId")
@@ -13356,8 +13338,6 @@ namespace Avalon.Database.World.Migrations
 
                     b.ToTable("ItemTemplates", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ItemTemplates_AttackTimeMs", "\"AttackTimeMs\" IS NULL OR \"AttackTimeMs\" > 0");
-
                             t.HasCheckConstraint("CK_ItemTemplates_BaseKind", "\"BaseKind\" IS NULL OR \"BaseKind\" BETWEEN 1 AND 27");
 
                             t.HasCheckConstraint("CK_ItemTemplates_BaseTemplate", "(\"Rarity\" = 3) = (\"BaseTemplateId\" IS NOT NULL)");
@@ -14479,13 +14459,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 32m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 792L,
                             BaseKind = (byte)19,
                             BuyPrice = 120L,
                             Class = 1,
-                            DamageMax1 = 7L,
-                            DamageMin1 = 4L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 32L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -14501,13 +14478,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 7m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 792L,
                             BaseKind = (byte)19,
                             BuyPrice = 240L,
                             Class = 1,
-                            DamageMax1 = 11L,
-                            DamageMin1 = 7L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 7L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -14524,13 +14498,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 100m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 792L,
                             BaseKind = (byte)19,
                             BuyPrice = 480L,
                             Class = 1,
-                            DamageMax1 = 17L,
-                            DamageMin1 = 11L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 100L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -14547,13 +14518,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 35m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 784L,
                             BaseKind = (byte)20,
                             BuyPrice = 120L,
                             Class = 1,
-                            DamageMax1 = 7L,
-                            DamageMin1 = 4L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 35L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -14569,13 +14537,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 8m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 784L,
                             BaseKind = (byte)20,
                             BuyPrice = 240L,
                             Class = 1,
-                            DamageMax1 = 11L,
-                            DamageMin1 = 7L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 8L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -14593,13 +14558,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 101m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 784L,
                             BaseKind = (byte)20,
                             BuyPrice = 480L,
                             Class = 1,
-                            DamageMax1 = 17L,
-                            DamageMin1 = 11L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 101L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -14617,13 +14579,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 33m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 800L,
                             BaseKind = (byte)21,
                             BuyPrice = 120L,
                             Class = 1,
-                            DamageMax1 = 7L,
-                            DamageMin1 = 4L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 33L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -14639,13 +14598,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 5m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 800L,
                             BaseKind = (byte)21,
                             BuyPrice = 240L,
                             Class = 1,
-                            DamageMax1 = 11L,
-                            DamageMin1 = 7L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 5L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -14662,13 +14618,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 102m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 800L,
                             BaseKind = (byte)21,
                             BuyPrice = 480L,
                             Class = 1,
-                            DamageMax1 = 17L,
-                            DamageMin1 = 11L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 102L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -14685,13 +14638,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 34m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 801L,
                             BaseKind = (byte)22,
                             BuyPrice = 120L,
                             Class = 1,
-                            DamageMax1 = 7L,
-                            DamageMin1 = 4L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 34L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -14707,13 +14657,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 6m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 801L,
                             BaseKind = (byte)22,
                             BuyPrice = 240L,
                             Class = 1,
-                            DamageMax1 = 11L,
-                            DamageMin1 = 7L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 6L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -14730,13 +14677,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 103m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 801L,
                             BaseKind = (byte)22,
                             BuyPrice = 480L,
                             Class = 1,
-                            DamageMax1 = 17L,
-                            DamageMin1 = 11L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 103L,
                             Flags = 0,
                             MaxStackSize = 1L,

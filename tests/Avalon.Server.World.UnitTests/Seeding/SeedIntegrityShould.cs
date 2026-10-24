@@ -1719,26 +1719,26 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
     }
 
     /// <summary>
-    /// #1179: every weapon and off-hand base. <paramref name="min" /> and <paramref name="max" /> are a
-    /// weapon's physical range on its template, or an off-hand's drafted base stats (<see cref="AssertDrafted" />): a
-    /// shield's armour and block, a caster off-hand's ward alone (its <paramref name="max" /> 0); neither carries a stat
-    /// line. Each asks its attribute (a sword Strength, a mace Strength or Intellect, a staff
+    /// #1179: every weapon and off-hand base. <paramref name="min" />, <paramref name="max" /> and
+    /// <paramref name="attackTime" /> are its drafted base stats (<see cref="AssertDrafted" />): a weapon's damage ends
+    /// and attack time, its template naming physical damage; a shield's armour and block, a caster off-hand's ward alone
+    /// (its <paramref name="max" /> 0), with no damage type. None carries a stat line. Each asks its attribute (a sword Strength, a mace Strength or Intellect, a staff
     /// Intellect, a bow Agility, a shield Strength, a caster off-hand Intellect) from tier 2, 30 then 45, and costs 120,
     /// 240 or 480 by tier.
     /// </summary>
     [Theory]
-    [InlineData(32ul, ItemBaseKind.Sword, (ushort)1, 4u, 7u, 792u, false)]
-    [InlineData(7ul, ItemBaseKind.Sword, (ushort)5, 7u, 11u, 792u, false)]
-    [InlineData(100ul, ItemBaseKind.Sword, (ushort)10, 11u, 17u, 792u, false)]
-    [InlineData(35ul, ItemBaseKind.Mace, (ushort)1, 4u, 7u, 784u, true)]
-    [InlineData(8ul, ItemBaseKind.Mace, (ushort)5, 7u, 11u, 784u, true)]
-    [InlineData(101ul, ItemBaseKind.Mace, (ushort)10, 11u, 17u, 784u, true)]
-    [InlineData(33ul, ItemBaseKind.Staff, (ushort)1, 4u, 7u, 800u, false)]
-    [InlineData(5ul, ItemBaseKind.Staff, (ushort)5, 7u, 11u, 800u, false)]
-    [InlineData(102ul, ItemBaseKind.Staff, (ushort)10, 11u, 17u, 800u, false)]
-    [InlineData(34ul, ItemBaseKind.Bow, (ushort)1, 4u, 7u, 801u, false)]
-    [InlineData(6ul, ItemBaseKind.Bow, (ushort)5, 7u, 11u, 801u, false)]
-    [InlineData(103ul, ItemBaseKind.Bow, (ushort)10, 11u, 17u, 801u, false)]
+    [InlineData(32ul, ItemBaseKind.Sword, (ushort)1, 3u, 7u, 700, false)]
+    [InlineData(7ul, ItemBaseKind.Sword, (ushort)5, 6u, 10u, 700, false)]
+    [InlineData(100ul, ItemBaseKind.Sword, (ushort)10, 9u, 16u, 700, false)]
+    [InlineData(35ul, ItemBaseKind.Mace, (ushort)1, 4u, 9u, 900, true)]
+    [InlineData(8ul, ItemBaseKind.Mace, (ushort)5, 7u, 14u, 900, true)]
+    [InlineData(101ul, ItemBaseKind.Mace, (ushort)10, 12u, 21u, 900, true)]
+    [InlineData(33ul, ItemBaseKind.Staff, (ushort)1, 5u, 9u, 1000, false)]
+    [InlineData(5ul, ItemBaseKind.Staff, (ushort)5, 8u, 15u, 1000, false)]
+    [InlineData(102ul, ItemBaseKind.Staff, (ushort)10, 13u, 22u, 1000, false)]
+    [InlineData(34ul, ItemBaseKind.Bow, (ushort)1, 4u, 7u, 800, false)]
+    [InlineData(6ul, ItemBaseKind.Bow, (ushort)5, 7u, 11u, 800, false)]
+    [InlineData(103ul, ItemBaseKind.Bow, (ushort)10, 11u, 17u, 800, false)]
     [InlineData(70ul, ItemBaseKind.Shield, (ushort)1, 6u, 5u, null, false)]
     [InlineData(71ul, ItemBaseKind.Shield, (ushort)5, 14u, 7u, null, false)]
     [InlineData(72ul, ItemBaseKind.Shield, (ushort)10, 24u, 10u, null, false)]
@@ -1746,14 +1746,13 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
     [InlineData(74ul, ItemBaseKind.CasterOffHand, (ushort)5, 18u, 0u, null, false)]
     [InlineData(75ul, ItemBaseKind.CasterOffHand, (ushort)10, 30u, 0u, null, false)]
     public void Seed_every_weapon_and_off_hand_base(ulong id, ItemBaseKind kind, ushort level, uint min, uint max,
-        uint? attackTimeMs, bool any)
+        int? attackTime, bool any)
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
         ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
 
-        Assert.Equal((kind, (ushort?)level, attackTimeMs, any),
-            (item.BaseKind, item.RequiredLevel, item.AttackTimeMs, item.RequiresAnyAttribute));
+        Assert.Equal((kind, (ushort?)level, any), (item.BaseKind, item.RequiredLevel, item.RequiresAnyAttribute));
         if (kind is ItemBaseKind.Shield or ItemBaseKind.CasterOffHand)
         {
             ItemSubClass subClass = kind == ItemBaseKind.Shield ? ItemSubClass.Shield : ItemSubClass.CasterOffHand;
@@ -1762,12 +1761,14 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
                 AssertDrafted(id, (ItemBaseStat.Armour, (int)min), (ItemBaseStat.BlockChance, (int)max));
             else
                 AssertDrafted(id, (ItemBaseStat.Ward, (int)min));
-            Assert.Null(item.DamageMax1);
+            Assert.Null(item.DamageType);
         }
         else
         {
             Assert.Equal((ItemClass.Weapon, (ItemSlotType?)ItemSlotType.MainHand), (item.Class, item.Slot));
-            Assert.Equal(((uint?)min, (uint?)max, (DamageType?)DamageType.Physical), (item.DamageMin1, item.DamageMax1, item.DamageType1));
+            AssertDrafted(id, (ItemBaseStat.DamageMin, (int)min), (ItemBaseStat.DamageMax, (int)max),
+                (ItemBaseStat.AttackTime, attackTime!.Value));
+            Assert.Equal(DamageType.Physical, item.DamageType);
         }
 
         Assert.Empty(StatLinesOf(item));
@@ -2595,17 +2596,19 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
     }
 
     /// <summary>
-    /// #1179: a base's defence is its base stats. Its drafted values (<paramref name="drafted" />, in ItemBaseStat order)
-    /// are ItemBaseSeed's, and each is seeded as that value ±20 %, rounded half away from zero and at least 1.
+    /// #1179: a base's defence and a weapon's damage and attack time are its base stats. Its drafted values
+    /// (<paramref name="drafted" />, in ItemBaseStat order) are ItemBaseSeed's, and each is seeded as that value ±20 %
+    /// (an attack time ±5 %), rounded half away from zero and at least 1.
     /// </summary>
     private void AssertDrafted(ulong templateId, params (ItemBaseStat Stat, int Value)[] drafted)
     {
         static int Spread(int value, int percent) =>
             Math.Max(1, (int)Math.Round(value * (100 + percent) / 100m, MidpointRounding.AwayFromZero));
+        static int Percent(ItemBaseStat stat) => stat == ItemBaseStat.AttackTime ? 5 : 20;
 
         Assert.Equal(drafted, ItemBaseSeed.Drafted().Where(d => d.TemplateId == templateId).Select(d => (d.Stat, d.Value)));
         Assert.Equal(
-            drafted.Select(line => (line.Stat, Spread(line.Value, -20), Spread(line.Value, 20))),
+            drafted.Select(line => (line.Stat, Spread(line.Value, -Percent(line.Stat)), Spread(line.Value, Percent(line.Stat)))),
             baseStatTables.Ranges[templateId].OrderBy(s => s.Stat).Select(s => (s.Stat, s.Min, s.Max)));
     }
 }

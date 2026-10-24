@@ -17,6 +17,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using AbilityTags = Avalon.Network.Packets.Abilities.AbilityTags;
+using ItemBaseStat = Avalon.Domain.World.ItemBaseStat;
 
 namespace Avalon.Api.Worlds.UnitTests.Services;
 
@@ -47,7 +48,8 @@ public sealed class CharacterServiceShould : IDisposable
     /// were read in, each with its kind from the world's catalog; a magic copy is named by its prefix and its suffix, and
     /// its implicit names nothing. The magic copy is a ring: its implicit (the Copper Band's life), its prefix (Ember-sung,
     /// cold, T8) a two-range line, its suffix (of the Owl, T8) a plain one. The unique copy, a Thornheart Signet, carries
-    /// its base's implicit and its own three lines, read back in reverse.
+    /// its base's implicit and its own three lines, read back in reverse. The plate chest carries the armour it rolled, a
+    /// base stat; the rings carry none.
     /// </summary>
     [Fact]
     public async Task Look_up_each_items_template_in_the_world_database()
@@ -60,6 +62,7 @@ public sealed class CharacterServiceShould : IDisposable
         var id = new CharacterId(42);
         var itemId = new ItemInstanceId(Guid.CreateVersion7());
         var uniqueId = new ItemInstanceId(Guid.CreateVersion7());
+        var chestId = new ItemInstanceId(Guid.CreateVersion7());
 
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
@@ -70,6 +73,7 @@ public sealed class CharacterServiceShould : IDisposable
         {
             new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 3, ItemId = itemId },
             new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 4, ItemId = uniqueId },
+            new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 5, ItemId = chestId },
         });
 
         static ItemInstanceModifier Rolled(ItemInstanceId item, int modifierId, byte ordinal,
@@ -112,6 +116,12 @@ public sealed class CharacterServiceShould : IDisposable
                     Rolled(uniqueId, lightning, 0, (0, Avalon.Domain.World.StatType.AddedLightningDamageToAttacks, 1, 2)),
                 ],
             },
+            new()
+            {
+                Id = chestId, TemplateId = new ItemTemplateId(37), CharacterId = id, Count = 1,
+                Rarity = Avalon.Common.ItemRarity.Common, ItemLevel = 1,
+                BaseStats = [new ItemInstanceBaseStat { ItemInstanceId = chestId, Stat = ItemBaseStat.Armour, Value = 8 }],
+            },
         });
 
         IItemTemplateRepository templates = Substitute.For<IItemTemplateRepository>();
@@ -120,6 +130,7 @@ public sealed class CharacterServiceShould : IDisposable
             {
                 new() { Id = new ItemTemplateId(68), Name = "Copper Band", Rarity = Avalon.Common.ItemRarity.Common, DisplayId = 68 },
                 new() { Id = new ItemTemplateId(65), Name = "Thornheart Signet", Rarity = Avalon.Common.ItemRarity.Unique, DisplayId = 65 },
+                new() { Id = new ItemTemplateId(37), Name = "Ironbound Chestguard", Rarity = Avalon.Common.ItemRarity.Common, DisplayId = 37 },
             });
 
         var service = new CharacterService(characters, slots, items,
@@ -132,7 +143,7 @@ public sealed class CharacterServiceShould : IDisposable
         static string Described(CharacterInventoryItemDto item) => string.Join(' ', item.Modifiers.Select(m =>
             $"{m.ModifierId} {m.Kind} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value} {v.Value2}"))}]"));
 
-        Assert.Equal(2, inventory!.Items.Count);
+        Assert.Equal(3, inventory!.Items.Count);
         CharacterInventoryItemDto item = Assert.Single(inventory.Items, i => i.ItemId == itemId.Value);
         Assert.Equal(4u, item.Count);
         Assert.Equal(7u, item.Durability);
@@ -152,6 +163,10 @@ public sealed class CharacterServiceShould : IDisposable
             $"{lightning} Implicit [AddedLightningDamageToAttacks 1 2] " +
             $"{signet} Unique [Health 5 , AddedPhysicalDamageToAttacks 1 3, CritMultiplier 4 ]",
             Described(unique));
+
+        CharacterInventoryItemDto chest = Assert.Single(inventory.Items, i => i.ItemId == chestId.Value);
+        Assert.Equal([(Avalon.Api.Contract.ItemBaseStat.Armour, 8)], chest.BaseStats.Select(s => (s.Stat, s.Value)));
+        Assert.Empty(item.BaseStats);
     }
 
     /// <summary>A seeded base's implicit row, named by the base (#1179): no test holds an id.</summary>

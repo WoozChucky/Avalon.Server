@@ -82,10 +82,7 @@
       "requiredLevel": 5,
       "requiredIntellect": 30,
       "requiresAnyAttribute": false,
-      "damageMin1": 7,
-      "damageMax1": 11,
-      "damageType1": 0,
-      "attackTimeMs": 800,
+      "damageType": 0,
       "baseStats": [
         {
           "stat": 4,
@@ -123,10 +120,7 @@
       "requiredLevel": 5,
       "requiredAgility": 30,
       "requiresAnyAttribute": false,
-      "damageMin1": 7,
-      "damageMax1": 11,
-      "damageType1": 0,
-      "attackTimeMs": 801,
+      "damageType": 0,
       "baseStats": [
         {
           "stat": 4,
@@ -164,10 +158,7 @@
       "requiredLevel": 5,
       "requiredStrength": 30,
       "requiresAnyAttribute": false,
-      "damageMin1": 7,
-      "damageMax1": 11,
-      "damageType1": 0,
-      "attackTimeMs": 792,
+      "damageType": 0,
       "baseStats": [
         {
           "stat": 4,
@@ -206,10 +197,7 @@
       "requiredStrength": 30,
       "requiredIntellect": 30,
       "requiresAnyAttribute": true,
-      "damageMin1": 7,
-      "damageMax1": 11,
-      "damageType1": 0,
-      "attackTimeMs": 784,
+      "damageType": 0,
       "baseStats": [
         {
           "stat": 4,
@@ -702,10 +690,7 @@
       "allowedClasses": [],
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
-      "damageMin1": 4,
-      "damageMax1": 7,
-      "damageType1": 0,
-      "attackTimeMs": 792,
+      "damageType": 0,
       "baseStats": [
         {
           "stat": 4,
@@ -742,10 +727,7 @@
       "allowedClasses": [],
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
-      "damageMin1": 4,
-      "damageMax1": 7,
-      "damageType1": 0,
-      "attackTimeMs": 800,
+      "damageType": 0,
       "baseStats": [
         {
           "stat": 4,
@@ -782,10 +764,7 @@
       "allowedClasses": [],
       "requiredLevel": 1,
       "requiresAnyAttribute": false,
-      "damageMin1": 4,
-      "damageMax1": 7,
-      "damageType1": 0,
-      "attackTimeMs": 801,
+      "damageType": 0,
       "baseStats": [
         {
           "stat": 4,
@@ -822,10 +801,7 @@
       "allowedClasses": [],
       "requiredLevel": 1,
       "requiresAnyAttribute": true,
-      "damageMin1": 4,
-      "damageMax1": 7,
-      "damageType1": 0,
-      "attackTimeMs": 784,
+      "damageType": 0,
       "baseStats": [
         {
           "stat": 4,
@@ -2341,10 +2317,7 @@
       "requiredLevel": 10,
       "requiredStrength": 45,
       "requiresAnyAttribute": false,
-      "damageMin1": 11,
-      "damageMax1": 17,
-      "damageType1": 0,
-      "attackTimeMs": 792,
+      "damageType": 0,
       "baseStats": [
         {
           "stat": 4,
@@ -2383,10 +2356,7 @@
       "requiredStrength": 45,
       "requiredIntellect": 45,
       "requiresAnyAttribute": true,
-      "damageMin1": 11,
-      "damageMax1": 17,
-      "damageType1": 0,
-      "attackTimeMs": 784,
+      "damageType": 0,
       "baseStats": [
         {
           "stat": 4,
@@ -2424,10 +2394,7 @@
       "requiredLevel": 10,
       "requiredIntellect": 45,
       "requiresAnyAttribute": false,
-      "damageMin1": 11,
-      "damageMax1": 17,
-      "damageType1": 0,
-      "attackTimeMs": 800,
+      "damageType": 0,
       "baseStats": [
         {
           "stat": 4,
@@ -2465,10 +2432,7 @@
       "requiredLevel": 10,
       "requiredAgility": 45,
       "requiresAnyAttribute": false,
-      "damageMin1": 11,
-      "damageMax1": 17,
-      "damageType1": 0,
-      "attackTimeMs": 801,
+      "damageType": 0,
       "baseStats": [
         {
           "stat": 4,

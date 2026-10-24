@@ -62,7 +62,7 @@ public class ItemStatsBenchmarks
             Slot = ItemSlotType.MainHand,
             AllowedClasses = [CharacterClass.Warrior],
             RequiredLevel = 1,
-            DamageType1 = DamageType.Physical,
+            DamageType = DamageType.Physical,
             StatType1 = StatType.Strength,
             StatValue1 = 1,
         },

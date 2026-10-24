@@ -105,6 +105,28 @@ public class TemplateVersionShould
         Assert.Equal(version, TemplateVersion.Of(reordered));
     }
 
+    /// <summary>#1179: an item's base-stat ranges are covered as an aura's modifiers are, whatever order they load in.</summary>
+    [Fact]
+    public void Change_with_any_base_stat_range_and_not_with_their_order()
+    {
+        string version = TemplateVersion.Of(Item());
+
+        ItemTemplate min = Item();
+        min.BaseStats[0].Min += 1;
+        ItemTemplate max = Item();
+        max.BaseStats[1].Max += 1;
+        ItemTemplate added = Item();
+        added.BaseStats.Add(new ItemTemplateBaseStat { TemplateId = added.Id, Stat = ItemBaseStat.AttackTime, Min = 665, Max = 735 });
+        ItemTemplate removed = Item();
+        removed.BaseStats.RemoveAt(0);
+        ItemTemplate reordered = Item();
+        reordered.BaseStats.Reverse();
+
+        Assert.Equal(5, new[] { version, TemplateVersion.Of(min), TemplateVersion.Of(max), TemplateVersion.Of(added), TemplateVersion.Of(removed) }
+            .Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(version, TemplateVersion.Of(reordered));
+    }
+
     private static void AssertChanges<T>(Func<T> make, Func<T, string> version, string column) where T : class
     {
         T original = make();
@@ -193,9 +215,12 @@ public class TemplateVersionShould
         AllowedClasses = [CharacterClass.Warrior, CharacterClass.Hunter],
         StatType1 = StatType.Strength,
         StatValue1 = 3,
-        DamageMin1 = 2,
-        DamageMax1 = 4,
-        DamageType1 = DamageType.Physical,
+        DamageType = DamageType.Physical,
+        BaseStats =
+        [
+            new ItemTemplateBaseStat { TemplateId = new ItemTemplateId(5), Stat = ItemBaseStat.DamageMin, Min = 2, Max = 4 },
+            new ItemTemplateBaseStat { TemplateId = new ItemTemplateId(5), Stat = ItemBaseStat.DamageMax, Min = 6, Max = 8 },
+        ],
     };
 
     private static AbilityTemplate Ability() => new()

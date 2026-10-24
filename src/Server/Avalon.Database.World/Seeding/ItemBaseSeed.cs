@@ -18,8 +18,7 @@ public readonly record struct BaseImplicit(ulong TemplateId, StatType Stat);
 /// come in lines of three tiers, one line per implicit (ids 104-149); the two trinket bases (150, 151), one tier each,
 /// exist only for the trinket uniques to name, and nothing hands one out. A base's defence (an armour piece's armour,
 /// evasion or ward, a shield's armour and block, a caster off-hand's ward) and a weapon's damage and attack time are its
-/// base stats, below, which every copy rolls; a weapon's template names the type of its damage (its damage and
-/// attack-time columns are no longer read). Every base also carries one themed implicit (<see cref="Implicits" />),
+/// base stats, below, which every copy rolls; a weapon's template names only the type of its damage. Every base also carries one themed implicit (<see cref="Implicits" />),
 /// matched to its tier. A unique names its base (<see cref="ItemTemplate.BaseTemplateId" />), whose base stats and
 /// implicit every copy rolls before the unique's own modifier (ItemModifierSeed). Numbers are rounded half away from
 /// zero and at least 1; every base sells for a quarter of its price. The model's HasData reads these; consumables and
@@ -68,19 +67,20 @@ public static class ItemBaseSeed
         .. ArmourSet(Family.Cloth, 2, ["Mossweave Hood", "Mossweave Robe", "Mossweave Leggings", "Mossweave Gloves", "Mossweave Slippers", "Mossweave Shoulderwraps"], [17, 18, 19, 20, 21, 81]),
         .. ArmourSet(Family.Cloth, 3, ["Duskweave Hood", "Duskweave Robe", "Duskweave Leggings", "Duskweave Gloves", "Duskweave Slippers", "Duskweave Shoulderwraps"], [95, 96, 97, 98, 99, 84]),
 
-        // Weapons: each type keeps its attack time; 4-7, 7-11 and 11-17 physical. The mace asks Strength or Intellect.
-        Weapon(32, "Ironwood Sword", ItemBaseKind.Sword, ItemSubClass.OneHanded, 1, 792, Attribute.Strength),
-        Weapon(7, "Bramblesteel Sword", ItemBaseKind.Sword, ItemSubClass.OneHanded, 2, 792, Attribute.Strength),
-        Weapon(100, "Ironroot Sword", ItemBaseKind.Sword, ItemSubClass.OneHanded, 3, 792, Attribute.Strength),
-        Weapon(35, "Oak Mace", ItemBaseKind.Mace, ItemSubClass.OneHanded, 1, 784, Attribute.Strength, Attribute.Intellect),
-        Weapon(8, "Rootknot Mace", ItemBaseKind.Mace, ItemSubClass.OneHanded, 2, 784, Attribute.Strength, Attribute.Intellect),
-        Weapon(101, "Ironroot Mace", ItemBaseKind.Mace, ItemSubClass.OneHanded, 3, 784, Attribute.Strength, Attribute.Intellect),
-        Weapon(33, "Ash Staff", ItemBaseKind.Staff, ItemSubClass.TwoHanded, 1, 800, Attribute.Intellect),
-        Weapon(5, "Thornwood Staff", ItemBaseKind.Staff, ItemSubClass.TwoHanded, 2, 800, Attribute.Intellect),
-        Weapon(102, "Gloamwood Staff", ItemBaseKind.Staff, ItemSubClass.TwoHanded, 3, 800, Attribute.Intellect),
-        Weapon(34, "Hunter's Shortbow", ItemBaseKind.Bow, ItemSubClass.Ranged, 1, 801, Attribute.Agility),
-        Weapon(6, "Briarstring Bow", ItemBaseKind.Bow, ItemSubClass.Ranged, 2, 801, Attribute.Agility),
-        Weapon(103, "Duskstring Bow", ItemBaseKind.Bow, ItemSubClass.Ranged, 3, 801, Attribute.Agility),
+        // Weapons: physical damage; their ranges and attack times are base stats (Drafted). The mace asks Strength or
+        // Intellect.
+        Weapon(32, "Ironwood Sword", ItemBaseKind.Sword, ItemSubClass.OneHanded, 1, Attribute.Strength),
+        Weapon(7, "Bramblesteel Sword", ItemBaseKind.Sword, ItemSubClass.OneHanded, 2, Attribute.Strength),
+        Weapon(100, "Ironroot Sword", ItemBaseKind.Sword, ItemSubClass.OneHanded, 3, Attribute.Strength),
+        Weapon(35, "Oak Mace", ItemBaseKind.Mace, ItemSubClass.OneHanded, 1, Attribute.Strength, Attribute.Intellect),
+        Weapon(8, "Rootknot Mace", ItemBaseKind.Mace, ItemSubClass.OneHanded, 2, Attribute.Strength, Attribute.Intellect),
+        Weapon(101, "Ironroot Mace", ItemBaseKind.Mace, ItemSubClass.OneHanded, 3, Attribute.Strength, Attribute.Intellect),
+        Weapon(33, "Ash Staff", ItemBaseKind.Staff, ItemSubClass.TwoHanded, 1, Attribute.Intellect),
+        Weapon(5, "Thornwood Staff", ItemBaseKind.Staff, ItemSubClass.TwoHanded, 2, Attribute.Intellect),
+        Weapon(102, "Gloamwood Staff", ItemBaseKind.Staff, ItemSubClass.TwoHanded, 3, Attribute.Intellect),
+        Weapon(34, "Hunter's Shortbow", ItemBaseKind.Bow, ItemSubClass.Ranged, 1, Attribute.Agility),
+        Weapon(6, "Briarstring Bow", ItemBaseKind.Bow, ItemSubClass.Ranged, 2, Attribute.Agility),
+        Weapon(103, "Duskstring Bow", ItemBaseKind.Bow, ItemSubClass.Ranged, 3, Attribute.Agility),
 
         // Off hands: a shield asks Strength, a caster off-hand Intellect.
         OffHand(70, "Oak Buckler", ItemBaseKind.Shield, ItemSubClass.Shield, 1, Attribute.Strength),
@@ -345,15 +345,11 @@ public static class ItemBaseSeed
     }
 
     private static ItemTemplate Weapon(
-        ulong id, string name, ItemBaseKind kind, ItemSubClass subClass, int tier, uint attackTimeMs,
-        params Attribute[] attributes)
+        ulong id, string name, ItemBaseKind kind, ItemSubClass subClass, int tier, params Attribute[] attributes)
     {
         ItemTemplate weapon = Base(id, name, kind, ItemClass.Weapon, subClass, ItemSlotType.MainHand, tier,
             Pick(tier, 120, 240, 480), attributes);
-        weapon.DamageMin1 = Pick(tier, 4, 7, 11);
-        weapon.DamageMax1 = Pick(tier, 7, 11, 17);
-        weapon.DamageType1 = DamageType.Physical;
-        weapon.AttackTimeMs = attackTimeMs;
+        weapon.DamageType = DamageType.Physical;
         weapon.RequiresAnyAttribute = attributes.Length > 1;
         return weapon;
     }

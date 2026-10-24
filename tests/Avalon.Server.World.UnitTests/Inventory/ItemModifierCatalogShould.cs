@@ -126,7 +126,7 @@ public class ItemModifierCatalogShould
 
     /// <summary>
     /// #1179: a template's own base-stat rows held to its kind (ItemBaseStatRules.Problem), and a unique's named base to
-    /// its kind and level (ItemsPatch.NamedBaseProblem), beside a sound sword. The template that breaks it is left out
+    /// its kind and level (ItemBaseStatRules.NamedBaseProblem), beside a sound sword. The template that breaks it is left out
     /// whole, and the log names it; the sword stays.
     /// </summary>
     [Theory]
@@ -183,7 +183,7 @@ public class ItemModifierCatalogShould
             Name = kind.ToString(),
             Rarity = ItemRarity.Common,
             BaseKind = kind,
-            DamageType1 = damageType,
+            DamageType = damageType,
             BaseStats = [.. ranges.Select(r => new ItemTemplateBaseStat { TemplateId = id, Stat = r.Stat, Min = r.Min, Max = r.Max })],
         };
 
@@ -194,7 +194,7 @@ public class ItemModifierCatalogShould
         Name = "Unique",
         Rarity = ItemRarity.Unique,
         BaseKind = kind,
-        DamageType1 = kind == ItemBaseKind.Sword ? DamageType.Physical : null,
+        DamageType = kind == ItemBaseKind.Sword ? DamageType.Physical : null,
         BaseTemplateId = new ItemTemplateId(CommonTemplate),
         RequiredLevel = level,
     };

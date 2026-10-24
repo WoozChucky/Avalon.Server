@@ -90,7 +90,7 @@ internal static class RetiredGearProfiles
             Slot = ItemSlotType.MainHand,
             AllowedClasses = [characterClass],
             RequiredLevel = 1,
-            DamageType1 = DamageType.Physical,
+            DamageType = DamageType.Physical,
             StatType1 = attribute,
             StatValue1 = attribute is null ? null : 1,
         },

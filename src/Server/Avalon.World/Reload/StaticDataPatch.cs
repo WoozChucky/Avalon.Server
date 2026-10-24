@@ -126,7 +126,8 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
     /// link rules the catalog cannot see, ItemModifierCatalog.RarityRefusal): a Unique template links exactly one Unique
     /// modifier, a Common base exactly one Implicit, and no other template links any. Its own base-stat rows against its
     /// kind (<see cref="ItemBaseStatRules.Problem" />): exactly the stats its kind carries, each range sound, and a damage
-    /// type exactly on a weapon. And a Unique template's named base (<see cref="NamedBaseProblem" />): a Common base of its
+    /// type exactly on a weapon. And a Unique template's named base (<see cref="ItemBaseStatRules.NamedBaseProblem" />,
+    /// which the API's template edit shares): a Common base of its
     /// kind, at or under its level, that is itself kept; no other template names one. A template that breaks any is
     /// logged and left out whole, with its links, so the world never makes a copy of it, rather than kept with its links
     /// or base stats stripped (a stat-less unique, a unique standing in its line as a base, a chest without armour, a base
@@ -150,7 +151,7 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
         {
             Judge(template, ItemModifierCatalog.RarityRefusal(template.Rarity, template.BaseKind, modifiers.LinkedTo(template.Id))
                             ?? ItemBaseStatRules.Problem(template)
-                            ?? (template.BaseTemplateId is null ? null : "only a unique template names a base"));
+                            ?? ItemBaseStatRules.NamedBaseProblem(template, null));
         }
 
         var kept = templates
@@ -162,31 +163,13 @@ public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates, Ite
             ItemTemplate? named = unique.BaseTemplateId is { } id ? kept.GetValueOrDefault(id.Value) : null;
             Judge(unique, (linked.Count == 0 ? null : ItemModifierCatalog.RarityRefusal(unique.Rarity, unique.BaseKind, linked))
                           ?? ItemBaseStatRules.Problem(unique)
-                          ?? NamedBaseProblem(unique, named));
+                          ?? ItemBaseStatRules.NamedBaseProblem(unique, named));
         }
 
         return refused.Count == 0
             ? new ItemsPatch(templates, modifiers)
             : new ItemsPatch([.. templates.Where(t => !refused.Contains(t.Id.Value))], modifiers.WithoutLinksOf(refused));
     }
-
-    /// <summary>
-    /// Why <paramref name="unique" /> may not be made on <paramref name="named" /> (its <see cref="ItemTemplate.BaseTemplateId" />,
-    /// null when it names none or names a template that is missing or left out), or null when it may: the base is a Common
-    /// template of the unique's kind whose required level is at or under the unique's.
-    /// </summary>
-    public static string? NamedBaseProblem(ItemTemplate unique, ItemTemplate? named) => named switch
-    {
-        null => unique.BaseTemplateId is { } id
-            ? $"its base {id.Value} is missing or left out"
-            : "a unique template names no base",
-        { Rarity: not ItemRarity.Common } or { BaseKind: null } => $"its base {named.Id.Value} is not a common base",
-        _ when named.BaseKind != unique.BaseKind =>
-            $"its base {named.Id.Value} is a {named.BaseKind}, not a {unique.BaseKind}",
-        _ when (named.RequiredLevel ?? 1) > (unique.RequiredLevel ?? 1) =>
-            $"its base {named.Id.Value} requires level {named.RequiredLevel ?? 1}, above the unique's {unique.RequiredLevel ?? 1}",
-        _ => null,
-    };
 
     /// <summary>
     /// The base a copy of <paramref name="template" /> rolls its base stats and implicit from (#1179): the template itself

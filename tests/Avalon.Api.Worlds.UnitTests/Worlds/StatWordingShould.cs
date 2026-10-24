@@ -10,7 +10,8 @@ namespace Avalon.Api.Worlds.UnitTests.Worlds;
 /// beside this file is a verbatim copy of the Dashboard's packages/shared/src/items/stat-wording.json (Dashboard #460),
 /// which the site's formatter tests against too; refresh the copy from there, never edit it here. A new stat type fails
 /// here until the shared file has its row and the preview writes it. Its <c>spans</c> rows, the ranges a copy rolls
-/// within (#1179), run ahead of the Dashboard's file until it takes them.
+/// within (#1179), and its <c>baseStats</c> rows, the ranges of a base's own numbers (#1179), run ahead of the Dashboard's
+/// file until it takes them.
 /// </summary>
 public class StatWordingShould
 {
@@ -46,7 +47,25 @@ public class StatWordingShould
                     Text: row.GetProperty("text").GetString()))
                 .Select(row => (Row: row, Written: LinkPreviewText.FormatSpan(row.Type, row.Min, row.Max, row.Min2, row.Max2)))
                 .Where(span => span.Written != span.Row.Text)
-                .Select(span => $"{span.Row.Type} span: the preview writes \"{span.Written}\""))];
+                .Select(span => $"{span.Row.Type} span: the preview writes \"{span.Written}\""))
+            .Concat(root.GetProperty("baseStats").EnumerateArray()
+                .Select(row => (Row: row, Written: BaseStat(row)))
+                .Where(stat => stat.Written != stat.Row.GetProperty("text").GetString())
+                .Select(stat => $"{stat.Row.GetProperty("stat").GetString()} base stat: the preview writes \"{stat.Written}\""))];
         Assert.Empty(differing);
+    }
+
+    /// <summary>
+    /// A <c>baseStats</c> row as the preview writes it (#1179): a range, or a weapon's damage, its low end's range with its
+    /// high end's (<c>min2</c>, <c>max2</c>) and its type.
+    /// </summary>
+    private static string BaseStat(JsonElement row)
+    {
+        int min = row.GetProperty("min").GetInt32();
+        int max = row.GetProperty("max").GetInt32();
+        return row.TryGetProperty("min2", out JsonElement min2)
+            ? LinkPreviewText.FormatDamage(min, max, min2.GetInt32(), row.GetProperty("max2").GetInt32(),
+                Enum.Parse<DamageType>(row.GetProperty("type").GetString()!))
+            : LinkPreviewText.FormatBaseStat(Enum.Parse<ItemBaseStat>(row.GetProperty("stat").GetString()!), min, max);
     }
 }

@@ -27,7 +27,19 @@ public static class TemplateVersion
         Converters = { new JsonStringEnumConverter() },
     };
 
-    public static string Of(ItemTemplate template) => Hash(template);
+    /// <summary>
+    /// An item's version covers its base-stat ranges too (#1179): each (stat, min, max), by stat, under "BaseStats", so a
+    /// save made from a read taken before a range was added, removed or changed is refused like any other stale save.
+    /// </summary>
+    public static string Of(ItemTemplate template)
+    {
+        SortedDictionary<string, object?> values = Values(template);
+        values["BaseStats"] = template.BaseStats
+            .OrderBy(s => s.Stat)
+            .Select(s => new object[] { s.Stat.ToString(), s.Min, s.Max })
+            .ToArray();
+        return HashOf(values);
+    }
 
     public static string Of(AbilityTemplate template) => Hash(template);
 

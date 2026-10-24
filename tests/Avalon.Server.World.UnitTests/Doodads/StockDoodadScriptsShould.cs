@@ -224,7 +224,7 @@ public class StockDoodadScriptsShould
         MaxStackSize = 1,
 
         // A sound sword (#1179, ItemBaseStatRules): a damage type and its base-stat ranges, or the items area leaves it out.
-        DamageType1 = DamageType.Physical,
+        DamageType = DamageType.Physical,
         BaseStats =
         [
             new ItemTemplateBaseStat { TemplateId = 210, Stat = ItemBaseStat.DamageMin, Min = 2, Max = 4 },

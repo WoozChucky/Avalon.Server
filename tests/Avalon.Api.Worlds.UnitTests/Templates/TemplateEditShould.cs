@@ -331,7 +331,6 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "item", "flags", 1 << 20, "flags" },
         { "item", "maxStackSize", 0, "maxStackSize" },
         { "item", "statValue1", 8, "statType1" },          // on a plate chest, whose defence is its implicit (#1179): a value with no type
-        { "item", "damageMax1", 0, "damageMax1" },          // a seeded weapon gets a maximum below its minimum
         { "ability", "name", "", "name" },
         { "ability", "costPowerType", "None", "costPowerType" }, // paired with a cost above 0, set below
         { "ability", "scriptName", "NoSuchScript", "scriptName" },
@@ -357,7 +356,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "ability", "tags", "Attack, Spell, Projectile", "tags" },         // on Spark Bolt: two kinds at once
         { "ability", "tags", "Area", "tags" },                              // on Ignite: its burning aura needs a Spell source
         { "aura", "periodicEffectiveness", -1, "periodicEffectiveness" },   // on Bleed
-        { "item", "attackTimeMs", 0, "attackTimeMs" },                      // on the starter sword
+        { "item", "baseStats", Array.Empty<object>(), "baseStats" },        // on the starter sword: a weapon without its ranges (#1179)
         { "item", "maxStackSize", 5, "maxStackSize" },                      // on a plate chest: equipment never stacks (#1179)
         { "item", "baseKind", "Sword", "baseKind" },                        // on a potion, which has no slot (#1179)
         { "item", "baseKind", "PlateChest", "baseKind" },                   // on the starter sword: a chest kind in the main hand (#1179)
@@ -365,7 +364,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "item", "rarity", "Magic", "rarity" },                            // a template is Common or Unique (#1179)
         { "item", "rarity", "Common", "rarity" },                           // on Thornheart Signet, whose unique modifier a Common template may not link (#1179)
         { "item", "rarity", "Unique", "rarity" },                           // on the Copper Band: it links no unique modifier, and quests pay it (#1179)
-        { "item", "damageType1", null, "damageType1" },                     // on the starter sword: a damage range is typed (#1179)
+        { "item", "damageType", null, "damageType" },                       // on the starter sword: a weapon names its damage type (#1179)
     };
 
     [Theory]
@@ -376,7 +375,6 @@ public sealed class TemplateEditShould : IAsyncLifetime
         (JsonObject json, string version) = await ReadAsync(kind, id);
         json[field] = value is null ? null : JsonSerializer.SerializeToNode(value);
         if (kind == "ability" && field == "costPowerType") json["cost"] = 10;
-        if (kind == "item" && field == "damageMax1") json["damageMin1"] = 5;
 
         HttpResponseMessage response = await PutAsync(Editable, kind, id, json, Tag(version));
 
@@ -396,13 +394,12 @@ public sealed class TemplateEditShould : IAsyncLifetime
         using WorldDbContext db = _sqlite.CreateWorld(new WorldId(Editable));
         return (kind, field) switch
         {
-            ("item", "damageMax1") => db.ItemTemplates.AsEnumerable().First(t => t.DamageMin1 is not null && t.DamageMax1 is not null).Id.Value,
             ("ability", "scriptName") => 200UL,
             ("ability", "damageType") => value is null ? 213UL : 232UL,
             ("ability", "convertPct") => 223UL,
             ("ability", "tags") => value is "Area" ? 213UL : 210UL,
             ("aura", "periodicEffectiveness") => 1UL,
-            ("item", "attackTimeMs" or "damageType1") => 32UL,
+            ("item", "baseStats" or "damageType") => 32UL,
             ("item", "maxStackSize") when value is 5 => 37UL,
             ("item", "statValue1") => 37UL,
             ("item", "baseKind") => value is "PlateChest" ? 32UL : 1UL,
@@ -719,6 +716,81 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Empty(_signal.Requests);
     }
 
+    /// <summary>
+    /// #1179: an item's base-stat ranges are replaced as a whole list, saved, read back and covered by its version; the
+    /// world is asked to reload, and a save from the read taken before is stale.
+    /// </summary>
+    [Fact]
+    public async Task Replace_a_bases_ranges_and_change_its_version()
+    {
+        (JsonObject json, string version) = await ReadAsync("item", 32);   // the Ironwood Sword
+        StatOf(json, "DamageMax")["min"] = 9;
+        StatOf(json, "DamageMax")["max"] = 13;
+
+        HttpResponseMessage response = await PutAsync(Editable, "item", 32, json, Tag(version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        (JsonObject saved, string newVersion) = await ReadAsync("item", 32);
+        Assert.NotEqual(version, newVersion);
+        Assert.Equal(["DamageMin:2-4", "DamageMax:9-13", "AttackTime:665-735"], saved["baseStats"]!.AsArray()
+            .Select(s => $"{s!["stat"]}:{s["min"]}-{s["max"]}"));
+        Assert.Equal(TemplateReloadArea.Items, Assert.Single(_signal.Requests).Area);
+
+        json["name"] = "Saved from a stale read";
+        Assert.Equal(HttpStatusCode.Conflict, (await PutAsync(Editable, "item", 32, json, Tag(version))).StatusCode);
+    }
+
+    public static TheoryData<string, string> BaseRefusals => new()
+    {
+        { "a sword without attack time", "baseStats" },
+        { "a ring with armour", "baseStats" },
+        { "a weapon minimum past its maximum", "baseStats" },
+        { "a shield with a damage type", "damageType" },
+        { "a unique naming a ring base for an amulet", "baseTemplateId" },
+        { "a base a unique names turned Unique", "rarity" },
+        { "a base a unique names given another kind", "baseKind" },
+        { "a base raised above the unique made on it", "requiredLevel" },
+        { "a unique lowered below its base", "requiredLevel" },
+        { "a ring base without its kind", "baseKind" },          // its implicit link needs a base kind
+        { "a potion given a kind", "baseKind" },                 // a base links an implicit; the potion links none
+    };
+
+    /// <summary>
+    /// #1179: an item edit the world's Items reload would answer by leaving the item, or a unique made on it, out is
+    /// refused, keyed by the field that broke the rule, and writes nothing: its base stats against its kind, its damage
+    /// type, a unique's named base, a base's kind, rarity and level against the uniques made on it, and a kind change
+    /// against the implicit the template links.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(BaseRefusals))]
+    public async Task Refuse_base_stats_the_world_would_refuse_keyed_by_their_field(string change, string key)
+    {
+        (ulong id, Action<JsonObject> edit) = change switch
+        {
+            "a sword without attack time" => (32UL, (Action<JsonObject>)(j => j["baseStats"]!.AsArray().Remove(StatOf(j, "AttackTime")))),
+            "a ring with armour" => (68UL, j => j["baseStats"]!.AsArray()
+                .Add(new JsonObject { ["stat"] = "Armour", ["min"] = 1, ["max"] = 2 })),
+            "a weapon minimum past its maximum" => (32UL, j => { StatOf(j, "DamageMin")["min"] = 10; StatOf(j, "DamageMin")["max"] = 12; }),
+            "a shield with a damage type" => (70UL, j => j["damageType"] = "Physical"),
+            "a unique naming a ring base for an amulet" => (58UL, j => j["baseTemplateId"] = 112),
+            "a base a unique names turned Unique" => (125UL, j => j["rarity"] = "Unique"),
+            "a base a unique names given another kind" => (125UL, j => { j["baseKind"] = "Amulet"; j["slot"] = "Neck"; }),
+            "a base raised above the unique made on it" => (125UL, j => j["requiredLevel"] = 6),   // Thornheart Signet asks 5
+            "a unique lowered below its base" => (65UL, j => j["requiredLevel"] = 4),             // its base asks 5
+            "a ring base without its kind" => (104UL, j => j["baseKind"] = null),
+            "a potion given a kind" => (1UL, j => { j["baseKind"] = "Ring"; j["slot"] = "Finger"; j["maxStackSize"] = 1; }),
+            _ => throw new ArgumentOutOfRangeException(nameof(change), change, null),
+        };
+
+        JsonObject errors = await PutItemErrorsAsync(id, edit);
+
+        Assert.True(errors.ContainsKey(key), errors.ToJsonString());
+    }
+
+    /// <summary>The base-stat range of <paramref name="stat" /> in an item template read.</summary>
+    private static JsonObject StatOf(JsonObject item, string stat) =>
+        item["baseStats"]!.AsArray().Single(s => s!["stat"]!.GetValue<string>() == stat)!.AsObject();
+
     [Fact]
     public async Task Refuse_a_stat_modified_twice_or_below_the_tables_floor()
     {
@@ -783,7 +855,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         item["requiredStrength"] = 10;   // three different values, so a swapped setter shows
         item["requiredAgility"] = 11;
         item["requiredIntellect"] = 12;
-        item["attackTimeMs"] = 900;
+        item["damageType"] = "Fire";    // a weapon may deal any type (#1179)
         item["baseKind"] = "Mace";       // the sword's base kind and the mace's "any one attribute" (#1179)
         item["requiresAnyAttribute"] = true;
 
@@ -801,7 +873,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
                      {
                          "damageType", "fireResistance", "coldResistance", "lightningResistance", "blightResistance",
                          "evasionModifier", "wardModifier", "requiredStrength", "requiredAgility", "requiredIntellect",
-                         "attackTimeMs", "tags", "damageEffectiveness", "addedMin", "addedMax", "periodicEffectiveness",
+                         "tags", "damageEffectiveness", "addedMin", "addedMax", "periodicEffectiveness",
                          "baseKind", "requiresAnyAttribute",
                      }.Where(body.ContainsKey))
             {

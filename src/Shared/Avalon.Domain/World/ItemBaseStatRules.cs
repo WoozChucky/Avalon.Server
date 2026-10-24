@@ -5,8 +5,8 @@ namespace Avalon.Domain.World;
 /// <summary>
 /// What base stats each base carries (#1179), the one rule the world, the API and the seed tests share: a template carries
 /// exactly the stats of its kind (<see cref="Of" />), each range sound, and a weapon its damage type
-/// (<see cref="Problem" />). The world leaves out a template that breaks it (ItemsPatch.Build); the API's template edit
-/// refuses one.
+/// (<see cref="Problem" />); and a unique the base it names (<see cref="NamedBaseProblem" />). The world leaves out a
+/// template that breaks them (ItemsPatch.Build); the API's template edit refuses one.
 /// </summary>
 public static class ItemBaseStatRules
 {
@@ -45,12 +45,18 @@ public static class ItemBaseStatRules
         kind is ItemBaseKind.Sword or ItemBaseKind.Mace or ItemBaseKind.Staff or ItemBaseKind.Bow;
 
     /// <summary>
-    /// Why <paramref name="template" />'s base stats break its kind, or null when they hold: it carries exactly
-    /// <see cref="Of" />'s stats, once each; every range runs from at least 0 up to its maximum; an attack time is at
-    /// least 1 ms; a weapon's highest minimum stays at or under its lowest maximum; and its damage type is set exactly
-    /// when it is a weapon kind.
+    /// Why <paramref name="template" />'s base stats break its kind, or null when they hold: its ranges hold
+    /// (<see cref="RangesProblem" />) and its damage type is set exactly when it is a weapon kind
+    /// (<see cref="DamageTypeProblem" />).
     /// </summary>
-    public static string? Problem(ItemTemplate template)
+    public static string? Problem(ItemTemplate template) => RangesProblem(template) ?? DamageTypeProblem(template);
+
+    /// <summary>
+    /// Why <paramref name="template" />'s base-stat ranges break its kind, or null when they hold: it carries exactly
+    /// <see cref="Of" />'s stats, once each; every range runs from at least 0 up to its maximum; an attack time is at
+    /// least 1 ms; and a weapon's highest minimum stays at or under its lowest maximum.
+    /// </summary>
+    public static string? RangesProblem(ItemTemplate template)
     {
         IReadOnlyList<ItemBaseStat> expected = Of(template.BaseKind, template.Rarity);
         List<ItemTemplateBaseStat> rows = template.BaseStats;
@@ -79,14 +85,46 @@ public static class ItemBaseStatRules
             return $"its minimum damage {low.Min}-{low.Max} reaches past its maximum damage {high.Min}-{high.Max}";
         }
 
-        bool weapon = IsWeapon(template.BaseKind);
-        if (weapon != (template.DamageType1 is not null))
-        {
-            return weapon
-                ? $"a {kind} template has no damage type"
-                : $"a {kind} template has a damage type, which only a weapon has";
-        }
-
         return null;
     }
+
+    /// <summary>
+    /// Why <paramref name="template" />'s damage type breaks its kind, or null when it holds: a template of a weapon kind
+    /// names the type of its damage, and no other template names one.
+    /// </summary>
+    public static string? DamageTypeProblem(ItemTemplate template)
+    {
+        string kind = template.BaseKind?.ToString() ?? "no base kind";
+        bool weapon = IsWeapon(template.BaseKind);
+        if (weapon == (template.DamageType is not null))
+            return null;
+
+        return weapon
+            ? $"a {kind} template has no damage type"
+            : $"a {kind} template has a damage type, which only a weapon has";
+    }
+
+    /// <summary>
+    /// Why <paramref name="template" /> may not name <paramref name="named" /> as its base (its
+    /// <see cref="ItemTemplate.BaseTemplateId" />; null when it names none, or names a template that is missing or left
+    /// out), or null when it may: only a Unique template names a base, and every one does, a Common template of the
+    /// unique's kind whose required level is at or under the unique's. The world leaves out a template that breaks it
+    /// (ItemsPatch.Build), and the API's template edit refuses an edit of the unique, or of its base, that would.
+    /// </summary>
+    public static string? NamedBaseProblem(ItemTemplate template, ItemTemplate? named) => template.Rarity switch
+    {
+        not ItemRarity.Unique => template.BaseTemplateId is null ? null : "only a unique template names a base",
+        _ => named switch
+        {
+            null => template.BaseTemplateId is { } id
+                ? $"its base {id.Value} is missing or left out"
+                : "a unique template names no base",
+            { Rarity: not ItemRarity.Common } or { BaseKind: null } => $"its base {named.Id.Value} is not a common base",
+            _ when named.BaseKind != template.BaseKind =>
+                $"its base {named.Id.Value} is a {named.BaseKind}, not a {template.BaseKind}",
+            _ when (named.RequiredLevel ?? 1) > (template.RequiredLevel ?? 1) =>
+                $"its base {named.Id.Value} requires level {named.RequiredLevel ?? 1}, above the unique's {template.RequiredLevel ?? 1}",
+            _ => null,
+        },
+    };
 }

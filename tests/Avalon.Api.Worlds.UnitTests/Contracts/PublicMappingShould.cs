@@ -1,9 +1,16 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
+using Avalon.Api.Testing;
+using Avalon.Api.Worlds.Services;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Database;
+using Avalon.Database.World;
+using Avalon.Database.World.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using DomainFlags = Avalon.Domain.World.ItemTemplateFlags;
 
@@ -40,26 +47,39 @@ public class PublicMappingShould
             s => Assert.Equal((Avalon.Api.Contract.StatType.Armor, 4u), (s.Type, s.Value)));
     }
 
+    /// <summary>
+    /// #1179, read from the seeded world as the tooltip reads it: a base shows the ranges every copy rolls within, by
+    /// stat, and its damage type; a unique names its base, carries no ranges of its own (its base, a ring, has none), and
+    /// lists the implicit it inherits from its base before its own lines.
+    /// </summary>
     [Fact]
-    public void List_both_damage_pairs_when_set()
+    public async Task List_a_bases_stat_ranges_and_a_uniques_inherited_ones()
     {
-        ItemTemplate sword = Helm();
-        sword.DamageMin1 = 12; sword.DamageMax1 = 18; sword.DamageType1 = Avalon.Network.Packets.Combat.DamageType.Physical;
-        sword.DamageMin2 = 2; sword.DamageMax2 = 4; sword.DamageType2 = Avalon.Network.Packets.Combat.DamageType.Fire;
+        using var sqlite = new SqliteWorlds(1);
+        var factory = new DelegateDbContextFactory<WorldDbContext>(() => sqlite.CreateWorld(new WorldId(1)));
+        var items = new ItemTemplateRepository(factory);
+        var modifiers = new ItemModifierRepository(factory, NullLoggerFactory.Instance);
+        async Task<PublicItemDto> Read(ulong id) =>
+            await PublicItems.ToPublicAsync((await items.FindByIdAsync(new ItemTemplateId(id), track: false))!, items,
+                modifiers, CancellationToken.None);
+        static string Spans(PublicItemDto item) => string.Join(", ", item.ModifierSpans.Select(s =>
+            $"{s.Kind} {s.Stat} {s.Min}-{s.Max}" + (s.Min2 is null ? "" : $" {s.Min2}-{s.Max2}")));
 
-        Assert.Collection(sword.ToPublicDto([]).Damage,
-            d => Assert.Equal((12u, 18u, Avalon.Api.Contract.DamageType.Physical), (d.Min, d.Max, d.Type)),
-            d => Assert.Equal((2u, 4u, Avalon.Api.Contract.DamageType.Fire), (d.Min, d.Max, d.Type)));
-    }
+        PublicItemDto sword = await Read(32);
+        PublicItemDto unique = await Read(65);
 
-    [Fact]
-    public void Skip_a_damage_pair_without_a_maximum()
-    {
-        ItemTemplate odd = Helm();
-        odd.DamageMin1 = 5; odd.DamageMax1 = 0; odd.DamageType1 = Avalon.Network.Packets.Combat.DamageType.Physical;
-        odd.DamageMin2 = 3; odd.DamageMax2 = null;
-
-        Assert.Empty(odd.ToPublicDto([]).Damage);
+        Assert.Equal((Avalon.Api.Contract.DamageType?)Avalon.Api.Contract.DamageType.Physical, sword.DamageType);
+        Assert.Null(sword.BaseItemId);
+        Assert.Equal(
+            [(Avalon.Api.Contract.ItemBaseStat.DamageMin, 2, 4), (Avalon.Api.Contract.ItemBaseStat.DamageMax, 6, 8),
+             (Avalon.Api.Contract.ItemBaseStat.AttackTime, 665, 735)],
+            sword.BaseStats.Select(s => (s.Stat, s.Min, s.Max)));
+        Assert.Equal((125ul, (Avalon.Api.Contract.DamageType?)null), (unique.BaseItemId, unique.DamageType));
+        Assert.Empty(unique.BaseStats);
+        Assert.Equal(
+            "Implicit AddedLightningDamageToAttacks 1-1 2-2, Unique Health 4-5, " +
+            "Unique AddedPhysicalDamageToAttacks 1-1 3-3, Unique CritMultiplier 3-4",
+            Spans(unique));
     }
 
     [Theory]
@@ -145,6 +165,7 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Api.Contract.StatType))]
     [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Network.Packets.Items.ItemStat))]
     [InlineData(typeof(Avalon.Domain.World.ItemBaseStat), typeof(Avalon.Network.Packets.Items.BaseStat))]
+    [InlineData(typeof(Avalon.Domain.World.ItemBaseStat), typeof(Avalon.Api.Contract.ItemBaseStat))]
     [InlineData(typeof(Avalon.Network.Packets.Combat.DamageType), typeof(Avalon.Api.Contract.DamageType))]
     [InlineData(typeof(Avalon.Network.Packets.State.PowerType), typeof(Avalon.Api.Contract.PowerType))]
     [InlineData(typeof(Avalon.World.Public.Enums.SpellRange), typeof(Avalon.Api.Contract.SpellRange))]

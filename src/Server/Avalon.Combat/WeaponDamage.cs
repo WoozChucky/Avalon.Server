@@ -48,7 +48,7 @@ public readonly record struct WeaponDamage(uint Min1, uint Max1, DamageType? Typ
 
         added.Increase(DamageType.Physical, increasedPhysical);
 
-        DamageType? type = item.Template.DamageType1;
+        DamageType? type = item.Template.DamageType;
         uint max = (uint)item.BaseStats.DamageMax.GetValueOrDefault();
         uint min = Math.Min((uint)Math.Max(0, item.BaseStats.DamageMin.GetValueOrDefault()), max);
         long increased = type == DamageType.Physical ? increasedPhysical : 0;

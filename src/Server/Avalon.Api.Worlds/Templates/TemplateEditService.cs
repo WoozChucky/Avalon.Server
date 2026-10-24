@@ -60,13 +60,16 @@ public sealed class TemplateEditService(
             "Item", TemplateReloadArea.Items, TemplateFields.Item,
             async (db, ct2) =>
             {
-                ItemTemplate? found = await db.ItemTemplates.FindAsync([new ItemTemplateId(id)], ct2);
+                // A query, not Find: its base-stat ranges (#1179) load with it (the model auto-includes them), so the
+                // version covers them and the edit replaces the rows it read.
+                ItemTemplate? found = await db.ItemTemplates.FirstOrDefaultAsync(t => t.Id == new ItemTemplateId(id), ct2);
                 stored = found?.UseScript;
                 return found;
             },
             TemplateVersion.Of, TemplateValidation.Item,
             async (db, row, errors, ct2) =>
             {
+                TemplateValidation.ItemWorldRules(errors, row);
                 await TemplateItemUsers.ValidateAsync(db, row, errors, ct2);
                 ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
                 TemplateValidation.ScriptKnown(errors, row.UseScript, stored, catalog, c => c.Item, "useScript");

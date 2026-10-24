@@ -125,5 +125,46 @@
       "max2": 5,
       "text": "Adds 2 to 3-5 Physical Damage to Attacks"
     }
+  ],
+  "baseStats": [
+    {
+      "stat": "Armour",
+      "min": 4,
+      "max": 6,
+      "text": "4-6 Armor"
+    },
+    {
+      "stat": "Evasion",
+      "min": 19,
+      "max": 29,
+      "text": "19-29 Evasion"
+    },
+    {
+      "stat": "Ward",
+      "min": 6,
+      "max": 8,
+      "text": "6-8 Ward"
+    },
+    {
+      "stat": "BlockChance",
+      "min": 4,
+      "max": 6,
+      "text": "4-6% Block"
+    },
+    {
+      "stat": "DamageMin",
+      "min": 2,
+      "max": 4,
+      "min2": 6,
+      "max2": 8,
+      "type": "Physical",
+      "text": "2-4 to 6-8 Physical Damage"
+    },
+    {
+      "stat": "AttackTime",
+      "min": 950,
+      "max": 1050,
+      "text": "0.95-1.05 sec attack time"
+    }
   ]
 }
