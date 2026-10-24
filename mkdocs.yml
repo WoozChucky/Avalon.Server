@@ -82,6 +82,7 @@ nav:
   - REST API:
     - API Reference: api-reference.md
     - API Services: api-services.md
+    - Private Crash Analysis: crash-analysis.md
     - Authentication: api-authentication.md
     - Multi-world API: api-worlds.md
     - Live Template Editing: live-template-editing.md

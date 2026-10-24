@@ -78,8 +78,9 @@ p=pathlib.Path(sys.argv[1]); password=secrets.token_hex(32)
 (p/'postgres.env').write_text('POSTGRES_PASSWORD='+password+'\n')
 (p/'tests.env').write_text('AVALON_CRASHES_INTEGRATION=1\nAVALON_CRASHES_TEST_POSTGRES=Host=127.0.0.1;Port=5433;Database=postgres;Username=postgres;Password='+password+'\nAVALON_CRASHES_TEST_RUNNER=/runner/vstest.console.dll\nAVALON_CRASHES_PRIVATE_PAIR=/private-pair\nAVALON_CRASHES_PRIVATE_FIXTURE=/private-fixture\nSSL_CERT_FILE=/tls/server.crt\nTMPDIR=/scratch\n')
 (p/'garage.toml').write_text('metadata_dir = "/var/lib/garage/meta"\ndata_dir = "/var/lib/garage/data"\ndb_engine = "sqlite"\nreplication_factor = 1\nrpc_bind_addr = "[::]:3901"\nrpc_public_addr = "127.0.0.1:3901"\nrpc_secret = "'+secrets.token_hex(32)+'"\n[s3_api]\ns3_region = "garage"\napi_bind_addr = "[::]:3900"\n')
-(p/'nginx.conf').write_text('server { listen 8443 ssl; ssl_certificate /tls/server.crt; ssl_certificate_key /tls/server.key; client_max_body_size 4m; location / { proxy_pass http://garage:3900; proxy_set_header Host $http_host; proxy_request_buffering off; } }\n')
+(p/'nginx.conf').write_text('server { listen 8443 ssl; ssl_certificate /tls/server.crt; ssl_certificate_key /tls/server.key; client_max_body_size 256m; location / { proxy_pass http://garage:3900; proxy_set_header Host $http_host; proxy_request_buffering off; } }\n')
 (p/'tls').mkdir()
+(p/'collector.yaml').write_text('receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 0.0.0.0:4317\nexporters:\n  file:\n    path: /capture/export.json\n    flush_interval: 100ms\nservice:\n  pipelines:\n    traces:\n      receivers: [otlp]\n      exporters: [file]\n    logs:\n      receivers: [otlp]\n      exporters: [file]\n    metrics:\n      receivers: [otlp]\n      exporters: [file]\n')
 PY
 # This exact SDK's test runner targets the same .NET10.0.13 runtime as the pinned product image.
 sdk=mcr.microsoft.com/dotnet/sdk:10.0@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa
@@ -126,16 +127,43 @@ PY
 )
   "${compose[@]}" exec -T garage /garage bucket create "$project" >"$run/garage-bucket" 2>&1
   "${compose[@]}" exec -T garage /garage bucket allow --read --write --key "$key" "$project" >>"$run/garage-bucket" 2>&1
+  for bucket in crashes symbols symbols-sym; do
+    "${compose[@]}" exec -T garage /garage bucket create "$bucket" >>"$run/garage-bucket" 2>&1
+    "${compose[@]}" exec -T garage /garage bucket allow --read --write --key "$key" "$bucket" >>"$run/garage-bucket" 2>&1
+  done
+  "${compose[@]}" exec -T garage /garage key create "$project-worker" >"$run/garage-worker-key" 2>&1
+  worker_key=$(python - "$run" <<'PY'
+import pathlib, re, sys
+p=pathlib.Path(sys.argv[1]); text=(p/'garage-worker-key').read_text()
+key=re.search(r'Key ID:\s*(\S+)',text)[1]; secret=re.search(r'Secret key:\s*(\S+)',text)[1]
+with (p/'tests.env').open('a') as f:
+    f.write('AVALON_CRASHES_TEST_S3_WORKER_ACCESS_KEY='+key+'\nAVALON_CRASHES_TEST_S3_WORKER_SECRET_KEY='+secret+'\n')
+print(key)
+PY
+)
+  for bucket in crashes symbols; do
+    "${compose[@]}" exec -T garage /garage bucket allow --read --key "$worker_key" "$bucket" >>"$run/garage-bucket" 2>&1
+  done
+  "${compose[@]}" exec -T garage /garage bucket allow --read --write --key "$worker_key" symbols-sym >>"$run/garage-bucket" 2>&1
+fi
+if [[ $suite == all ]]; then
+  "${compose[@]}" up -d collector >/dev/null
 fi
 suites=("$suite")
-[[ $suite != all ]] || suites=(postgres garage native)
+[[ $suite != all ]] || suites=(postgres garage native vertical)
+# Developer-only focused pass still provisions the complete protected boundary.
+if [[ ${CRASHES_FOCUSED_VERTICAL:-0} == 1 ]]; then
+  [[ $suite == all ]] || fail "focused vertical requires --suite all and private prerequisites"
+  suites=(vertical)
+fi
 for selected in "${suites[@]}"; do
-  case "$selected" in postgres) trait=CrashesPostgres ;; garage) trait=CrashesGarage ;; native) trait=CrashesNative ;; esac
+  case "$selected" in postgres) trait=CrashesPostgres ;; garage) trait=CrashesGarage ;; native) trait=CrashesNative ;; vertical) trait=CrashesVertical ;; esac
   container=$project-$selected
   containers+=("$container")
   mounts=()
   selected_network=$network
   if [[ $selected == native ]]; then mounts=("${native_mounts[@]}"); selected_network=none; fi
+  if [[ $selected == vertical ]]; then mounts=("${native_mounts[@]}" -v "${project}_capture:/capture:ro"); fi
   result=0
   docker run --name "$container" --label "avalon.crashes.integration=$id" --read-only --cap-drop ALL --security-opt no-new-privileges --network "$selected_network" --memory 1g --cpus 1 \
     --tmpfs /scratch:rw,nosuid,size=2g,uid=0,gid=1654,mode=2770 --env-file "$run/tests.env" \

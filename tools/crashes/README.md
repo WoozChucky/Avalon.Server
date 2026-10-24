@@ -210,7 +210,7 @@ with env/config files. Supplied DB/S3 variables, Compose overrides, remote Docke
 contexts and `DOCKER_HOST`/TLS overrides are rejected before provisioning.
 
 Suite traits are `Category=CrashesPostgres`, `Category=CrashesGarage`, and
-`Category=CrashesNative`. `all` checks each suite separately. Zero tests, any skip,
+`Category=CrashesNative`. Protected `all` additionally executes `Category=CrashesVertical` with private mounts and the generated PostgreSQL/HTTPS Garage network. The native suite remains `--network none`, including under `all`. `all` checks each suite separately. Zero tests, any skip,
 failed results or attachments fail the run. The native suite requires the exact
 pair/dump hashes from committed provenance; missing protected prerequisites fail
 explicitly. PostgreSQL and Garage suites run independently without private files.
@@ -224,11 +224,10 @@ volumes, credentials and private logs/results. No integration TRX/log/fixture
 uploads are configured. Forced process termination or daemon loss can prevent
 cleanup: inspect exact `crashes-test-<UUID>` names/labels before removing only that
 run's resources; never prune the user's Docker host. The protected source files
-remain untouched. Full worker-host processing, role permissions and OTLP failure
-privacy are separate acceptance gates; this adapter smoke does not establish them.
+remain untouched. The protected vertical suite runs the shipped `/app` worker executable, real pinned conversion/walking, restricted-role identity HTTP and a digest-pinned OTLP collector. Public Garage tests prove signed worker read-only original/crash access, cache writes, anonymous denial and SQL-role denials without private fixtures.
 
 The `crashes-integration.yml` workflow uses ephemeral GitHub-hosted runners for
-ordinary PR suites. Native conversion is manual, main-only, in the protected
+ordinary PR suites. Full native plus vertical acceptance is manual, main-only, in the protected
 `crashes-native` environment. Configure required reviewers and main-only deployment
 branches there, plus `CRASHES_FIXTURE_URL` (secret signed HTTPS archive URL) and
 `CRASHES_FIXTURE_SHA256` (trusted environment variable). The archive itself must
@@ -239,3 +238,62 @@ The tar.gz must contain file entries `pair/runtime.exe`, `pair/runtime.pdb`,
 `fixture/dump.dmp`; optional entries are `fixture/runtime.sym`, `fixture/meta.json`,
 `fixture/log-tail.txt` and `fixture/provenance.json`. Directory, duplicate and link
 entries are rejected. Neither URL nor credentials are placed on command lines.
+
+## Focused acceptance and manual operation
+
+For a development iteration on vertical tests only, use
+`CRASHES_FOCUSED_VERTICAL=1 bash tools/crashes/run-integration.sh --suite all`.
+This still requires/provisions the protected fixture and isolated services, but
+selects only `CrashesVertical`; it is not evidence that the other suites ran.
+Unset that variable for the required full acceptance command. Ordinary solution
+runs skip opt-in integration tests explicitly and never substitute for this gate.
+
+A manual worker is opt-in and does not change Aspire. Supply an operator-owned,
+mode-private environment file with `Database__Crashes__ConnectionString`,
+`Crashes__Storage__Endpoint` (HTTPS), `Crashes__Storage__AccessKeyId` and
+`Crashes__Storage__SecretAccessKey`. Choose a private Docker network that reaches
+only the intended disposable services; this is separate from the harness, which
+refuses supplied endpoints. Example after provisioning those local prerequisites:
+
+```bash
+docker run --rm --name avalon-crashes-local --network YOUR_PRIVATE_NETWORK \
+  --read-only --cap-drop ALL --security-opt no-new-privileges --memory 1g --cpus 1 \
+  --tmpfs /scratch:rw,nosuid,size=2g,uid=0,gid=1654,mode=2770 \
+  --tmpfs /symbols:rw,nosuid,size=4g,uid=0,gid=1654,mode=2770 \
+  --env-file /absolute/private/crashes.env \
+  -e Crashes__Processing__ScratchRoot=/scratch/reports \
+  -e Crashes__Symbols__CacheRoot=/symbols/cache \
+  avalon-crashes-worker:integration run --paused
+```
+
+For private local TLS, mount only its CA certificate read-only and set
+`SSL_CERT_FILE` in that container. Never disable certificate validation. Remove
+`--paused` only after reviewing storage/DB grants and retention. Cleanup uses
+`cleanup` and a separate environment file containing only the crash DB connection.
+It has no storage credentials; deployment must also enforce its PG/DNS-only egress.
+
+## Acceptance evidence matrix
+
+| Gate | Reproducible evidence | Boundary |
+| --- | --- | --- |
+| Windows Release pair and conversion | `verify-native.sh --fixture ... --private-pair ...` | Private exact PE/PDB/dump; source/CFI/inlines and precise wrong-symbol rejection |
+| PostgreSQL | `run-integration.sh --suite postgres` | Real migrations, locking, aggregate/idempotency, expiry and triage |
+| HTTPS Garage and grants | `run-integration.sh --suite garage` | Signed paging/conditional reads; worker read/cache-write and denied writes; restricted SQL role |
+| Product Linux native process | `run-integration.sh --suite native` | Offline pinned tools, process limits/reaping; UID1654, read-only root, dropped capabilities |
+| Complete private pipeline | `run-integration.sh --suite all` | Additional four protected vertical scenarios; actual worker, Admin/PAT HTTP, restart, expiry, regression/conflict and collector failures |
+| API contract | ordinary identity/API tests and generated OpenAPI | Primitive/nullable DTOs, errors, authorization and route/host boundaries |
+| Packaging | both Helm `ci/test.sh`, `tools/release/test.sh`, release Python tests | Rendering, release/tag propagation and generated manifests; no deployment implied |
+| External rollout | homelab#255 and Dashboard#431 | Dedicated DB/WAL/snapshot exclusions, crash lifecycle, original backups, CNI, alerts, protected CI environment and generated Dashboard client remain external gates |
+
+Only finite test counts/statuses are public evidence. Raw dumps, original symbols,
+stackwalk JSON, collector captures, credentials and TRX are private and never
+uploaded. The operational contract is [docs/crash-analysis.md](../../docs/crash-analysis.md).
+
+Verified locally on 2026-10-24 against the rebuilt Linux worker image: full harness
+PostgreSQL 68/68, Garage 3/3, offline native 12/12 and protected vertical 4/4, with
+zero integration skips. The collector received 4 process spans and 4 finite events
+correlated across the success/fetch/tool/DB-error reports, plus 15 worker metric
+names; private-value scans passed. The ordinary Release solution had 9,898 passes,
+0 failures and 108 skips (85 opt-in crash cases plus 23 existing skips). The separate
+exact private conversion/source/CFI/inline/wrong-symbol command also passed.
+These are disposable local results, not deployment or remote-workflow evidence.

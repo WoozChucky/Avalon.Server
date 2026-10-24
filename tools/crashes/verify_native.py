@@ -117,6 +117,16 @@ def source_gate(report, expected_crash):
     require(any(f.get("inlines") for f in frames), "inline source data was lost")
 
 
+def wrong_source_gate(report, expected_crash):
+    try:
+        source_gate(report, expected_crash)
+    except GateError as error:
+        if str(error) not in ("source-resolution gate failed: Application.cpp", "source-resolution gate failed: main.cpp"):
+            raise
+        return
+    raise GateError("wrong-symbol source-resolution gate unexpectedly passed")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--fixture", required=True, type=Path)
@@ -171,12 +181,7 @@ def main():
         # Real wrong symbols: keep the correct MODULE identity, remove all source records.
         target.write_text(expected + "\n")
         wrong = native_run(["minidump-stackwalk", "--json", str(args.fixture / "dump.dmp"), str(symbols)], 60)
-        try:
-            source_gate(json.loads(wrong.stdout), provenance["crash"])
-        except GateError:
-            pass
-        else:
-            raise GateError("wrong-symbol source-resolution gate unexpectedly passed")
+        wrong_source_gate(json.loads(wrong.stdout), provenance["crash"])
     print("PASS: MODULE, unwind, fault/thread, Application.cpp/main.cpp lines, CFI and wrong-symbol rejection")
 
 

@@ -38,6 +38,9 @@ public sealed class S3CrashSymbolStore : ICrashSymbolStore, IDisposable
             ServiceURL = endpoint.AbsoluteUri,
             AuthenticationRegion = storage.Region,
             ForcePathStyle = true,
+            // Garage rejects the SDK's optional streaming checksum trailer. SigV4 payload
+            // signing and the cache's full SHA-256/length/identity checks remain enabled.
+            RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
             Timeout = TimeSpan.FromSeconds(30),
             MaxErrorRetry = 2
         });

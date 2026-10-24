@@ -21,7 +21,15 @@ services:
       - ${CRASHES_RUN_DIR:?}/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ${CRASHES_RUN_DIR:?}/tls:/tls:ro
     depends_on: [garage]
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6
+    user: "0:0"
+    command: ["--config=/etc/collector.yaml"]
+    volumes:
+      - ${CRASHES_RUN_DIR:?}/collector.yaml:/etc/collector.yaml:ro
+      - capture:/capture
 volumes:
+  capture: {}
   postgres: {}
   garage: {}
 networks:

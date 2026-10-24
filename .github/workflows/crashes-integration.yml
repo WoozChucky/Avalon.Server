@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       native:
-        description: Run the protected private conversion gate on main
+        description: Run protected native and complete vertical acceptance on main
         type: boolean
         default: false
 permissions:
@@ -55,11 +55,11 @@ jobs:
           CRASHES_FIXTURE_URL: ${{ secrets.CRASHES_FIXTURE_URL }}
           CRASHES_FIXTURE_SHA256: ${{ vars.CRASHES_FIXTURE_SHA256 }}
         run: python tools/crashes/provision-private-fixture.py
-      - name: Run protected native suite
+      - name: Run protected full acceptance
         env:
           AVALON_CRASHES_PRIVATE_PAIR: ${{ runner.temp }}/crashes-private/pair
           AVALON_CRASHES_PRIVATE_FIXTURE: ${{ runner.temp }}/crashes-private/fixture
-        run: bash tools/crashes/run-integration.sh --suite native
+        run: bash tools/crashes/run-integration.sh --suite all
       - name: Remove protected fixture
         if: always()
         run: python tools/crashes/provision-private-fixture.py --cleanup

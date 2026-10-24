@@ -48,9 +48,11 @@ public sealed class CrashProcessor
     private readonly CrashRetryPolicy _retry;
     private readonly CrashProcessingBackoff _backoff;
     private readonly TimeProvider _time;
+    private readonly ILogger? _events;
 
     public CrashProcessor(ICrashQueue queue, ICrashObjectStore objects, CrashWorkspace workspaces,
-        ICrashAnalysisPipeline pipeline, CrashRetryPolicy retry, CrashProcessingBackoff backoff, TimeProvider? timeProvider = null)
+        ICrashAnalysisPipeline pipeline, CrashRetryPolicy retry, CrashProcessingBackoff backoff, TimeProvider? timeProvider = null,
+        ILoggerFactory? loggers = null)
     {
         _queue = queue;
         _objects = objects;
@@ -59,6 +61,7 @@ public sealed class CrashProcessor
         _retry = retry;
         _backoff = backoff;
         _time = timeProvider ?? TimeProvider.System;
+        _events = loggers?.CreateLogger("Avalon.Crashes.Worker.Events");
     }
 
     public async Task ProcessAsync(CrashLease lease, CancellationToken ct)
@@ -125,12 +128,22 @@ public sealed class CrashProcessor
             try
             {
                 bool accepted = await _queue.CompleteAsync(lease, result, _time.GetUtcNow(), result.Status == CrashReportStatus.Processed ? attempt.Token : ownership.Token);
+                if (accepted && result.Status == CrashReportStatus.Processed)
+                    _events?.LogInformation("Report processed {report_id}", lease.ReportId.Value);
                 if (!accepted && attemptDeadline.IsCancellationRequested && !ownership.IsCancellationRequested)
                     await ReconcileAsync(lease, result, true, ownership.Token);
             }
             catch (Exception ex) when (IsInfrastructure(ex) && !ownership.IsCancellationRequested)
             {
+                _events?.LogWarning("Report persistence unavailable {report_id} {reason}", lease.ReportId.Value, CrashFailureCode.StorageUnavailable);
                 await ReconcileAsync(lease, result, attemptDeadline.IsCancellationRequested, ownership.Token);
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException)
+            {
+                // EF wraps provider errors from SaveChanges. Keep existing recovery semantics;
+                // emit only the finite diagnostic before the host fences the failed attempt.
+                _events?.LogWarning("Report persistence unavailable {report_id} {reason}", lease.ReportId.Value, CrashFailureCode.StorageUnavailable);
+                throw;
             }
             catch (OperationCanceledException) when (attemptDeadline.IsCancellationRequested && !ownership.IsCancellationRequested)
             {
@@ -166,6 +179,7 @@ public sealed class CrashProcessor
 
     private CrashAttemptResult Failure(CrashFailureCode code, CrashLease lease, CrashBackoffDependency dependency = CrashBackoffDependency.Unknown)
     {
+        _events?.LogWarning("Report attempt failed {report_id} {reason}", lease.ReportId.Value, code);
         if (code is CrashFailureCode.AccessDenied or CrashFailureCode.ConfigurationInvalid)
             _backoff.Degrade(code, _time.GetUtcNow(), code == CrashFailureCode.ConfigurationInvalid ? CrashBackoffDependency.Unknown : dependency);
         return _retry.Decide(code, lease, _time.GetUtcNow());

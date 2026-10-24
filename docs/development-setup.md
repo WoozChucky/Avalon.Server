@@ -306,3 +306,7 @@ The account is `ADMIN` unless `--user` names another; the password comes from `-
 | `check`: game context `pending_license` | The account holds no license: only `ADMIN` is granted one, and only in Development |
 | `check`: "No world is listed" | The world server is not running or not ready yet (it reports ready once it listens), the API has not found world 1's databases yet (its log says "World 1 is available"), or the account may not enter world 1 |
 | The client stops at the world with a pin mismatch | The API and the world server run with leaves from different `setup` runs: restart both |
+
+## Optional crash-analysis acceptance
+
+Normal Aspire startup does not start the crash worker or require private Garage credentials. For the opt-in disposable PostgreSQL/HTTPS Garage harness, product image and protected Windows fixture instructions, see [Private crash analysis](crash-analysis.md) and [the acceptance README](../tools/crashes/README.md). Never point acceptance tests at the live homelab.
