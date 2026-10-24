@@ -1,10 +1,10 @@
 {
-  "commit": "28a5cb3de",
+  "commit": "5034e1723",
   "date": "2026-10-24",
   "scenarios": {
     "forest-combat": {
-      "bytesPerWindow": 14374,
-      "bytesPerPlayerPerTick": 19.96388888888889
+      "bytesPerWindow": 14222,
+      "bytesPerPlayerPerTick": 19.752777777777776
     },
     "many-instances": {
       "bytesPerWindow": 0,
