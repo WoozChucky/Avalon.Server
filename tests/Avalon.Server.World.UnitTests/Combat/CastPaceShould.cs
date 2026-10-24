@@ -20,7 +20,7 @@ using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 namespace Avalon.Server.World.UnitTests.Combat;
 
 /// <summary>
-/// #1178 (B-R9), through the real cast handler, cast system and instance: a basic attack is paced by its weapon's attack
+/// #1178, through the real cast handler, cast system and instance: a basic attack is paced by its weapon's attack
 /// time over attack speed, a basic spell by its row over cast speed, every other cooldown by its row over cooldown recovery,
 /// and every cast time by cast speed. Each is read once, when the cast starts. The global cooldown does not change.
 /// Character ids 627_1xx and 1178_4xx are unique to this class.

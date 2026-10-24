@@ -40,6 +40,10 @@ dotnet run --project tools/Avalon.Exporter -- corpus
 dotnet run --project tools/Avalon.ChunkGen -- forest
 dotnet run --project tools/Avalon.ChunkGen -- town
 
+# The item modifier page's generated block and the client's catalog export (ItemModifierDocShould fails when stale)
+dotnet run --project tools/Avalon.Exporter -- item-modifier-doc
+dotnet run --project tools/Avalon.Exporter -- item-modifier-catalog
+
 # EF migration (Avalon.Api is the design-time startup project; contexts: AuthDbContext,
 # WorldDbContext, CharacterDbContext). World and Character factories need their connection
 # string in the environment even for "migrations add" (a placeholder is fine):
@@ -126,7 +130,7 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 - [Quests](docs/quests.md) / [protocol](docs/quest-protocol.md): `QuestCatalog` validation, `QuestService` (tick thread only), stages and objectives, quest drops, saves, quest scripts.
 - [Auras](docs/auras.md) / [protocol](docs/aura-protocol.md): `AuraSystem` per instance, snapshots, schedules anchored at expiry, stacking, saves, replication, crowd control (stun, root, silence, slow: `ControlGates`, creature resistance, PvP diminishing, early breaks).
 - [Inventory, gold, vendors and saves](docs/inventory-and-saves.md): Character DB ownership, `ICharacterSaver` (one transaction, chained per character), one world session per account, Change Character, character names, item requests, equipment, bank, vendors, stats and the character sheet.
-- [Item modifiers](docs/item-modifiers.md): the World DB modifier catalog (`ItemModifierGroups`, `ItemModifiers`, stat lines, weights by base kind, `ItemTemplateModifiers` links for implicits and uniques), loaded as `ItemModifierCatalog` with the items area; rarity, implicits, tiers, weights and naming; every copy rolls when it is made (`IItemRoller`: a drop when it drops, by the creature's level and rarity, a quest reward Magic at turn-in, anything else a plain copy with its implicits); the generated tables, held to the seed by `ItemModifierDocShould` (`-- item-modifier-doc`).
+- [Item modifiers](docs/item-modifiers.md): the World DB modifier catalog (`ItemModifierGroups`, `ItemModifiers`, stat lines, weights by base kind, `ItemTemplateModifiers` links for implicits and uniques), loaded as `ItemModifierCatalog` with the items area; rarity, implicits, tiers, weights and naming; every copy rolls when it is made (`IItemRoller`: a creature's or a chest's drop when it drops, by the creature's level and rarity or the chest's depth band and the Normal odds, a quest reward Magic at turn-in, anything else a plain copy with its implicits); the generated tables, held to the seed by `ItemModifierDocShould` (`-- item-modifier-doc`).
 - [Item use](docs/item-use.md) / [protocol](docs/item-use-protocol.md): equip or run an `ItemScript` through `IItemUseContext`; cooldowns, cast bar, consumption.
 - [Doodads](docs/doodads.md): DoodadCatalog, per-viewer views and quest gates, interaction and the cast bar, DoodadScript, placement.
 - [Chat and commands](docs/chat-and-commands.md): adding a command, channels, whispers, rate limit, ignore list.
@@ -149,7 +153,7 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
   A refactor that moves code moves its tests and adds none for the move itself. Before adding a test, check that no existing one already fails when this behaviour breaks. When in doubt, one scenario test through the public surface beats several tests of its parts.
 - xUnit with NSubstitute; files are `<Subject>Should.cs`, methods `Should_<verb>_<condition>` or a descriptive sentence.
 - No real Redis or Postgres in unit tests: external dependencies are substituted (database tests use SQLite in memory).
-- Guard tests protect invariants that are easy to break silently: `ModelDriftShould`, `SeedIntegrityShould`, `WireSchemaShould`, the `*ConstructibilityShould` script tests, `WorldHostGraphShould`, `CommandsNeverBlockTheTickShould`, `ApiContractShould`, `CombatAssemblyShould`, `BalanceCoreAssemblyShould`, `SimulatorParityShould` and `CreatureKitParityShould` (both skipped while the simulator is paused, #1183, never deleted), `ScenarioAllocationsShould` (fails over 1% and 256 B above the committed baseline, in every build and for every scenario), `SessionDelegatesShould`, and the API split's (`RouteOwnershipShould`, `EveryRouteReachableShould`, `ApiHostGraphShould`, `ApiServiceBoundariesShould`, `CrossServiceAuthenticationShould`). Never delete one to make a change pass.
+- Guard tests protect invariants that are easy to break silently: `ModelDriftShould`, `SeedIntegrityShould`, `WireSchemaShould`, the `*ConstructibilityShould` script tests, `WorldHostGraphShould`, `CommandsNeverBlockTheTickShould`, `ApiContractShould`, `CombatAssemblyShould`, `BalanceCoreAssemblyShould`, `SimulatorParityShould` and `CreatureKitParityShould` (both skipped while the simulator is paused, #1183, never deleted), `ScenarioAllocationsShould` (fails over 1% and 256 B above the committed baseline, in every build and for every scenario), `SessionDelegatesShould`, `ItemModifierDocShould` (the item modifier page's generated block and the client catalog export against the seed), and the API split's (`RouteOwnershipShould`, `EveryRouteReachableShould`, `ApiHostGraphShould`, `ApiServiceBoundariesShould`, `CrossServiceAuthenticationShould`). Never delete one to make a change pass.
 
 ## Open work
 

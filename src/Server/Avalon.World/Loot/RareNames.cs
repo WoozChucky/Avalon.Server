@@ -3,7 +3,7 @@ using Avalon.Domain.World;
 namespace Avalon.World.Loot;
 
 /// <summary>
-/// The two words of a rare item's name (#1179, B-R19), drawn once when it rolls and stored on the copy, so editing these
+/// The two words of a rare item's name (#1179), drawn once when it rolls and stored on the copy, so editing these
 /// lists never renames an item a player holds. The first word is any of one list; the second follows the item's kind.
 /// </summary>
 public static class RareNames

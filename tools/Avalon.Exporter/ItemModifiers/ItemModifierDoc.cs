@@ -53,9 +53,11 @@ public static class ItemModifierDoc
         {
             path = PagePath();
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
-            return ex.Message;
+            // The page is the repository's whatever --out names, so the root's own advice (pass --out) does not apply.
+            return $"needs the repository's {DocsDirectory}/{FileName}, and no Avalon.sln is above {AppContext.BaseDirectory}: " +
+                   "run the exporter from a checkout of the repository.";
         }
 
         if (!File.Exists(path))

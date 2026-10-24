@@ -3060,7 +3060,7 @@ public class WorldDbContext : DbContext
         // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres. Each class's free skill is
         // its basic attack, flagged Basic (#770): the one ability a silence does not stop. A basic attack (Cleave, Quick
         // Shot) is paced by its weapon's attack time over attack speed, so its Cooldown is 0; a spell basic (Spark Bolt,
-        // Smite) keeps 800 ms, shortened by cast speed (#1178, B-R9, owner decision D1).
+        // Smite) keeps 800 ms, shortened by cast speed (#1178, owner decision D1).
         builder.HasData(
             Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 0, cost: 0, range: SpellRange.Melee, powerGainPerHit: 8, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 315f),
             Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, range: SpellRange.Short, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 614f),

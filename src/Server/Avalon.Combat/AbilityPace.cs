@@ -4,7 +4,7 @@ using Avalon.World.Public.Abilities;
 namespace Avalon.Combat;
 
 /// <summary>
-/// How long an ability takes (#1178, B-R9, owner decision D1), the one rule the cast system follows. Pure. The global
+/// How long an ability takes (#1178, owner decision D1), the one rule the cast system follows. Pure. The global
 /// cooldown is no speed's and is not here.
 /// </summary>
 public static class AbilityPace

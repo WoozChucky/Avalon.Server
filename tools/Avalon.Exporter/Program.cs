@@ -116,7 +116,13 @@ foreach (Export export in selected)
     export.Write(root);
 }
 
-Console.WriteLine($"exported {selected.Count} of {Exports.s_all.Count} artifacts to {root}");
+// An export of a repository file (the item modifier page) is written there, not under the root.
+List<string> written = [];
+int underRoot = selected.Count(export => !export.InRepository);
+if (underRoot > 0)
+    written.Add($"{underRoot} to {root}");
+written.AddRange(selected.Where(export => export.InRepository).Select(export => $"{export.Name} to {export.Destination}"));
+Console.WriteLine($"exported {selected.Count} of {Exports.s_all.Count} artifacts: {string.Join("; ", written)}");
 return 0;
 
 static void Usage(TextWriter? writer = null)

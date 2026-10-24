@@ -47,7 +47,7 @@ public sealed class Doodad : IWorldObject
     public DoodadTemplateView Template { get; }
 
     /// <summary>
-    /// The level range its drops roll their item level in (#1179, B-R21): its slot's depth band, fixed at spawn; null for a
+    /// The level range its drops roll their item level in (#1179): its slot's depth band, fixed at spawn; null for a
     /// fixed spawn and one placed off a slot, whose drops take the map's range.
     /// </summary>
     public LevelRange? Levels { get; init; }

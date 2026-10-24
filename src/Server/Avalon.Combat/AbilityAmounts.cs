@@ -19,7 +19,7 @@ public readonly record struct AbilityAmount(AbilityAmountKind Kind, uint Min, ui
 /// the low and then the high end of its inclusive range (<see cref="RollEnds" />), then floored as a hit that nothing
 /// procs on, against no defences, would be: <see cref="HitResolver.NormalDamage" /> (a minimum of 1) or
 /// <see cref="HitResolver.NormalHeal" />. Damage is typed as a hit reports its types: every type with a part at the high
-/// end. With it, the ability's pace (#1178, B-R9): the cooldown and the cast time a cast would set now, through
+/// end. With it, the ability's pace (#1178): the cooldown and the cast time a cast would set now, through
 /// <see cref="AbilityPace" />, in milliseconds rounded to the nearest, so a client never applies the speed rules itself.
 /// </summary>
 /// <remarks>

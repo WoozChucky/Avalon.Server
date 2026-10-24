@@ -126,7 +126,7 @@ public sealed class DoodadPlacementService(DoodadScripts scripts, TimeProvider t
                     continue;
 
                 taken[index] = true;
-                // The slot's depth band is the level range its drops roll their item level in (#1179, B-R21).
+                // The slot's depth band is the level range its drops roll their item level in (#1179).
                 placed.Add(new PlannedDoodad(template, c.Position, c.Yaw, rule.Required, visible, usable,
                     DepthBandLevels.For(config.DepthBands, c.Depth, setPiece: false)));
                 if (template.Solid)

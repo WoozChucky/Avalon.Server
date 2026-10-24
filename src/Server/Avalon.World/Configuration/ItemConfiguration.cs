@@ -49,7 +49,7 @@ public sealed class ItemConfiguration
     }
 }
 
-/// <summary>The rarity odds of an item a creature of each rarity drops (B-R14); a chest or a barrel uses Normal's.</summary>
+/// <summary>The rarity odds of an item a creature of each rarity drops; a chest or a barrel uses Normal's.</summary>
 public sealed class CreatureRarityOdds
 {
     public RarityOdds Normal { get; set; } = new() { MagicPct = 22, RarePct = 3 };
@@ -78,7 +78,7 @@ public sealed class RarityOdds
     public double RarePct { get; set; }
 }
 
-/// <summary>What a sale pays per rarity (B-R23), as a multiple of the sell price; a Common item pays it once.</summary>
+/// <summary>What a sale pays per rarity, as a multiple of the sell price; a Common item pays it once.</summary>
 public sealed class SellFactors
 {
     public int Magic { get; set; } = 2;
