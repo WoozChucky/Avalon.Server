@@ -65,6 +65,7 @@ public class QuestStageDto
 [ProtoContract]
 public class QuestRewardItemDto
 {
+    /// <summary>The template the quest names: what a pick from the choice set sends back (CMSG_QUEST_TURN_IN field 3).</summary>
     [ProtoMember(1)] public ulong ItemTemplateId { get; set; }
     [ProtoMember(2)] public uint Count { get; set; }
 
@@ -73,6 +74,13 @@ public class QuestRewardItemDto
     /// template's own, so a reward window can say the item is rolled.
     /// </summary>
     [ProtoMember(3)] public ItemRarity Rarity { get; set; }
+
+    /// <summary>
+    /// The template the reward is paid as (#1179): for a weapon, armour or jewellery base, the best tier of its line the
+    /// quest's level reaches, which the turn-in rolls Magic; else <see cref="ItemTemplateId" /> itself. What a reward window
+    /// shows; a pick still names <see cref="ItemTemplateId" />.
+    /// </summary>
+    [ProtoMember(4)] public ulong PaidItemTemplateId { get; set; }
 }
 
 /// <summary>A quest's rewards: experience, gold, the fixed items and the choice set.</summary>

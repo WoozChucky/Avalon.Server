@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Quest;
+using Avalon.World.Loot;
 using Avalon.World.Public.Localization;
 using Avalon.World.Reload;
 
@@ -18,7 +19,7 @@ public static class QuestDisplay
         IReadOnlyList<QuestItemRewardView> fixedItems = quest.ItemRewards;
         var paid = new List<QuestRewardItemDto>(fixedItems.Count);
         for (int i = 0; i < fixedItems.Count; i++)
-            paid.Add(Reward(fixedItems[i], items));
+            paid.Add(Reward(quest, fixedItems[i], items));
 
         var rewards = new QuestRewardsDto
         {
@@ -35,7 +36,7 @@ public static class QuestDisplay
             var picks = new List<QuestRewardItemDto>(choices.Count);
             for (int i = 0; i < choices.Count; i++)
             {
-                picks.Add(Reward(choices[i], items));
+                picks.Add(Reward(quest, choices[i], items));
             }
 
             rewards.Choices = picks;
@@ -64,19 +65,22 @@ public static class QuestDisplay
     }
 
     /// <summary>
-    /// A reward item as the window shows it: Magic for a Common base, which the turn-in rolls (B-R22), else its template's
-    /// rarity; Common for a template a reload removed, which no turn-in pays.
+    /// A reward item as the window shows it: the template the quest names, which a pick sends back, and the one it is paid
+    /// as (QuestTurnInRules.PaidAs: a Common base's tier at the quest's level, which the turn-in rolls Magic, else the named
+    /// one) with the rarity it is paid at, its template's own for any other; the named template and Common for a template
+    /// a reload removed, which no turn-in pays.
     /// </summary>
-    private static QuestRewardItemDto Reward(QuestItemRewardView reward, ItemsPatch items)
+    private static QuestRewardItemDto Reward(QuestView quest, QuestItemRewardView reward, ItemsPatch items)
     {
-        ItemTemplate? template = items.Find(reward.ItemTemplateId);
+        ItemTemplate? paid = QuestTurnInRules.PaidAs(quest, reward, items);
         return new QuestRewardItemDto
         {
             ItemTemplateId = reward.ItemTemplateId.Value,
             Count = reward.Count,
-            Rarity = template is null ? ItemRarity.Common
-                : QuestTurnInRules.RollsMagic(template) ? ItemRarity.Magic
-                : template.Rarity,
+            Rarity = paid is null ? ItemRarity.Common
+                : ItemRoller.IsRolledBase(paid) ? ItemRarity.Magic
+                : paid.Rarity,
+            PaidItemTemplateId = paid?.Id.Value ?? reward.ItemTemplateId.Value,
         };
     }
 

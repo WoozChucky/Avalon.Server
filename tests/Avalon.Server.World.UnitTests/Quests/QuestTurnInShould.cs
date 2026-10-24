@@ -193,14 +193,20 @@ public class QuestTurnInShould
     }
 
     /// <summary>
-    /// A reward a reload made Unique blocks the turn-in: answered Error, logged at Error naming the quest, and nothing
-    /// is taken or paid.
+    /// A reward a reload made Unique blocks the turn-in, flagged Unique (own one copy) or of Unique rarity (#1179): answered
+    /// Error, logged at Error naming the quest, and nothing is taken or paid.
     /// </summary>
-    [Fact]
-    public async Task Log_and_refuse_a_turn_in_whose_reward_a_reload_made_unique()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Log_and_refuse_a_turn_in_whose_reward_a_reload_made_unique(bool byRarity)
     {
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync();
-        w.Data.ItemTemplates.Single(t => t.Id.Value == Tonic).Flags |= ItemTemplateFlags.Unique;
+        ItemTemplate tonic = w.Data.ItemTemplates.Single(t => t.Id.Value == Tonic);
+        if (byRarity)
+            tonic.Rarity = ItemRarity.Unique;
+        else
+            tonic.Flags |= ItemTemplateFlags.Unique;
         ILogger<QuestService> logger = NSubstitute.Substitute.For<Microsoft.Extensions.Logging.ILogger<QuestService>>();
         var quests = new QuestService(w.World, NSubstitute.Substitute.For<IServiceProvider>(), w.Economy, w.Random, w.Roller, w.Clock, logger);
 
@@ -301,7 +307,7 @@ public class QuestTurnInShould
     }
 
     /// <summary>
-    /// #1179 (B-R22), over the World database's seed: a fixed or picked reward whose template is a Common base is rolled
+    /// #1179, over the World database's seed: a fixed or picked reward whose template is a Common base is rolled
     /// Magic at the quest's level as it is paid, its implicits first, then one or two affixes the level allows; the
     /// offer says so.
     /// </summary>

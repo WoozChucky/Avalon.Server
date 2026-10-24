@@ -1027,6 +1027,7 @@ message QuestRewardItemDto {
    uint64 ItemTemplateId = 1;
    uint32 Count = 2;
    ItemRarity Rarity = 3;
+   uint64 PaidItemTemplateId = 4;
 }
 message QuestRewardsDto {
    uint32 Experience = 1;

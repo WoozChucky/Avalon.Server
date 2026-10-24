@@ -19,38 +19,44 @@ variant absent
   field 1 ItemTemplateId : ulong = 0
   field 2 Count : uint = 0
   field 3 Rarity : ItemRarity = Common (0)
+  field 4 PaidItemTemplateId : ulong = 0
   bytes 0
 
 variant empty
   field 1 ItemTemplateId : ulong = 0
   field 2 Count : uint = 0
   field 3 Rarity : ItemRarity = Common (0)
+  field 4 PaidItemTemplateId : ulong = 0
   bytes 0
 
 variant populated
   field 1 ItemTemplateId : ulong = 65535
   field 2 Count : uint = 1000000
   field 3 Rarity : ItemRarity = Rare (2)
-  bytes 10
-    08 ff ff 03 10 c0 84 3d 18 02
+  field 4 PaidItemTemplateId : ulong = 19
+  bytes 12
+    08 ff ff 03 10 c0 84 3d 18 02 20 13
 
 variant maxima
   field 1 ItemTemplateId : ulong = 18446744073709551615
   field 2 Count : uint = 4294967295
   field 3 Rarity : ItemRarity = Unique (3)
-  bytes 19
+  field 4 PaidItemTemplateId : ulong = 18446744073709551615
+  bytes 30
     08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
-    0f 18 03
+    0f 18 03 20 ff ff ff ff ff ff ff ff ff 01
 
 variant minima
   field 1 ItemTemplateId : ulong = 0
   field 2 Count : uint = 0
   field 3 Rarity : ItemRarity = Common (0)
+  field 4 PaidItemTemplateId : ulong = 0
   bytes 0
 
 variant varint-edges
   field 1 ItemTemplateId : ulong = 2097151
   field 2 Count : uint = 128
   field 3 Rarity : ItemRarity = <not a declared member> (4)
-  bytes 9
-    08 ff ff 7f 10 80 01 18 04
+  field 4 PaidItemTemplateId : ulong = 16383
+  bytes 12
+    08 ff ff 7f 10 80 01 18 04 20 ff 7f

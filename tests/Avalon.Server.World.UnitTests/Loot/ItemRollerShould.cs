@@ -20,7 +20,7 @@ namespace Avalon.Server.World.UnitTests.Loot;
 /// </summary>
 public class ItemRollerShould
 {
-    // The spec's rare-name words (B-R19): the first word, then the second by the item's kind.
+    // The spec's rare-name words: the first word, then the second by the item's kind.
     private static readonly string[] s_firstWords =
         ["Thorn", "Moss", "Ash", "Fen", "Bramble", "Grim", "Dusk", "Root", "Bark", "Hollow", "Ember", "Blight", "Gloam", "Wild", "Stag", "Mire"];
     private static readonly string[] s_weaponWords = ["Bite", "Fang", "Edge", "Song", "Spine", "Sting"];
@@ -54,6 +54,7 @@ public class ItemRollerShould
     }
 
     [Theory]
+    [InlineData(37UL, (ushort)0, 37UL)]   // no level (a quest without a requirement): the roll makes it 1, as a save requires
     [InlineData(37UL, (ushort)1, 37UL)]
     [InlineData(37UL, (ushort)4, 37UL)]
     [InlineData(37UL, (ushort)5, 13UL)]
@@ -70,7 +71,7 @@ public class ItemRollerShould
             .Roll(Template(named), new DropContext(itemLevel, CreatureRarity.Normal, false), s_items)!;
 
         Assert.Equal(dropped, rolled.TemplateId.Value);
-        Assert.Equal(itemLevel, rolled.ItemLevel);
+        Assert.Equal(Math.Max((ushort)1, itemLevel), rolled.ItemLevel);
         Assert.Equal(implicits, rolled.Modifiers.Take(implicits.Length).Select(m => m.ModifierId));
         Assert.DoesNotContain(rolled.Modifiers.Skip(implicits.Length),
             m => Catalog.Find(m.ModifierId)!.Group.Kind == ItemModifierKind.Implicit);

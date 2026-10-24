@@ -106,9 +106,11 @@ language:
 4 `Count` (how many are needed), 5 `Text` (e.g. "Thornback Boars slain").
 
 `QuestRewardsDto`: 1 `Experience`, 2 `Gold`, 3 `Items` (repeated `QuestRewardItemDto`:
-1 `ItemTemplateId`, 2 `Count`, 3 `Rarity` (#1179: `Magic` for a Common base, which the turn-in rolls Magic at the
-quest's level, else the template's rarity); every one is paid); 4 `Choices` (repeated `QuestRewardItemDto`, #711: the choice set,
-of which the player picks exactly one at turn-in, by item template id; empty when the quest has none). A quest may
+1 `ItemTemplateId` (the template the quest names, which a pick sends back), 2 `Count`, 3 `Rarity` (#1179: `Magic` for
+a Common base, which the turn-in rolls Magic at the quest's level, else the template's rarity), 4 `PaidItemTemplateId`
+(#1179: the template the reward is paid as, for a base the best tier of its line the quest's level reaches, which may be
+above the named one; else field 1 again: what a reward window shows); every one is paid); 4 `Choices` (repeated
+`QuestRewardItemDto`, #711: the choice set, of which the player picks exactly one at turn-in, by item template id; empty when the quest has none). A quest may
 have fixed items, a choice set, both or neither (the seeded quest 3 has both, quest 11 a choice set alone). Every
 choice is offered to every class: equipping the item afterwards checks its class and level as usual. The pick is
 sent as the item template id in `CMSG_QUEST_TURN_IN` field 3, never as a position in the list, and a turn-in of a

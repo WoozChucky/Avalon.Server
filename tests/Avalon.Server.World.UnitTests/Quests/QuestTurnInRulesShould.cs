@@ -8,7 +8,9 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Localization;
 using Avalon.World.Quests;
+using Avalon.World.Reload;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;
@@ -87,8 +89,63 @@ public class QuestTurnInRulesShould
             [new QuestItemRewardView(reward.Id, 1)], [], QuestRepeat.Once);
 
         QuestResult result = QuestTurnInRules.Decide(character, quest, character.Quests.Get(Tusks)!, 0,
-            id => Items().SingleOrDefault(i => i.Id == id), maxGold: 100, out _);
+            new ItemsPatch(Items(), ItemModifierRepositories.EmptyCatalog()), maxGold: 100, out _);
 
         Assert.Equal(expected, result);
+    }
+
+    /// <summary>
+    /// #1179: a base reward is judged as the tier it is paid as, the best of its line the quest's level reaches (here the
+    /// level-5 chest, for a quest of level 5 naming the level-1 one), never as the template the quest names: a reload that
+    /// made that tier Unique refuses the turn-in, and each rolled copy takes a slot of its own, whatever the base stacks
+    /// to. The reward window shows the named template, which a pick sends back, and the paid one.
+    /// </summary>
+    [Theory]
+    [InlineData(false, 2u, 2, QuestResult.Ok)]
+    [InlineData(true, 1u, 2, QuestResult.Error)]
+    [InlineData(false, 2u, 1, QuestResult.BagFull)]
+    public void Judge_a_base_reward_as_the_tier_it_is_paid_as(bool tierUnique, uint count, int freeSlots, QuestResult expected)
+    {
+        var named = new ItemTemplate
+        {
+            Id = new ItemTemplateId(7110),
+            Name = "Plain Chest",
+            Class = ItemClass.Armor,
+            Slot = ItemSlotType.Chest,
+            BaseKind = ItemBaseKind.PlateChest,
+            RequiredLevel = 1,
+            MaxStackSize = 5,
+        };
+        var tier = new ItemTemplate
+        {
+            Id = new ItemTemplateId(7111),
+            Name = "Better Chest",
+            Class = ItemClass.Armor,
+            Slot = ItemSlotType.Chest,
+            BaseKind = ItemBaseKind.PlateChest,
+            RequiredLevel = 5,
+            MaxStackSize = 5,
+            Flags = tierUnique ? ItemTemplateFlags.Unique : ItemTemplateFlags.None,
+        };
+        var items = new ItemsPatch([named, tier, s_charmItem], ItemModifierRepositories.EmptyCatalog());
+        CharacterEntity character = TestCharacters.New(7);
+        character.Quests.Load(new CharacterQuestRows(
+            [new CharacterQuest { CharacterId = 7, QuestId = Tusks, State = CharacterQuestState.ReadyToTurnIn, AcceptedAt = DateTime.UnixEpoch }],
+            [], []));
+        character.Container(InventoryType.Bag).Load(
+            [.. Enumerable.Range(0, 30 - freeSlots).Select(s => TestCharacters.Item((byte)s, s_charmItem))]);
+        var quest = new QuestView(Tusks, TitleText, BodyText, DoneText, new CreatureTemplateId(Giver), new CreatureTemplateId(Ender),
+            5, null, null, 50, RewardGold: 0, null, [new QuestStageView(0, StageText, [])],
+            [new QuestItemRewardView(named.Id, count)], [], QuestRepeat.Once);
+
+        QuestResult result = QuestTurnInRules.Decide(character, quest, character.Quests.Get(Tusks)!, 0, items, maxGold: 100,
+            out IReadOnlyList<(ItemTemplate Template, uint Count)> paid);
+        QuestRewardItemDto offered = Assert.Single(QuestDisplay.Build(quest, items,
+            NSubstitute.Substitute.For<ILocalizedTextCatalog>(), default, completionText: false).Rewards!.Items);
+
+        Assert.Equal(expected, result);
+        Assert.Equal((named.Id.Value, tier.Id.Value, ItemRarity.Magic), (offered.ItemTemplateId, offered.PaidItemTemplateId, offered.Rarity));
+        if (expected == QuestResult.Ok)
+            Assert.Equal([(tier, count)], paid);
     }
 }
