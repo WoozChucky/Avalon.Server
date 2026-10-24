@@ -33,7 +33,7 @@ public class PublicMappingShould
     [Fact]
     public void List_only_the_stat_pairs_that_are_set_in_slot_order()
     {
-        PublicItemDto dto = Helm().ToPublicDto();
+        PublicItemDto dto = Helm().ToPublicDto([]);
 
         Assert.Collection(dto.Stats,
             s => Assert.Equal((Avalon.Api.Contract.StatType.Strength, 1u), (s.Type, s.Value)),
@@ -47,7 +47,7 @@ public class PublicMappingShould
         sword.DamageMin1 = 12; sword.DamageMax1 = 18; sword.DamageType1 = Avalon.Network.Packets.Combat.DamageType.Physical;
         sword.DamageMin2 = 2; sword.DamageMax2 = 4; sword.DamageType2 = Avalon.Network.Packets.Combat.DamageType.Fire;
 
-        Assert.Collection(sword.ToPublicDto().Damage,
+        Assert.Collection(sword.ToPublicDto([]).Damage,
             d => Assert.Equal((12u, 18u, Avalon.Api.Contract.DamageType.Physical), (d.Min, d.Max, d.Type)),
             d => Assert.Equal((2u, 4u, Avalon.Api.Contract.DamageType.Fire), (d.Min, d.Max, d.Type)));
     }
@@ -59,7 +59,7 @@ public class PublicMappingShould
         odd.DamageMin1 = 5; odd.DamageMax1 = 0; odd.DamageType1 = Avalon.Network.Packets.Combat.DamageType.Physical;
         odd.DamageMin2 = 3; odd.DamageMax2 = null;
 
-        Assert.Empty(odd.ToPublicDto().Damage);
+        Assert.Empty(odd.ToPublicDto([]).Damage);
     }
 
     [Theory]
@@ -72,7 +72,7 @@ public class PublicMappingShould
     {
         ItemTemplate item = Helm();
         item.Flags = flags;
-        Assert.Equal(expected, item.ToPublicDto().Attunes);
+        Assert.Equal(expected, item.ToPublicDto([]).Attunes);
     }
 
     [Theory]
@@ -83,7 +83,7 @@ public class PublicMappingShould
     {
         ItemTemplate item = Helm();
         item.Flags = flags;
-        Assert.Equal(expected, item.ToPublicDto().Unique);
+        Assert.Equal(expected, item.ToPublicDto([]).Unique);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class PublicMappingShould
         ItemTemplate item = Helm();
         item.Flags = DomainFlags.NoSell | DomainFlags.AttuneOnPickup;
 
-        PublicItemDto dto = item.ToPublicDto();
+        PublicItemDto dto = item.ToPublicDto([]);
         Assert.True(dto.CannotBeSold);
         Assert.Equal(ItemAttunement.OnPickup, dto.Attunes);
     }
@@ -141,6 +141,7 @@ public class PublicMappingShould
     [InlineData(typeof(Avalon.Domain.World.ItemSubClass), typeof(Avalon.Api.Contract.ItemSubClass))]
     [InlineData(typeof(Avalon.Domain.World.ItemSlotType), typeof(Avalon.Api.Contract.ItemSlotType))]
     [InlineData(typeof(Avalon.Domain.World.ItemBaseKind), typeof(Avalon.Api.Contract.ItemBaseKind))]
+    [InlineData(typeof(Avalon.Domain.World.ItemModifierKind), typeof(Avalon.Api.Contract.ItemModifierKind))]
     [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Api.Contract.StatType))]
     [InlineData(typeof(Avalon.Domain.World.StatType), typeof(Avalon.Network.Packets.Items.ItemStat))]
     [InlineData(typeof(Avalon.Network.Packets.Combat.DamageType), typeof(Avalon.Api.Contract.DamageType))]

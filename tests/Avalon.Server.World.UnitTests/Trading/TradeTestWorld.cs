@@ -42,7 +42,7 @@ internal sealed class TradeTestWorld
         Economy = new TestEconomy(Config);
         Trades = new TradeService(Options.Create(Config), Clock, Saver, Characters, NullLogger<TradeService>.Instance,
             tickThread);
-        Trades.Attach(Economy, Find);
+        Trades.Attach(Economy, Find, ItemModifierRepositories.EmptyCatalog);
     }
 
     public ManualTimerClock Clock { get; } = new();

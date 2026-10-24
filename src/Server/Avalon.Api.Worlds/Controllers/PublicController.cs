@@ -14,7 +14,9 @@ namespace Avalon.Api.Worlds.Controllers;
 [ApiController]
 [PublicWorldScoped]
 [Route("public/world/{worldId:int}")]
-public class PublicController(IItemTemplateRepository items, IAbilityTemplateRepository abilities) : ControllerBase
+public class PublicController(
+    IItemTemplateRepository items, IItemModifierRepository modifiers, IAbilityTemplateRepository abilities)
+    : ControllerBase
 {
     [HttpGet("item/{id:long}", Name = "GetPublicItem")]
     [ProducesResponseType(typeof(PublicItemDto), StatusCodes.Status200OK)]
@@ -23,8 +25,9 @@ public class PublicController(IItemTemplateRepository items, IAbilityTemplateRep
     {
         ItemTemplate? template = await items.FindByIdAsync(new ItemTemplateId(id), track: false, ct);
         if (template is null) return NotFound();
+        ItemModifierCatalog catalog = await modifiers.GetCatalogAsync(ct);
         SetCacheControl();
-        return Ok(template.ToPublicDto());
+        return Ok(template.ToPublicDto(catalog.LinkedTo(template.Id)));
     }
 
     [HttpGet("ability/{id:long}", Name = "GetPublicAbility")]

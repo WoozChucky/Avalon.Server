@@ -114,6 +114,11 @@ with m the floor of their mean.
   the item is described, so renaming a family or a base renames every copy.
 - A rare item gets a two-word name when it rolls, kept on the copy.
 - Common and unique items show the template's name.
+- `ItemNames.Display` (`Avalon.Domain`) gives the name, or null where the template's name is the item's, from a magic
+  copy's lowest-ordinal prefix and suffix. It runs when a copy is described, never per tick: `ItemSlotDto` field 11
+  (the login snapshot, inventory updates, item replies, the bank, the buyback), `TradeItemDto` field 8 and
+  `LootDropDto` field 11 send it as an optional string, absent for a common or unique copy, and the REST inventory
+  read's item `name` likewise. A magic copy's name is one string built as it is described; nothing caches it.
 - A family has one name for all its tiers (the tier shows as a number), one per element on a split family. Implicits and
   unique modifiers never name an item.
 

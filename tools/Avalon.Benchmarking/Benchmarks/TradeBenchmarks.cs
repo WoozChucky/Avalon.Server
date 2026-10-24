@@ -33,6 +33,9 @@ namespace Avalon.Benchmarking.Benchmarks;
 [MemoryDiagnoser]
 public class TradeBenchmarks
 {
+    // The modifier catalog a state's names read: these potions roll none.
+    private static readonly ItemModifierCatalog s_catalog = new([], [], NullLogger.Instance);
+
     private static readonly ItemTemplate s_potion = new()
     {
         Id = new ItemTemplateId(1),
@@ -104,7 +107,7 @@ public class TradeBenchmarks
         _trades = new TradeService(Options.Create(new GameConfiguration()), TimeProvider.System, NoSaves.Instance, online,
             NullLogger<TradeService>.Instance);
         // No trade completes here: the economy is only read by a completion.
-        _trades.Attach(null!, static id => id == s_potion.Id ? s_potion : null);
+        _trades.Attach(null!, static id => id == s_potion.Id ? s_potion : null, static () => s_catalog);
 
         var connections = new QuietConnection[Math.Max(trades, 1) * 2];
         for (int i = 0; i < connections.Length; i++)

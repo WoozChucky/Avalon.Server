@@ -31,7 +31,7 @@ public class CharacterRenameShould
         _service = new CharacterService(_characters, Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
+            Substitute.For<IItemModifierRepository>(), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
             Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
     }
 

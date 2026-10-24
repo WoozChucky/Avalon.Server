@@ -284,6 +284,7 @@ public class ItemSlotDto
     [ProtoMember(8)] public ItemRarity Rarity { get; set; } // the copy's (#1179): Common, Magic, Rare, Unique
     [ProtoMember(9)] public uint ItemLevel { get; set; } // the copy's (#1179)
     [ProtoMember(10)] public List<ItemModifierDto>? Modifiers { get; set; } // in the order the item shows them; null for none
+    [ProtoMember(11)] public string? Name { get; set; } // a magic or rare copy's (#1179); null: the template's name is the item's
 }
 
 [ProtoContract]

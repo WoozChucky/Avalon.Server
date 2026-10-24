@@ -191,7 +191,7 @@ public partial class DialogueChooseHandler(
                 trades?.NpcWindowOpening(entity);
                 entity.OpenBankNpc = npc.Guid;
                 connection.Send(SInventoryUpdatePacket.Create(
-                    BankAccess.Snapshot(entity), null, PacketEncoder.Shared));
+                    BankAccess.Snapshot(entity, world.Data.Items), null, PacketEncoder.Shared));
                 break;
 
             case DialogueOptionAction.OpenShop:

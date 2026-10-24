@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Serialization;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Reload;
 
 namespace Avalon.World.Inventory;
 
@@ -18,7 +19,10 @@ public static class InventoryUpdateFlusher
     private static readonly Comparison<InventorySlotUpdateDto> s_byContainerThenSlot =
         static (a, b) => Order(a) - Order(b);
 
-    public static void Flush(IWorldConnection connection)
+    /// <param name="items">
+    /// The current items generation, read once by the caller for every connection: what names a magic copy (#1179).
+    /// </param>
+    public static void Flush(IWorldConnection connection, ItemsPatch items)
     {
         if (connection.Character is not CharacterEntity { Data: { } row } character)
             return;
@@ -29,7 +33,7 @@ public static class InventoryUpdateFlusher
 
         // Bank slots leave only while the bank is open; outside it they are dropped, so the rule
         // that Bank slots never reach a client without an open bank still holds.
-        InventorySlotUpdateDto[] slots = SlotsToSend(changes, character, BankAccess.IsOpen(connection, character));
+        InventorySlotUpdateDto[] slots = SlotsToSend(changes, character, BankAccess.IsOpen(connection, character), items);
 
         ulong? gold = changes.GoldChanged ? row.Gold : null;
         changes.Clear();
@@ -46,7 +50,7 @@ public static class InventoryUpdateFlusher
     /// whatever order the set walks them, and the array is sorted in place.
     /// </summary>
     private static InventorySlotUpdateDto[] SlotsToSend(InventoryClientChanges changes, CharacterEntity character,
-        bool bankOpen)
+        bool bankOpen, ItemsPatch items)
     {
         int count = 0;
         foreach ((InventoryType container, byte _) in changes)
@@ -70,7 +74,7 @@ public static class InventoryUpdateFlusher
                 Container = container,
                 Slot = slot,
                 Item = character.Container(container).TryGet(slot, out InventoryItem item)
-                    ? ItemSlotDtoMapper.ToDto(container, item, character.ItemModifiers.Of(item.InstanceId))
+                    ? ItemSlotDtoMapper.ToDto(container, item, character.ItemModifiers.Of(item.InstanceId), items)
                     : null,
             };
         }

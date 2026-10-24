@@ -58,7 +58,7 @@ public static class VendorListBuilder
             buyback.Add(new VendorBuybackDto
             {
                 Index = (uint)index,
-                Item = ItemSlotDtoMapper.ToDto(InventoryType.Bag, sold[index].Item.Item, sold[index].Item.Modifiers),
+                Item = ItemSlotDtoMapper.ToDto(InventoryType.Bag, sold[index].Item.Item, sold[index].Item.Modifiers, data.Items),
                 Price = sold[index].Price,
             });
         }

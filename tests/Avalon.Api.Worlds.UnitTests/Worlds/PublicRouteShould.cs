@@ -10,6 +10,7 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.World;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
@@ -57,11 +58,21 @@ public sealed class PublicRouteShould : IAsyncLifetime
             services.AddWorldDatabases(databases);
             services.AddSingleton(_authWorlds);
             services.AddSingleton(_items);
+            services.AddSingleton(NoModifiers());
             services.AddSingleton(_abilities);
         });
     }
 
     public async Task DisposeAsync() => await _host.DisposeAsync();
+
+    /// <summary>A world catalog with no modifiers (#1179): these items link none.</summary>
+    private static IItemModifierRepository NoModifiers()
+    {
+        IItemModifierRepository modifiers = Substitute.For<IItemModifierRepository>();
+        modifiers.GetCatalogAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => new ItemModifierCatalog([], [], NullLogger.Instance));
+        return modifiers;
+    }
 
     private void Row(ushort id, AccountAccessLevel required) =>
         _authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())

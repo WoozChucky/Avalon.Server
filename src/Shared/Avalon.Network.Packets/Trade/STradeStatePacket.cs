@@ -29,6 +29,12 @@ public class TradeItemDto
     /// empty repeated field reads back as.
     /// </summary>
     [ProtoMember(7)] public List<ItemModifierDto>? Modifiers { get; set; }
+
+    /// <summary>
+    /// The copy's name (#1179): set for a magic copy (its prefix and suffix around the template's name) and a rare one
+    /// (the two words its roll gave it); null where the template's name is the item's.
+    /// </summary>
+    [ProtoMember(8)] public string? Name { get; set; }
 }
 
 /// <summary>One side of a trade: its items in trade-slot order, its gold, and whether it confirmed this revision.</summary>

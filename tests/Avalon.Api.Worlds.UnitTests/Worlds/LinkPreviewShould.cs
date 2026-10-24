@@ -8,6 +8,7 @@ using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Worlds.Previews;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World;
 using Avalon.Database.World.Repositories;
@@ -16,6 +17,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
@@ -149,10 +151,20 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
             services.AddSingleton(PublicSiteSettings.Create(publicSite));
             services.AddSingleton(Microsoft.Extensions.Options.Options.Create(previews));
             services.AddScoped(PerWorldItems);
+            services.AddSingleton(NoModifiers());
             services.AddSingleton(_abilities);
         });
 
     public async Task DisposeAsync() => await _host.DisposeAsync();
+
+    /// <summary>A world catalog with no modifiers (#1179): these items link none.</summary>
+    private static IItemModifierRepository NoModifiers()
+    {
+        IItemModifierRepository modifiers = Substitute.For<IItemModifierRepository>();
+        modifiers.GetCatalogAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => new ItemModifierCatalog([], [], NullLogger.Instance));
+        return modifiers;
+    }
 
     /// <summary>
     /// The controller is built before it selects a world, so the repository forwards each call to the
@@ -266,6 +278,28 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         string description = LinkPreviewText.Describe(ability.ToPublicDto());
 
         Assert.Contains(expected, description.Split(" · "));
+    }
+
+    /// <summary>
+    /// What every copy of a seeded item rolls within (#1179), read through the world's catalog: a base's implicit (the
+    /// plate chest's armour) and a unique's own lines, each as a range, an "adds X to Y" line with both.
+    /// </summary>
+    [Theory]
+    [InlineData(65UL, new[] { "Unique", "+24-36 Health", "Adds 2 to 3-5 Physical Damage to Attacks", "+3-5% Crit" })]
+    [InlineData(37UL, new[] { "Common", "7-9 Armor" })]
+    public async Task Describe_what_every_copy_of_a_seeded_item_rolls_within(ulong id, string[] expected)
+    {
+        using var sqlite = new SqliteWorlds(Open);
+        using WorldDbContext world = sqlite.CreateWorld(new WorldId(Open));
+        ItemTemplate template = world.ItemTemplates.AsEnumerable().Single(t => t.Id.Value == id);
+        ItemModifierCatalog catalog = await new ItemModifierRepository(
+                new DelegateDbContextFactory<WorldDbContext>(() => sqlite.CreateWorld(new WorldId(Open))),
+                NullLoggerFactory.Instance)
+            .GetCatalogAsync(CancellationToken.None);
+
+        string[] parts = LinkPreviewText.Describe(template.ToPublicDto(catalog.LinkedTo(template.Id))).Split(" · ");
+
+        Assert.All(expected, part => Assert.Contains(part, parts));
     }
 
     [Fact]
@@ -385,7 +419,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         Assert.Equal(
             "Unique · Main Hand · One Handed · 12 – 18 Physical Damage · 3 – 5 Fire Damage · 0.78 sec attack time · " +
             "+10% increased Fire Damage",
-            LinkPreviewText.Describe(weapon.ToPublicDto()));
+            LinkPreviewText.Describe(weapon.ToPublicDto([])));
     }
 
     [Fact]

@@ -5,6 +5,7 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
+using Avalon.World.Reload;
 using Avalon.World.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
@@ -34,6 +35,8 @@ public class InventoryAllocationShould
         new(InventoryType.Bag, 3), new(InventoryType.Bag, 9), new(InventoryType.Bag, 0), new(InventoryType.Bag, 3),
     ];
 
+    private static readonly ItemsPatch s_items = ItemModifierRepositories.Items(Potion, Sword);
+
     private readonly CharacterEntity _character = New();
     private readonly QuietConnection _connection;
 
@@ -49,13 +52,13 @@ public class InventoryAllocationShould
         long goldOnly = Allocated(() =>
         {
             _character.ClientChanges.RecordGold();
-            InventoryUpdateFlusher.Flush(_connection);
+            InventoryUpdateFlusher.Flush(_connection, s_items);
         });
         long slots = Allocated(() =>
         {
             foreach (SlotRef slot in s_slots)
                 _character.ClientChanges.RecordSlot(slot.Container, slot.Slot);
-            InventoryUpdateFlusher.Flush(_connection);
+            InventoryUpdateFlusher.Flush(_connection, s_items);
         });
 
         Assert.Equal(0, goldOnly);
@@ -66,9 +69,9 @@ public class InventoryAllocationShould
     [Fact]
     public void Answer_an_item_request_allocating_only_the_slots_a_refusal_names()
     {
-        long accepted = Allocated(() => ItemRequestReply.Send(_connection, _character, 1, ItemRequestResult.Ok, s_slots));
+        long accepted = Allocated(() => ItemRequestReply.Send(_connection, _character, 1, ItemRequestResult.Ok, s_slots, s_items));
         long refused = Allocated(() =>
-            ItemRequestReply.Send(_connection, _character, 2, ItemRequestResult.TargetFull, s_slots));
+            ItemRequestReply.Send(_connection, _character, 2, ItemRequestResult.TargetFull, s_slots, s_items));
 
         Assert.Equal(0, accepted);
         Assert.Equal(Allocated(() => Entries(3)), refused);
@@ -139,7 +142,7 @@ public class InventoryAllocationShould
                 Container = slot.Container,
                 Slot = slot.Slot,
                 Item = _character.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item)
-                    ? ItemSlotDtoMapper.ToDto(slot.Container, item, _character.ItemModifiers.Of(item.InstanceId))
+                    ? ItemSlotDtoMapper.ToDto(slot.Container, item, _character.ItemModifiers.Of(item.InstanceId), s_items)
                     : null,
             };
         }

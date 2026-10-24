@@ -56,7 +56,7 @@ public class ItemMoveHandler(ILogger<ItemMoveHandler> logger, IWorld world, ICha
             result = ItemRequestResult.NotFound;
         }
 
-        ItemRequestReply.Send(connection, character, packet.RequestId, result, named[..readable]);
+        ItemRequestReply.Send(connection, character, packet.RequestId, result, named[..readable], world.Data.Items);
     }
 
     private ItemRequestResult Move(

@@ -61,6 +61,7 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
     private readonly ICharacterSaver _saver = saver;
     private ICharacterEconomy? _economy;
     private Func<ItemTemplateId, ItemTemplate?> _findTemplate = static _ => null;
+    private Func<ItemModifierCatalog>? _currentCatalog;
     private uint _lastTradeId;
 
     private GameConfiguration Config => options.Value;
@@ -68,11 +69,16 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
     /// <summary>Who is online, shared with the party service and the whisper.</summary>
     public OnlineCharacters Online => online;
 
-    /// <summary>World.LoadAsync calls this once its economy and item templates exist.</summary>
-    public void Attach(ICharacterEconomy economy, Func<ItemTemplateId, ItemTemplate?> findTemplate)
+    /// <summary>
+    /// World.LoadAsync calls this once its economy, item templates and modifier catalog exist. The catalog is read as
+    /// each state is filled, with the template, to name an offered magic copy (#1179).
+    /// </summary>
+    public void Attach(ICharacterEconomy economy, Func<ItemTemplateId, ItemTemplate?> findTemplate,
+        Func<ItemModifierCatalog> currentCatalog)
     {
         _economy = economy;
         _findTemplate = findTemplate;
+        _currentCatalog = currentCatalog;
     }
 
     /// <summary>The trade this character is in, open or completing, or none.</summary>
@@ -572,9 +578,11 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             entry.ItemInstanceId = item.InstanceId.Value;
             entry.Count = item.Count;
             // An offered item stays in its owner's Bag, locked, until the swap, so the store still holds its modifiers.
+            IReadOnlyList<ItemInstanceModifier> modifiers = side.Character.ItemModifiers.Of(item.InstanceId);
             entry.Rarity = item.Rarity;
             entry.ItemLevel = item.ItemLevel;
-            entry.Modifiers = _modifierDtos.Refill(entry.Modifiers, side.Character.ItemModifiers.Of(item.InstanceId));
+            entry.Modifiers = _modifierDtos.Refill(entry.Modifiers, modifiers);
+            entry.Name = NameOf(item, modifiers);
             items.Add(entry);
         }
 
@@ -582,6 +590,18 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
         dto.Confirmed = side.Confirmed;
         dto.Items = items;
     }
+
+    /// <summary>
+    /// An offered copy's name (#1179): its template's and the current catalog's, as an inventory slot names it; null for a
+    /// common or unique copy, and for a template a reload removed.
+    /// </summary>
+    private string? NameOf(InventoryItem item, IReadOnlyList<ItemInstanceModifier> modifiers) =>
+        item.Rarity is ItemRarity.Magic or ItemRarity.Rare && _findTemplate(item.TemplateId) is { } template
+            ? ItemNames.Display(template, item.Rarity, item.RareName, modifiers, CurrentCatalog())
+            : null;
+
+    private ItemModifierCatalog CurrentCatalog() =>
+        _currentCatalog?.Invoke() ?? throw new InvalidOperationException("TradeService.Attach has not been called.");
 
     private static TradeItemDto[] NewItemDtos()
     {

@@ -34,6 +34,7 @@ public class PublicPreviewController(
     PublicSiteSettings site,
     IOptions<PreviewConfiguration> previews,
     IItemTemplateRepository items,
+    IItemModifierRepository modifiers,
     IAbilityTemplateRepository abilities) : ControllerBase
 {
     [HttpGet("item/{id:long}", Name = "GetItemPreview")]
@@ -47,7 +48,8 @@ public class PublicPreviewController(
         ItemTemplate? template = await items.FindByIdAsync(new ItemTemplateId(id), track: false, ct);
         if (template is null) return NotFoundPage();
 
-        PublicItemDto item = template.ToPublicDto();
+        ItemModifierCatalog catalog = await modifiers.GetCatalogAsync(ct);
+        PublicItemDto item = template.ToPublicDto(catalog.LinkedTo(template.Id));
         return Page(open, LinkPreviewPage.Render(item.Name, LinkPreviewText.Describe(item),
             PagePath("item", id, world, chosen), site.Base, previews.Value.ColourOf(item.Rarity), previews.Value.Site));
     }

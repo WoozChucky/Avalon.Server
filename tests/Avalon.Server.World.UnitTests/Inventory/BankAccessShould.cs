@@ -104,7 +104,7 @@ public class BankAccessShould
         BankerWorld w = await BankerWorld.CreateAsync();
         w.Character.Container(InventoryType.Bank).Load([Item(2, Potion, count: 7)]);
 
-        InventorySlotUpdateDto[] snapshot = BankAccess.Snapshot(w.Character);
+        InventorySlotUpdateDto[] snapshot = BankAccess.Snapshot(w.Character, w.Data.Items);
 
         Assert.Equal(30, snapshot.Length);
         Assert.All(snapshot, s => Assert.Equal(InventoryType.Bank, s.Container));

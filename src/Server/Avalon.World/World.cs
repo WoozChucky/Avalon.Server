@@ -553,7 +553,8 @@ public class World : IWorld
         _parties?.AttachInstances(registry);
         // Trades complete through the economy and judge what may be traded by the item templates (#1175). Resolved here,
         // not injected: the economy depends on this World.
-        _trades?.Attach(_serviceProvider.GetRequiredService<ICharacterEconomy>(), Data.FindItemTemplate);
+        _trades?.Attach(_serviceProvider.GetRequiredService<ICharacterEconomy>(), Data.FindItemTemplate,
+            () => Data.ItemModifiers);
     }
 
     public void Update(TimeSpan deltaTime)

@@ -400,6 +400,10 @@ The allocations are exact. A short job's three iterations leave the means wide (
 30-slot rows), so they back no claim beyond the allocations; the `Queried` rows are unchanged in shape (448, 888,
 1,704 and 4,392 B, each the old query's cost plus the larger entries).
 
+Item names (#1179) then added one reference to `ItemSlotDto`, its `Name` (80 B on 64-bit, not 72 B): 8 B more per item
+entry in the rows above, not re-measured. The name stays null for a common or unique copy, and a magic copy's entry
+builds its one name string as it is described; a rare copy's is the string it already holds.
+
 `InventoryAllocationShould` pins both paths in the World suite: a gold-only flush and an accepted reply at 0 B, and
 a flush of changed slots and a refusal at exactly what building their entries costs, measured in the test rather
 than written down. It runs in the collection that runs alone in the assembly, and reads the fewest of three windows:

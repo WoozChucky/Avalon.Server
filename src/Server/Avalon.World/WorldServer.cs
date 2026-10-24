@@ -960,8 +960,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Inventory and gold changed anywhere in this tick, in either pass, leave as one packet per
         // connection with each slot at its final value (spec #459 section 3). Before the ping below,
         // which has to be the last thing enqueued ahead of the flush.
+        // The items generation is read once, so every connection's magic copies are named from the same one (#1179).
+        ItemsPatch items = _world.Data.Items;
         for (int i = 0; i < conns.Length; i++)
-            InventoryUpdateFlusher.Flush(conns[i]);
+            InventoryUpdateFlusher.Flush(conns[i], items);
         stageStart = StageDone(stageStart, s_inventoryStage);
 
         // The character sheet (#506), to its owner only, when a value it shows changed this tick: a gear

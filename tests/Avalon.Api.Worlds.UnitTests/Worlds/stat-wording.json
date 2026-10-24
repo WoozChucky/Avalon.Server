@@ -96,5 +96,33 @@
       "ms": null,
       "text": null
     }
+  ],
+  "spans": [
+    {
+      "type": "Armor",
+      "min": 7,
+      "max": 9,
+      "text": "7-9 Armor"
+    },
+    {
+      "type": "Health",
+      "min": 24,
+      "max": 36,
+      "text": "+24-36 Health"
+    },
+    {
+      "type": "CritPct",
+      "min": 3,
+      "max": 5,
+      "text": "+3-5% Crit"
+    },
+    {
+      "type": "AddedPhysicalDamageToAttacks",
+      "min": 2,
+      "max": 2,
+      "min2": 3,
+      "max2": 5,
+      "text": "Adds 2 to 3-5 Physical Damage to Attacks"
+    }
   ]
 }

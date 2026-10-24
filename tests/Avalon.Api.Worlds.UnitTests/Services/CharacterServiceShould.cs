@@ -4,6 +4,7 @@ using Avalon.Api.Worlds.Services;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Database;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World;
 using Avalon.Database.World.Repositories;
@@ -12,6 +13,7 @@ using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using AbilityTags = Avalon.Network.Packets.Abilities.AbilityTags;
@@ -20,14 +22,45 @@ namespace Avalon.Api.Worlds.UnitTests.Services;
 
 public class CharacterServiceShould
 {
+    /// <summary>The seeded world's modifier catalog (#1179), read as the API reads it.</summary>
+    private static readonly Lazy<ItemModifierCatalog> s_catalog = new(() =>
+    {
+        using var sqlite = new SqliteWorlds(1);
+        return new ItemModifierRepository(
+                new DelegateDbContextFactory<WorldDbContext>(() => sqlite.CreateWorld(new Avalon.Domain.Auth.WorldId(1))),
+                NullLoggerFactory.Instance)
+            .GetCatalogAsync(CancellationToken.None).GetAwaiter().GetResult();
+    });
+
+    private static IItemModifierRepository Modifiers(ItemModifierCatalog catalog)
+    {
+        IItemModifierRepository modifiers = Substitute.For<IItemModifierRepository>();
+        modifiers.GetCatalogAsync(Arg.Any<CancellationToken>()).Returns(catalog);
+        return modifiers;
+    }
+
+    /// <summary>A seeded affix's id, named by its family's code and tier: no test holds an id (#1179).</summary>
+    private static int Seeded(string code, byte tier)
+    {
+        int group = ItemModifierSeed.Groups().Single(g => g.Code == code && g.Element is null).Id;
+        return ItemModifierSeed.Modifiers().Single(m => m.GroupId == group && m.Tier == tier).Id;
+    }
+
+    /// <summary>The seeded implicit's id of a base, named by the base.</summary>
+    private static int ImplicitOf(ulong template) =>
+        ItemModifierSeed.TemplateLinks().Single(link => link.TemplateId.Value == template).ModifierId;
+
     /// <summary>
     /// Instances live in the Character database and templates in the World database, so the
     /// template is looked up by id rather than joined. The copy's own rarity, item level and modifiers come from the
-    /// instance (#1179), in the order the item shows them, whatever order the rows were read in.
+    /// instance (#1179), in the order the item shows them, whatever order the rows were read in, each with its kind
+    /// from the world's catalog; a magic copy is named by its prefix, and its implicit names nothing.
     /// </summary>
     [Fact]
     public async Task Look_up_each_items_template_in_the_world_database()
     {
+        int hale = Seeded("P11", 1);
+        int armour = ImplicitOf(37);
         var id = new CharacterId(42);
         var itemId = new ItemInstanceId(Guid.CreateVersion7());
 
@@ -46,22 +79,22 @@ public class CharacterServiceShould
         {
             new()
             {
-                Id = itemId, TemplateId = new ItemTemplateId(9), CharacterId = id, Count = 4, Durability = 7,
+                Id = itemId, TemplateId = new ItemTemplateId(37), CharacterId = id, Count = 4, Durability = 7,
                 Rarity = Avalon.Common.ItemRarity.Magic, ItemLevel = 7,
                 Modifiers =
                 [
                     new ItemInstanceModifier
                     {
-                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = 204, Ordinal = 1,
-                        Values = [new ItemInstanceModifierValue { Index = 0, Stat = Avalon.Domain.World.StatType.AddedColdDamage, Value = 2, Value2 = 5 }],
+                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = hale, Ordinal = 1,
+                        Values = [new ItemInstanceModifierValue { Index = 0, Stat = Avalon.Domain.World.StatType.Health, Value = 5 }],
                     },
                     new ItemInstanceModifier
                     {
-                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = 10103, Ordinal = 0,
+                        Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = armour, Ordinal = 0,
                         Values =
                         [
-                            new ItemInstanceModifierValue { Index = 1, Stat = Avalon.Domain.World.StatType.Armor, Value = 3 },
-                            new ItemInstanceModifierValue { Index = 0, Stat = Avalon.Domain.World.StatType.Strength, Value = 8 },
+                            new ItemInstanceModifierValue { Index = 1, Stat = Avalon.Domain.World.StatType.AddedColdDamage, Value = 2, Value2 = 5 },
+                            new ItemInstanceModifierValue { Index = 0, Stat = Avalon.Domain.World.StatType.Armor, Value = 8 },
                         ],
                     },
                 ],
@@ -72,12 +105,12 @@ public class CharacterServiceShould
         templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
             .Returns(new List<ItemTemplate>
             {
-                new() { Id = new ItemTemplateId(9), Name = "Lantern", Rarity = Avalon.Common.ItemRarity.Common, DisplayId = 12 },
+                new() { Id = new ItemTemplateId(37), Name = "Ironbound Chestguard", Rarity = Avalon.Common.ItemRarity.Common, DisplayId = 12 },
             });
 
         var service = new CharacterService(characters, slots, items,
             Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
+            Modifiers(s_catalog.Value), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
             Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
@@ -87,14 +120,15 @@ public class CharacterServiceShould
         Assert.Equal(4u, item.Count);
         Assert.Equal(7u, item.Durability);
         Assert.NotNull(item.Template);
-        Assert.Equal(9ul, item.Template!.Id);
-        Assert.Equal("Lantern", item.Template.Name);
+        Assert.Equal(37ul, item.Template!.Id);
+        Assert.Equal("Ironbound Chestguard", item.Template.Name);
         Assert.Equal(12u, item.Template.DisplayId);
         Assert.Equal((Avalon.Api.Contract.ItemRarity.Magic, (ushort)7), (item.Rarity, item.ItemLevel));
+        Assert.Equal("Hale Ironbound Chestguard", item.Name);
         Assert.Equal(
-            "10103 [Strength 8 , Armor 3 ] 204 [AddedColdDamage 2 5]",
+            $"{armour} Implicit [Armor 8 , AddedColdDamage 2 5] {hale} Prefix [Health 5 ]",
             string.Join(' ', item.Modifiers.Select(m =>
-                $"{m.ModifierId} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value} {v.Value2}"))}]")));
+                $"{m.ModifierId} {m.Kind} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value} {v.Value2}"))}]")));
     }
 
     /// <summary>
@@ -131,7 +165,7 @@ public class CharacterServiceShould
 
         var service = new CharacterService(characters, slots, items,
             Substitute.For<ICharacterAbilityRepository>(), Substitute.For<IAbilityTemplateRepository>(), templates,
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
+            Modifiers(s_catalog.Value), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
             Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
 
         CharacterInventoryDto? inventory = await service.GetInventoryAsync(id);
@@ -186,7 +220,8 @@ public class CharacterServiceShould
         ICombatDataRepository combat = Substitute.For<ICombatDataRepository>();
         combat.GetFormulasAsync(Arg.Any<CancellationToken>()).Returns(new List<CombatFormula> { formula });
 
-        return new CharacterService(characters, slots, instances, rows, abilities, templates, statsRepository,
+        return new CharacterService(characters, slots, instances, rows, abilities, templates,
+            Substitute.For<IItemModifierRepository>(), statsRepository,
             Substitute.For<ICharacterQuestRepository>(), Substitute.For<ICharacterAuraRepository>(), combat);
     }
 
@@ -347,7 +382,7 @@ public class CharacterServiceShould
 
         var service = new CharacterService(characters, Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), rows, abilities, Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
+            Substitute.For<IItemModifierRepository>(), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(),
             Substitute.For<ICharacterAuraRepository>(), combat);
 
         CharacterAbilitiesDto? result = await service.GetAbilitiesAsync(id);
@@ -415,7 +450,8 @@ public class CharacterServiceShould
     private static CharacterService StatsService(ICharacterStatsRepository stats) =>
         new(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
-            Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(), stats,
+            Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
+            Substitute.For<IItemModifierRepository>(), stats,
             Substitute.For<ICharacterQuestRepository>(),
             Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
 
@@ -482,7 +518,7 @@ public class CharacterServiceShould
         var service = new CharacterService(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(), auras,
+            Substitute.For<IItemModifierRepository>(), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(), auras,
             Substitute.For<ICombatDataRepository>());
 
         CharacterAurasDto dto = await service.GetAurasAsync(new CharacterId(42));
@@ -505,7 +541,7 @@ public class CharacterServiceShould
         var service = new CharacterService(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(), auras,
+            Substitute.For<IItemModifierRepository>(), Substitute.For<ICharacterStatsRepository>(), Substitute.For<ICharacterQuestRepository>(), auras,
             Substitute.For<ICombatDataRepository>());
 
         CharacterAurasDto dto = await service.GetAurasAsync(new CharacterId(7));
@@ -518,6 +554,6 @@ public class CharacterServiceShould
         new(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
             Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<ICharacterStatsRepository>(), quests, Substitute.For<ICharacterAuraRepository>(),
+            Substitute.For<IItemModifierRepository>(), Substitute.For<ICharacterStatsRepository>(), quests, Substitute.For<ICharacterAuraRepository>(),
             Substitute.For<ICombatDataRepository>());
 }

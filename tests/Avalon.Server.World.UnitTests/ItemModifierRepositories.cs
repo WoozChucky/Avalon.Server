@@ -1,5 +1,6 @@
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -9,6 +10,9 @@ namespace Avalon.Server.World.UnitTests;
 internal static class ItemModifierRepositories
 {
     public static ItemModifierCatalog EmptyCatalog() => new([], [], NullLogger.Instance);
+
+    /// <summary>An items generation of <paramref name="templates" /> over an empty catalog: what a flush names copies by.</summary>
+    public static ItemsPatch Items(params ItemTemplate[] templates) => new(templates, EmptyCatalog());
 
     public static IItemModifierRepository Empty()
     {

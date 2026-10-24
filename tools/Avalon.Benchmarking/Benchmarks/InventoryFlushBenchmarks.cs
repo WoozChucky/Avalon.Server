@@ -2,11 +2,13 @@ using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Serialization;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
+using Avalon.World.Reload;
 using Avalon.World.Testing.Fakes;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,6 +25,9 @@ namespace Avalon.Benchmarking.Benchmarks;
 [MemoryDiagnoser]
 public class InventoryFlushBenchmarks
 {
+    // The items generation the flush names copies by: these common copies have none to name.
+    private static readonly ItemsPatch s_items = new([], new ItemModifierCatalog([], [], NullLogger.Instance));
+
     private CharacterEntity _character = null!;
     private QuietConnection _connection = null!;
 
@@ -64,7 +69,7 @@ public class InventoryFlushBenchmarks
         MarkChanged();
 
         InventoryClientChanges changes = _character.ClientChanges;
-        InventorySlotUpdateDto[] slots = Query(changes, _character, BankAccess.IsOpen(_connection, _character));
+        InventorySlotUpdateDto[] slots = Query(changes, _character, BankAccess.IsOpen(_connection, _character), s_items);
         ulong? gold = changes.GoldChanged ? _character.Data!.Gold : null;
         changes.Clear();
 
@@ -76,7 +81,7 @@ public class InventoryFlushBenchmarks
     public int Flusher()
     {
         MarkChanged();
-        InventoryUpdateFlusher.Flush(_connection);
+        InventoryUpdateFlusher.Flush(_connection, s_items);
         return _connection.Sent;
     }
 
@@ -92,7 +97,7 @@ public class InventoryFlushBenchmarks
     }
 
     private static InventorySlotUpdateDto[] Query(InventoryClientChanges changes, CharacterEntity character,
-        bool bankOpen) =>
+        bool bankOpen, ItemsPatch items) =>
         changes.Slots
             .Where(s => bankOpen || s.Container != InventoryType.Bank)
             .OrderBy(s => s.Container)
@@ -102,7 +107,7 @@ public class InventoryFlushBenchmarks
                 Container = s.Container,
                 Slot = s.Slot,
                 Item = character.Container(s.Container).TryGet(s.Slot, out InventoryItem item)
-                    ? ItemSlotDtoMapper.ToDto(s.Container, item, character.ItemModifiers.Of(item.InstanceId))
+                    ? ItemSlotDtoMapper.ToDto(s.Container, item, character.ItemModifiers.Of(item.InstanceId), items)
                     : null,
             })
             .ToArray();

@@ -27,7 +27,7 @@ public class VendorShopFlowShould : IAsyncLifetime
 
     private SInventoryUpdatePacket Flush()
     {
-        InventoryUpdateFlusher.Flush(_w.Main.Connection);
+        InventoryUpdateFlusher.Flush(_w.Main.Connection, _w.Data.Items);
         return _w.Main.Updates()[^1];
     }
 

@@ -7,6 +7,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
+using Avalon.World.Reload;
 
 namespace Avalon.World.Inventory;
 
@@ -58,7 +59,8 @@ public static class BankAccess
     /// Every Bank slot, as absolute entries (an empty slot has no item), in slot order. Sent once
     /// when the bank opens, the first time Bank slots reach the client.
     /// </summary>
-    public static InventorySlotUpdateDto[] Snapshot(CharacterEntity character)
+    /// <param name="items">The current items generation, which names a magic copy (#1179).</param>
+    public static InventorySlotUpdateDto[] Snapshot(CharacterEntity character, ItemsPatch items)
     {
         CharacterInventoryContainer bank = character.Container(InventoryType.Bank);
         var slots = new InventorySlotUpdateDto[bank.Capacity];
@@ -70,7 +72,7 @@ public static class BankAccess
                 Container = InventoryType.Bank,
                 Slot = slot,
                 Item = bank.TryGet(slot, out InventoryItem item)
-                    ? ItemSlotDtoMapper.ToDto(InventoryType.Bank, item, character.ItemModifiers.Of(item.InstanceId))
+                    ? ItemSlotDtoMapper.ToDto(InventoryType.Bank, item, character.ItemModifiers.Of(item.InstanceId), items)
                     : null,
             };
         }

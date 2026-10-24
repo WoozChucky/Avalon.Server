@@ -67,6 +67,7 @@ variant populated
                 field 1 Stat : ItemStat = MovementSpeed (13)
                 field 2 Value : int = 1000
                 field 3 Value2 : int? = -3
+        field 11 Name : string = "Ωμέγα ΔΕΛΤΑ" (11 chars, 21 bytes utf-8)
     element 1
       field 1 Container : InventoryType = Bank (2)
       field 2 Slot : byte = 42
@@ -103,9 +104,10 @@ variant populated
                 field 1 Stat : ItemStat = MovementSpeed (13)
                 field 2 Value : int = 1000
                 field 3 Value2 : int? = -3
-  bytes 281
-    08 80 d0 ac f3 0e 10 07 1a 87 01 08 01 10 13 1a
-    80 01 08 01 10 13 18 80 d0 ac f3 0e 22 12 09 5b
+        field 11 Name : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
+  bytes 328
+    08 80 d0 ac f3 0e 10 07 1a 9e 01 08 01 10 13 1a
+    97 01 08 01 10 13 18 80 d0 ac f3 0e 22 12 09 5b
     ad 8f 0f cb d9 9f 46 11 a1 65 70 86 77 28 95 0e
     28 2a 30 ac 02 38 ac 02 40 01 48 c0 84 3d 52 27
     08 07 12 11 08 20 10 f0 a2 04 18 f7 ff ff ff ff
@@ -113,15 +115,18 @@ variant populated
     ff ff ff ff ff ff 01 52 29 08 c0 84 3d 12 11 08
     20 10 f0 a2 04 18 f7 ff ff ff ff ff ff ff ff 01
     12 10 08 0d 10 e8 07 18 fd ff ff ff ff ff ff ff
-    ff 01 1a 84 01 08 02 10 2a 1a 7e 08 02 10 2a 18
-    c0 84 3d 22 12 09 04 03 02 01 06 05 08 07 11 09
-    0a 0b 0c 0d 0e 0f 10 28 13 30 2a 38 2a 40 03 48
-    80 d0 ac f3 0e 52 27 08 07 12 11 08 20 10 f0 a2
-    04 18 f7 ff ff ff ff ff ff ff ff 01 12 10 08 0d
-    10 e8 07 18 fd ff ff ff ff ff ff ff ff 01 52 29
-    08 c0 84 3d 12 11 08 20 10 f0 a2 04 18 f7 ff ff
-    ff ff ff ff ff ff 01 12 10 08 0d 10 e8 07 18 fd
-    ff ff ff ff ff ff ff ff 01
+    ff 01 5a 15 ce a9 ce bc ce ad ce b3 ce b1 20 ce
+    94 ce 95 ce 9b ce a4 ce 91 1a 9c 01 08 02 10 2a
+    1a 95 01 08 02 10 2a 18 c0 84 3d 22 12 09 04 03
+    02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28
+    13 30 2a 38 2a 40 03 48 80 d0 ac f3 0e 52 27 08
+    07 12 11 08 20 10 f0 a2 04 18 f7 ff ff ff ff ff
+    ff ff ff 01 12 10 08 0d 10 e8 07 18 fd ff ff ff
+    ff ff ff ff ff 01 52 29 08 c0 84 3d 12 11 08 20
+    10 f0 a2 04 18 f7 ff ff ff ff ff ff ff ff 01 12
+    10 08 0d 10 e8 07 18 fd ff ff ff ff ff ff ff ff
+    01 5a 15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a
+    80 20 61 73 74 72 61 6c
 
 variant maxima
   field 1 RequestId : uint = 4294967295
@@ -186,6 +191,7 @@ variant maxima
                 field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
+        field 11 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
     element 1
       field 1 Container : InventoryType = Bank (2)
       field 2 Slot : byte = 255
@@ -245,6 +251,7 @@ variant maxima
                 field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
+        field 11 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
     element 2
       field 1 Container : InventoryType = Bank (2)
       field 2 Slot : byte = 255
@@ -304,9 +311,10 @@ variant maxima
                 field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
                 field 2 Value : int = 2147483647
                 field 3 Value2 : int? = 2147483647
-  bytes 731
-    08 ff ff ff ff 0f 10 0f 1a ee 01 08 02 10 ff 01
-    1a e6 01 08 02 10 ff 01 18 ff ff ff ff ff ff ff
+        field 11 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 1136
+    08 ff ff ff ff 0f 10 0f 1a f5 02 08 02 10 ff 01
+    1a ed 02 08 02 10 ff 01 18 ff ff ff ff ff ff ff
     ff ff 01 22 12 09 ff ff ff ff ff ff ff ff 11 ff
     ff ff ff ff ff ff ff 28 ff ff ff ff 0f 30 ff ff
     ff ff 0f 38 ff ff ff ff 0f 40 03 48 ff ff ff ff
@@ -320,37 +328,62 @@ variant maxima
     07 52 36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff
     ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff
     ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff
-    ff ff 07 18 ff ff ff ff 07 1a ee 01 08 02 10 ff
-    01 1a e6 01 08 02 10 ff 01 18 ff ff ff ff ff ff
-    ff ff ff 01 22 12 09 ff ff ff ff ff ff ff ff 11
-    ff ff ff ff ff ff ff ff 28 ff ff ff ff 0f 30 ff
-    ff ff ff 0f 38 ff ff ff ff 0f 40 03 48 ff ff ff
-    ff 0f 52 36 08 ff ff ff ff 0f 12 0e 08 34 10 ff
-    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff
-    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff
-    ff ff ff 07 18 ff ff ff ff 07 52 36 08 ff ff ff
-    ff 0f 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff
-    ff 07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff
-    ff 07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff
-    ff 07 52 36 08 ff ff ff ff 0f 12 0e 08 34 10 ff
-    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff
-    ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff
-    ff ff ff 07 18 ff ff ff ff 07 1a ee 01 08 02 10
-    ff 01 1a e6 01 08 02 10 ff 01 18 ff ff ff ff ff
-    ff ff ff ff 01 22 12 09 ff ff ff ff ff ff ff ff
-    11 ff ff ff ff ff ff ff ff 28 ff ff ff ff 0f 30
-    ff ff ff ff 0f 38 ff ff ff ff 0f 40 03 48 ff ff
-    ff ff 0f 52 36 08 ff ff ff ff 0f 12 0e 08 34 10
-    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10
-    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10
-    ff ff ff ff 07 18 ff ff ff ff 07 52 36 08 ff ff
-    ff ff 0f 12 0e 08 34 10 ff ff ff ff 07 18 ff ff
-    ff ff 07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff
-    ff ff 07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff
-    ff ff 07 52 36 08 ff ff ff ff 0f 12 0e 08 34 10
-    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10
-    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10
-    ff ff ff ff 07 18 ff ff ff ff 07
+    ff ff 07 18 ff ff ff ff 07 5a 84 01 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    1a f5 02 08 02 10 ff 01 1a ed 02 08 02 10 ff 01
+    18 ff ff ff ff ff ff ff ff ff 01 22 12 09 ff ff
+    ff ff ff ff ff ff 11 ff ff ff ff ff ff ff ff 28
+    ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff ff ff ff
+    0f 40 03 48 ff ff ff ff 0f 52 36 08 ff ff ff ff
+    0f 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff
+    07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff
+    07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff
+    07 52 36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 52 36 08 ff ff ff ff
+    0f 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff
+    07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff
+    07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff
+    07 5a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 1a f5 02 08 02 10 ff 01
+    1a ed 02 08 02 10 ff 01 18 ff ff ff ff ff ff ff
+    ff ff 01 22 12 09 ff ff ff ff ff ff ff ff 11 ff
+    ff ff ff ff ff ff ff 28 ff ff ff ff 0f 30 ff ff
+    ff ff 0f 38 ff ff ff ff 0f 40 03 48 ff ff ff ff
+    0f 52 36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 52 36 08 ff ff ff ff
+    0f 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff
+    07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff
+    07 12 0e 08 34 10 ff ff ff ff 07 18 ff ff ff ff
+    07 52 36 08 ff ff ff ff 0f 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 12 0e 08 34 10 ff ff
+    ff ff 07 18 ff ff ff ff 07 5a 84 01 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
 
 variant minima
   field 1 RequestId : uint = 0
@@ -377,9 +410,11 @@ variant minima
                 field 1 Stat : ItemStat = Stamina (0)
                 field 2 Value : int = -2147483648
                 field 3 Value2 : int? = -2147483648
-  bytes 30
-    1a 1c 1a 1a 52 18 12 16 10 80 80 80 80 f8 ff ff
-    ff ff 01 18 80 80 80 80 f8 ff ff ff ff 01
+        field 11 Name : string = "\0" (1 chars, 1 bytes utf-8)
+  bytes 33
+    1a 1f 1a 1d 52 18 12 16 10 80 80 80 80 f8 ff ff
+    ff ff 01 18 80 80 80 80 f8 ff ff ff ff 01 5a 01
+    00
 
 variant varint-edges
   field 1 RequestId : uint = 268435455
@@ -421,6 +456,7 @@ variant varint-edges
                 field 1 Stat : ItemStat = <not a declared member> (53)
                 field 2 Value : int = 2097152
                 field 3 Value2 : int? = 16384
+        field 11 Name : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
     element 1
       field 1 Container : InventoryType = <not a declared member> (3)
       field 2 Slot : byte = 127
@@ -457,20 +493,37 @@ variant varint-edges
                 field 1 Stat : ItemStat = <not a declared member> (53)
                 field 2 Value : int = 2097152
                 field 3 Value2 : int? = 16384
-  bytes 245
-    08 ff ff ff 7f 10 10 1a 78 08 03 10 80 01 1a 71
-    08 03 10 80 01 18 80 01 22 12 09 04 03 02 01 06
-    05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28 ff ff ff
-    7f 30 ff ff 7f 38 ff ff ff 7f 40 04 48 ff ff ff
-    7f 52 1d 08 ff 7f 12 0b 08 35 10 ff ff ff 7f 18
-    ff ff 7f 12 0b 08 35 10 80 80 80 01 18 80 80 01
-    52 1f 08 80 80 80 01 12 0b 08 35 10 ff ff ff 7f
-    18 ff ff 7f 12 0b 08 35 10 80 80 80 01 18 80 80
-    01 1a 72 08 03 10 7f 1a 6c 08 03 10 7f 18 ff 7f
-    22 12 09 04 03 02 01 06 05 08 07 11 09 0a 0b 0c
-    0d 0e 0f 10 28 80 01 30 80 80 80 80 01 38 80 01
-    40 04 48 80 01 52 1d 08 ff 7f 12 0b 08 35 10 ff
-    ff ff 7f 18 ff ff 7f 12 0b 08 35 10 80 80 80 01
-    18 80 80 01 52 1f 08 80 80 80 01 12 0b 08 35 10
-    ff ff ff 7f 18 ff ff 7f 12 0b 08 35 10 80 80 80
-    01 18 80 80 01
+        field 11 Name : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
+  bytes 510
+    08 ff ff ff 7f 10 10 1a fa 01 08 03 10 80 01 1a
+    f2 01 08 03 10 80 01 18 80 01 22 12 09 04 03 02
+    01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28 ff
+    ff ff 7f 30 ff ff 7f 38 ff ff ff 7f 40 04 48 ff
+    ff ff 7f 52 1d 08 ff 7f 12 0b 08 35 10 ff ff ff
+    7f 18 ff ff 7f 12 0b 08 35 10 80 80 80 01 18 80
+    80 01 52 1f 08 80 80 80 01 12 0b 08 35 10 ff ff
+    ff 7f 18 ff ff 7f 12 0b 08 35 10 80 80 80 01 18
+    80 80 01 5a 7f 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 1a f7 01 08 03 10 7f 1a f0 01 08 03
+    10 7f 18 ff 7f 22 12 09 04 03 02 01 06 05 08 07
+    11 09 0a 0b 0c 0d 0e 0f 10 28 80 01 30 80 80 80
+    80 01 38 80 01 40 04 48 80 01 52 1d 08 ff 7f 12
+    0b 08 35 10 ff ff ff 7f 18 ff ff 7f 12 0b 08 35
+    10 80 80 80 01 18 80 80 01 52 1f 08 80 80 80 01
+    12 0b 08 35 10 ff ff ff 7f 18 ff ff 7f 12 0b 08
+    35 10 80 80 80 01 18 80 80 01 5a 81 01 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a

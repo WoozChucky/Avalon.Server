@@ -36,9 +36,9 @@ public static class LootDropMapper
     }
 
     /// <summary>
-    /// Every member but the modifiers. A rolled copy sends its own rarity and item level (#1179); an item drop that did
-    /// not roll sends Common and the item level a copy made from its template outright takes, which its pickup makes;
-    /// a gold pile, Common and 0.
+    /// Every member but the modifiers. A rolled copy sends its own rarity, item level and name (#1179); an item drop that
+    /// did not roll sends Common, the item level a copy made from its template outright takes, which its pickup makes,
+    /// and no name; a gold pile, Common and 0.
     /// </summary>
     private static LootDropDto FillDrop(LootDropDto dto, GroundLoot drop, StaticData data)
     {
@@ -55,11 +55,14 @@ public static class LootDropMapper
         {
             dto.Rarity = rolled.Rarity;
             dto.ItemLevel = rolled.ItemLevel;
+            dto.Name = ItemSlotDtoMapper.NameOf(rolled.TemplateId, rolled.Rarity, rolled.RareName, rolled.Modifiers,
+                data.Items);
         }
         else
         {
             dto.Rarity = ItemRarity.Common;
             dto.ItemLevel = drop.ItemTemplateId is { } id ? ItemLevelOf(data.FindItemTemplate(id)) : 0u;
+            dto.Name = null;
         }
 
         return dto;

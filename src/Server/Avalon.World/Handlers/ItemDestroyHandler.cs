@@ -42,7 +42,7 @@ public class ItemDestroyHandler(ILogger<ItemDestroyHandler> logger, IWorld world
 
         // The slot a refusal reports, read where it stands: a request allocates nothing to name it (#883).
         ItemRequestReply.Send(connection, character, packet.RequestId, result,
-            read ? new ReadOnlySpan<SlotRef>(in slot) : default);
+            read ? new ReadOnlySpan<SlotRef>(in slot) : default, world.Data.Items);
     }
 
     private ItemRequestResult Destroy(

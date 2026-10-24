@@ -90,6 +90,10 @@ public sealed class ScenarioWorld : IDisposable
     // from. That world's characters have no Stats, so the flusher returns at its first check and never reads the caps.
     private static readonly CombatPatch s_combat = new(new CombatFormula(), new Dictionary<CharacterClass, ClassStatFactors>());
 
+    // The inventory flusher's items generation, as WorldServer passes it, in a world without reference data: nothing there
+    // changes an inventory, so the flusher never reads it.
+    private static readonly ItemsPatch s_items = new([], new ItemModifierCatalog([], [], NullLogger.Instance));
+
     // How far a walker must have moved between MarkProgress and a check: well above float noise, well below the
     // 20 m it walks in five windows.
     private const float MinimumWalk = 0.5f;
@@ -362,8 +366,9 @@ public sealed class ScenarioWorld : IDisposable
                     throw new InvalidOperationException("A quest flush logged an error during a tick", questError);
             }
 
+            ItemsPatch items = _reference?.Data.Items ?? s_items;
             for (int i = 0; i < _connections.Count; i++)
-                InventoryUpdateFlusher.Flush(_connections[i]);
+                InventoryUpdateFlusher.Flush(_connections[i], items);
             for (int i = 0; i < _connections.Count; i++)
                 CharacterSheetFlusher.Flush(_connections[i], _combat);
             for (int i = 0; i < _connections.Count; i++)
