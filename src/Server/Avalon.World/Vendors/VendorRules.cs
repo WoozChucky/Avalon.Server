@@ -59,6 +59,14 @@ public static class VendorRules
     /// </summary>
     public static bool IsStockable(ItemTemplate item) => (item.Flags & ItemTemplateFlags.QuestItem) == 0;
 
+    /// <summary>
+    /// Whether a stock row of <paramref name="item" /> is sold now: stockable, and Common (#1179). VendorCatalog refuses a
+    /// row of any other rarity, but a /reload items can make a stocked item Unique without a vendor reload, so the row is
+    /// hidden and a buy of it NotFound until /reload vendors drops it. Buyback asks only <see cref="IsStockable" />: a
+    /// unique sold to a vendor may be bought back.
+    /// </summary>
+    public static bool IsSoldNew(ItemTemplate item) => IsStockable(item) && item.Rarity == ItemRarity.Common;
+
     /// <summary>A row with a quest requirement is shown, and sold, only once IQuestProgress says it is met.</summary>
     public static bool IsVisible(VendorStockView row, CharacterEntity character, IQuestProgress quests) =>
         row.Requirement is not { } requirement || quests.IsMet(character, requirement.QuestId, requirement.State);
@@ -97,7 +105,7 @@ public static class VendorRules
         }
 
         if (row is null || !IsVisible(row, character, quests) || findTemplate(row.ItemTemplateId) is not { } item
-            || !IsStockable(item))
+            || !IsSoldNew(item))
         {
             return new BuyDecision(VendorResult.NotFound, null);
         }
@@ -140,7 +148,7 @@ public static class VendorRules
     /// Sell: alive; shop open; a Bag slot; an item there, not offered in a trade (#1175); a sellable
     /// template; not damaged; the count (the whole of an item carrying modifiers, #1179); the gold cap.
     /// Only the Bag is ever named, so nothing is sold from Equipment or the Bank. The sale pays the template's SellPrice
-    /// times <paramref name="sellFactors" />' factor for the copy's own rarity (B-R23, #1179), so a magic, rare or unique
+    /// times <paramref name="sellFactors" />' factor for the copy's own rarity (#1179), so a magic, rare or unique
     /// copy sells for more than a common one of the same template.
     /// </summary>
     public static SellDecision DecideSell(

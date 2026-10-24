@@ -13,8 +13,10 @@ namespace Avalon.World.Items;
 /// A use of gear (item use): the item goes to the slot its type is worn in, through the same InventoryMove rules and
 /// IInventoryService apply as a drag, so the save and client marks are the drag's. An occupied slot swaps its item into
 /// the clicked Bag slot; a ring takes the empty finger, else the first, and a trinket the empty trinket slot, else the
-/// first (<see cref="EquipmentSlots.SlotsFor" />, #1179); a two-hander first moves a worn off-hand item to
-/// the lowest Bag slot free before the use (TargetFull when there is none). A use of a worn item takes it off to the
+/// first (<see cref="EquipmentSlots.SlotsFor" />, #1179), but a UniqueEquipped one takes the slot wearing its copy and
+/// swaps that copy out, so two are never worn (UniqueEquipped is answered only when another slot wears a copy too, which
+/// a reload that made the template UniqueEquipped can leave); a two-hander first moves a worn off-hand item to the lowest
+/// Bag slot free before the use (TargetFull when there is none). A use of a worn item takes it off to the
 /// lowest free Bag slot (<see cref="Unequip" />). Every check runs before anything moves, and <c>beforeApply</c> runs once
 /// they have all passed, just before the first move, so a refused equip or unequip never calls it.
 /// </summary>
@@ -41,16 +43,12 @@ public static class ItemEquip
         IReadOnlyList<byte> slots = EquipmentSlots.SlotsFor(template.Slot);
         CharacterInventoryContainer equipment = character.Container(InventoryType.Equipment);
 
-        // By index: a foreach through the interface boxed an enumerator per equip (#973).
-        byte target = slots[0];
-        for (int i = 0; i < slots.Count; i++)
-        {
-            if (!equipment.TryGet(slots[i], out _))
-            {
-                target = slots[i];
-                break;
-            }
-        }
+        // #1179: a UniqueEquipped item takes the slot that wears its copy, swapping that copy into the Bag, rather than a
+        // free slot beside it, where the two could not both be worn.
+        bool uniqueEquipped = (template.Flags & ItemTemplateFlags.UniqueEquipped) != 0;
+        byte target = uniqueEquipped && WornCopySlot(equipment, template.Id, slots) is { } worn
+            ? worn
+            : FirstFreeOrFirst(equipment, slots);
 
         var from = new SlotRef(InventoryType.Bag, bagSlot);
         var to = new SlotRef(InventoryType.Equipment, target);
@@ -164,6 +162,33 @@ public static class ItemEquip
         }
 
         return Map(worn);
+    }
+
+    /// <summary>
+    /// The first of <paramref name="slots" /> that is empty, else the first. By index: a foreach through the interface
+    /// boxed an enumerator per equip (#973).
+    /// </summary>
+    private static byte FirstFreeOrFirst(CharacterInventoryContainer equipment, IReadOnlyList<byte> slots)
+    {
+        for (int i = 0; i < slots.Count; i++)
+        {
+            if (!equipment.TryGet(slots[i], out _))
+                return slots[i];
+        }
+
+        return slots[0];
+    }
+
+    /// <summary>The first of <paramref name="slots" /> wearing a copy of <paramref name="template" />, or null.</summary>
+    private static byte? WornCopySlot(CharacterInventoryContainer equipment, ItemTemplateId template, IReadOnlyList<byte> slots)
+    {
+        for (int i = 0; i < slots.Count; i++)
+        {
+            if (equipment.TryGet(slots[i], out InventoryItem worn) && worn.TemplateId == template)
+                return slots[i];
+        }
+
+        return null;
     }
 
     /// <summary>

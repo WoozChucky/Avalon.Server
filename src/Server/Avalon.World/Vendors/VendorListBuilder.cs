@@ -30,7 +30,7 @@ public static class VendorListBuilder
         foreach (VendorStockView row in stock.Rows)
         {
             if (!VendorRules.IsVisible(row, character, quests) || FindTemplate(data, row.ItemTemplateId) is not { } item
-                || !VendorRules.IsStockable(item))
+                || !VendorRules.IsSoldNew(item))
             {
                 continue;
             }

@@ -104,11 +104,11 @@ internal static class VendorTestData
         SellPrice = 20,
     };
 
-    /// <summary>The seeded Ironwood Sword (32), a Common base: sells for 30, full durability 42 (#1179).</summary>
-    public static readonly ItemTemplate IronwoodSword = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 32);
+    /// <summary>The seeded Ironwood Sword, a Common base (#1179), named as the seed names it.</summary>
+    public static readonly ItemTemplate IronwoodSword = ItemBaseSeed.Equipment().Single(t => t.Name == "Ironwood Sword");
 
-    /// <summary>The seeded Thornheart Signet (65), a Unique: sells for 200, full durability 69 (#1179).</summary>
-    public static readonly ItemTemplate ThornheartSignet = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 65);
+    /// <summary>The seeded Thornheart Signet, a Unique (#1179), named as the seed names it.</summary>
+    public static readonly ItemTemplate ThornheartSignet = ItemBaseSeed.Equipment().Single(t => t.Name == "Thornheart Signet");
 
     public const uint TonicSequence = 1;
     public const uint BladeSequence = 2;

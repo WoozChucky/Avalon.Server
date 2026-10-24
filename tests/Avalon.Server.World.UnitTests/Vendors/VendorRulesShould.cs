@@ -33,6 +33,9 @@ public class VendorRulesShould
         bool rolled = false, ItemRarity? rarity = null) =>
         new(slot, template, count, durability, locked, rolled, rarity);
 
+    /// <summary>The durability a copy of <paramref name="template" /> is made at, which a sale pays in full for.</summary>
+    private static uint Full(ItemTemplate template) => ItemInstanceDefaults.FullDurability(template);
+
     /// <summary>Keepsakes in Bag slots 0-28: one slot, 29, is free.</summary>
     private static Held[] AllButLastSlot => Enumerable.Range(0, 29).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
 
@@ -264,10 +267,13 @@ public class VendorRulesShould
 
     /// <summary>
     /// Final review M5: a /reload items that flags a stocked item QuestItem stops it being sold at once, as the price
-    /// floor holds after a SellPrice change, without waiting for /reload vendors to drop the row.
+    /// floor holds after a SellPrice change, without waiting for /reload vendors to drop the row; and so does one that
+    /// makes it Unique (#1179: a vendor sells commons only).
     /// </summary>
-    [Fact]
-    public void Answer_NotFound_to_buying_an_item_a_reload_made_a_quest_item()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Answer_NotFound_to_buying_an_item_a_reload_made_a_quest_item_or_unique(bool unique)
     {
         CharacterEntity character = Arrange([], 1000, dead: false);
         var flagged = new ItemTemplate
@@ -277,7 +283,8 @@ public class VendorRulesShould
             Class = Tonic.Class,
             SubClass = Tonic.SubClass,
             MaxStackSize = Tonic.MaxStackSize,
-            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem,
+            Flags = unique ? Tonic.Flags : Tonic.Flags | ItemTemplateFlags.QuestItem,
+            Rarity = unique ? ItemRarity.Unique : ItemRarity.Common,
             BuyPrice = Tonic.BuyPrice,
             SellPrice = Tonic.SellPrice,
         };
@@ -325,13 +332,14 @@ public class VendorRulesShould
         new("Sell a potion at durability 0", [At(Bag(0), Tonic, 1, durability: 0)], 0, null, VendorResult.Ok, Payment: 4),
 
         // #1179: a sale pays the sell price times Game:Items:SellFactor for the copy's rarity (Common 1).
-        new("Sell a common copy at its sell price", [At(Bag(0), IronwoodSword, durability: 42)], 0, null, VendorResult.Ok, Payment: 30),
-        new("Sell a magic copy at twice its sell price", [At(Bag(0), IronwoodSword, durability: 42, rarity: ItemRarity.Magic)], 0, null,
-            VendorResult.Ok, Payment: 60),
-        new("Sell a rare copy at four times its sell price", [At(Bag(0), IronwoodSword, durability: 42, rarity: ItemRarity.Rare)], 0, null,
-            VendorResult.Ok, Payment: 120),
-        new("Sell a unique at six times its sell price", [At(Bag(0), ThornheartSignet, durability: 69)], 0, null, VendorResult.Ok,
-            Payment: 1200),
+        new("Sell a common copy at its sell price", [At(Bag(0), IronwoodSword, durability: Full(IronwoodSword))], 0, null, VendorResult.Ok,
+            Payment: IronwoodSword.SellPrice),
+        new("Sell a magic copy at twice its sell price", [At(Bag(0), IronwoodSword, durability: Full(IronwoodSword), rarity: ItemRarity.Magic)],
+            0, null, VendorResult.Ok, Payment: 2 * IronwoodSword.SellPrice),
+        new("Sell a rare copy at four times its sell price", [At(Bag(0), IronwoodSword, durability: Full(IronwoodSword), rarity: ItemRarity.Rare)],
+            0, null, VendorResult.Ok, Payment: 4 * IronwoodSword.SellPrice),
+        new("Sell a unique at six times its sell price", [At(Bag(0), ThornheartSignet, durability: Full(ThornheartSignet))], 0, null,
+            VendorResult.Ok, Payment: 6 * ThornheartSignet.SellPrice),
 
         // 1. Alive. 2. Shop open.
         new("Answer Dead before anything else", [], 255, 0, VendorResult.Dead, Shop: false, Dead: true),
