@@ -64,20 +64,46 @@ public class CharacterInventoryServiceShould
         Assert.Equal(3, new[] { 1, 2, 3 }.Select(s => At(character, InventoryType.Bag, (byte)s).InstanceId).Distinct().Count());
     }
 
-    [Fact]
-    public void Refuse_an_add_that_does_not_fit_whole_and_change_nothing()
+    /// <summary>
+    /// Two potions with room for one: past a partial stack and no slot free, or, for a potion that rolls a modifier
+    /// (#1179: a copy carrying modifiers is one item in a slot of its own, whatever its template stacks to), one slot free.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Refuse_an_add_that_does_not_fit_whole_and_change_nothing(bool rolls)
     {
         CharacterEntity character = New();
         var bag = Enumerable.Range(0, 29).Select(s => Item((byte)s, Sword)).ToList();
-        bag.Add(Item(29, Potion, count: 19));
+        if (!rolls)
+            bag.Add(Item(29, Potion, count: 19));
         character.Container(InventoryType.Bag).Load(bag);
+        ItemModifierCatalog? linked = rolls ? PotionLinkingAnImplicit() : null;
 
-        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character).CanAdd(Potion.Id, 2));
-        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character).TryAdd(Potion.Id, 2));
+        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character, modifiers: linked).CanAdd(Potion.Id, 2));
+        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character, modifiers: linked).TryAdd(Potion.Id, 2));
 
-        Assert.Equal(19u, At(character, InventoryType.Bag, 29).Count);
+        Assert.Equal(rolls ? 29 : 30, character.Container(InventoryType.Bag).Items.Count());
+        if (!rolls)
+            Assert.Equal(19u, At(character, InventoryType.Bag, 29).Count);
         Assert.False(character.SaveState.HasChanges);
         Assert.False(character.ClientChanges.HasChanges);
+    }
+
+    /// <summary>A catalog with one implicit modifier, which the potion links.</summary>
+    private static ItemModifierCatalog PotionLinkingAnImplicit()
+    {
+        var group = new ItemModifierGroup { Id = 1, Kind = ItemModifierKind.Implicit, Name = Potion.Name };
+        var modifier = new ItemModifier
+        {
+            Id = 1,
+            GroupId = 1,
+            Group = group,
+            RequiredItemLevel = 1,
+            Stats = [new ItemModifierStat { ModifierId = 1, Index = 0, Stat = StatType.Health, Min = 1, Max = 2 }],
+        };
+        return new ItemModifierCatalog([modifier],
+            [new ItemTemplateModifier { TemplateId = Potion.Id, Index = 0, ModifierId = 1 }], NullLogger.Instance);
     }
 
     [Theory]
@@ -288,10 +314,10 @@ public class CharacterInventoryServiceShould
     }
 
     /// <summary>
-    /// Review Focus 1 (#1179, B-R12): however a copy of a base is made (bought, given by an item script, paid as a quest's
+    /// Review Focus 1 (#1179): however a copy of a base is made (bought, given by an item script, paid as a quest's
     /// reward, or handed to a new character), it carries its base's implicits: one modifier per link, in link order,
     /// ordinals from 0, every value within its line's range, and the write that stores the copy writes them. A quest's
-    /// reward is rolled Magic (B-R22), so its affixes follow the implicits; every other copy carries the implicits alone.
+    /// reward is rolled Magic, so its affixes follow the implicits; every other copy carries the implicits alone.
     /// Potion 1, made the same way, carries none.
     /// </summary>
     [Theory]

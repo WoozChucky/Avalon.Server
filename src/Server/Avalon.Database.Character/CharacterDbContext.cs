@@ -152,6 +152,8 @@ public partial class CharacterDbContext : DbContext
         builder.Property(i => i.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
         builder.Property(i => i.ItemLevel).HasColumnType("smallint");
         builder.Property(i => i.RareName).HasMaxLength(32);
+        // As on the item itself: a rare copy, and only a rare one, carries its two words.
+        builder.ToTable(t => t.HasCheckConstraint("CK_TradeRecordItems_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)"));
         builder.HasIndex(i => i.ItemInstanceId);
         // The record's own copy of the item's modifiers (#1179), written with it as one graph.
         builder.HasMany(i => i.Modifiers)

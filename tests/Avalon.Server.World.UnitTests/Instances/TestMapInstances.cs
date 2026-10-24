@@ -7,9 +7,11 @@ using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Combat;
+using Avalon.World.Configuration;
 using Avalon.World.Doodads;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Parties;
 using Avalon.World.Public.Combat;
@@ -22,6 +24,7 @@ using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abilities;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -65,6 +68,10 @@ internal static class TestMapInstances
         return instance;
     }
 
+    /// <summary>A real item roller over a fixed seed and the default odds.</summary>
+    public static IItemRoller SeededItemRoller() =>
+        new ItemRoller(new LootRandom(new Random(1179)), new ItemIdAllocator(), Options.Create(new GameConfiguration()));
+
     /// <summary>
     /// Reports <paramref name="creature" /> killed by <paramref name="killer" />, exactly as the
     /// instance's combat service does once a hit brings the creature to 0 health (#546).
@@ -91,7 +98,10 @@ internal static class TestMapInstances
     /// <param name="doodadVisibility">Who may see and use each doodad; the instance's own, which asks no script, when omitted.</param>
     /// <param name="doodadUses">The doodad use service the instance's doodad casts and respawns answer to; none when omitted.</param>
     /// <param name="ownerCharacterId">The character that owns the instance (a solo instance); none when omitted.</param>
-    /// <param name="itemRoller">Rolls each equipment drop into its copy (#1179); none when omitted, so no drop rolls.</param>
+    /// <param name="itemRoller">
+    /// Rolls each equipment drop into its copy (#1179), with <paramref name="lootRoller" />; a real one over a fixed seed
+    /// when omitted, which leaves a template that is no base as it is.
+    /// </param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
         MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null,
@@ -128,14 +138,12 @@ internal static class TestMapInstances
         if (lootRoller is not null)
         {
             serviceProvider.GetService(typeof(ILootRoller)).Returns(lootRoller);
+            // An instance that drops anything makes its drops through an item roller too (#1179).
+            serviceProvider.GetService(typeof(IItemRoller)).Returns(itemRoller ?? SeededItemRoller());
         }
         if (lootAllocator is not null)
         {
             serviceProvider.GetService(typeof(ILootAllocator)).Returns(lootAllocator);
-        }
-        if (itemRoller is not null)
-        {
-            serviceProvider.GetService(typeof(IItemRoller)).Returns(itemRoller);
         }
         if (auraScripts is not null)
         {

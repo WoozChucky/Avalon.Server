@@ -25,6 +25,11 @@ namespace Avalon.Database.Character.Migrations
                 nullable: true);
 
             migrationBuilder.AddCheckConstraint(
+                name: "CK_TradeRecordItems_RareName",
+                table: "TradeRecordItems",
+                sql: "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
+
+            migrationBuilder.AddCheckConstraint(
                 name: "CK_ItemInstances_RareName",
                 table: "ItemInstances",
                 sql: "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
@@ -33,6 +38,10 @@ namespace Avalon.Database.Character.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_TradeRecordItems_RareName",
+                table: "TradeRecordItems");
+
             migrationBuilder.DropCheckConstraint(
                 name: "CK_ItemInstances_RareName",
                 table: "ItemInstances");

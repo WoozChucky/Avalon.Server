@@ -16,7 +16,7 @@ namespace Avalon.World.Inventory;
 /// in a trade (<see cref="CharacterEntity.Locks" />, #1175) is left alone: adds never fill it, removals by template
 /// never see it, and removing it by id is Locked. While a trade completes, every add but its own
 /// (<see cref="TryAddInstanceAt" />) treats the Bag slots it reserved as taken and counts the copies it is about to add
-/// toward Unique. Every new copy of a template that links modifiers rolls them as it is made (#1179, B-R12), through
+/// toward Unique. Every new copy of a template that links modifiers rolls them as it is made (#1179), through
 /// <paramref name="roller" /> over the catalog <paramref name="currentCatalog" /> answers at that moment.
 /// </summary>
 public sealed class CharacterInventoryService(
@@ -66,7 +66,8 @@ public sealed class CharacterInventoryService(
             if (bag.TryGet(slot, out _) || owner.Locks.IsReserved(slot))
                 continue;
 
-            uint take = Math.Min(maxStack, remaining);
+            // A copy that rolls is one item in its slot (CreateRolled makes count 1), whatever is left to add.
+            uint take = rolls ? 1 : Math.Min(maxStack, remaining);
             if (rolls)
             {
                 CreateRolled(slot, template!, catalog);
@@ -199,18 +200,7 @@ public sealed class CharacterInventoryService(
         InventoryItem item = carried.Item;
         ThrowIfHeld(item);
 
-        CharacterInventoryContainer bag = Bag;
-        byte? lowestFree = null;
-        for (byte free = 0; free < bag.Capacity; free++)
-        {
-            if (owner.Locks.IsFree(bag, free))
-            {
-                lowestFree = free;
-                break;
-            }
-        }
-
-        if (lowestFree is not { } slot)
+        if (LowestFreeBagSlot() is not { } slot)
             return InventoryAddResult.InventoryFull;
 
         // Its own unique guard (#432), not only the caller's: two copies of a unique item must
@@ -256,18 +246,7 @@ public sealed class CharacterInventoryService(
         if (template is null)
             return InventoryAddResult.UnknownTemplate;
 
-        CharacterInventoryContainer bag = Bag;
-        byte? lowestFree = null;
-        for (byte free = 0; free < bag.Capacity; free++)
-        {
-            if (owner.Locks.IsFree(bag, free))
-            {
-                lowestFree = free;
-                break;
-            }
-        }
-
-        if (lowestFree is not { } slot)
+        if (LowestFreeBagSlot() is not { } slot)
             return InventoryAddResult.InventoryFull;
 
         if ((template.Flags & ItemTemplateFlags.Unique) != 0 && OwnedOrIncoming(item.TemplateId) + 1 > 1)
@@ -275,6 +254,19 @@ public sealed class CharacterInventoryService(
 
         PutRolled(slot, item, template);
         return InventoryAddResult.Ok;
+    }
+
+    /// <summary>The lowest empty Bag slot a completing trade has not reserved (#1175), or null when there is none.</summary>
+    private byte? LowestFreeBagSlot()
+    {
+        CharacterInventoryContainer bag = Bag;
+        for (byte slot = 0; slot < bag.Capacity; slot++)
+        {
+            if (owner.Locks.IsFree(bag, slot))
+                return slot;
+        }
+
+        return null;
     }
 
     /// <summary>Adding an instance the character already holds would duplicate it; callers only add one that left.</summary>
@@ -418,7 +410,7 @@ public sealed class CharacterInventoryService(
     private static bool Rolls(ItemTemplateId templateId, ItemModifierCatalog catalog) => catalog.LinkedTo(templateId).Count > 0;
 
     /// <summary>
-    /// One new copy of a template that links modifiers, rolled now (#1179, B-R12): a plain copy at its template's item
+    /// One new copy of a template that links modifiers, rolled now (#1179): a plain copy at its template's item
     /// level, in the slot, with its modifiers in the store and marked, so the save that inserts it writes them.
     /// </summary>
     private void CreateRolled(byte slot, ItemTemplate template, ItemModifierCatalog catalog) =>

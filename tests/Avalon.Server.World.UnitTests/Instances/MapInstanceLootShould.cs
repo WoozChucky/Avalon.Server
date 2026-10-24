@@ -54,7 +54,7 @@ public class MapInstanceLootShould
 
     /// <param name="itemRoller">
     /// Rolls the equipment drops (#1179); with one, the items and the modifier catalog are the seeded ones, which it rolls
-    /// over. Without one, nothing rolls and the items are the loot tests' own.
+    /// over. Without one, a real roller makes the drops of the loot tests' own items, none of which is a base, so none rolls.
     /// </param>
     private async Task<MapInstance> Build(uint? owner = 7, ILootRoller? roller = null, PartyId? ownerParty = null,
         PartyService? parties = null, ICombatRandom? random = null, IItemRoller? itemRoller = null)
@@ -76,10 +76,7 @@ public class MapInstanceLootShould
         serviceProvider.GetService(typeof(ILootAllocator))
             .Returns(new PartyLootAllocator(Options.Create(new GameConfiguration()), new FixedTimeProvider(s_now),
                 random ?? CombatRandom.Steady));
-        if (itemRoller is not null)
-        {
-            serviceProvider.GetService(typeof(IItemRoller)).Returns(itemRoller);
-        }
+        serviceProvider.GetService(typeof(IItemRoller)).Returns(itemRoller ?? TestMapInstances.SeededItemRoller());
 
         if (parties is not null)
         {

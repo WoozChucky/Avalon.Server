@@ -497,7 +497,10 @@ namespace Avalon.Database.Character.Migrations
 
                     b.HasIndex("ItemInstanceId");
 
-                    b.ToTable("TradeRecordItems");
+                    b.ToTable("TradeRecordItems", t =>
+                        {
+                            t.HasCheckConstraint("CK_TradeRecordItems_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemModifier", b =>

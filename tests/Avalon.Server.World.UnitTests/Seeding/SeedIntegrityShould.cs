@@ -41,8 +41,31 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// refuse an unknown creature id. <see cref="Seed_Every_Creature_The_Forest_Spawn_Table_References" />
 /// still pins the template ids the forest's table names.
 /// </remarks>
-public class SeedIntegrityShould
+public class SeedIntegrityShould(SeedIntegrityShould.ModifierTables modifierTables)
+    : IClassFixture<SeedIntegrityShould.ModifierTables>
 {
+    /// <summary>
+    /// The seeded modifier catalog's links, kinds and stat lines (#1179), read once for the class: the base theories check
+    /// a template's implicit against them row by row.
+    /// </summary>
+    public sealed class ModifierTables
+    {
+        public ModifierTables()
+        {
+            using var database = SqliteDatabase.World();
+            using WorldDbContext context = database.CreateDbContext();
+            Links = context.ItemTemplateModifiers.AsNoTracking().ToList();
+            Kinds = context.ItemModifiers.AsNoTracking().Include(m => m.Group).ToDictionary(m => m.Id, m => m.Group.Kind);
+            Stats = context.ItemModifierStats.AsNoTracking().ToList().ToLookup(l => l.ModifierId);
+        }
+
+        public List<ItemTemplateModifier> Links { get; }
+
+        public Dictionary<int, ItemModifierKind> Kinds { get; }
+
+        public ILookup<int, ItemModifierStat> Stats { get; }
+    }
+
     /// <summary>
     /// A creature whose level range reaches past the seeded <c>CreatureBaseStats</c> rows falls back to
     /// the highest one and logs a warning — survivable, but the creature is quietly the wrong strength.
@@ -1177,7 +1200,7 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #1178 (B-R9, table C): each class's basic attack, now paced by its weapon's attack time over Agility's attack speed,
+    /// #1178 (table C): each class's basic attack, now paced by its weapon's attack time over Agility's attack speed,
     /// keeps today's pace (800 ms over the weapon's old haste) through the stats calculator over the seeded rows, with the
     /// balance tool's starter profile (the class's starter weapon and five armour pieces, as they stood before #1179:
     /// <see cref="RetiredGearProfiles" />) or bare-handed.
@@ -1692,7 +1715,7 @@ public class SeedIntegrityShould
 
         Assert.Equal((kind, (ushort?)level, ItemClass.Armor, (uint)id), (piece.BaseKind, piece.RequiredLevel, piece.Class, piece.DisplayId));
         Assert.Empty(StatLinesOf(piece));
-        AssertImplicit(context, id, (stat, (int)value));
+        AssertImplicit(id, (stat, (int)value));
         Assert.Equal(
             (requirement == StatType.Strength ? amount : null, requirement == StatType.Agility ? amount : null,
                 requirement == StatType.Intellect ? amount : null),
@@ -1743,7 +1766,7 @@ public class SeedIntegrityShould
                 ? (StatType.Armor, StatType.BlockPct, ItemSubClass.Shield)
                 : (StatType.Ward, StatType.IncreasedSpellDamage, ItemSubClass.CasterOffHand);
             Assert.Equal((ItemClass.Armor, subClass, (ItemSlotType?)ItemSlotType.OffHand), (item.Class, item.SubClass, item.Slot));
-            AssertImplicit(context, id, (defence, (int)min), (implicitLine, (int)max));
+            AssertImplicit(id, (defence, (int)min), (implicitLine, (int)max));
             Assert.Null(item.DamageMax1);
         }
         else
@@ -2072,7 +2095,7 @@ public class SeedIntegrityShould
             Assert.Equal((AddsDamage(s.Stat), AddsDamage(s.Stat)), (s.Min2 is not null, s.Max2 is not null)));
         Assert.DoesNotContain(modifiers.SelectMany(m => m.Weights), w => w.BaseKind == ItemBaseKind.Trinket);
 
-        // B-R2: a unique links its own unique row and nothing else; a common template links only implicits, and exactly
+        // A unique links its own unique row and nothing else; a common template links only implicits, and exactly
         // the 60 bases with a defence (the 54 armour bases, the shields and the caster off-hands) link one each.
         Assert.All(links, l => Assert.Equal(0, l.Index));
         Assert.All(links, l => Assert.Equal(
@@ -2240,22 +2263,19 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #1179 (B-R9): a base's defence is its one implicit modifier. Its drafted lines (<paramref name="drafted" />, in
+    /// #1179: a base's defence is its one implicit modifier. Its drafted lines (<paramref name="drafted" />, in
     /// order) are ItemModifierSeed's, and each is seeded as that value ±15 %, rounded half away from zero and at least 1.
     /// </summary>
-    private static void AssertImplicit(WorldDbContext context, ulong templateId, params (StatType Stat, int Value)[] drafted)
+    private void AssertImplicit(ulong templateId, params (StatType Stat, int Value)[] drafted)
     {
         static int Spread(int value, int percent) =>
             Math.Max(1, (int)Math.Round(value * (100 + percent) / 100m, MidpointRounding.AwayFromZero));
 
         Assert.Equal(drafted, ItemModifierSeed.Implicits().Where(i => i.TemplateId == templateId).Select(i => (i.Stat, i.Value)));
-        ItemTemplateModifier link = Assert.Single(context.ItemTemplateModifiers.AsNoTracking().ToList(),
-            l => l.TemplateId.Value == templateId);
-        Assert.Equal(ItemModifierKind.Implicit, context.ItemModifiers.AsNoTracking().Include(m => m.Group)
-            .Single(m => m.Id == link.ModifierId).Group.Kind);
+        ItemTemplateModifier link = Assert.Single(modifierTables.Links, l => l.TemplateId.Value == templateId);
+        Assert.Equal(ItemModifierKind.Implicit, modifierTables.Kinds[link.ModifierId]);
         Assert.Equal(
             drafted.Select((line, index) => ((byte)index, line.Stat, Spread(line.Value, -15), Spread(line.Value, 15), (int?)null)),
-            context.ItemModifierStats.AsNoTracking().Where(l => l.ModifierId == link.ModifierId).OrderBy(l => l.Index).ToList()
-                .Select(l => (l.Index, l.Stat, l.Min, l.Max, l.Min2)));
+            modifierTables.Stats[link.ModifierId].OrderBy(l => l.Index).Select(l => (l.Index, l.Stat, l.Min, l.Max, l.Min2)));
     }
 }

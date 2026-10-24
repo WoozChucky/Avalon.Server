@@ -213,22 +213,25 @@ singletons as in every host. Only their context factories differ in the API, whi
   entries on tables 6, 7 and 8, and table 15 "Forest boss gear", which table 8 rolls at 100 %). Its Character database
   migrates through `WidenModifierIds` (`ItemInstanceModifiers.ModifierId` and `TradeRecordItemModifiers.ModifierId`
   from `smallint` to `integer`), then `AddImplicitsToOwnedItems` (every owned copy of the 60 defence-bearing bases gets
-  its implicit row at the drafted value, so none loses defence), then `AddRareName` (`ItemInstances.RareName` with
-  `CK_ItemInstances_RareName`, and `TradeRecordItems.RareName`). Each world applies them at its start, before it
-  serves (`WorldStartup`: its Character database, then its World database); neither set reads the other database, so
-  that order does not matter (the backfill carries the implicits' ids as plain values). The order is: the worlds go
-  first, each migrating at its next start (start any stopped world once, so it migrates too), and then the API release
-  with the change is cut. The released API is broken in between, which the owner accepted: an older API reading a migrated world serves the bases without
-  their defence (the template no longer carries it, and that API cannot read the catalog), and its inventory read
-  knows neither a copy's name nor its modifiers' kinds. An API with the change reading a world that has not migrated
-  fails with Postgres 42P01 or 42703 on the missing catalog tables and column: the public item tooltips and link
-  previews (`IItemModifierRepository`) and a character's inventory (`RareName`, and the catalog). To roll a world back
-  to a build without the change, first run `dotnet ef database update ReplaceItemsWithBases` against its World database
-  and `dotnet ef database update AddItemInstanceModifiers` against its Character database. The World rollback drops
-  the catalog, puts each base's defence lines back on its template and removes the new loot entries and table 15; the
-  Character rollback drops the rare names, deletes every modifier row naming an implicit (their values by cascade) and
-  narrows the modifier ids back. A rolled copy keeps its rarity, item level and affix rows, which part A reads as they
-  are. No world or API does that by itself.
+  its implicit row at the drafted value, so none loses defence; a copy that already has modifier rows, made by a world
+  running this part, is left as it is), then `AddRareName` (`ItemInstances.RareName` with `CK_ItemInstances_RareName`,
+  and `TradeRecordItems.RareName` with `CK_TradeRecordItems_RareName`, the same rule). Each world applies them at its
+  start, before it serves (`WorldStartup`: its Character database, then its World database); neither set reads the
+  other database, so that order does not matter (the backfill carries the implicits' ids as plain values). The order
+  is: the worlds go first, each migrating at its next start (start any stopped world once, so it migrates too), and
+  then the API release with the change is cut. The released API is broken in between, which the owner accepted: an
+  older API reading a migrated world serves the bases without their defence (the template no longer carries it, and
+  that API cannot read the catalog), and its inventory read knows neither a copy's name nor its modifiers' kinds. An
+  API with the change reading a world that has not migrated fails with Postgres 42P01 or 42703 on the missing catalog
+  tables and column: the public item tooltips and link previews (`IItemModifierRepository`, which reads the one
+  template's links and their rows) and a character's inventory (`RareName`, and the rows its items carry). To roll a
+  world back to a build without the change, first run `dotnet ef database update ReplaceItemsWithBases` against its
+  World database and `dotnet ef database update AddItemInstanceModifiers` against its Character database. The World
+  rollback drops the catalog, puts each base's defence lines back on its template and removes the new loot entries and
+  table 15; the Character rollback drops the rare names and their checks, deletes every `ItemInstanceModifiers` row
+  naming an implicit (their values by cascade; a trade record's own copies, `TradeRecordItemModifiers`, keep theirs) and
+  narrows the modifier ids back. A rolled copy keeps its rarity, item level and affix rows, and a unique copy its unique
+  modifier row, which part A reads as stat lines like any other. No world or API does that by itself.
 
 ## How a request reaches its world
 

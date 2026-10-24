@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.Character.Migrations
 {
     [DbContext(typeof(CharacterDbContext))]
-    [Migration("20261024015139_AddRareName")]
+    [Migration("20261024040950_AddRareName")]
     partial class AddRareName
     {
         /// <inheritdoc />
@@ -500,7 +500,10 @@ namespace Avalon.Database.Character.Migrations
 
                     b.HasIndex("ItemInstanceId");
 
-                    b.ToTable("TradeRecordItems");
+                    b.ToTable("TradeRecordItems", t =>
+                        {
+                            t.HasCheckConstraint("CK_TradeRecordItems_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.TradeRecordItemModifier", b =>
