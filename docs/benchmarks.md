@@ -99,6 +99,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScan
 DOTNET_TieredCompilation=0 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CrowdControlBenchmarks*" --inProcess --warmupCount 3 --iterationCount 5 --affinity 1
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SocialEventBenchmarks*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InterestVisibilityBenchmarks*" "*SpatialIndexBenchmarks*" --job short
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemRollerBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
 
 # Not BenchmarkDotNet: the spatial index's candidates against the creatures in view, along generated forests (#982)
 dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 300
@@ -1849,6 +1850,40 @@ seven rounds, two runs each; no BenchmarkDotNet run):
   final wave that allocates less. The value was regenerated with the scenario runner (`dotnet run -c Release
   --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json`), and the
   Release gate then read 13,991 B (+0.06 %, within).
+
+### Item roller — `Benchmarks/ItemRollerBenchmarks.cs` (#1179)
+
+Making one copy of an item with its modifiers (`ItemRoller`, [item modifiers](item-modifiers.md)), which runs once per
+drop, vendor purchase, quest reward or starting item, on the tick in whatever makes the item, never per tick or per
+hit. Both rows make a plate chest at item level 15 over the seeded templates and modifier catalog (the scenario
+reference data): the Ironroot Chestguard (86), the best tier of its line there. `RollPlain` is `IItemRoller.RollPlain`,
+a common copy as a vendor purchase or an item script makes it, with its one implicit (Armor 27-37). `RollRare` is
+`IItemRoller.Roll` with the Normal odds and the rarity draw pinned to Rare: the base tier, the implicit, the affix count,
+each affix's weighted pick among the chest's candidates (on the stack) and its values, and the two-word name. The draws
+come from a fixed sequence restarted before each operation, so every operation makes the same item, and setup fails
+the run unless the rare carries its implicit and six affixes (the most a rare can).
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemRollerBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+Out of process, ten warmups and twenty measured iterations, the process pinned to one core (`--affinity 4`;
+BenchmarkDotNet runs it at high priority), one run: BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.402 /
+runtime 10.0.13, concurrent workstation GC, Release, at `3f0b69062` with this benchmark added, 2026-10-24:
+
+| Operation | Mean / min / median | Allocated |
+|---|---:|---:|
+| `ItemRollerBenchmarks.RollPlain` | 230.1 / 212.0 / 225.3 ns (± 14.4 ns) | 360 B |
+| `ItemRollerBenchmarks.RollRare` | 3,031.9 / 2,802 / 3,014 ns (± 148 ns) | 1,696 B |
+
+Everything allocated belongs to the copy: the `RolledItem` and its id, its modifier list (sized for the most the rarity
+can carry, so it never grows), each modifier row with its value list and value rows, and the rare's name. The roll
+allocates nothing of its own beside them: the affix weights and the groups already taken are on the stack. One part of
+it is not needed: each `ItemInstanceModifier` builds an empty `Values` list from its property initializer before the
+roller assigns its own (32 B per modifier: 32 B of the plain copy's, 224 B of the rare's seven). A rare costs about 13
+times a plain copy: the difference is its six affixes, each a pass over the chest's candidates for the weights still
+eligible, a weighted pick and its values, and the name. At one roll per drop that is about 3 µs per rare equipment
+drop.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 

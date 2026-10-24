@@ -87,6 +87,25 @@ A creature's or a chest's drops roll when they drop, on the tick, in the kill or
 The copy lies on the ground whole, its id, rarity, item level, name and modifiers included, and whoever picks it up gets
 exactly that copy. A quest drop and any item that is not a base or a unique do not roll.
 
+The odds by the dropping creature's rarity are configuration (`Game:Items:Rarity`, [configuration
+reference](configuration-reference.md)), checked at startup:
+
+| Creature | Magic | Rare | Common (the rest) |
+| --- | ---: | ---: | ---: |
+| Normal (and every chest or barrel) | 22 % | 3 % | 75 % |
+| Elite | 32 % | 8 % | 60 % |
+| Rare | 40 % | 15 % | 45 % |
+| Boss | 50 % | 50 % | 0 % |
+
+## Quest rewards and vendors
+
+- **A quest reward** that is a base rolls Magic at turn-in, once the room check has passed: its item level is the
+  quest's level requirement, its tier the best its line reaches there, and the offer shows it as Magic
+  (`QuestRewardItemDto.Rarity`, [quests](quests.md)). Any other reward is a plain copy.
+- **A vendor** sells only Common items (`VendorCatalog` refuses any other row), each a plain copy with its implicits. A
+  sale pays the template's `SellPrice` times the copy's rarity factor (`Game:Items:SellFactor`: Magic 2, Rare 4,
+  Unique 6, Common 1; [vendors](inventory-and-saves.md)).
+
 ## Weights
 
 Every prefix and suffix row weighs **1000, 800, 600, 400 and 200** for tiers 1 to 5 on each base kind its family rolls
@@ -112,7 +131,10 @@ with m the floor of their mean.
 
 - A magic item is named `<prefix name> <base name> <suffix name>`, a missing part dropped. The name is computed whenever
   the item is described, so renaming a family or a base renames every copy.
-- A rare item gets a two-word name when it rolls, kept on the copy.
+- A rare item gets a two-word name when it rolls, kept on the copy (`ItemInstances.RareName`), so editing the word lists
+  never renames an item a player holds. The first word comes from one list, the second from a list that follows the
+  kind: weapons (sword, mace, staff, bow), jewellery (amulet, ring, caster off-hand) or armour (armour pieces and
+  shields); the lists are code (`RareNames`).
 - Common and unique items show the template's name.
 - `ItemNames.Display` (`Avalon.Domain`) gives the name, or null where the template's name is the item's, from a magic
   copy's lowest-ordinal prefix and suffix. It runs when a copy is described, never per tick: `ItemSlotDto` field 11

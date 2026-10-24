@@ -204,6 +204,31 @@ singletons as in every host. Only their context factories differ in the API, whi
   deletes items 66-103; the Character rollback drops the modifier tables and the new columns, and every modifier with
   them. The wiped equipment never comes back (`WipeOwnedEquipment` restores nothing), and an item of a template the
   World rollback deleted stays as a row whose template is gone. No world or API does that by itself.
+  **Migration order, #1179 (part B).** The modifier catalog, implicits and rolling at drop are not additive either (no
+  backward compatibility, owner, 2026-10-23). A world's World database migrates through `AddItemModifierCatalog` (the
+  five catalog tables `ItemModifierGroups`, `ItemModifiers`, `ItemModifierStats`, `ItemModifierWeights` and
+  `ItemTemplateModifiers`, seeded: 109 groups, 283 modifiers and every base's and unique's links, [item
+  modifiers](item-modifiers.md)), then `MoveBaseStatsToImplicits` (each defence-bearing base's stat lines are cleared
+  from its template: its defence is now its implicit modifier), then `SeedUniqueAndBossDrops` (the five uniques' loot
+  entries on tables 6, 7 and 8, and table 15 "Forest boss gear", which table 8 rolls at 100 %). Its Character database
+  migrates through `WidenModifierIds` (`ItemInstanceModifiers.ModifierId` and `TradeRecordItemModifiers.ModifierId`
+  from `smallint` to `integer`), then `AddImplicitsToOwnedItems` (every owned copy of the 60 defence-bearing bases gets
+  its implicit row at the drafted value, so none loses defence), then `AddRareName` (`ItemInstances.RareName` with
+  `CK_ItemInstances_RareName`, and `TradeRecordItems.RareName`). Each world applies them at its start, before it
+  serves (`WorldStartup`: its Character database, then its World database); neither set reads the other database, so
+  that order does not matter (the backfill carries the implicits' ids as plain values). The order is: the worlds go
+  first, each migrating at its next start (start any stopped world once, so it migrates too), and then the API release
+  with the change is cut. The released API is broken in between, which the owner accepted: an older API reading a migrated world serves the bases without
+  their defence (the template no longer carries it, and that API cannot read the catalog), and its inventory read
+  knows neither a copy's name nor its modifiers' kinds. An API with the change reading a world that has not migrated
+  fails with Postgres 42P01 or 42703 on the missing catalog tables and column: the public item tooltips and link
+  previews (`IItemModifierRepository`) and a character's inventory (`RareName`, and the catalog). To roll a world back
+  to a build without the change, first run `dotnet ef database update ReplaceItemsWithBases` against its World database
+  and `dotnet ef database update AddItemInstanceModifiers` against its Character database. The World rollback drops
+  the catalog, puts each base's defence lines back on its template and removes the new loot entries and table 15; the
+  Character rollback drops the rare names, deletes every modifier row naming an implicit (their values by cascade) and
+  narrows the modifier ids back. A rolled copy keeps its rarity, item level and affix rows, which part A reads as they
+  are. No world or API does that by itself.
 
 ## How a request reaches its world
 
