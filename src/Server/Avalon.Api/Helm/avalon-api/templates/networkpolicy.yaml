@@ -45,3 +45,25 @@ spec:
           port: {{ .Values.gameAdmission.port }}
     {{- end }}
 {{- end }}
+
+{{- if and (has "identity" $services) .Values.crashes.enabled .Values.crashes.networkPolicy.enabled }}
+{{- include "avalon-api.validateCrashes" . }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "avalon-api.fullname" . }}-crashes
+  labels:
+    {{- include "avalon-api.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "avalon-api.selectorLabels" . | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - to: {{ toYaml .Values.crashes.networkPolicy.databasePeers | nindent 8 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.crashes.networkPolicy.databasePort }}
+    {{- toYaml .Values.crashes.networkPolicy.otherEgress | nindent 4 }}
+{{- end }}

@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "avalon-crashes.fullname" . }}-cleanup
+spec:
+  schedule: "0 0 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  suspend: {{ .Values.cleanup.suspend }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            {{- include "avalon-crashes.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: cleanup
+        spec:
+          nodeSelector:
+            kubernetes.io/os: linux
+            kubernetes.io/arch: amd64
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- include "avalon-crashes.podSecurity" . | nindent 12 }}
+          containers:
+            - name: cleanup
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              args: ["cleanup"]
+              securityContext:
+                {{- include "avalon-crashes.containerSecurity" . | nindent 16 }}
+              resources:
+                requests: {cpu: 100m, memory: 256Mi, ephemeral-storage: 16Mi}
+                limits: {cpu: "1", memory: 1Gi, ephemeral-storage: 64Mi}
+              env:
+                - name: Database__Crashes__ConnectionString
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.existingSecret | quote }}
+                      key: database-crashes-connection-string
+                - name: DOTNET_EnableDiagnostics
+                  value: "0"

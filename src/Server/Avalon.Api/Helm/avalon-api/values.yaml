@@ -79,6 +79,10 @@ networkPolicy:
 database:
   auth:
     connectionString:
+  crashes:
+    # Identity limited role only: SELECT reports/groups/schema history, triage-column UPDATE.
+    # Prefer existingSecret key database-crashes-connection-string; never the worker owner role.
+    connectionString:
 
 # The worlds this API serves (Database:Worlds, #523), keyed by each world's id in the auth Worlds
 # table: a positive integer, as a string key. Each world has its own world (content) and characters
@@ -366,3 +370,16 @@ gameAdmission:
   tlsExistingSecret: ""
   bindingsExistingSecret: ""
   servers: [] # {serverId: world-dev, worldId: 1, tlsServerName: dev.example.test}
+
+# Identity alone consumes these settings. Disabled by default; no S3 keys belong in this API.
+crashes:
+  enabled: false
+  networkPolicy:
+    # Independent opt-in: feature enable alone must not isolate existing API dependencies.
+    # NetworkPolicies combine by union. Audit every other policy selecting these pods.
+    # On first Egress isolation, explicitly preserve auth/world DB, cache, DNS and providers
+    # in otherEgress (or equivalent externally managed policies). Empty otherEgress is refused.
+    enabled: false
+    databasePeers: []
+    databasePort: 5432
+    otherEgress: []

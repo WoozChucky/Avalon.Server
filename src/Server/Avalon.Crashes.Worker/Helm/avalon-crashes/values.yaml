@@ -1,0 +1,47 @@
+# Production must supply a worker-only Secret. Rotate it with a rollout restart.
+# Keys: database-crashes-connection-string (owner role), crash-storage-access-key,
+# crash-storage-secret-key. No auth, identity, or distribution credentials belong here.
+existingSecret: ""
+replicaCount: 1
+# First deploy paused: validate schema/tools and purge, without discovering or claiming reports.
+paused: false
+# Runtime retention is fixed at 90 days; this assertion cannot extend or shorten it.
+retentionDays: 90
+image:
+  repository: ghcr.io/woozchucky/avalon-server/crashes
+  tag: "" # Defaults to chart appVersion.
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+storage:
+  endpoint: "" # HTTPS Garage endpoint; no embedded credentials.
+  region: garage
+  bucket: crashes
+symbols:
+  originalBucket: symbols
+  convertedBucket: symbols-sym
+  publicEnabled: true
+# Locked native releases require linux/amd64; both workloads enforce that node selector.
+# Limits/security are deliberately fixed in the pod templates for the first single-worker release.
+# Disk emptyDirs: 2Gi scratch + 4Gi symbols. Runtime independently enforces both byte caps.
+# Resources: 100m/256Mi/6Gi requests; 1CPU/1Gi/7Gi limits (includes filesystem overhead).
+cleanup:
+  suspend: false
+networkPolicy:
+  enabled: true
+  # Explicit Kubernetes NetworkPolicy peers; empty lists refuse rendering when enabled.
+  database:
+    peers: []
+    port: 5432
+  garage:
+    peers: []
+    port: 443
+  dnsPeers: []
+  # Approved monitoring peers; include node probe CIDRs if required by the cluster CNI.
+  healthPeers: []
+# OTLP gRPC; privacy filtering is enforced by the worker host. No arbitrary resource attributes.
+otel:
+  endpoint: ""
+  peers: []
+  port: 4317
