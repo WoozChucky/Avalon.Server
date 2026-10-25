@@ -164,7 +164,19 @@ public sealed class AuraSystem
         if (source.Affects is { } affects && AuraRules.FitProblem(affects, template) is { } misfit)
         {
             if (ShouldLogRefusal("misfit", template.Id.Value))
-                _logger.LogWarning("Ability {AbilityId} applies no aura: {Problem}", source.AbilityId?.Value, misfit);
+            {
+                // A source with no ability (#1180: a Resonance effect's) is named by its aura, never as an ability.
+                if (source.AbilityId is { } ability)
+                {
+                    _logger.LogWarning("Ability {AbilityId} applies no aura: {Problem}", ability.Value, misfit);
+                }
+                else
+                {
+                    _logger.LogWarning("Aura {AuraId} '{AuraName}' is not applied: it is {Kind}, which its source cannot place on a {Affects} target",
+                        template.Id.Value, template.Name, template.Kind, affects);
+                }
+            }
+
             return AuraApplyResult.Refused;
         }
 

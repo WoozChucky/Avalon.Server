@@ -45,7 +45,7 @@ public sealed class ResonanceEffect
 
         // The fit the aura system checks at every application: a later /reload auras that changes the aura's kind is
         // refused there, with a log, rather than placing a buff on an enemy or a debuff on the wearer.
-        AbilityAffects affects = row.Target == ResonanceTarget.Wearer ? AbilityAffects.Ally : AbilityAffects.Hostile;
+        AbilityAffects affects = AffectsOf(row.Target);
 
         // A ticking aura's total is rolled from a source (OffenceMath.PeriodicTotal): a synthetic one with no spell base
         // and no tags, so the ticks scale by the wearer's increases of the row's type and of damage over time (or of
@@ -95,4 +95,8 @@ public sealed class ResonanceEffect
 
     /// <summary>What its aura is applied with: whom it fits, its damage type, its source for a ticking aura, never a crit.</summary>
     public AuraSource Source { get; }
+
+    /// <summary>Whom an effect's aura must fit: an ally (the wearer) for a Wearer effect, a hostile unit otherwise.</summary>
+    internal static AbilityAffects AffectsOf(ResonanceTarget target) =>
+        target == ResonanceTarget.Wearer ? AbilityAffects.Ally : AbilityAffects.Hostile;
 }

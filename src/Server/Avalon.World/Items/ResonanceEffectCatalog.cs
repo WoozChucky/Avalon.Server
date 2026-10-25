@@ -1,4 +1,5 @@
 using System.Globalization;
+using Avalon.Combat;
 using Avalon.Domain.World;
 using Avalon.World.Auras;
 using Microsoft.Extensions.Logging;
@@ -22,10 +23,10 @@ public sealed class ResonanceEffectCatalog
         HashSet<(int ThemeId, int Count, ResonanceTrigger Trigger)> keys = [];
         foreach (ItemThemeEffect row in rows.OrderBy(r => r.Id))
         {
-            string? reason = Refusal(row, auras)
-                             ?? (keys.Add((row.ThemeId, row.Count, row.Trigger))
-                                 ? null
-                                 : "a second row for one theme, threshold and trigger");
+            // Any earlier row's key counts, kept or not, as the table's unique index has it: which row runs for a key
+            // never turns on another row's soundness.
+            bool repeat = !keys.Add((row.ThemeId, row.Count, row.Trigger));
+            string? reason = Refusal(row, auras) ?? (repeat ? "a second row for one theme, threshold and trigger" : null);
             if (reason is not null)
             {
                 logger.LogError("Resonance effect {EffectId} is left out: {Reason}", row.Id, reason);
@@ -70,14 +71,16 @@ public sealed class ResonanceEffectCatalog
             return $"an unknown trigger {(int)row.Trigger}";
         if (!Enum.IsDefined(row.Target))
             return $"an unknown target {(int)row.Target}";
+        // An unknown type would throw from the offence maths at every placement, on the tick.
+        if (row.DamageType is { } type && !Enum.IsDefined(type))
+            return $"an unknown damage type {(int)type}";
         if (!auras.TryGet(row.AuraId, out AuraTemplate? aura))
             return "its aura is not loaded";
 
+        // The same fit the aura system checks at application, so the load and every placement agree.
         bool onWearer = row.Target == ResonanceTarget.Wearer;
-        if (onWearer && aura.Kind != AuraKind.Helpful)
-            return "a harmful aura on the wearer";
-        if (!onWearer && aura.Kind != AuraKind.Harmful)
-            return "a helpful aura on an enemy";
+        if (!AuraRules.Fits(aura.Kind, ResonanceEffect.AffectsOf(row.Target)))
+            return onWearer ? "a harmful aura on the wearer" : "a helpful aura on an enemy";
 
         // A hit target is there only for the wearer's own hit, an attacker only for a hit on the wearer; so a Kill row
         // is a Wearer row.

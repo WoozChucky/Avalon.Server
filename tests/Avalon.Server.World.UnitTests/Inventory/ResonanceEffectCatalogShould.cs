@@ -19,6 +19,7 @@ public class ResonanceEffectCatalogShould
 {
     private const int Sound = 1;
     private const int Subject = 2;
+    private const int Later = 3;
     private const uint Missing = 999;
 
     [Theory]
@@ -30,11 +31,13 @@ public class ResonanceEffectCatalogShould
     [InlineData("a hit target on a Kill trigger")]
     [InlineData("a chain on the wearer")]
     [InlineData("a damaging aura without a damage type")]
+    [InlineData("an unknown damage type 9")]
     [InlineData("a damage type on a status")]
     [InlineData("an aura that stuns")]
     [InlineData("a chance of 0")]
     [InlineData("a cooldown of 0")]
     [InlineData("a second row for one theme, threshold and trigger")]
+    [InlineData("a second row after a refused twin")]
     [InlineData("an effect aura reloaded helpful")]
     public void Leave_out_what_breaks_the_effect_rules(string reason)
     {
@@ -59,11 +62,14 @@ public class ResonanceEffectCatalogShould
 
             Assert.Equal(AuraApplyResult.Refused, harness.Auras.Apply(wearer, enemy, effect.Aura, effect.Source));
             Assert.Equal(0, enemy.Auras.Count);
-            Assert.Contains(log.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("is Helpful"));
+            Assert.Contains(log.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("is Helpful")
+                && !e.Message.Contains("Ability"));
             return;
         }
 
         ItemThemeEffect subject = Row(Subject, themeId: 2);
+        List<ItemThemeEffect> rows = [subject, Row(Sound)];
+        List<string> errors = [];
         switch (reason)
         {
             case "its aura is not loaded": subject.AuraId = new AuraId(Missing); break;
@@ -77,18 +83,27 @@ public class ResonanceEffectCatalogShould
                     (ResonanceTarget.Wearer, fortified.Id, null, 1);
                 break;
             case "a damaging aura without a damage type": subject.DamageType = null; break;
+            case "an unknown damage type 9": subject.DamageType = (DamageType)9; break;
             case "a damage type on a status": subject.AuraId = stunned.Id; break;
             case "an aura that stuns": (subject.AuraId, subject.DamageType) = (stunned.Id, null); break;
             case "a chance of 0": subject.ChancePct = 0f; break;
             case "a cooldown of 0": subject.CooldownMs = 0; break;
             case "a second row for one theme, threshold and trigger": subject.ThemeId = 1; break;
+            case "a second row after a refused twin":
+                // The earlier twin is refused for its own reason, and still makes the later, sound row a repeat.
+                subject.AuraId = new AuraId(Missing);
+                rows.Add(Row(Later, themeId: 2));
+                errors.Add($"Resonance effect {Subject} is left out: its aura is not loaded");
+                reason = "a second row for one theme, threshold and trigger";
+                break;
             default: throw new ArgumentOutOfRangeException(nameof(reason), reason, null);
         }
 
-        var catalog = new ResonanceEffectCatalog([subject, Row(Sound)], auras, log);
+        errors.Add($"Resonance effect {(errors.Count == 0 ? Subject : Later)} is left out: {reason}");
+        var catalog = new ResonanceEffectCatalog(rows, auras, log);
 
         Assert.Equal(Sound, Assert.Single(catalog.Effects).Id);
-        Assert.Equal($"Resonance effect {Subject} is left out: {reason}", Assert.Single(log.Errors).Message);
+        Assert.Equal(errors, log.Errors.Select(e => e.Message));
     }
 
     /// <summary>A sound row: Burn on the hit target of a Hit at count 2, typed Fire.</summary>
