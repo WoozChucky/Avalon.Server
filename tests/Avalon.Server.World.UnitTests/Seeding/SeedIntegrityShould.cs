@@ -2130,7 +2130,10 @@ public class SeedIntegrityShould
     /// lines; no weight on an implicit, a unique or a trinket; and the template links: each unique links its own unique
     /// row, each of the 122 bases one implicit row (<see cref="Seed_every_base_with_one_tier_matched_implicit" />), and
     /// nothing else links anything (Part B's per-base implicits, groups 50-109 and rows 224-283, are gone, their ids
-    /// unused). The catalog loads all of it without leaving any out.
+    /// unused). And the eight Resonance themes (#1180: Ember, Rime, Storm, Wild, Iron, Thorn, Gale and Veil, ids 1 to 8),
+    /// one on every prefix and suffix group and none on a unique or implicit group (<see
+    /// cref="Theme_each_affix_family_as_the_design_places_it" /> holds which). The catalog loads all of it without leaving
+    /// any out.
     /// </summary>
     [Fact]
     public async Task Seed_the_catalog_whole()
@@ -2143,6 +2146,11 @@ public class SeedIntegrityShould
         var links = context.ItemTemplateModifiers.AsNoTracking().ToList();
         var templates = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(t => t.Id.Value);
         var groupOf = modifiers.ToDictionary(m => m.Id, m => groups.Single(g => g.Id == m.GroupId));
+        var themes = context.ItemThemes.AsNoTracking().OrderBy(t => t.Id).ToList();
+
+        Assert.Equal(
+            new[] { (1, "Ember"), (2, "Rime"), (3, "Storm"), (4, "Wild"), (5, "Iron"), (6, "Thorn"), (7, "Gale"), (8, "Veil") },
+            themes.Select(t => (t.Id, t.Name)));
 
         int Count(ItemModifierKind kind) => groups.Count(g => g.Kind == kind);
         Assert.Equal((76, 28, 17, 5, 26), (groups.Count, Count(ItemModifierKind.Prefix), Count(ItemModifierKind.Suffix),
@@ -2161,7 +2169,7 @@ public class SeedIntegrityShould
             Assert.Single(rows.Select(m => string.Join(" ", m.Stats.OrderBy(s => s.Index).Select(s => s.Stat))).Distinct());
             if (group.Kind is ItemModifierKind.Unique)
             {
-                Assert.Equal((null, null), (group.Code, group.Element));
+                Assert.Equal((null, null, null), (group.Code, group.Element, group.ThemeId));
                 ItemModifier row = Assert.Single(rows);
                 Assert.Equal(((byte?)null, (ushort)1), (row.Tier, row.RequiredItemLevel));
                 Assert.Empty(row.Weights);
@@ -2172,6 +2180,8 @@ public class SeedIntegrityShould
             bool affix = group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix;
             Assert.Equal(affix, group.Code is not null);
             Assert.Equal(affix && split.Contains(group.Code), group.Element is not null);
+            Assert.True(affix ? themes.Any(t => t.Id == group.ThemeId) : group.ThemeId is null,
+                $"group {group.Id} ({group.Kind}) has theme {group.ThemeId?.ToString() ?? "none"}");
             Assert.Equal(new byte?[] { 7, 8, 9 }, rows.Select(m => m.Tier).Order());
             foreach (ItemModifier row in rows)
             {
@@ -2283,6 +2293,50 @@ public class SeedIntegrityShould
         }
 
         Assert.Equal((prefixes, suffixes), (Codes(ItemModifierKind.Prefix), Codes(ItemModifierKind.Suffix)));
+    }
+
+    /// <summary>
+    /// #1180: the Resonance theme of every affix family as the design places it, one row per theme: the families whose
+    /// groups carry it, each written as its code and, for a family split by element, the element ("P8 Fire"), prefixes
+    /// before suffixes, by code number then element. And each theme rolls in at least four distinct worn slots (the slots
+    /// of the seeded common bases of every kind its groups weigh on, so a ring counts both fingers), so the four a theme's
+    /// first threshold asks for can always be worn.
+    /// </summary>
+    [Theory]
+    [InlineData(1, "Ember", "P2 P8 Fire P9 Fire P10 Fire S5 Fire")]
+    [InlineData(2, "Rime", "P3 P8 Cold P9 Cold P10 Cold S5 Cold")]
+    [InlineData(3, "Storm", "P4 P8 Lightning P9 Lightning P10 Lightning S5 Lightning")]
+    [InlineData(4, "Wild", "P5 P8 Blight P9 Blight P11 P18 P19 S4 S5 Blight S14")]
+    [InlineData(5, "Iron", "P12 P13 S13")]
+    [InlineData(6, "Thorn", "P1 P6 P9 Physical S1 S9 S10")]
+    [InlineData(7, "Gale", "P14 P15 S2 S6 S7 S11")]
+    [InlineData(8, "Veil", "P7 P16 P17 S3 S8 S12")]
+    public void Theme_each_affix_family_as_the_design_places_it(int themeId, string theme, string families)
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        ItemModifierGroup[] themed =
+        [
+            .. context.ItemModifierGroups.AsNoTracking().Where(g => g.ThemeId == themeId).AsEnumerable()
+                .OrderBy(g => g.Kind).ThenBy(g => int.Parse(g.Code![1..])).ThenBy(g => g.Element),
+        ];
+        HashSet<int> groupIds = [.. themed.Select(g => g.Id)];
+        HashSet<ItemBaseKind> kinds =
+        [
+            .. context.ItemModifiers.AsNoTracking().Include(m => m.Weights).AsEnumerable()
+                .Where(m => groupIds.Contains(m.GroupId))
+                .SelectMany(m => m.Weights).Where(w => w.Weight > 0).Select(w => w.BaseKind),
+        ];
+        HashSet<byte> slots =
+        [
+            .. context.ItemTemplates.AsNoTracking().AsEnumerable()
+                .Where(t => t.Rarity == ItemRarity.Common && t.BaseKind is { } kind && kinds.Contains(kind))
+                .SelectMany(t => EquipmentSlots.SlotsFor(t.Slot)),
+        ];
+
+        Assert.Equal((theme, families), (context.ItemThemes.AsNoTracking().Single(t => t.Id == themeId).Name,
+            string.Join(" ", themed.Select(g => g.Element is { } element ? $"{g.Code} {element}" : g.Code))));
+        Assert.True(slots.Count >= 4, $"{theme} rolls in {slots.Count} worn slots: {string.Join(" ", slots.Order())}");
     }
 
     /// <summary>

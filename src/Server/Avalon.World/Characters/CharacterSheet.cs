@@ -13,7 +13,9 @@ namespace Avalon.World.Characters;
 /// (#1178) come from the same refresh, the resistances capped as a hit caps them. WeaponMin and WeaponMax are the range an
 /// Attack rolls, the bare hand's with no weapon. Increased is the offence block's increased points, the only part of it
 /// the sheet shows. Only what is sent is kept, so a change the client is not shown sends nothing. A value type, so the
-/// last one sent can be compared with the current one without allocating.
+/// last one sent can be compared with the current one without allocating. The Resonance counts (#1180) are not kept here:
+/// they are the character's live buffer, which the flusher compares with the counts it last sent, and are written into
+/// the packet by <see cref="ToPacket" />.
 /// </summary>
 public readonly record struct CharacterSheet(
     uint Stamina,
@@ -44,6 +46,11 @@ public readonly record struct CharacterSheet(
     // is built (SCharacterStatsPacket.Create), so the packet never outlives the next sheet. Per thread, for the tests.
 #pragma warning disable IDE1006
     [ThreadStatic] private static float[]? t_increased;
+
+    // #1180: the one list every sheet's Resonance is written into, and the DTOs it is filled from, reused in order. Both
+    // grow only when a sheet carries more themes than any before it on the thread.
+    [ThreadStatic] private static List<ResonanceDto>? t_resonance;
+    [ThreadStatic] private static List<ResonanceDto>? t_resonanceDtos;
 #pragma warning restore IDE1006
 
     /// <summary>
@@ -71,12 +78,26 @@ public readonly record struct CharacterSheet(
 
     /// <summary>
     /// The packet, to be encoded before the next sheet is built: its increased points are the calling thread's one array,
-    /// which the next sheet overwrites.
+    /// and its Resonance the thread's one list of reused DTOs, which the next sheet overwrites. <paramref name="resonance" />
+    /// is the character's counts: each theme above 0 is listed, by slot, as its id and count.
     /// </summary>
-    public SCharacterStatsPacket ToPacket()
+    public SCharacterStatsPacket ToPacket(ResonanceCounts resonance)
     {
         float[] increased = t_increased ??= new float[OffenceStats.Count];
         Increased.CopyTo(increased);
+        List<ResonanceDto> themes = t_resonance ??= [];
+        List<ResonanceDto> dtos = t_resonanceDtos ??= [];
+        themes.Clear();
+        foreach (ThemeCount theme in resonance)
+        {
+            if (themes.Count == dtos.Count)
+                dtos.Add(new ResonanceDto());
+
+            ResonanceDto dto = dtos[themes.Count];
+            dto.ThemeId = (uint)theme.ThemeId;
+            dto.Count = (uint)theme.Count;
+            themes.Add(dto);
+        }
 
         return new SCharacterStatsPacket
         {
@@ -103,6 +124,7 @@ public readonly record struct CharacterSheet(
             CooldownRecoveryPct = CooldownRecoveryPct,
             AttackTimeMs = AttackTimeMs,
             IncreasedPct = increased,
+            Resonance = themes,
         };
     }
 }

@@ -19,6 +19,12 @@ public class ItemModifierGroup
     /// <summary>The element of a family split by element (P8, P9, P10, S5); null otherwise.</summary>
     public DamageType? Element { get; set; }
 
+    /// <summary>
+    /// The Resonance theme (<see cref="ItemTheme" />, #1180) of a prefix or suffix family's group; null for a unique or an
+    /// implicit group. Every affix group has exactly one.
+    /// </summary>
+    public int? ThemeId { get; set; }
+
     /// <summary>The affix name ("Ashen", "of the Thaw"), the unique's name, or the base's name for its implicit group.</summary>
     public string Name { get; set; } = null!;
 }

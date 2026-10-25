@@ -8,10 +8,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Avalon.Server.World.UnitTests.Inventory;
 
 /// <summary>
-/// #1179: what the items area leaves out of the modifier catalog rather than trust. Over a sound catalog (a
-/// prefix that rolls on swords, a common ring base linking its implicit row, a unique ring made on that base linking its
-/// unique row), one breach at a time: the row or the template's links it breaks are left out, and a template whose links
-/// break its rarity is left out whole, with the unique made on it; nothing else is.
+/// #1179, #1180: what the items area leaves out of the modifier catalog rather than trust. Over a sound catalog (a
+/// themed prefix that rolls on swords, a common ring base linking its implicit row, a unique ring made on that base
+/// linking its unique row), one breach at a time: the row or the template's links it breaks are left out, and a template
+/// whose links break its rarity is left out whole, with the unique made on it; nothing else is.
 /// </summary>
 public class ItemModifierCatalogShould
 {
@@ -29,6 +29,9 @@ public class ItemModifierCatalogShould
     [InlineData("a unique row with a tier", Unique, 0ul, 0ul)]
     [InlineData("a weight on a unique", Unique, 0ul, 0ul)]
     [InlineData("a weight on an implicit", Implicit, CommonTemplate, CommonTemplate)]
+    [InlineData("a prefix group without a theme", Prefix, 0ul, 0ul)]
+    [InlineData("a theme on an implicit group", Implicit, CommonTemplate, CommonTemplate)]
+    [InlineData("a theme on a unique group", Unique, 0ul, 0ul)]
     [InlineData("a link to a prefix", 0, CommonTemplate, CommonTemplate)]
     [InlineData("a link to a missing modifier", 0, CommonTemplate, CommonTemplate)]
     [InlineData("a unique linked beside another modifier", 0, UniqueTemplate, 0ul)]
@@ -63,6 +66,15 @@ public class ItemModifierCatalogShould
                 break;
             case "a weight on an implicit":
                 @implicit.Weights.Add(new ItemModifierWeight { ModifierId = Implicit, BaseKind = ItemBaseKind.Ring, Weight = 1 });
+                break;
+            case "a prefix group without a theme":
+                prefix.Group.ThemeId = null;
+                break;
+            case "a theme on an implicit group":
+                @implicit.Group.ThemeId = 1;
+                break;
+            case "a theme on a unique group":
+                unique.Group.ThemeId = 1;
                 break;
             case "a link to a prefix":
                 links[CommonTemplate] = [Implicit, Prefix];
@@ -205,7 +217,14 @@ public class ItemModifierCatalogShould
     {
         Id = id,
         GroupId = id,
-        Group = new ItemModifierGroup { Id = id, Kind = kind, Code = kind <= ItemModifierKind.Suffix ? "P1" : null, Name = kind.ToString() },
+        Group = new ItemModifierGroup
+        {
+            Id = id,
+            Kind = kind,
+            Code = kind <= ItemModifierKind.Suffix ? "P1" : null,
+            ThemeId = kind <= ItemModifierKind.Suffix ? 1 : null,
+            Name = kind.ToString(),
+        },
         Tier = tier,
         RequiredItemLevel = 1,
         Stats = [new ItemModifierStat { ModifierId = id, Index = 0, Stat = StatType.Health, Min = 1, Max = 2 }],

@@ -1,5 +1,6 @@
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -10,6 +11,17 @@ namespace Avalon.Server.World.UnitTests;
 internal static class ItemModifierRepositories
 {
     public static ItemModifierCatalog EmptyCatalog() => new([], [], NullLogger.Instance);
+
+    /// <summary>
+    /// The seeded catalog's Resonance table (#1180), as the world reads it from the World database. Read on every call, so
+    /// a failed read fails only its own caller.
+    /// </summary>
+    public static async Task<ResonanceTable> SeededResonance()
+    {
+        using var database = SqliteDatabase.World();
+        return (await new ItemModifierRepository(database, NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None))
+            .Resonance;
+    }
 
     /// <summary>An items generation of <paramref name="templates" /> over an empty catalog: what a flush names copies by.</summary>
     public static ItemsPatch Items(params ItemTemplate[] templates) => new(templates, EmptyCatalog());

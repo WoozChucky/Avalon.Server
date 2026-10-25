@@ -145,7 +145,8 @@ public class CombatResolutionShould
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);
         if (weapon is not null)
             Wield(warrior.Character, weapon);
-        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, s_rows, TestCombat.Factors, Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, s_rows, TestCombat.Factors, Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
         warrior.Character.Spells.Load(abilities.Select(AbilityTestData.Game).ToArray());
         return warrior;
     }
@@ -310,7 +311,8 @@ public class CombatResolutionShould
         MapInstanceClient caster = Join(instance, wizard);
         wizard.PowerType = PowerType.Mana;
         Wield(wizard, s_staff);
-        Assert.True(CharacterStatsRefresh.Apply(wizard, s_rows, TestCombat.Factors, Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(wizard, s_rows, TestCombat.Factors, Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
         wizard.Spells.Load([AbilityTestData.Game(SparkCone())]);
         Creature target = AddCreature(instance, 506_921, new Vector3(0f, 0f, 2f));
 
@@ -329,7 +331,8 @@ public class CombatResolutionShould
         using MapInstance instance = TestMapInstances.Build(NewWorld(), random: rng);
         MapInstanceClient warrior = Join(instance, New(506_131));
         warrior.Character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Chest, s_plate)]);
-        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, s_rows, TestCombat.Factors, Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, s_rows, TestCombat.Factors, Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
         Creature boar = AddCreature(instance, 506_931, new Vector3(1f, 0f, 0f), level: 3);
         uint before = warrior.Character.CurrentHealth;
 
@@ -402,7 +405,8 @@ public class CombatResolutionShould
             CurrentValues.Refill, TestCombat.Formula);
         MapInstanceClient ally = Join(instance, New(506_166));
         ally.Character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Chest, s_plate)]);
-        Assert.True(CharacterStatsRefresh.Apply(ally.Character, s_rows, TestCombat.Factors, Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(ally.Character, s_rows, TestCombat.Factors, Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
         ally.Character.CurrentHealth = 10;
         AbilityTemplate mending = AbilityTestData.HealCircle(232);
         mending.SpellBaseMin = 10;
@@ -461,7 +465,8 @@ public class CombatResolutionShould
         MapInstanceClient warrior = Join(instance, New(506_171));
         warrior.Character.PowerType = PowerType.Fury;
         warrior.Character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Chest, s_plate)]);
-        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, s_rows, TestCombat.Factors, Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, s_rows, TestCombat.Factors, Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
         warrior.Character.CurrentPower = 0;
         Creature boar = AddCreature(instance, 506_971, new Vector3(1f, 0f, 0f), level: 1);
         uint before = warrior.Character.CurrentHealth;
@@ -515,7 +520,8 @@ public class CombatResolutionShould
         Assert.Equal(1000u - 28u, target.CurrentHealth);   // floor(5 x 3.15 x 1.805)
 
         Wield(warrior.Character, s_bigSword);
-        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, s_rows, TestCombat.Factors, Find, CurrentValues.KeepShare, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, s_rows, TestCombat.Factors, Find,
+            ResonanceTable.Empty, CurrentValues.KeepShare, TestCombat.Formula));
         instance.CombatService.ApplyDamage(warrior.Character, target, cleave);
 
         Assert.Equal(1000u - 28u - 113u, target.CurrentHealth);   // floor(20 x 3.15 x 1.805)
@@ -535,7 +541,8 @@ public class CombatResolutionShould
         Assert.Equal(1000u - 8u, target.CurrentHealth);   // the bare hand's 3: 17.06 x (1 - 60 / 120)
 
         warrior.Character.Level = 2;
-        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, s_rows, TestCombat.Factors, Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, s_rows, TestCombat.Factors, Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
         instance.CombatService.ApplyDamage(warrior.Character, target, cleave);
 
         // Strength 25 now (87.5 %), and armour weighs less against level 2: 3 x 3.15 x 1.875 x (1 - 60 / 130) = 9.5

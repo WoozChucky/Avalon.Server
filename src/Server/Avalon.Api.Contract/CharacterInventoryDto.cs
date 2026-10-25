@@ -53,6 +53,11 @@ public sealed class CharacterInventoryModifierDto
     public List<CharacterInventoryModifierValueDto> Values { get; set; } = [];
     /// <summary>What the catalog modifier is, from the world's catalog; null when the catalog no longer holds it.</summary>
     public ItemModifierKind? Kind { get; set; }
+    /// <summary>
+    /// The Resonance theme of a prefix or suffix line, from the world's catalog (#1180); null on an implicit or unique line
+    /// and when the catalog no longer holds the modifier.
+    /// </summary>
+    public int? ThemeId { get; set; }
 }
 
 /// <summary>One rolled number of an item's modifier: the stat it gives and how much (#1179).</summary>

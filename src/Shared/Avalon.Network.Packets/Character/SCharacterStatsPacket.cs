@@ -10,7 +10,7 @@ namespace Avalon.Network.Packets.Character;
 /// again whenever a value changes (a gear change, a level-up, a combat reload that moves a cap), at most once per tick,
 /// always whole. The chances and speeds are effective: already clamped to the combat formula's caps, so they are what a
 /// hit rolls against and a cast waits by. The speeds and movement speed are fixed at each stats refresh, so a reload moves
-/// them at the character's next refresh.
+/// them at the character's next refresh. It also carries the Resonance counts of the worn items (#1180).
 /// </summary>
 [ProtoContract]
 public class SCharacterStatsPacket : Packet
@@ -102,6 +102,13 @@ public class SCharacterStatsPacket : Packet
     /// schema would re-encode differently.
     /// </summary>
     [ProtoMember(27)] public float[] IncreasedPct { get; set; }
+
+    /// <summary>
+    /// Each Resonance theme (#1180) at least one worn item carries, with how many do: only themes above 0, null or empty
+    /// when there is none. Counted by the server at each stats refresh from the worn items' prefixes and suffixes, so a
+    /// client never counts its own. The sheet is resent when only these move.
+    /// </summary>
+    [ProtoMember(28)] public List<ResonanceDto>? Resonance { get; set; }
 
     public static OutboundPacket Create(SCharacterStatsPacket sheet, PacketEncoder encoder)
         => encoder.Encode(sheet, PacketType, Flags, Protocol);

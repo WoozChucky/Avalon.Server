@@ -31,4 +31,9 @@ public sealed class CharacterStatsDto
     public float LightningResistance { get; set; }
     /// <summary>Blight resistance, in percent, before the cap a hit applies.</summary>
     public float BlightResistance { get; set; }
+    /// <summary>
+    /// Each Resonance theme the worn items carry, with how many carry it, by theme (#1180); a theme no worn item carries is
+    /// not listed. Counted from the saved inventory as the world counts it, not saved itself.
+    /// </summary>
+    public List<CharacterResonanceDto> Resonance { get; set; } = [];
 }

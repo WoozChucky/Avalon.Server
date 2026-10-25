@@ -23,16 +23,21 @@ public static class CharacterStatsCalculator
     /// and attack time (the bare hand's with none) with its own local lines and Offence the offence block (#1178), each
     /// attribute with gear. <paramref name="auras" />, when given, is folded in after gear: the result is what the
     /// character has now. The offence block takes them through CharacterOffence alone, so they count once there.
-    /// <paramref name="worn" /> is read by index, so a refresh allocates nothing here.
+    /// <paramref name="worn" /> is read by index, so a refresh allocates nothing here. Pure but for
+    /// <paramref name="resonance" />: when given, bound by the caller to its catalog's table, it is cleared and filled with
+    /// each Resonance theme's count across the worn items (#1180, <see cref="ResonanceCounts.AddItem" />) in the same walk;
+    /// null counts nothing.
     /// </summary>
     public static DerivedCharacterStats Calculate(ClassLevelStat row, IReadOnlyList<WornItem> worn,
-        ClassStatFactors factors, CombatFormula formula, AuraStatTotals? auras = null)
+        ClassStatFactors factors, CombatFormula formula, AuraStatTotals? auras = null, ResonanceCounts? resonance = null)
     {
-        // One walk of every worn item's lines feeds both the gear totals and the offence block's line sums (#1179).
+        // One walk of every worn item's lines feeds the gear totals, the offence block's line sums (#1179) and the
+        // Resonance counts (#1180).
         OffenceStats offenceLines = default;
         DamageRanges addedToAttacks = default;
         DamageRanges addedToSpells = default;
-        var gear = GearTotals.Of(worn, ref offenceLines, ref addedToAttacks, ref addedToSpells);
+        resonance?.Clear();
+        var gear = GearTotals.Of(worn, ref offenceLines, ref addedToAttacks, ref addedToSpells, resonance);
 
         long stamina = row.Stamina + gear.Stamina;
         long strength = row.Strength + gear.Strength;
@@ -77,6 +82,19 @@ public static class CharacterStatsCalculator
             AddedToSpells: addedToSpells);
 
         return auras is null ? derived : AuraStats.Fold(derived, auras);
+    }
+
+    /// <summary>
+    /// Each Resonance theme's count across <paramref name="worn" /> into <paramref name="into" /> (#1180), which the caller
+    /// has bound to its catalog's table: cleared, then the same per-item step <see cref="Calculate" />'s walk takes
+    /// (<see cref="ResonanceCounts.AddItem" />). For a reader with no class row to calculate with, the API's sheet; the
+    /// worn list is the caller's, holding only items in a slot that accepts them.
+    /// </summary>
+    public static void CountResonance(IReadOnlyList<WornItem> worn, ResonanceCounts into)
+    {
+        into.Clear();
+        for (int i = 0; i < worn.Count; i++)
+            into.AddItem(worn[i].Modifiers);
     }
 
     /// <summary>
@@ -130,15 +148,17 @@ public static class CharacterStatsCalculator
         /// Every line of every worn item, read by index and through <see cref="ItemLines" />, and its copy's base stats, read
         /// in place: nothing is allocated. Each item's base defence and defence lines are summed apart and scaled by its own
         /// local increased defence before they join the total; its base block chance joins block as it is; every other line
-        /// also goes to the offence block's sums (<see cref="CharacterOffence.Add" />), so the walk is the only one.
+        /// also goes to the offence block's sums (<see cref="CharacterOffence.Add" />), and each item's modifiers to the
+        /// Resonance counts when there are any (<see cref="ResonanceCounts.AddItem" />), so the walk is the only one.
         /// </summary>
         public static GearTotals Of(IReadOnlyList<WornItem> worn, ref OffenceStats offence, ref DamageRanges toAttacks,
-            ref DamageRanges toSpells)
+            ref DamageRanges toSpells, ResonanceCounts? resonance)
         {
             GearTotals totals = default;
             for (int i = 0; i < worn.Count; i++)
             {
                 WornItem item = worn[i];
+                resonance?.AddItem(item.Modifiers);
                 var defence = ItemDefence.Of(item.BaseStats);
                 totals.BlockPct += item.BaseStats.BlockChance.GetValueOrDefault();
                 foreach (ItemLine line in ItemLines.Of(item))

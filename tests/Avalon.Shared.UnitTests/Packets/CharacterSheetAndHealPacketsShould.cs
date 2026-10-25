@@ -54,6 +54,7 @@ public class CharacterSheetAndHealPacketsShould
             CooldownRecoveryPct = 10f,
             AttackTimeMs = 792,
             IncreasedPct = [0f, 0f, 12f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 101.5f],
+            Resonance = [new() { ThemeId = 1, Count = 2 }, new() { ThemeId = 6, Count = 1 }],
         };
 
         OutboundPacket packet = SCharacterStatsPacket.Create(sheet, PacketEncoder.Shared);
@@ -72,6 +73,8 @@ public class CharacterSheetAndHealPacketsShould
         Assert.Equal((1.75f, 2f, 5f, 10f, 792u),
             (read.CritMultiplier, read.AttackSpeedPct, read.CastSpeedPct, read.CooldownRecoveryPct, read.AttackTimeMs));
         Assert.Equal(sheet.IncreasedPct, read.IncreasedPct);
+        // #1180: each Resonance theme's id and count, on 28, in the order sent.
+        Assert.Equal([(1u, 2u), (6u, 1u)], read.Resonance!.Select(r => (r.ThemeId, r.Count)));
     }
 
     [Theory]
@@ -98,6 +101,11 @@ public class CharacterSheetAndHealPacketsShould
         using var offence = new MemoryStream();
         Serializer.Serialize(offence, new SCharacterStatsPacket { AttackTimeMs = 792, IncreasedPct = [1f, 0f] });
         Assert.Equal("D0019806DD010000803FDD0100000000", Convert.ToHexString(offence.ToArray()));
+
+        // #1180: field 28 length-delimited (a two-byte tag), holding field 1 varint 1 (the theme) and field 2 varint 3.
+        using var resonance = new MemoryStream();
+        Serializer.Serialize(resonance, new SCharacterStatsPacket { Resonance = [new() { ThemeId = 1, Count = 3 }] });
+        Assert.Equal("E2010408011003", Convert.ToHexString(resonance.ToArray()));
 
         using var heal = new MemoryStream();
         Serializer.Serialize(heal, new SUnitHealedPacket { AbilityId = 232, Result = HitResult.Crit });

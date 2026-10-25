@@ -13,7 +13,8 @@ public readonly record struct ItemModifierCandidate(ItemModifier Modifier, int W
 /// builds a new one. A row it cannot trust is logged and left out:
 /// <list type="bullet">
 /// <item>a modifier with no group or no stat line, a prefix, suffix or implicit row without a tier, a unique row with
-/// one, or a unique or implicit modifier that carries a weight;</item>
+/// one, a unique or implicit modifier that carries a weight, or a row whose group breaks the Resonance rule (#1180: a
+/// prefix or suffix group carries exactly one theme, a unique or implicit group none);</item>
 /// <item>a template's links when one names a modifier left out or a prefix or suffix, or when they mix a unique
 /// modifier with any other link (a unique template links its one Unique modifier, a common base its one Implicit). The
 /// template is then left with no links at all, never with part of them.</item>
@@ -43,6 +44,8 @@ public sealed class ItemModifierCatalog
 
             _modifiers[modifier.Id] = modifier;
         }
+
+        Resonance = new ResonanceTable(_modifiers.Values);
 
         _links = [];
         foreach (IGrouping<ulong, ItemTemplateModifier> template in links
@@ -77,15 +80,22 @@ public sealed class ItemModifierCatalog
     {
         _modifiers = from._modifiers;
         _candidates = from._candidates;
+        Resonance = from.Resonance;
         _links = links;
     }
 
     /// <summary>
-    /// This catalog without the links of <paramref name="templates" />: the same modifiers and candidates, shared, and
-    /// every other template's links. What the items area keeps when a template's links break its rarity.
+    /// This catalog without the links of <paramref name="templates" />: the same modifiers, candidates and Resonance table,
+    /// shared, and every other template's links. What the items area keeps when a template's links break its rarity.
     /// </summary>
     public ItemModifierCatalog WithoutLinksOf(IReadOnlySet<ulong> templates) =>
         new(this, _links.Where(pair => !templates.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value));
+
+    /// <summary>
+    /// The Resonance themes of the accepted prefix and suffix rows (#1180), built with the catalog: each theme's slot and
+    /// each affix modifier's. A reload builds a new catalog and with it a new table.
+    /// </summary>
+    public ResonanceTable Resonance { get; }
 
     /// <summary>How many modifiers the catalog accepted.</summary>
     public int Count => _modifiers.Count;
@@ -149,6 +159,14 @@ public sealed class ItemModifierCatalog
 
         if (modifier.Group.Kind is ItemModifierKind.Unique or ItemModifierKind.Implicit && modifier.Weights.Count > 0)
             return $"a {modifier.Group.Kind} modifier carries a weight, but it only ever rolls through a template link";
+
+        bool affix = modifier.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix;
+        if (affix != modifier.Group.ThemeId is not null)
+        {
+            return affix
+                ? $"a {modifier.Group.Kind} group has no theme"
+                : $"a {modifier.Group.Kind} group has a theme, which only prefixes and suffixes carry";
+        }
 
         return null;
     }

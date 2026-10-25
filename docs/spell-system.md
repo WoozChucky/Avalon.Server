@@ -406,8 +406,8 @@ It never homes and has no target.
   (#506): the attributes, armour, crit and block chances clamped to the formula's caps, the weapon's range
   (the bare hand's with none), and since #1178 the evasion rating, the chance it gives against an attacker of the
   character's own level, the maximum ward, the four effective resistances (capped as a hit caps them), the crit
-  multiplier, the three effective speeds, the weapon's attack time and the offence block's increased points (see
-  [inventory and saves](inventory-and-saves.md)).
+  multiplier, the three effective speeds, the weapon's attack time and the offence block's increased points, and since
+  #1180 each Resonance theme's count of worn items (see [inventory and saves](inventory-and-saves.md)).
 
 ---
 
