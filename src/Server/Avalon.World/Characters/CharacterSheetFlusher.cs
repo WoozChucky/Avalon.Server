@@ -9,7 +9,8 @@ namespace Avalon.World.Characters;
 /// <summary>
 /// Sends a character's own client its sheet (#506) when it differs from the one last sent. Called by
 /// WorldServer once per tick per connection, after both tick passes, so a tick that changed the stats
-/// several times (a gear swap and a level-up) or moved a cap (a combat reload) sends one sheet, whole.
+/// several times (a gear swap and a level-up) or moved a cap (a combat reload) sends one sheet, whole. A refresh that moves
+/// only the Resonance counts (#1180) sends one too: they are compared with the counts the last sheet carried.
 /// </summary>
 public static class CharacterSheetFlusher
 {
@@ -41,10 +42,11 @@ public static class CharacterSheetFlusher
         character.SheetInputs = (character.StatsVersion, character.Level, combat, movementSpeed);
         var sheet = CharacterSheet.From(character.Stats.GetValueOrDefault(), character.Level, combat.Formula,
             character.Pace, movementSpeed);
-        if (character.SheetSent == sheet)
+        if (character.SheetSent == sheet && character.ResonanceSent.SameAs(character.Resonance))
             return;
 
         character.SheetSent = sheet;
-        connection.Send(SCharacterStatsPacket.Create(sheet.ToPacket(), PacketEncoder.Shared));
+        character.ResonanceSent.CopyFrom(character.Resonance);
+        connection.Send(SCharacterStatsPacket.Create(sheet.ToPacket(character.Resonance), PacketEncoder.Shared));
     }
 }

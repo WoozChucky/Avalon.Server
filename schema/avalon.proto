@@ -1101,6 +1101,10 @@ enum RegisterResult {
    RegisterResult_InvalidEmail = 8;
    RegisterResult_Ok = 9;
 }
+message ResonanceDto {
+   uint32 ThemeId = 1;
+   uint32 Count = 2;
+}
 message SAbilityFiredPacket {
    uint64 CasterGuid = 1;
    uint32 AbilityId = 2;
@@ -1217,6 +1221,7 @@ message SCharacterStatsPacket {
    float CooldownRecoveryPct = 25;
    uint32 AttackTimeMs = 26;
    repeated float IncreasedPct = 27 [packed = false];
+   repeated ResonanceDto Resonance = 28;
 }
 message SChatMessagePacket {
    uint64 AccountId = 1;

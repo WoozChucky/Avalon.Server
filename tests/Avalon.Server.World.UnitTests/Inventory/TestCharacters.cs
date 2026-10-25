@@ -84,7 +84,14 @@ internal static class TestCharacters
     /// The character's live Resonance counts (#1180). World-side and internal, and Avalon.World is strong-named while this
     /// assembly is not, so it is read by reflection, as the tests read the other internals.
     /// </summary>
-    public static ResonanceCounts ResonanceOf(CharacterEntity character) => (ResonanceCounts)typeof(CharacterEntity)
-        .GetProperty("Resonance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-        .GetValue(character)!;
+    public static ResonanceCounts ResonanceOf(CharacterEntity character) => Internal<ResonanceCounts>(character, "Resonance");
+
+    /// <summary>The Resonance counts the character's sheet last sent (#1180), read as <see cref="ResonanceOf" /> is.</summary>
+    public static ResonanceCounts ResonanceSentOf(CharacterEntity character) =>
+        Internal<ResonanceCounts>(character, "ResonanceSent");
+
+    private static T Internal<T>(CharacterEntity character, string property) =>
+        (T)(typeof(CharacterEntity).GetProperty(property, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?.GetValue(character)
+            ?? throw new InvalidOperationException($"{nameof(CharacterEntity)}.{property} is not there"));
 }

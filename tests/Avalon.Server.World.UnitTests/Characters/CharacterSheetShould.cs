@@ -105,13 +105,15 @@ public class CharacterSheetShould
 
     /// <summary>
     /// #627, #1178: a refresh that moves exactly one value the sheet shows (a speed, the movement speed, one increased key,
-    /// the crit multiplier bonus) is a change the owner is sent.
+    /// the crit multiplier bonus) is a change the owner is sent. #1180: so is a refresh that moves only the Resonance
+    /// counts, and the sheet lists each theme by its id with its count, leaving out a theme at 0.
     /// </summary>
     [Theory]
     [InlineData("attack speed")]
     [InlineData("movement speed")]
     [InlineData("increased")]
     [InlineData("crit multiplier")]
+    [InlineData("resonance")]
     public void Send_a_sheet_when_exactly_one_shown_value_changes(string change)
     {
         CharacterEntity character = New();
@@ -126,8 +128,21 @@ public class CharacterSheetShould
             CritMultiplierBonus = change == "crit multiplier" ? 10f : 0f,
         };
         if (change == "increased") offence.AddIncreased(OffenceStat.Cold, 4f);
-        character.ApplyStats(Stats() with { Offence = offence, MovementSpeedPct = change == "movement speed" ? 10f : 0f },
-            CurrentValues.KeepShare, s_seeded.Formula);
+        DerivedCharacterStats next = Stats() with { Offence = offence, MovementSpeedPct = change == "movement speed" ? 10f : 0f };
+        if (change == "resonance")
+        {
+            // Two worn items carry the theme-1 prefix; the theme-6 prefix is worn by none.
+            ResonanceCounts resonance = ResonanceOf(character);
+            resonance.Use(TwoThemeCatalog().Resonance);
+            resonance.AddItem([new ItemInstanceModifier { ModifierId = 1 }]);
+            resonance.AddItem([new ItemInstanceModifier { ModifierId = 1 }]);
+            next = Stats();
+        }
+
+        character.ApplyStats(next, CurrentValues.KeepShare, s_seeded.Formula);
+        CharacterSheetFlusher.Flush(connection, s_seeded);
+        // The same refresh again moves nothing, so nothing more is sent.
+        character.ApplyStats(next, CurrentValues.KeepShare, s_seeded.Formula);
         CharacterSheetFlusher.Flush(connection, s_seeded);
 
         List<SCharacterStatsPacket> sheets = Sheets(sent);
@@ -137,7 +152,24 @@ public class CharacterSheetShould
         Assert.Equal(change == "movement speed" ? 4.4f : 4f, after.MovementSpeed, precision: 5);
         Assert.Equal(change == "increased" ? 4f : 0f, after.IncreasedPct[(int)OffenceStat.Cold]);
         Assert.Equal(change == "crit multiplier" ? 1.6f : 1.5f, after.CritMultiplier, precision: 5);
+        (uint ThemeId, uint Count)[] resonanceSent = change == "resonance" ? [(1u, 2u)] : [];
+        Assert.Empty(sheets[0].Resonance ?? []);
+        Assert.Equal(resonanceSent, (after.Resonance ?? []).Select(r => (r.ThemeId, r.Count)));
     }
+
+    /// <summary>Two prefixes (#1180): modifier 1 of theme 1 and modifier 6 of theme 6.</summary>
+    private static ItemModifierCatalog TwoThemeCatalog() => new(
+    [
+        .. new[] { 1, 6 }.Select(theme => new ItemModifier
+        {
+            Id = theme,
+            GroupId = theme,
+            Group = new ItemModifierGroup { Id = theme, Kind = ItemModifierKind.Prefix, ThemeId = theme, Name = $"Theme {theme}" },
+            Tier = 9,
+            RequiredItemLevel = 1,
+            Stats = [new ItemModifierStat { ModifierId = theme, Index = 0, Stat = StatType.Stamina, Min = 1, Max = 1 }],
+        }),
+    ], [], NullLogger.Instance);
 
     [Fact]
     public void Send_nothing_for_a_character_with_no_stats_yet()
