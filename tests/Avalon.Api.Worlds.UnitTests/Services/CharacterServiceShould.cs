@@ -197,10 +197,14 @@ public sealed class CharacterServiceShould : IDisposable
 
         // #1180: each affix line names its Resonance theme (Ember-sung, a cold P10, is Rime; of the Owl is Veil), an
         // implicit or unique line none, and the unidentified chest's hidden affixes show no theme either.
-        Assert.Equal([(life, (int?)null), (emberSung, 2), (owl, 8)], item.Modifiers.Select(m => (m.ModifierId, m.ThemeId)));
+        Assert.Equal([(life, (int?)null), (emberSung, ThemeId("Rime")), (owl, ThemeId("Veil"))],
+            item.Modifiers.Select(m => (m.ModifierId, m.ThemeId)));
         Assert.All(unique.Modifiers, m => Assert.Null(m.ThemeId));
         Assert.Equal([(chestLife, (int?)null)], rareChest.Modifiers.Select(m => (m.ModifierId, m.ThemeId)));
     }
+
+    /// <summary>A seeded Resonance theme's id, by its name (#1180): no test holds an id.</summary>
+    private static int? ThemeId(string name) => ItemModifierSeed.Themes().Single(theme => theme.Name == name).Id;
 
     /// <summary>A seeded base's implicit row, named by the base (#1179): no test holds an id.</summary>
     private static int ImplicitOf(ulong template) =>
@@ -494,8 +498,8 @@ public sealed class CharacterServiceShould : IDisposable
     /// <summary>
     /// The stats the world server last saved for the character (#676), with the Resonance its worn items carry (#1180),
     /// counted from the saved inventory as the world's stats refresh counts it: a ring with two Ember affixes adds Ember
-    /// once, an Ember amulet once more, a helmet's Thorn suffix Thorn once; the Rime ring in the bag adds nothing, and a
-    /// theme at 0 is not listed.
+    /// once, an Ember amulet once more, a helmet's Thorn suffix Thorn once; the Rime ring in the bag adds nothing, nor does
+    /// a Rime ring worn in a slot it does not fit (the feet), and a theme at 0 is not listed.
     /// </summary>
     [Fact]
     public async Task Return_the_characters_saved_stats_with_the_resonance_it_wears()
@@ -529,6 +533,7 @@ public sealed class CharacterServiceShould : IDisposable
         ItemInstance amulet = Copy(id, seeded[69], Seeded("S5", Avalon.Network.Packets.Combat.DamageType.Fire, 9));
         ItemInstance helmet = Copy(id, seeded[36], Seeded("S10", null, 9));
         ItemInstance bagRing = Copy(id, seeded[68], Seeded("P8", Avalon.Network.Packets.Combat.DamageType.Cold, 9));
+        ItemInstance footRing = Copy(id, seeded[68], Seeded("P8", Avalon.Network.Packets.Combat.DamageType.Cold, 9));
 
         ICharacterInventoryRepository slots = Substitute.For<ICharacterInventoryRepository>();
         slots.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<CharacterInventory>
@@ -537,10 +542,11 @@ public sealed class CharacterServiceShould : IDisposable
             new() { CharacterId = id, Container = Avalon.Common.InventoryType.Equipment, Slot = EquipmentSlots.Neck, ItemId = amulet.Id },
             new() { CharacterId = id, Container = Avalon.Common.InventoryType.Equipment, Slot = EquipmentSlots.Head, ItemId = helmet.Id },
             new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 0, ItemId = bagRing.Id },
+            new() { CharacterId = id, Container = Avalon.Common.InventoryType.Equipment, Slot = EquipmentSlots.Feet, ItemId = footRing.Id },
         });
         IItemInstanceRepository items = Substitute.For<IItemInstanceRepository>();
         items.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>())
-            .Returns(new List<ItemInstance> { ring, amulet, helmet, bagRing });
+            .Returns(new List<ItemInstance> { ring, amulet, helmet, bagRing, footRing });
         IItemTemplateRepository templates = Substitute.For<IItemTemplateRepository>();
         templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
             .Returns(seeded.Values.ToList());
@@ -585,7 +591,7 @@ public sealed class CharacterServiceShould : IDisposable
         Assert.Equal(12u, dto.Armor);
         Assert.Equal(5f, dto.BlockPct);
         Assert.Equal(5.5f, dto.CritPct);
-        Assert.Equal([(1, 2), (6, 1)], dto.Resonance.Select(r => (r.ThemeId, r.Count)));
+        Assert.Equal([(ThemeId("Ember"), 2), (ThemeId("Thorn"), 1)], dto.Resonance.Select(r => ((int?)r.ThemeId, r.Count)));
         Assert.Equal(worldCounts, dto.Resonance.Select(r => (r.ThemeId, r.Count)));
     }
 

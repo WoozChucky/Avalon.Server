@@ -86,10 +86,6 @@ internal static class TestCharacters
     /// </summary>
     public static ResonanceCounts ResonanceOf(CharacterEntity character) => Internal<ResonanceCounts>(character, "Resonance");
 
-    /// <summary>The Resonance counts the character's sheet last sent (#1180), read as <see cref="ResonanceOf" /> is.</summary>
-    public static ResonanceCounts ResonanceSentOf(CharacterEntity character) =>
-        Internal<ResonanceCounts>(character, "ResonanceSent");
-
     private static T Internal<T>(CharacterEntity character, string property) =>
         (T)(typeof(CharacterEntity).GetProperty(property, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                 ?.GetValue(character)
