@@ -1,18 +1,19 @@
 name: Crash integration
+# Manual only: Actions → Crash integration → Run workflow, on any branch. These suites build the worker image and run it
+# against throwaway Postgres and Garage containers; the solution's unit tests, the worker's included, run on every pull
+# request in dotnet-pr.yml. Run this after changing the crash pipeline. Locally: tools/crashes/run-integration.sh.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       native:
-        description: Run protected native and complete vertical acceptance on main
+        description: Also run protected native and complete vertical acceptance (main only)
         type: boolean
         default: false
 permissions:
   contents: read
 jobs:
   ordinary:
-    # Untrusted PR code must never share a persistent host containing private fixtures.
+    # Ephemeral hosted runners: a branch's code never shares a persistent host that holds the private fixtures.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
