@@ -237,6 +237,9 @@ in through the portal.
 reserved for one eligible member drawn at random, so one kill's drops can go to different members. A client
 shows "reserved for X" from the roster's names, and a pickup of someone else's drop before `FreeForAllAt` is
 refused `NotYours` as before. Solo instances reserve every drop for their owner, and towns drop free for all.
+A magic, rare or unique drop lies on the ground unidentified, the same for every member (no name, its implicit lines
+only), and whoever picks it up gets it unidentified (#1179,
+[identification](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)); a common drop is identified.
 
 Eligible for a kill: the killer, and every member in the same instance (alive or dead) who is in the
 creature's fight or within 60 m of it, unless in a leave countdown. A killer in a leave countdown shares

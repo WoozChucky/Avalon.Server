@@ -45,9 +45,13 @@ revision), 3 `Items` (repeated `TradeItemDto`, in trade-slot order, only the occ
 `TradeItemDto`: 1 `TradeSlot` (uint32, 0-14), 2 `ItemTemplateId` (uint64), 3 `ItemInstanceId` (`.bcl.Guid`, the item
 instance, as everywhere else an instance id crosses), 4 `Count` (uint32: the whole stack is offered), 5 `Rarity`
 (`ItemRarity`), 6 `ItemLevel` (uint32), 7 `Modifiers` (repeated `ItemModifierDto`, null for an item without any),
-8 `Name` (optional string: a magic or rare copy's name, absent where the template's name is the item's) and 9 `BaseStats`
-(repeated `ItemBaseStatDto`, the copy's own armour, evasion, ward, block or weapon numbers, null for an item without
-any): the copy's rarity, item level, modifiers, name and base stats, as an inventory slot carries them (#1179).
+8 `Name` (optional string: an identified magic or rare copy's name, absent where the template's name is the item's and
+for an unidentified copy), 9 `BaseStats` (repeated `ItemBaseStatDto`, the copy's own armour, evasion, ward, block or
+weapon numbers, null for an item without any) and 10 `Identified` (bool): the copy's rarity, item level, modifiers,
+name, base stats and whether it is identified, as an inventory slot carries them (#1179). An unidentified copy (magic,
+rare or unique) can be offered; its entry carries its implicit lines only in `Modifiers` and no `Name`, and both sides
+are sent the same entry, so the giver sees it as the receiver does. It arrives unidentified, and is worn only once it is
+identified ([inventory and saves](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)).
 
 `TradeId` is numbered from 1 each time the world server starts; it names one trade window for as long as it is open.
 
@@ -268,6 +272,7 @@ with a new value, appended to each enum (a client built before it reads an unkno
 | `ItemRequestResult` (`SMSG_ITEM_RESULT`) | `Locked` 14 | A move, split, merge or swap of the item, or onto it (banking and dragging to Equipment included), or onto a Bag slot a completing trade set aside; destroying it. |
 | `ItemUseResult` (`SMSG_ITEM_USE_RESULT`) | `Locked` 18 | Using or equipping it. An item cast whose item becomes locked before the bar ends is answered `Interrupted`. |
 | `VendorResult` (`SMSG_VENDOR_RESULT`) | `Locked` 14 | Selling it. Offered gold cannot pay for a purchase (`NotEnoughGold`), and an offered stack does not pay an item cost (`MissingItems`). |
+| `ItemIdentifyResult` (`SMSG_ITEM_IDENTIFY_RESULT`) | `Locked` 7 | Identifying it at the Resonance Workbench (#1179). Offered gold cannot pay the identify cost (`NotEnoughGold` 8). |
 
 A quest turn-in does not take a locked Collect stack: with it locked the quest is `NotReady`, and an abandon leaves it
 in the Bag. Show offered items as locked in the Bag, and the balance less the offered gold as what can be spent.

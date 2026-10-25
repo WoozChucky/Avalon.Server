@@ -283,9 +283,10 @@ public class ItemSlotDto
     [ProtoMember(7)] public uint   Flags          { get; set; } // ItemInstanceFlags, numeric
     [ProtoMember(8)] public ItemRarity Rarity { get; set; } // the copy's (#1179): Common, Magic, Rare, Unique
     [ProtoMember(9)] public uint ItemLevel { get; set; } // the copy's (#1179)
-    [ProtoMember(10)] public List<ItemModifierDto>? Modifiers { get; set; } // in the order the item shows them; null for none
-    [ProtoMember(11)] public string? Name { get; set; } // a magic or rare copy's (#1179); null: the template's name is the item's
-    [ProtoMember(12)] public List<ItemBaseStatDto>? BaseStats { get; set; } // the copy's own (#1179), in base-stat order; null for none
+    [ProtoMember(10)] public List<ItemModifierDto>? Modifiers { get; set; } // in the order the item shows them; null for none; unidentified: its implicit lines only
+    [ProtoMember(11)] public string? Name { get; set; } // an identified magic or rare copy's (#1179); null: the template's name is the item's, and for an unidentified copy
+    [ProtoMember(12)] public List<ItemBaseStatDto>? BaseStats { get; set; } // the copy's own (#1179), in base-stat order; null for none; sent identified or not
+    [ProtoMember(13)] public bool Identified { get; set; } // #1179: false for a magic, rare or unique copy not yet identified, which cannot be worn
 }
 
 [ProtoContract]
@@ -326,6 +327,11 @@ Notes for a client implementer:
   documents the exporter that produces both).
 - **`Gold`** is the character's gold. It is field 2, added after `Items`, so an older
   reader ignores it.
+- **`Identified`** (field 13, #1179): an unidentified copy shows its rarity, base name, item
+  level, base stats and implicit line, and "Unidentified" where its affixes go; the server sends
+  none of its other modifiers and no `Name` until it is identified at the Resonance Workbench
+  ([inventory and saves](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)).
+  Every slot entry carries it, in the snapshot, the updates, the bank, the buyback and item replies.
 
 ### `SInventoryUpdatePacket`
 

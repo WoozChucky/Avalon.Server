@@ -10,7 +10,7 @@ This page is the authority on the subsystem. Other pages cover their own side of
 - [tick profiling](tick-profiling.md): how doodads count in `candidateChecks` and `visiblePairs`;
 - [tooling](tooling.md): the `doodad-catalog` export.
 
-Slice S1 was the framework and the wire. Slice S2 places procedural doodads from each map's rules (see "Placement") and seeds the forest's set (see "The forest set"). Slice S3 adds the use-doodad quest objective and seeds the caravan quest's doodads (see "The caravan quest's doodads"), and places a town's fixed doodads, Glimmerdell's notice board the first (see "Placement").
+Slice S1 was the framework and the wire. Slice S2 places procedural doodads from each map's rules (see "Placement") and seeds the forest's set (see "The forest set"). Slice S3 adds the use-doodad quest objective and seeds the caravan quest's doodads (see "The caravan quest's doodads"), and places a town's fixed doodads, Glimmerdell's notice board the first (see "Placement"). Item identification (#1179) adds a doodad's service and seeds the Resonance Workbench in Glimmerdell's market (see "The Resonance Workbench").
 
 ## Templates and catalog
 
@@ -26,7 +26,8 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
     - `RespawnSeconds`: null never respawns;
     - `ScriptName`, `LootTableId`, `MinGold`/`MaxGold` and `RestorePct`;
     - `Collision` (None 0 or Box 1), with `CollisionHalfX`, `CollisionHalfZ` and `CollisionHeight`;
-    - a visibility gate and a usability gate. Each is a `*QuestId`, a `*Condition` (NotStarted 1, OnObjective 2, Completed 3, NotCompleted 4) and a `*ObjectiveId`. A gate quest has no foreign key, because the catalog checks it.
+    - a visibility gate and a usability gate. Each is a `*QuestId`, a `*Condition` (NotStarted 1, OnObjective 2, Completed 3, NotCompleted 4) and a `*ObjectiveId`. A gate quest has no foreign key, because the catalog checks it;
+    - `Service` (`DoodadService`, nullable, World migration `AddResonanceWorkbench`, #1179): the service window a click opens on the client, Identify 1, or null for none. Only the Resonance Workbench sets it.
   - `DoodadAuraOutcomes` is keyed by `(DoodadTemplateId, AuraId)`, with a `Weight` of at least 1. Its rows cascade from the template.
   - The loot table's foreign key is `Restrict`: a table that a doodad drops from cannot be deleted.
   - Every enumeration is stored as a number and is append-only.
@@ -35,7 +36,8 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
   - the range in (0, 10] and the radius in [0, 30];
   - `0 <= MinGold <= MaxGold` and `RestorePct <= 100`;
   - a gate's quest and its condition are both set or both null;
-  - a solid box has finite half extents above 0 and a finite height of at least 1.049.
+  - a solid box has finite half extents above 0 and a finite height of at least 1.049;
+  - `Service` is null or 1 (`CK_DoodadTemplates_Service`).
   - The height bound is **1.049, not 1.05**, on purpose. The column is a float that both databases compare as a double, so a stored `1.05f` reads 1.0499999523 and would fail `>= 1.05`. The catalog keeps the exact `>= 1.05f` rule (`DoodadCatalog.MinSolidHeight`). A box 1.049 m tall therefore passes the database, and the catalog refuses it at load. `DoodadSchemaShould.Accept_a_box_exactly_1_05_m_tall` and `DoodadCatalogShould.Load_a_solid_box_exactly_1_05_m_tall_with_its_gates_and_outcomes` pin both sides.
 - **Catalog.** `DoodadCatalog` is the `Doodads` reload area (`ReloadArea.Doodads`, `DoodadsPatch`, `StaticData.Doodads`; it is `DoodadCatalog.Empty` before the first load).
   - It is built off the tick against the loot tables, the auras and the quest rows read in the same prepare, so a doodad and what it names are one generation. Scripts are resolved through `ScriptManager.GetDoodadScript`.
@@ -45,26 +47,27 @@ Slice S1 was the framework and the wire. Slice S2 places procedural doodads from
     1. The id is 0.
     2. The name is blank.
     3. A model kit, model key, used model key or clip is not a plain asset name (`AssetNames.IsPlain`, the game client's rule: 1 to 128 UTF-8 bytes, not starting with `.`, no `..`, and no `/`, `\`, `:` or control character).
-    4. An enum value is one this build does not know, or a gate is half set (a quest without a condition, or the reverse).
+    4. An enum value is one this build does not know (`Service` included: "Service 9 is unknown"), or a gate is half set (a quest without a condition, or the reverse).
     5. `InteractionTimeMs` is above 60,000.
     6. `InteractionRange` is not finite, or is outside (0, 10].
     7. `AreaRadius` is not finite, or is outside [0, 30].
     8. A solid box has a half extent that is not finite or not above 0, or a height below `1.05f`.
     9. A solid template has a visibility or usability gate. A hidden solid doodad would be an unseen wall.
     10. A solid template despawns. Its box stays in the navmesh.
-    11. `RespawnSeconds` is 0. Use null for a doodad that never respawns.
-    12. A gate names a quest that is not loaded.
-    13. An OnObjective gate names no objective, or names an objective that is not one of its quest's.
-    14. Any other gate condition carries an objective id.
-    15. `ScriptName` does not name a loaded `DoodadScript`.
-    16. The loot table is not loaded.
-    17. `MinGold` is above `MaxGold`.
-    18. `RestorePct` is above 100.
-    19. An outcome's aura is not loaded, an outcome's weight is 0, or the weights total more than `uint.MaxValue`.
+    11. An Identify template (#1179) is not `Click` ("an Identify doodad must be clicked"), is not `Unlimited` ("must be Unlimited"), names a script ("cannot run a script"), a loot table ("cannot drop loot") or either gate ("cannot be gated"), asked in that order. So the Workbench is never hidden, spent or despawned, and a use of it does nothing but open the client's window.
+    12. `RespawnSeconds` is 0. Use null for a doodad that never respawns.
+    13. A gate names a quest that is not loaded.
+    14. An OnObjective gate names no objective, or names an objective that is not one of its quest's.
+    15. Any other gate condition carries an objective id.
+    16. `ScriptName` does not name a loaded `DoodadScript`.
+    17. The loot table is not loaded.
+    18. `MinGold` is above `MaxGold`.
+    19. `RestorePct` is above 100.
+    20. An outcome's aura is not loaded, an outcome's weight is 0, or the weights total more than `uint.MaxValue`.
   - `DoodadCatalogShould.Refuse_a_template_that_breaks_a_rule` holds a row for every rule above but the weights' total, each asserting its refusal reason (`DoodadRefusal.Reason`).
 - **Solid and scripted.** A template whose script declares its own `CanSee` (`DoodadScripts.OverridesCanSee`) has `ScriptCanSee` set. For a solid template the flag is forced off, with one Warning per template at load.
 - **Reload** (`/reload doodads`) works forward only. A doodad already placed keeps the template view it was placed from, and the next instance build places from the new catalog. A `/reload quests` moves every viewer's gates (see "Per-viewer views and gates"). After either apply, a loaded quest whose UseDoodad objective names a template the live catalog lacks, or one that is not `Click`, is logged at Error and stays loaded ([quests](quests.md)).
-- **Export.** `tools/Avalon.Exporter -- doodad-catalog` writes `schema/doodads/doodad-catalog-v1.json` (the forest set, templates 1 to 4, and the caravan quest's strongbox and notice board, 5 and 6). It lists only what a client draws: the model kit and keys (`usedModelKey` resolves in the same `modelKit` folder, as the file's `$comment` says), the clips, the interaction kind, time and range, solidity and the spent look. It lists no gates, loot, gold, restore, radius or aura outcomes. `DoodadCatalogExportShould.List_only_what_a_client_draws` pins the field names, so nothing in the file can reveal a shrine's outcome. See [tooling](tooling.md).
+- **Export.** `tools/Avalon.Exporter -- doodad-catalog` writes `schema/doodads/doodad-catalog-v1.json` (the forest set, templates 1 to 4, the caravan quest's strongbox and notice board, 5 and 6, and the Resonance Workbench, 7). It lists only what a client draws and offers: the model kit and keys (`usedModelKey` resolves in the same `modelKit` folder, as the file's `$comment` says), the clips, the interaction kind, time and range, solidity, the spent look, and `service` (a number after `spentLook`, or null: the window a click opens, 1 identify). It lists no gates, loot, gold, restore, radius or aura outcomes. `DoodadCatalogExportShould.List_only_what_a_client_draws` pins the field names, so nothing in the file can reveal a shrine's outcome. See [tooling](tooling.md).
 
 ## The object type and the wire fields
 
@@ -275,6 +278,19 @@ Migration `SeedLostCaravan` seeds quest 9, "The Lost Caravan" ([quests](quests.m
 - **The used looks never show in v1.** Both templates are `Unlimited` and have no script, so nothing ever spends them: each stays `Ready`, and `avalon_strongbox_open` and `avalon_notice_board_pinned` are never displayed. They are catalogued so that a future script, or a change to the template, can show them.
 - **Neither is solid**, so their gates are allowed (a solid doodad is never hidden).
 
+## The Resonance Workbench
+
+World migration `AddResonanceWorkbench` (#1179) adds the `Service` column and its check, seeds template 7, the Resonance Workbench, and places it in Glimmerdell's market (fixed spawn row 2, see "Placement"). It is where a player identifies an unidentified item ([identification](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)). `SeedIntegrityShould.Seed_one_resonance_workbench_in_glimmerdell` pins that exactly one seeded template has a service, with the columns below, that exactly one spawn names it, on map 1, and that the catalog loads it.
+
+| Id | Name | Kit / model / used model | Cast | Range | Use limit | Service | Collision | Placed |
+|---|---|---|---|---|---|---|---|---|
+| 7 | Resonance Workbench | `props-kit` / `Workbench` / none, no clips | instant | 5 m | `Unlimited` | Identify | none | Glimmerdell's fixed doodad spawn 2, at (36, 0, 4) |
+
+- **A click opens a window, and nothing more.** The click goes through `CMSG_INTERACT` and `DoodadUseService` like any other: its checks, then the end of the user's item and doodad casts and arrival protection. The template has no script, loot or gate, and is never spent, so nothing else happens. The client opens its identify window when the player clicks a doodad whose catalog `service` is 1. Every identify request names the Workbench and is checked against it again (`IdentifyRules`: found, not despawned, its service Identify, within its `InteractionRange`), since a doodad has no conversation to leash.
+- **Radius 0, no respawn, `SpentLook` ShowUsed.** The column is not nullable; an `Unlimited` doodad is never spent, so it never shows that look.
+- **Walk-through, as the notice board is.** Its collision box is the market piece's chunk proxy (`SquareBuilder.DoodadProp` in `TownPieces.Market`, kept in `town_se_01.obj`), and the doodad itself is `Collision None`. Its model is the props kit's `Workbench`, in the kit's bounds table (2.02 x 1.02 m).
+- **Later Resonance services** (#1180) can extend `DoodadService` with values of their own (appended, the check widened by a migration).
+
 ## Placement
 
 A procedural map's doodads come from its doodad rules (`ProceduralDoodadRule`, written by `ChunkCatalogSeeder` from `Maps/ProceduralMaps/<mapId>.json`; see [map generation](map-generation.md#spawn-tables-and-procedural-map-configs)) and the doodad slots of its pieces (`ChunkTemplate.DoodadSlots`). `ChunkLayoutInstanceFactory` runs `IDoodadPlacementService` (`DoodadPlacementService`) in two steps of the off-tick build. A map's fixed spawns (`MapDoodadSpawns`, a town's) are placed by the second step, before the plan's doodads.
@@ -288,9 +304,9 @@ A procedural map's doodads come from its doodad rules (`ProceduralDoodadRule`, w
 - **Fixed spawns** (migration `AddMapDoodadSpawns`): a `MapDoodadSpawns` row places one doodad at a fixed spot of one map, as a `MapCreatureSpawns` row places a creature, for every layout kind. Its position is the layout's `EntrySpawnWorldPos` plus the row's offset, its yaw the row's (0 to 360, a check constraint), its offsets finite (each above -1,000,000 and below Infinity, which refuses NaN, a check constraint each), and its template a foreign key (`Restrict`). `IMapDoodadSpawnRepository.FindByMapAsync` reads the map's rows once per build, off the tick, at the start of **Place**, and they are placed before the plan's doodads.
   - A walk-through doodad's height is the navmesh's under it (`SampleGroundHeight`, which keeps the authored height off the mesh, as a town creature's is). A solid one keeps its authored height, and a row that faces a solid one off a quarter turn is refused with a Warning.
   - **v1 places no solid town doodad**. Nothing is baked from a fixed spawn: the plan's obstacles come from the procedural plan alone, before the bake. A solid one would need its box authored in ChunkGen.
-  - **The notice board is walk-through as a doodad** (template 6, `Collision = None`). Its collision box is a chunk proxy, kept in `town_sw_01.obj` by `SquareBuilder.DoodadProp` ([map generation](map-generation.md#decor-and-building-recipes)), so the box stays however the doodad is shown. A doodad-drawn prop is therefore never hidden: neither its row nor its template has a visibility gate, its template never despawns once spent, and it has no script, since a script could despawn it or hide it through `CanSee`. `TownDoodadSpawnsShould` pins this, since a hidden one would leave an invisible wall, and refuses a seeded row on any map but Glimmerdell (map 1), so a new map's fixed doodads extend it first. The guard is seed-time because only `HasData` writes these rows and the doodad templates: any future live-edit design for doodad templates or spawns must enforce the same rule.
+  - **The notice board and the Resonance Workbench are walk-through as doodads** (templates 6 and 7, `Collision = None`). Each one's collision box is a chunk proxy, kept in `town_sw_01.obj` and `town_se_01.obj` by `SquareBuilder.DoodadProp` ([map generation](map-generation.md#decor-and-building-recipes)), so the box stays however the doodad is shown. A doodad-drawn prop is therefore never hidden: neither its row nor its template has a visibility gate, its template never despawns once spent, and it has no script, since a script could despawn it or hide it through `CanSee`. `TownDoodadSpawnsShould` pins this, since a hidden one would leave an invisible wall, and refuses a seeded row on any map but Glimmerdell (map 1), so a new map's fixed doodads extend it first. The guard is seed-time because only `HasData` writes these rows and the doodad templates: any future live-edit design for doodad templates or spawns must enforce the same rule.
   - A row's gates replace the template's under the rules of step 4 below (dropped on a solid template, or when they name a quest or objective the world lacks). A row whose template the catalog lacks is skipped with an Error.
-  - The seed is Glimmerdell's notice board: row 1, doodad 6, offset (-6, 0, 9) from the entry spawn (15, 0, 15), so world (9, 0, 24), yaw 90, with no gate of its own. `DoodadPlacementShould.Place_a_town_doodad_at_its_offset_on_the_ground` pins the placement rules, and `QuestDoodadCreditShould.Credit_the_seeded_notice_board_only_to_a_player_on_its_step` the board end to end in a Glimmerdell instance.
+  - The seed is Glimmerdell's notice board, row 1, doodad 6, offset (-6, 0, 9) from the entry spawn (15, 0, 15), so world (9, 0, 24), yaw 90, and its Resonance Workbench, row 2, doodad 7, offset (21, 0, -11), so world (36, 0, 4), yaw 0, neither with a gate of its own. `DoodadPlacementShould.Place_a_town_doodad_at_its_offset_on_the_ground` pins the placement rules (and both town doodads' spots), and `QuestDoodadCreditShould.Credit_the_seeded_notice_board_only_to_a_player_on_its_step` the board end to end in a Glimmerdell instance.
 - **Place**, after the bake and the creatures, on the instance being built, before it is published. Each doodad is contained on its own: one that throws is logged and skipped, and the others are placed.
   1. A walk-through doodad is snapped to the navmesh under its slot (`FindGround`; its nearest point when just beside the mesh, as a creature's slot is). With no mesh within reach, a required one moves to the fallback and an optional one is skipped with a Warning.
   2. A solid doodad keeps its slot's height, unsnapped. A doodad slot stands on the floor (written at local y 0, where a spawn slot is written 1 m up), so a solid doodad's model and its box in the bake stand on the ground.
@@ -313,5 +329,7 @@ The game client (`C:\dev\vulkan-multithreaded`, inspected read-only on `main` at
 - **Quest 9 can be done, with placeholders.** Marta offers the quest after quest 6, and its stages show. The strongbox reaches a player on its step as a teal placeholder, not a crate, named "Doodad 5" until the catalog is re-vendored, and with the empty catalog it is opened only by clicking its plate; the board likewise. The notice board is still drawn from the vendored decor (`devproject/data/world/decor/town_sw_01.json`), with the doodad's placeholder at the same spot.
 - **The board leaves `town_sw_01`'s decor on the next re-vendor.** The server's decor file no longer holds it, so a client that re-vendors the decor before it draws doodads by their model loses the board from the square (its collision box stays in the chunk). The client must re-vendor the chunks and the decor together with doodad drawing (WoozChucky/Avalon.Client#401 Part B4).
 - **Solid doodads block both navmeshes.** Their boxes reach the client in `SChunkLayoutPacket.Obstacles` (field 8), which it decodes (`gamenet/src/session/SessionMap.cpp:71`), and its bake appends them after its chunks with the server's vertices and faces (`game/src/ChunkGeometry.cpp:202`), so a walk stops at a solid doodad on both sides (seen on `origin/main` at `631ef5e5`).
+
+The Resonance Workbench (template 7) and the catalog's `service` came after this inspection: the client's identify window is still to be built.
 
 The client work is WoozChucky/Avalon.Client#401, and its Part A was merged in #402. The server never waits for it.

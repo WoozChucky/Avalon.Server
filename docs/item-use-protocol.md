@@ -74,6 +74,7 @@ acknowledgement. A connection with no character gets no answer at all.
 | 18 | `Locked` | The item is offered in a face-to-face trade ([trade protocol](trade-protocol.md) section 6): it is neither used nor worn until it leaves the trade. A cast whose item becomes locked before the bar ends is answered `Interrupted`. |
 | 19 | `AttributesTooLow` | The gear requires more Strength, Agility or Intellect than the character has, as its last stats refresh derived them (gear worn and auras included, so the item a swap would take off still counts) (#1178). |
 | 20 | `UniqueEquipped` | The gear's template is UniqueEquipped and another equipment slot wears a copy of it that the use cannot swap out: only one copy is worn at a time (#1179). A use of a second copy swaps it into the slot wearing the first, so this is answered only when two slots already wear one (a reload that made the template UniqueEquipped). Two copies of any other item may be worn. |
+| 21 | `Unidentified` | The gear is unidentified (#1179): a magic, rare or unique item that dropped or came from a quest is worn only once it is identified at the Resonance Workbench ([item use](item-use.md), [inventory and saves](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)). Asked before the level, class and attribute requirements; nothing moves, and a running item cast bar keeps running. |
 
 ## 4. The checks, in order
 
@@ -85,8 +86,9 @@ acknowledgement. A connection with no character gets no answer at all.
 4. **A trade, then the template**: a Bag item offered in a face-to-face trade is `Locked` (#1175); an item whose
    template is gone is `NotUsable`.
 5. **Gear** (an item whose template `slot` is one that is worn) is equipped (section 5), and nothing else below is
-   asked: no cooldown, no cast check. An equip that passes its checks first ends a running item cast bar, which is
-   answered `Interrupted`; a refused equip leaves the bar running.
+   asked: no cooldown, no cast check. An unidentified item is refused `Unidentified`, as a drag into Equipment is. An
+   equip that passes its checks first ends a running item cast bar, which is answered `Interrupted`; a refused equip
+   leaves the bar running.
 6. **A script** (`useScript` in the item catalog): none is `NotUsable`.
 7. **An ability cast in progress**: `AlreadyCasting`.
 8. **Cooldowns**: the item's own and its group's (`OnCooldown`, with the longer of the two as `CooldownMs`).
