@@ -69,7 +69,7 @@ internal static class Exports
             ItemCatalog.Readiness),
 
         new("item-modifier-catalog", ItemModifierCatalogExport.DirectoryName + "/" + ItemModifierCatalogExport.FileName,
-            "the item modifier catalog: groups, tiers, stat ranges and each template's linked modifiers (from the seed)",
+            "the item modifier catalog: Resonance themes, groups, tiers, stat ranges and each template's linked modifiers (from the seed)",
             root => ItemModifierCatalogExport.Write(
                 Path.Combine(root, ItemModifierCatalogExport.DirectoryName, ItemModifierCatalogExport.FileName))),
 

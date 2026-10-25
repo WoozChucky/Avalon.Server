@@ -7,8 +7,8 @@ namespace Avalon.Exporter;
 
 /// <summary>
 /// Exports the modifier catalog the client vendors (#1179), from <see cref="ItemModifierSeed" />, so it needs no database:
-/// the groups (id, kind, code, element, name), the modifiers (id, group id, tier, stat lines) and each template's linked
-/// modifier ids, so a client can name an item's modifiers, show their tiers and tell a base's implicit and a unique's
+/// the Resonance themes (#1180: id, name), the groups (id, kind, code, element, name, theme id), the modifiers (id, group
+/// id, tier, stat lines) and each template's linked modifier ids, so a client can name an item's modifiers, show their tiers and tell a base's implicit and a unique's
 /// own modifier apart from its rolled affixes. Enumerations are written as their numbers, listed in the $comment.
 /// </summary>
 public static class ItemModifierCatalogExport
@@ -42,8 +42,10 @@ public static class ItemModifierCatalogExport
                      "weakest), null on a unique. stat: the StatType numbers of item-schema-v1.json; min2 and max2 " +
                      "are the high end of an \"adds X to Y\" line, null on every other. templates: the modifiers every " +
                      "copy of a template rolls when it is made, in order: a base's implicit at its tier, a unique's own " +
-                     "modifier (a unique's copy rolls its base's implicit first: baseTemplateId in item-catalog-v1.json).",
-            Groups: [.. ItemModifierSeed.Groups().Select(g => new GroupRow(g.Id, (int)g.Kind, g.Code, (int?)g.Element, g.Name))],
+                     "modifier (a unique's copy rolls its base's implicit first: baseTemplateId in item-catalog-v1.json). " +
+                     "themeId: the Resonance theme of a prefix or suffix group (themes), null on a unique or implicit group.",
+            Themes: [.. ItemModifierSeed.Themes().Select(t => new ThemeRow(t.Id, t.Name))],
+            Groups: [.. ItemModifierSeed.Groups().Select(g => new GroupRow(g.Id, (int)g.Kind, g.Code, (int?)g.Element, g.Name, g.ThemeId))],
             Modifiers:
             [
                 .. ItemModifierSeed.Modifiers().Select(m => new ModifierRow(m.Id, m.GroupId, m.Tier,
@@ -62,11 +64,14 @@ public static class ItemModifierCatalogExport
 
     private sealed record CatalogDocument(
         [property: JsonPropertyName("$comment")] string Comment,
+        IReadOnlyList<ThemeRow> Themes,
         IReadOnlyList<GroupRow> Groups,
         IReadOnlyList<ModifierRow> Modifiers,
         IReadOnlyList<TemplateRow> Templates);
 
-    private sealed record GroupRow(int Id, int Kind, string? Code, int? Element, string Name);
+    private sealed record ThemeRow(int Id, string Name);
+
+    private sealed record GroupRow(int Id, int Kind, string? Code, int? Element, string Name, int? ThemeId);
 
     private sealed record ModifierRow(int Id, int GroupId, byte? Tier, IReadOnlyList<StatRow> Stats);
 
