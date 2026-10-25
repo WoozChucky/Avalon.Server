@@ -1294,9 +1294,11 @@ public sealed class TemplateEditShould : IAsyncLifetime
     }
 
     /// <summary>
-    /// The losing side of two concurrent edits (a save of one version, or #1179's unique and base each checked against the
-    /// other's old row): Postgres fails it with 40001 at its UPDATE, wrapped in a DbUpdateException; at COMMIT, bare; or,
-    /// serializable, at a read of the edit's checks. Each is a conflict, with nothing saved or reloaded.
+    /// The losing side of two concurrent edits (a save of one version, two unrelated item edits, or #1179's unique and
+    /// base each checked against the other's old row): Postgres fails it with 40001, and Npgsql's execution strategy
+    /// wraps it as a transient failure, at its UPDATE (InvalidOperationException, then DbUpdateException, then the
+    /// PostgresException) or at a read of the edit's checks (InvalidOperationException, then the PostgresException); at
+    /// COMMIT it is bare. Each is the concurrent-save 409, with nothing saved or reloaded.
     /// </summary>
     [Theory]
     [InlineData("save")]
@@ -1306,12 +1308,12 @@ public sealed class TemplateEditShould : IAsyncLifetime
     {
         TemplateEditResult<Avalon.Domain.World.ItemTemplate> result = await EditWithFailingDatabaseAsync(at switch
         {
-            "save" => new FailingSave(PostgresErrorCodes.SerializationFailure, null!),
+            "save" => new FailingSave(PostgresErrorCodes.SerializationFailure, null!, transient: true),
             "commit" => new FailingCommit(PostgresErrorCodes.SerializationFailure),
             _ => new FailingRead(PostgresErrorCodes.SerializationFailure),
         });
 
-        Assert.Equal(TemplateEditOutcome.Conflict, result.Outcome);
+        Assert.Equal(TemplateEditOutcome.ConcurrentSave, result.Outcome);
         Assert.Empty(_signal.Requests);
         Assert.DoesNotContain(_logs.Entries, e => e.Message.StartsWith("Template saved", StringComparison.Ordinal));
     }
@@ -1367,11 +1369,18 @@ public sealed class TemplateEditShould : IAsyncLifetime
     private static PostgresException Pg(string sqlState, string? constraint) =>
         new("refused", "ERROR", "ERROR", sqlState, constraintName: constraint);
 
-    private sealed class FailingSave(string sqlState, string constraint) : SaveChangesInterceptor
+    // How Npgsql's execution strategy reports a transient failure (a serialization failure among them).
+    private static InvalidOperationException Transient(Exception inner) =>
+        new("An exception has been raised that is likely due to a transient failure.", inner);
+
+    private sealed class FailingSave(string sqlState, string constraint, bool transient = false) : SaveChangesInterceptor
     {
         public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
-            InterceptionResult<int> result, CancellationToken cancellationToken = default) =>
-            throw new DbUpdateException("save failed", Pg(sqlState, constraint));
+            InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            var failure = new DbUpdateException("save failed", Pg(sqlState, constraint));
+            throw transient ? Transient(failure) : failure;
+        }
     }
 
     private sealed class FailingCommit(string sqlState) : DbTransactionInterceptor
@@ -1381,12 +1390,12 @@ public sealed class TemplateEditShould : IAsyncLifetime
             throw Pg(sqlState, null);
     }
 
-    // Fails every query run inside the edit's transaction; the set-up's, outside one, run.
+    // Fails every query run inside the edit's transaction, as the execution strategy reports it; the set-up's run.
     private sealed class FailingRead(string sqlState) : DbCommandInterceptor
     {
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
             CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default) =>
-            command.Transaction is null ? ValueTask.FromResult(result) : throw Pg(sqlState, null);
+            command.Transaction is null ? ValueTask.FromResult(result) : throw Transient(Pg(sqlState, null));
     }
 
     private sealed class FixedFactory(DbContextOptions<WorldDbContext> options) : IDbContextFactory<WorldDbContext>

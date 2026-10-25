@@ -69,4 +69,10 @@ public static class TemplateProblems
 
     public static ObjectResult Conflict() => TemplateEditGuard.Problem(StatusCodes.Status409Conflict, ChangedTitle,
         "Someone saved this template after you read it. Reload it and apply your change again.");
+
+    public const string ConcurrentSaveTitle = "Another template edit was saved at the same moment";
+
+    /// <summary>A save that lost a race with another template edit (#1179): nothing was written; send it again.</summary>
+    public static ObjectResult ConcurrentSave() => TemplateEditGuard.Problem(StatusCodes.Status409Conflict,
+        ConcurrentSaveTitle, "Nothing was saved. Try again.");
 }

@@ -17,8 +17,13 @@ public enum TemplateEditOutcome
 {
     Saved,
     NotFound,
-    /// <summary>The row is not at the version the caller read, or a concurrent save won.</summary>
+    /// <summary>The row is not at the version the caller read.</summary>
     Conflict,
+    /// <summary>
+    /// Another template edit committed at the same moment and the database refused this one (a serialization failure,
+    /// #1179): nothing was written, and the same request may simply be sent again.
+    /// </summary>
+    ConcurrentSave,
     Invalid,
 }
 
@@ -196,9 +201,11 @@ public sealed class TemplateEditService(
         }
         catch (Exception ex) when (TemplateDbErrors.Postgres(ex) is { SqlState: PostgresErrorCodes.SerializationFailure })
         {
-            // The losing side of two concurrent edits, at a read, at the save or at the commit: the same answer as a
-            // stale version.
-            return new(TemplateEditOutcome.Conflict);
+            // The losing side of two concurrent edits, at a read, at the save or at the commit (the transaction rolled
+            // back, so nothing was written): a 409 the caller retries, worded apart from a stale version. Two saves of
+            // one version land here too; the retry then answers the stale version.
+            logger.LogInformation(ex, "A {Kind} template save {TemplateId} lost to a concurrent edit", kind.Name, id);
+            return new(TemplateEditOutcome.ConcurrentSave);
         }
 
         return result.Outcome == TemplateEditOutcome.Saved
@@ -218,7 +225,8 @@ public sealed class TemplateEditService(
             // Serializable: the edit commits only if it would have, run alone. Two saves of the same version cannot both
             // commit, and neither can two edits that each check a row the other changes (#1179): a unique pointed at a
             // base while that base's kind or level changes, each judged against the other's old row. In Postgres the
-            // loser fails with a serialization failure, which is the same answer as a stale version.
+            // loser fails with a serialization failure (RunAsync answers it as a concurrent save). Two edits of unrelated
+            // item templates can collide too, as the item checks read the whole table.
             await using IDbContextTransaction transaction =
                 await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
@@ -344,8 +352,21 @@ public sealed class TemplateEditService(
 /// <summary>Reads the Postgres error out of a failed save, for the template save only.</summary>
 public static class TemplateDbErrors
 {
-    public static PostgresException? Postgres(Exception ex) =>
-        ex as PostgresException ?? (ex as DbUpdateException)?.InnerException as PostgresException;
+    /// <summary>
+    /// The first <see cref="PostgresException" /> in <paramref name="ex" />'s chain of inner exceptions, or null: Npgsql's
+    /// execution strategy wraps a transient failure (a serialization failure among them) in an
+    /// InvalidOperationException around the DbUpdateException or the query's own exception.
+    /// </summary>
+    public static PostgresException? Postgres(Exception ex)
+    {
+        for (Exception? current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException postgres)
+                return postgres;
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// The request field a constraint is about: <c>CK_AbilityTemplates_ThreatMultiplier_NonNegative</c> is
