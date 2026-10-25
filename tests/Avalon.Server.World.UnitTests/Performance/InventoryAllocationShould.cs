@@ -2,10 +2,14 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.World;
 using Avalon.World.Configuration;
+using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
+using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Public.Characters;
@@ -156,6 +160,44 @@ public class InventoryAllocationShould
             () => Assert.Equal(0, owned));
         Assert.Equal(InventoryAddResult.UniqueAlreadyOwned, economy.InventoryOf(_character).CanAdd(Relic.Id, 1));
         Assert.Equal(5u, At(_character, InventoryType.Bag, 0).Count);
+        Assert.Equal(2 * 4 * Rounds, _connection.Sent);
+    }
+
+    /// <summary>
+    /// An identify request at the Resonance Workbench (#1179), at no cost as v1 ships it, allocates nothing beyond its
+    /// one reply, whether it is refused (here AlreadyIdentified, the last rule before gold) or done: no wallet is taken
+    /// when there is no gold to ask for, and the Workbench is looked up by the guid the packet carries.
+    /// </summary>
+    [Fact]
+    public void Answer_an_identify_request_allocating_nothing()
+    {
+        StaticData data = ScenarioReferenceData.Shared.Data;
+        using MapInstance instance = TestMapInstances.Build(new QuietWorld(data));
+        var workbench = new Doodad(new ObjectGuid(ObjectType.Doodad, 1),
+            data.Doodads.Templates.Single(t => t.Service == DoodadService.Identify), _character.Position, 0f);
+        instance.AddDoodad(workbench);
+        _character.InstanceId = instance.InstanceId;
+        var world = new QuietWorld(data, instance);
+        Assert.Equal(0UL, world.Configuration.Items.IdentifyCost);
+        var handler = new ItemIdentifyHandler(NullLogger<ItemIdentifyHandler>.Instance, world, TestEconomy.Over(world));
+        var identify = new CItemIdentifyPacket { RequestId = 9, WorkbenchGuid = workbench.Guid.RawValue, BagSlot = 2 };
+
+        // Put back unidentified before each request, as the item it was.
+        HoldMagicChest(identified: false);
+        InventoryItem unidentified = At(_character, InventoryType.Bag, 2);
+        CharacterInventoryContainer bag = _character.Container(InventoryType.Bag);
+
+        long identified = Allocated(() =>
+        {
+            bag.Put(unidentified);
+            handler.Execute(_connection, identify);
+        });
+        Assert.True(At(_character, InventoryType.Bag, 2).Identified);
+        long refused = Allocated(() => handler.Execute(_connection, identify));
+
+        Assert.Multiple(
+            () => Assert.Equal(0, identified),
+            () => Assert.Equal(0, refused));
         Assert.Equal(2 * 4 * Rounds, _connection.Sent);
     }
 

@@ -263,6 +263,8 @@ public sealed class CharacterInventoryService(
 
     public bool TryIdentify(byte bagSlot)
     {
+        // Deliberately re-read after IdentifyRules: the copy is built from the slot it replaces, and the service stays
+        // its own guard against an empty slot or a second identify, whoever calls it.
         if (!Bag.TryGet(bagSlot, out InventoryItem item) || item.Identified)
             return false;
 

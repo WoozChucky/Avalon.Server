@@ -1,4 +1,3 @@
-using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Serialization;
@@ -50,16 +49,18 @@ public sealed class ItemIdentifyHandler(ILogger<ItemIdentifyHandler> logger, IWo
     private ItemIdentifyResult Identify(CharacterEntity character, CItemIdentifyPacket packet)
     {
         var host = world.InstanceRegistry.GetInstanceById(character.InstanceId) as IDoodadHost;
-        IWallet wallet = economy.WalletOf(character);
         ulong cost = world.Configuration.Items.IdentifyCost;
+        // A wallet is made per call, so it is taken only when there is gold to ask for: at no cost (v1) a request,
+        // refused or not, allocates nothing.
+        IWallet? wallet = cost > 0 ? economy.WalletOf(character) : null;
 
-        ItemIdentifyResult result = IdentifyRules.Decide(character, host, new ObjectGuid(packet.WorkbenchGuid),
-            packet.BagSlot, wallet, cost);
+        ItemIdentifyResult result = IdentifyRules.Decide(character, host, packet.WorkbenchGuid, packet.BagSlot, cost,
+            wallet);
         if (result != ItemIdentifyResult.Ok)
             return result;
 
         // Both were decided a moment ago, on this thread, against this state.
-        if (cost > 0 && wallet.TrySpend(cost) != WalletResult.Ok)
+        if (wallet is not null && wallet.TrySpend(cost) != WalletResult.Ok)
             throw new InvalidOperationException($"Spending {cost} gold to identify failed after IdentifyRules allowed it.");
 
         if (!economy.InventoryOf(character).TryIdentify(packet.BagSlot))

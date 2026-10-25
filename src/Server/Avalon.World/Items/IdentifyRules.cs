@@ -17,14 +17,20 @@ namespace Avalon.World.Items;
 /// Identify); the character is beyond the Workbench's interaction range (a position that is not a number is beyond it);
 /// the Bag holds nothing in that slot (a slot past the Bag included); the item is already identified; it is offered in a
 /// trade; and, when the cost is above 0, the wallet cannot spend it (the wallet already leaves out gold a trade holds).
-/// Doodad visibility is not asked: the catalog refuses a gate or a script on an Identify template, and a town spawn row
+/// The wallet is asked for only when the cost is above 0, so a request at no cost needs none (the handler takes one only
+/// then, and a request allocates nothing). Doodad visibility is not asked: the catalog refuses a gate or a script on an Identify template, and a town spawn row
 /// carries no gate. Tick thread only.
 /// </summary>
 public static class IdentifyRules
 {
-    public static ItemIdentifyResult Decide(CharacterEntity character, IDoodadHost? host, ObjectGuid workbench,
-        byte bagSlot, IWallet wallet, ulong cost)
+    /// <param name="workbench">The Workbench's guid as the request carries it.</param>
+    /// <param name="wallet">The character's wallet; may be null only when <paramref name="cost" /> is 0.</param>
+    public static ItemIdentifyResult Decide(CharacterEntity character, IDoodadHost? host, ulong workbench,
+        byte bagSlot, ulong cost, IWallet? wallet)
     {
+        if (cost > 0 && wallet is null)
+            throw new ArgumentNullException(nameof(wallet), "A cost above 0 is paid from a wallet.");
+
         if (character.IsDead)
             return ItemIdentifyResult.Dead;
 
@@ -51,7 +57,7 @@ public static class IdentifyRules
         if (character.Locks.IsLocked(item.InstanceId))
             return ItemIdentifyResult.Locked;
 
-        if (cost > 0 && wallet.CanSpend(cost) != WalletResult.Ok)
+        if (cost > 0 && wallet!.CanSpend(cost) != WalletResult.Ok)
             return ItemIdentifyResult.NotEnoughGold;
 
         return ItemIdentifyResult.Ok;
