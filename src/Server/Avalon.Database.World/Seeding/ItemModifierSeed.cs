@@ -32,15 +32,15 @@ namespace Avalon.Database.World.Seeding;
 /// </summary>
 public static class ItemModifierSeed
 {
-    // The Resonance themes' ids (#1180), literal surrogates, in the design's table order.
-    private const int Ember = 1;
-    private const int Rime = 2;
-    private const int Storm = 3;
-    private const int Wild = 4;
-    private const int Iron = 5;
-    private const int Thorn = 6;
-    private const int Gale = 7;
-    private const int Veil = 8;
+    // The Resonance themes' ids (#1180), literal surrogates, in the design's table order; ResonanceSeed names them too.
+    internal const int Ember = 1;
+    internal const int Rime = 2;
+    internal const int Storm = 3;
+    internal const int Wild = 4;
+    internal const int Iron = 5;
+    internal const int Thorn = 6;
+    internal const int Gale = 7;
+    internal const int Veil = 8;
 
     // The tiers every family has, weakest first, with their item levels and weights.
     private static readonly byte[] s_tiers = [9, 8, 7];

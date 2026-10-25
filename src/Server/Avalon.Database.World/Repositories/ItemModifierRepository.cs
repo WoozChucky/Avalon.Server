@@ -27,6 +27,12 @@ public interface IItemModifierRepository
     /// carry, read for their kinds and names.
     /// </summary>
     Task<ItemModifierCatalog> GetByIdsAsync(IReadOnlyCollection<int> modifierIds, CancellationToken ct);
+
+    /// <summary>
+    /// Every Resonance effect row (#1180 part A2), untracked and by id, as the table holds it: the world checks them against
+    /// its auras when it builds its effect catalog.
+    /// </summary>
+    Task<IReadOnlyCollection<ItemThemeEffect>> GetThemeEffectsAsync(CancellationToken ct);
 }
 
 public class ItemModifierRepository(IDbContextFactory<WorldDbContext> contextFactory, ILoggerFactory loggerFactory)
@@ -75,6 +81,12 @@ public class ItemModifierRepository(IDbContextFactory<WorldDbContext> contextFac
             .ToListAsync(ct);
 
         return new ItemModifierCatalog(modifiers, [], Logger());
+    }
+
+    public async Task<IReadOnlyCollection<ItemThemeEffect>> GetThemeEffectsAsync(CancellationToken ct)
+    {
+        await using WorldDbContext context = await contextFactory.CreateDbContextAsync(ct);
+        return await context.ItemThemeEffects.AsNoTracking().OrderBy(e => e.Id).ToListAsync(ct);
     }
 
     private ILogger Logger() => loggerFactory.CreateLogger<ItemModifierCatalog>();
