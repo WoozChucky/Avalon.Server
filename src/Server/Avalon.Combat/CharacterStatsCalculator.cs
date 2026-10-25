@@ -46,9 +46,9 @@ public static class CharacterStatsCalculator
             : row.BaseMana
               + (long)(intellect * factors.PowerPerIntellect + agility * factors.PowerPerAgility)
               + gear.Power;
-        long armor = gear.Armor + (long)(strength * (double)formula.ArmorPerStrength);
-        long evasion = gear.Evasion + (long)(agility * (double)formula.EvasionPerAgility);
-        long ward = gear.Ward + (long)(intellect * (double)formula.WardPerIntellect);
+        long armor = LocalScaling.Add(gear.Armor, (long)(strength * (double)formula.ArmorPerStrength));
+        long evasion = LocalScaling.Add(gear.Evasion, (long)(agility * (double)formula.EvasionPerAgility));
+        long ward = LocalScaling.Add(gear.Ward, (long)(intellect * (double)formula.WardPerIntellect));
 
         // #506, #1178: the main hand, what an Attack rolls; the bare hand's range with none.
         WornItem? weapon = MainHandOf(worn);

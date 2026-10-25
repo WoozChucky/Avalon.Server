@@ -102,13 +102,15 @@ public class CharacterStatsCalculatorShould
     /// <summary>
     /// #1178: defence is class-neutral. Armour, evasion and ward are gear plus Strength, Agility and Intellect times the
     /// combat formula's conversions, each product truncated once; block and resistances come from gear alone. A level-1
-    /// Warrior is Strength 23, Agility 20, Intellect 20.
+    /// Warrior is Strength 23, Agility 20, Intellect 20. A chest whose armour lines scale past a long saturates there, and
+    /// Strength's armour added on top keeps it saturated rather than wrapping it to 0.
     /// </summary>
     [Theory]
-    [InlineData(false, 2u, 2u, 5u, 0f)]
-    [InlineData(true, 15u, 9u, 9u, 10f)]
+    [InlineData("nothing", 2u, 2u, 5u, 0f)]
+    [InlineData("the robe", 15u, 9u, 9u, 10f)]
+    [InlineData("armour past a long", uint.MaxValue, 2u, 5u, 0f)]
     public void Turn_attributes_and_gear_into_armour_evasion_ward_and_resistances(
-        bool geared, uint armor, uint evasion, uint ward, float fire)
+        string gear, uint armor, uint evasion, uint ward, float fire)
     {
         var formula = new CombatFormula { ArmorPerStrength = 0.1f, EvasionPerAgility = 0.1f, WardPerIntellect = 0.25f };
         var robe = new ItemTemplate
@@ -126,8 +128,17 @@ public class CharacterStatsCalculatorShould
             StatValue4 = 10,
         };
 
+        var chest = new ItemTemplate { Name = "Chest", Slot = ItemSlotType.Chest };
+        IReadOnlyList<WornItem> worn = gear switch
+        {
+            "nothing" => [],
+            "the robe" => Worn.Of(robe),
+            _ => [Rolled(chest, [.. Enumerable.Repeat((StatType.Armor, int.MaxValue, (int?)null), 4),
+                .. Enumerable.Repeat((StatType.LocalIncreasedArmor, int.MaxValue, (int?)null), 4)])],
+        };
+
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Warrior, 1),
-            geared ? Worn.Of(robe) : [], TestCombat.FactorsOf(CharacterClass.Warrior), formula);
+            worn, TestCombat.FactorsOf(CharacterClass.Warrior), formula);
 
         Assert.Equal((armor, evasion, ward, 0f), (stats.Armor, stats.Evasion, stats.MaxWard, stats.BlockPct));
         Assert.Equal(new Resistances(fire, 0f, 0f, 0f), stats.Resistances);
