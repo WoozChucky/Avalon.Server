@@ -6702,7 +6702,12 @@ namespace Avalon.Database.World.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<int?>("ThemeId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ThemeId");
 
                     b.HasIndex("Code", "Element")
                         .IsUnique()
@@ -6717,6 +6722,8 @@ namespace Avalon.Database.World.Migrations
                             t.HasCheckConstraint("CK_ItemModifierGroups_Element", "\"Element\" IS NULL OR (\"Kind\" IN (1, 2) AND \"Element\" BETWEEN 0 AND 4)");
 
                             t.HasCheckConstraint("CK_ItemModifierGroups_Kind", "\"Kind\" IN (1, 2, 3, 4)");
+
+                            t.HasCheckConstraint("CK_ItemModifierGroups_Theme", "(\"Kind\" IN (1, 2)) = (\"ThemeId\" IS NOT NULL)");
                         });
 
                     b.HasData(
@@ -6725,49 +6732,56 @@ namespace Avalon.Database.World.Migrations
                             Id = 1,
                             Code = "P1",
                             Kind = (byte)1,
-                            Name = "Briar-edged"
+                            Name = "Briar-edged",
+                            ThemeId = 6
                         },
                         new
                         {
                             Id = 2,
                             Code = "P2",
                             Kind = (byte)1,
-                            Name = "Smouldering"
+                            Name = "Smouldering",
+                            ThemeId = 1
                         },
                         new
                         {
                             Id = 3,
                             Code = "P3",
                             Kind = (byte)1,
-                            Name = "Rimed"
+                            Name = "Rimed",
+                            ThemeId = 2
                         },
                         new
                         {
                             Id = 4,
                             Code = "P4",
                             Kind = (byte)1,
-                            Name = "Crackling"
+                            Name = "Crackling",
+                            ThemeId = 3
                         },
                         new
                         {
                             Id = 5,
                             Code = "P5",
                             Kind = (byte)1,
-                            Name = "Festering"
+                            Name = "Festering",
+                            ThemeId = 4
                         },
                         new
                         {
                             Id = 6,
                             Code = "P6",
                             Kind = (byte)1,
-                            Name = "Honed"
+                            Name = "Honed",
+                            ThemeId = 6
                         },
                         new
                         {
                             Id = 7,
                             Code = "P7",
                             Kind = (byte)1,
-                            Name = "Whispering"
+                            Name = "Whispering",
+                            ThemeId = 8
                         },
                         new
                         {
@@ -6775,7 +6789,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "P8",
                             Element = (short)1,
                             Kind = (byte)1,
-                            Name = "Ashen"
+                            Name = "Ashen",
+                            ThemeId = 1
                         },
                         new
                         {
@@ -6783,7 +6798,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "P8",
                             Element = (short)2,
                             Kind = (byte)1,
-                            Name = "Hoarfrost"
+                            Name = "Hoarfrost",
+                            ThemeId = 2
                         },
                         new
                         {
@@ -6791,7 +6807,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "P8",
                             Element = (short)3,
                             Kind = (byte)1,
-                            Name = "Galvanic"
+                            Name = "Galvanic",
+                            ThemeId = 3
                         },
                         new
                         {
@@ -6799,7 +6816,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "P8",
                             Element = (short)4,
                             Kind = (byte)1,
-                            Name = "Mouldering"
+                            Name = "Mouldering",
+                            ThemeId = 4
                         },
                         new
                         {
@@ -6807,7 +6825,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "P9",
                             Element = (short)0,
                             Kind = (byte)1,
-                            Name = "Thorn-tipped"
+                            Name = "Thorn-tipped",
+                            ThemeId = 6
                         },
                         new
                         {
@@ -6815,7 +6834,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "P9",
                             Element = (short)1,
                             Kind = (byte)1,
-                            Name = "Thorn-tipped"
+                            Name = "Thorn-tipped",
+                            ThemeId = 1
                         },
                         new
                         {
@@ -6823,7 +6843,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "P9",
                             Element = (short)2,
                             Kind = (byte)1,
-                            Name = "Thorn-tipped"
+                            Name = "Thorn-tipped",
+                            ThemeId = 2
                         },
                         new
                         {
@@ -6831,7 +6852,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "P9",
                             Element = (short)3,
                             Kind = (byte)1,
-                            Name = "Thorn-tipped"
+                            Name = "Thorn-tipped",
+                            ThemeId = 3
                         },
                         new
                         {
@@ -6839,7 +6861,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "P9",
                             Element = (short)4,
                             Kind = (byte)1,
-                            Name = "Thorn-tipped"
+                            Name = "Thorn-tipped",
+                            ThemeId = 4
                         },
                         new
                         {
@@ -6847,7 +6870,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "P10",
                             Element = (short)1,
                             Kind = (byte)1,
-                            Name = "Ember-sung"
+                            Name = "Ember-sung",
+                            ThemeId = 1
                         },
                         new
                         {
@@ -6855,7 +6879,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "P10",
                             Element = (short)2,
                             Kind = (byte)1,
-                            Name = "Ember-sung"
+                            Name = "Ember-sung",
+                            ThemeId = 2
                         },
                         new
                         {
@@ -6863,98 +6888,112 @@ namespace Avalon.Database.World.Migrations
                             Code = "P10",
                             Element = (short)3,
                             Kind = (byte)1,
-                            Name = "Ember-sung"
+                            Name = "Ember-sung",
+                            ThemeId = 3
                         },
                         new
                         {
                             Id = 20,
                             Code = "P11",
                             Kind = (byte)1,
-                            Name = "Hale"
+                            Name = "Hale",
+                            ThemeId = 4
                         },
                         new
                         {
                             Id = 21,
                             Code = "P12",
                             Kind = (byte)1,
-                            Name = "Barkbound"
+                            Name = "Barkbound",
+                            ThemeId = 5
                         },
                         new
                         {
                             Id = 22,
                             Code = "P13",
                             Kind = (byte)1,
-                            Name = "Ironbark"
+                            Name = "Ironbark",
+                            ThemeId = 5
                         },
                         new
                         {
                             Id = 23,
                             Code = "P14",
                             Kind = (byte)1,
-                            Name = "Fleet-footed"
+                            Name = "Fleet-footed",
+                            ThemeId = 7
                         },
                         new
                         {
                             Id = 24,
                             Code = "P15",
                             Kind = (byte)1,
-                            Name = "Mistwoven"
+                            Name = "Mistwoven",
+                            ThemeId = 7
                         },
                         new
                         {
                             Id = 25,
                             Code = "P16",
                             Kind = (byte)1,
-                            Name = "Veilwoven"
+                            Name = "Veilwoven",
+                            ThemeId = 8
                         },
                         new
                         {
                             Id = 26,
                             Code = "P17",
                             Kind = (byte)1,
-                            Name = "Glamoured"
+                            Name = "Glamoured",
+                            ThemeId = 8
                         },
                         new
                         {
                             Id = 27,
                             Code = "P18",
                             Kind = (byte)1,
-                            Name = "Lingering"
+                            Name = "Lingering",
+                            ThemeId = 4
                         },
                         new
                         {
                             Id = 28,
                             Code = "P19",
                             Kind = (byte)1,
-                            Name = "Mending"
+                            Name = "Mending",
+                            ThemeId = 4
                         },
                         new
                         {
                             Id = 29,
                             Code = "S1",
                             Kind = (byte)2,
-                            Name = "of the Ox-root"
+                            Name = "of the Ox-root",
+                            ThemeId = 6
                         },
                         new
                         {
                             Id = 30,
                             Code = "S2",
                             Kind = (byte)2,
-                            Name = "of the Hare"
+                            Name = "of the Hare",
+                            ThemeId = 7
                         },
                         new
                         {
                             Id = 31,
                             Code = "S3",
                             Kind = (byte)2,
-                            Name = "of the Owl"
+                            Name = "of the Owl",
+                            ThemeId = 8
                         },
                         new
                         {
                             Id = 32,
                             Code = "S4",
                             Kind = (byte)2,
-                            Name = "of the Old Oak"
+                            Name = "of the Old Oak",
+                            ThemeId = 4
                         },
                         new
                         {
@@ -6962,7 +7001,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "S5",
                             Element = (short)1,
                             Kind = (byte)2,
-                            Name = "of the Hearth"
+                            Name = "of the Hearth",
+                            ThemeId = 1
                         },
                         new
                         {
@@ -6970,7 +7010,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "S5",
                             Element = (short)2,
                             Kind = (byte)2,
-                            Name = "of the Thaw"
+                            Name = "of the Thaw",
+                            ThemeId = 2
                         },
                         new
                         {
@@ -6978,7 +7019,8 @@ namespace Avalon.Database.World.Migrations
                             Code = "S5",
                             Element = (short)3,
                             Kind = (byte)2,
-                            Name = "of Grounding"
+                            Name = "of Grounding",
+                            ThemeId = 3
                         },
                         new
                         {
@@ -6986,63 +7028,72 @@ namespace Avalon.Database.World.Migrations
                             Code = "S5",
                             Element = (short)4,
                             Kind = (byte)2,
-                            Name = "of the Clean Spring"
+                            Name = "of the Clean Spring",
+                            ThemeId = 4
                         },
                         new
                         {
                             Id = 37,
                             Code = "S6",
                             Kind = (byte)2,
-                            Name = "of Haste"
+                            Name = "of Haste",
+                            ThemeId = 7
                         },
                         new
                         {
                             Id = 38,
                             Code = "S7",
                             Kind = (byte)2,
-                            Name = "of Quick Hands"
+                            Name = "of Quick Hands",
+                            ThemeId = 7
                         },
                         new
                         {
                             Id = 39,
                             Code = "S8",
                             Kind = (byte)2,
-                            Name = "of Cadence"
+                            Name = "of Cadence",
+                            ThemeId = 8
                         },
                         new
                         {
                             Id = 40,
                             Code = "S9",
                             Kind = (byte)2,
-                            Name = "of the Keen Eye"
+                            Name = "of the Keen Eye",
+                            ThemeId = 6
                         },
                         new
                         {
                             Id = 41,
                             Code = "S10",
                             Kind = (byte)2,
-                            Name = "of Ruin"
+                            Name = "of Ruin",
+                            ThemeId = 6
                         },
                         new
                         {
                             Id = 42,
                             Code = "S11",
                             Kind = (byte)2,
-                            Name = "of the Wanderer"
+                            Name = "of the Wanderer",
+                            ThemeId = 7
                         },
                         new
                         {
                             Id = 43,
                             Code = "S12",
                             Kind = (byte)2,
-                            Name = "of Renewal"
+                            Name = "of Renewal",
+                            ThemeId = 8
                         },
                         new
                         {
                             Id = 44,
                             Code = "S13",
                             Kind = (byte)2,
-                            Name = "of the Bulwark"
+                            Name = "of the Bulwark",
+                            ThemeId = 5
                         },
                         new
                         {
@@ -7079,7 +7130,8 @@ namespace Avalon.Database.World.Migrations
                             Id = 110,
                             Code = "S14",
                             Kind = (byte)2,
-                            Name = "of Deep Roots"
+                            Name = "of Deep Roots",
+                            ThemeId = 4
                         },
                         new
                         {
@@ -17438,6 +17490,66 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ItemTheme", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("ItemThemes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Name = "Ember"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Name = "Rime"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Name = "Storm"
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Name = "Wild"
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Name = "Iron"
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Name = "Thorn"
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Name = "Gale"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Name = "Veil"
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.LocalizedText", b =>
                 {
                     b.Property<int>("Id")
@@ -21348,6 +21460,14 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired();
 
                     b.Navigation("Group");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemModifierGroup", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemTheme", null)
+                        .WithMany()
+                        .HasForeignKey("ThemeId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.ItemModifierStat", b =>

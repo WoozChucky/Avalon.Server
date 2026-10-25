@@ -13,7 +13,8 @@ public readonly record struct ItemModifierCandidate(ItemModifier Modifier, int W
 /// builds a new one. A row it cannot trust is logged and left out:
 /// <list type="bullet">
 /// <item>a modifier with no group or no stat line, a prefix, suffix or implicit row without a tier, a unique row with
-/// one, or a unique or implicit modifier that carries a weight;</item>
+/// one, a unique or implicit modifier that carries a weight, or a row whose group breaks the Resonance rule (#1180: a
+/// prefix or suffix group carries exactly one theme, a unique or implicit group none);</item>
 /// <item>a template's links when one names a modifier left out or a prefix or suffix, or when they mix a unique
 /// modifier with any other link (a unique template links its one Unique modifier, a common base its one Implicit). The
 /// template is then left with no links at all, never with part of them.</item>
@@ -149,6 +150,14 @@ public sealed class ItemModifierCatalog
 
         if (modifier.Group.Kind is ItemModifierKind.Unique or ItemModifierKind.Implicit && modifier.Weights.Count > 0)
             return $"a {modifier.Group.Kind} modifier carries a weight, but it only ever rolls through a template link";
+
+        bool affix = modifier.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix;
+        if (affix != modifier.Group.ThemeId is not null)
+        {
+            return affix
+                ? $"a {modifier.Group.Kind} group has no theme"
+                : $"a {modifier.Group.Kind} group has a theme, which only prefixes and suffixes carry";
+        }
 
         return null;
     }

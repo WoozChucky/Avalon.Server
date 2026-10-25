@@ -70,6 +70,7 @@ public class WorldDbContext : DbContext
     public DbSet<CreatureTemplate> CreatureTemplates { get; set; } = null!;
     public DbSet<ItemTemplate> ItemTemplates { get; set; } = null!;
     public DbSet<ItemTemplateBaseStat> ItemTemplateBaseStats { get; set; } = null!;
+    public DbSet<ItemTheme> ItemThemes { get; set; } = null!;
     public DbSet<ItemModifierGroup> ItemModifierGroups { get; set; } = null!;
     public DbSet<ItemModifier> ItemModifiers { get; set; } = null!;
     public DbSet<ItemModifierStat> ItemModifierStats { get; set; } = null!;
@@ -137,6 +138,7 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<CreatureTemplate>());
         Configure(modelBuilder.Entity<ItemTemplate>());
         Configure(modelBuilder.Entity<ItemTemplateBaseStat>());
+        Configure(modelBuilder.Entity<ItemTheme>());
         Configure(modelBuilder.Entity<ItemModifierGroup>());
         Configure(modelBuilder.Entity<ItemModifier>());
         Configure(modelBuilder.Entity<ItemModifierStat>());
@@ -1793,9 +1795,25 @@ public class WorldDbContext : DbContext
     }
 
     /// <summary>
+    /// The Resonance themes (#1180): a balance table, one row per theme, each with a literal id; every affix group names
+    /// one (<see cref="ItemModifierGroup.ThemeId" />).
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ItemTheme> builder)
+    {
+        builder.ToTable("ItemThemes");
+        builder.HasKey(t => t.Id);
+        builder.Property(t => t.Id).ValueGeneratedNever();
+        builder.Property(t => t.Name).HasMaxLength(40).IsRequired();
+        builder.HasIndex(t => t.Name).IsUnique();
+
+        builder.HasData(ItemModifierSeed.Themes());
+    }
+
+    /// <summary>
     /// The modifier catalog's groups (#1179): one row per exclusive group, an affix family (each element of a split family
     /// its own), a unique, or an implicit stat whose tiers the bases link. A code and an element name one group; uniques and
-    /// implicits have neither, so the unique index covers the coded rows only.
+    /// implicits have neither, so the unique index covers the coded rows only. A theme (#1180) sits on exactly the prefix
+    /// and suffix groups, as the code does.
     /// </summary>
     private static void Configure(EntityTypeBuilder<ItemModifierGroup> builder)
     {
@@ -1803,6 +1821,7 @@ public class WorldDbContext : DbContext
         {
             t.HasCheckConstraint("CK_ItemModifierGroups_Kind", "\"Kind\" IN (1, 2, 3, 4)");
             t.HasCheckConstraint("CK_ItemModifierGroups_Code", "(\"Kind\" IN (1, 2)) = (\"Code\" IS NOT NULL)");
+            t.HasCheckConstraint("CK_ItemModifierGroups_Theme", "(\"Kind\" IN (1, 2)) = (\"ThemeId\" IS NOT NULL)");
             t.HasCheckConstraint("CK_ItemModifierGroups_Element",
                 "\"Element\" IS NULL OR (\"Kind\" IN (1, 2) AND \"Element\" BETWEEN 0 AND 4)");
         });
@@ -1812,6 +1831,7 @@ public class WorldDbContext : DbContext
         builder.Property(g => g.Element).HasColumnType("smallint");
         builder.Property(g => g.Name).HasMaxLength(40).IsRequired();
         builder.HasIndex(g => new { g.Code, g.Element }).IsUnique().AreNullsDistinct(false).HasFilter("\"Code\" IS NOT NULL");
+        builder.HasOne<ItemTheme>().WithMany().HasForeignKey(g => g.ThemeId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasData(ItemModifierSeed.Groups());
     }
