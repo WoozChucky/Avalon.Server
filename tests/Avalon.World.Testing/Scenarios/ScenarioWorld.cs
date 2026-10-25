@@ -4,9 +4,11 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Hosting.Networking;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
@@ -553,6 +555,84 @@ public sealed class ScenarioWorld : IDisposable
 
         character.Spells.Load(abilities);
         return character;
+    }
+
+    /// <summary>
+    /// <paramref name="character" /> wearing the Resonance kit (#1180 part A2): a helmet (36) on its head, a ring (68) on
+    /// each finger and an amulet (69) at its neck, each holding one T9 affix of each family in <paramref name="affixes" />
+    /// (its code, and its element for a family split by element), every line at its low end, loaded as character select
+    /// loads a character's equipment; then its stats refreshed as it enters the world. Four pieces bring each affix's theme
+    /// to 4. The pieces' ids are made from the character's id, so the same character always wears the same items. Setup
+    /// only: before the character joins, and before anything is put in its bag (the load replaces every item's modifiers).
+    /// </summary>
+    public static void WearResonanceKit(CharacterEntity character, StaticData data,
+        params (string Family, DamageType? Element)[] affixes)
+    {
+        ArgumentNullException.ThrowIfNull(character);
+        ArgumentNullException.ThrowIfNull(data);
+
+        int[] modifierIds = [.. affixes.Select(affix => T9Of(affix.Family, affix.Element))];
+        int owner = checked((int)character.Data!.Id.Value);
+        var worn = new InventoryItem[s_resonanceKit.Length];
+        var instances = new ItemInstance[s_resonanceKit.Length];
+        for (int piece = 0; piece < s_resonanceKit.Length; piece++)
+        {
+            (byte slot, ulong templateId) = s_resonanceKit[piece];
+            ItemTemplate template = data.FindItemTemplate(new ItemTemplateId(templateId))
+                                    ?? throw new InvalidOperationException($"The seed has no item template {templateId}");
+            var id = new ItemInstanceId(new Guid(owner, slot, 0, 0, 0, 0, 0, 0, 0, 0, 3));
+            worn[piece] = new InventoryItem(slot, id, template.Id, 1, 0, ItemInstanceFlags.None, ItemRarity.Magic, 1,
+                RareName: null, Identified: true);
+
+            var modifiers = new List<ItemInstanceModifier>(modifierIds.Length);
+            for (int ordinal = 0; ordinal < modifierIds.Length; ordinal++)
+            {
+                ItemModifier row = data.Items.Modifiers.Find(modifierIds[ordinal])
+                                   ?? throw new InvalidOperationException($"The catalog has no modifier {modifierIds[ordinal]}");
+                var modifierId = new Guid(owner, slot, (short)ordinal, 0, 0, 0, 0, 0, 0, 0, 4);
+                modifiers.Add(new ItemInstanceModifier
+                {
+                    Id = modifierId,
+                    ItemInstanceId = id,
+                    ModifierId = row.Id,
+                    Ordinal = (byte)ordinal,
+                    Values =
+                    [
+                        .. row.Stats.Select(line => new ItemInstanceModifierValue
+                        {
+                            ItemInstanceModifierId = modifierId,
+                            Index = line.Index,
+                            Stat = line.Stat,
+                            Value = line.Min,
+                            Value2 = line.Min2,
+                        }),
+                    ],
+                });
+            }
+
+            instances[piece] = new ItemInstance { Id = id, TemplateId = template.Id, Identified = true, Modifiers = modifiers };
+        }
+
+        character.ItemModifiers.Load(instances);
+        character.Container(InventoryType.Equipment).Load(worn);
+        if (!CharacterStatsRefresh.Apply(character, data, CurrentValues.EnterWorld))
+            throw new InvalidOperationException($"The seed has no stats or stat factors for {character.Class}");
+    }
+
+    // The Resonance kit's pieces: where each is worn, and its template.
+    private static readonly (byte Slot, ulong Template)[] s_resonanceKit =
+    [
+        (EquipmentSlots.Head, 36), (EquipmentSlots.Finger1, 68), (EquipmentSlots.Finger2, 68), (EquipmentSlots.Neck, 69),
+    ];
+
+    /// <summary>The seeded T9 row of the affix family <paramref name="family" /> (of <paramref name="element" />, for a split one).</summary>
+    private static int T9Of(string family, DamageType? element)
+    {
+        ItemModifierGroup group = ItemModifierSeed.Groups().SingleOrDefault(g =>
+                                      g.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix
+                                      && g.Code == family && g.Element == element)
+                                  ?? throw new InvalidOperationException($"The seed has no affix family {family} {element}");
+        return ItemModifierSeed.Modifiers().Single(m => m.GroupId == group.Id && m.Tier == 9).Id;
     }
 
     /// <summary>A level 1 warrior on the world's clock, at full health, with no abilities.</summary>

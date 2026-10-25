@@ -10,7 +10,8 @@ public static class Scenarios
         new TownWalkScenario(),
         new TownSocialScenario(),
         new ManyInstancesScenario(),
-        new ForestCombatScenario(),
+        new ForestCombatScenario("forest-combat", themed: false),
+        new ForestCombatScenario("forest-resonance", themed: true),
         new TownDoodadsScenario(),
     ];
 

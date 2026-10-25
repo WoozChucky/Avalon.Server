@@ -1,9 +1,13 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Combat;
+using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
+using Avalon.World.Items;
 using Avalon.World.Parties;
 using Avalon.World.Public.Characters;
 
@@ -33,6 +37,13 @@ namespace Avalon.World.Testing.Scenarios;
 /// Level 1 characters die to a pack. A dead fighter lies dead for <see cref="LoopFighter.ReviveAfterTicks" /> ticks
 /// and is then revived at the forest's entry by the instance's combat service, standing for a respawn in town and the
 /// walk back, which a scenario cannot do.
+/// </para>
+/// <para>
+/// Built themed (<c>forest-resonance</c>, #1180 part A2), the same fight is fought in the Resonance kit
+/// (<see cref="ScenarioWorld.WearResonanceKit" />): every fighter wears four pieces, each with one T9 affix of each of its
+/// class's two themes (<see cref="s_kitAffixes" />), so each of the eight themes is at 4 on some fighter and its effects
+/// fire on the fight's hits, crits, kills and strikes. Its check adds a floor of its own: across the roster, each of those
+/// four triggers fired at least once (<see cref="TriggersFired" />).
 /// </para>
 /// </remarks>
 public sealed class ForestCombatScenario : IScenario
@@ -71,10 +82,44 @@ public sealed class ForestCombatScenario : IScenario
     private static readonly CharacterClass[] s_classes =
         [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Cleric];
 
+    // A themed fighter's affix families, by class: one of each of its class's two themes, on each piece of the kit.
+    private static readonly Dictionary<CharacterClass, (string Family, DamageType? Element)[]> s_kitAffixes = new()
+    {
+        [CharacterClass.Warrior] = [("P12", null), ("S9", null)],                  // Iron, Thorn
+        [CharacterClass.Wizard] = [("P8", DamageType.Fire), ("P16", null)],        // Ember, Veil
+        [CharacterClass.Hunter] = [("P8", DamageType.Lightning), ("S7", null)],    // Storm, Gale
+        [CharacterClass.Cleric] = [("P11", null), ("P8", DamageType.Cold)],        // Wild, Rime
+    };
+
+    // The triggers a themed fight must have fired, across the roster; Evaded and WardBroken are reported, not floored.
+    private const ResonanceTriggers FlooredTriggers =
+        ResonanceTriggers.Hit | ResonanceTriggers.Crit | ResonanceTriggers.Kill | ResonanceTriggers.Struck;
+
+    private static readonly PropertyInfo s_resonanceProcs =
+        typeof(CharacterEntity).GetProperty("ResonanceProcs", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException($"{nameof(CharacterEntity)}.ResonanceProcs is not there");
+
+    private readonly bool _themed;
+
     // Each world's fight, for Verify and Kills: the scenario is shared, and builds a world for every run.
     private readonly ConditionalWeakTable<ScenarioWorld, Fight> _fights = new();
 
-    public string Name => "forest-combat";
+    /// <summary>The fight as <c>forest-combat</c> measures it: unthemed.</summary>
+    public ForestCombatScenario()
+        : this("forest-combat", themed: false)
+    {
+    }
+
+    /// <param name="name">The name the baseline reports it under.</param>
+    /// <param name="themed">Whether every fighter wears the Resonance kit (see the remarks).</param>
+    public ForestCombatScenario(string name, bool themed)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        Name = name;
+        _themed = themed;
+    }
+
+    public string Name { get; }
 
     public int Players => s_forestSeeds.Length * PartySize;
 
@@ -87,6 +132,7 @@ public sealed class ForestCombatScenario : IScenario
         {
             FighterHandlers handlers = LoopFighter.Handlers(world);
             var fighters = new List<LoopFighter>(Players);
+            var roster = new List<CharacterEntity>(Players);
             var forests = new List<FightForest>(s_forestSeeds.Length);
 
             foreach (int seed in s_forestSeeds)
@@ -97,8 +143,15 @@ public sealed class ForestCombatScenario : IScenario
                 for (int m = 0; m < PartySize; m++)
                 {
                     CharacterEntity character = world.NewCharacter(s_classes[fighters.Count % s_classes.Length]);
+                    if (_themed)
+                    {
+                        ScenarioWorld.WearResonanceKit(character, ScenarioReferenceData.Shared.Data,
+                            s_kitAffixes[character.Class]);
+                    }
+
                     FillBag(world, character);
                     characters[m] = character;
+                    roster.Add(character);
                     var fighter = new LoopFighter(handlers, character, seed: fighters.Count + 1);
                     members[m] = world.Connect(character, fighter.Step);
                     party[m] = fighter;
@@ -116,7 +169,7 @@ public sealed class ForestCombatScenario : IScenario
                 }
             }
 
-            var fight = new Fight(fighters, forests);
+            var fight = new Fight(fighters, forests, roster);
             world.Marked += fight.Mark;
             _fights.AddOrUpdate(world, fight);
             return world;
@@ -175,6 +228,40 @@ public sealed class ForestCombatScenario : IScenario
         RequireAtLeast(measured.QuestsCompleted, MinQuestsCompleted, "completed kill quests (each completion is abandoned and accepted again)");
         RequireAtLeast(measured.Pickups, MinPickups, "picked up drops");
         RequireAtLeast(measured.ItemsDestroyed, 1, "destroyed items to keep room in the bags");
+
+        if (_themed)
+        {
+            ResonanceTriggers fired = TriggersFired(world);
+            if ((fired & FlooredTriggers) != FlooredTriggers)
+            {
+                throw new InvalidOperationException(
+                    $"{Name}: across the roster only {fired} fired, not each of {FlooredTriggers}. A fight whose Resonance " +
+                    "effects stopped firing measures cheaper than it is and would pass the allocation gate as an improvement.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// The Resonance triggers that fired for any fighter since the world was built: those of every active effect whose
+    /// cooldown was ever spent. A cooldown is spent only by a firing, and is kept for the character's life. Evaded and
+    /// WardBroken are reported here, and not floored by <see cref="Verify" />.
+    /// <see cref="ResonanceTriggers.None" /> for an unthemed fight. The procs are World-side and internal, so they are
+    /// read by reflection; not on a measured tick.
+    /// </summary>
+    public ResonanceTriggers TriggersFired(ScenarioWorld world)
+    {
+        ResonanceTriggers fired = ResonanceTriggers.None;
+        foreach (CharacterEntity character in FightOf(world).Characters)
+        {
+            var procs = (ResonanceProcs)s_resonanceProcs.GetValue(character)!;
+            for (int slot = 0; slot < procs.Count; slot++)
+            {
+                if (procs.ReadyAt(slot) != default)
+                    fired |= procs.EffectAt(slot).Bit;
+            }
+        }
+
+        return fired;
     }
 
     private void RequireAtLeast(int count, int least, string what)
@@ -214,10 +301,13 @@ public sealed class ForestCombatScenario : IScenario
             ? fight
             : throw new ArgumentException($"The world was not built by {Name}", nameof(world));
 
-    /// <summary>One world's fighters and forests, and their casts, kills and outcome when its progress was marked.</summary>
-    private sealed class Fight(IReadOnlyList<LoopFighter> fighters, IReadOnlyList<FightForest> forests)
+    /// <summary>One world's fighters, their characters and forests, and their casts, kills and outcome when its progress was marked.</summary>
+    private sealed class Fight(IReadOnlyList<LoopFighter> fighters, IReadOnlyList<FightForest> forests,
+        IReadOnlyList<CharacterEntity> characters)
     {
         public IReadOnlyList<LoopFighter> Fighters { get; } = fighters;
+
+        public IReadOnlyList<CharacterEntity> Characters { get; } = characters;
 
         public IReadOnlyList<FightForest> Forests { get; } = forests;
 
