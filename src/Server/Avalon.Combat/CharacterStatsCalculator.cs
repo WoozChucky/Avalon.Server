@@ -39,8 +39,8 @@ public static class CharacterStatsCalculator
         long agility = row.Agility + gear.Agility;
         long intellect = row.Intellect + gear.Intellect;
 
-        long maxHealth = LocalScaling.Increase(row.BaseHp + stamina * formula.LifePerStamina + gear.Health,
-            gear.IncreasedMaximumLife);
+        long flatLife = LocalScaling.Saturate((Int128)row.BaseHp + ((Int128)stamina * formula.LifePerStamina) + gear.Health);
+        long maxHealth = LocalScaling.Increase(flatLife, gear.IncreasedMaximumLife);
         long maxPower = factors.FixedPower is { } fixedPower
             ? fixedPower
             : row.BaseMana
@@ -114,7 +114,10 @@ public static class CharacterStatsCalculator
         return null;
     }
 
-    /// <summary>Stats are summed in long, so no amount of authored gear can wrap a uint.</summary>
+    /// <summary>
+    /// Stats are summed in long, and a product or an item's scaled defence that could pass a long is held to its range
+    /// (<see cref="LocalScaling" />), so no amount of authored gear can wrap a uint.
+    /// </summary>
     private static uint Clamp(long value) => (uint)Math.Clamp(value, 0L, uint.MaxValue);
 
     private struct GearTotals
@@ -147,9 +150,9 @@ public static class CharacterStatsCalculator
                     CharacterOffence.Add(ref offence, ref toAttacks, ref toSpells, line);
                 }
 
-                totals.Armor += defence.Armor;
-                totals.Evasion += defence.Evasion;
-                totals.Ward += defence.Ward;
+                totals.Armor = LocalScaling.Add(totals.Armor, defence.Armor);
+                totals.Evasion = LocalScaling.Add(totals.Evasion, defence.Evasion);
+                totals.Ward = LocalScaling.Add(totals.Ward, defence.Ward);
             }
 
             return totals;

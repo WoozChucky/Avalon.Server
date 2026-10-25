@@ -136,16 +136,19 @@ public class CharacterStatsCalculatorShould
     /// <summary>
     /// #1179 (B2-R14): increased maximum life scales the flat life from base, Stamina and gear, in whole numbers, half away
     /// from zero, never below 0. BaseHp 500 and Stamina 20 at the seeded 5 life per Stamina is 600. 675 x 1.26 is 850.5,
-    /// so 851. An aura folds after the increase: 600 x 1.10 is 660, then +50 flat is 710 (715 had it been scaled).
+    /// so 851. An aura folds after the increase: 600 x 1.10 is 660, then +50 flat is 710 (715 had it been scaled). Four
+    /// rings at the largest lines the columns hold scale past a long, and the maximum saturates instead of wrapping.
     /// </summary>
     [Theory]
-    [InlineData(0, 0, 600u, 0)]
-    [InlineData(75, 0, 675u, 0)]
-    [InlineData(0, 26, 756u, 0)]
-    [InlineData(75, 26, 851u, 0)]
-    [InlineData(0, -150, 0u, 0)]
-    [InlineData(0, 10, 710u, 50)]
-    public void Scale_maximum_health_by_increased_maximum_life(int gearHealth, int increased, uint expected, int auraHealth)
+    [InlineData(0, 0, 600u, 0, 1)]
+    [InlineData(75, 0, 675u, 0, 1)]
+    [InlineData(0, 26, 756u, 0, 1)]
+    [InlineData(75, 26, 851u, 0, 1)]
+    [InlineData(0, -150, 0u, 0, 1)]
+    [InlineData(0, 10, 710u, 50, 1)]
+    [InlineData(int.MaxValue, int.MaxValue, uint.MaxValue, 0, 4)]
+    public void Scale_maximum_health_by_increased_maximum_life(int gearHealth, int increased, uint expected, int auraHealth,
+        int items)
     {
         var row = new ClassLevelStat { Class = CharacterClass.Warrior, Level = 1, BaseHp = 500, Stamina = 20 };
         var amulet = new ItemTemplate { Name = "Amulet", Slot = ItemSlotType.Neck };
@@ -155,7 +158,7 @@ public class CharacterStatsCalculatorShould
             : AuraStatTotals.Of([aura], static m => ((IReadOnlyList<AuraStatModifier>)[m], 1u));
 
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row,
-            [Rolled(amulet, (StatType.Health, gearHealth, null), (StatType.IncreasedMaximumLife, increased, null))],
+            [.. Enumerable.Repeat(Rolled(amulet, (StatType.Health, gearHealth, null), (StatType.IncreasedMaximumLife, increased, null)), items)],
             TestCombat.FactorsOf(CharacterClass.Warrior), TestCombat.Formula, auras);
 
         Assert.Equal(expected, stats.MaxHealth);
@@ -256,8 +259,9 @@ public class CharacterStatsCalculatorShould
 
     /// <summary>
     /// Review Focus 4 (#1179, A-R13, A-R14, B2-R1): a local line counts only on the item it sits on, and scales the base
-    /// stats its copy rolled. The plate chest's 10 % increased armour scales its own 30 to 33, never the helmet's 10: 43,
-    /// plus Strength 23's 2; the gloves' 100 % scales no armour of theirs. The shield's 8 block chance adds as it is, never
+    /// stats its copy rolled. The plate chest's 10 % increased armour scales its own rolled 30 and its flat 5 together, 35 to
+    /// 38.5, rounded half away from zero to 39, never the helmet's 10: 49, plus Strength 23's 2; the gloves' 100 % scales no
+    /// armour of theirs. The shield's 8 block chance adds as it is, never
     /// scaled by its 50 % increased armour. The sword's rolled 3-7 at 700 ms takes its own 50 % increased physical damage
     /// and 10 % attack speed (4.5 and 10.5, rounded half away from zero to 5-11; 700 / 1.1 to 636) and so does its added
     /// physical damage (1-2 to 2-3), never the offence block; the ring's added damage to attacks and to spells is global.
@@ -265,7 +269,7 @@ public class CharacterStatsCalculatorShould
     /// gives 45.49999… from 25 x (1 + 0.82)).
     /// </summary>
     [Theory]
-    [InlineData("armor", 45d)]
+    [InlineData("armor", 51d)]
     [InlineData("block", 8d)]
     [InlineData("evasion", 46d)]
     [InlineData("weapon min1", 5d)]
@@ -290,7 +294,7 @@ public class CharacterStatsCalculatorShould
         WornItem[] worn =
         [
             Rolled(head, new ItemBaseStats { Armour = 10 }),
-            Rolled(chest, new ItemBaseStats { Armour = 30 }, (StatType.LocalIncreasedArmor, 10, null)),
+            Rolled(chest, new ItemBaseStats { Armour = 30 }, (StatType.Armor, 5, null), (StatType.LocalIncreasedArmor, 10, null)),
             Rolled(shield, new ItemBaseStats { BlockChance = 8 }, (StatType.LocalIncreasedArmor, 50, null)),
             Rolled(mainHand, new ItemBaseStats { DamageMin = 3, DamageMax = 7, AttackTime = 700 },
                 (StatType.AddedPhysicalDamage, 1, 2), (StatType.LocalIncreasedPhysicalDamage, 50, null),
