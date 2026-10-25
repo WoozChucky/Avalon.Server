@@ -1,8 +1,9 @@
 using System.Globalization;
 using System.Text;
-using Avalon.Common;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
+using Avalon.World.Reload;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Exporter;
 
@@ -133,8 +134,7 @@ public static class ItemModifierDoc
 
         text.Append("\n### Tiers\n\n");
         text.Append("Each cell is the tier's range, then its weight on every base kind the family rolls on. An \"adds\" line reads ");
-        text.Append("as its low end, then \"to\" and its high end. Tiers count down: T9 is the weakest. A dash marks a tier the family ");
-        text.Append("does not have.\n\n");
+        text.Append("as its low end, then \"to\" and its high end. Tiers count down: T9 is the weakest.\n\n");
         text.Append("| Code | Element |");
         foreach (byte tier in tiers)
             text.Append(CultureInfo.InvariantCulture, $" T{tier} |");
@@ -191,34 +191,25 @@ public static class ItemModifierDoc
             text.Append('\n');
         }
 
-        // Every base by kind and line (the bases of a kind that link one implicit group), tiers in order.
-        Dictionary<int, ItemModifier> byId = modifiers.ToDictionary(m => m.Id);
-        HashSet<int> implicitGroups = [.. groups.Where(g => g.Kind == ItemModifierKind.Implicit).Select(g => g.Id)];
-        var implicitOf = links
-            .Where(link => implicitGroups.Contains(byId[link.ModifierId].GroupId))
-            .ToDictionary(link => link.TemplateId.Value, link => byId[link.ModifierId]);
+        // Every base by kind and line, as the world builds its lines (ItemsPatch.LinesOf) over the seeded catalog, so a
+        // line has one definition.
+        ItemsPatch items = SeededItems(templates.Values, groups, modifiers, stats, weights, links);
         ILookup<ulong, ItemTemplateBaseStat> baseStats = ItemBaseSeed.BaseStats().ToLookup(s => s.TemplateId.Value);
         text.Append("\n### Bases\n\n");
         text.Append("Each kind's lines, by their first tier's id. A base's base stats are the ranges every copy rolls; its ");
-        text.Append("implicit is its line's group at the base's tier.\n\n");
+        text.Append("implicit is its line's group at the base's tier. A trinket base has no tier: only a unique is made on it.\n\n");
         text.Append("| Kind | Template | Name | Tier | Level | Base stats | Implicit |\n");
         text.Append("| --- | --- | --- | --- | --- | --- | --- |\n");
-        foreach (IGrouping<ItemBaseKind, ItemTemplate> kind in templates.Values
-                     .Where(t => t.Rarity == ItemRarity.Common && t.BaseKind is not null)
-                     .GroupBy(t => t.BaseKind!.Value)
-                     .OrderBy(kind => kind.Key))
+        foreach (ItemBaseKind kind in Enum.GetValues<ItemBaseKind>().Order())
         {
-            IEnumerable<ItemTemplate[]> lines = kind
-                .GroupBy(t => implicitOf[t.Id.Value].GroupId)
-                .Select(line => line.OrderBy(t => t.RequiredLevel ?? 1).ThenBy(t => t.Id.Value).ToArray())
-                .OrderBy(line => line[0].Id.Value);
-            foreach (ItemTemplate template in lines.SelectMany(line => line))
+            foreach (ItemTemplate template in items.LinesOf(kind).SelectMany(line => line))
             {
-                ItemModifier @implicit = implicitOf[template.Id.Value];
+                ItemModifier @implicit = items.Modifiers.LinkedTo(template.Id)[0];
+                string tier = kind == ItemBaseKind.Trinket ? "-" : $"T{@implicit.Tier}";
                 string ranges = string.Join(", ", baseStats[template.Id.Value].OrderBy(s => s.Stat)
                     .Select(s => $"{s.Stat} {Span(s.Min, s.Max)}")) is { Length: > 0 } listed ? listed : "none";
                 text.Append(CultureInfo.InvariantCulture,
-                    $"| {kind.Key} | {template.Id.Value} | {template.Name} | T{@implicit.Tier} | {template.RequiredLevel} | {ranges} | {Lines(stats[@implicit.Id], withStat: true)} |\n");
+                    $"| {kind} | {template.Id.Value} | {template.Name} | {tier} | {template.RequiredLevel} | {ranges} | {Lines(stats[@implicit.Id], withStat: true)} |\n");
             }
         }
 
@@ -236,6 +227,22 @@ public static class ItemModifierDoc
         }
 
         return text.ToString();
+    }
+
+    /// <summary>The seeded templates over the seeded catalog, each modifier given its group, stat lines and weights.</summary>
+    private static ItemsPatch SeededItems(IReadOnlyCollection<ItemTemplate> templates, ItemModifierGroup[] groups,
+        ItemModifier[] modifiers, ILookup<int, ItemModifierStat> stats, ILookup<int, ItemModifierWeight> weights,
+        ItemTemplateModifier[] links)
+    {
+        Dictionary<int, ItemModifierGroup> byId = groups.ToDictionary(g => g.Id);
+        foreach (ItemModifier modifier in modifiers)
+        {
+            modifier.Group = byId[modifier.GroupId];
+            modifier.Stats = [.. stats[modifier.Id]];
+            modifier.Weights = [.. weights[modifier.Id]];
+        }
+
+        return new ItemsPatch(templates, new ItemModifierCatalog(modifiers, links, NullLogger.Instance));
     }
 
     private static string Lines(IEnumerable<ItemModifierStat> lines, bool withStat) => string.Join(", ", lines

@@ -300,7 +300,7 @@ An "adds X to Y" line names its two ends exactly: its low end X and its high end
 
 ### Tiers
 
-Each cell is the tier's range, then its weight on every base kind the family rolls on. An "adds" line reads as its low end, then "to" and its high end. Tiers count down: T9 is the weakest. A dash marks a tier the family does not have.
+Each cell is the tier's range, then its weight on every base kind the family rolls on. An "adds" line reads as its low end, then "to" and its high end. Tiers count down: T9 is the weakest.
 
 | Code | Element | T9 | T8 | T7 |
 | --- | --- | --- | --- | --- |
@@ -386,7 +386,7 @@ Each implicit group gives one stat; a base links the row of its own tier. Its ra
 
 ### Bases
 
-Each kind's lines, by their first tier's id. A base's base stats are the ranges every copy rolls; its implicit is its line's group at the base's tier.
+Each kind's lines, by their first tier's id. A base's base stats are the ranges every copy rolls; its implicit is its line's group at the base's tier. A trinket base has no tier: only a unique is made on it.
 
 | Kind | Template | Name | Tier | Level | Base stats | Implicit |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -510,8 +510,8 @@ Each kind's lines, by their first tier's id. A base's base stats are the ranges 
 | Ring | 127 | Frostbud Ring | T9 | 1 | none | AddedColdDamageToSpells 1 to 1 |
 | Ring | 128 | Rimebud Ring | T8 | 5 | none | AddedColdDamageToSpells 1 to 2 |
 | Ring | 129 | Winterbud Ring | T7 | 10 | none | AddedColdDamageToSpells 1 to 3 |
-| Trinket | 150 | Withered Seed | T9 | 1 | none | IncreasedHealing 2-3 |
-| Trinket | 151 | Carved Idol | T9 | 1 | none | CooldownRecovery 1 |
+| Trinket | 150 | Withered Seed | - | 1 | none | IncreasedHealing 2-3 |
+| Trinket | 151 | Carved Idol | - | 1 | none | CooldownRecovery 1 |
 
 ### Uniques
 
