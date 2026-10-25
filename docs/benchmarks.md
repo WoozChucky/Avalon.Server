@@ -452,6 +452,14 @@ gate does not move up: `forest-combat` reads 14,198 B per window against the com
 gate alone; a drop no longer builds a name, and an unidentified drop encodes fewer modifier entries), the other
 scenarios exactly their baselines, so `perf/scenario-allocations.json` is not regenerated.
 
+**The identify request** (`CMSG_ITEM_IDENTIFY`, #1179, part C) is a request a client can send at will, and no scenario
+sends it. As first written it allocated 56 B per request beyond its reply, refusals included: a `CharacterWallet`
+(32 B) taken before the rules were asked, and an `ObjectGuid` (24 B, a class) built only to look the Workbench up. The
+handler now takes a wallet only when `Game:Items:IdentifyCost` is above 0 (0, the default, asks no gold), and
+`DoodadIndex.TryGet` takes the raw guid the packet carries. `InventoryAllocationShould` pins a done identify and an
+`AlreadyIdentified` refusal (the last rule before gold) at 0 B through production's `CharacterEconomy`; with the wallet
+taken again it reads 3,200 B per 100 requests. A cost above 0 takes one wallet per request, as a vendor request does.
+
 **The quest flusher's bag check.** `QuestFlusher.TouchedTheBag` runs for every connection on every tick, to see
 whether a Bag slot changed. It walked the changed slots through the set's interface, which boxed the set's enumerator:
 40 B per connection on every tick with any slot change, a cost the finding did not list. It now uses the struct
