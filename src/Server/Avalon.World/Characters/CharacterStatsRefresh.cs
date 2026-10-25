@@ -3,6 +3,7 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Entities;
+using Avalon.World.Items;
 using Avalon.World.Public.Characters;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
@@ -45,7 +46,9 @@ public static class CharacterStatsRefresh
     /// reaches a worn copy's template lines and leaves its rolled base stats and modifiers as they were.
     /// <paramref name="formula" /> bounds the speeds (#1178) and movement speed (#627), and is required: the caller passes
     /// the generation it read. So is <paramref name="resonance" />, the table the character's Resonance counts are bound to
-    /// and counted against (#1180): <see cref="ResonanceTable.Empty" /> for a caller without a catalog.
+    /// and counted against (#1180): <see cref="ResonanceTable.Empty" /> for a caller without a catalog; and
+    /// <paramref name="effects" />, the effect catalog its active Resonance effects are built from (#1180 part A2):
+    /// <see cref="ResonanceEffectCatalog.Empty" /> for a caller without one.
     /// </summary>
     public static bool Apply(
         CharacterEntity character,
@@ -53,9 +56,10 @@ public static class CharacterStatsRefresh
         IReadOnlyDictionary<CharacterClass, ClassStatFactors> classFactors,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
         ResonanceTable resonance,
+        ResonanceEffectCatalog effects,
         CurrentValues current,
         CombatFormula formula) =>
-        Apply(character, classStats, classFactors, new Templates(findTemplate, null), resonance, current, formula);
+        Apply(character, classStats, classFactors, new Templates(findTemplate, null), resonance, effects, current, formula);
 
     /// <summary>
     /// The refresh itself. The class row is the first of the character's class and level, and the worn items are read
@@ -68,7 +72,10 @@ public static class CharacterStatsRefresh
     /// same entry, so they allocate nothing either. The worn items' Resonance counts (#1180) are the character's own
     /// buffer, bound to <paramref name="resonance" /> (reallocated only when a reload changed the number of themes) and
     /// filled in the calculation's one walk, only when the table or a worn item's modifier list changed since they were
-    /// last counted (<see cref="ResonanceInputs" />); a refresh over the same gear and table keeps them.
+    /// last counted (<see cref="ResonanceInputs" />); a refresh over the same gear and table keeps them. The active
+    /// Resonance effects (#1180 part A2) are rebuilt from the counts, into the character's own reused slots
+    /// (<see cref="ResonanceProcs" />), only when the counts were counted again or <paramref name="effects" /> is not the
+    /// catalog they were built from; a refresh that did neither keeps them.
     /// </summary>
     private static bool Apply(
         CharacterEntity character,
@@ -76,6 +83,7 @@ public static class CharacterStatsRefresh
         IReadOnlyDictionary<CharacterClass, ClassStatFactors> classFactors,
         Templates templates,
         ResonanceTable resonance,
+        ResonanceEffectCatalog effects,
         CurrentValues current,
         CombatFormula formula)
     {
@@ -109,6 +117,11 @@ public static class CharacterStatsRefresh
                 counted.Remember(resonance, worn);
 
             character.ApplyStats(stats, current, formula);
+
+            // The active effects follow the counts: rebuilt when they were counted again or the effect catalog moved.
+            ResonanceProcs procs = character.ResonanceProcs;
+            if (recount || !ReferenceEquals(procs.BuiltFrom, effects))
+                procs.Rebuild(character.Resonance, effects);
         }
         finally
         {
@@ -121,10 +134,12 @@ public static class CharacterStatsRefresh
     /// <summary>The same, over the current generation of reference data.</summary>
     public static bool Apply(CharacterEntity character, StaticData data, CurrentValues current)
     {
-        // The combat area is read once, so the factors and the formula are one generation.
+        // The combat and items areas are each read once, so the factors and the formula are one generation, and so are
+        // the Resonance table and the effects keyed by its themes.
         CombatPatch combat = data.Combat;
-        return Apply(character, data.ClassLevelStats, combat.Factors, new Templates(null, data), data.ItemModifiers.Resonance,
-            current, combat.Formula);
+        ItemsPatch items = data.Items;
+        return Apply(character, data.ClassLevelStats, combat.Factors, new Templates(null, data), items.Modifiers.Resonance,
+            items.Effects, current, combat.Formula);
     }
 
     /// <summary>The first row of that class and level, in the rows' order, or null.</summary>

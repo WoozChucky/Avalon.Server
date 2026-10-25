@@ -1,6 +1,9 @@
 using Avalon.Database.World.Repositories;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
+using Avalon.World.Auras;
+using Avalon.World.Items;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -23,6 +26,21 @@ internal static class ItemModifierRepositories
         using var database = SqliteDatabase.World();
         return (await new ItemModifierRepository(database, NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None))
             .Resonance;
+    }
+
+    /// <summary>
+    /// The seeded Resonance effects (#1180 part A2): the 29 effect rows held against the 29 effect auras with their
+    /// modifiers, as the items prepare builds them. Built on every call.
+    /// </summary>
+    public static ResonanceEffectCatalog SeededEffects()
+    {
+        ILookup<uint, AuraStatModifier> modifiers = ResonanceSeed.AuraModifiers().ToLookup(m => m.AuraId.Value);
+        AuraTemplate[] auras = ResonanceSeed.Auras();
+        foreach (AuraTemplate aura in auras)
+            aura.Modifiers.AddRange(modifiers[aura.Id.Value]);
+
+        return new ResonanceEffectCatalog(ResonanceSeed.Effects(),
+            new AuraCatalog(auras, static _ => null, NullLoggerFactory.Instance), NullLogger.Instance);
     }
 
     /// <summary>An items generation of <paramref name="templates" /> over an empty catalog: what a flush names copies by.</summary>

@@ -3,6 +3,7 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
@@ -85,6 +86,10 @@ internal static class TestCharacters
     /// assembly is not, so it is read by reflection, as the tests read the other internals.
     /// </summary>
     public static ResonanceCounts ResonanceOf(CharacterEntity character) => Internal<ResonanceCounts>(character, "Resonance");
+
+    /// <summary>The character's active Resonance effects (#1180 part A2), World-side and internal, read by reflection.</summary>
+    public static ResonanceProcs ResonanceProcsOf(CharacterEntity character) =>
+        Internal<ResonanceProcs>(character, "ResonanceProcs");
 
     private static T Internal<T>(CharacterEntity character, string property) =>
         (T)(typeof(CharacterEntity).GetProperty(property, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)

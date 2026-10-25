@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
@@ -7,6 +8,7 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
+using Avalon.World.Items;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
@@ -61,7 +63,7 @@ public class CharacterStatsRefreshShould
         character.ConsumeDirtyFields();
 
         Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(240u, character.Health);
         Assert.Equal(240u, character.CurrentHealth);
@@ -85,12 +87,12 @@ public class CharacterStatsRefreshShould
     {
         CharacterEntity character = New();
         CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula);
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula);
         character.CurrentHealth = 120;
         character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Chest, EquipTemplates.Chestguard)]);
 
         Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, CurrentValues.KeepShare, TestCombat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, TestCombat.Formula));
 
         Assert.Equal(250u, character.Health);
         Assert.Equal(125u, character.CurrentHealth);
@@ -112,7 +114,7 @@ public class CharacterStatsRefreshShould
         character.Container(InventoryType.Bag).Load([Item(0, EquipTemplates.Greatsword)]);
 
         Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(25u, character.Stats!.Value.Strength);
         Assert.Equal(24u, character.Stats.Value.Stamina);
@@ -142,7 +144,7 @@ public class CharacterStatsRefreshShould
 
         CharacterEntity bare = New();
         CharacterStatsRefresh.Apply(bare, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula);
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula);
         CharacterEntity character = New();
         InventoryItem helm = Item(EquipmentSlots.Head, helmBase);
         InventoryItem blade = Item(EquipmentSlots.MainHand, sword);
@@ -174,7 +176,7 @@ public class CharacterStatsRefreshShould
         {
             CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors,
                 id => id == helmNow.Id ? helmNow : id == swordNow.Id ? swordNow : null,
-                    ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula);
+                    ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula);
             DerivedCharacterStats stats = character.Stats!.Value;
             return (stats.Armor, stats.Weapon.Min1, stats.Weapon.Max1, stats.Weapon.AttackTimeMs);
         }
@@ -227,7 +229,7 @@ public class CharacterStatsRefreshShould
 
         Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors,
             id => id == unique.Id ? unique : id == fireSword.Id ? fireSword : null,
-                ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
+                ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(Avalon.Network.Packets.Combat.DamageType.Fire, character.Stats!.Value.Weapon.Type1);
     }
@@ -293,6 +295,81 @@ public class CharacterStatsRefreshShould
         };
 
         CharacterEntity character = New();
+        Hold(character, items);
+
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, s_equipment.GetValueOrDefault, seeded,
+            ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
+
+        Assert.Equal(expected, ResonanceNamed(character));
+    }
+
+    /// <summary>
+    /// #1180 part A2: each refresh activates, for each theme, the effect rows of the highest threshold its count reaches
+    /// (A2-R4): none below the lowest, the 4 rows above 4. <paramref name="worn" /> names theme counts, each made of that
+    /// many worn items carrying one T9 affix of the theme; <paramref name="expected" /> is the active slots in order
+    /// ("{effect id} {trigger}", by theme id and then effect id), then the trigger mask.
+    /// </summary>
+    [Theory]
+    [InlineData("nothing", " | None")]
+    [InlineData("Ember 1", " | None")]
+    [InlineData("Ember 2", "1 Hit | Hit")]
+    [InlineData("Ember 3", "2 Hit | Hit")]
+    [InlineData("Ember 5", "3 Hit | Hit")]
+    [InlineData("Rime 4", "6 Hit, 7 Crit | Hit, Crit")]
+    [InlineData("Ember 4, Thorn 4", "3 Hit, 20 Struck, 21 Crit | Hit, Crit, Struck")]
+    [InlineData("Wild 4, Veil 2", "13 Kill, 14 Struck, 26 WardBroken | Kill, Struck, WardBroken")]
+    public async Task Activate_each_themes_effects_at_its_highest_threshold(string worn, string expected)
+    {
+        ResonanceTable seeded = await ItemModifierRepositories.SeededResonance();
+        Dictionary<string, int> affixOf = new()
+        {
+            ["Ember"] = CatalogKeys.ModifierId("P8 Fire T9"),
+            ["Rime"] = CatalogKeys.ModifierId("P8 Cold T9"),
+            ["Wild"] = CatalogKeys.ModifierId("P11 T9"),
+            ["Thorn"] = CatalogKeys.ModifierId("S9 T9"),
+            ["Veil"] = CatalogKeys.ModifierId("P16 T9"),
+        };
+        (string Theme, int Count)[] counts = worn == "nothing"
+            ? []
+            :
+            [
+                .. worn.Split(", ")
+                    .Select(pair => pair.Split(' '))
+                    .Select(pair => (pair[0], int.Parse(pair[1], CultureInfo.InvariantCulture))),
+            ];
+
+        // The i-th item carries one affix of each theme counted above i, so a theme at n is on n items.
+        (byte Slot, ulong Template)[] plate =
+        [
+            (EquipmentSlots.Head, 36), (EquipmentSlots.Chest, 37), (EquipmentSlots.Legs, 38), (EquipmentSlots.Hands, 39),
+            (EquipmentSlots.Feet, 40),
+        ];
+        (InventoryType, byte, ulong, int[])[] items =
+        [
+            .. plate
+                .Select((piece, i) => (Container: InventoryType.Equipment, piece.Slot, piece.Template,
+                    Modifiers: counts.Where(c => c.Count > i).Select(c => affixOf[c.Theme]).ToArray()))
+                .Where(item => item.Modifiers.Length > 0),
+        ];
+        CharacterEntity character = New();
+        Hold(character, items);
+
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, s_equipment.GetValueOrDefault, seeded,
+            ItemModifierRepositories.SeededEffects(), CurrentValues.Refill, TestCombat.Formula));
+
+        ResonanceProcs procs = ResonanceProcsOf(character);
+        IEnumerable<string> slots =
+            Enumerable.Range(0, procs.Count).Select(i => $"{procs.EffectAt(i).Id} {procs.EffectAt(i).Trigger}");
+        Assert.Equal(expected, $"{string.Join(", ", slots)} | {procs.Mask}");
+    }
+
+    /// <summary>
+    /// Puts <paramref name="items" /> in the character's containers, each copy with the modifiers named, each with its
+    /// seeded first line's low end as its one value.
+    /// </summary>
+    private static void Hold(CharacterEntity character,
+        IEnumerable<(InventoryType Container, byte Slot, ulong Template, int[] Modifiers)> items)
+    {
         ILookup<int, ItemModifierStat> lines = ItemModifierSeed.Stats().ToLookup(line => line.ModifierId);
         var held = items
             .Select(i => (i.Container, Item: Item(i.Slot, s_equipment[new ItemTemplateId(i.Template)]), i.Modifiers))
@@ -316,11 +393,6 @@ public class CharacterStatsRefreshShould
         ]);
         foreach (InventoryType container in (InventoryType[])[InventoryType.Equipment, InventoryType.Bag])
             character.Container(container).Load([.. held.Where(h => h.Container == container).Select(h => h.Item)]);
-
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, s_equipment.GetValueOrDefault, seeded,
-            CurrentValues.Refill, TestCombat.Formula));
-
-        Assert.Equal(expected, ResonanceNamed(character));
     }
 
     /// <summary>
@@ -357,7 +429,7 @@ public class CharacterStatsRefreshShould
         ]);
         character.Container(InventoryType.Equipment).Load([ring]);
         Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, s_equipment.GetValueOrDefault, seeded,
-            CurrentValues.Refill, TestCombat.Formula));
+            ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
         Assert.Equal("Ember 1", ResonanceNamed(character));
 
         character.ItemModifiers.Of(ring.InstanceId)[0].ModifierId = CatalogKeys.ModifierId("S10 T9");
@@ -381,8 +453,8 @@ public class CharacterStatsRefreshShould
                 throw new ArgumentOutOfRangeException(nameof(change), change, null);
         }
 
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, find, table, CurrentValues.KeepShare,
-            TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, find, table, ResonanceEffectCatalog.Empty,
+            CurrentValues.KeepShare, TestCombat.Formula));
         Assert.Equal(expected, ResonanceNamed(character));
     }
 
@@ -405,7 +477,7 @@ public class CharacterStatsRefreshShould
         character.CurrentHealth = 150;
 
         Assert.False(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(150u, character.Health);
         Assert.Equal(150u, character.CurrentHealth);
@@ -423,7 +495,7 @@ public class CharacterStatsRefreshShould
         character.Data!.Class = @class;
 
         CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula);
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula);
 
         Assert.Equal(regen, character.RegenStat);
     }
@@ -450,9 +522,9 @@ public class CharacterStatsRefreshShould
         wizard.CurrentPower = 0;
 
         Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, CurrentValues.EnterWorld, TestCombat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.EnterWorld, TestCombat.Formula));
         Assert.True(CharacterStatsRefresh.Apply(wizard, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, CurrentValues.EnterWorld, TestCombat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.EnterWorld, TestCombat.Formula));
 
         Assert.Equal(0u, warrior.CurrentPower);
         Assert.Equal(warrior.Health, warrior.CurrentHealth);
@@ -468,7 +540,7 @@ public class CharacterStatsRefreshShould
         CharacterEntity warrior = FuryWarrior(fury: 60);
 
         Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(60u, warrior.CurrentPower);
@@ -483,7 +555,7 @@ public class CharacterStatsRefreshShould
         CharacterEntity warrior = FuryWarrior(fury: 150, max: 200);
 
         Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, current, TestCombat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, current, TestCombat.Formula));
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(100u, warrior.CurrentPower);
@@ -496,7 +568,7 @@ public class CharacterStatsRefreshShould
         CharacterEntity warrior = FuryWarrior(fury: 60, max: 200);
 
         Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find,
-            ResonanceTable.Empty, CurrentValues.KeepShare, TestCombat.Formula));
+            ResonanceTable.Empty, ResonanceEffectCatalog.Empty, CurrentValues.KeepShare, TestCombat.Formula));
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(60u, warrior.CurrentPower);   // a share would have been 30
