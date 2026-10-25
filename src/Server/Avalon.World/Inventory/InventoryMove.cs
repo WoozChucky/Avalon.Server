@@ -1,4 +1,4 @@
-using Avalon.Combat;
+﻿using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
@@ -207,9 +207,9 @@ public static class InventoryMove
     /// <summary>
     /// Whether a whole <paramref name="item" /> may go to <paramref name="destination" />. Anything
     /// may go to the Bag or the Bank. Equipment takes one item of a template whose slot fits, and
-    /// never an item whose template is gone; an identified one only (#1179), asked before the wearer's own checks, so an
-    /// unidentified UniqueEquipped copy is refused rather than swapped for the worn one; of a UniqueEquipped template, only
-    /// while no other slot wears a copy (#1179).
+    /// never an item whose template is gone; an identified one only (#1179); of a UniqueEquipped template, only while no
+    /// other slot wears a copy (#1179). Any refusal refuses the whole move or swap; the order only decides which one is
+    /// answered, and Unidentified comes right after NotStackable, before the wearer's level, class and attributes.
     /// </summary>
     private static ItemRequestResult CanGo(
         CharacterEntity character, ItemTemplate? template, InventoryItem item, SlotRef destination)

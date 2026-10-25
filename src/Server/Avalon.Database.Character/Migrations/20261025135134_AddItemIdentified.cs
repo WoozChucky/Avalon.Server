@@ -11,7 +11,8 @@ namespace Avalon.Database.Character.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // #1179: hand-edited from the generated false. Every item before this part, and every item a trade moved, reads
-            // identified; the model declares no default, so every insert after it writes the value its entity holds.
+            // identified. The default only fills those rows: it is dropped below, as the model declares none, so no insert
+            // can leave the column out.
             migrationBuilder.AddColumn<bool>(
                 name: "Identified",
                 table: "TradeRecordItems",
@@ -25,6 +26,24 @@ namespace Avalon.Database.Character.Migrations
                 type: "boolean",
                 nullable: false,
                 defaultValue: true);
+
+            migrationBuilder.AlterColumn<bool>(
+                name: "Identified",
+                table: "TradeRecordItems",
+                type: "boolean",
+                nullable: false,
+                oldClrType: typeof(bool),
+                oldType: "boolean",
+                oldDefaultValue: true);
+
+            migrationBuilder.AlterColumn<bool>(
+                name: "Identified",
+                table: "ItemInstances",
+                type: "boolean",
+                nullable: false,
+                oldClrType: typeof(bool),
+                oldType: "boolean",
+                oldDefaultValue: true);
 
             migrationBuilder.AddCheckConstraint(
                 name: "CK_TradeRecordItems_Identified",
