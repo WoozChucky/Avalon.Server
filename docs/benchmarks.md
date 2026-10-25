@@ -2005,7 +2005,7 @@ fails the run unless the health is still 770 and the counts read Ember 9, Iron 9
 `Calculate` and `CalculateModified` pass no buffer and count nothing. `AddItem` makes one dictionary read per modifier,
 54 on this kit, and keeps an item from counting a theme twice with a per-slot stamp: the slot holds the number of the
 item that last counted it, so a second affix of that theme on the same item is a compare, not another read. One run
-with the stamp, on `c50afca59` (out of process, ten warmups, twenty iterations, `--affinity 4`; BenchmarkDotNet 0.15.8,
+with the stamp, at `a58f56bb5` (out of process, ten warmups, twenty iterations, `--affinity 4`; BenchmarkDotNet 0.15.8,
 Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, concurrent workstation GC, Release), 2026-10-25:
 
 ```bash

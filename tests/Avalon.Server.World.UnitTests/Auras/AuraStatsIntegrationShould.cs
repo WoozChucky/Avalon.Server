@@ -85,9 +85,11 @@ public class AuraStatsIntegrationShould
     /// <summary>
     /// #1178: the refresh an aura with stat modifiers runs on a geared character (its gear's offence keys, its auras'
     /// offence) allocates nothing once its aura totals are worked out: the worn templates, the gear's stats and the main
-    /// hand are read without a list, an iterator or a closure. Review Focus 3 (#1180): nor does its Resonance count, over
-    /// the seeded table and then after a reload to more themes than the seed has, with ids far from their slots; the one
-    /// refresh that meets the larger table reallocates the counts, and every one after it reuses them.
+    /// hand are read without a list, an iterator or a closure. Review Focus 3 (#1180): nor does its Resonance count, and
+    /// every measured refresh counts again (a refresh over unchanged gear and table would keep the counts): first over
+    /// two reads of the seeded table taken in turn, then, after a reload to more themes than the seed has, with ids far
+    /// from their slots, with the main hand swapped between swords of different themes. The one refresh that meets the
+    /// larger table reallocates the counts, and every one after it reuses them.
     /// </summary>
     [Fact]
     public async Task Refresh_a_geared_characters_stats_for_its_auras_without_allocating()
@@ -98,7 +100,8 @@ public class AuraStatsIntegrationShould
         int iron = CatalogKeys.ModifierId("P12 T9");
         int thorn = CatalogKeys.ModifierId("P1 T9");
         int ember = CatalogKeys.ModifierId("P2 T9");
-        warrior.ItemModifiers.Load([Copy(plate, iron), Copy(sword, thorn, ember)]);
+        InventoryItem ironSword = TestCharacters.Item(EquipmentSlots.MainHand, s_sword);
+        warrior.ItemModifiers.Load([Copy(plate, iron), Copy(sword, thorn, ember), Copy(ironSword, iron)]);
         warrior.Container(InventoryType.Equipment).Load([plate, sword]);
         AuraTemplate emboldened = AuraTestData.Fortified();
         emboldened.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.IncreasedDamage, Kind = AuraModifierKind.Flat, Value = 10f });
@@ -145,8 +148,20 @@ public class AuraStatsIntegrationShould
 
         Assert.Equal(20, TestCharacters.ResonanceOf(warrior).Table.Count);
         Assert.Equal([new ThemeCount(1000, 1), new ThemeCount(1007, 1), new ThemeCount(1019, 1)], Pairs(warrior));
-        Assert.Equal(0, ThreadAllocations.FewestOfThreeWindows(10, () => CharacterStatsRefresh.Apply(warrior, s_warriorRows,
-            factors, Worn, reloaded, CurrentValues.KeepShare, formula)));
+
+        // Over the larger table, the main hand swapped in turn for a sword of other themes before each refresh: the gear
+        // moved, so every refresh in the windows counts again, into the counts the reload sized.
+        CharacterInventoryContainer equipment = warrior.Container(InventoryType.Equipment);
+        int swaps = 0;
+        Assert.Equal(0, ThreadAllocations.FewestOfThreeWindows(10, () =>
+        {
+            equipment.Put(swaps++ % 2 == 0 ? ironSword : sword);
+            CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, reloaded, CurrentValues.KeepShare, formula);
+        }));
+
+        equipment.Put(ironSword);
+        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, reloaded, CurrentValues.KeepShare, formula);
+        Assert.Equal([new ThemeCount(1019, 2)], Pairs(warrior));
 
         // Each affix with its seeded line's low end as its one value.
         static ItemInstance Copy(InventoryItem item, params int[] modifierIds) => new()
