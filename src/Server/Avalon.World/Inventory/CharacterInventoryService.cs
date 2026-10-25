@@ -261,6 +261,15 @@ public sealed class CharacterInventoryService(
         return InventoryAddResult.Ok;
     }
 
+    public bool TryIdentify(byte bagSlot)
+    {
+        if (!Bag.TryGet(bagSlot, out InventoryItem item) || item.Identified)
+            return false;
+
+        Replace(InventoryType.Bag, item with { Identified = true });
+        return true;
+    }
+
     /// <summary>The lowest empty Bag slot a completing trade has not reserved (#1175), or null when there is none.</summary>
     private byte? LowestFreeBagSlot()
     {
