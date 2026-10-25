@@ -246,6 +246,7 @@ public class CharacterStatsRefreshShould
     [InlineData("two Ember items", "Ember 2")]
     [InlineData("both rings", "Ember 2")]
     [InlineData("one item of two themes", "Ember 1, Thorn 1")]
+    [InlineData("a helm with its two Ember affixes apart, then an Ember ring", "Ember 2, Thorn 1")]
     [InlineData("an Ember affix in the bag", "")]
     [InlineData("an item in a slot it does not fit", "")]
     [InlineData("implicits and a unique's lines", "")]
@@ -272,6 +273,14 @@ public class CharacterStatsRefreshShould
             [
                 (InventoryType.Equipment, EquipmentSlots.Head, 36,
                     [CatalogKeys.ModifierId("S5 Fire T9"), CatalogKeys.ModifierId("S10 T9")]),
+            ],
+            // The helm counts Ember once though a Thorn affix sits between its two, and the ring after it counts Ember
+            // again. Part B's row goes here too: a sealed Ember affix before an awake one still counts Ember 1.
+            "a helm with its two Ember affixes apart, then an Ember ring" =>
+            [
+                (InventoryType.Equipment, EquipmentSlots.Head, 36,
+                    [CatalogKeys.ModifierId("P8 Fire T9"), CatalogKeys.ModifierId("S10 T9"), CatalogKeys.ModifierId("S5 Fire T9")]),
+                (InventoryType.Equipment, EquipmentSlots.Finger1, 68, emberRing),
             ],
             "an Ember affix in the bag" => [(InventoryType.Bag, 0, 68, emberRing)],
             "an item in a slot it does not fit" => [(InventoryType.Equipment, EquipmentSlots.Head, 68, emberRing)],

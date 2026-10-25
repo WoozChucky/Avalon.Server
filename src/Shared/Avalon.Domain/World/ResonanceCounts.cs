@@ -13,6 +13,12 @@ public sealed class ResonanceCounts
 {
     private int[] _counts = [];
 
+    // Per slot, the number of the item that last counted it (AddItem), beside the counts and always their size: an item
+    // counts a slot once, with one table lookup per modifier. Scratch for the count in progress, never compared or copied.
+    // _item is the number of the item being added; it starts at 0 with every stamp, so a zero stamp never matches it.
+    private int[] _stamps = [];
+    private int _item;
+
     /// <summary>The table the counts are slots of; <see cref="ResonanceTable.Empty" /> until bound.</summary>
     public ResonanceTable Table { get; private set; } = ResonanceTable.Empty;
 
@@ -27,29 +33,49 @@ public sealed class ResonanceCounts
 
         Table = table;
         if (_counts.Length != table.Count)
+        {
             _counts = new int[table.Count];
+            _stamps = new int[table.Count];
+            _item = 0;
+        }
         else
-            Array.Clear(_counts);
+        {
+            Clear();
+        }
     }
 
-    /// <summary>Every count back to zero.</summary>
-    public void Clear() => Array.Clear(_counts);
+    /// <summary>Every count back to zero, for a new count.</summary>
+    public void Clear()
+    {
+        Array.Clear(_counts);
+        Array.Clear(_stamps);
+        _item = 0;
+    }
 
     /// <summary>
     /// The one per-item step of the count: adds 1 to each theme <paramref name="modifiers" /> (one worn item's, null for
     /// none) carries, once per item however many of its affixes share that theme. Only prefixes and suffixes count, through
-    /// the table; an implicit or a unique line has no theme. Reads the list by index and allocates nothing.
+    /// the table; an implicit or a unique line has no theme. Reads the list by index, one table lookup per modifier, and
+    /// allocates nothing: the item stamps each slot it counts with its number, so a later affix of that theme on the same
+    /// item finds the slot stamped.
     /// </summary>
     public void AddItem(List<ItemInstanceModifier>? modifiers)
     {
         if (modifiers is null)
             return;
 
+        int item = ++_item;
         ResonanceTable table = Table;
         for (int i = 0; i < modifiers.Count; i++)
         {
-            if (table.TrySlotOfModifier(modifiers[i].ModifierId, out int slot) && !CountedBefore(table, modifiers, i, slot))
-                _counts[slot]++;
+            // An affix that does not count is skipped here, before its slot is stamped, so it never hides a later affix
+            // of its theme on the same item: part B's sealed affix (`if (modifier.Sealed) continue;`) goes first.
+            ItemInstanceModifier modifier = modifiers[i];
+            if (!table.TrySlotOfModifier(modifier.ModifierId, out int slot) || _stamps[slot] == item)
+                continue;
+
+            _stamps[slot] = item;
+            _counts[slot]++;
         }
     }
 
@@ -76,17 +102,6 @@ public sealed class ResonanceCounts
     public Enumerator GetEnumerator() => new(this);
 
     private bool IsZero() => !_counts.AsSpan().ContainsAnyExcept(0);
-
-    private static bool CountedBefore(ResonanceTable table, List<ItemInstanceModifier> modifiers, int index, int slot)
-    {
-        for (int i = 0; i < index; i++)
-        {
-            if (table.TrySlotOfModifier(modifiers[i].ModifierId, out int earlier) && earlier == slot)
-                return true;
-        }
-
-        return false;
-    }
 
     /// <summary>The themes above 0, by slot, as <see cref="ThemeCount" />s; a struct, so a foreach allocates nothing.</summary>
     public struct Enumerator
