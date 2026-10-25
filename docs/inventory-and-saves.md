@@ -52,8 +52,8 @@ Ownership of items and gold, the inventory and wallet services, character saves,
   `ItemModifierDtoMapper.ToDtos` and `ItemModifierDtoPool.Rent`/`Refill` (the kept list is sized by what is kept, and is
   null, its list back in the pool, when nothing is), the REST read in `CharacterService`. Names follow it too
   (`ItemVisibility.NameShown`, only once identified): `ItemModifierStore.Describe`, the buyback's carried-item mapping
-  and `CharacterService` ask it before working a name out, so none names an unidentified copy. An unidentified unique shows its template, its
-  base's base stats (none on today's jewellery and trinkets) and its base's implicit. `ItemSlotDto.Identified` (13) and
+  and `CharacterService` ask it before working a name out, so none names an unidentified copy. An unidentified unique
+  shows its template, its base's base stats (none on today's jewellery and trinkets) and its base's implicit. `ItemSlotDto.Identified` (13) and
   `TradeItemDto.Identified` (10) tell the client which it is; a drop on the ground is identified exactly when its
   `Rarity` is Common, so `LootDropDto` needs no field for it.
 - **What it can do.** It cannot be worn (`ItemRequestResult.Unidentified` 17, `ItemUseResult.Unidentified` 21: a drag,
@@ -81,5 +81,6 @@ Ownership of items and gold, the inventory and wallet services, character saves,
   `IInventoryService.TryIdentify(bagSlot)`, which replaces the Bag item with the same instance identified (marked
   `Changed` for the save, its slot recorded for the client; its rolled rows do not change, so they are not marked).
   Gold goes before the item, so a failure after the rules allowed it (a bug, logged at Error and answered
-  `InternalError`, 9) loses value and never makes it: the gold of a cost above 0 may be spent and is not given back. The revealed item, with its name and every modifier, and the gold reach the client in
-  the tick's `SMSG_INVENTORY_UPDATE`.
+  `InternalError`, 9) loses value and never makes it: the gold of a cost above 0 may be spent and is not given back.
+  The revealed item, with its name and every modifier, and the gold reach the client in the tick's
+  `SMSG_INVENTORY_UPDATE`.
