@@ -36,9 +36,10 @@ public class StatWordingShould
             .Concat(root.GetProperty("attackTime").EnumerateArray()
                 .Select(row => (Ms: row.GetProperty("ms") is { ValueKind: JsonValueKind.Number } ms ? ms.GetUInt32() : (uint?)null,
                     Text: row.GetProperty("text").GetString()))
-                .Where(row => LinkPreviewText.AttackTime(row.Ms) != row.Text)
-                .Select(row => $"attack time {row.Ms?.ToString() ?? "null"}: the preview writes " +
-                               $"{LinkPreviewText.AttackTime(row.Ms) ?? "nothing"}"))
+                .Select(row => (Row: row, Written: AttackTime(row.Ms)))
+                .Where(time => time.Written != time.Row.Text)
+                .Select(time => $"attack time {time.Row.Ms?.ToString() ?? "null"}: the preview writes " +
+                                $"{time.Written ?? "nothing"}"))
             .Concat(root.GetProperty("spans").EnumerateArray()
                 .Select(row => (Type: Enum.Parse<StatType>(row.GetProperty("type").GetString()!),
                     Min: row.GetProperty("min").GetInt32(), Max: row.GetProperty("max").GetInt32(),
@@ -54,6 +55,13 @@ public class StatWordingShould
                 .Select(stat => $"{stat.Row.GetProperty("stat").GetString()} base stat: the preview writes \"{stat.Written}\""))];
         Assert.Empty(differing);
     }
+
+    /// <summary>
+    /// An <c>attackTime</c> row as the preview writes it (#1179): a base whose copies all roll that attack time, worded as
+    /// its base stat with both ends equal; nothing for none or 0, which no base carries (an attack time starts at 1 ms).
+    /// </summary>
+    private static string? AttackTime(uint? ms) =>
+        ms is > 0 ? LinkPreviewText.FormatBaseStat(ItemBaseStat.AttackTime, (int)ms.Value, (int)ms.Value) : null;
 
     /// <summary>
     /// A <c>baseStats</c> row as the preview writes it (#1179): a range, or a weapon's damage, its low end's range with its

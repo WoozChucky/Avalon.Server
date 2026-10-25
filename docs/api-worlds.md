@@ -453,11 +453,12 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   `MovementSpeed` (the world adds it to `MovementSpeedPct`) as percent points (`+2% Crit`, `+5% Fire Resistance`,
   `+5% Movement Speed`); the `Increased…` stats as `+10% increased Fire Damage`; the rest, Evasion and Ward among
   them, as a plain rating (`+12 Evasion`); a negative value keeps its own sign (`-3% Cold Resistance`, `-2 Strength`).
-  Times (`LinkPreviewText.AttackTime`, and an ability's cast time and cooldown) are seconds to the hundredth, a half
-  rounded up and computed in decimal so a tie is exact, with no trailing zeros (`2.6 sec attack time`, `2 sec`,
-  `0.78 sec`, `1005` ms as `1.01 sec`; the tie cases are pinned here once Avalon.Dashboard#462 adds them to the shared
-  file). In JavaScript the shared rule is `Math.round(ms / 10) / 100`, which the public site adopts through
-  Avalon.Dashboard#460. An attack time of 0 or none is left out. The one wording table is the Dashboard's
+  Times (a base's attack time, `LinkPreviewText.FormatBaseStat`, and an ability's cast time and cooldown) are seconds to
+  the hundredth, a half rounded up and computed in decimal so a tie is exact, with no trailing zeros (`2.6 sec attack
+  time`, `2 sec`, `0.78 sec`, `1005` ms as `1.01 sec`; the tie cases are pinned here once Avalon.Dashboard#462 adds them
+  to the shared file). In JavaScript the shared rule is `Math.round(ms / 10) / 100`, which the public site adopts
+  through Avalon.Dashboard#460. An item without an attack time says none (a base's starts at 1 ms). The one wording
+  table is the Dashboard's
   `packages/shared/src/items/stat-wording.json` (a row per `StatType`, negative values, attack times), which the
   site's formatter tests against; a verbatim copy sits in
   `tests/Avalon.Api.Worlds.UnitTests/Worlds/stat-wording.json`, refreshed from there and never edited here.

@@ -227,12 +227,6 @@ public static partial class LinkPreviewText
     }
 
     /// <summary>
-    /// A weapon's pace before attack speed (#1178) as <c>2.6 sec attack time</c>, on its damage line; null, so left out,
-    /// for no attack time or 0.
-    /// </summary>
-    public static string? AttackTime(uint? ms) => ms is > 0 ? $"{Seconds(ms.Value)} attack time" : null;
-
-    /// <summary>
     /// The stats without a <c>Pct</c> or <c>Resistance</c> in their name that the world adds as percent points (#1178;
     /// movement speed into MovementSpeedPct, #1189), written with a % and their own name.
     /// </summary>
