@@ -1,4 +1,4 @@
-﻿using Avalon.Combat;
+using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
