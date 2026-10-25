@@ -13,16 +13,17 @@ public readonly record struct BaseImplicit(ulong TemplateId, StatType Stat);
 
 /// <summary>
 /// The seeded equipment (#1179): 122 bases and 5 uniques. A base is Common, lists no classes and carries no stat line,
-/// only its requirements, in three tiers at required levels 1, 5 and 10 (armour and weapons ask their attribute none, 30
-/// and 45; jewellery none). Plate asks Strength, leather Agility, cloth Intellect. Rings (nine lines) and amulets (seven)
-/// come in lines of three tiers, one line per implicit (ids 104-149); the two trinket bases (150, 151), one tier each,
-/// exist only for the trinket uniques to name, and nothing hands one out. A base's defence (an armour piece's armour,
-/// evasion or ward, a shield's armour and block, a caster off-hand's ward) and a weapon's damage and attack time are its
-/// base stats, below, which every copy rolls; a weapon's template names only the type of its damage. Every base also carries one themed implicit (<see cref="Implicits" />),
-/// matched to its tier. A unique names its base (<see cref="ItemTemplate.BaseTemplateId" />), whose base stats and
-/// implicit every copy rolls before the unique's own modifier (ItemModifierSeed). Numbers are rounded half away from
-/// zero and at least 1; every base sells for a quarter of its price. The model's HasData reads these; consumables and
-/// quest items stay in WorldDbContext, with no base kind.
+/// only its requirements, in three tiers at required levels 1, 5 and 10 (armour and weapons ask their attribute none,
+/// 30 and 45; jewellery none). Plate asks Strength, leather Agility, cloth Intellect. Rings (nine lines) and amulets
+/// (seven) come in lines of three tiers, one line per implicit (ids 104-149); the two trinket bases (150, 151), one
+/// tier each, exist only for the trinket uniques to name, and nothing hands one out. A base's defence (an armour
+/// piece's armour, evasion or ward, a shield's armour and block, a caster off-hand's ward) and a weapon's damage and
+/// attack time are its base stats, below, which every copy rolls; a weapon's template names only the type of its
+/// damage. Every base also carries one themed implicit (<see cref="Implicits" />), matched to its tier. A unique names
+/// its base (<see cref="ItemTemplate.BaseTemplateId" />), whose base stats and implicit every copy rolls before the
+/// unique's own modifier (ItemModifierSeed). Numbers are rounded half away from zero and at least 1; every base sells
+/// for a quarter of its price. The model's HasData reads these; consumables and quest items stay in WorldDbContext,
+/// with no base kind.
 /// <para>
 /// Every base authors a range for each base stat its kind carries (ItemBaseStatRules), which every copy rolls:
 /// <see cref="Drafted" /> keeps each drafted value, and <see cref="BaseStats" /> spreads it by 20 %, or by 5 % for an

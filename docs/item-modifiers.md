@@ -38,7 +38,7 @@ unique template links exactly its one unique modifier, a common base exactly one
 base (a consumable, a quest item) nothing. The world's items area (`ItemsPatch.Build`) logs and leaves out a template
 whose links break this, whole, so no copy of it is ever made (a stat-less unique, a unique standing in its line as a
 base, a base without its implicit), and a unique whose named base is missing, left out, not a common base of its kind or
-above its level (`ItemsPatch.NamedBaseProblem`); a unique template whose one modifier the catalog left out is kept, and
+above its level (`ItemBaseStatRules.NamedBaseProblem`); a unique template whose one modifier the catalog left out is kept, and
 its drops are removed when they roll.
 
 The REST API never reads the whole catalog. A tooltip or a link preview reads one template's links and the rows they
@@ -68,12 +68,14 @@ rolls one value per stat, uniform within the range, when it is made, kept in the
 (`ItemBaseStatRules.Of`): plate armour, leather evasion, cloth ward, a shield armour and block, a caster off-hand ward,
 a sword, mace, staff or bow its damage range and attack time; a ring, an amulet or a trinket none. A weapon's template
 names only the type of its damage (`ItemTemplates.DamageType`). A unique's template carries none of its own: it rolls
-its base's ([implicits](#implicits)).
+its base's ([implicits](#implicits)), and a unique weapon deals its base's damage type, so its template names none
+either (the stats fold reads it through `WornItem.DamageType`, which the world's refresh and the API's worn read take
+from the named base).
 
 `ItemsPatch.Build` logs and leaves out, whole, a template that breaks `ItemBaseStatRules.Problem`: base stats other than
 exactly its kind's, a range below 0 or with its minimum above its maximum, an attack time below 1 ms, a weapon whose
-highest minimum damage passes its lowest maximum, or a damage type anywhere but on a weapon kind (or none on one). A
-live template edit refuses the same, keyed `baseStats` or `damageType` ([live template editing](live-template-editing.md)).
+highest minimum damage passes its lowest maximum, or a damage type anywhere but on a Common weapon (or none on one; a
+unique weapon with one of its own is refused too). A live template edit refuses the same, keyed `baseStats` or `damageType` ([live template editing](live-template-editing.md)).
 
 The seeded ranges come from one drafted value per base and stat (`ItemBaseSeed.Drafted`), spread by 20 % each way, or
 5 % for an attack time, each end rounded half away from zero and at least 1: a chest's armour 8 / 18 / 32 (plate),
@@ -189,19 +191,28 @@ is sized so that one full best-in-slot level-10 set gives at most:
 | Cast speed | 10 % |
 | Movement speed | 8 % |
 | Crit chance | +6 % |
-| Life | +75 flat (Stamina's life included) and +26 % increased: 40-60 % above each class's level-10 base |
+| Life | +75 flat (Stamina's life included) and +26 % increased: the guard checks each class's share, 40-60 % above its level-10 base |
+| Strength, Agility, Intellect | +15 each |
+| Crit multiplier | +50 % |
+| Cooldown recovery | 15 % |
+| Increased healing | 45 % |
+| Block (a shield's base block chance and block lines) | 20 % |
+| Maximum power (power lines, and the Wizard's power per Intellect and Agility from gear) | +35 % of a level-10 Wizard's pool |
+| Added damage to attacks, each type, and to spells, each element (the average of an "adds" line's two ends) | 8.4 |
 
 A set is counted at its worst case. Every slot (head, shoulders, chest, hands, legs, feet, amulet, two rings, two
 trinkets, and either a one-handed weapon with an off-hand or a two-handed weapon, whichever gives more) holds whichever
-level-10 item gives the stat most: a base rolled rare (its implicit, plus each affix group of the stat that rolls on its
-kind, at its best tier) or a unique (its base's implicit and its own lines), every line at its maximum (an "adds" line's
-high end). Implicits and unique lines stack with an affix of the same stat, so a slot can count twice. Life is (a
-class's level-10 base + flat life + Stamina's life) x (1 + increased maximum life / 100), rounded as the stats fold
-rounds it. `SeedIntegrityShould.Fit_the_starting_zone_budget` works each of these totals out from the seed and fails
-when one passes its ceiling, or when a class's life share leaves 40-60 %. The values were also sized to the design's
-further ceilings (each main attribute +15, crit multiplier +50 %, increased damage on one hit summed 60 %, increased
-healing 45 %, cooldown recovery 15 %, block from affixes and uniques 20 %), which no test holds. Base stats are not part
-of the budget. The tables below give every value.
+level-10 item gives the stat most: a base rolled rare (its template's own stat lines, its implicit, plus each affix group
+of the stat that rolls on its kind, at its best tier) or a unique (its template's lines, its base's implicit and its own
+lines), every line at its maximum (an "adds" line's high end). Implicits and unique lines stack with an affix of the
+same stat, so a slot can count twice. Attack speed reads the formula's `AttackSpeedPerAgility`. Life is (a class's
+level-10 base + flat life + Stamina's life) x (1 + increased maximum life / 100), rounded as the stats fold rounds it,
+each slot's flat and increased life taken from the one item it holds, at the set that gives most.
+`SeedIntegrityShould.Fit_the_starting_zone_budget` works each of these totals out from the seed and fails when one
+passes its ceiling, or when a class's life share leaves 40-60 %. The values were also sized to the design's ceilings
+that need a model of a whole hit (increased damage on one hit summed 60 %, a weapon's own affixes +60 % of its average,
+flat and increased defence +50 % of the set's base), which no test holds. Base stats are not part of the budget, but
+for block, whose ceiling counts the shield's. The tables below give every value.
 
 ## Local and global
 

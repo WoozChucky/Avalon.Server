@@ -1818,9 +1818,9 @@ public class WorldDbContext : DbContext
 
     /// <summary>
     /// The catalog rows (#1179): a tier of an affix or implicit group (1 to 9, counting down: T9 the weakest), or a
-    /// unique's single row with no tier. Kind and name live on the group only; that a prefix, suffix or implicit row has a
-    /// tier and a unique row none spans the two tables, so no column check can: ItemModifierCatalog leaves out a row that
-    /// breaks it, and SeedIntegrityShould holds the seed to it.
+    /// unique's single row with no tier. Kind and name live on the group only; that a prefix, suffix or implicit row
+    /// has a tier and a unique row none spans the two tables, so no column check can: ItemModifierCatalog leaves out a
+    /// row that breaks it, and SeedIntegrityShould holds the seed to it.
     /// </summary>
     private static void Configure(EntityTypeBuilder<ItemModifier> builder)
     {

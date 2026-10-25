@@ -1930,13 +1930,35 @@ Nothing allocates. `Calculate` sits where the single walk left it (267-283 ns in
 `CalculateModified` reads below the probe's 686-727 ns; the probe and this run are measured differently, so nothing is
 claimed from that.
 
+**Part B2's final wave.** Three changes reach this benchmark. Each Barkplate piece now wears its armour as the base stat
+its copy rolled, as a seeded base does, not as a template line (the setup's health checks are unchanged). A worn item
+carries the damage type its base gives it (`WornItem.DamageType`, 8 B more per item). And the scaled products saturate
+instead of wrapping (`LocalScaling.Increase` checks its product with `Math.BigMul` and rounds in 64 bits when it fits,
+in 128 bits only past a long; each item's defence joins the totals by a saturating add; the flat life's Stamina product
+is worked in 128 bits). Measured at the wave's head, the same command as above on `ItemStatsBenchmarks` alone (out of
+process, ten warmups, twenty iterations, `--affinity 4`), 2026-10-25, then once more with `LocalScaling` and
+`CharacterStatsCalculator` put back to the code before the saturation, in the same session:
+
+| Operation | Saturating: mean / min / median | Before the saturation: mean / min / median | Allocated |
+|---|---:|---:|---:|
+| `ItemStatsBenchmarks.Calculate` | 259.7 / 252.6 / 258.8 ns (± 3.5 ns) | 244.1 / 239.0 / 244.4 ns (± 2.7 ns) | 0 B |
+| `ItemStatsBenchmarks.CalculateModified` | 662.8 / 646.9 / 663.9 ns (± 6.6 ns) | 630.4 / 615.9 / 628.2 ns (± 9.8 ns) | 0 B |
+
+The saturation costs about 15 ns a refresh with no modifiers and about 32 ns with six on every piece (5-6 %), once per
+gear, level or aura change, never per tick or per hit, and allocates nothing. A first cut that worked every scaled
+product in 128 bits read 351 / 769 ns, which is why the 64-bit path stays. The `InventoryFlushBenchmarks` rows, run once
+in the same wave with the store's one lookup per slot, allocate exactly the bytes of the table in the inventory section
+(152 B, 1,048 B and 3,864 B at 1, 8 and 30 slots, with or without rolled rows), at means no worse than its.
+
 ### Item roller — `Benchmarks/ItemRollerBenchmarks.cs` (#1179)
 
 Making one copy of an item with its modifiers (`ItemRoller`, [item modifiers](item-modifiers.md)), which runs once per
 drop, vendor purchase, quest reward or starting item, on the tick in whatever makes the item, never per tick or per
 hit. Both rows make a plate chest at item level 15 over the seeded templates and modifier catalog (the scenario
 reference data): the Ironroot Chestguard (86), the best tier of its line there. `RollPlain` is `IItemRoller.RollPlain`,
-a common copy as a vendor purchase or an item script makes it, with its one implicit (Armor 27-37). `RollRare` is
+a common copy as a vendor purchase or an item script makes it. When the benchmark was added that was its one implicit
+(Armor 27-37); since #1179 part B2 the copy rolls its armour as a base stat (Armour 26-38) and then its one implicit,
+increased maximum life (3-4 %). `RollRare` is
 `IItemRoller.Roll` with the Normal odds and the rarity draw pinned to Rare: the base tier, the implicit, the affix count,
 each affix's weighted pick among the chest's candidates (on the stack) and its values, and the two-word name. The draws
 come from a fixed sequence restarted before each operation, so every operation makes the same item, and setup fails
@@ -4798,7 +4820,7 @@ the real `PartyService` and joined at the forest's entry (15, 1, 15). The harnes
 instances, so players start in the forest. Since #972 the classes cycle over all four across the roster rather than per
 party slot (warrior, wizard, hunter; cleric, warrior, wizard; hunter, cleric, warrior; wizard, hunter, cleric), as the
 load test's parties of three do, so three parties in four carry a cleric. Each character starts with 28 of its 30 bag
-slots holding a Barkplate Helm (item 12, a tier-2 plate base, which does not stack), added through its inventory service: a level 1
+slots holding a Barkplate Helm (item 12, a T8 plate base, which does not stack), added through its inventory service: a level 1
 bag fills far slower than a minute's fight, and this stands for a character that has played a while, so the item
 destroy path runs in every minute.
 
@@ -4932,7 +4954,7 @@ outcome (every count above) and the same bytes per window, and kills and deaths 
 carry higher ids (the process-wide object id counter), which changes neither.
 
 **Gate.** Committed at **14,337 B per window** (19.9 B per player per tick, 239 B per tick) since #1179 part B2 (base
-stats), 115 B over the 14,222 B before it and inside the gate (which fails above 14,478 B); regenerated once for the
+stats), 115 B over the 14,222 B before it and inside the gate (which fails above 14,593 B); regenerated once for the
 part's per-copy data, step by step (the first two figures read by the gate as each step landed, the last by the runner
 in Release on the developer machine, which reads 14,311 B without it):
 - 14,236 B (+14 B) once every copy rolls its base stats when it is made: each copy (`RolledItem`) the fighters' kills
@@ -4943,7 +4965,8 @@ in Release on the developer machine, which reads 14,311 B without it):
   `TradeItemDto` 9, `LootDropDto` 12). Each entry grows by one reference (8 B per inventory entry and per drop a
   snapshot describes); the base-stat lists come from `ItemModifierDtoPool` as the modifier lists do, so a steady flush
   makes none, and only the pools' first fill shows. With the kill messages' base stats switched off and nothing else
-  changed the fight reads 14,324 B: 13 B is the kill messages' base-stat entries, 13 B the larger entries.
+  changed the fight reads 14,324 B: 13 B is the kill messages' base-stat entries, and the other 13 B, worked out as
+  the rest of the 26 B rather than measured on its own, the larger entries.
 
 Debug reads the same, and the regeneration changed no other scenario. Before it, committed at 14,222 B from
 `5034e1723`, part B's last regeneration, and earlier in part B at 14,374 B, 391 B over the 13,983 B before it and
