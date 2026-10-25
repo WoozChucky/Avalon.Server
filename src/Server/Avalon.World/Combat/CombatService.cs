@@ -10,6 +10,7 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Auras;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
+using Avalon.World.Items;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
@@ -227,7 +228,37 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // encounter and broadcast SUnitDeathPacket. ICharacter exposes IsDead explicitly; creatures
         // signal death via CurrentHealth == 0 (their script sets it).
         NotifyDeathIfApplicable(enc, target, attacker);
+
+        // #1180 part A2: last, so a killing hit has already fired its wearer's Kill effects.
+        ReportResonance(attacker, target, result, absorbed);
         return HitOutcome.Landed;
+    }
+
+    /// <summary>
+    /// A direct hit that landed fires the Resonance triggers it carries (#1180 part A2): Hit, and Crit for a critical
+    /// one, for a character that struck; Struck, and WardBroken when its ward took part of the hit and is now empty (so it
+    /// held something before), for a character struck. Each side is reported to the instance only when its active effects
+    /// listen for one of them: a hit with none costs two type tests and a mask test, and allocates nothing.
+    /// </summary>
+    private void ReportResonance(IUnit attacker, IUnit target, HitResult result, uint absorbed)
+    {
+        if (attacker is CharacterEntity wearer)
+        {
+            ResonanceTriggers fired = (result & HitResult.Crit) != 0
+                ? ResonanceTriggers.Hit | ResonanceTriggers.Crit
+                : ResonanceTriggers.Hit;
+            if ((wearer.ResonanceProcs.Mask & fired) != 0)
+                _outcomes?.ResonanceFired(wearer, fired, target);
+        }
+
+        if (target is CharacterEntity struck)
+        {
+            ResonanceTriggers fired = absorbed > 0 && struck.Ward == 0
+                ? ResonanceTriggers.Struck | ResonanceTriggers.WardBroken
+                : ResonanceTriggers.Struck;
+            if ((struck.ResonanceProcs.Mask & fired) != 0)
+                _outcomes?.ResonanceFired(struck, fired, attacker);
+        }
     }
 
     /// <summary>
@@ -315,6 +346,13 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         if (attacker is ICharacter attackerCharacter) attackerCharacter.MarkCombat();
         if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();
+
+        // #1180 part A2: a living character that evaded fires its Evaded effects, against the attacker.
+        if (target is CharacterEntity { IsDead: false } evader
+            && (evader.ResonanceProcs.Mask & ResonanceTriggers.Evaded) != 0)
+        {
+            _outcomes?.ResonanceFired(evader, ResonanceTriggers.Evaded, attacker);
+        }
     }
 
     /// <summary>

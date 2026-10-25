@@ -124,6 +124,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     // owed meanwhile rather than paying them all at once.
     private bool _aurasPaused;
     private readonly UnitHitQuery _hits;
+
+    // Fires the characters' Resonance effects (#1180 part A2); a firing that threw is logged at most once per
+    // ThrottledErrorLog.Interval, and costs only that firing.
+    private readonly ResonanceDispatcher _resonance;
+    private readonly ThrottledErrorLog _resonanceFailures;
     private readonly ThreatBroadcastService _threatBroadcast;
     private readonly IWorld _world;
 
@@ -359,6 +364,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Shape scripts ask this for the living units their shape overlaps (#164), found in the cells of the grid around
         // the shape (#982), rewound against the world's tick count for a player's instant cast (#1082).
         _hits = new UnitHitQuery(_characters, _creatures, _members, _worldTicks);
+
+        // Resonance effects (#1180 part A2) place their auras through this instance's aura system, find a chain's further
+        // targets through its hit query, and draw from its combat random on its clock.
+        _resonance = new ResonanceDispatcher(_auras, _hits, _combatService.Random, _time, MapType, outcomes: this);
+        _resonanceFailures = new ThrottledErrorLog(_logger, _time, $"A Resonance effect in instance {InstanceId}");
 
         // The cast system gets `this` as the IAbilityArena every ability script is built with
         // (#164): scripts route damage through CombatService.ApplyDamage. CombatService must be
@@ -2987,6 +2997,22 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
+    /// <summary>
+    /// A Resonance trigger fired for <paramref name="wearer" /> (#1180 part A2): its effects fire through the dispatcher.
+    /// Contained and throttled, as an ability's aura is: a failure costs the effects, never the hit or kill that fired them.
+    /// </summary>
+    void ICombatOutcomes.ResonanceFired(CharacterEntity wearer, ResonanceTriggers fired, IUnit other)
+    {
+        try
+        {
+            _resonance.Fire(wearer, fired, other);
+        }
+        catch (Exception e)
+        {
+            _resonanceFailures.Failed(e);
+        }
+    }
+
     HitOutcome IAbilityArena.HitForAbility(IUnit caster, IUnit target, IAbility ability) =>
         _combatService.ApplyAbilityHit(caster, target, ability);
 
@@ -3083,6 +3109,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             // A kill nobody is credited with (an aura's tick whose caster is gone) drops everything free for all.
             DropLoot(creature, eligible, credited: killer is not null, buffers);
             AwardExperience(creature, eligible, buffers.Shares);
+
+            // #1180 part A2: the killer's Kill effects, before a killing hit's own Hit and Crit effects. A killing tick
+            // fires them too: they deal no damage, so no proc feeds another.
+            if (killer is CharacterEntity wearer && (wearer.ResonanceProcs.Mask & ResonanceTriggers.Kill) != 0)
+            {
+                ((ICombatOutcomes)this).ResonanceFired(wearer, ResonanceTriggers.Kill, creature);
+            }
         }
         finally
         {
