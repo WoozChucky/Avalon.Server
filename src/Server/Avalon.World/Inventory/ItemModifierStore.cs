@@ -24,12 +24,18 @@ public sealed class ItemModifierStore
 
     /// <summary>The item's live list, in ordinal order, or an empty one. Saves copy it; nothing else may change it.</summary>
     /// <remarks>Never allocates: an item without modifiers answers the one empty array.</remarks>
-    public IReadOnlyList<ItemInstanceModifier> Of(ItemInstanceId item) =>
-        _byItem.TryGetValue(item, out Entry entry) ? ModifiersOf(entry) : Array.Empty<ItemInstanceModifier>();
+    public IReadOnlyList<ItemInstanceModifier> Of(ItemInstanceId item)
+    {
+        ref Entry entry = ref CollectionsMarshal.GetValueRefOrNullRef(_byItem, item);
+        return Unsafe.IsNullRef(ref entry) ? Array.Empty<ItemInstanceModifier>() : ModifiersOf(entry);
+    }
 
     /// <summary>The item's rolled base stats, by value; none (default) for an item without them.</summary>
-    public ItemBaseStats BaseStatsOf(ItemInstanceId item) =>
-        _byItem.TryGetValue(item, out Entry entry) ? entry.BaseStats : default;
+    public ItemBaseStats BaseStatsOf(ItemInstanceId item)
+    {
+        ref Entry entry = ref CollectionsMarshal.GetValueRefOrNullRef(_byItem, item);
+        return Unsafe.IsNullRef(ref entry) ? default : entry.BaseStats;
+    }
 
     /// <summary>
     /// Whether the item carries rolled rows, modifiers or base stats: such a copy is one of a kind, so it never stacks or
@@ -49,21 +55,31 @@ public sealed class ItemModifierStore
     /// (none for an item without them) and its live modifier list itself, in ordinal order, read through the concrete list,
     /// or null for an item without modifiers. Nothing may change the list.
     /// </summary>
-    internal WornItem WornOf(ItemTemplate template, ItemInstanceId item) =>
-        _byItem.TryGetValue(item, out Entry entry)
-            ? new WornItem(template, entry.BaseStats, entry.Modifiers)
-            : new WornItem(template, default, null);
+    internal WornItem WornOf(ItemTemplate template, ItemInstanceId item)
+    {
+        ref Entry entry = ref CollectionsMarshal.GetValueRefOrNullRef(_byItem, item);
+        return Unsafe.IsNullRef(ref entry)
+            ? new WornItem(template, default, null)
+            : new WornItem(template, entry.BaseStats, entry.Modifiers);
+    }
 
     /// <summary>
-    /// The name <paramref name="item" /> is described by in <paramref name="items" /> (<see cref="ItemSlotDtoMapper.NameOf" />):
-    /// a magic copy's is held on its entry, so only its first describe in a generation builds it.
+    /// A held item as a message describes it, in one lookup (<see cref="Held" />): its live modifier list, its base stats
+    /// in place and the name it is described by in <paramref name="items" /> (<see cref="ItemSlotDtoMapper.NameOf" />). A
+    /// magic copy's name is held on its entry, so only its first describe in a generation builds it.
     /// </summary>
-    public string? NameOf(InventoryItem item, ItemsPatch items)
+    public Held Describe(InventoryItem item, ItemsPatch items)
     {
         ref Entry entry = ref CollectionsMarshal.GetValueRefOrNullRef(_byItem, item.InstanceId);
-        return Unsafe.IsNullRef(ref entry)
-            ? ItemSlotDtoMapper.NameOf(item.TemplateId, item.Rarity, item.RareName, Array.Empty<ItemInstanceModifier>(), items)
-            : entry.Name.Of(item.TemplateId, item.Rarity, item.RareName, ModifiersOf(entry), items);
+        if (Unsafe.IsNullRef(ref entry))
+        {
+            return new Held(Array.Empty<ItemInstanceModifier>(), in s_noBaseStats,
+                ItemSlotDtoMapper.NameOf(item.TemplateId, item.Rarity, item.RareName, Array.Empty<ItemInstanceModifier>(), items));
+        }
+
+        IReadOnlyList<ItemInstanceModifier> modifiers = ModifiersOf(entry);
+        return new Held(modifiers, in entry.BaseStats,
+            entry.Name.Of(item.TemplateId, item.Rarity, item.RareName, modifiers, items));
     }
 
     /// <summary>
@@ -75,7 +91,13 @@ public sealed class ItemModifierStore
         _byItem.Clear();
         foreach (ItemInstance instance in instances)
         {
-            if (instance.Modifiers.Count == 0 && instance.BaseStats.Count == 0)
+            // By index over the concrete list: the IEnumerable overload of ItemBaseStats.Of boxed its enumerator per copy.
+            ItemBaseStats baseStats = default;
+            List<ItemInstanceBaseStat> rows = instance.BaseStats;
+            for (int i = 0; i < rows.Count; i++)
+                baseStats = baseStats.With(rows[i].Stat, rows[i].Value);
+
+            if (!HasRolledRows(baseStats, instance.Modifiers))
                 continue;
 
             List<ItemInstanceModifier>? modifiers = null;
@@ -86,12 +108,6 @@ public sealed class ItemModifierStore
                 foreach (ItemInstanceModifier modifier in modifiers)
                     modifier.Values.Sort(static (a, b) => a.Index.CompareTo(b.Index));
             }
-
-            // By index over the concrete list: the IEnumerable overload of ItemBaseStats.Of boxed its enumerator per copy.
-            ItemBaseStats baseStats = default;
-            List<ItemInstanceBaseStat> rows = instance.BaseStats;
-            for (int i = 0; i < rows.Count; i++)
-                baseStats = baseStats.With(rows[i].Stat, rows[i].Value);
 
             _byItem[instance.Id] = new Entry(modifiers, baseStats);
         }
@@ -137,6 +153,8 @@ public sealed class ItemModifierStore
             ? (entry.BaseStats, ModifiersOf(entry))
             : (default, Array.Empty<ItemInstanceModifier>());
 
+    private static readonly ItemBaseStats s_noBaseStats = default;
+
     private static IReadOnlyList<ItemInstanceModifier> ModifiersOf(in Entry entry) =>
         entry.Modifiers is { } modifiers ? modifiers : Array.Empty<ItemInstanceModifier>();
 
@@ -149,5 +167,30 @@ public sealed class ItemModifierStore
         public readonly List<ItemInstanceModifier>? Modifiers = modifiers;
         public readonly ItemBaseStats BaseStats = baseStats;
         public DescribedName Name;
+    }
+
+    /// <summary>
+    /// One held item as <see cref="Describe" /> found it: read it before the store next changes, since
+    /// <see cref="BaseStats" /> refers to the entry in place.
+    /// </summary>
+    public readonly ref struct Held
+    {
+        private readonly ref readonly ItemBaseStats _baseStats;
+
+        public Held(IReadOnlyList<ItemInstanceModifier> modifiers, ref readonly ItemBaseStats baseStats, string? name)
+        {
+            Modifiers = modifiers;
+            _baseStats = ref baseStats;
+            Name = name;
+        }
+
+        /// <summary>The live list, in ordinal order, or the one empty array; nothing may change it.</summary>
+        public IReadOnlyList<ItemInstanceModifier> Modifiers { get; }
+
+        /// <summary>The rolled base stats, none (default) for an item without them.</summary>
+        public ref readonly ItemBaseStats BaseStats => ref _baseStats;
+
+        /// <summary>The name the item is described by, or null when its template's is the item's.</summary>
+        public string? Name { get; }
     }
 }

@@ -63,7 +63,7 @@ public class InventoryAllocationShould
         Assert.Equal(InventoryAddResult.Ok, inventory.TryAddRolled(roller.RollPlain(s_chest, 1, s_items)));
         RolledItem magic = roller.Roll(s_chest, new DropContext(10, CreatureRarity.Normal, ForceMagic: true), s_items)!;
         Assert.Equal(InventoryAddResult.Ok, inventory.TryAddRolled(magic));
-        Assert.NotNull(_character.ItemModifiers.NameOf(At(_character, InventoryType.Bag, 2), s_items));
+        Assert.NotNull(_character.ItemModifiers.Describe(At(_character, InventoryType.Bag, 2), s_items).Name);
         // Both chests send their base stats, from the pool as their modifiers are.
         Assert.All([1, 2], slot => Assert.False(
             _character.ItemModifiers.BaseStatsOf(At(_character, InventoryType.Bag, (byte)slot).InstanceId).IsEmpty));

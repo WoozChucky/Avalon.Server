@@ -22,9 +22,11 @@ public static class ItemSlotDtoMapper
     /// generation, so a rename reaches every copy. A common or unique copy's name is its template's, and is not sent.
     /// </param>
     public static ItemSlotDto ToDto(InventoryType container, InventoryItem item, ItemModifierStore modifiers,
-        ItemsPatch items, ItemModifierDtoPool pool) =>
-        Slot(container, item, pool.Rent(modifiers.Of(item.InstanceId)),
-            pool.RentBaseStats(modifiers.BaseStatsOf(item.InstanceId)), modifiers.NameOf(item, items));
+        ItemsPatch items, ItemModifierDtoPool pool)
+    {
+        ItemModifierStore.Held held = modifiers.Describe(item, items);
+        return Slot(container, item, pool.Rent(held.Modifiers), pool.RentBaseStats(in held.BaseStats), held.Name);
+    }
 
     /// <summary>
     /// An item outside every container (a sale kept for buyback), for a message built once: its modifiers and base stats
