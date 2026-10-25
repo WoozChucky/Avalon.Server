@@ -301,8 +301,34 @@ The catalog builds a `ResonanceTable` once per load (`ItemModifierCatalog.Resona
 affix rows name, each given a slot, its position in that list sorted by id, and each affix modifier mapped to its
 theme's slot. The stats refresh counts the worn items against it ([world simulation](world-simulation.md), the stats
 fold), and the character sheet and the REST API show the counts by theme id
-([inventory and saves](inventory-and-saves.md)). A theme no worn item carries is not listed. Nothing happens at any
-count yet: the effects a count turns on arrive with #1180's next part.
+([inventory and saves](inventory-and-saves.md)). A theme no worn item carries is not listed.
+
+**The effects (#1180 part A2).** A count turns on its theme's **Resonance effects**: rows of `ItemThemeEffects`, a
+World DB balance table seeded from `ResonanceSeed`, which the Theme effects table below lists in full and which is the
+reference for every number. Each row names its theme and the count it needs, a trigger (Hit, Crit, Kill, Struck,
+Evaded or WardBroken), a chance, a cooldown, the aura it applies and on whom (the wearer, the unit it hit, or the unit
+that struck it), and, where it applies, how many further creatures it chains to, the wearer's life it fires at or
+below, and the damage type of an aura that deals damage. A theme runs only the rows of the highest count it reaches,
+so a count of 5 runs the 4 rows, and a count of 1 runs nothing; the seed has rows at 2, 3 and 4. In words:
+
+- **Ember** sets what its wearer hits Burning (fire damage over 4 s), more often and harder at each count.
+- **Rime** chills what its wearer hits (slower movement, and from 3 slower attacks); at 4 a critical hit may also root
+  it for 1 s (Rimebound).
+- **Storm**: a critical hit jolts its target (one burst of lightning damage 0.2 s later); from 3 the jolt also jumps to
+  the nearest creature within 8 m of the target, at 4 to the two nearest.
+- **Wild**: a kill heals the wearer over 4 s (Regrowth); at 4 a hit taken at or below 35 % life also heals it over 3 s
+  (Rootsurge), at most once in 20 s.
+- **Iron**: a hit taken may raise the wearer's guard for 4 s (armour and block, and at 4 a ward).
+- **Thorn**: a hit taken barbs the attacker (one burst of physical damage 0.2 s later); at 4 a critical hit makes its
+  target bleed.
+- **Gale**: a kill speeds the wearer up (movement, and from 3 attack and cast speed); at 4 an evaded hit does too
+  (Slipstream).
+- **Veil**: a broken ward veils the wearer (evasion, and from 3 movement), at most once in 12 s; at 4 a critical hit
+  also quickens its casting (Lucid).
+
+An effect's aura is an ordinary aura (ids 16-44, [auras](auras.md#resonance-effects-1180)): it ticks, stacks, breaks
+and replicates as any other. How the effects are activated and fired, and what they cost on a hit, is in
+[world simulation](world-simulation.md) (the Resonance effects).
 
 ## The tables
 

@@ -4,7 +4,7 @@ Server-side rules for auras. The client contract is [Aura protocol](aura-protoco
 
 ## Auras
 
-Auras: timed effects on a character or a creature, periodic damage or healing, stat modifiers (buffs, debuffs, slows), or both, put on by abilities, item scripts and aura scripts. A harmful aura can also put its holder under crowd control: a stun, a root, a silence or a slow ([Crowd control](#crowd-control-770)). No dispel yet. `docs/aura-protocol.md` is the client contract.
+Auras: timed effects on a character or a creature, periodic damage or healing, stat modifiers (buffs, debuffs, slows), or both, put on by abilities, item scripts, aura scripts and the Resonance effects of worn gear ([Resonance effects](#resonance-effects-1180)). A harmful aura can also put its holder under crowd control: a stun, a root, a silence or a slow ([Crowd control](#crowd-control-770)). No dispel yet. `docs/aura-protocol.md` is the client contract.
 
 ### Arrival protection (#1088)
 
@@ -151,3 +151,59 @@ lowers the speed through the stat fold as before. A unit holding several is in e
   edit), refuse anything outside 0 to 100. All are balance tables. The REST API edits the aura columns and the creature
   overrides ([live template editing](live-template-editing.md)); the rarity table has no REST surface. The client
   contract is [Aura protocol](aura-protocol.md), section 10.
+
+## Resonance effects (#1180)
+
+Worn gear places auras too: a character whose Resonance count for a theme reaches a threshold runs that theme's effect
+rows ([item modifiers](item-modifiers.md#resonance-themes)), and each effect that fires applies its aura through the
+instance's `AuraSystem.Apply`, as an ability's does. How the effects are activated and fired is in
+[world simulation](world-simulation.md) (the Resonance effects); this section is what their auras are.
+
+- **The effect auras** (World migration `AddResonanceEffects`, `ResonanceSeed`, balance data; `SeedIntegrityShould`
+  pins them): 16-18 Burning I-III (harmful, 4 s / 1 s, damage 16, 22, 28), 19-21 Chilled I-III (harmful, 3 s,
+  MovementSpeed Flat -15, -20, -25, and AttackSpeed Flat -8 on II, -12 on III), 22 Rimebound (harmful, 1 s, root),
+  23-25 Jolt I-III (harmful, 200 ms / 200 ms, damage 14, 18, 22), 26-28 Regrowth I-III (helpful, 4 s / 1 s, heal 16,
+  24, 32), 29 Rootsurge (helpful, 3 s / 1 s, heal 48), 30-32 Guard I-III (helpful, 4 s, Armor Flat 15, 25, 35,
+  BlockPct Flat 2, 4, 5, and MaxWard Flat 25 on III), 33-35 Barbs I-III (harmful, 200 ms / 200 ms, damage 5, 8, 10),
+  36 Bleeding (harmful, 4 s / 1 s, damage 20), 37-39 Tailwind I-III (helpful, 4, 4 and 5 s, MovementSpeed Flat 10, 12,
+  15, and AttackSpeed and CastSpeed Flat 5 on II, 8 on III), 40 Slipstream (helpful, 2 s, MovementSpeed Flat 20),
+  41-43 Veiled I-III (helpful, 3, 3 and 4 s, Evasion Flat 60, 100, 150, and MovementSpeed Flat 10 on II, 15 on III)
+  and 44 Lucid (helpful, 4 s, CastSpeed Flat 10). Every damaging one is `Independent`, every other `Refresh`, all one
+  stack; `PeriodicEffectiveness` is 0 on all, no row names a script, every one of their 26 modifiers is Flat, and the
+  icon is the family's name in lower case, so the tiers of a family share one. Chilled breaks as the other slows do
+  (0.5 % a second, never on damage) and Rimebound as Bound and Frozen do (25 % on damage, 0.5 % a second); it is not
+  named Frozen because aura 14 is. Nothing but gear applies them: no seeded ability, doodad outcome or item script names one. They are
+  ordinary auras in every other way: they tick, renew, break, save and restore, fold into the stats, replicate, and a
+  helpful one can be cancelled, by the rules above.
+- **One-tick bursts.** Jolt and Barbs last 200 ms with a 200 ms tick interval: the schedule anchored at expiry holds one
+  tick, at the expiry, so each lands as one hit 0.2 s after its trigger and the aura ends with it. Being `Independent`,
+  two wearers' bursts on one unit never renew each other.
+- **The source** (`ResonanceEffect.Source`, built once per effect row when the items area loads, so a firing builds
+  nothing): no ability id, a threat multiplier of 1 and no heal threat (a proc's damage counts for threat as a plain
+  hit does, and a heal from gear adds none), no power gain, `Affects` `Ally` for an effect on the wearer and `Hostile`
+  for one on another unit, and the row's damage type (Fire for Burning, Lightning for Jolt, Physical for Barbs and
+  Bleeding; none on any other). For an aura that ticks it also carries a synthetic `AbilityMetadata` named for the
+  aura, with tags `None` and no spell base, so the snapshot rolls nothing and its total is the aura's `PeriodicBase`
+  scaled by the wearer's offence (`OffenceMath.PeriodicTotal`): a damaging aura by increased Damage, increased damage
+  over time and its own type's increase (a Thorn barb or bleed takes increased physical damage, never Strength's
+  increase to physical attacks, which only an Attack's physical part takes), a healing aura by increased healing.
+  **Heal procs scale as heals do:** increased healing includes Intellect's share (`CombatFormula`'s
+  `IncreasedHealingPerIntellect`, per point of Intellect), so Regrowth and Rootsurge grow with the wearer's Intellect
+  as well as with its healing modifiers. A damage tick deals the row's type and meets that type's mitigation and the
+  ward as any tick of it does (Burning and Jolt reach the ward first; a physical tick passes it).
+- **`AuraSource.CannotCrit`** (#1180) is set on every effect's source: `AuraSystem.Apply` passes it to
+  `AuraRules.Snapshot`, which keeps a crit chance of 0, so a proc's tick never crits whatever the wearer's crit chance.
+  Each tick still draws its one crit roll, against that 0, so the order of draws is the same as for any other aura.
+- **The fit check guards a reload.** `ResonanceEffectCatalog` (`Avalon.World/Items`, built in the Items reload area's
+  prepare against the aura rows read in that same prepare) leaves out, with an Error, a row whose aura is not loaded,
+  a helpful aura on an enemy or a harmful one on the wearer, an aura that stuns, a damage type on an aura that deals
+  none or none on one that does, and the row rules ([world simulation](world-simulation.md)). An effect aura that a
+  later `/reload auras` or a live edit changes (an aura edit reloads the Auras area alone) keeps its row in the
+  catalog until the next items load, so its kind is checked again at every application: the source names `Affects`,
+  and `AuraSystem.Apply`'s fit check refuses an aura turned helpful on an enemy or harmful on the wearer, logged at
+  most once per aura per 10 s as `Aura {AuraId} '{AuraName}' is not applied: ...` (never as an ability, since the
+  source has none), with the effect's cooldown already spent. The catalog's other rules are checked only when the
+  items area loads: an aura edit that gives an effect aura a stun, say, applies it from gear until the next
+  `/reload items` leaves that effect out.
+- **On the wire** nothing is new: the effect auras reach clients through the aura list, update and tick packets, and a
+  resisted Rimebound as the Immune hit of 0 with no ability id ([Aura protocol](aura-protocol.md), section 11).

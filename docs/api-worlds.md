@@ -306,6 +306,18 @@ singletons as in every host. Only their context factories differ in the API, whi
   it wears one; which is why the worlds go first. To roll a world back to a build without the change, run
   `dotnet ef database update AddResonanceWorkbench` against its World database: it drops the foreign key, the check,
   the index, the column and `ItemThemes`. Nothing is lost that a copy holds. No world or API does that by itself.
+  **Migration order, #1180 (part A2).** Resonance effects are additive. A world's World database migrates through
+  `AddResonanceEffects`: the table `ItemThemeEffects` (its eight checks, `CK_ItemThemeEffects_Count`, `_Trigger`,
+  `_Target`, `_ChancePct`, `_CooldownMs`, `_ChainTargets`, `_AtOrBelowLifePct` and `_DamageType`, its foreign keys to
+  `ItemThemes` and `AuraTemplates`, both `Restrict`, and the unique index `IX_ItemThemeEffects_Theme_Count_Trigger`),
+  seeded with the 29 effect rows; the 29 effect auras, `AuraTemplates` 16-44; and their 26 `AuraStatModifiers`. There
+  is no Character migration: a character's procs and cooldowns live in memory only. Each world applies it at its
+  start, before it serves (`WorldStartup`). The API reads no effect row, and lists the new auras in its aura template
+  routes (`/world/{worldId}/aura-template`) once a world has migrated, whichever API release reads them, so the order
+  between the worlds and the API does not matter. To roll a world back to a build without the change, run
+  `dotnet ef database update AddItemThemes` against its World database: it drops `ItemThemeEffects` and deletes the 26
+  modifiers and the 29 auras. A character saved holding one of those auras restores without it on the older build
+  (an aura no longer loaded is dropped at select, with a warning). No world or API does that by itself.
 
 ## How a request reaches its world
 
