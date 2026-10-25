@@ -41,24 +41,8 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// refuse an unknown creature id. <see cref="Seed_Every_Creature_The_Forest_Spawn_Table_References" />
 /// still pins the template ids the forest's table names.
 /// </remarks>
-public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTables)
-    : IClassFixture<SeedIntegrityShould.BaseStatTables>
+public class SeedIntegrityShould
 {
-    /// <summary>
-    /// The seeded bases' base-stat ranges (#1179), read once for the class: the base theories check a template's drafted
-    /// base stats against them row by row.
-    /// </summary>
-    public sealed class BaseStatTables
-    {
-        public BaseStatTables()
-        {
-            using var database = SqliteDatabase.World();
-            using WorldDbContext context = database.CreateDbContext();
-            Ranges = context.ItemTemplateBaseStats.AsNoTracking().ToList().ToLookup(s => s.TemplateId.Value);
-        }
-
-        public ILookup<ulong, ItemTemplateBaseStat> Ranges { get; }
-    }
     /// <summary>
     /// A creature whose level range reaches past the seeded <c>CreatureBaseStats</c> rows falls back to
     /// the highest one and logs a warning — survivable, but the creature is quietly the wrong strength.
@@ -1642,7 +1626,8 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
     /// #1179: every armour base as the spec's tables set it: its kind, tier level, the family's attribute from tier 2 and
     /// its price; a quarter of it back, every class, no stack, Common, and no stat line. Its defence is
     /// its one base stat, drafted from the family's (chest plate 8/18/32, leather 40/90/160, cloth 12/26/45; legs 80 %, head
-    /// 60 %, shoulders 50 %, hands and feet 40 %), which its range spreads (<see cref="AssertDrafted" />).
+    /// 60 %, shoulders 50 %, hands and feet 40 %; <see cref="AssertDrafted" />), whose range a sample pins
+    /// (<see cref="Seed_each_bases_base_stat_ranges" />).
     /// </summary>
     [Theory]
     [InlineData(36ul, ItemBaseKind.PlateHead, (ushort)1, ItemBaseStat.Armour, 5u, null, null, 60u)]
@@ -1719,12 +1704,12 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
     }
 
     /// <summary>
-    /// #1179: every weapon and off-hand base. <paramref name="min" />, <paramref name="max" /> and
-    /// <paramref name="attackTime" /> are its drafted base stats (<see cref="AssertDrafted" />): a weapon's damage ends
-    /// and attack time, its template naming physical damage; a shield's armour and block, a caster off-hand's ward alone
-    /// (its <paramref name="max" /> 0), with no damage type. None carries a stat line. Each asks its attribute (a sword Strength, a mace Strength or Intellect, a staff
-    /// Intellect, a bow Agility, a shield Strength, a caster off-hand Intellect) from tier 2, 30 then 45, and costs 120,
-    /// 240 or 480 by tier.
+    /// #1179: every weapon and off-hand base. <paramref name="min" />, <paramref name="max" /> and <paramref
+    /// name="attackTime" /> are its drafted base stats (<see cref="AssertDrafted" />): a weapon's damage ends and
+    /// attack time, its template naming physical damage; a shield's armour and block, a caster off-hand's ward alone
+    /// (its <paramref name="max" /> 0), with no damage type. None carries a stat line. Each asks its attribute (a sword
+    /// Strength, a mace Strength or Intellect, a staff Intellect, a bow Agility, a shield Strength, a caster off-hand
+    /// Intellect) from tier 2, 30 then 45, and costs 120, 240 or 480 by tier.
     /// </summary>
     [Theory]
     [InlineData(32ul, ItemBaseKind.Sword, (ushort)1, 3u, 7u, 700, false)]
@@ -2102,16 +2087,16 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
     }
 
     /// <summary>
-    /// #1179: the modifier catalog whole, as the database holds it. Its counts (its ids are held by
-    /// <see cref="Keep_every_catalog_row_at_its_committed_id" />): 45 affix groups and 26 implicit groups of three tiers
+    /// #1179: the modifier catalog whole, as the database holds it. Its counts (its ids are held by <see
+    /// cref="Keep_every_catalog_row_at_its_committed_id" />): 45 affix groups and 26 implicit groups of three tiers
     /// each, T9, T8 and T7 (Part B's fourth and fifth tiers are gone, and no row has a tier from 1 to 6), the affixes
-    /// weighing on the 222 pairs of a group and a base kind it rolls on; the rules that span its tables (a code on every
-    /// affix group, an element only on a split family's, one stat set per group, a tier on every affix and implicit row and
-    /// on no unique's); the tiers' item levels and weights; the second range on exactly the "adds" lines; no weight on an
-    /// implicit, a unique or a trinket; and the template links: each unique links its own unique row, each of the 122 bases
-    /// one implicit row (<see cref="Seed_every_base_with_one_tier_matched_implicit" />), and nothing else links anything
-    /// (Part B's per-base implicits, groups 50-109 and rows 224-283, are gone, their ids unused). The catalog loads all of
-    /// it without leaving any out.
+    /// weighing on the 222 pairs of a group and a base kind it rolls on; the rules that span its tables (a code on
+    /// every affix group, an element only on a split family's, one stat set per group, a tier on every affix and
+    /// implicit row and on no unique's); the tiers' item levels and weights; the second range on exactly the "adds"
+    /// lines; no weight on an implicit, a unique or a trinket; and the template links: each unique links its own unique
+    /// row, each of the 122 bases one implicit row (<see cref="Seed_every_base_with_one_tier_matched_implicit" />), and
+    /// nothing else links anything (Part B's per-base implicits, groups 50-109 and rows 224-283, are gone, their ids
+    /// unused). The catalog loads all of it without leaving any out.
     /// </summary>
     [Fact]
     public async Task Seed_the_catalog_whole()
@@ -2483,14 +2468,18 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
     }
 
     /// <summary>
-    /// #1179 (decisions 12-16, Review Focus 5): one full best-in-slot level-10 set stays within the owner's ceilings,
-    /// worked out from the seed the way the content table's budget check counts it. Every slot (head, shoulders, chest,
-    /// hands, legs, feet, amulet, two rings, two trinkets, and the hands' best of a one-handed weapon with an off-hand or a
-    /// two-handed weapon) holds whichever item gives the budget most: a base as a rare (its implicit, plus each affix group
-    /// of the stat that rolls on its kind, at its best tier), or a unique (its base's implicit plus its own lines), each
-    /// line at its maximum (an "adds" line's high end). Attack speed counts local and global attack speed and 0.1 % per
-    /// Agility; life is (a class's level-10 base + flat life + Stamina's life) times (1 + increased maximum life / 100),
-    /// rounded half away from zero as the stats fold does, and must land 40-60 % above that class's base.
+    /// #1179 (decisions 12-16, Review Focus 5): one full best-in-slot level-10 set stays within the content table's
+    /// ceilings, worked out from the seed the way its budget check counts it. Every slot (head, shoulders, chest, hands,
+    /// legs, feet, amulet, two rings, two trinkets, and the hands' best of a one-handed weapon with an off-hand or a
+    /// two-handed weapon) holds whichever item gives the budget most: a base as a rare (its template's own stat lines, its
+    /// implicit, plus each affix group of the stat that rolls on its kind, at its best tier), or a unique (its template's
+    /// lines, its base's implicit and its own lines), each line at its maximum (an "adds" line's high end, or for added
+    /// damage the average of its two ends). Attack speed counts local and global attack speed and the formula's attack
+    /// speed per Agility; block counts the base's block chance with block lines; maximum power counts power lines and the
+    /// class's power per Intellect and Agility, against its level-10 pool. Life is (a class's level-10 base + flat life +
+    /// Stamina's life) times (1 + increased maximum life / 100), rounded half away from zero as the stats fold does, with
+    /// each slot's flat and increased life from the one item it holds, at the set that gives most; it must land 40-60 %
+    /// above that class's base.
     /// </summary>
     [Theory]
     [InlineData("FireResistance", 0, 25)]
@@ -2505,6 +2494,22 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
     [InlineData("life Hunter", 40, 60)]
     [InlineData("life Cleric", 40, 60)]
     [InlineData("life Wizard", 40, 60)]
+    [InlineData("Strength", 0, 15)]
+    [InlineData("Agility", 0, 15)]
+    [InlineData("Intellect", 0, 15)]
+    [InlineData("CritMultiplier", 0, 50)]
+    [InlineData("CooldownRecovery", 0, 15)]
+    [InlineData("IncreasedHealing", 0, 45)]
+    [InlineData("block", 0, 20)]
+    [InlineData("power Wizard", 0, 35)]
+    [InlineData("added AddedPhysicalDamageToAttacks", 0, 8.4)]
+    [InlineData("added AddedFireDamageToAttacks", 0, 8.4)]
+    [InlineData("added AddedColdDamageToAttacks", 0, 8.4)]
+    [InlineData("added AddedLightningDamageToAttacks", 0, 8.4)]
+    [InlineData("added AddedBlightDamageToAttacks", 0, 8.4)]
+    [InlineData("added AddedFireDamageToSpells", 0, 8.4)]
+    [InlineData("added AddedColdDamageToSpells", 0, 8.4)]
+    [InlineData("added AddedLightningDamageToSpells", 0, 8.4)]
     public void Fit_the_starting_zone_budget(string budget, double floor, double ceiling)
     {
         using var database = SqliteDatabase.World();
@@ -2515,61 +2520,121 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
         ILookup<ulong, ItemModifier> linked = context.ItemTemplateModifiers.AsNoTracking().ToList()
             .ToLookup(l => l.TemplateId.Value, l => modifiers.Single(m => m.Id == l.ModifierId));
         ItemModifier[] affixes = [.. modifiers.Where(m => m.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix)];
-        uint lifePerStamina = context.CombatFormulas.AsNoTracking().Single().LifePerStamina;
+        CombatFormula formula = context.CombatFormulas.AsNoTracking().Single();
+
+        ItemTemplate[] wearable =
+        [
+            .. templates.Values.Where(t => t.BaseKind is not null && t.RequiredLevel <= 10
+                                           && t.Rarity is ItemRarity.Common or ItemRarity.Unique),
+        ];
+        List<ItemTemplate[][]> slots = Slots();
 
         double total = budget.Split(' ') switch
         {
-            ["attack", "speed"] =>
-                Worst((StatType.AttackSpeed, 1), (StatType.LocalAttackSpeed, 1), (StatType.Agility, 0.1)),
+            ["attack", "speed"] => Worst(Weighted((StatType.AttackSpeed, 1), (StatType.LocalAttackSpeed, 1),
+                (StatType.Agility, formula.AttackSpeedPerAgility))),
+            ["block"] => Worst(Weighted((StatType.BlockPct, 1)), ItemBaseStat.BlockChance),
+            ["power", var name] => PowerShare(Enum.Parse<CharacterClass>(name)),
             ["life", var name] => LifeShare(Enum.Parse<CharacterClass>(name)),
-            _ => Worst((Enum.Parse<StatType>(budget), 1)),
+            ["added", var stat] => Worst(Average(Enum.Parse<StatType>(stat))),
+            _ => Worst(Weighted((Enum.Parse<StatType>(budget), 1))),
         };
 
         Assert.InRange(total, floor, ceiling);
 
-        // The share a full set adds to a class's level-10 life, in percent.
+        // The share a full set adds to a class's level-10 life, in percent: the set whose flat and increased life, each
+        // slot's from the one item it holds, give most (for each sum of increased life so far, the most flat life).
         double LifeShare(CharacterClass c)
         {
             ClassLevelStat row = context.ClassLevelStats.AsNoTracking().Single(s => s.Class == c && s.Level == 10);
-            long life = row.BaseHp + (row.Stamina * lifePerStamina);
-            long flat = (long)Worst((StatType.Health, 1), (StatType.Stamina, lifePerStamina));
-            long increased = (long)Worst((StatType.IncreasedMaximumLife, 1));
-            long withGear = (long)Math.Round((life + flat) * (100 + increased) / 100m, MidpointRounding.AwayFromZero);
+            long life = row.BaseHp + (row.Stamina * formula.LifePerStamina);
+            Func<StatType, int, int?, double> flat = Weighted((StatType.Health, 1), (StatType.Stamina, formula.LifePerStamina));
+            Func<StatType, int, int?, double> increased = Weighted((StatType.IncreasedMaximumLife, 1));
+            Dictionary<double, double> mostFlat = new() { [0] = 0 };
+            foreach (ItemTemplate[][] options in slots)
+            {
+                Dictionary<double, double> next = [];
+                foreach ((double inc, double flatSoFar) in mostFlat)
+                {
+                    foreach (ItemTemplate[] option in options.DefaultIfEmpty([]))
+                    {
+                        double key = inc + option.Sum(item => Gives(item, increased));
+                        double value = flatSoFar + option.Sum(item => Gives(item, flat));
+                        if (!next.TryGetValue(key, out double held) || value > held)
+                            next[key] = value;
+                    }
+                }
+
+                mostFlat = next;
+            }
+
+            long withGear = mostFlat.Max(set => (long)Math.Round(
+                (life + (decimal)set.Value) * (100 + (decimal)set.Key) / 100m, MidpointRounding.AwayFromZero));
             return 100.0 * (withGear - life) / life;
         }
 
-        // The weighted stats' most over every slot of a level-10 set.
-        double Worst(params (StatType Stat, double Weight)[] stats)
+        // The share a full set adds to a class's level-10 power pool, in percent.
+        double PowerShare(CharacterClass c)
         {
-            double Lines(IEnumerable<ItemModifier> rows) => rows.SelectMany(m => m.Stats)
-                .Sum(line => stats.Where(s => s.Stat == line.Stat).Sum(s => s.Weight * (line.Max2 ?? line.Max)));
+            ClassLevelStat row = context.ClassLevelStats.AsNoTracking().Single(s => s.Class == c && s.Level == 10);
+            ClassStatFactors factors = context.ClassStatFactors.AsNoTracking().Single(f => f.Class == c);
+            double power = row.BaseMana + (long)((row.Intellect * factors.PowerPerIntellect) + (row.Agility * factors.PowerPerAgility));
+            double gear = Worst(Weighted((StatType.Power, 1), (StatType.Intellect, factors.PowerPerIntellect),
+                (StatType.Agility, factors.PowerPerAgility)));
+            return 100.0 * gear / power;
+        }
 
-            // What one item gives at its best: a unique its base's implicit and its own lines; a base its implicit and,
-            // rolled rare, each affix group of these stats on its kind at the group's best tier.
-            double Gives(ItemTemplate item) => item.Rarity == ItemRarity.Unique
-                ? Lines(linked[item.BaseTemplateId!.Value]) + Lines(linked[item.Id.Value])
+        // The most over every slot of a level-10 set, each holding its best item (or pair) for this worth alone.
+        double Worst(Func<StatType, int, int?, double> worth, ItemBaseStat? baseStat = null) => slots.Sum(options =>
+            options.Select(option => option.Sum(item => Gives(item, worth, baseStat))).DefaultIfEmpty(0).Max());
+
+        // What one item gives at its best: its template's own lines, the named base stat's maximum (a unique's from its
+        // base), and a unique its base's implicit and its own lines, or a base its implicit and, rolled rare, each affix
+        // group of these stats on its kind at the group's best tier.
+        double Gives(ItemTemplate item, Func<StatType, int, int?, double> worth, ItemBaseStat? baseStat = null)
+        {
+            double Lines(IEnumerable<ItemModifier> rows) =>
+                rows.SelectMany(m => m.Stats).Sum(line => worth(line.Stat, line.Max, line.Max2));
+
+            ItemTemplate @base = item.Rarity == ItemRarity.Unique ? templates[item.BaseTemplateId!.Value] : item;
+            double own = StatLinesOf(item).Sum(line => worth(line.Item1!.Value, (int)line.Item2.GetValueOrDefault(), null))
+                         + (baseStat is { } stat && @base.BaseStats.Find(b => b.Stat == stat) is { } range ? range.Max : 0);
+            return own + (item.Rarity == ItemRarity.Unique
+                ? Lines(linked[@base.Id.Value]) + Lines(linked[item.Id.Value])
                 : Lines(linked[item.Id.Value]) + affixes
                     .Where(m => m.RequiredItemLevel <= 10 && m.Weights.Any(w => w.BaseKind == item.BaseKind && w.Weight > 0))
                     .GroupBy(m => m.GroupId)
-                    .Sum(group => group.Max(m => Lines([m])));
+                    .Sum(group => group.Max(m => Lines([m]))));
+        }
 
-            ItemTemplate[] wearable =
-            [
-                .. templates.Values.Where(t => t.BaseKind is not null && t.RequiredLevel <= 10
-                                               && t.Rarity is ItemRarity.Common or ItemRarity.Unique),
-            ];
-            double Best(Func<ItemTemplate, bool> fits) => wearable.Where(fits).Select(Gives).DefaultIfEmpty(0).Max();
+        // The slots and what each may hold: one item, or for the hands a one-handed weapon with an off-hand (or none)
+        // or a two-handed weapon.
+        List<ItemTemplate[][]> Slots()
+        {
             bool In(ItemTemplate item, ItemSlotType slot) => ItemBaseKindSlots.SlotOf(item.BaseKind!.Value) == slot;
+            ItemTemplate[][] Fitting(ItemSlotType slot) => [.. wearable.Where(i => In(i, slot)).Select(i => new[] { i })];
 
+            ItemTemplate[] offHands = [.. wearable.Where(i => In(i, ItemSlotType.OffHand))];
+            ItemTemplate[][] hands =
+            [
+                .. wearable.Where(i => In(i, ItemSlotType.MainHand) && !i.IsTwoHanded)
+                    .SelectMany(main => offHands.Select(off => new[] { main, off }).Append([main])),
+                .. wearable.Where(i => In(i, ItemSlotType.MainHand) && i.IsTwoHanded).Select(i => new[] { i }),
+            ];
             ItemSlotType[] once = [ItemSlotType.Head, ItemSlotType.Shoulder, ItemSlotType.Chest, ItemSlotType.Hands,
                 ItemSlotType.Legs, ItemSlotType.Feet, ItemSlotType.Neck];
             ItemSlotType[] twice = [ItemSlotType.Finger, ItemSlotType.Trinket];
-            double hands = Math.Max(
-                Best(i => In(i, ItemSlotType.MainHand) && !i.IsTwoHanded) + Best(i => In(i, ItemSlotType.OffHand)),
-                Best(i => In(i, ItemSlotType.MainHand) && i.IsTwoHanded));
-            return once.Sum(slot => Best(i => In(i, slot))) + twice.Sum(slot => 2 * Best(i => In(i, slot))) + hands;
+            return [.. once.Select(Fitting), .. twice.SelectMany(slot => new[] { Fitting(slot), Fitting(slot) }), hands];
         }
     }
+
+    // A line's worth: its weight times its maximum (an "adds" line's high end).
+    private static Func<StatType, int, int?, double> Weighted(params (StatType Stat, double Weight)[] weights) =>
+        (stat, max, max2) => weights.Where(w => w.Stat == stat).Sum(w => w.Weight * (max2 ?? max));
+
+    // An added-damage line's worth: the average of its two ends at their maximum.
+    private static Func<StatType, int, int?, double> Average(StatType added) =>
+        (stat, max, max2) => stat != added ? 0 : max2 is { } high ? (max + high) / 2.0 : max;
 
     /// <summary>
     /// #1179: every catalog row keeps the id it was seeded with, since items store it: ids are literal in the seed and
@@ -2596,19 +2661,10 @@ public class SeedIntegrityShould(SeedIntegrityShould.BaseStatTables baseStatTabl
     }
 
     /// <summary>
-    /// #1179: a base's defence and a weapon's damage and attack time are its base stats. Its drafted values
-    /// (<paramref name="drafted" />, in ItemBaseStat order) are ItemBaseSeed's, and each is seeded as that value ±20 %
-    /// (an attack time ±5 %), rounded half away from zero and at least 1.
+    /// #1179: a base's defence and a weapon's damage and attack time are its base stats, drafted as the content table sets
+    /// them: <paramref name="drafted" />, in ItemBaseStat order, are ItemBaseSeed's drafted values for the template. The
+    /// ranges they spread to are <see cref="Seed_each_bases_base_stat_ranges" />'s.
     /// </summary>
-    private void AssertDrafted(ulong templateId, params (ItemBaseStat Stat, int Value)[] drafted)
-    {
-        static int Spread(int value, int percent) =>
-            Math.Max(1, (int)Math.Round(value * (100 + percent) / 100m, MidpointRounding.AwayFromZero));
-        static int Percent(ItemBaseStat stat) => stat == ItemBaseStat.AttackTime ? 5 : 20;
-
+    private static void AssertDrafted(ulong templateId, params (ItemBaseStat Stat, int Value)[] drafted) =>
         Assert.Equal(drafted, ItemBaseSeed.Drafted().Where(d => d.TemplateId == templateId).Select(d => (d.Stat, d.Value)));
-        Assert.Equal(
-            drafted.Select(line => (line.Stat, Spread(line.Value, -Percent(line.Stat)), Spread(line.Value, Percent(line.Stat)))),
-            baseStatTables.Ranges[templateId].OrderBy(s => s.Stat).Select(s => (s.Stat, s.Min, s.Max)));
-    }
 }
