@@ -1996,6 +1996,33 @@ product in 128 bits read 351 / 769 ns, which is why the 64-bit path stays. The `
 in the same wave with the store's one lookup per slot, allocate exactly the bytes of the table in the inventory section
 (152 B, 1,048 B and 3,864 B at 1, 8 and 30 slots, with or without rolled rows), at means no worse than its.
 
+**Resonance counts (#1180, part A1).** A stats refresh also counts, per Resonance theme, the worn items carrying an
+affix of it, in the calculation's one walk (`ResonanceCounts.AddItem`, into a buffer the character reuses).
+`CalculateThemed` wears `CalculateModified`'s pieces with their six modifiers renumbered to the first seeded row of
+families P2 (Ember), P12 (Iron), P1 and S1 (both Thorn, which a piece counts once), S2 (Gale) and S3 (Veil), and counts
+them into one `ResonanceCounts` bound once in setup to the seeded catalog's table, as a character's buffer is; setup
+fails the run unless the health is still 770 and the counts read Ember 9, Iron 9, Thorn 9, Gale 9, Veil 9.
+`Calculate` and `CalculateModified` pass no buffer and count nothing. At `3f834400c`, one run (out of process, ten
+warmups, twenty iterations, `--affinity 4`; BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime
+10.0.13, concurrent workstation GC, Release), 2026-10-25, with another agent reading the same worktree in parallel:
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemStatsBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+| Operation | Mean / min / median | Allocated |
+|---|---:|---:|
+| `ItemStatsBenchmarks.Calculate` | 315.1 / 310.4 / 314.8 ns (± 2.2 ns) | 0 B |
+| `ItemStatsBenchmarks.CalculateModified` | 720.3 / 702.2 / 718.5 ns (± 11.3 ns) | 0 B |
+| `ItemStatsBenchmarks.CalculateThemed` | 1,270.8 / 1,246 / 1,272 ns (± 13.9 ns) | 0 B |
+
+Nothing allocates, the count included. `Calculate` and `CalculateModified`, whose code this part changes only by a
+null buffer, read 21 % and 9 % above the previous wave's run (259.7 / 662.8 ns), which shows how far this run's machine state
+moves them. Counting
+costs about 550 ns on this kit, once per gear, level or aura change, never per tick or per hit: each of the 54 themed
+affixes is one dictionary read for its slot, and `AddItem` reads each earlier modifier of the same item again to keep an
+item from counting a theme twice (15 more reads on a six-affix piece), 189 reads in all.
+
 ### Item roller — `Benchmarks/ItemRollerBenchmarks.cs` (#1179)
 
 Making one copy of an item with its modifiers (`ItemRoller`, [item modifiers](item-modifiers.md)), which runs once per

@@ -9,12 +9,15 @@ against it by `ItemModifierDocShould`; the prose around them is hand-written.
 
 ## The catalog
 
-Five World database tables, all balance tables (seeded with `HasData`, changed only by a migration, never live-edited;
+Six World database tables, all balance tables (seeded with `HasData`, changed only by a migration, never live-edited;
 `/reload items` reads them again with the templates):
 
+- `ItemThemes`: the Resonance themes (#1180), an `Id` and a unique `Name`, seeded with eight (see
+  [Resonance themes](#resonance-themes)).
 - `ItemModifierGroups`: one row per **exclusive group**. An item never carries two modifiers of one group. A group is an
   affix family (`Code` such as `P8` or `S13`, and `Element` for a family split by element), an implicit stat (shared by
-  every base whose implicit gives it), or a unique's own modifier. Kind and name live here only.
+  every base whose implicit gives it), or a unique's own modifier. Kind and name live here only, and so does an affix
+  family's Resonance theme (`ThemeId`, a foreign key to `ItemThemes`).
 - `ItemModifiers`: one row per tier of an affix or implicit group (`Tier` 1-9, counting down, and `RequiredItemLevel`),
   or a unique's single row with no tier.
 - `ItemModifierStats`: a row's stat lines, each a range (`Min`-`Max`), and for an "adds X to Y" line a second range
@@ -32,7 +35,8 @@ Nothing computes meaning from an id; a tier, a group or a kind is always read fr
 
 `ItemModifierCatalog` loads the catalog for the world server and the REST API. It logs and leaves out a row with no stat
 line, a prefix, suffix or implicit row without a tier or a unique row with one, a unique or implicit row that carries
-a weight, and a template's links when they name a missing row, a prefix or a suffix, or mix a unique modifier with
+a weight, a prefix or suffix row whose group has no theme or an implicit or unique row whose group has one (#1180),
+and a template's links when they name a missing row, a prefix or a suffix, or mix a unique modifier with
 anything else. Each template's links are also held against its rarity and kind (`ItemModifierCatalog.RarityRefusal`): a
 unique template links exactly its one unique modifier, a common base exactly one implicit, and a template that is no
 base (a consumable, a quest item) nothing. The world's items area (`ItemsPatch.Build`) logs and leaves out a template
@@ -274,6 +278,31 @@ identified (`Game:Items:UnidentifiedSellPercent`). It is identified one item per
 Glimmerdell's market, for `Game:Items:IdentifyCost` gold (0 today), which reveals its name and every modifier it
 rolled when it was made: identifying rolls nothing. [Inventory and saves](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)
 has the request and its rules.
+
+## Resonance themes
+
+Every affix family belongs to one **Resonance theme** (#1180): Ember, Rime, Storm, Wild, Iron, Thorn, Gale or Veil,
+rows of `ItemThemes` (the Themes table below lists each theme's families). The theme is the group's: `ThemeId` is set
+on every prefix and suffix group, and on no implicit or unique group, so an implicit line or a unique's own line never
+has a theme. Both the database (`CK_ItemModifierGroups_Theme`, `("Kind" IN (1, 2)) = ("ThemeId" IS NOT NULL)`) and the
+catalog (which leaves out a row that breaks it) hold that rule, and `SeedIntegrityShould` holds each family to the
+theme the seed gives it. A theme's id means nothing; nothing reads a theme's meaning from its number, and there is no
+limit on how many themes the table holds.
+
+**The count.** A character's **Resonance** for a theme is how many of its worn items carry at least one prefix or
+suffix of that theme:
+
+- only items worn in a slot that accepts them count, never one in the bags or the bank;
+- an item counts once per theme it carries, however many of its affixes share that theme (two Thorn affixes on one
+  sword count 1 for Thorn), and once for each different theme;
+- only affixes count: an implicit and a unique's own line carry no theme.
+
+The catalog builds a `ResonanceTable` once per load (`ItemModifierCatalog.Resonance`): the distinct themes its accepted
+affix rows name, each given a slot, its position in that list sorted by id, and each affix modifier mapped to its
+theme's slot. The stats refresh counts the worn items against it ([world simulation](world-simulation.md), the stats
+fold), and the character sheet and the REST API show the counts by theme id
+([inventory and saves](inventory-and-saves.md)). A theme no worn item carries is not listed. Nothing happens at any
+count yet: the effects a count turns on arrive with #1180's next part.
 
 ## The tables
 

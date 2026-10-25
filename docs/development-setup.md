@@ -121,10 +121,8 @@ Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_on
 # A seed migration that points existing rows at rows it also inserts (a foreign key to a new
 # row) must be reordered by hand: EF emits the UpdateData calls before the InsertData ones.
 # Only Postgres catches this; the SQLite unit tests and CI never run the migration.
-# Balance tables (ClassLevelStats, ClassStatFactors, CombatFormula, CreatureBaseStats, CreatureRarityModifiers,
-# CreatureTemplates, AbilityTemplates, ItemTemplates, CharacterCreateInfos, VendorStocks, AuraTemplates,
-# AuraStatModifiers) change only through
-# HasData plus a generated migration, never through a raw migrationBuilder.Sql data edit: the balance simulator
+# Balance tables (the list in CLAUDE.md's working rules, "Schema and seed data change only through EF
+# migrations") change only through HasData plus a generated migration, never through a raw migrationBuilder.Sql data edit: the balance simulator
 # (tools/Avalon.Balance) reads HasData as the seed. Existing raw SQL fix-ups of existing rows stay as they are.
 # ModelDriftShould (Avalon.Database.UnitTests) fails when HasData changed without a migration.
 ```

@@ -205,6 +205,7 @@ Server → the player's own client only. The character sheet (#506), always whol
 | `CooldownRecoveryPct` | 25 | `float` | Effective cooldown recovery, 0 to `CooldownRecoveryCap`: divides every other cooldown. |
 | `AttackTimeMs` | 26 | `uint` | The main hand's time between basic attacks, the bare hand's with none, before attack speed. |
 | `IncreasedPct` | 27 | `repeated float` (not packed) | The offence block's increased percentage points, one per `OffenceStat`, indexed by its number: `Damage` 0, `Physical` 1, `Fire` 2, `Cold` 3, `Lightning` 4, `Blight` 5, `Attack` 6, `Spell` 7, `Area` 8, `Projectile` 9, `Melee` 10, `DamageOverTime` 11, `Healing` 12, `PhysicalAttack` 13 (Strength's physical attack damage). For display; each ability's own amount and pace come worked out (below). |
+| `Resonance` | 28 | `repeated ResonanceDto` | The Resonance counts (#1180): each theme at least one worn item carries, as `ThemeId` (1, `uint`) and `Count` (2, `uint`, how many worn items carry at least one prefix or suffix of it, never 0). A theme at 0 is not listed; empty when none is. The theme's name is in the vendored `item-modifier-catalog-v1.json` (`themes`); any number of themes, keyed by id. A change in these alone sends a sheet. |
 
 Fields 6, 7 (`AttackDamage`, `AbilityDamage`), 9 (`DodgePct`) and 13 (`HastePct`) were deleted by #1178; nothing reads them.
 
