@@ -12,6 +12,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Units;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -30,7 +31,7 @@ internal sealed class AuraHarness
     private AuraCatalog _catalog = AuraCatalog.Empty;
 
     public AuraHarness(int maxPerUnit = 32, ICombatRandom? random = null, AuraScripts? scripts = null,
-        Func<IUnit, bool>? returningHome = null)
+        Func<IUnit, bool>? returningHome = null, ILogger? logger = null)
     {
         // Game:CrowdControlDiminishWindow's default.
         TimeSpan diminishWindow = new GameConfiguration().CrowdControlDiminishWindow;
@@ -39,7 +40,7 @@ internal sealed class AuraHarness
             time: Time, random: random ?? ScriptedCombatRandom.Plain(1000));
         Auras = new AuraSystem(Combat, Characters, Creatures, () => _catalog,
             () => DataFails ? throw new InvalidOperationException("reference data failed") : Data, Time, maxPerUnit,
-            diminishWindow, NullLogger.Instance, scripts, connectionOf: null, returningHome);
+            diminishWindow, logger ?? NullLogger.Instance, scripts, connectionOf: null, returningHome);
     }
 
     public Dictionary<ObjectGuid, ICharacter> Characters { get; } = [];

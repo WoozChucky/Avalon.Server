@@ -8,6 +8,7 @@ using Avalon.World.Abilities;
 using Avalon.World.Auras;
 using Avalon.World.Dialogue;
 using Avalon.World.Doodads;
+using Avalon.World.Items;
 using Avalon.World.Localization;
 using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
@@ -112,9 +113,13 @@ public class StaticData(
                 return new AurasPatch(await ReadAurasAsync(loggerFactory, ct));
 
             case ReloadArea.Items:
+                // The Resonance effects (#1180 part A2) are checked against the auras read here, never the ones applied.
+                // That catalog is thrown away, so it logs nothing: the Auras area reports its own refusals.
                 return ItemsPatch.Build(
                     (await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly(),
                     await itemModifierRepository.GetCatalogAsync(ct),
+                    await itemModifierRepository.GetThemeEffectsAsync(ct),
+                    await ReadAurasAsync(NullLoggerFactory.Instance, ct),
                     loggerFactory.CreateLogger<ItemsPatch>());
 
             case ReloadArea.Progression:
@@ -356,6 +361,12 @@ public class StaticData(
     /// The modifier catalog (#1179), the same generation as the item templates: a /reload items replaces both together.
     /// </summary>
     public ItemModifierCatalog ItemModifiers => _items!.Modifiers;
+
+    /// <summary>
+    /// The Resonance effects (#1180 part A2), the same generation as the modifier catalog whose themes they key: a
+    /// /reload items replaces both together.
+    /// </summary>
+    public ResonanceEffectCatalog ResonanceEffects => _items!.Effects;
 
     /// <summary>
     /// The item templates and the modifier catalog as one generation (#1179): what a roll of a made item reads, taken once

@@ -104,19 +104,22 @@ public static class AuraRules
     /// multiplier bonus. The total is rolled once, here, only for a tick-giving aura; nothing about the caster changes it
     /// afterwards. <paramref name="type" /> is the type its damage ticks deal, which the caller resolves from the source
     /// ability and the caster (<see cref="HitResolver.TypeOf" />). With no source (an item's, a script's aura, or no
-    /// caster), the aura's PeriodicBase alone.
+    /// caster), the aura's PeriodicBase alone. With <paramref name="cannotCrit" /> (#1180: a Resonance proc's aura) the
+    /// crit chance kept is 0: each tick still draws its one crit roll, against that chance, so the order of draws is the
+    /// same as for any other aura.
     /// </summary>
     public static AuraSnapshot Snapshot(AuraTemplate t, in AttackerCombat caster, AbilityMetadata? source,
-        DamageType type, ICombatRandom rng)
+        DamageType type, ICombatRandom rng, bool cannotCrit = false)
     {
         ushort level = (ushort)Math.Min(caster.Level, ushort.MaxValue);
         float critBonus = caster.Offence.CritMultiplierBonus;
+        float critPct = cannotCrit ? 0f : caster.CritPct;
         int ticks = TickCount(t.DurationMs, t.TickIntervalMs);
         if (t.PeriodicKind == AuraPeriodicKind.None || ticks == 0)
-            return new AuraSnapshot(0f, caster.CritPct, level, type, critBonus);
+            return new AuraSnapshot(0f, critPct, level, type, critBonus);
 
         double total = OffenceMath.PeriodicTotal(t, caster, source, type, rng);
-        return new AuraSnapshot((float)(total / ticks), caster.CritPct, level, type, critBonus);
+        return new AuraSnapshot((float)(total / ticks), critPct, level, type, critBonus);
     }
 
     /// <summary>

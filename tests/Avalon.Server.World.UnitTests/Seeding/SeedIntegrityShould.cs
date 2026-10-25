@@ -2140,7 +2140,7 @@ public class SeedIntegrityShould
     /// unused). And the eight Resonance themes (#1180: Ember, Rime, Storm, Wild, Iron, Thorn, Gale and Veil, ids 1 to 8),
     /// one on every prefix and suffix group and none on a unique or implicit group (<see
     /// cref="Theme_each_affix_family_as_the_design_places_it" /> holds which). The catalog loads all of it without leaving
-    /// any out.
+    /// any out, and so does the Resonance effect catalog with the 29 effect rows against the seeded auras (#1180 part A2).
     /// </summary>
     [Fact]
     public async Task Seed_the_catalog_whole()
@@ -2227,10 +2227,18 @@ public class SeedIntegrityShould
         Assert.DoesNotContain(modifiers, m => m.Id is >= 224 and <= 283);
         Assert.DoesNotContain(groups, g => g.Id is >= 50 and <= 109);
 
-        ItemModifierCatalog catalog = ItemsPatch.Build(templates.Values, await new ItemModifierRepository(database,
-            NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None), NullLogger.Instance).Modifiers;
+        // The seeded effect rows, held to their rules against the seeded aura rows, leave nothing out (#1180 part A2).
+        var repository = new ItemModifierRepository(database, NullLoggerFactory.Instance);
+        var auras = new AuraCatalog(context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
+            static _ => null, NullLoggerFactory.Instance);
+        var log = new TestLog();
+        var items = ItemsPatch.Build(templates.Values, await repository.GetCatalogAsync(CancellationToken.None),
+            await repository.GetThemeEffectsAsync(CancellationToken.None), auras, log);
+        ItemModifierCatalog catalog = items.Modifiers;
+        Assert.Empty(log.Errors);
         Assert.Equal(218, catalog.Count);
         Assert.All(links, l => Assert.Equal(l.ModifierId, Assert.Single(catalog.LinkedTo(l.TemplateId)).Id));
+        Assert.Equal(effects.Select(e => e.Id), items.Effects.Effects.Select(e => e.Id));
     }
 
     [Theory]
@@ -2643,7 +2651,7 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
         var templates = context.ItemTemplates.AsNoTracking().ToList();
         var items = ItemsPatch.Build(templates, await new ItemModifierRepository(database,
-            NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None), NullLogger.Instance);
+            NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None), [], AuraCatalog.Empty, NullLogger.Instance);
 
         string[][] rings =
         [

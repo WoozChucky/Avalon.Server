@@ -10,6 +10,8 @@ namespace Avalon.Server.World.UnitTests;
 /// <summary>The modifier catalog for tests that build StaticData, World or an ItemsPatch and roll nothing.</summary>
 internal static class ItemModifierRepositories
 {
+    private static readonly IReadOnlyCollection<ItemThemeEffect> s_noEffects = [];
+
     public static ItemModifierCatalog EmptyCatalog() => new([], [], NullLogger.Instance);
 
     /// <summary>
@@ -30,6 +32,7 @@ internal static class ItemModifierRepositories
     {
         IItemModifierRepository repository = Substitute.For<IItemModifierRepository>();
         repository.GetCatalogAsync(Arg.Any<CancellationToken>()).Returns(_ => EmptyCatalog());
+        repository.GetThemeEffectsAsync(Arg.Any<CancellationToken>()).Returns(_ => s_noEffects);
         return repository;
     }
 
@@ -51,6 +54,7 @@ internal static class ItemModifierRepositories
         ItemTemplateModifier[] links = [.. bases.Select(b => new ItemTemplateModifier { TemplateId = b.Id, Index = 0, ModifierId = 1 })];
         IItemModifierRepository repository = Substitute.For<IItemModifierRepository>();
         repository.GetCatalogAsync(Arg.Any<CancellationToken>()).Returns(_ => new ItemModifierCatalog([row], links, NullLogger.Instance));
+        repository.GetThemeEffectsAsync(Arg.Any<CancellationToken>()).Returns(_ => s_noEffects);
         return repository;
     }
 }

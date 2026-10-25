@@ -34,6 +34,7 @@ internal static class LootStaticData
         {
             IItemModifierRepository catalog = Substitute.For<IItemModifierRepository>();
             catalog.GetCatalogAsync(Arg.Any<CancellationToken>()).Returns(modifiers);
+            catalog.GetThemeEffectsAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<ItemThemeEffect>());
             repositories = repositories with { ItemModifiers = catalog };
         }
 
