@@ -1,6 +1,9 @@
 namespace Avalon.Network.Packets.Character;
 
-/// <summary>Why an identify request (#1179) was or was not applied. Anything but Ok changed nothing. Append-only.</summary>
+/// <summary>
+/// Why an identify request (#1179) was or was not applied. Anything but Ok and InternalError changed nothing.
+/// Append-only.
+/// </summary>
 public enum ItemIdentifyResult : byte
 {
     /// <summary>Identified, and paid for. The revealed item arrives in the tick's SInventoryUpdatePacket.</summary>
@@ -27,4 +30,10 @@ public enum ItemIdentifyResult : byte
 
     /// <summary>The gold the character can spend (its balance less any gold held for a trade) is below the cost.</summary>
     NotEnoughGold = 8,
+
+    /// <summary>
+    /// Something on the server failed after the request was allowed; it is logged. The item may not be identified, and
+    /// a cost above 0 may already have been spent: the gold is taken first and is not given back.
+    /// </summary>
+    InternalError = 9,
 }

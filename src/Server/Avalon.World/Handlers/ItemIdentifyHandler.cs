@@ -38,9 +38,9 @@ public sealed class ItemIdentifyHandler(ILogger<ItemIdentifyHandler> logger, IWo
         {
             // The request still gets its one reply, and nothing escapes onto the tick. The gold is taken before the item
             // is identified, so a failure caused by a bug loses value, never creates it, and is not rolled back.
-            logger.LogError(e, "CMSG_ITEM_IDENTIFY {RequestId} for Bag slot {BagSlot} threw; answering NotFound",
+            logger.LogError(e, "CMSG_ITEM_IDENTIFY {RequestId} for Bag slot {BagSlot} threw; answering InternalError",
                 packet.RequestId, packet.BagSlot);
-            result = ItemIdentifyResult.NotFound;
+            result = ItemIdentifyResult.InternalError;
         }
 
         connection.Send(SItemIdentifyResultPacket.Create(packet.RequestId, result, PacketEncoder.Shared));

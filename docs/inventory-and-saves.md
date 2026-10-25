@@ -74,10 +74,11 @@ Ownership of items and gold, the inventory and wallet services, character saves,
   position that is not a number is beyond it; a doodad has no conversation to leash, so walking away after opening the
   window is caught by the next request); `NoItem` (5: nothing in that Bag slot, a slot past the Bag included);
   `AlreadyIdentified` (6); `Locked` (7: the item is offered in a trade); `NotEnoughGold` (8: only when the cost is above
-  0, through `IWallet.CanSpend`, which leaves out gold a trade holds). Any answer but `Ok` (0) changes nothing. On `Ok`
+  0, through `IWallet.CanSpend`, which leaves out gold a trade holds). Any answer but `Ok` (0) and `InternalError` (9)
+  changes nothing. On `Ok`
   the handler spends `Game:Items:IdentifyCost` through `IWallet.TrySpend` (nothing when it is 0, the default), then calls
   `IInventoryService.TryIdentify(bagSlot)`, which replaces the Bag item with the same instance identified (marked
   `Changed` for the save, its slot recorded for the client; its rolled rows do not change, so they are not marked).
-  Gold goes before the item, so a failure after the rules allowed it (a bug, logged at Error and answered `NotFound`)
-  loses value and never makes it. The revealed item, with its name and every modifier, and the gold reach the client in
+  Gold goes before the item, so a failure after the rules allowed it (a bug, logged at Error and answered
+  `InternalError`, 9) loses value and never makes it: the gold of a cost above 0 may be spent and is not given back. The revealed item, with its name and every modifier, and the gold reach the client in
   the tick's `SMSG_INVENTORY_UPDATE`.

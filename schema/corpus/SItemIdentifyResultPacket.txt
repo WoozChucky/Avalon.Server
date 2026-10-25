@@ -27,15 +27,15 @@ variant empty
 
 variant populated
   field 1 RequestId : uint = 42
-  field 2 Result : ItemIdentifyResult = Stunned (2)
+  field 2 Result : ItemIdentifyResult = InternalError (9)
   bytes 4
-    08 2a 10 02
+    08 2a 10 09
 
 variant maxima
   field 1 RequestId : uint = 4294967295
-  field 2 Result : ItemIdentifyResult = NotEnoughGold (8)
+  field 2 Result : ItemIdentifyResult = InternalError (9)
   bytes 8
-    08 ff ff ff ff 0f 10 08
+    08 ff ff ff ff 0f 10 09
 
 variant minima
   field 1 RequestId : uint = 0
@@ -44,6 +44,6 @@ variant minima
 
 variant varint-edges
   field 1 RequestId : uint = 268435455
-  field 2 Result : ItemIdentifyResult = <not a declared member> (9)
+  field 2 Result : ItemIdentifyResult = <not a declared member> (10)
   bytes 7
-    08 ff ff ff 7f 10 09
+    08 ff ff ff 7f 10 0a

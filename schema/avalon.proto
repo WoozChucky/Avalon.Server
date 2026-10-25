@@ -541,6 +541,7 @@ enum ItemIdentifyResult {
    ItemIdentifyResult_AlreadyIdentified = 6;
    ItemIdentifyResult_Locked = 7;
    ItemIdentifyResult_NotEnoughGold = 8;
+   ItemIdentifyResult_InternalError = 9;
 }
 message ItemModifierDto {
    uint32 ModifierId = 1;
