@@ -35,13 +35,16 @@ public class TradeCompletionShould
         Assert.True(a.States().Last().Completing);
         (TradeSidePlan first, TradeSidePlan second, TradeRecord record) = w.Saver.Trades.Single();
         TradeRecordItem given = Assert.Single(record.Items, i => i.GiverCharacterId == a.Character.Data!.Id);
-        Assert.Equal((sword.InstanceId, ItemRarity.Magic, (ushort)7), (given.ItemInstanceId, given.Rarity, given.ItemLevel));
+        Assert.Equal((sword.InstanceId, ItemRarity.Magic, (ushort)7, false),
+            (given.ItemInstanceId, given.Rarity, given.ItemLevel, given.Identified));
         Assert.Equal(rolls, DescribeRolls(given.Modifiers));
         Assert.Equal([(ItemBaseStat.DamageMin, 4), (ItemBaseStat.DamageMax, 9), (ItemBaseStat.AttackTime, 760)],
             given.BaseStats.OrderBy(s => s.Stat).Select(s => (s.Stat, s.Value)));
-        // The receiver's side of the paired save writes the sword's base stats as its own.
-        ItemModifierWrite received = TradeSaveBatch.Apply(new CharacterSaveBatch(b.Character.Data!, [], [], [], []), second,
-            DateTime.UnixEpoch).Modifiers!;
+        // The receiver's side of the paired save writes the sword, still unidentified, and its base stats as its own.
+        CharacterSaveBatch receiving = TradeSaveBatch.Apply(new CharacterSaveBatch(b.Character.Data!, [], [], [], []), second,
+            DateTime.UnixEpoch);
+        Assert.False(receiving.UpsertItems.Single(i => i.Id == sword.InstanceId).Identified);
+        ItemModifierWrite received = receiving.Modifiers!;
         Assert.Equal(s_swordBaseStats, ItemBaseStats.Of(received.BaseStats.Where(s => s.ItemInstanceId == sword.InstanceId)));
         Assert.Equal((30UL, 0UL), (record.FirstGold, record.SecondGold));
         Assert.Equal(sword.InstanceId, At(a, 0).InstanceId);          // memory unchanged while the save is in flight
@@ -83,7 +86,7 @@ public class TradeCompletionShould
 
         if (swapped)
         {
-            Assert.Equal(sword.InstanceId, At(b, second.Incoming[0].Item.Slot).InstanceId);
+            Assert.Equal((sword.InstanceId, false), (At(b, second.Incoming[0].Item.Slot).InstanceId, At(b, second.Incoming[0].Item.Slot).Identified));
             Assert.Equal(potion.InstanceId, At(a, first.Incoming[0].Item.Slot).InstanceId);
             Assert.Equal((70UL, 30UL), (a.Character.Data!.Gold, b.Character.Data!.Gold));
 
@@ -175,14 +178,14 @@ public class TradeCompletionShould
     /// <summary>
     /// A holds the Sword at Bag 0 and 100 gold and offers both and 30 gold; B offers its Potion ×5 at Bag 0; both
     /// confirm the current revision, so the paired save is in flight. The Sword is Magic, item level 7, with its base
-    /// stats and two modifiers, and was added this session: New, its rolled rows marked, never saved (#1179).
+    /// stats and two modifiers, unidentified, and was added this session: New, its rolled rows marked, never saved (#1179).
     /// </summary>
     internal static (TradeTestWorld W, Trader A, Trader B, InventoryItem Sword, InventoryItem Potion) Confirmed()
     {
         var w = new TradeTestWorld();
         Trader a = w.Online(1, gold: 100);
         Trader b = w.Online(2);
-        InventoryItem sword = Item(0, Sword) with { Rarity = ItemRarity.Magic, ItemLevel = 7 };
+        InventoryItem sword = Item(0, Sword, identified: false) with { Rarity = ItemRarity.Magic, ItemLevel = 7 };
         InventoryItem potion = Item(0, Potion, count: 5);
         b.Character.Container(InventoryType.Bag).Load([potion]);
         Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(sword,

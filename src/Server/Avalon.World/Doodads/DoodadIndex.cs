@@ -83,6 +83,13 @@ public sealed class DoodadIndex
         _byGuid.TryGetValue(guid.RawValue, out doodad);
 
     /// <summary>
+    /// The doodad of a guid as a packet carries it, so a request names one without building an ObjectGuid (a class)
+    /// per packet.
+    /// </summary>
+    public bool TryGet(ulong rawGuid, [NotNullWhen(true)] out Doodad? doodad) =>
+        _byGuid.TryGetValue(rawGuid, out doodad);
+
+    /// <summary>
     /// Hands <paramref name="visitor" /> every doodad within <paramref name="reach" /> of (x, z) on X/Z, each once: the
     /// doodads of the cells the circle's box overlaps, each kept only when its squared distance is at most the squared
     /// reach. A centre or a reach that is not a number, or a negative reach, finds none; an infinite reach finds every

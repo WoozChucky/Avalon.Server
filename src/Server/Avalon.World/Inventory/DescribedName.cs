@@ -6,8 +6,8 @@ using Avalon.World.Reload;
 namespace Avalon.World.Inventory;
 
 /// <summary>
-/// The name a copy is described by (#1179), held as a field beside its modifiers wherever the world keeps them: a held
-/// copy's entry in <see cref="ItemModifierStore" />, and a drop on the ground. It is worked out once per items generation
+/// The name a held copy is described by (#1179), held as a field beside its modifiers on its entry in
+/// <see cref="ItemModifierStore" />, and only once the copy is identified. It is worked out once per items generation
 /// (<see cref="ItemSlotDtoMapper.NameOf" />), so describing the same copy again builds no string; a /reload items is a new
 /// generation, so a renamed base or affix still reaches every copy at its next describe, and a copy whose modifiers
 /// change gets a new entry, which starts unnamed. It keeps the generation's stamp (<see cref="ItemsPatch.Generation" />),

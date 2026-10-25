@@ -26,21 +26,28 @@ public class TradeItemDto
 
     /// <summary>
     /// The modifiers the copy rolled (#1179), in the order it shows them; null for an item without any, which is what an
-    /// empty repeated field reads back as.
+    /// empty repeated field reads back as. An unidentified copy sends its implicit line only, to both sides.
     /// </summary>
     [ProtoMember(7)] public List<ItemModifierDto>? Modifiers { get; set; }
 
     /// <summary>
-    /// The copy's name (#1179): set for a magic copy (its prefix and suffix around the template's name) and a rare one
-    /// (the two words its roll gave it); null where the template's name is the item's.
+    /// The copy's name (#1179): set for an identified magic copy (its prefix and suffix around the template's name) and an
+    /// identified rare one (the two words its roll gave it); null where the template's name is the item's, and for every
+    /// unidentified copy.
     /// </summary>
     [ProtoMember(8)] public string? Name { get; set; }
 
     /// <summary>
     /// The base stats the copy rolled (#1179), in base-stat order; null for an item without any (jewellery, a consumable),
-    /// which is what an empty repeated field reads back as.
+    /// which is what an empty repeated field reads back as. Sent whether or not the copy is identified.
     /// </summary>
     [ProtoMember(9)] public List<ItemBaseStatDto>? BaseStats { get; set; }
+
+    /// <summary>
+    /// Whether the copy is identified (#1179). An unidentified one shows its rarity, item level, base stats and implicit
+    /// line, and no other modifier and no name, to its owner and its partner alike.
+    /// </summary>
+    [ProtoMember(10)] public bool Identified { get; set; }
 }
 
 /// <summary>One side of a trade: its items in trade-slot order, its gold, and whether it confirmed this revision.</summary>

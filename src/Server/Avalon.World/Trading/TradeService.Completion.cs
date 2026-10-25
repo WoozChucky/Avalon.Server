@@ -513,6 +513,7 @@ public sealed partial class TradeService
                 Rarity = item.Rarity,
                 ItemLevel = item.ItemLevel,
                 RareName = item.RareName,
+                Identified = item.Identified,
             };
 
             foreach ((ItemBaseStat stat, int value) in carried.BaseStats)

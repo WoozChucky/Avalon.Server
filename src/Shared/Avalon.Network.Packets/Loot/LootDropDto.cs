@@ -56,15 +56,10 @@ public class LootDropDto
 
     /// <summary>
     /// The modifiers the copy rolled (#1179), in the order it shows them; null for a drop without any, which is what an
-    /// empty repeated field reads back as.
+    /// empty repeated field reads back as. On the ground a copy is identified exactly when it is Common: any other drop
+    /// sends its implicit line only, and no drop sends a name (a client shows its template's).
     /// </summary>
     [ProtoMember(10)] public List<ItemModifierDto>? Modifiers { get; set; }
-
-    /// <summary>
-    /// The drop's name (#1179): set for a magic drop (its prefix and suffix around the template's name) and a rare one
-    /// (the two words its roll gave it); null where the template's name is the item's.
-    /// </summary>
-    [ProtoMember(11)] public string? Name { get; set; }
 
     /// <summary>
     /// The base stats the copy rolled (#1179), in base-stat order; null for a drop without any (jewellery, a consumable,

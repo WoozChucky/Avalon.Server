@@ -91,4 +91,13 @@ public interface IInventoryService
     /// answers it, and UnknownTemplate when its template is gone; any answer but Ok changes nothing.
     /// </summary>
     InventoryAddResult TryAddRolled(RolledItem item);
+
+    /// <summary>
+    /// Identifies the item in <paramref name="bagSlot" /> (#1179): the same instance, now identified, marked Changed and
+    /// its slot recorded for the client, which is sent its name and every modifier in the tick's update. Its rolled rows
+    /// do not change, so they are not marked. False, changing nothing, for an empty slot (a slot past the Bag included)
+    /// or an item already identified. It checks nothing else: IdentifyRules decides the request (the Workbench, a
+    /// trade's lock, the cost) first.
+    /// </summary>
+    bool TryIdentify(byte bagSlot);
 }

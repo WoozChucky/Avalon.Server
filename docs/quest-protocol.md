@@ -111,7 +111,11 @@ the quest has none). Both lists are repeated `QuestRewardItemDto`, whose own fie
 template the quest names, which a pick sends back), 2 `Count`, 3 `Rarity` (#1179: `Magic` for a Common base, which the
 turn-in rolls Magic at the quest's level, else the template's rarity) and 4 `PaidItemTemplateId` (#1179: the template
 the reward is paid as, for a base the best tier of its line the quest's level reaches, which may be above the named
-one; else the same as its field 1: what a reward window shows). A quest may
+one; else the same as its field 1: what a reward window shows). A reward paid as `Magic` arrives **unidentified**
+(#1179): its `ItemSlotDto.Identified` is false, it shows its base stats and implicit line only, and it is worn only
+once it is identified at the Resonance Workbench
+([inventory and saves](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)); any other reward
+arrives identified. A quest may
 have fixed items, a choice set, both or neither (the seeded quest 3 has both, quest 11 a choice set alone). Every
 choice is offered to every class: equipping the item afterwards checks its class and level as usual. The pick is
 sent as the item template id in `CMSG_QUEST_TURN_IN` field 3, never as a position in the list, and a turn-in of a

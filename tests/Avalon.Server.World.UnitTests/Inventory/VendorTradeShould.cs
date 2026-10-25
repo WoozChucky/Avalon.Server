@@ -21,7 +21,7 @@ public class VendorTradeShould
 {
     private static VendorTrade Trade(CharacterEntity character, ulong maxGold = 1_000_000) =>
         new(character, TestCharacters.InventoryFor(character, Find), new CharacterWallet(character, maxGold), Find, maxGold,
-            new SellFactors());
+            new ItemConfiguration());
 
     private static InventoryItem At(CharacterEntity character, byte slot) =>
         TestCharacters.At(character, InventoryType.Bag, slot);

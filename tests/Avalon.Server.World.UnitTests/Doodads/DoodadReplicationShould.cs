@@ -349,8 +349,7 @@ public class DoodadReplicationShould
     /// <summary>The doodad's state changed on the tick, as a use spends it: the state written, the instance told.</summary>
     private static void Change(MapInstance instance, Doodad doodad, WorldDoodadState state)
     {
-        (typeof(Doodad).GetProperty(nameof(Doodad.State))?.SetMethod
-         ?? throw new MissingMethodException(nameof(Doodad), "set_State")).Invoke(doodad, [state]);
+        DoodadStates.Set(doodad, state);
         (typeof(MapInstance).GetMethod("DoodadChanged", BindingFlags.Instance | BindingFlags.NonPublic)
          ?? throw new MissingMethodException(nameof(MapInstance), "DoodadChanged")).Invoke(instance, [doodad]);
     }

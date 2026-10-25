@@ -32,7 +32,7 @@ public sealed class GameplayFenceShould
         await saves.WriteAsync([Batch(row, old)]);
         Assert.NotNull(await fences.AdvanceAsync(replacement, true, _clock.GetUtcNow().UtcDateTime.AddSeconds(45), CancellationToken.None));
         row.Gold = 999;
-        var staleItem = new ItemInstance { Id = new ItemInstanceId(Guid.NewGuid()), TemplateId = new ItemTemplateId(1), CharacterId = row.Id, Count = 99, ItemLevel = 1, UpdatedAt = _clock.GetUtcNow().UtcDateTime };
+        var staleItem = new ItemInstance { Id = new ItemInstanceId(Guid.NewGuid()), TemplateId = new ItemTemplateId(1), CharacterId = row.Id, Count = 99, ItemLevel = 1, UpdatedAt = _clock.GetUtcNow().UtcDateTime, Identified = true };
         var stale = new CharacterSaveBatch(row, [staleItem], [], [new CharacterInventory { CharacterId = row.Id, Container = InventoryType.Bag, Slot = 0, ItemId = staleItem.Id }], []) { Authority = old };
         await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => saves.WriteAsync([stale]));
         await using CharacterDbContext read = database.CreateDbContext();

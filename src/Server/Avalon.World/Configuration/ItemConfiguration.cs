@@ -4,9 +4,9 @@ using Avalon.World.Public.Enums;
 namespace Avalon.World.Configuration;
 
 /// <summary>
-/// Game:Items (#1179): the odds of a made item's rarity and what a sale pays for each rarity, tunable without a
-/// migration like the other loot knobs. Read at startup; a value out of range stops the start
-/// (<see cref="ItemConfigurationValidation" />).
+/// Game:Items (#1179): the odds of a made item's rarity, what a sale pays for each rarity and while unidentified, and
+/// what identifying an item costs, tunable without a migration like the other loot knobs. Read at startup; a value out
+/// of range stops the start (<see cref="ItemConfigurationValidation" />).
 /// </summary>
 public sealed class ItemConfiguration
 {
@@ -16,8 +16,23 @@ public sealed class ItemConfiguration
     /// <summary>Game:Items:SellFactor: what a sale pays per rarity, as a multiple of the template's sell price.</summary>
     public SellFactors SellFactor { get; set; } = new();
 
-    /// <summary>Null when every setting is in range, else a message naming the first one that is not.</summary>
-    public string? Problem()
+    /// <summary>
+    /// Game:Items:UnidentifiedSellPercent: what the sale of an unidentified item pays, in percent (0-100) of what it would
+    /// pay identified, rounded down.
+    /// </summary>
+    public int UnidentifiedSellPercent { get; set; } = 50;
+
+    /// <summary>
+    /// Game:Items:IdentifyCost: the gold identifying one item at the Resonance Workbench costs, at most Game:MaxGold. 0, the
+    /// default, spends nothing and needs no gold.
+    /// </summary>
+    public ulong IdentifyCost { get; set; }
+
+    /// <summary>
+    /// Null when every setting is in range, else a message naming the first one that is not. <paramref name="maxGold" /> is
+    /// Game:MaxGold, which bounds the identify cost.
+    /// </summary>
+    public string? Problem(ulong maxGold)
     {
         if (Rarity is null)
             return "Game:Items:Rarity must be set";
@@ -44,6 +59,12 @@ public sealed class ItemConfiguration
             return "Game:Items:SellFactor:Magic, Rare and Unique must each be at least 1 " +
                    $"(was {SellFactor.Magic}, {SellFactor.Rare} and {SellFactor.Unique})";
         }
+
+        if (UnidentifiedSellPercent is < 0 or > 100)
+            return $"Game:Items:UnidentifiedSellPercent must be 0-100 (was {UnidentifiedSellPercent})";
+
+        if (IdentifyCost > maxGold)
+            return $"Game:Items:IdentifyCost must be at most Game:MaxGold, {maxGold} (was {IdentifyCost})";
 
         return null;
     }

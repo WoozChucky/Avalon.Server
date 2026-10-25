@@ -162,7 +162,7 @@ public class QuestCollectShould
         c.Character.Container(InventoryType.Bag).Load([TestCharacters.Item(0, sellable, 1)]);
 
         SellDecision decision = VendorRules.DecideSell(c.Character, shopOpen: true, bagSlot: 0, count: 1, _ => sellable, maxGold: 1_000_000,
-            new SellFactors());
+            new ItemConfiguration());
 
         Assert.Equal(VendorResult.NotSellable, decision.Result);
     }

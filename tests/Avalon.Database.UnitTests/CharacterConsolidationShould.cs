@@ -32,6 +32,7 @@ public sealed class CharacterConsolidationShould
 
         db.ItemInstances.Add(new ItemInstance
         {
+            Identified = true,
             Id = new ItemInstanceId(Guid.Parse("11111111-1111-1111-1111-111111111111")),
             CharacterId = new CharacterId(1),
             TemplateId = new ItemTemplateId(1),

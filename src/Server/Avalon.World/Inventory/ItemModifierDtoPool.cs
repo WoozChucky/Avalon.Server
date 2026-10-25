@@ -15,16 +15,18 @@ namespace Avalon.World.Inventory;
 /// select snapshot) takes the lists from here (<see cref="Rent" />, <see cref="RentBaseStats" />) and gives them back
 /// (<see cref="Return(ItemSlotDto?)" />) once the message is encoded, which the packet's Create does before it returns.</item>
 /// </list>
-/// Exactly the item's modifiers and base stats are sent: nothing left over stays in an entry. Owned by one caller on one
-/// thread.
+/// Exactly what the item shows is sent (every modifier of an identified copy, an unidentified one's implicit lines, and
+/// the base stats either way): nothing left over stays in an entry. Owned by one caller on one thread.
 /// </summary>
 public sealed class ItemModifierDtoPool
 {
     /// <summary>
-    /// <paramref name="modifiers" /> in a list from this pool, null for none: for an entry built just now, whose list is
-    /// given back with <see cref="Return(ItemSlotDto?)" /> once its message is encoded.
+    /// The <paramref name="modifiers" /> a client is shown (<see cref="Refill" />) in a list from this pool, null for none:
+    /// for an entry built just now, whose list is given back with <see cref="Return(ItemSlotDto?)" /> once its message is
+    /// encoded.
     /// </summary>
-    public List<ItemModifierDto>? Rent(IReadOnlyList<ItemInstanceModifier> modifiers) => Refill(null, modifiers);
+    public List<ItemModifierDto>? Rent(IReadOnlyList<ItemInstanceModifier> modifiers, ItemModifierCatalog catalog,
+        bool identified) => Refill(null, modifiers, catalog, identified);
 
     /// <summary>
     /// <paramref name="baseStats" /> in a list from this pool, null for none: for an entry built just now, whose list is
@@ -71,33 +73,45 @@ public sealed class ItemModifierDtoPool
     private readonly Stack<ItemBaseStatDto> _baseStats = new();
 
     /// <summary>
-    /// <paramref name="current" /> (an entry's list, or null) refilled with exactly <paramref name="modifiers" />: the
-    /// list to send, null for none, with the one it replaced kept here.
+    /// <paramref name="current" /> (an entry's list, or null) refilled with exactly the <paramref name="modifiers" /> a
+    /// client is shown: every one of an identified copy, and an unidentified copy's implicit lines only (#1179,
+    /// <see cref="ItemVisibility.Shows" />), each looked up once in <paramref name="catalog" />, and only for an
+    /// unidentified copy. The list to send, null for none, with the one it replaced kept here.
     /// </summary>
-    public List<ItemModifierDto>? Refill(List<ItemModifierDto>? current, IReadOnlyList<ItemInstanceModifier> modifiers)
+    public List<ItemModifierDto>? Refill(List<ItemModifierDto>? current, IReadOnlyList<ItemInstanceModifier> modifiers,
+        ItemModifierCatalog catalog, bool identified)
     {
-        if (modifiers.Count == 0)
+        // Filled in one pass, then trimmed to what was kept: a list is taken from the pool only once a row is kept.
+        List<ItemModifierDto>? target = current;
+        int at = 0;
+        for (int i = 0; i < modifiers.Count; i++)
         {
-            if (current is not null)
-                Return(current);
+            ItemInstanceModifier shown = modifiers[i];
+            if (!ItemVisibility.Shows(catalog, shown.ModifierId, identified))
+                continue;
+
+            target ??= _lists.TryPop(out List<ItemModifierDto>? kept) ? kept : [];
+            if (at == target.Count)
+                target.Add(_modifiers.TryPop(out ItemModifierDto? modifier) ? modifier : new ItemModifierDto());
+
+            ItemModifierDto entry = target[at++];
+            entry.ModifierId = (uint)shown.ModifierId;
+            RefillValues(entry.Values, shown.Values);
+        }
+
+        if (target is null)
+            return null;
+
+        if (at == 0)
+        {
+            Return(target);
             return null;
         }
 
-        List<ItemModifierDto> target = current ?? (_lists.TryPop(out List<ItemModifierDto>? kept) ? kept : []);
-        while (target.Count > modifiers.Count)
+        while (target.Count > at)
         {
             Return(target[^1]);
             target.RemoveAt(target.Count - 1);
-        }
-
-        for (int i = 0; i < modifiers.Count; i++)
-        {
-            if (i == target.Count)
-                target.Add(_modifiers.TryPop(out ItemModifierDto? modifier) ? modifier : new ItemModifierDto());
-
-            ItemModifierDto entry = target[i];
-            entry.ModifierId = (uint)modifiers[i].ModifierId;
-            RefillValues(entry.Values, modifiers[i].Values);
         }
 
         return target;

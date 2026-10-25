@@ -27,6 +27,8 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// where only the gold changed. With <see cref="Rolled" /> (#1179) the items are seeded plate chests the roller made over
 /// the real catalog, every other one a plain copy carrying its base stats and its implicit and the rest Magic copies
 /// carrying their base stats, their implicit, their affixes and a name; without it, common potions with no modifiers.
+/// Without <see cref="Identified" /> the Magic copies are held unidentified, so each describe looks its modifiers' kinds
+/// up and sends its base stats and implicit only, with no name.
 /// <see cref="Queried" /> is the flush as it was before #883, the changed slots filtered, ordered and read by a query;
 /// <see cref="Unpooled" /> is the flush as it was before #1179's last review, each modifier and base-stat entry made
 /// afresh and each magic name built again at every describe; <see cref="Flusher" /> is
@@ -59,6 +61,9 @@ public class InventoryFlushBenchmarks
     [Params(false, true)]
     public bool Rolled { get; set; }
 
+    [Params(false, true)]
+    public bool Identified { get; set; }
+
     [GlobalSetup]
     public void Setup()
     {
@@ -88,19 +93,22 @@ public class InventoryFlushBenchmarks
             if (!Rolled)
             {
                 held[slot] = new InventoryItem(slot, new ItemInstanceId(Guid.CreateVersion7()), s_potion.Id, 5, 0,
-                    ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null);
+                    ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null, Identified: true);
                 continue;
             }
 
             RolledItem copy = slot % 2 == 0 ? roller.RollPlain(chest, 1, _items) : roller.Roll(chest, magic, _items)!;
+            // A plain copy is always identified; a magic one as the parameter says.
+            bool identified = Identified || copy.Rarity == ItemRarity.Common;
             held[slot] = new InventoryItem(slot, copy.InstanceId, copy.TemplateId, 1, 0, ItemInstanceFlags.None,
-                copy.Rarity, copy.ItemLevel, copy.RareName);
+                copy.Rarity, copy.ItemLevel, copy.RareName, identified);
             var baseStats = new List<ItemInstanceBaseStat>();
             foreach ((ItemBaseStat stat, int value) in copy.BaseStats)
                 baseStats.Add(new ItemInstanceBaseStat { ItemInstanceId = copy.InstanceId, Stat = stat, Value = value });
 
             instances.Add(new ItemInstance
             {
+                Identified = identified,
                 Id = copy.InstanceId,
                 TemplateId = copy.TemplateId,
                 Modifiers = copy.Modifiers,
@@ -193,9 +201,12 @@ public class InventoryFlushBenchmarks
             Flags = (uint)item.Flags,
             Rarity = item.Rarity,
             ItemLevel = item.ItemLevel,
-            Modifiers = ItemModifierDtoMapper.ToDtos(modifiers),
-            Name = ItemSlotDtoMapper.NameOf(item.TemplateId, item.Rarity, item.RareName, modifiers, _items),
+            Modifiers = ItemModifierDtoMapper.ToDtos(modifiers, _items.Modifiers, item.Identified),
+            Name = item.Identified
+                ? ItemSlotDtoMapper.NameOf(item.TemplateId, item.Rarity, item.RareName, modifiers, _items)
+                : null,
             BaseStats = ItemModifierDtoMapper.ToBaseStatDtos(_character.ItemModifiers.BaseStatsOf(item.InstanceId)),
+            Identified = item.Identified,
         };
     }
 

@@ -2,12 +2,17 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.World;
 using Avalon.World.Configuration;
+using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
+using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
 using Avalon.World.Testing;
@@ -63,6 +68,8 @@ public class InventoryAllocationShould
         Assert.Equal(InventoryAddResult.Ok, inventory.TryAddRolled(roller.RollPlain(s_chest, 1, s_items)));
         RolledItem magic = roller.Roll(s_chest, new DropContext(10, CreatureRarity.Normal, ForceMagic: true), s_items)!;
         Assert.Equal(InventoryAddResult.Ok, inventory.TryAddRolled(magic));
+        // It arrives unidentified; held identified here, so it is described by its affixes and its name.
+        HoldMagicChest(identified: true);
         Assert.NotNull(_character.ItemModifiers.Describe(At(_character, InventoryType.Bag, 2), s_items).Name);
         // Both chests send their base stats, from the pool as their modifiers are.
         Assert.All([1, 2], slot => Assert.False(
@@ -79,16 +86,31 @@ public class InventoryAllocationShould
             _character.ClientChanges.RecordGold();
             InventoryUpdateFlusher.Flush(_connection, s_items, _pool);
         });
-        long slots = Allocated(() =>
-        {
-            foreach (SlotRef slot in s_slots)
-                _character.ClientChanges.RecordSlot(slot.Container, slot.Slot);
-            InventoryUpdateFlusher.Flush(_connection, s_items, _pool);
-        });
+        long slots = Allocated(FlushTheSlots);
+        // #1179: the same copies with the magic chest held unidentified, its modifiers' kinds looked up and its affixes
+        // and name left out: from the same pool, so it costs no more.
+        HoldMagicChest(identified: false);
+        long unidentified = Allocated(FlushTheSlots);
 
         Assert.Equal(0, goldOnly);
         Assert.Equal(Allocated(() => Entries(Named)), slots);
-        Assert.Equal(8 * Rounds, _connection.Sent);
+        Assert.True(unidentified <= slots, $"held unidentified, the flush allocated {unidentified} B against {slots} B");
+        Assert.Equal(12 * Rounds, _connection.Sent);
+    }
+
+    private void FlushTheSlots()
+    {
+        foreach (SlotRef slot in s_slots)
+            _character.ClientChanges.RecordSlot(slot.Container, slot.Slot);
+        InventoryUpdateFlusher.Flush(_connection, s_items, _pool);
+    }
+
+    /// <summary>The magic chest in Bag slot 2, held identified or not (#1179).</summary>
+    private void HoldMagicChest(bool identified)
+    {
+        InventoryItem chest = At(_character, InventoryType.Bag, 2);
+        Assert.Equal(ItemRarity.Magic, chest.Rarity);
+        _character.Container(InventoryType.Bag).Put(chest with { Identified = identified });
     }
 
     [Fact]
@@ -138,6 +160,50 @@ public class InventoryAllocationShould
             () => Assert.Equal(0, owned));
         Assert.Equal(InventoryAddResult.UniqueAlreadyOwned, economy.InventoryOf(_character).CanAdd(Relic.Id, 1));
         Assert.Equal(5u, At(_character, InventoryType.Bag, 0).Count);
+        Assert.Equal(2 * 4 * Rounds, _connection.Sent);
+    }
+
+    /// <summary>
+    /// An identify request at the Resonance Workbench (#1179) allocates nothing beyond its one reply, whether it is
+    /// refused (here AlreadyIdentified, the last rule before gold) or done, at no cost as v1 ships it and at a cost: no
+    /// wallet is taken when there is no gold to ask for, the character's own is when there is, and the Workbench is
+    /// looked up by the guid the packet carries.
+    /// </summary>
+    [Theory]
+    [InlineData(0UL)]
+    [InlineData(10UL)]
+    public void Answer_an_identify_request_allocating_nothing(ulong cost)
+    {
+        StaticData data = ScenarioReferenceData.Shared.Data;
+        using MapInstance instance = TestMapInstances.Build(new QuietWorld(data));
+        var workbench = new Doodad(new ObjectGuid(ObjectType.Doodad, 1),
+            data.Doodads.Templates.Single(t => t.Service == DoodadService.Identify), _character.Position, 0f);
+        instance.AddDoodad(workbench);
+        _character.InstanceId = instance.InstanceId;
+        var world = new QuietWorld(data, instance);
+        world.Configuration.Items.IdentifyCost = cost;
+        // Enough for every request the windows send.
+        _character.Data!.Gold = 1_000_000;
+        var handler = new ItemIdentifyHandler(NullLogger<ItemIdentifyHandler>.Instance, world, TestEconomy.Over(world));
+        var identify = new CItemIdentifyPacket { RequestId = 9, WorkbenchGuid = workbench.Guid.RawValue, BagSlot = 2 };
+
+        // Put back unidentified before each request, as the item it was.
+        HoldMagicChest(identified: false);
+        InventoryItem unidentified = At(_character, InventoryType.Bag, 2);
+        CharacterInventoryContainer bag = _character.Container(InventoryType.Bag);
+
+        long identified = Allocated(() =>
+        {
+            bag.Put(unidentified);
+            handler.Execute(_connection, identify);
+        });
+        Assert.True(At(_character, InventoryType.Bag, 2).Identified);
+        Assert.Equal(1_000_000 - cost * 4 * Rounds, _character.Data.Gold);
+        long refused = Allocated(() => handler.Execute(_connection, identify));
+
+        Assert.Multiple(
+            () => Assert.Equal(0, identified),
+            () => Assert.Equal(0, refused));
         Assert.Equal(2 * 4 * Rounds, _connection.Sent);
     }
 

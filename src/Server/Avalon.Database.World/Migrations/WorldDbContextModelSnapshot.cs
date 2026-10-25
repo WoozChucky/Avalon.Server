@@ -4898,6 +4898,9 @@ namespace Avalon.Database.World.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<byte?>("Service")
+                        .HasColumnType("smallint");
+
                     b.Property<byte>("SpentLook")
                         .HasColumnType("smallint");
 
@@ -4951,6 +4954,8 @@ namespace Avalon.Database.World.Migrations
                             t.HasCheckConstraint("CK_DoodadTemplates_Range", "\"InteractionRange\" > 0 AND \"InteractionRange\" <= 10");
 
                             t.HasCheckConstraint("CK_DoodadTemplates_RestorePct", "\"RestorePct\" <= 100");
+
+                            t.HasCheckConstraint("CK_DoodadTemplates_Service", "\"Service\" IS NULL OR \"Service\" = 1");
 
                             t.HasCheckConstraint("CK_DoodadTemplates_SpentLook", "\"SpentLook\" IN (1, 2)");
 
@@ -5101,6 +5106,27 @@ namespace Avalon.Database.World.Migrations
                             UsableQuestId = 9L,
                             UseLimit = (byte)2,
                             UsedModelKey = "avalon_notice_board_pinned"
+                        },
+                        new
+                        {
+                            Id = 7L,
+                            AreaRadius = 0f,
+                            Collision = (byte)0,
+                            CollisionHalfX = 0f,
+                            CollisionHalfZ = 0f,
+                            CollisionHeight = 0f,
+                            Interaction = (byte)1,
+                            InteractionRange = 5f,
+                            InteractionTimeMs = 0L,
+                            MaxGold = 0,
+                            MinGold = 0,
+                            ModelKey = "Workbench",
+                            ModelKit = "props-kit",
+                            Name = "Resonance Workbench",
+                            RestorePct = 0L,
+                            Service = (byte)1,
+                            SpentLook = (byte)1,
+                            UseLimit = (byte)2
                         });
                 });
 
@@ -19833,6 +19859,16 @@ namespace Avalon.Database.World.Migrations
                             OffsetY = 0f,
                             OffsetZ = 9f,
                             Yaw = 90f
+                        },
+                        new
+                        {
+                            Id = 2,
+                            DoodadTemplateId = 7L,
+                            MapTemplateId = 1,
+                            OffsetX = 21f,
+                            OffsetY = 0f,
+                            OffsetZ = -11f,
+                            Yaw = 0f
                         });
                 });
 

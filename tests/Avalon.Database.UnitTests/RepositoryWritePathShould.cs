@@ -248,6 +248,7 @@ public class RepositoryWritePathShould
 
     private static ItemInstance NewItemInstance(CharacterId owner) => new()
     {
+        Identified = true,
         Id = new ItemInstanceId(Guid.CreateVersion7()),
         TemplateId = new ItemTemplateId(1),
         CharacterId = owner,

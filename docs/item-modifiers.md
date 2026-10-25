@@ -143,8 +143,9 @@ A creature's or a chest's drops roll when they drop, on the tick, in the kill or
 - **The boss's rare:** a Boss kill none of whose drops rolled Rare has its first drop that rolled a rarity rolled again,
   whole, as Rare. A unique is never touched.
 
-The copy lies on the ground whole, its id, rarity, item level, name, base stats and modifiers included, and whoever picks it up gets
-exactly that copy. A quest drop and any item that is not a base or a unique do not roll.
+The copy lies on the ground whole, its id, rarity, item level, base stats and modifiers included, and whoever picks it up gets
+exactly that copy. A quest drop and any item that is not a base or a unique do not roll. A copy that rolled Magic, Rare
+or Unique lies there, and is picked up, [unidentified](#identification); a Common one is identified.
 
 The odds by the dropping creature's rarity are configuration (`Game:Items:Rarity`, [configuration
 reference](configuration-reference.md)), checked at startup:
@@ -161,7 +162,8 @@ reference](configuration-reference.md)), checked at startup:
 - **A quest reward** that is a base rolls Magic at turn-in, once the room check has passed: its item level is the
   quest's level requirement (at least 1), its tier the best its own line reaches there, which the turn-in's Unique and room
   checks judge too, and the offer shows it as Magic with the tier it is paid as (`QuestRewardItemDto.Rarity` and
-  `PaidItemTemplateId`, [quests](quests.md)). Any other reward is a plain copy.
+  `PaidItemTemplateId`, [quests](quests.md)), and arrives [unidentified](#identification). Any other reward is a plain
+  copy, identified.
 - **A vendor** sells only Common items (`VendorCatalog` refuses any other row, and a row whose item a `/reload items`
   made Unique since is hidden and refused, `VendorRules.IsSoldNew`), each a plain copy with its base stats and implicit. A
   sale pays the template's `SellPrice` times the copy's rarity factor (`Game:Items:SellFactor`: Magic 2, Rare 4,
@@ -241,18 +243,37 @@ An "adds X to Y" line names its two ends exactly: its low end X and its high end
   kind: weapons (sword, mace, staff, bow), jewellery (amulet, ring, caster off-hand) or armour (armour pieces and
   shields); the lists are code (`RareNames`).
 - Common and unique items show the template's name.
+- An [unidentified](#identification) copy is shown by no name at all, only its template's.
 - `ItemNames.Display` (`Avalon.Domain`) gives the name, or null where the template's name is the item's, from a magic
-  copy's lowest-ordinal prefix and suffix. It runs when a copy is first described in an items generation, never per
-  tick: `ItemSlotDto` field 11
-  (the login snapshot, inventory updates, item replies, the bank, the buyback), `TradeItemDto` field 8 and
-  `LootDropDto` field 11 send it as an optional string, absent for a common or unique copy, and the REST inventory
-  read's item `name` likewise. The world holds a magic copy's name as a field beside its modifiers
-  (`DescribedName`, on the copy's entry in `ItemModifierStore` and on a drop on the ground), keyed by the items
-  generation it was worked out in, so describing the same copy again builds no string, a reload's rename reaches it at
-  its next describe, and a copy whose modifiers change is a new entry. A rare copy keeps its stored name even when a
-  reload removed its template.
+  copy's lowest-ordinal prefix and suffix. It runs when an identified copy is first described in an items generation,
+  never per tick: `ItemSlotDto` field 11
+  (the login snapshot, inventory updates, item replies, the bank, the buyback) and `TradeItemDto` field 8 send it as an
+  optional string, absent for a common or unique copy and for every unidentified one, and the REST inventory read's
+  item `name` likewise. A drop on the ground sends no name: every copy that would have one lies there unidentified.
+  The world holds a magic copy's name as a field beside its modifiers (`DescribedName`, on the copy's entry in
+  `ItemModifierStore`), keyed by the items generation it was worked out in, so describing the same copy again builds
+  no string, a reload's rename reaches it at its next describe, and a copy whose modifiers change is a new entry. An
+  unidentified copy's held name is neither read nor filled, so its first describe once identified works it out. A rare
+  copy keeps its stored name even when a reload removed its template.
 - A family has one name for all its tiers (the tier shows as a number), one per element on a split family. Implicits
   (a unique's inherited one too) and unique modifiers never name an item.
+
+## Identification
+
+A magic, rare or unique copy arrives **unidentified** when it drops or a quest pays it as a rolled reward; a common copy
+is always identified, and so is every copy a vendor sells, an item script adds (a unique included) or a character
+starts with. Until it is identified, a player sees the copy's rarity, base name, item level, base stats and implicit
+line, and "Unidentified" where its affixes go: the server never sends its prefixes, its suffixes, a unique's own line
+or a generated name, to any client and on any path, the REST inventory included and for every caller. An unidentified
+unique shows its template's name, its base's base stats and its base's implicit, and not its own line. Which modifiers
+show is decided by the catalog row's kind (`ItemVisibility`: implicit lines only, an id the catalog no longer holds
+hidden), never by the order the copy holds them in.
+
+An unidentified copy cannot be worn, but it can be kept, banked, traded and sold, for half what it would sell for
+identified (`Game:Items:UnidentifiedSellPercent`). It is identified one item per request at the Resonance Workbench in
+Glimmerdell's market, for `Game:Items:IdentifyCost` gold (0 today), which reveals its name and every modifier it
+rolled when it was made: identifying rolls nothing. [Inventory and saves](inventory-and-saves.md#identification-at-the-resonance-workbench-1179)
+has the request and its rules.
 
 ## The tables
 

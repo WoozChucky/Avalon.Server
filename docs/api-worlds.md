@@ -270,6 +270,27 @@ singletons as in every host. Only their context factories differ in the API, whi
   wiped equipment never comes back. A copy made by a world running this part keeps its implicit row, whose modifier
   the rolled-back catalog no longer holds (null in the inventory read), and a copy of templates 104-151 stays as a row
   whose template is gone. No world or API does that by itself.
+  **Migration order, #1179 (part C).** Identification is not additive either (no backward compatibility, owner,
+  2026-10-23). A world's Character database migrates through `AddItemIdentified`: `ItemInstances.Identified` and
+  `TradeRecordItems.Identified` (`boolean NOT NULL`), each added with a default of true, so every row that exists
+  reads identified, then the default is dropped, so every insert must write the value; then the checks
+  `CK_ItemInstances_Identified` and `CK_TradeRecordItems_Identified` (`"Rarity" <> 0 OR "Identified"`). Its World
+  database migrates through `AddResonanceWorkbench`: `DoodadTemplates.Service` (`smallint`, nullable, null on every
+  existing doodad) with `CK_DoodadTemplates_Service` (`"Service" IS NULL OR "Service" = 1`), doodad template 7, the
+  Resonance Workbench, and Glimmerdell's fixed doodad spawn row 2, which places it. Each world applies them at its
+  start, before it serves (`WorldStartup`: its Character database, then its World database); neither reads the other
+  database. The order is: the worlds go first, each migrating at its next start (start any stopped world once, so it
+  migrates too), and then the API release with the change is cut. The released API is not broken in between, but it
+  shows too much: an older API reading a migrated world ignores the new column, so its inventory read names an
+  unidentified copy and lists every modifier it rolled, to the owner and to staff, until the API release lands (the
+  API reads no doodad table). An API with the change reading a world that has not migrated fails with Postgres 42703
+  on the missing `Identified` column: a character's inventory as soon as it holds an item, and its abilities once it
+  wears one. To roll a world back to a build without the change, first run
+  `dotnet ef database update AddItemInstanceBaseStats` against its Character database and
+  `dotnet ef database update DropTemplateWeaponColumns` against its World database. The Character rollback drops both
+  checks and both columns, and with them whether any copy or trade record's copy was identified (the older build
+  has no such state and shows every copy whole); the World rollback drops
+  the check, deletes spawn row 2 and template 7, and drops `Service`. No world or API does that by itself.
 
 ## How a request reaches its world
 
@@ -360,7 +381,7 @@ reads admit the owner or a game master (`CharacterReadHandler`), character write
 |---|---|---|---|
 | `/world/{worldId}/character/paginate` | GET | GameMaster | |
 | `/world/{worldId}/character/{id}` | GET, PATCH | Player | Owner, or game master (read) or admin (write) |
-| `/world/{worldId}/character/{id}/inventory`, `/abilities`, `/stats`, `/quests`, `/auras` | GET | Player | Owner or game master. An inventory item carries its copy's `rarity`, `itemLevel`, `name` and `modifiers` (each `modifierId` with its `kind`, `Prefix`, `Suffix`, `Unique` or `Implicit` from the world's modifier catalog, null for a modifier the catalog no longer holds, and its `values`: `stat`, `value` and, on an "adds X to Y" line, `value2`), in the order the item shows them (#1179), and `baseStats`, the base stats the copy rolled (`stat`, an `ItemBaseStat` name, and `value`), by stat, empty for a copy that has none (#1179, part B2); `name` is a magic copy's prefix and suffix around the template's name or a rare copy's two words, null where the template's name is the item's; that is the only rarity the read shows, and its `template` carries none |
+| `/world/{worldId}/character/{id}/inventory`, `/abilities`, `/stats`, `/quests`, `/auras` | GET | Player | Owner or game master. An inventory item carries its copy's `rarity`, `itemLevel`, `name` and `modifiers` (each `modifierId` with its `kind`, `Prefix`, `Suffix`, `Unique` or `Implicit` from the world's modifier catalog, null for a modifier the catalog no longer holds, and its `values`: `stat`, `value` and, on an "adds X to Y" line, `value2`), in the order the item shows them (#1179), and `baseStats`, the base stats the copy rolled (`stat`, an `ItemBaseStat` name, and `value`), by stat, empty for a copy that has none (#1179, part B2); `name` is an identified magic copy's prefix and suffix around the template's name or an identified rare copy's two words, null where the template's name is the item's; that is the only rarity the read shows, and its `template` carries none. `identified` (#1179, part C) says whether the copy is identified: an unidentified one (magic, rare or unique) has `name` null and only its `Implicit` modifiers (a modifier the catalog no longer holds is left out), with its `rarity`, `itemLevel` and `baseStats` as they are, for every caller, the owner and staff alike (`CharacterService`, which takes no caller input, by the rule the world's messages follow, `ItemVisibility`) |
 | `/world/{worldId}/map-template`, `/{id}` | GET | Player | |
 | `/world/{worldId}/map-template/{id}/preview-layout` | GET | GameMaster | Runs the procedural generator against that world's data; see [Map Generation](map-generation.md) |
 | `/world/{worldId}/map-template/chunk-asset/{*filename}` | GET | GameMaster | Whitelisted against the world's `ChunkTemplate.GeometryFile` values; the bytes come from the API's own copy of `Maps/` (`Application:MapAssets:ChunkAssetRoot`), not from the world |

@@ -218,6 +218,7 @@ public class CharacterSelectHandlerShould
             });
             instances.Add(new ItemInstance
             {
+                Identified = true,
                 Id = id,
                 TemplateId = new ItemTemplateId(template),
                 CharacterId = s_theCharacter,

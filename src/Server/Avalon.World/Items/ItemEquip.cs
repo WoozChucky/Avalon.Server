@@ -119,6 +119,7 @@ public static class ItemEquip
         ItemRequestResult.Locked => ItemUseResult.Locked,
         ItemRequestResult.AttributesTooLow => ItemUseResult.AttributesTooLow,
         ItemRequestResult.UniqueEquipped => ItemUseResult.UniqueEquipped,
+        ItemRequestResult.Unidentified => ItemUseResult.Unidentified,
         _ => ItemUseResult.InternalError,
     };
 

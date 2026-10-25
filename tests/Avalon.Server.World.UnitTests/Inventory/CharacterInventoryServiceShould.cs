@@ -3,6 +3,7 @@ using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Quest;
@@ -336,19 +337,26 @@ public class CharacterInventoryServiceShould
     /// new character), it carries its base stats, exactly the stats its template has a range for, each rolled within
     /// its range, and its base's implicits: one modifier per link, in link order, ordinals from 0, every value within its
     /// line's range. The copy is marked, and the write that stores it writes both. A quest's reward is rolled Magic, so its
-    /// affixes follow the implicits; every other copy carries the implicits alone. Potion 1, made the same way, carries
-    /// neither and is not marked.
+    /// affixes follow the implicits, and it arrives unidentified; every other copy carries the implicits alone and arrives
+    /// identified, a unique an item script adds included, which carries its base's implicit and then its own line (its
+    /// base, a ring, has no base stats). Potion 1, made the same way, carries neither, is not marked and is identified.
     /// </summary>
     [Theory]
     [InlineData("vendor purchase")]
     [InlineData("item script add")]
+    [InlineData("item script add of a unique")]
     [InlineData("quest reward")]
     [InlineData("starting item")]
     public async Task Give_every_copy_its_base_stats_and_implicits_however_it_is_made(string how)
     {
         const uint QuestId = 7901, KillId = 79011;
         using var seed = SqliteDatabase.World();
-        var made = new ItemTemplateId(how is "vendor purchase" or "starting item" ? 37ul : 70ul);
+        ItemTemplateId made = how switch
+        {
+            "vendor purchase" or "starting item" => new ItemTemplateId(37),
+            "item script add of a unique" => ItemBaseSeed.Equipment().Single(t => t.Name == "Thornheart Signet").Id,
+            _ => new ItemTemplateId(70),
+        };
         var potion = new ItemTemplateId(1);
         QuestTestWorld w = await QuestTestWorld.CreateAsync(
             [Quest(QuestId).WithStage(0, Kill(KillId, Boar, 1)).Paying(made.Value, 1).Paying(potion.Value, 1)],
@@ -376,7 +384,7 @@ public class CharacterInventoryServiceShould
                 Assert.Equal(VendorResult.Ok, vendor.TryBuy(true, stock, 2, 1, NoQuestProgress.Instance, DateTime.UnixEpoch));
                 copies = HeldAndWritten(c.Character);
                 break;
-            case "item script add":
+            case "item script add" or "item script add of a unique":
                 ItemTemplate used = w.Data.FindItemTemplate(potion)!;
                 var tools = new ItemUseTools(w.World, w.Economy,
                     new TownReturn(NullLogger.Instance, w.World, Substitute.For<IRespawnTargetResolver>(), InlineDatabaseWork.Instance),
@@ -403,10 +411,18 @@ public class CharacterInventoryServiceShould
 
         // The base's copy carries its base stats and its links, the potion neither.
         Assert.Equal(new[] { made.Value, potion.Value }.Order(), copies.Select(copy => copy.Template.Value).Order());
+        bool unique = how == "item script add of a unique";
         foreach (MadeCopy copy in copies)
         {
-            List<ItemTemplateBaseStat> ranges = w.Data.FindItemTemplate(copy.Template)!.BaseStats;
-            Assert.Equal(copy.Template == made, ranges.Count > 0);
+            // Only a quest's reward rolls its rarity, and so only it arrives unidentified (#1179); the write says the same.
+            bool identified = how != "quest reward" || copy.Template != made;
+            Assert.Equal((identified, identified), (copy.Identified, copy.WrittenIdentified));
+
+            // A unique's base stats and first link are its base's.
+            ItemTemplate template = w.Data.FindItemTemplate(copy.Template)!;
+            ItemTemplate source = template.BaseTemplateId is { } named ? w.Data.FindItemTemplate(named)! : template;
+            List<ItemTemplateBaseStat> ranges = source.BaseStats;
+            Assert.Equal(copy.Template == made && !unique, ranges.Count > 0);
             Assert.Equal(copy.Template == made, copy.Marked);
             Assert.Equal(ranges.Select(range => range.Stat).Order(), Stats(copy.BaseStats));
             foreach ((ItemBaseStat stat, int value) in copy.BaseStats)
@@ -417,19 +433,26 @@ public class CharacterInventoryServiceShould
 
             Assert.Equal(copy.BaseStats, copy.WrittenBaseStats);
 
-            // A base links its one implicit, the potion nothing.
-            IReadOnlyList<ItemModifier> links = w.Data.ItemModifiers.LinkedTo(copy.Template);
-            Assert.Equal(copy.Template == made ? 1 : 0, links.Count);
-            List<ItemInstanceModifier> implicits = [.. copy.Held.Take(links.Count)];
+            // A base links its one implicit, a unique its base's and then its own line, the potion nothing.
+            IReadOnlyList<ItemModifier> links = ReferenceEquals(source, template)
+                ? w.Data.ItemModifiers.LinkedTo(copy.Template)
+                : [.. w.Data.ItemModifiers.LinkedTo(source.Id), .. w.Data.ItemModifiers.LinkedTo(copy.Template)];
+            Assert.Equal(copy.Template != made ? 0 : unique ? 2 : 1, links.Count);
+            List<ItemInstanceModifier> linked = [.. copy.Held.Take(links.Count)];
             if (how != "quest reward" || copy.Template != made)
                 Assert.Equal(links.Count, copy.Held.Count);
-            Assert.Equal(links.Select(link => link.Id), implicits.Select(modifier => modifier.ModifierId));
-            Assert.Equal(Enumerable.Range(0, links.Count).Select(ordinal => (byte)ordinal), implicits.Select(modifier => modifier.Ordinal));
+            Assert.Equal(links.Select(link => link.Id), linked.Select(modifier => modifier.ModifierId));
+            Assert.Equal(Enumerable.Range(0, links.Count).Select(ordinal => (byte)ordinal), linked.Select(modifier => modifier.Ordinal));
             for (int i = 0; i < links.Count; i++)
             {
-                Assert.Equal(links[i].Stats.Select(line => (line.Index, line.Stat)), implicits[i].Values.Select(v => (v.Index, v.Stat)));
-                Assert.All(links[i].Stats.Zip(implicits[i].Values), pair => Assert.InRange(pair.Second.Value, pair.First.Min, pair.First.Max));
-                Assert.All(implicits[i].Values, value => Assert.Null(value.Value2));
+                Assert.Equal(links[i].Stats.Select(line => (line.Index, line.Stat)), linked[i].Values.Select(v => (v.Index, v.Stat)));
+                Assert.All(links[i].Stats.Zip(linked[i].Values), pair =>
+                {
+                    Assert.InRange(pair.Second.Value, pair.First.Min, pair.First.Max);
+                    Assert.Equal(pair.First.Min2 is not null, pair.Second.Value2 is not null);   // an "adds 1 to 2" line's high end
+                    if (pair.Second.Value2 is { } high)
+                        Assert.InRange(high, pair.First.Min2!.Value, pair.First.Max2!.Value);
+                });
             }
 
             Assert.Equal(TestModifiers.Describe(copy.Held), TestModifiers.Describe(copy.Written));
@@ -438,11 +461,12 @@ public class CharacterInventoryServiceShould
 
     /// <summary>
     /// A copy as it was made: its template, its modifiers and base stats as held, and as the write that stores it carries
-    /// them, and whether that write rewrites its rolled rows at all (its save mark).
+    /// them, whether that write rewrites its rolled rows at all (its save mark), and whether it is identified, as held and
+    /// as written.
     /// </summary>
     private sealed record MadeCopy(
         ItemTemplateId Template, IReadOnlyList<ItemInstanceModifier> Held, IReadOnlyList<ItemInstanceModifier> Written,
-        ItemBaseStats BaseStats, ItemBaseStats WrittenBaseStats, bool Marked);
+        ItemBaseStats BaseStats, ItemBaseStats WrittenBaseStats, bool Marked, bool Identified, bool WrittenIdentified);
 
     private static List<ItemBaseStat> Stats(ItemBaseStats baseStats)
     {
@@ -468,7 +492,8 @@ public class CharacterInventoryServiceShould
     /// </summary>
     private static List<MadeCopy> HeldAndWritten(CharacterEntity character)
     {
-        ItemModifierWrite? write = CharacterSaveSnapshot.Take(character).Batch.Modifiers;
+        CharacterSaveBatch batch = CharacterSaveSnapshot.Take(character).Batch;
+        ItemModifierWrite? write = batch.Modifiers;
         IReadOnlyList<ItemInstanceModifier> WrittenFor(ItemInstanceId item) =>
         [
             .. (write?.Modifiers ?? []).Where(m => m.ItemInstanceId == item).OrderBy(m => m.Ordinal).Select(m => new ItemInstanceModifier
@@ -487,7 +512,8 @@ public class CharacterInventoryServiceShould
                 character.ItemModifiers.Of(item.InstanceId), WrittenFor(item.InstanceId),
                 character.ItemModifiers.BaseStatsOf(item.InstanceId),
                 ItemBaseStats.Of((write?.BaseStats ?? []).Where(s => s.ItemInstanceId == item.InstanceId)),
-                write?.Items.Contains(item.InstanceId) == true)),
+                write?.Items.Contains(item.InstanceId) == true, item.Identified,
+                batch.UpsertItems.Single(row => row.Id == item.InstanceId).Identified)),
         ];
     }
 
@@ -524,7 +550,8 @@ public class CharacterInventoryServiceShould
             {
                 RolledItem rolled = roller.Made.Single(made => made.InstanceId == item.Id);
                 return new MadeCopy(item.TemplateId, rolled.Modifiers, item.Modifiers, rolled.BaseStats,
-                    ItemBaseStats.Of(item.BaseStats), item.Modifiers.Count > 0 || item.BaseStats.Count > 0);
+                    ItemBaseStats.Of(item.BaseStats), item.Modifiers.Count > 0 || item.BaseStats.Count > 0, item.Identified,
+                    item.Identified);
             }),
         ];
     }

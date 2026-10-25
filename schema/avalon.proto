@@ -239,6 +239,11 @@ message CItemDestroyPacket {
    uint32 Slot = 3;
    optional uint32 Count = 4;
 }
+message CItemIdentifyPacket {
+   uint32 RequestId = 1;
+   uint64 WorkbenchGuid = 2;
+   uint32 BagSlot = 3;
+}
 message CItemMovePacket {
    uint32 RequestId = 1;
    InventoryType FromContainer = 2;
@@ -526,6 +531,18 @@ message ItemBaseStatDto {
    BaseStat Stat = 1;
    int32 Value = 2;
 }
+enum ItemIdentifyResult {
+   ItemIdentifyResult_Ok = 0;
+   ItemIdentifyResult_Dead = 1;
+   ItemIdentifyResult_Stunned = 2;
+   ItemIdentifyResult_NotFound = 3;
+   ItemIdentifyResult_TooFar = 4;
+   ItemIdentifyResult_NoItem = 5;
+   ItemIdentifyResult_AlreadyIdentified = 6;
+   ItemIdentifyResult_Locked = 7;
+   ItemIdentifyResult_NotEnoughGold = 8;
+   ItemIdentifyResult_InternalError = 9;
+}
 message ItemModifierDto {
    uint32 ModifierId = 1;
    repeated ItemModifierValueDto Values = 2;
@@ -559,6 +576,7 @@ enum ItemRequestResult {
    ItemRequestResult_Locked = 14;
    ItemRequestResult_AttributesTooLow = 15;
    ItemRequestResult_UniqueEquipped = 16;
+   ItemRequestResult_Unidentified = 17;
 }
 message ItemSlotDto {
    InventoryType Container = 1;
@@ -573,6 +591,7 @@ message ItemSlotDto {
    repeated ItemModifierDto Modifiers = 10;
    optional string Name = 11;
    repeated ItemBaseStatDto BaseStats = 12;
+   bool Identified = 13;
 }
 enum ItemStat {
    ItemStat_Stamina = 0;
@@ -650,6 +669,7 @@ enum ItemUseResult {
    ItemUseResult_Locked = 18;
    ItemUseResult_AttributesTooLow = 19;
    ItemUseResult_UniqueEquipped = 20;
+   ItemUseResult_Unidentified = 21;
 }
 message LootDropDto {
    uint64 LootGuid = 1;
@@ -662,7 +682,6 @@ message LootDropDto {
    ItemRarity Rarity = 8;
    uint32 ItemLevel = 9;
    repeated ItemModifierDto Modifiers = 10;
-   optional string Name = 11;
    repeated ItemBaseStatDto BaseStats = 12;
 }
 enum LootPickupResult {
@@ -768,6 +787,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_ITEM_MOVE = 8320;
    NetworkPacketType_CMSG_ITEM_DESTROY = 8321;
    NetworkPacketType_CMSG_ITEM_USE = 8322;
+   NetworkPacketType_CMSG_ITEM_IDENTIFY = 8323;
    NetworkPacketType_CMSG_VENDOR_BUY = 8336;
    NetworkPacketType_CMSG_VENDOR_SELL = 8337;
    NetworkPacketType_CMSG_VENDOR_BUYBACK = 8338;
@@ -831,6 +851,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_LOOT_PICKUP_RESULT = 12418;
    NetworkPacketType_SMSG_ITEM_RESULT = 12432;
    NetworkPacketType_SMSG_ITEM_USE_RESULT = 12433;
+   NetworkPacketType_SMSG_ITEM_IDENTIFY_RESULT = 12434;
    NetworkPacketType_SMSG_VENDOR_LIST = 12448;
    NetworkPacketType_SMSG_VENDOR_RESULT = 12449;
    NetworkPacketType_SMSG_PARTY_INVITE = 12464;
@@ -1279,6 +1300,10 @@ message SInventoryUpdatePacket {
    repeated InventorySlotUpdateDto Slots = 1;
    optional uint64 Gold = 2;
 }
+message SItemIdentifyResultPacket {
+   uint32 RequestId = 1;
+   ItemIdentifyResult Result = 2;
+}
 message SItemResultPacket {
    uint32 RequestId = 1;
    ItemRequestResult Result = 2;
@@ -1544,6 +1569,7 @@ message TradeItemDto {
    repeated ItemModifierDto Modifiers = 7;
    optional string Name = 8;
    repeated ItemBaseStatDto BaseStats = 9;
+   bool Identified = 10;
 }
 enum TradeResult {
    TradeResult_Unknown = 0;

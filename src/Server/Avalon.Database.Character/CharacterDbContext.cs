@@ -155,8 +155,12 @@ public partial class CharacterDbContext : DbContext
         builder.Property(i => i.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
         builder.Property(i => i.ItemLevel).HasColumnType("smallint");
         builder.Property(i => i.RareName).HasMaxLength(32);
-        // As on the item itself: a rare copy, and only a rare one, carries its two words.
-        builder.ToTable(t => t.HasCheckConstraint("CK_TradeRecordItems_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)"));
+        // As on the item itself: a rare copy, and only a rare one, carries its two words, and a common copy is identified.
+        builder.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_TradeRecordItems_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
+            t.HasCheckConstraint("CK_TradeRecordItems_Identified", "\"Rarity\" <> 0 OR \"Identified\"");
+        });
         builder.HasIndex(i => i.ItemInstanceId);
         // The record's own copy of the item's base stats and modifiers (#1179), written with it as one graph.
         builder.HasMany(i => i.BaseStats)
@@ -372,7 +376,7 @@ public partial class CharacterDbContext : DbContext
         builder.HasIndex(b => b.CharacterId);
 
         // Facts of every copy (#1179), like its count and flags. A rare copy, and only a rare one (Rarity 2), carries the two
-        // words its roll gave it.
+        // words its roll gave it, and a common copy (Rarity 0) is always identified.
         builder.Property(b => b.ItemLevel).HasColumnType("smallint");
         builder.Property(b => b.RareName).HasMaxLength(32);
         builder.ToTable(t =>
@@ -380,6 +384,7 @@ public partial class CharacterDbContext : DbContext
             t.HasCheckConstraint("CK_ItemInstances_Rarity", "\"Rarity\" BETWEEN 0 AND 3");
             t.HasCheckConstraint("CK_ItemInstances_ItemLevel", "\"ItemLevel\" > 0");
             t.HasCheckConstraint("CK_ItemInstances_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
+            t.HasCheckConstraint("CK_ItemInstances_Identified", "\"Rarity\" <> 0 OR \"Identified\"");
         });
 
         // Its modifiers and base stats are its own rows, gone with it.

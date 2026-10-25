@@ -344,6 +344,7 @@ public sealed class LoadTestAccountsShould : IDisposable
                 });
                 db.ItemInstances.Add(new ItemInstance
                 {
+                    Identified = true,
                     Id = new ItemInstanceId(Guid.NewGuid()),
                     CharacterId = id,
                     TemplateId = new ItemTemplateId(1),

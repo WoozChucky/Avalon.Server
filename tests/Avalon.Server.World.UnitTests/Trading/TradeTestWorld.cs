@@ -41,14 +41,19 @@ internal sealed class TradeTestWorld
         TestCharacters.Hoard);
 
     /// <param name="tickThread">Given, the service and who is online assert the tick thread with it.</param>
-    public TradeTestWorld(Action<GameConfiguration>? configure = null, TickThreadGuard? tickThread = null)
+    /// <param name="items">
+    /// Given, the items generation the service judges and names offered items by, in place of the test characters'.
+    /// </param>
+    public TradeTestWorld(Action<GameConfiguration>? configure = null, TickThreadGuard? tickThread = null,
+        ItemsPatch? items = null)
     {
         configure?.Invoke(Config);
         Characters = new OnlineCharacters(tickThread);
         Economy = new TestEconomy(Config);
         Trades = new TradeService(Options.Create(Config), Clock, Saver, Characters, NullLogger<TradeService>.Instance,
             tickThread);
-        Trades.Attach(Economy, static () => s_items);
+        ItemsPatch generation = items ?? s_items;
+        Trades.Attach(Economy, () => generation);
     }
 
     public ManualTimerClock Clock { get; } = new();

@@ -2256,6 +2256,20 @@ public class WorldDbContext : DbContext
             OffsetZ = 9f,
             Yaw = 90f,
         });
+
+        // The Resonance Workbench (#1179), doodad 7, at world (36, 0, 4) facing yaw 0: the market square town_se_01
+        // stands at grid (1, 0) unturned, so its spot in TownPieces (local 6, 4), in the market's open south-west, is
+        // this offset from the entry (15, 0, 15). No gate: everyone sees it and may use it.
+        builder.HasData(new MapDoodadSpawn
+        {
+            Id = 2,
+            MapTemplateId = 1,
+            DoodadTemplateId = 7,
+            OffsetX = 21f,
+            OffsetY = 0f,
+            OffsetZ = -11f,
+            Yaw = 0f,
+        });
     }
 
     private static void Configure(EntityTypeBuilder<CreaturePath> builder)
@@ -3499,7 +3513,7 @@ public class WorldDbContext : DbContext
     /// <summary>
     /// Doodads: interactable world objects (chests, barrels, shrines, fountains, quest objects). Reference data; the
     /// world's doodad catalog validates it on load. Interaction 0 None, 1 Click; UseLimit 1 OncePerInstance, 2 Unlimited;
-    /// SpentLook 1 ShowUsed, 2 Despawn; Collision 0 None, 1 Box; the gate conditions 1 NotStarted, 2 OnObjective,
+    /// SpentLook 1 ShowUsed, 2 Despawn; Collision 0 None, 1 Box; Service null or 1 Identify; the gate conditions 1 NotStarted, 2 OnObjective,
     /// 3 Completed, 4 NotCompleted. The gate quest and objective ids are plain columns, no foreign key, so seed order
     /// never trips them; the catalog checks them. Every check reads the same on Postgres and on the SQLite the tests
     /// build the model on, and an upper bound refuses NaN too, which Postgres sorts above every number.
@@ -3511,6 +3525,7 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_DoodadTemplates_Interaction", "\"Interaction\" IN (0, 1)");
             t.HasCheckConstraint("CK_DoodadTemplates_UseLimit", "\"UseLimit\" IN (1, 2)");
             t.HasCheckConstraint("CK_DoodadTemplates_SpentLook", "\"SpentLook\" IN (1, 2)");
+            t.HasCheckConstraint("CK_DoodadTemplates_Service", "\"Service\" IS NULL OR \"Service\" = 1");
             // A solid doodad's box is finite, has room in both directions, and stands at least 1.05 m tall. The bound
             // is 1.049, not 1.05: the column is a float, and both databases compare it as a double, where a stored
             // 1.05f reads 1.0499999523 and would fail ">= 1.05". The catalog keeps the exact ">= 1.05f" rule.
@@ -3580,6 +3595,26 @@ public class WorldDbContext : DbContext
                 visible: (9, 901)),
             CaravanDoodad(6, "Notice Board", "town-kit", "avalon_notice_board", "avalon_notice_board_pinned", 0,
                 usable: (9, 902)));
+
+        // The Resonance Workbench (#1179), in Glimmerdell's market: a click opens the client's identify window, and each
+        // identify request names it and is checked against its range. Clicked, never spent, walk-through (its box is the
+        // town piece's, as the notice board's), with no script, loot or gate, so it is never hidden. An Unlimited doodad
+        // never shows its spent look; the column is not nullable, so it holds ShowUsed.
+        builder.HasData(new DoodadTemplate
+        {
+            Id = 7,
+            Name = "Resonance Workbench",
+            ModelKit = "props-kit",
+            ModelKey = "Workbench",
+            Interaction = DoodadInteraction.Click,
+            InteractionTimeMs = 0,
+            InteractionRange = 5f,
+            AreaRadius = 0f,
+            UseLimit = DoodadUseLimit.Unlimited,
+            SpentLook = DoodadSpentLook.ShowUsed,
+            Collision = DoodadCollision.None,
+            Service = DoodadService.Identify,
+        });
     }
 
     /// <summary>

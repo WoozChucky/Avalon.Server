@@ -82,6 +82,8 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
                 Durability = ItemInstanceDefaults.InitialDurability(template),
                 Rarity = rolled.Rarity,
                 ItemLevel = rolled.ItemLevel,
+                // Starting items are identified (#1179), whatever they rolled.
+                Identified = true,
                 UpdatedAt = DateTime.UtcNow,
             };
             // The copy's own rows, inserted with it; one that rolled none keeps the instance's own empty list, since the roll

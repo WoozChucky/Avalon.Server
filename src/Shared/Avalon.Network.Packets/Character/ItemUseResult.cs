@@ -62,4 +62,7 @@ public enum ItemUseResult : byte
 
     /// <summary>A copy of this UniqueEquipped item is already worn in another equipment slot (#1179).</summary>
     UniqueEquipped = 20,
+
+    /// <summary>The item is unidentified (#1179): it is not worn until it is identified.</summary>
+    Unidentified = 21,
 }

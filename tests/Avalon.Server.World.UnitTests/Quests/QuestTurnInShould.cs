@@ -309,7 +309,7 @@ public class QuestTurnInShould
     /// #1179, over the World database's seed: a fixed or picked reward whose template is a Common base is rolled
     /// Magic at the quest's level as it is paid, as its own line's best tier there (Mother of Thorns' Copper Band at level 7
     /// is its line's T8, the Oakbark Band, never another line's ring), its implicit first, then one or two affixes the
-    /// level allows; the offer says so.
+    /// level allows; the offer says so. Every such reward arrives unidentified.
     /// </summary>
     [Fact]
     public void Roll_a_magic_reward_on_the_picked_base_at_the_quests_level()
@@ -369,7 +369,7 @@ public class QuestTurnInShould
     /// <summary>Magic at the level, its tier's implicit first, then one or two affixes, each one the level allows.</summary>
     private static void AssertMagic(QuestClient c, QuestTestWorld w, InventoryItem item, ushort itemLevel)
     {
-        Assert.Equal((ItemRarity.Magic, itemLevel, 1u), (item.Rarity, item.ItemLevel, item.Count));
+        Assert.Equal((ItemRarity.Magic, itemLevel, 1u, false), (item.Rarity, item.ItemLevel, item.Count, item.Identified));
         IReadOnlyList<ItemInstanceModifier> held = c.Character.ItemModifiers.Of(item.InstanceId);
         Assert.Equal((Assert.Single(w.Data.ItemModifiers.LinkedTo(item.TemplateId)).Id, (byte)0), (held[0].ModifierId, held[0].Ordinal));
         List<ItemModifier> affixes = [.. held.Skip(1).Select(m => w.Data.ItemModifiers.Find(m.ModifierId)!)];

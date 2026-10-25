@@ -269,7 +269,7 @@ public class QuestFlusherShould
         c.Character.Container(Avalon.Common.InventoryType.Bag).Load(
         [
             tusk,
-            new InventoryItem(1, new ItemInstanceId(Guid.CreateVersion7()), null!, 1, 0, ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null, 0),
+            new InventoryItem(1, new ItemInstanceId(Guid.CreateVersion7()), null!, 1, 0, ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null, Identified: true, 0),
         ]);
 
         Tick(w, c);

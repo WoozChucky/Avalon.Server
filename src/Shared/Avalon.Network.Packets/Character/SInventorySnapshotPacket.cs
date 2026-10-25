@@ -73,19 +73,26 @@ public class ItemSlotDto
 
     /// <summary>
     /// The modifiers the copy rolled (#1179), in the order it shows them; null for an item without any, which is what an
-    /// empty repeated field reads back as.
+    /// empty repeated field reads back as. An unidentified copy sends its implicit line only.
     /// </summary>
     [ProtoMember(10)] public List<ItemModifierDto>? Modifiers { get; set; }
 
     /// <summary>
-    /// The copy's name (#1179): set for a magic copy (its prefix and suffix around the template's name) and a rare one
-    /// (the two words its roll gave it); null where the template's name is the item's.
+    /// The copy's name (#1179): set for an identified magic copy (its prefix and suffix around the template's name) and an
+    /// identified rare one (the two words its roll gave it); null where the template's name is the item's, and for every
+    /// unidentified copy.
     /// </summary>
     [ProtoMember(11)] public string? Name { get; set; }
 
     /// <summary>
     /// The base stats the copy rolled (#1179), in base-stat order; null for an item without any (jewellery, a consumable),
-    /// which is what an empty repeated field reads back as.
+    /// which is what an empty repeated field reads back as. Sent whether or not the copy is identified.
     /// </summary>
     [ProtoMember(12)] public List<ItemBaseStatDto>? BaseStats { get; set; }
+
+    /// <summary>
+    /// Whether the copy is identified (#1179). An unidentified one (magic, rare or unique) shows its rarity, item level,
+    /// base stats and implicit line, and no other modifier and no name, and cannot be worn.
+    /// </summary>
+    [ProtoMember(13)] public bool Identified { get; set; }
 }

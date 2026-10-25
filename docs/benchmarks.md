@@ -418,6 +418,51 @@ table before part B2, the potions included. Without the pool the chests would co
 465 B more a slot at 8 and 30. The means are one run out of process, not comparable with the in-process run above, and
 claim nothing beyond the allocations.
 
+**Unidentified copies (#1179, part C).** An entry now also carries `Identified` (field 13), and an unidentified copy's
+entry keeps only its implicit lines (`ItemModifierDtoPool.Refill` over the catalog, looking a modifier's kind up only
+for an unidentified copy) and no name. `Identified` false holds the `Rolled` Magic chests unidentified (the plain
+copies stay identified); true holds every copy identified, as the rows above. One run out of process, ten warmups and
+twenty measured iterations, the process pinned to one core (`--affinity 4`; BenchmarkDotNet runs it at high priority):
+BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, Release, 2026-10-25, at `73a6c00ae`
+(the docs uncommitted):
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InventoryFlushBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
+```
+
+| Changed slots | Items | `Flusher`, allocated, unidentified / identified | `Flusher`, mean, unidentified / identified | `Unpooled`, allocated, unidentified / identified |
+|---:|---|---:|---:|---:|
+| 0 | gold only | 0 B / 0 B | 111.7 / 115.0 ns | 24 B / 24 B |
+| 1 | potions | 152 B / 152 B | 274.5 / 447.8 ns (± 115 ns) | 152 B / 152 B |
+| 1 | chests with base stats and modifiers | 152 B / 152 B | 541.0 / 578.2 ns | 456 B / 456 B |
+| 8 | potions | 1,048 B / 1,048 B | 1,301.6 / 1,321.7 ns | 1,048 B / 1,048 B |
+| 8 | chests with base stats and modifiers | 1,048 B / 1,048 B | 3,544.4 / 4,248.2 ns (± 148 ns) | 3,480 B / 4,704 B |
+| 30 | potions | 3,864 B / 3,864 B | 4,754.0 (± 435 ns) / 4,526.7 ns | 3,864 B / 3,864 B |
+| 30 | chests with base stats and modifiers | 3,864 B / 3,864 B | 12,571.4 / 13,650.0 ns | 12,984 B / 17,816 B |
+
+The unidentified flush allocates exactly what the identified one does, the packet's entries and nothing more, at
+every size: the hidden modifiers cost no lookup list and no allocation, and the entries are the same size (a `bool`
+fits the entry's padding, so 152 B, 1,048 B and 3,864 B are unchanged from part B2). It encodes fewer modifier
+entries, so with the chests it is no slower: 6 % to 17 % below the identified mean at 1, 8 and 30 slots. The potion rows
+hold no Magic copy, so their two columns are the same work, and their differences (the 1-slot row's ± 115 ns, the
+30-slot row's ± 435 ns) are noise. `Unpooled`, which makes each entry's lists afresh, shows what the hiding saves
+when nothing is pooled: 1,224 B at 8 slots and 4,832 B at 30. `InventoryAllocationShould` holds the same in the World
+suite: the flush with the magic chest held unidentified allocates no more than the identified one. The allocation
+gate does not move up: `forest-combat` reads 14,198 B per window against the committed 14,337 B (-0.97 %, Release, the
+gate alone; a drop no longer builds a name, and an unidentified drop encodes fewer modifier entries), the other
+scenarios exactly their baselines, so `perf/scenario-allocations.json` is not regenerated.
+
+**The identify request** (`CMSG_ITEM_IDENTIFY`, #1179, part C) is a request a client can send at will, and no scenario
+sends it. As first written it allocated 56 B per request beyond its reply, refusals included: a `CharacterWallet`
+(32 B) taken before the rules were asked, and an `ObjectGuid` (24 B, a class) built only to look the Workbench up. The
+handler now takes a wallet only when `Game:Items:IdentifyCost` is above 0 (0, the default, asks no gold), that wallet
+is the character's own, made once and kept on it (`CharacterEntity.EconomyWallet`, with the economy that made it, as
+the inventory service is; a gold cap read differently makes a new one), and `DoodadIndex.TryGet` takes the raw guid the
+packet carries. `InventoryAllocationShould` pins a done identify and an `AlreadyIdentified` refusal (the last rule
+before gold) at 0 B through production's `CharacterEconomy`, at no cost and at a cost of 10; with a wallet made per
+request it reads 3,200 B per 100 requests. Every other `WalletOf` caller (a vendor trade, a pickup's gold, a quest
+reward, a trade's completion, an item script) now gets the kept wallet too.
+
 **The quest flusher's bag check.** `QuestFlusher.TouchedTheBag` runs for every connection on every tick, to see
 whether a Bag slot changed. It walked the changed slots through the set's interface, which boxed the set's enumerator:
 40 B per connection on every tick with any slot change, a cost the finding did not list. It now uses the struct
@@ -529,8 +574,9 @@ add).
   the economy. The service is made once per character and kept on it (`CharacterEntity.EconomyInventory`, internal,
   with the economy that made it): it holds the character, the lookup and the id allocator and no state of its own,
   the lookup still reads the item templates as they are at each call, and it lives and dies with the character, so
-  there is nothing to clear and nothing shared between characters. The wallet and the vendor trade are still made
-  per call (the wallet carries the gold cap as it is read then).
+  there is nothing to clear and nothing shared between characters. The vendor trade is still made per call; the
+  wallet is kept the same way since #1179, part C (`CharacterEntity.EconomyWallet`, remade when the gold cap reads
+  differently, so a cap change still applies to the next operation).
 - **The inventory service.** Its add, its removal by template and its counts ran queries. The add copied the partial
   stacks, ordered by slot, into a list, and then the free slots into another, because the walk writes the Bag; both
   are walks by slot number over the Bag as it is, since a step writes only the slot it stands on and the slots still

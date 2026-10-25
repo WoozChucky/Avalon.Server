@@ -77,7 +77,7 @@ public sealed class CharacterInventoryService(
             {
                 Create(InventoryType.Bag, new InventoryItem(slot, itemIds.Next(), templateId, take,
                     ItemInstanceDefaults.InitialDurability(template!), ItemInstanceFlags.None, template!.Rarity,
-                    ItemInstanceDefaults.InitialItemLevel(template), RareName: null));
+                    ItemInstanceDefaults.InitialItemLevel(template), RareName: null, Identified: true));
             }
 
             remaining -= take;
@@ -256,8 +256,20 @@ public sealed class CharacterInventoryService(
         if ((template.Flags & ItemTemplateFlags.Unique) != 0 && OwnedOrIncoming(item.TemplateId) + 1 > 1)
             return InventoryAddResult.UniqueAlreadyOwned;
 
-        PutRolled(slot, item, template);
+        // A copy a drop or a quest rolled is identified only when it is common (#1179), as it showed on the ground.
+        PutRolled(slot, item, template, identified: ItemVisibility.IdentifiedWhenRolled(item.Rarity));
         return InventoryAddResult.Ok;
+    }
+
+    public bool TryIdentify(byte bagSlot)
+    {
+        // Deliberately re-read after IdentifyRules: the copy is built from the slot it replaces, and the service stays
+        // its own guard against an empty slot or a second identify, whoever calls it.
+        if (!Bag.TryGet(bagSlot, out InventoryItem item) || item.Identified)
+            return false;
+
+        Replace(InventoryType.Bag, item with { Identified = true });
+        return true;
     }
 
     /// <summary>The lowest empty Bag slot a completing trade has not reserved (#1175), or null when there is none.</summary>
@@ -418,21 +430,23 @@ public sealed class CharacterInventoryService(
 
     /// <summary>
     /// One new copy of a template that rolls, rolled now (#1179): a plain copy at its template's item level, in the slot,
-    /// with its base stats and modifiers in the store and marked, so the save that inserts it writes them.
+    /// with its base stats and modifiers in the store and marked, so the save that inserts it writes them. It arrives
+    /// identified, a unique included, as every copy <see cref="TryAdd" /> makes does.
     /// </summary>
     private void CreateRolled(byte slot, ItemTemplate template, ItemsPatch items) =>
-        PutRolled(slot, roller.RollPlain(template, ItemInstanceDefaults.InitialItemLevel(template), items), template);
+        PutRolled(slot, roller.RollPlain(template, ItemInstanceDefaults.InitialItemLevel(template), items), template,
+            identified: true);
 
     /// <summary>
     /// A copy a roll made, in the Bag slot: its id, rarity, item level and name as the roll gave them, count 1 and its
-    /// template's initial durability, with its base stats and its modifier list handed to the store as its own entry and
-    /// marked, so the save that inserts it writes them.
+    /// template's initial durability, identified as the caller says, with its base stats and its modifier list handed to the
+    /// store as its own entry and marked, so the save that inserts it writes them.
     /// </summary>
-    private void PutRolled(byte slot, RolledItem rolled, ItemTemplate template)
+    private void PutRolled(byte slot, RolledItem rolled, ItemTemplate template, bool identified)
     {
         Create(InventoryType.Bag, new InventoryItem(slot, rolled.InstanceId, rolled.TemplateId, 1,
             ItemInstanceDefaults.InitialDurability(template), ItemInstanceFlags.None, rolled.Rarity, rolled.ItemLevel,
-            rolled.RareName));
+            rolled.RareName, identified));
         if (!rolled.HasRolledRows)
             return;
 

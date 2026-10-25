@@ -160,7 +160,7 @@ public class CombatResolutionShould
         foreach ((ItemBaseStat stat, int value) in s_rolled[weapon.Id])
             rows.Add(new ItemInstanceBaseStat { ItemInstanceId = item.InstanceId, Stat = stat, Value = value });
 
-        character.ItemModifiers.Load([new ItemInstance { Id = item.InstanceId, TemplateId = weapon.Id, BaseStats = rows }]);
+        character.ItemModifiers.Load([new ItemInstance { Id = item.InstanceId, TemplateId = weapon.Id, BaseStats = rows, Identified = true }]);
         character.Container(InventoryType.Equipment).Load([item]);
     }
 

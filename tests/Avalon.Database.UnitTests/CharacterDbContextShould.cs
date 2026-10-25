@@ -67,6 +67,7 @@ public class CharacterDbContextShould
 
             write.ItemInstances.Add(new ItemInstance
             {
+                Identified = true,
                 Id = itemId,
                 TemplateId = new ItemTemplateId(4242),
                 CharacterId = owner,
@@ -159,6 +160,7 @@ public class CharacterDbContextShould
                 var itemId = new ItemInstanceId(Guid.CreateVersion7());
                 write.ItemInstances.Add(new ItemInstance
                 {
+                    Identified = true,
                     Id = itemId,
                     TemplateId = new ItemTemplateId(4242),
                     CharacterId = holder,

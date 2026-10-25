@@ -311,15 +311,15 @@ public sealed class CharacterSaverShould : IDisposable
     }
 
     /// <summary>
-    /// #1179: rarity, item level, base stats and modifiers are facts of the instance, so they outlive a sale saved while
-    /// the item sits in the buyback list (its rows, modifiers and base stats included, are deleted then), the buyback, its
-    /// save and a reload: the bought-back item carries its base stats and its modifiers back to the database, the
-    /// modifiers under their own ids.
+    /// #1179: rarity, item level, being unidentified, base stats and modifiers are facts of the instance, so they outlive a
+    /// sale saved while the item sits in the buyback list (its rows, modifiers and base stats included, are deleted then),
+    /// the buyback, its save and a reload: the bought-back item carries its base stats and its modifiers back to the
+    /// database, the modifiers under their own ids, and is still unidentified.
     /// </summary>
     [Fact]
     public async Task Keep_an_items_rarity_level_and_modifiers_through_a_sale_buyback_save_and_reload()
     {
-        InventoryItem x = Item(4, Vendors.VendorTestData.Blade, durability: 42) with { Rarity = ItemRarity.Magic, ItemLevel = 7 };
+        InventoryItem x = Item(4, Vendors.VendorTestData.Blade, durability: 42, identified: false) with { Rarity = ItemRarity.Magic, ItemLevel = 7 };
         ItemInstanceModifier a = Modifier(x.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5));
         ItemInstanceModifier b = Modifier(x.InstanceId, 10103, 1, (0, StatType.Strength, 8, null), (1, StatType.Armor, 3, null));
         var rolled = new ItemBaseStats { DamageMin = 4, DamageMax = 9, AttackTime = 760 };
@@ -330,7 +330,7 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.Equal(Describe(a, b), Describe(character.ItemModifiers.Of(x.InstanceId)));
         Assert.Equal(rolled, character.ItemModifiers.BaseStatsOf(x.InstanceId));
         var vendor = new VendorTrade(character, InventoryFor(character, Vendors.VendorTestData.Find),
-            new CharacterWallet(character, ulong.MaxValue), Vendors.VendorTestData.Find, ulong.MaxValue, new SellFactors());
+            new CharacterWallet(character, ulong.MaxValue), Vendors.VendorTestData.Find, ulong.MaxValue, new ItemConfiguration());
         CharacterSaver saver = Saver();
 
         Assert.Equal(Avalon.Network.Packets.Vendor.VendorResult.Ok, vendor.TrySell(shopOpen: true, 4, null));
@@ -340,12 +340,13 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.Null(await StoredItemAsync(x.InstanceId));
 
         Assert.Equal(Avalon.Network.Packets.Vendor.VendorResult.Ok, vendor.TryBuyback(shopOpen: true, 0));
+        Assert.False(Assert.Single(character.Container(InventoryType.Bag).Items).Identified);
         Assert.True(await saver.Save(_connection, character).WaitAsync(s_limit));
         await PumpAsync();
 
         CharacterEntity reloaded = await LoadAsync(7);
         InventoryItem back = Assert.Single(reloaded.Container(InventoryType.Bag).Items);
-        Assert.Equal((x.InstanceId, ItemRarity.Magic, (ushort)7), (back.InstanceId, back.Rarity, back.ItemLevel));
+        Assert.Equal((x.InstanceId, ItemRarity.Magic, (ushort)7, false), (back.InstanceId, back.Rarity, back.ItemLevel, back.Identified));
         Assert.Equal(Describe(a, b), Describe(reloaded.ItemModifiers.Of(x.InstanceId)));
         Assert.Equal(rolled, reloaded.ItemModifiers.BaseStatsOf(x.InstanceId));
     }
@@ -513,7 +514,7 @@ public sealed class CharacterSaverShould : IDisposable
         InventoryItem sword = Item(0, Sword) with { Rarity = ItemRarity.Magic, ItemLevel = 7 }, potion = Item(0, Potion, count: 5);
         CharacterEntity a = await SeedAsync(7, stored: [sword], gold: 100);
         ItemInstanceModifier fire = Modifier(sword.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5));
-        a.ItemModifiers.Load([new ItemInstance { Id = sword.InstanceId, TemplateId = sword.TemplateId, Modifiers = [fire] }]);
+        a.ItemModifiers.Load([new ItemInstance { Id = sword.InstanceId, TemplateId = sword.TemplateId, Modifiers = [fire], Identified = true }]);
         CharacterEntity b;
         if (refused)
         {
@@ -630,8 +631,16 @@ public sealed class CharacterSaverShould : IDisposable
             CompletedAt = DateTime.UtcNow,
             Items =
             [
-                new TradeRecordItem { ItemInstanceId = aItem.InstanceId, GiverCharacterId = a.Data.Id, TemplateId = aItem.TemplateId, Count = aItem.Count },
-                new TradeRecordItem { ItemInstanceId = bItem.InstanceId, GiverCharacterId = b.Data.Id, TemplateId = bItem.TemplateId, Count = bItem.Count },
+                new TradeRecordItem
+                {
+                    ItemInstanceId = aItem.InstanceId, GiverCharacterId = a.Data.Id, TemplateId = aItem.TemplateId, Count = aItem.Count,
+                    Identified = aItem.Identified,
+                },
+                new TradeRecordItem
+                {
+                    ItemInstanceId = bItem.InstanceId, GiverCharacterId = b.Data.Id, TemplateId = bItem.TemplateId, Count = bItem.Count,
+                    Identified = bItem.Identified,
+                },
             ],
         };
         return (decision.Plan!, record);
@@ -681,6 +690,7 @@ public sealed class CharacterSaverShould : IDisposable
                 Flags = i.Flags,
                 Rarity = i.Rarity,
                 ItemLevel = i.ItemLevel,
+                Identified = i.Identified,
                 UpdatedAt = DateTime.UtcNow,
             }).ToList());
             await new CharacterInventoryRepository(_db).CreateAsync(stored.Select(i => new CharacterInventory

@@ -2071,19 +2071,53 @@ public class SeedIntegrityShould
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
+        DoodadCatalog catalog = SeededDoodadCatalog(context);
+
+        Assert.Empty(catalog.Refused);
+        Assert.Equal([1u, 2u, 3u, 4u, 5u, 6u, 7u], catalog.Templates.Select(t => t.Id.Value));
+        // The forest set runs its scripts; the caravan's strongbox and notice board need none, as a use only credits the
+        // quest, and the Resonance Workbench none, as a click only opens the client's window.
+        Assert.All(catalog.Templates, t => Assert.Equal(t.Id.Value <= 4, t.ScriptType is not null));
+    }
+
+    /// <summary>
+    /// #1179: the one service doodad is the Resonance Workbench, an Identify doodad clicked within 5 m, never spent and
+    /// walk-through (its box is the town piece's), placed once, in Glimmerdell; the catalog loads it as Identify.
+    /// </summary>
+    [Fact]
+    public void Seed_one_resonance_workbench_in_glimmerdell()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        DoodadTemplate t = Assert.Single(context.DoodadTemplates.AsNoTracking().AsEnumerable(), d => d.Service is not null);
+        Assert.Equal(("Resonance Workbench", "props-kit", "Workbench", DoodadService.Identify),
+            (t.Name, t.ModelKit, t.ModelKey, t.Service));
+        Assert.Equal(((string?)null, (string?)null, (string?)null, (string?)null),
+            (t.UsedModelKey, t.ReadyClip, t.UseClip, t.UsedClip));
+        Assert.Equal((DoodadInteraction.Click, 0u, 5f, 0f, DoodadUseLimit.Unlimited, DoodadSpentLook.ShowUsed, DoodadCollision.None),
+            (t.Interaction, t.InteractionTimeMs, t.InteractionRange, t.AreaRadius, t.UseLimit, t.SpentLook, t.Collision));
+
+        MapDoodadSpawn spawn = Assert.Single(context.MapDoodadSpawns.AsNoTracking().AsEnumerable(),
+            r => r.DoodadTemplateId.Value == t.Id.Value);
+        Assert.Equal(1, spawn.MapTemplateId.Value);
+
+        // Load_every_seeded_doodad_through_the_catalog_without_refusing_any holds that none is refused; this, its service.
+        Assert.True(SeededDoodadCatalog(context).TryGet(t.Id, out DoodadTemplateView? view));
+        Assert.Equal(DoodadService.Identify, view.Service);
+    }
+
+    /// <summary>The seeded doodads loaded as the world loads them, against the seeded loot, auras, quests and scripts.</summary>
+    private static DoodadCatalog SeededDoodadCatalog(WorldDbContext context)
+    {
         var scripts = new ScriptManager(NullLoggerFactory.Instance);
         scripts.Load();
 
-        var catalog = new DoodadCatalog(
+        return new DoodadCatalog(
             context.DoodadTemplates.AsNoTracking().Include(d => d.AuraOutcomes).ToList(),
             new LootCatalog(context.LootTables.AsNoTracking().Include(t => t.Entries).ToList(), NullLoggerFactory.Instance),
             context.AuraTemplates.AsNoTracking().Include(a => a.Modifiers).ToList(),
             SeededQuests(context), scripts.GetDoodadScript, NullLoggerFactory.Instance);
-
-        Assert.Empty(catalog.Refused);
-        Assert.Equal([1u, 2u, 3u, 4u, 5u, 6u], catalog.Templates.Select(t => t.Id.Value));
-        // The forest set runs its scripts; the caravan's strongbox and notice board need none, as a use only credits the quest.
-        Assert.All(catalog.Templates, t => Assert.Equal(t.Id.Value <= 4, t.ScriptType is not null));
     }
 
     /// <summary>

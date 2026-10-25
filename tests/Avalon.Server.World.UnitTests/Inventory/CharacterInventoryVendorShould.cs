@@ -127,7 +127,7 @@ public class CharacterInventoryVendorShould
     public void Add_an_instance_whose_template_is_gone()
     {
         CharacterEntity character = New();
-        var orphan = new InventoryItem(0, new ItemInstanceId(Guid.CreateVersion7()), new ItemTemplateId(9999), 1, 0, ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null);
+        var orphan = new InventoryItem(0, new ItemInstanceId(Guid.CreateVersion7()), new ItemTemplateId(9999), 1, 0, ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null, Identified: true);
 
         Assert.Equal(InventoryAddResult.Ok, InventoryFor(character).TryAddInstance(Carried(orphan)));
 

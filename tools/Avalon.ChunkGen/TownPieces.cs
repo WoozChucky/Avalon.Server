@@ -119,7 +119,7 @@ public static class TownPieces
 
     /// <summary>
     /// South-east: the smithy with its lean-to, its forge tools and its fenced wood pile, the armourer's stall, the
-    /// general-goods stall.
+    /// general-goods stall, the Resonance Workbench.
     /// </summary>
     /// <remarks>
     /// The walking benchmarks (tests/Avalon.World.Testing, TownNavmesh.LoopCentre) walk an 8 m loop about world (45, 10),
@@ -151,6 +151,9 @@ public static class TownPieces
         s.Torch("torch 2", 11.5f, 20.5f);
         // By the forge, more than 9 m from the walkers' loop.
         s.Brazier("brazier", 24f, 19.5f);
+        // Drawn as a doodad (Glimmerdell's MapDoodadSpawns row 2, the Resonance Workbench, #1179), not from the decor
+        // file: in the open south-west, its nearest corner about 9.7 m from the walkers' loop.
+        s.DoodadProp("Workbench", "Resonance Workbench", "workbench", 6f, 4f, 0);
     }
 
     /// <summary>North-east: the bank with its railing, the inn, a house with its yard, the well in the open south-west.</summary>
