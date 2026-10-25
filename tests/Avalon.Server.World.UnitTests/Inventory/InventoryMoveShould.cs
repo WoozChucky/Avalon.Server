@@ -287,11 +287,13 @@ public class InventoryMoveShould
 
     /// <summary>
     /// #1179: a drag puts an unidentified copy into no equipment slot, an empty one or one whose worn item it would swap
-    /// out, and a refusal leaves every slot as it was; it can still be banked.
+    /// out, whichever of the two is dragged onto the other, and a refusal leaves every slot as it was; it can still be
+    /// banked.
     /// </summary>
     [Theory]
     [InlineData("move to its slot", ItemRequestResult.Unidentified)]
     [InlineData("swap with the worn chest", ItemRequestResult.Unidentified)]
+    [InlineData("swap from the worn chest", ItemRequestResult.Unidentified)]
     [InlineData("deposit in the bank", ItemRequestResult.Ok)]
     public void Wear_only_an_identified_item_by_drag(string route, ItemRequestResult expected)
     {
@@ -301,11 +303,17 @@ public class InventoryMoveShould
         InventoryItem unidentified = Item(0, chest, identified: false) with { Rarity = ItemRarity.Magic };
         InventoryItem worn = Item(EquipmentSlots.Chest, chest);
         character.Container(InventoryType.Bag).Load([unidentified]);
-        if (route == "swap with the worn chest")
+        bool swaps = route.StartsWith("swap", StringComparison.Ordinal);
+        if (swaps)
             character.Container(InventoryType.Equipment).Load([worn]);
-        SlotRef to = route == "deposit in the bank" ? new SlotRef(InventoryType.Bank, 0) : Eq(EquipmentSlots.Chest);
+        (SlotRef from, SlotRef to) = route switch
+        {
+            "deposit in the bank" => (Bag(0), new SlotRef(InventoryType.Bank, 0)),
+            "swap from the worn chest" => (Eq(EquipmentSlots.Chest), Bag(0)),
+            _ => (Bag(0), Eq(EquipmentSlots.Chest)),
+        };
 
-        Assert.Equal(expected, InventoryFor(character, Find).TryMove(Bag(0), to, count: null, bankAccessible: true));
+        Assert.Equal(expected, InventoryFor(character, Find).TryMove(from, to, count: null, bankAccessible: true));
 
         if (expected == ItemRequestResult.Ok)
         {
@@ -314,7 +322,7 @@ public class InventoryMoveShould
         }
 
         Assert.Equal(unidentified, TestCharacters.At(character, InventoryType.Bag, 0));
-        Assert.Equal(route == "swap with the worn chest" ? new[] { worn } : [], character.Container(InventoryType.Equipment).Items);
+        Assert.Equal(swaps ? new[] { worn } : [], character.Container(InventoryType.Equipment).Items);
         Assert.False(character.SaveState.HasChanges);
         Assert.False(character.ClientChanges.HasChanges);
     }

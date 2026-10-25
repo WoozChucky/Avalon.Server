@@ -56,7 +56,10 @@ public class DoodadCatalogShould
         return t;
     }
 
-    /// <summary>A valid Identify template (the Workbench's shape): clicked, Unlimited, no script, loot or gate.</summary>
+    /// <summary>
+    /// An Identify template that keeps every Identify rule: clicked, Unlimited, no script, loot or gate. The rest of the
+    /// template it is made from stays, inert without a script.
+    /// </summary>
     private static DoodadTemplate Identify(DoodadTemplate t)
     {
         t.Service = DoodadService.Identify;

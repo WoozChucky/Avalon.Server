@@ -102,10 +102,10 @@ public class DoodadUseShould
                 a.Character.IsDead = true;
                 break;
             case "despawned":
-                SetState(doodad, WorldDoodadState.Despawned);
+                DoodadStates.Set(doodad, WorldDoodadState.Despawned);
                 break;
             case "spent":
-                SetState(doodad, WorldDoodadState.Used);
+                DoodadStates.Set(doodad, WorldDoodadState.Used);
                 break;
             case "ability casting":
                 GameAbility casting = AbilityTestData.Game(AbilityTestData.Cone(ConeId));
@@ -358,11 +358,6 @@ public class DoodadUseShould
         new DoodadTemplateId(id), "Counter", "props-kit", "Crate", null, null, null, null,
         interaction, castMs, 5f, 0f, DoodadUseLimit.OncePerInstance, look, respawnSeconds, typeof(CountingDoodadScript),
         null, 0, 0, 0, DoodadCollision.None, 0f, 0f, 0f, visible, usable, [], 0, ScriptCanSee: false);
-
-    /// <summary>The doodad's state written as the tick writes it, without a use.</summary>
-    private static void SetState(Doodad doodad, WorldDoodadState state) =>
-        (typeof(Doodad).GetProperty(nameof(Doodad.State))?.SetMethod
-         ?? throw new MissingMethodException(nameof(Doodad), "set_State")).Invoke(doodad, [state]);
 
     /// <summary>
     /// A casting instance (CastAbilityHandler, the shape scripts) on a fake clock, with the use service the container

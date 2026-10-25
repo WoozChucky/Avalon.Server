@@ -4,6 +4,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Doodads;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Seeding;
@@ -99,7 +100,8 @@ public class ItemIdentifyHandlerShould
                     workbench = f.Chest.Guid;
                     break;
                 case "despawned workbench":
-                    SetState(f.Workbench, DoodadState.Despawned);
+                    // Nothing despawns an Unlimited, script-less Workbench; the rule is asked all the same.
+                    DoodadStates.Set(f.Workbench, DoodadState.Despawned);
                     break;
                 default:
                     workbench = new ObjectGuid(ObjectType.Doodad, 999);
@@ -164,11 +166,6 @@ public class ItemIdentifyHandlerShould
 
     private static ItemSlotDto SlotIn(SInventoryUpdatePacket update) =>
         Assert.Single(update.Slots, s => s.Container == InventoryType.Bag && s.Slot == Slot).Item!;
-
-    /// <summary>The doodad's state written as the tick writes it, without a use.</summary>
-    private static void SetState(Doodad doodad, DoodadState state) =>
-        (typeof(Doodad).GetProperty(nameof(Doodad.State))?.SetMethod
-         ?? throw new MissingMethodException(nameof(Doodad), "set_State")).Invoke(doodad, [state]);
 
     /// <summary>
     /// The instance with the seeded Workbench at x 10 and a forest chest (doodad 1) beside it, the character 4 m from the

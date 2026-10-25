@@ -2102,9 +2102,8 @@ public class SeedIntegrityShould
             r => r.DoodadTemplateId.Value == t.Id.Value);
         Assert.Equal(1, spawn.MapTemplateId.Value);
 
-        DoodadCatalog catalog = SeededDoodadCatalog(context);
-        Assert.DoesNotContain(catalog.Refused, r => r.TemplateId == t.Id.Value);
-        Assert.True(catalog.TryGet(t.Id, out DoodadTemplateView? view));
+        // Load_every_seeded_doodad_through_the_catalog_without_refusing_any holds that none is refused; this, its service.
+        Assert.True(SeededDoodadCatalog(context).TryGet(t.Id, out DoodadTemplateView? view));
         Assert.Equal(DoodadService.Identify, view.Service);
     }
 
