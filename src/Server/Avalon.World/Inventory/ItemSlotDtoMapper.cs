@@ -13,7 +13,8 @@ public static class ItemSlotDtoMapper
 {
     /// <summary>
     /// A held item: its modifiers and base stats from the character's <see cref="ItemModifierStore" />, their entries
-    /// taken from <paramref name="pool" /> (#1179), and the name the store holds for it. The caller gives the entries back
+    /// taken from <paramref name="pool" /> (#1179), and the name the store holds for it; an unidentified copy shows its
+    /// base stats and implicit lines only, and no name. The caller gives the entries back
     /// (<see cref="ItemModifierDtoPool.Return(ItemSlotDto?)" />) once the message carrying them is encoded, so a message
     /// sent again and again (the tick's inventory update) makes no modifier or base-stat garbage.
     /// </summary>
@@ -25,17 +26,22 @@ public static class ItemSlotDtoMapper
         ItemsPatch items, ItemModifierDtoPool pool)
     {
         ItemModifierStore.Held held = modifiers.Describe(item, items);
-        return Slot(container, item, pool.Rent(held.Modifiers), pool.RentBaseStats(in held.BaseStats), held.Name);
+        return Slot(container, item, pool.Rent(held.Modifiers, items.Modifiers, item.Identified),
+            pool.RentBaseStats(in held.BaseStats), held.Name);
     }
 
     /// <summary>
     /// An item outside every container (a sale kept for buyback), for a message built once: its modifiers and base stats
-    /// in entries of their own, and its name worked out now.
+    /// in entries of their own, and its name worked out now; an unidentified copy shows its base stats and implicit lines
+    /// only, and no name.
     /// </summary>
-    public static ItemSlotDto ToDto(InventoryType container, CarriedItem carried, ItemsPatch items) =>
-        Slot(container, carried.Item, ItemModifierDtoMapper.ToDtos(carried.Modifiers),
+    public static ItemSlotDto ToDto(InventoryType container, CarriedItem carried, ItemsPatch items)
+    {
+        InventoryItem item = carried.Item;
+        return Slot(container, item, ItemModifierDtoMapper.ToDtos(carried.Modifiers, items.Modifiers, item.Identified),
             ItemModifierDtoMapper.ToBaseStatDtos(carried.BaseStats),
-            NameOf(carried.Item.TemplateId, carried.Item.Rarity, carried.Item.RareName, carried.Modifiers, items));
+            item.Identified ? NameOf(item.TemplateId, item.Rarity, item.RareName, carried.Modifiers, items) : null);
+    }
 
     /// <summary>
     /// A copy's name on the wire (#1179), the one rule every message that describes a copy follows: a rare copy's stored
@@ -68,5 +74,6 @@ public static class ItemSlotDtoMapper
             Modifiers = modifiers,
             Name = name,
             BaseStats = baseStats,
+            Identified = item.Identified,
         };
 }

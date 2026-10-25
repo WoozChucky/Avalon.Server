@@ -61,7 +61,6 @@ variant populated
               field 1 Stat : ItemStat = IncreasedDamage (19)
               field 2 Value : int = 1000
               field 3 Value2 : int? = -3
-      field 11 Name : string = "\"quoted\" and \\backslash\\" (24 chars, 24 bytes utf-8)
       field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
         element 0
           field 1 Stat : BaseStat = DamageMax (5)
@@ -105,7 +104,6 @@ variant populated
               field 1 Stat : ItemStat = IncreasedDamage (19)
               field 2 Value : int = 1000
               field 3 Value2 : int? = -3
-      field 11 Name : string = "line\nbreak\ttab" (14 chars, 14 bytes utf-8)
       field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
         element 0
           field 1 Stat : BaseStat = DamageMax (5)
@@ -113,8 +111,8 @@ variant populated
         element 1
           field 1 Stat : BaseStat = DamageMin (4)
           field 2 Value : int = -262144
-  bytes 365
-    0a b6 01 08 07 12 0f 0d b0 0f a1 b3 15 00 00 10
+  bytes 323
+    0a 9c 01 08 07 12 0f 0d b0 0f a1 b3 15 00 00 10
     c0 1d b0 0f a1 b3 18 80 d0 ac f3 0e 20 2a 28 13
     30 2a 38 e8 07 40 02 48 80 d0 ac f3 0e 52 27 08
     07 12 11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff ff
@@ -122,21 +120,19 @@ variant populated
     ff ff ff ff ff 01 52 29 08 c0 84 3d 12 11 08 0f
     10 f0 a2 04 18 f7 ff ff ff ff ff ff ff ff 01 12
     10 08 13 10 e8 07 18 fd ff ff ff ff ff ff ff ff
-    01 5a 18 22 71 75 6f 74 65 64 22 20 61 6e 64 20
-    5c 62 61 63 6b 73 6c 61 73 68 5c 62 0d 08 05 10
-    f7 ff ff ff ff ff ff ff ff 01 62 0d 08 04 10 80
-    80 f0 ff ff ff ff ff ff 01 0a b1 01 08 c0 84 3d
-    12 0f 0d f9 02 15 50 15 db 0f 49 40 1d f9 02 15
-    50 18 c0 84 3d 20 13 28 2a 30 13 38 80 80 f0 ff
-    ff ff ff ff ff 01 40 01 48 ac 02 52 27 08 07 12
-    11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff ff ff ff
-    ff 01 12 10 08 13 10 e8 07 18 fd ff ff ff ff ff
-    ff ff ff 01 52 29 08 c0 84 3d 12 11 08 0f 10 f0
-    a2 04 18 f7 ff ff ff ff ff ff ff ff 01 12 10 08
-    13 10 e8 07 18 fd ff ff ff ff ff ff ff ff 01 5a
-    0e 6c 69 6e 65 0a 62 72 65 61 6b 09 74 61 62 62
-    0d 08 05 10 f7 ff ff ff ff ff ff ff ff 01 62 0d
-    08 04 10 80 80 f0 ff ff ff ff ff ff 01
+    01 62 0d 08 05 10 f7 ff ff ff ff ff ff ff ff 01
+    62 0d 08 04 10 80 80 f0 ff ff ff ff ff ff 01 0a
+    a1 01 08 c0 84 3d 12 0f 0d f9 02 15 50 15 db 0f
+    49 40 1d f9 02 15 50 18 c0 84 3d 20 13 28 2a 30
+    13 38 80 80 f0 ff ff ff ff ff ff 01 40 01 48 ac
+    02 52 27 08 07 12 11 08 0f 10 f0 a2 04 18 f7 ff
+    ff ff ff ff ff ff ff 01 12 10 08 13 10 e8 07 18
+    fd ff ff ff ff ff ff ff ff 01 52 29 08 c0 84 3d
+    12 11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff ff ff
+    ff ff 01 12 10 08 13 10 e8 07 18 fd ff ff ff ff
+    ff ff ff ff 01 62 0d 08 05 10 f7 ff ff ff ff ff
+    ff ff ff 01 62 0d 08 04 10 80 80 f0 ff ff ff ff
+    ff ff 01
 
 variant maxima
   field 1 Drops : List<LootDropDto> = 3 elements
@@ -199,7 +195,6 @@ variant maxima
               field 1 Stat : ItemStat = IncreasedMaximumLife (53)
               field 2 Value : int = 2147483647
               field 3 Value2 : int? = 2147483647
-      field 11 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
       field 12 BaseStats : List<ItemBaseStatDto> = 3 elements
         element 0
           field 1 Stat : BaseStat = AttackTime (6)
@@ -269,7 +264,6 @@ variant maxima
               field 1 Stat : ItemStat = IncreasedMaximumLife (53)
               field 2 Value : int = 2147483647
               field 3 Value2 : int? = 2147483647
-      field 11 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
       field 12 BaseStats : List<ItemBaseStatDto> = 3 elements
         element 0
           field 1 Stat : BaseStat = AttackTime (6)
@@ -339,7 +333,6 @@ variant maxima
               field 1 Stat : ItemStat = IncreasedMaximumLife (53)
               field 2 Value : int = 2147483647
               field 3 Value2 : int? = 2147483647
-      field 11 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
       field 12 BaseStats : List<ItemBaseStatDto> = 3 elements
         element 0
           field 1 Stat : BaseStat = AttackTime (6)
@@ -350,8 +343,8 @@ variant maxima
         element 2
           field 1 Stat : BaseStat = AttackTime (6)
           field 2 Value : int = 2147483647
-  bytes 1248
-    0a 9d 03 08 ff ff ff ff ff ff ff ff ff 01 12 0f
+  bytes 843
+    0a 96 02 08 ff ff ff ff ff ff ff ff ff 01 12 0f
     0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 18
     ff ff ff ff ff ff ff ff ff 01 20 ff ff ff ff 0f
     28 ff ff ff ff ff ff ff ff ff 01 30 ff ff ff ff
@@ -366,69 +359,44 @@ variant maxima
     ff ff 07 52 36 08 ff ff ff ff 0f 12 0e 08 35 10
     ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10
     ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 5a 84 01 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 62 08 08 06 10 ff ff ff ff 07 62 08 08 06
-    10 ff ff ff ff 07 62 08 08 06 10 ff ff ff ff 07
-    0a 9d 03 08 ff ff ff ff ff ff ff ff ff 01 12 0f
-    0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 18
-    ff ff ff ff ff ff ff ff ff 01 20 ff ff ff ff 0f
-    28 ff ff ff ff ff ff ff ff ff 01 30 ff ff ff ff
-    0f 38 ff ff ff ff ff ff ff ff 7f 40 03 48 ff ff
-    ff ff 0f 52 36 08 ff ff ff ff 0f 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 52 36 08 ff ff
-    ff ff 0f 12 0e 08 35 10 ff ff ff ff 07 18 ff ff
-    ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff
-    ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff
-    ff ff 07 52 36 08 ff ff ff ff 0f 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 5a 84 01 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 62 08 08 06 10 ff ff ff ff 07 62 08 08 06
-    10 ff ff ff ff 07 62 08 08 06 10 ff ff ff ff 07
-    0a 9d 03 08 ff ff ff ff ff ff ff ff ff 01 12 0f
-    0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 18
-    ff ff ff ff ff ff ff ff ff 01 20 ff ff ff ff 0f
-    28 ff ff ff ff ff ff ff ff ff 01 30 ff ff ff ff
-    0f 38 ff ff ff ff ff ff ff ff 7f 40 03 48 ff ff
-    ff ff 0f 52 36 08 ff ff ff ff 0f 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 52 36 08 ff ff
-    ff ff 0f 12 0e 08 35 10 ff ff ff ff 07 18 ff ff
-    ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff
-    ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18 ff ff
-    ff ff 07 52 36 08 ff ff ff ff 0f 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35 10
-    ff ff ff ff 07 18 ff ff ff ff 07 5a 84 01 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 62 08 08 06 10 ff ff ff ff 07 62 08 08 06
-    10 ff ff ff ff 07 62 08 08 06 10 ff ff ff ff 07
+    ff ff ff ff 07 18 ff ff ff ff 07 62 08 08 06 10
+    ff ff ff ff 07 62 08 08 06 10 ff ff ff ff 07 62
+    08 08 06 10 ff ff ff ff 07 0a 96 02 08 ff ff ff
+    ff ff ff ff ff ff 01 12 0f 0d ff ff 7f 7f 15 ff
+    ff 7f 7f 1d ff ff 7f 7f 18 ff ff ff ff ff ff ff
+    ff ff 01 20 ff ff ff ff 0f 28 ff ff ff ff ff ff
+    ff ff ff 01 30 ff ff ff ff 0f 38 ff ff ff ff ff
+    ff ff ff 7f 40 03 48 ff ff ff ff 0f 52 36 08 ff
+    ff ff ff 0f 12 0e 08 35 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 52 36 08 ff ff ff ff 0f 12 0e 08 35
+    10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35
+    10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08 35
+    10 ff ff ff ff 07 18 ff ff ff ff 07 52 36 08 ff
+    ff ff ff 0f 12 0e 08 35 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18 ff
+    ff ff ff 07 62 08 08 06 10 ff ff ff ff 07 62 08
+    08 06 10 ff ff ff ff 07 62 08 08 06 10 ff ff ff
+    ff 07 0a 96 02 08 ff ff ff ff ff ff ff ff ff 01
+    12 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f
+    7f 18 ff ff ff ff ff ff ff ff ff 01 20 ff ff ff
+    ff 0f 28 ff ff ff ff ff ff ff ff ff 01 30 ff ff
+    ff ff 0f 38 ff ff ff ff ff ff ff ff 7f 40 03 48
+    ff ff ff ff 0f 52 36 08 ff ff ff ff 0f 12 0e 08
+    35 10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08
+    35 10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08
+    35 10 ff ff ff ff 07 18 ff ff ff ff 07 52 36 08
+    ff ff ff ff 0f 12 0e 08 35 10 ff ff ff ff 07 18
+    ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18
+    ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07 18
+    ff ff ff ff 07 52 36 08 ff ff ff ff 0f 12 0e 08
+    35 10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08
+    35 10 ff ff ff ff 07 18 ff ff ff ff 07 12 0e 08
+    35 10 ff ff ff ff 07 18 ff ff ff ff 07 62 08 08
+    06 10 ff ff ff ff 07 62 08 08 06 10 ff ff ff ff
+    07 62 08 08 06 10 ff ff ff ff 07
 
 variant minima
   field 1 Drops : List<LootDropDto> = 1 element
@@ -453,17 +421,16 @@ variant minima
               field 1 Stat : ItemStat = Stamina (0)
               field 2 Value : int = -2147483648
               field 3 Value2 : int? = -2147483648
-      field 11 Name : string = " " (1 chars, 1 bytes utf-8)
       field 12 BaseStats : List<ItemBaseStatDto> = 1 element
         element 0
           field 1 Stat : BaseStat = Armour (0)
           field 2 Value : int = -2147483648
-  bytes 78
-    0a 4c 12 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff
+  bytes 75
+    0a 49 12 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff
     ff 7f ff 18 00 28 00 30 00 38 80 80 80 80 80 80
     80 80 80 01 52 18 12 16 10 80 80 80 80 f8 ff ff
-    ff ff 01 18 80 80 80 80 f8 ff ff ff ff 01 5a 01
-    20 62 0b 10 80 80 80 80 f8 ff ff ff ff 01
+    ff ff 01 18 80 80 80 80 f8 ff ff ff ff 01 62 0b
+    10 80 80 80 80 f8 ff ff ff ff 01
 
 variant varint-edges
   field 1 Drops : List<LootDropDto> = 2 elements
@@ -503,7 +470,6 @@ variant varint-edges
               field 1 Stat : ItemStat = <not a declared member> (54)
               field 2 Value : int = 2097152
               field 3 Value2 : int? = 16384
-      field 11 Name : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
       field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
         element 0
           field 1 Stat : BaseStat = <not a declared member> (7)
@@ -547,7 +513,6 @@ variant varint-edges
               field 1 Stat : ItemStat = <not a declared member> (54)
               field 2 Value : int = 2097152
               field 3 Value2 : int? = 16384
-      field 11 Name : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
       field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
         element 0
           field 1 Stat : BaseStat = <not a declared member> (7)
@@ -555,40 +520,23 @@ variant varint-edges
         element 1
           field 1 Stat : BaseStat = <not a declared member> (7)
           field 2 Value : int = 2097152
-  bytes 520
-    0a fe 01 08 ff ff ff 7f 12 0f 0d 00 00 80 00 15
-    00 00 80 00 1d 00 00 80 00 18 80 01 20 ff 7f 28
-    80 80 01 30 7f 38 7f 40 04 48 ff 7f 52 1d 08 ff
-    7f 12 0b 08 36 10 ff ff ff 7f 18 ff ff 7f 12 0b
-    08 36 10 80 80 80 01 18 80 80 01 52 1f 08 80 80
-    80 01 12 0b 08 36 10 ff ff ff 7f 18 ff ff 7f 12
-    0b 08 36 10 80 80 80 01 18 80 80 01 5a 81 01 c3
-    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
-    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
-    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
-    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
-    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    62 06 08 07 10 ff ff 7f 62 07 08 07 10 80 80 80
-    01 0a 84 02 08 80 80 80 01 12 0f 0d 01 00 80 00
-    15 01 00 80 00 1d 01 00 80 00 18 ff 7f 20 80 80
-    80 01 28 ff ff 7f 30 80 80 01 38 80 01 40 04 48
-    80 80 80 01 52 1d 08 ff 7f 12 0b 08 36 10 ff ff
-    ff 7f 18 ff ff 7f 12 0b 08 36 10 80 80 80 01 18
-    80 80 01 52 1f 08 80 80 80 01 12 0b 08 36 10 ff
-    ff ff 7f 18 ff ff 7f 12 0b 08 36 10 80 80 80 01
-    18 80 80 01 5a 80 01 79 79 79 79 79 79 79 79 79
-    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
-    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
-    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
-    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
-    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
-    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
-    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
-    79 79 79 79 79 79 79 62 06 08 07 10 ff ff 7f 62
-    07 08 07 10 80 80 80 01
+  bytes 256
+    0a 7a 08 ff ff ff 7f 12 0f 0d 00 00 80 00 15 00
+    00 80 00 1d 00 00 80 00 18 80 01 20 ff 7f 28 80
+    80 01 30 7f 38 7f 40 04 48 ff 7f 52 1d 08 ff 7f
+    12 0b 08 36 10 ff ff ff 7f 18 ff ff 7f 12 0b 08
+    36 10 80 80 80 01 18 80 80 01 52 1f 08 80 80 80
+    01 12 0b 08 36 10 ff ff ff 7f 18 ff ff 7f 12 0b
+    08 36 10 80 80 80 01 18 80 80 01 62 06 08 07 10
+    ff ff 7f 62 07 08 07 10 80 80 80 01 0a 81 01 08
+    80 80 80 01 12 0f 0d 01 00 80 00 15 01 00 80 00
+    1d 01 00 80 00 18 ff 7f 20 80 80 80 01 28 ff ff
+    7f 30 80 80 01 38 80 01 40 04 48 80 80 80 01 52
+    1d 08 ff 7f 12 0b 08 36 10 ff ff ff 7f 18 ff ff
+    7f 12 0b 08 36 10 80 80 80 01 18 80 80 01 52 1f
+    08 80 80 80 01 12 0b 08 36 10 ff ff ff 7f 18 ff
+    ff 7f 12 0b 08 36 10 80 80 80 01 18 80 80 01 62
+    06 08 07 10 ff ff 7f 62 07 08 07 10 80 80 80 01
 
 variant float-specials
   field 1 Drops : List<LootDropDto> = 2 elements
@@ -628,7 +576,6 @@ variant float-specials
               field 1 Stat : ItemStat = IncreasedDamage (19)
               field 2 Value : int = 1000
               field 3 Value2 : int? = -3
-      field 11 Name : string = "\"quoted\" and \\backslash\\" (24 chars, 24 bytes utf-8)
       field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
         element 0
           field 1 Stat : BaseStat = DamageMax (5)
@@ -672,7 +619,6 @@ variant float-specials
               field 1 Stat : ItemStat = IncreasedDamage (19)
               field 2 Value : int = 1000
               field 3 Value2 : int? = -3
-      field 11 Name : string = "line\nbreak\ttab" (14 chars, 14 bytes utf-8)
       field 12 BaseStats : List<ItemBaseStatDto> = 2 elements
         element 0
           field 1 Stat : BaseStat = DamageMax (5)
@@ -680,8 +626,8 @@ variant float-specials
         element 1
           field 1 Stat : BaseStat = DamageMin (4)
           field 2 Value : int = -262144
-  bytes 365
-    0a b6 01 08 07 12 0f 0d 01 00 00 00 15 ff ff 7f
+  bytes 323
+    0a 9c 01 08 07 12 0f 0d 01 00 00 00 15 ff ff 7f
     00 1d ff ff 7f 7f 18 80 d0 ac f3 0e 20 2a 28 13
     30 2a 38 e8 07 40 02 48 80 d0 ac f3 0e 52 27 08
     07 12 11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff ff
@@ -689,18 +635,16 @@ variant float-specials
     ff ff ff ff ff 01 52 29 08 c0 84 3d 12 11 08 0f
     10 f0 a2 04 18 f7 ff ff ff ff ff ff ff ff 01 12
     10 08 13 10 e8 07 18 fd ff ff ff ff ff ff ff ff
-    01 5a 18 22 71 75 6f 74 65 64 22 20 61 6e 64 20
-    5c 62 61 63 6b 73 6c 61 73 68 5c 62 0d 08 05 10
-    f7 ff ff ff ff ff ff ff ff 01 62 0d 08 04 10 80
-    80 f0 ff ff ff ff ff ff 01 0a b1 01 08 c0 84 3d
-    12 0f 0d ff ff 7f 00 15 ff ff 7f 7f 1d 00 00 c0
-    ff 18 c0 84 3d 20 13 28 2a 30 13 38 80 80 f0 ff
-    ff ff ff ff ff 01 40 01 48 ac 02 52 27 08 07 12
-    11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff ff ff ff
-    ff 01 12 10 08 13 10 e8 07 18 fd ff ff ff ff ff
-    ff ff ff 01 52 29 08 c0 84 3d 12 11 08 0f 10 f0
-    a2 04 18 f7 ff ff ff ff ff ff ff ff 01 12 10 08
-    13 10 e8 07 18 fd ff ff ff ff ff ff ff ff 01 5a
-    0e 6c 69 6e 65 0a 62 72 65 61 6b 09 74 61 62 62
-    0d 08 05 10 f7 ff ff ff ff ff ff ff ff 01 62 0d
-    08 04 10 80 80 f0 ff ff ff ff ff ff 01
+    01 62 0d 08 05 10 f7 ff ff ff ff ff ff ff ff 01
+    62 0d 08 04 10 80 80 f0 ff ff ff ff ff ff 01 0a
+    a1 01 08 c0 84 3d 12 0f 0d ff ff 7f 00 15 ff ff
+    7f 7f 1d 00 00 c0 ff 18 c0 84 3d 20 13 28 2a 30
+    13 38 80 80 f0 ff ff ff ff ff ff 01 40 01 48 ac
+    02 52 27 08 07 12 11 08 0f 10 f0 a2 04 18 f7 ff
+    ff ff ff ff ff ff ff 01 12 10 08 13 10 e8 07 18
+    fd ff ff ff ff ff ff ff ff 01 52 29 08 c0 84 3d
+    12 11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff ff ff
+    ff ff 01 12 10 08 13 10 e8 07 18 fd ff ff ff ff
+    ff ff ff ff 01 62 0d 08 05 10 f7 ff ff ff ff ff
+    ff ff ff 01 62 0d 08 04 10 80 80 f0 ff ff ff ff
+    ff ff 01

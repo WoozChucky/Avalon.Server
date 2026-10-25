@@ -18,7 +18,7 @@ public static class LootDropMapper
         LootDropDto dto = FillDrop(new LootDropDto(), drop, data);
         if (drop.Rolled is { } rolled)
         {
-            dto.Modifiers = ItemModifierDtoMapper.ToDtos(rolled.Modifiers);
+            dto.Modifiers = ItemModifierDtoMapper.ToDtos(rolled.Modifiers, data.Items.Modifiers, IsIdentified(rolled));
             dto.BaseStats = ItemModifierDtoMapper.ToBaseStatDtos(rolled.BaseStats);
         }
 
@@ -36,13 +36,13 @@ public static class LootDropMapper
         FillDrop(dto, drop, data);
         if (drop.Rolled is { } rolled)
         {
-            dto.Modifiers = pool.Refill(dto.Modifiers, rolled.Modifiers);
+            dto.Modifiers = pool.Refill(dto.Modifiers, rolled.Modifiers, data.Items.Modifiers, IsIdentified(rolled));
             dto.BaseStats = pool.RefillBaseStats(dto.BaseStats, rolled.BaseStats);
         }
         else
         {
             // Not under one conditional with the branch above: the empty collection would be made a new list, one per drop.
-            dto.Modifiers = pool.Refill(dto.Modifiers, []);
+            dto.Modifiers = pool.Refill(dto.Modifiers, [], data.Items.Modifiers, identified: true);
             dto.BaseStats = pool.RefillBaseStats(dto.BaseStats, default);
         }
 
@@ -50,9 +50,10 @@ public static class LootDropMapper
     }
 
     /// <summary>
-    /// Every member but the modifiers and the base stats. A rolled copy sends its own rarity, item level and name (#1179);
-    /// an item drop that did not roll sends Common, the item level a copy made from its template outright takes, which its
-    /// pickup makes, and no name; a gold pile, Common and 0.
+    /// Every member but the modifiers and the base stats. A rolled copy sends its own rarity and item level (#1179); an
+    /// item drop that did not roll sends Common and the item level a copy made from its template outright takes, which
+    /// its pickup makes; a gold pile, Common and 0. No drop sends a name: every copy that would have one lies on the
+    /// ground unidentified.
     /// </summary>
     private static LootDropDto FillDrop(LootDropDto dto, GroundLoot drop, StaticData data)
     {
@@ -69,17 +70,21 @@ public static class LootDropMapper
         {
             dto.Rarity = rolled.Rarity;
             dto.ItemLevel = rolled.ItemLevel;
-            dto.Name = drop.NameIn(data.Items);
         }
         else
         {
             dto.Rarity = ItemRarity.Common;
             dto.ItemLevel = drop.ItemTemplateId is { } id ? ItemLevelOf(data.FindItemTemplate(id)) : 0u;
-            dto.Name = null;
         }
 
         return dto;
     }
+
+    /// <summary>
+    /// Whether the copy on the ground is identified (#1179): exactly when it is Common, as its pickup makes it
+    /// (TryAddRolled), so a drop's rarity tells a client and the drop carries no field for it.
+    /// </summary>
+    private static bool IsIdentified(RolledItem rolled) => rolled.Rarity == ItemRarity.Common;
 
     /// <summary>A template a reload removed since the drop was rolled cannot be made: 1, the least an item level is.</summary>
     private static uint ItemLevelOf(ItemTemplate? template) =>

@@ -580,12 +580,15 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             entry.ItemInstanceId = item.InstanceId.Value;
             entry.Count = item.Count;
             // An offered item stays in its owner's Bag, locked, until the swap, so the store still holds its rolled rows.
+            // One entry serves both sides, so an unidentified copy hides its affixes and name from its owner as from its
+            // partner (#1179).
             ItemModifierStore.Held held = side.Character.ItemModifiers.Describe(item, generation);
             entry.Rarity = item.Rarity;
             entry.ItemLevel = item.ItemLevel;
-            entry.Modifiers = _modifierDtos.Refill(entry.Modifiers, held.Modifiers);
+            entry.Modifiers = _modifierDtos.Refill(entry.Modifiers, held.Modifiers, generation.Modifiers, item.Identified);
             entry.BaseStats = _modifierDtos.RefillBaseStats(entry.BaseStats, in held.BaseStats);
             entry.Name = held.Name;
+            entry.Identified = item.Identified;
             items.Add(entry);
         }
 

@@ -49,7 +49,8 @@ public sealed class CharacterServiceShould : IDisposable
     /// its implicit names nothing. The magic copy is a ring: its implicit (the Copper Band's life), its prefix (Ember-sung,
     /// cold, T8) a two-range line, its suffix (of the Owl, T8) a plain one. The unique copy, a Thornheart Signet, carries
     /// its base's implicit and its own three lines, read back in reverse. The plate chest carries the armour it rolled, a
-    /// base stat; the rings carry none.
+    /// base stat; the rings carry none. An unidentified rare chest shows its rarity, item level, armour and implicit, and
+    /// neither its prefix, its suffix nor its name, to every caller.
     /// </summary>
     [Fact]
     public async Task Look_up_each_items_template_in_the_world_database()
@@ -58,11 +59,13 @@ public sealed class CharacterServiceShould : IDisposable
         int owl = Seeded("S3", null, 8);
         int life = ImplicitOf(68);
         int lightning = ImplicitOf(125);
+        int chestLife = ImplicitOf(37);
         int signet = ItemModifierSeed.TemplateLinks().Single(l => l.TemplateId.Value == 65).ModifierId;
         var id = new CharacterId(42);
         var itemId = new ItemInstanceId(Guid.CreateVersion7());
         var uniqueId = new ItemInstanceId(Guid.CreateVersion7());
         var chestId = new ItemInstanceId(Guid.CreateVersion7());
+        var rareChestId = new ItemInstanceId(Guid.CreateVersion7());
 
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
         characters.FindByIdAsync(id, false, Arg.Any<CancellationToken>())
@@ -74,6 +77,7 @@ public sealed class CharacterServiceShould : IDisposable
             new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 3, ItemId = itemId },
             new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 4, ItemId = uniqueId },
             new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 5, ItemId = chestId },
+            new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 6, ItemId = rareChestId },
         });
 
         static ItemInstanceModifier Rolled(ItemInstanceId item, int modifierId, byte ordinal,
@@ -125,6 +129,19 @@ public sealed class CharacterServiceShould : IDisposable
                 Rarity = Avalon.Common.ItemRarity.Common, ItemLevel = 1,
                 BaseStats = [new ItemInstanceBaseStat { ItemInstanceId = chestId, Stat = ItemBaseStat.Armour, Value = 8 }],
             },
+            new()
+            {
+                Identified = false,
+                Id = rareChestId, TemplateId = new ItemTemplateId(37), CharacterId = id, Count = 1,
+                Rarity = Avalon.Common.ItemRarity.Rare, ItemLevel = 9, RareName = "Moss Shell",
+                BaseStats = [new ItemInstanceBaseStat { ItemInstanceId = rareChestId, Stat = ItemBaseStat.Armour, Value = 8 }],
+                Modifiers =
+                [
+                    Rolled(rareChestId, Seeded("S14", null, 9), 2, (0, Avalon.Domain.World.StatType.IncreasedMaximumLife, 1, null)),
+                    Rolled(rareChestId, chestLife, 0, (0, Avalon.Domain.World.StatType.IncreasedMaximumLife, 2, null)),
+                    Rolled(rareChestId, Seeded("P11", null, 7), 1, (0, Avalon.Domain.World.StatType.Health, 5, null)),
+                ],
+            },
         });
 
         IItemTemplateRepository templates = Substitute.For<IItemTemplateRepository>();
@@ -146,7 +163,7 @@ public sealed class CharacterServiceShould : IDisposable
         static string Described(CharacterInventoryItemDto item) => string.Join(' ', item.Modifiers.Select(m =>
             $"{m.ModifierId} {m.Kind} [{string.Join(", ", m.Values.Select(v => $"{v.Stat} {v.Value} {v.Value2}"))}]"));
 
-        Assert.Equal(3, inventory!.Items.Count);
+        Assert.Equal(4, inventory!.Items.Count);
         CharacterInventoryItemDto item = Assert.Single(inventory.Items, i => i.ItemId == itemId.Value);
         Assert.Equal(4u, item.Count);
         Assert.Equal(7u, item.Durability);
@@ -155,6 +172,7 @@ public sealed class CharacterServiceShould : IDisposable
         Assert.Equal("Copper Band", item.Template.Name);
         Assert.Equal(68u, item.Template.DisplayId);
         Assert.Equal((Avalon.Api.Contract.ItemRarity.Magic, (ushort)7), (item.Rarity, item.ItemLevel));
+        Assert.True(item.Identified);
         Assert.Equal("Ember-sung Copper Band of the Owl", item.Name);
         Assert.Equal(
             $"{life} Implicit [Health 2 ] {emberSung} Prefix [AddedColdDamageToSpells 1 2] {owl} Suffix [Intellect 2 ]",
@@ -170,6 +188,12 @@ public sealed class CharacterServiceShould : IDisposable
         CharacterInventoryItemDto chest = Assert.Single(inventory.Items, i => i.ItemId == chestId.Value);
         Assert.Equal([(Avalon.Api.Contract.ItemBaseStat.Armour, 8)], chest.BaseStats.Select(s => (s.Stat, s.Value)));
         Assert.Empty(item.BaseStats);
+
+        CharacterInventoryItemDto rareChest = Assert.Single(inventory.Items, i => i.ItemId == rareChestId.Value);
+        Assert.Equal((false, null, Avalon.Api.Contract.ItemRarity.Rare, (ushort)9),
+            (rareChest.Identified, rareChest.Name, rareChest.Rarity, rareChest.ItemLevel));
+        Assert.Equal([(Avalon.Api.Contract.ItemBaseStat.Armour, 8)], rareChest.BaseStats.Select(s => (s.Stat, s.Value)));
+        Assert.Equal($"{chestLife} Implicit [IncreasedMaximumLife 2 ]", Described(rareChest));
     }
 
     /// <summary>A seeded base's implicit row, named by the base (#1179): no test holds an id.</summary>

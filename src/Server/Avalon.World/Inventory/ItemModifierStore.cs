@@ -68,20 +68,24 @@ public sealed class ItemModifierStore
     /// <summary>
     /// A held item as a message describes it, in one lookup (<see cref="Held" />): its live modifier list, its base stats
     /// in place and the name it is described by in <paramref name="items" /> (<see cref="ItemSlotDtoMapper.NameOf" />). A
-    /// magic copy's name is held on its entry, so only its first describe in a generation builds it.
+    /// magic copy's name is held on its entry, so only its first describe in a generation builds it. An unidentified copy
+    /// is described by no name (#1179), and its held name is neither read nor filled, so the first describe after it is
+    /// identified works its name out.
     /// </summary>
     public Held Describe(InventoryItem item, ItemsPatch items)
     {
         ref Entry entry = ref CollectionsMarshal.GetValueRefOrNullRef(_byItem, item.InstanceId);
         if (Unsafe.IsNullRef(ref entry))
         {
-            return new Held(Array.Empty<ItemInstanceModifier>(), in s_noBaseStats,
-                ItemSlotDtoMapper.NameOf(item.TemplateId, item.Rarity, item.RareName, Array.Empty<ItemInstanceModifier>(), items));
+            return new Held(Array.Empty<ItemInstanceModifier>(), in s_noBaseStats, item.Identified
+                ? ItemSlotDtoMapper.NameOf(item.TemplateId, item.Rarity, item.RareName, Array.Empty<ItemInstanceModifier>(), items)
+                : null);
         }
 
         IReadOnlyList<ItemInstanceModifier> modifiers = ModifiersOf(entry);
-        return new Held(modifiers, in entry.BaseStats,
-            entry.Name.Of(item.TemplateId, item.Rarity, item.RareName, modifiers, items));
+        return new Held(modifiers, in entry.BaseStats, item.Identified
+            ? entry.Name.Of(item.TemplateId, item.Rarity, item.RareName, modifiers, items)
+            : null);
     }
 
     /// <summary>

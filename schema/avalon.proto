@@ -574,6 +574,7 @@ message ItemSlotDto {
    repeated ItemModifierDto Modifiers = 10;
    optional string Name = 11;
    repeated ItemBaseStatDto BaseStats = 12;
+   bool Identified = 13;
 }
 enum ItemStat {
    ItemStat_Stamina = 0;
@@ -664,7 +665,6 @@ message LootDropDto {
    ItemRarity Rarity = 8;
    uint32 ItemLevel = 9;
    repeated ItemModifierDto Modifiers = 10;
-   optional string Name = 11;
    repeated ItemBaseStatDto BaseStats = 12;
 }
 enum LootPickupResult {
@@ -1546,6 +1546,7 @@ message TradeItemDto {
    repeated ItemModifierDto Modifiers = 7;
    optional string Name = 8;
    repeated ItemBaseStatDto BaseStats = 9;
+   bool Identified = 10;
 }
 enum TradeResult {
    TradeResult_Unknown = 0;

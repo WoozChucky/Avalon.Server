@@ -173,6 +173,9 @@ public class CharacterService : ICharacterService
             ? found
             : null;
 
+        // An unidentified copy (#1179) shows its base stats and implicit line, never its other modifiers or its name, to
+        // every caller: the service takes no caller input, so staff read it as a player does.
+        bool identified = instance?.Identified ?? true;
         return new CharacterInventoryItemDto
         {
             ItemId = row.ItemId.Value,
@@ -182,8 +185,8 @@ public class CharacterService : ICharacterService
             Durability = instance?.Durability ?? 0,
             Rarity = (Avalon.Api.Contract.ItemRarity)(instance?.Rarity ?? default),
             ItemLevel = instance?.ItemLevel ?? 0,
-            Modifiers = instance is null ? [] : ModifiersOf(instance, catalog),
-            Name = instance is null || template is null
+            Modifiers = instance is null ? [] : ModifiersOf(instance, catalog, identified),
+            Name = instance is null || template is null || !identified
                 ? null
                 : ItemNames.Display(template, instance.Rarity, instance.RareName, instance.Modifiers, catalog),
             Template = template is null ? null : new CharacterInventoryItemTemplateDto
@@ -202,16 +205,20 @@ public class CharacterService : ICharacterService
                     Stat = (Avalon.Api.Contract.ItemBaseStat)s.Stat,
                     Value = s.Value,
                 })],
+            Identified = identified,
         };
     }
 
     /// <summary>
     /// The copy's modifiers in the order the item shows them, by ordinal, each with its values in the order of the
     /// catalog's stat lines: the read loads the rows in no particular order. Each says what it is by the world's
-    /// catalog.
+    /// catalog. An unidentified copy keeps only its implicit lines, by catalog kind; a modifier the catalog no longer
+    /// holds is hidden, as the world server hides it.
     /// </summary>
-    private static List<CharacterInventoryModifierDto> ModifiersOf(ItemInstance instance, ItemModifierCatalog catalog) =>
+    private static List<CharacterInventoryModifierDto> ModifiersOf(ItemInstance instance, ItemModifierCatalog catalog,
+        bool identified) =>
         instance.Modifiers
+            .Where(m => identified || catalog.Find(m.ModifierId)?.Group.Kind == Avalon.Domain.World.ItemModifierKind.Implicit)
             .OrderBy(m => m.Ordinal)
             .Select(m => new CharacterInventoryModifierDto
             {

@@ -17,16 +17,24 @@ public sealed class CharacterInventoryItemDto
     public ItemRarity Rarity { get; set; }
     /// <summary>This copy's item level, at least 1 (#1179).</summary>
     public ushort ItemLevel { get; set; }
-    /// <summary>The modifiers this copy rolled, in the order the item shows them; empty for none (#1179).</summary>
+    /// <summary>
+    /// The modifiers this copy rolled, in the order the item shows them; empty for none (#1179). An unidentified copy
+    /// lists its implicit lines only.
+    /// </summary>
     public List<CharacterInventoryModifierDto> Modifiers { get; set; } = [];
     /// <summary>
-    /// This copy's name (#1179): a magic copy's prefix and suffix around its template's name, or a rare copy's two
-    /// words; null where the template's name is the item's.
+    /// This copy's name (#1179): an identified magic copy's prefix and suffix around its template's name, or an identified
+    /// rare copy's two words; null where the template's name is the item's, and for every unidentified copy.
     /// </summary>
     public string? Name { get; set; }
     public CharacterInventoryItemTemplateDto? Template { get; set; }
     /// <summary>The base stats this copy rolled, by stat; empty for a copy that has none (#1179).</summary>
     public List<CharacterInventoryBaseStatDto> BaseStats { get; set; } = [];
+    /// <summary>
+    /// Whether this copy is identified (#1179). An unidentified copy (magic, rare or unique) shows its rarity, item level,
+    /// base stats and implicit lines, and no other modifier and no name.
+    /// </summary>
+    public bool Identified { get; set; }
 }
 
 /// <summary>One base stat an item copy rolled (#1179): its own number, which its local modifiers scale.</summary>

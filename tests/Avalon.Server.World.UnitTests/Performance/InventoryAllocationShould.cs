@@ -8,6 +8,7 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
 using Avalon.World.Testing;
@@ -63,6 +64,8 @@ public class InventoryAllocationShould
         Assert.Equal(InventoryAddResult.Ok, inventory.TryAddRolled(roller.RollPlain(s_chest, 1, s_items)));
         RolledItem magic = roller.Roll(s_chest, new DropContext(10, CreatureRarity.Normal, ForceMagic: true), s_items)!;
         Assert.Equal(InventoryAddResult.Ok, inventory.TryAddRolled(magic));
+        // It arrives unidentified; held identified here, so it is described by its affixes and its name.
+        HoldMagicChest(identified: true);
         Assert.NotNull(_character.ItemModifiers.Describe(At(_character, InventoryType.Bag, 2), s_items).Name);
         // Both chests send their base stats, from the pool as their modifiers are.
         Assert.All([1, 2], slot => Assert.False(
@@ -79,16 +82,31 @@ public class InventoryAllocationShould
             _character.ClientChanges.RecordGold();
             InventoryUpdateFlusher.Flush(_connection, s_items, _pool);
         });
-        long slots = Allocated(() =>
-        {
-            foreach (SlotRef slot in s_slots)
-                _character.ClientChanges.RecordSlot(slot.Container, slot.Slot);
-            InventoryUpdateFlusher.Flush(_connection, s_items, _pool);
-        });
+        long slots = Allocated(FlushTheSlots);
+        // #1179: the same copies with the magic chest held unidentified, its modifiers' kinds looked up and its affixes
+        // and name left out: from the same pool, so it costs no more.
+        HoldMagicChest(identified: false);
+        long unidentified = Allocated(FlushTheSlots);
 
         Assert.Equal(0, goldOnly);
         Assert.Equal(Allocated(() => Entries(Named)), slots);
-        Assert.Equal(8 * Rounds, _connection.Sent);
+        Assert.True(unidentified <= slots, $"held unidentified, the flush allocated {unidentified} B against {slots} B");
+        Assert.Equal(12 * Rounds, _connection.Sent);
+    }
+
+    private void FlushTheSlots()
+    {
+        foreach (SlotRef slot in s_slots)
+            _character.ClientChanges.RecordSlot(slot.Container, slot.Slot);
+        InventoryUpdateFlusher.Flush(_connection, s_items, _pool);
+    }
+
+    /// <summary>The magic chest in Bag slot 2, held identified or not (#1179).</summary>
+    private void HoldMagicChest(bool identified)
+    {
+        InventoryItem chest = At(_character, InventoryType.Bag, 2);
+        Assert.Equal(ItemRarity.Magic, chest.Rarity);
+        _character.Container(InventoryType.Bag).Put(chest with { Identified = identified });
     }
 
     [Fact]
