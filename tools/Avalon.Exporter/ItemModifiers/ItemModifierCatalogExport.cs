@@ -8,8 +8,9 @@ namespace Avalon.Exporter;
 /// <summary>
 /// Exports the modifier catalog the client vendors (#1179), from <see cref="ItemModifierSeed" />, so it needs no database:
 /// the Resonance themes (#1180: id, name), the groups (id, kind, code, element, name, theme id), the modifiers (id, group
-/// id, tier, stat lines) and each template's linked modifier ids, so a client can name an item's modifiers, show their tiers and tell a base's implicit and a unique's
-/// own modifier apart from its rolled affixes. Enumerations are written as their numbers, listed in the $comment.
+/// id, tier, stat lines) and each template's linked modifier ids, so a client can name an item's modifiers, show their
+/// tiers and tell a base's implicit and a unique's own modifier apart from its rolled affixes. Enumerations are written
+/// as their numbers, listed in the $comment.
 /// </summary>
 public static class ItemModifierCatalogExport
 {

@@ -11,9 +11,9 @@ namespace Avalon.Exporter;
 /// The generated block of <c>docs/item-modifiers.md</c> (#1179): the modifier catalog as <see cref="ItemModifierSeed" />
 /// seeds it, between two markers in a hand-written page. <c>item-modifier-doc</c> writes it, and ItemModifierDocShould
 /// fails when the committed block and the seed disagree. It lists the Resonance themes (#1180) and the families each one
-/// carries, the affix families (code, element, name, kind, theme, stat and the base kinds they roll on), the tier table (each line's range and weight, by tier), the implicit groups (their
-/// ranges by tier and where they come from), every base by kind and line (its tier, level, base-stat ranges and implicit)
-/// and the uniques with the bases they are made on.
+/// carries, the affix families (code, element, name, kind, theme, stat and the base kinds they roll on), the tier table
+/// (each line's range and weight, by tier), the implicit groups (their ranges by tier and where they come from), every
+/// base by kind and line (its tier, level, base-stat ranges and implicit) and the uniques with the bases they are made on.
 /// </summary>
 public static class ItemModifierDoc
 {
