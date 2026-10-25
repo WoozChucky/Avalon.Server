@@ -46,7 +46,7 @@ public class DoodadCatalogExportShould
 
         Assert.Equal(
             ["id", "name", "modelKit", "modelKey", "usedModelKey", "readyClip", "useClip", "usedClip", "interaction",
-                "interactionTimeMs", "interactionRange", "solid", "spentLook"],
+                "interactionTimeMs", "interactionRange", "solid", "spentLook", "service"],
             row.EnumerateObject().Select(p => p.Name));
         Assert.True(row.GetProperty("solid").GetBoolean());
     }

@@ -43,6 +43,15 @@ public enum DoodadCollision : byte
 }
 
 /// <summary>
+/// The service window a click on a doodad opens on the client. Stored as a number, so values are only ever appended.
+/// </summary>
+public enum DoodadService : byte
+{
+    /// <summary>The Resonance Workbench: identifies the user's unidentified items, one per request.</summary>
+    Identify = 1,
+}
+
+/// <summary>
 /// A quest state a doodad's visibility or usability asks of the viewer's quest. Stored as a number, so values are only
 /// ever appended.
 /// </summary>
@@ -154,6 +163,12 @@ public class DoodadTemplate : IDbEntity<DoodadTemplateId>
 
     /// <summary>The objective an OnObjective usability gate names.</summary>
     public uint? UsableObjectiveId { get; set; }
+
+    /// <summary>
+    /// The service window a click opens on the client, or null for none. The catalog keeps an Identify doodad clicked and
+    /// Unlimited, with no script, loot table or gate, so it is never hidden, spent or despawned.
+    /// </summary>
+    public DoodadService? Service { get; set; }
 
     /// <summary>The auras one use may apply, one drawn by weight; none applies no aura.</summary>
     public List<DoodadAuraOutcome> AuraOutcomes { get; set; } = [];

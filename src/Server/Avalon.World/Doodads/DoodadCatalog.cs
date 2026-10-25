@@ -22,6 +22,7 @@ public sealed record DoodadOutcomeView(AuraId AuraId, uint Weight);
 /// Whether its script declares its own CanSee (DoodadScripts.OverridesCanSee), so a view decision asks it; always false
 /// for a solid template.
 /// </param>
+/// <param name="Service">The service window a click opens on the client, or null for none.</param>
 public sealed record DoodadTemplateView(
     DoodadTemplateId Id, string Name, string ModelKit, string ModelKey, string? UsedModelKey,
     string? ReadyClip, string? UseClip, string? UsedClip,
@@ -30,7 +31,7 @@ public sealed record DoodadTemplateView(
     LootTableId? LootTableId, int MinGold, int MaxGold, uint RestorePct,
     DoodadCollision Collision, float CollisionHalfX, float CollisionHalfZ, float CollisionHeight,
     DoodadGate? Visible, DoodadGate? Usable, IReadOnlyList<DoodadOutcomeView> AuraOutcomes, uint OutcomeWeightTotal,
-    bool ScriptCanSee)
+    bool ScriptCanSee, DoodadService? Service = null)
 {
     /// <summary>It blocks movement, so it is never hidden from anyone: no gate, and its script's CanSee is ignored.</summary>
     public bool Solid => Collision != DoodadCollision.None;
@@ -174,6 +175,9 @@ public sealed class DoodadCatalog
                 return $"{name}: a solid doodad cannot despawn, since its box stays in the navmesh";
         }
 
+        if (t.Service == DoodadService.Identify && IdentifyProblem(t) is { } identify)
+            return $"{name}: {identify}";
+
         if (t.RespawnSeconds == 0)
             return $"{name}: RespawnSeconds is 0; null never respawns";
 
@@ -210,6 +214,30 @@ public sealed class DoodadCatalog
         return total > uint.MaxValue ? $"{name}: its outcome weights total {total}, above {uint.MaxValue}" : null;
     }
 
+    /// <summary>
+    /// The first rule an Identify doodad (the Resonance Workbench) breaks, or null: it is clicked and never spent, and
+    /// runs no script, drops no loot and has no gate, so it is never hidden, spent or despawned and a use does nothing
+    /// but open the client's window.
+    /// </summary>
+    private static string? IdentifyProblem(DoodadTemplate t)
+    {
+        if (t.Interaction != DoodadInteraction.Click)
+            return "an Identify doodad must be clicked";
+        if (t.UseLimit != DoodadUseLimit.Unlimited)
+            return "an Identify doodad must be Unlimited";
+        if (t.ScriptName is { Length: > 0 })
+            return "an Identify doodad cannot run a script";
+        if (t.LootTableId is not null)
+            return "an Identify doodad cannot drop loot";
+        if (HasGate(t.VisibleQuestId, t.VisibleCondition, t.VisibleObjectiveId)
+            || HasGate(t.UsableQuestId, t.UsableCondition, t.UsableObjectiveId))
+        {
+            return "an Identify doodad cannot be gated";
+        }
+
+        return null;
+    }
+
     /// <summary>The first model kit, key or clip that is not a plain asset name, named; null when all are.</summary>
     private static string? NotPlain(DoodadTemplate t)
     {
@@ -239,6 +267,8 @@ public sealed class DoodadCatalog
             return $"SpentLook {(byte)t.SpentLook} is unknown";
         if (!Enum.IsDefined(t.Collision))
             return $"Collision {(byte)t.Collision} is unknown";
+        if (t.Service is { } service && !Enum.IsDefined(service))
+            return $"Service {(byte)service} is unknown";
         return GateEnum("visible", t.VisibleQuestId, t.VisibleCondition, t.VisibleObjectiveId)
                ?? GateEnum("usable", t.UsableQuestId, t.UsableCondition, t.UsableObjectiveId);
     }
@@ -298,6 +328,6 @@ public sealed class DoodadCatalog
             t.Collision, t.CollisionHalfX, t.CollisionHalfZ, t.CollisionHeight,
             Gate(t.VisibleQuestId, t.VisibleCondition, t.VisibleObjectiveId),
             Gate(t.UsableQuestId, t.UsableCondition, t.UsableObjectiveId),
-            outcomes, total, scriptCanSee);
+            outcomes, total, scriptCanSee, t.Service);
     }
 }

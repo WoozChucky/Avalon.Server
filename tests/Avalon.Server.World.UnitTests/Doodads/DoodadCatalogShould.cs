@@ -56,6 +56,19 @@ public class DoodadCatalogShould
         return t;
     }
 
+    /// <summary>A valid Identify template (the Workbench's shape): clicked, Unlimited, no script, loot or gate.</summary>
+    private static DoodadTemplate Identify(DoodadTemplate t)
+    {
+        t.Service = DoodadService.Identify;
+        t.UseLimit = DoodadUseLimit.Unlimited;
+        t.ScriptName = null;
+        t.LootTableId = null;
+        t.UsableQuestId = null;
+        t.UsableCondition = null;
+        t.UsableObjectiveId = null;
+        return t;
+    }
+
     private static QuestTemplate Quest(uint id, uint objectiveId) => new()
     {
         Id = new QuestTemplateId(id),
@@ -110,6 +123,19 @@ public class DoodadCatalogShould
             case "min gold above max": t.MinGold = 30; break;
             case "restore 101%": t.RestorePct = 101; break;
             case "outcome weight 0": t.AuraOutcomes[0].Weight = 0; break;
+            case "identify without click": Identify(t).Interaction = DoodadInteraction.None; break;
+            case "identify once per instance": Identify(t).UseLimit = DoodadUseLimit.OncePerInstance; break;
+            case "identify with script": Identify(t).ScriptName = nameof(TestDoodadScript); break;
+            case "identify with loot table": Identify(t).LootTableId = 1; break;
+            case "identify with visible gate":
+                Identify(t).VisibleQuestId = 1;
+                t.VisibleCondition = DoodadGateCondition.NotCompleted;
+                break;
+            case "identify with usable gate":
+                Identify(t).UsableQuestId = 1;
+                t.UsableCondition = DoodadGateCondition.Completed;
+                break;
+            case "unknown service": t.Service = (DoodadService)9; break;
             default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, null);
         }
 
@@ -148,6 +174,13 @@ public class DoodadCatalogShould
     [InlineData("restore 101%", "RestorePct 101 is above 100")]
     [InlineData("outcome aura missing", "an outcome names aura 999, which is not loaded")]
     [InlineData("outcome weight 0", "the outcome of aura 901 has weight 0")]
+    [InlineData("identify without click", "an Identify doodad must be clicked")]
+    [InlineData("identify once per instance", "an Identify doodad must be Unlimited")]
+    [InlineData("identify with script", "an Identify doodad cannot run a script")]
+    [InlineData("identify with loot table", "an Identify doodad cannot drop loot")]
+    [InlineData("identify with visible gate", "an Identify doodad cannot be gated")]
+    [InlineData("identify with usable gate", "an Identify doodad cannot be gated")]
+    [InlineData("unknown service", "Service 9 is unknown")]
     public void Refuse_a_template_that_breaks_a_rule(string mutation, string reason)
     {
         DoodadTemplate broken = Mutate(mutation);

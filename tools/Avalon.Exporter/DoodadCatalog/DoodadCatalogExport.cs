@@ -11,10 +11,10 @@ namespace Avalon.Exporter;
 
 /// <summary>
 /// Exports the doodad rows a client draws doodads from (doodads): the doodad state names a template id, and a client
-/// needs its model, clips, interaction time and range, and whether it is solid, to draw it and offer its use. Like
-/// aura-catalog it reads the World database and is reviewed as a data diff. A hand-listed row: the gates, loot, gold,
-/// restore, radius and aura outcomes are server-only, so nothing in the file reveals what a use does. Enumerations are
-/// written as their numbers, listed in the $comment.
+/// needs its model, clips, interaction time and range, and whether it is solid, to draw it and offer its use, and the
+/// service window a click opens. Like aura-catalog it reads the World database and is reviewed as a data diff. A
+/// hand-listed row: the gates, loot, gold, restore, radius and aura outcomes are server-only, so nothing in the file
+/// reveals what a use does. Enumerations are written as their numbers, listed in the $comment.
 /// </summary>
 public static class DoodadCatalogExport
 {
@@ -56,7 +56,8 @@ public static class DoodadCatalogExport
                      "folder, is drawn once spent. " +
                      "readyClip, useClip and usedClip are animation clips, or null. interaction: 0 none, 1 click. " +
                      "interactionTimeMs is the cast bar in milliseconds, 0 instant; interactionRange in metres. solid: " +
-                     "blocks movement and is in the navmesh. spentLook: 1 shows the used look, 2 despawns.",
+                     "blocks movement and is in the navmesh. spentLook: 1 shows the used look, 2 despawns. service names " +
+                     "the window a click opens, or null for none: 1 identify.",
             Doodads: doodads.OrderBy(d => d.Id.Value).Select(Row.From).ToList());
 
         return JsonSerializer.Serialize(document, s_serializerOptions) + "\n";
@@ -68,11 +69,12 @@ public static class DoodadCatalogExport
 
     private sealed record Row(
         uint Id, string Name, string ModelKit, string ModelKey, string? UsedModelKey, string? ReadyClip, string? UseClip,
-        string? UsedClip, byte Interaction, uint InteractionTimeMs, float InteractionRange, bool Solid, byte SpentLook)
+        string? UsedClip, byte Interaction, uint InteractionTimeMs, float InteractionRange, bool Solid, byte SpentLook,
+        byte? Service)
     {
         public static Row From(DoodadTemplate t) => new(
             t.Id.Value, t.Name, t.ModelKit, t.ModelKey, t.UsedModelKey, t.ReadyClip, t.UseClip, t.UsedClip,
             (byte)t.Interaction, t.InteractionTimeMs, t.InteractionRange, t.Collision != DoodadCollision.None,
-            (byte)t.SpentLook);
+            (byte)t.SpentLook, (byte?)t.Service);
     }
 }

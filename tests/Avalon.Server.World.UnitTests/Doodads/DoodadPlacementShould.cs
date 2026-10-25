@@ -178,7 +178,8 @@ public class DoodadPlacementShould
 
     /// <summary>
     /// Glimmerdell's fixed spawns: the seeded notice board (MapDoodadSpawns row 1) stands at the entry spawn plus its
-    /// offset, (9, 24), facing its row's yaw, with its template's usable gate (the row sets none). Beside it, rows over the
+    /// offset, (9, 24), facing its row's yaw, with its template's usable gate (the row sets none), and the Resonance
+    /// Workbench (row 2) at (36, 4). Beside it, rows over the
     /// seeded templates: a walk-through doodad authored a metre up stands on the navmesh's ground, a solid shrine keeps its
     /// authored height, and a solid one off a quarter turn is refused, with one Warning.
     /// </summary>
@@ -206,13 +207,15 @@ public class DoodadPlacementShould
 
         await service.PlaceAsync(instance, town, DoodadPlan.Empty, ScenarioReferenceData.TownMap, CancellationToken.None);
 
-        Assert.Equal(3, instance.Doodads.Count);
-        Doodad board = instance.Doodads.All[0], lifted = instance.Doodads.All[1], shrine = instance.Doodads.All[2];
+        Assert.Equal(4, instance.Doodads.Count);
+        Doodad board = instance.Doodads.All[0], workbench = instance.Doodads.All[1], lifted = instance.Doodads.All[2],
+            shrine = instance.Doodads.All[3];
         Assert.Equal(NoticeBoard, board.Template.Id.Value);
         Assert.Equal((9f, 24f), (board.Position.x, board.Position.z));
         Assert.Equal(90f, board.Orientation.y);
         Assert.NotNull(board.UsableGate);
         Assert.Equal(board.Template.Usable, board.UsableGate);
+        Assert.Equal(("Resonance Workbench", 36f, 4f), (workbench.Template.Name, workbench.Position.x, workbench.Position.z));
 
         Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(new Vector3(15f, 1f, 15f), out Vector3 ground));
         Assert.Equal(new Vector3(15f, ground.y, 15f), lifted.Position);

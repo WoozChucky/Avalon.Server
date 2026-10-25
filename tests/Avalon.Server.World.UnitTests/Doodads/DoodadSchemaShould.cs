@@ -39,7 +39,9 @@ public class DoodadSchemaShould
         using var database = SqliteDatabase.World();
         await using (WorldDbContext context = database.CreateDbContext())
         {
-            context.DoodadTemplates.Add(Chest());
+            DoodadTemplate chest = Chest();
+            chest.Service = DoodadService.Identify;
+            context.DoodadTemplates.Add(chest);
             await context.SaveChangesAsync();
         }
 
@@ -50,6 +52,7 @@ public class DoodadSchemaShould
         Assert.Equal(1, read.LootTableId!.Value);
         Assert.Equal((1u, DoodadGateCondition.OnObjective, 101u), (read.UsableQuestId, read.UsableCondition, read.UsableObjectiveId));
         Assert.Null(read.VisibleCondition);
+        Assert.Equal(DoodadService.Identify, read.Service);
         DoodadAuraOutcome outcome = Assert.Single(read.AuraOutcomes);
         Assert.Equal((4u, 3u), (outcome.AuraId.Value, outcome.Weight));
     }
@@ -70,6 +73,7 @@ public class DoodadSchemaShould
     [InlineData("interaction 2")]
     [InlineData("use limit 0")]
     [InlineData("spent look 3")]
+    [InlineData("service 2")]
     [InlineData("box height 1.0")]
     [InlineData("box half x 0")]
     [InlineData("min gold above max")]
@@ -103,6 +107,9 @@ public class DoodadSchemaShould
             case "spent look 3":
                 t.SpentLook = (DoodadSpentLook)3;
                 return "CK_DoodadTemplates_SpentLook";
+            case "service 2":
+                t.Service = (DoodadService)2;
+                return "CK_DoodadTemplates_Service";
             case "box height 1.0":
                 (t.Collision, t.CollisionHalfX, t.CollisionHalfZ, t.CollisionHeight) = (DoodadCollision.Box, 0.5f, 0.5f, 1.0f);
                 return "CK_DoodadTemplates_Collision";

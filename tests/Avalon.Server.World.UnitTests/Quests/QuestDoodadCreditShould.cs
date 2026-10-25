@@ -181,7 +181,7 @@ public class QuestDoodadCreditShould
         using var database = SqliteDatabase.World();
         await new DoodadPlacementService(scripts, clock, NullLoggerFactory.Instance, new MapDoodadSpawnRepository(database))
             .PlaceAsync(instance, town, DoodadPlan.Empty, ScenarioReferenceData.TownMap, CancellationToken.None);
-        Doodad board = Assert.Single(instance.Doodads.All);
+        Doodad board = Assert.Single(instance.Doodads.All, d => d.Template.Name == "Notice Board");
 
         MapInstanceClient passer = MapInstanceClients.Join(instance, 1);
         MapInstanceClient reader = MapInstanceClients.Join(instance, 2);
