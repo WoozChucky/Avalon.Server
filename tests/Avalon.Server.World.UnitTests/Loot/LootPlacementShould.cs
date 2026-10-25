@@ -1,5 +1,5 @@
-using Avalon.Common.Mathematics;
 using Avalon.Common;
+using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Loot;

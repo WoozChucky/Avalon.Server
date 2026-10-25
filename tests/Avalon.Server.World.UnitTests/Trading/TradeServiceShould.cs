@@ -193,7 +193,8 @@ public class TradeServiceShould
         Trader b = w.Online(2, gold: 100);
         InventoryItem rare = Item(0, Sword) with { Rarity = ItemRarity.Rare, ItemLevel = 9 };
         InventoryItem magic = Item(1, Sword) with { Rarity = ItemRarity.Magic, ItemLevel = 4 };
-        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(rare, new ItemBaseStats { Armour = 8 },
+        Assert.Equal(InventoryAddResult.Ok, w.Economy.InventoryOf(a.Character).TryAddInstance(new CarriedItem(rare,
+            new ItemBaseStats { DamageMin = 3, DamageMax = 7, AttackTime = 700 },
         [
             Modifier(rare.InstanceId, 10103, 0, (0, StatType.Strength, 8, null), (1, StatType.Armor, 3, null)),
             Modifier(rare.InstanceId, 203, 1, (0, StatType.AddedFireDamage, 3, 7)),
@@ -204,7 +205,7 @@ public class TradeServiceShould
 
         Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, 0, 0));
         Assert.Equal(2u, a.States().Last().Revision);
-        Assert.Equal("Rare 9: Armour 8; 10103 [Strength 8.., Armor 3..] 203 [AddedFireDamage 3..7]",
+        Assert.Equal("Rare 9: DamageMin 3; DamageMax 7; AttackTime 700; 10103 [Strength 8.., Armor 3..] 203 [AddedFireDamage 3..7]",
             Shown(Assert.Single(b.States().Last().Partner.Items)));
         Assert.Equal(TradeResult.Ok, w.Trades.Confirm(a.Id, 2));
         Assert.True(b.States().Last().Partner.Confirmed);
@@ -234,7 +235,7 @@ public class TradeServiceShould
         // And back to the rare, built again from the entries the smaller item left over.
         Assert.Equal(TradeResult.Ok, w.Trades.RemoveItem(a.Id, 0));
         Assert.Equal(TradeResult.Ok, w.Trades.OfferItem(a.Id, 0, 0));
-        Assert.Equal("Rare 9: Armour 8; 10103 [Strength 8.., Armor 3..] 203 [AddedFireDamage 3..7]",
+        Assert.Equal("Rare 9: DamageMin 3; DamageMax 7; AttackTime 700; 10103 [Strength 8.., Armor 3..] 203 [AddedFireDamage 3..7]",
             Shown(Assert.Single(b.States().Last().Partner.Items)));
     }
 

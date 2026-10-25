@@ -133,7 +133,10 @@ public class CharacterMovementSpeedShould
     /// server starts stepping at it, and snaps past 0.15 m of drift. +10 % at 4 m/s drifts 0.04 m. The
     /// seeded cap is the largest change gear can make from the base, 4 x 0.35 x 0.1 = 0.14 m, so a default
     /// cap raised past 37.5 % fails here. Equipping or removing any one seeded item must stay under the
-    /// snap too, so an item seeded with a big bonus fails here and makes someone look.
+    /// snap too, at the most movement speed a copy of it can roll (#1179): its template's lines, its implicit (a unique's
+    /// from its base) and its own lines at their maximum, and each movement speed affix group on its kind at its best
+    /// tier. So an item seeded with a big bonus, or a family or implicit rolling too much of it, fails here and makes
+    /// someone look.
     /// </summary>
     [Fact]
     public void Keep_the_drift_of_a_speed_change_over_one_round_trip_under_the_clients_snap()
@@ -152,6 +155,13 @@ public class CharacterMovementSpeedShould
 
         using var database = Handlers.SqliteDatabase.World();
         using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
+        var modifiers = context.ItemModifiers.AsNoTracking().AsSplitQuery()
+            .Include(m => m.Group).Include(m => m.Stats).Include(m => m.Weights).ToList();
+        ILookup<ulong, ItemModifier> linked = context.ItemTemplateModifiers.AsNoTracking().ToList()
+            .ToLookup(l => l.TemplateId.Value, l => modifiers.Single(m => m.Id == l.ModifierId));
+        float Rolls(IEnumerable<ItemModifier> rows) =>
+            rows.SelectMany(m => m.Stats).Where(s => s.Stat == StatType.MovementSpeed).Sum(s => (float)s.Max);
+
         foreach (ItemTemplate item in context.ItemTemplates.ToList())
         {
             float bonus = new (StatType? Type, uint? Value)[]
@@ -163,6 +173,16 @@ public class CharacterMovementSpeedShould
                 }
                 .Where(s => s.Type == StatType.MovementSpeed)
                 .Sum(s => (float)(s.Value ?? 0));
+            bonus += Rolls(linked[item.Id.Value]) + (item.BaseTemplateId is { } named ? Rolls(linked[named.Value]) : 0f);
+            if (item.Rarity == ItemRarity.Common && item.BaseKind is { } kind)
+            {
+                bonus += modifiers
+                    .Where(m => m.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix
+                                && m.Weights.Any(w => w.BaseKind == kind && w.Weight > 0))
+                    .GroupBy(m => m.GroupId)
+                    .Sum(group => group.Max(m => Rolls([m])));
+            }
+
             Assert.True(Drift(0f, bonus) < CharacterMovement.ClientSnapThreshold,
                 $"item {item.Id.Value} ({item.Name}) moves the speed {Drift(0f, bonus)} m off over a round trip");
         }

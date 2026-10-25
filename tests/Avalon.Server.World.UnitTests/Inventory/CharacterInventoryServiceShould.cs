@@ -67,8 +67,9 @@ public class CharacterInventoryServiceShould
     }
 
     /// <summary>
-    /// Two potions with room for one: past a partial stack and no slot free, or, for a potion that rolls a modifier
-    /// (#1179: a copy carrying modifiers is one item in a slot of its own, whatever its template stacks to), one slot free.
+    /// Two items with room for one: two potions past a partial stack and no slot free, or two copies of a ring base that
+    /// rolls its implicit, with one slot free (#1179: a copy carrying modifiers is one item in a slot of its own, whatever
+    /// its template stacks to, and this ring's says 20).
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -80,10 +81,12 @@ public class CharacterInventoryServiceShould
         if (!rolls)
             bag.Add(Item(29, Potion, count: 19));
         character.Container(InventoryType.Bag).Load(bag);
-        ItemModifierCatalog? linked = rolls ? PotionLinkingAnImplicit() : null;
+        ItemModifierCatalog? linked = rolls ? RingLinkingAnImplicit() : null;
+        ItemTemplate added = rolls ? s_stackedRing : Potion;
+        ItemTemplate? Find(ItemTemplateId id) => id == s_stackedRing.Id ? s_stackedRing : TestCharacters.Find(id);
 
-        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character, modifiers: linked).CanAdd(Potion.Id, 2));
-        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character, modifiers: linked).TryAdd(Potion.Id, 2));
+        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character, Find, modifiers: linked).CanAdd(added.Id, 2));
+        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character, Find, modifiers: linked).TryAdd(added.Id, 2));
 
         Assert.Equal(rolls ? 29 : 30, character.Container(InventoryType.Bag).Items.Count());
         if (!rolls)
@@ -92,10 +95,22 @@ public class CharacterInventoryServiceShould
         Assert.False(character.ClientChanges.HasChanges);
     }
 
-    /// <summary>A catalog with one implicit modifier, which the potion links.</summary>
-    private static ItemModifierCatalog PotionLinkingAnImplicit()
+    // A Common ring base whose template says it stacks to 20.
+    private static readonly ItemTemplate s_stackedRing = new()
     {
-        var group = new ItemModifierGroup { Id = 1, Kind = ItemModifierKind.Implicit, Name = Potion.Name };
+        Id = new ItemTemplateId(600),
+        Name = "Ring",
+        Class = ItemClass.Armor,
+        Slot = ItemSlotType.Finger,
+        BaseKind = ItemBaseKind.Ring,
+        Rarity = ItemRarity.Common,
+        MaxStackSize = 20,
+    };
+
+    /// <summary>A catalog with one implicit modifier, which the ring base links.</summary>
+    private static ItemModifierCatalog RingLinkingAnImplicit()
+    {
+        var group = new ItemModifierGroup { Id = 1, Kind = ItemModifierKind.Implicit, Name = s_stackedRing.Name };
         var modifier = new ItemModifier
         {
             Id = 1,
@@ -106,7 +121,7 @@ public class CharacterInventoryServiceShould
             Stats = [new ItemModifierStat { ModifierId = 1, Index = 0, Stat = StatType.Health, Min = 1, Max = 2 }],
         };
         return new ItemModifierCatalog([modifier],
-            [new ItemTemplateModifier { TemplateId = Potion.Id, Index = 0, ModifierId = 1 }], NullLogger.Instance);
+            [new ItemTemplateModifier { TemplateId = s_stackedRing.Id, Index = 0, ModifierId = 1 }], NullLogger.Instance);
     }
 
     [Theory]
