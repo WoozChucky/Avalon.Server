@@ -11,8 +11,8 @@ public static class PublicMapping
     /// <c>LinkedTo(t.Id)</c>, a base's implicit or a unique's own modifier.
     /// </param>
     /// <param name="named">
-    /// A unique's named base (#1179), whose base-stat ranges every copy rolls; null for any other template, or a unique
-    /// whose base is not found.
+    /// A unique's named base (#1179), whose base-stat ranges and damage type every copy has; null for any other template,
+    /// or a unique whose base is not found.
     /// </param>
     /// <param name="inherited">The named base's links, its implicit, which a unique's copy rolls before its own lines.</param>
     public static PublicItemDto ToPublicDto(this ItemTemplate t, IReadOnlyList<ItemModifier> linked,
@@ -31,7 +31,7 @@ public static class PublicMapping
             RequiredAgility = t.RequiredAgility,
             RequiredIntellect = t.RequiredIntellect,
             RequiresAnyAttribute = t.RequiresAnyAttribute,
-            DamageType = (DamageType?)t.DamageType,
+            DamageType = (DamageType?)(named ?? t).DamageType,
             BaseItemId = t.BaseTemplateId?.Value,
             BaseStats = [.. (named ?? t).BaseStats.OrderBy(s => s.Stat).Select(s => new PublicItemBaseStatDto
             {

@@ -366,7 +366,8 @@ public sealed class CharacterServiceShould : IDisposable
         List<ItemTemplate> wornTemplates = [.. worn.Select(item => templates[item.TemplateId.Value])];
         AbilityTemplate cleave = world.AbilityTemplates.AsEnumerable().Single(a => a.Id.Value == 200);
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row,
-            [.. worn.Select((item, i) => new WornItem(wornTemplates[i], ItemBaseStats.Of(item.BaseStats), item.Modifiers))],
+            [.. worn.Select((item, i) => new WornItem(wornTemplates[i], ItemBaseStats.Of(item.BaseStats), item.Modifiers,
+                wornTemplates[i].DamageType))],
             factors, formula);
         AbilityAmount sent = AbilityAmounts.For(stats.AttackerAt(1), AbilityMetadataMapper.From(cleave), default);
 

@@ -334,7 +334,7 @@ public class CharacterStatsCalculatorShould
     {
         var item = new ItemInstanceId(Guid.CreateVersion7());
         return new WornItem(template, baseStats, [.. values.Chunk(2).Select((pair, ordinal) => TestModifiers.Modifier(item, 1,
-            (byte)ordinal, [.. pair.Select((v, i) => ((byte)i, v.Stat, v.Value, v.Value2))]))]);
+            (byte)ordinal, [.. pair.Select((v, i) => ((byte)i, v.Stat, v.Value, v.Value2))]))], template.DamageType);
     }
 
     [Fact]

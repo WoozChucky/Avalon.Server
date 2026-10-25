@@ -75,10 +75,10 @@ public class ItemStatsBenchmarks
     ];
 
     // Each piece as a copy that rolled no modifiers, as the kit was measured before #1179; the sword with its base stats.
-    private readonly List<WornItem> _worn = [.. s_kit.Select(t => new WornItem(t, BaseStatsFor(t), null))];
+    private readonly List<WornItem> _worn = [.. s_kit.Select(t => new WornItem(t, BaseStatsFor(t), null, t.DamageType))];
 
     // The same pieces, each with six modifiers of one value each.
-    private readonly List<WornItem> _wornModified = [.. s_kit.Select(t => new WornItem(t, BaseStatsFor(t), ModifiersFor(t)))];
+    private readonly List<WornItem> _wornModified = [.. s_kit.Select(t => new WornItem(t, BaseStatsFor(t), ModifiersFor(t), t.DamageType))];
 
     private readonly ClassStatFactors _factors = CombatSeed.ClassFactors().Single(f => f.Class == CharacterClass.Warrior);
     private readonly CombatFormula _formula = CombatSeed.Formula();

@@ -184,7 +184,7 @@ public class CastPaceShould
         DamageType = DamageType.Physical,
         StatType1 = StatType.Strength,
         StatValue1 = 1,
-    }, new ItemBaseStats { DamageMin = 4, DamageMax = 7, AttackTime = attackTimeMs }, null);
+    }, new ItemBaseStats { DamageMin = 4, DamageMax = 7, AttackTime = attackTimeMs }, null, DamageType.Physical);
 
     [Fact]
     public void Change_nothing_with_no_speed()

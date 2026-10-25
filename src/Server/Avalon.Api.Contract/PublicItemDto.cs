@@ -21,7 +21,9 @@ public sealed class PublicItemDto
     public ushort? RequiredIntellect { get; set; }
     /// <summary>Whether any one of the set attribute requirements is enough (#1179, a mace's Strength or Intellect).</summary>
     public bool RequiresAnyAttribute { get; set; }
-    /// <summary>The type of a weapon's damage (#1178); null for an item that is not a weapon.</summary>
+    /// <summary>
+    /// The type of a weapon's damage (#1178), a unique weapon's its base's (#1179); null for an item that is not a weapon.
+    /// </summary>
     public DamageType? DamageType { get; set; }
     /// <summary>The base a unique is made on (#1179), whose ranges and implicit every copy rolls; null for any other item.</summary>
     public ulong? BaseItemId { get; set; }

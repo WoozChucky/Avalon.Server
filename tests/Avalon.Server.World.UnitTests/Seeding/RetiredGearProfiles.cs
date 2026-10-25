@@ -95,7 +95,8 @@ internal static class RetiredGearProfiles
             StatValue1 = attribute is null ? null : 1,
         },
         new ItemBaseStats { DamageMin = min, DamageMax = max, AttackTime = attackTimeMs },
-        null);
+        null,
+        DamageType.Physical);
 
     private static WornItem Armour(
         ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, ItemSlotType slot,
@@ -118,5 +119,6 @@ internal static class RetiredGearProfiles
             StatValue3 = stats.Length > 2 ? stats[2].Value : null,
         },
         default,
+        null,
         null);
 }

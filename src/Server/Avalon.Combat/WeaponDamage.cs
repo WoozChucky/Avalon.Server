@@ -13,7 +13,8 @@ public readonly record struct WeaponDamage(uint Min1, uint Max1, DamageType? Typ
 {
     /// <summary>
     /// A character's main hand: the damage range and attack time its copy rolled (#1179, its base stats; a low end above
-    /// its high end counting as the high end), typed by its template, with the lines local to it folded in: its added
+    /// its high end counting as the high end), typed by its base (<see cref="WornItem.DamageType" />: a unique's is its
+    /// named base's), with the lines local to it folded in: its added
     /// damage by type goes to <see cref="Added" />; its local increased physical damage scales each end of a physical
     /// range and of the added physical damage by <c>max(0, 1 + sum / 100)</c>; its local attack speed makes the attack time
     /// <c>time / (1 + sum / 100)</c>, a sum of 0 or below counting as none, as every speed does (<see cref="Speed" />).
@@ -48,7 +49,7 @@ public readonly record struct WeaponDamage(uint Min1, uint Max1, DamageType? Typ
 
         added.Increase(DamageType.Physical, increasedPhysical);
 
-        DamageType? type = item.Template.DamageType;
+        DamageType? type = item.DamageType;
         uint max = (uint)item.BaseStats.DamageMax.GetValueOrDefault();
         uint min = Math.Min((uint)Math.Max(0, item.BaseStats.DamageMin.GetValueOrDefault()), max);
         long increased = type == DamageType.Physical ? increasedPhysical : 0;

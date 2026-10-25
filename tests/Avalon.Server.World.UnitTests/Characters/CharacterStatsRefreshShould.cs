@@ -177,6 +177,49 @@ public class CharacterStatsRefreshShould
         Assert.Equal(before, after);
     }
 
+    /// <summary>
+    /// A unique weapon deals its named base's damage type (#1179), as it rolls its base's ranges: it carries none of its
+    /// own, so a unique sword made on a sword typed Fire hits for Fire.
+    /// </summary>
+    [Fact]
+    public void Type_a_unique_weapons_damage_by_its_base()
+    {
+        ItemTemplate fireSword = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 32);
+        fireSword.DamageType = Avalon.Network.Packets.Combat.DamageType.Fire;
+        var unique = new ItemTemplate
+        {
+            Id = 1179_902,
+            Name = "Unique Sword",
+            Rarity = ItemRarity.Unique,
+            BaseKind = ItemBaseKind.Sword,
+            BaseTemplateId = fireSword.Id,
+            Slot = fireSword.Slot,
+            RequiredLevel = fireSword.RequiredLevel,
+        };
+        CharacterEntity character = New();
+        InventoryItem blade = Item(EquipmentSlots.MainHand, unique);
+        character.ItemModifiers.Load(
+        [
+            new ItemInstance
+            {
+                Id = blade.InstanceId,
+                TemplateId = unique.Id,
+                BaseStats =
+                [
+                    new ItemInstanceBaseStat { ItemInstanceId = blade.InstanceId, Stat = ItemBaseStat.DamageMin, Value = 3 },
+                    new ItemInstanceBaseStat { ItemInstanceId = blade.InstanceId, Stat = ItemBaseStat.DamageMax, Value = 7 },
+                    new ItemInstanceBaseStat { ItemInstanceId = blade.InstanceId, Stat = ItemBaseStat.AttackTime, Value = 700 },
+                ],
+            },
+        ]);
+        character.Container(InventoryType.Equipment).Load([blade]);
+
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors,
+            id => id == unique.Id ? unique : id == fireSword.Id ? fireSword : null, CurrentValues.Refill, TestCombat.Formula));
+
+        Assert.Equal(Avalon.Network.Packets.Combat.DamageType.Fire, character.Stats!.Value.Weapon.Type1);
+    }
+
     [Fact]
     public void Change_nothing_when_the_class_and_level_have_no_row()
     {

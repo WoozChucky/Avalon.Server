@@ -171,7 +171,7 @@ public class AbilityAmountsFlusherShould
         Slot = ItemSlotType.MainHand,
         MaxStackSize = 1,
         DamageType = DamageType.Physical,
-    }, new ItemBaseStats { DamageMin = 4, DamageMax = 7, AttackTime = attackTimeMs }, null);
+    }, new ItemBaseStats { DamageMin = 4, DamageMax = 7, AttackTime = attackTimeMs }, null, DamageType.Physical);
 
     /// <summary>A refresh that moves no amount (here only the crit chance) sends nothing.</summary>
     [Fact]

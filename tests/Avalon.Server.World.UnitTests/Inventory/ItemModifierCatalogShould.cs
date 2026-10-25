@@ -138,6 +138,7 @@ public class ItemModifierCatalogShould
     [InlineData("a shield with a damage type")]
     [InlineData("a unique naming a base of another kind")]
     [InlineData("a unique naming a base above its level")]
+    [InlineData("a unique sword with a damage type of its own")]
     public void Leave_out_a_template_whose_base_stats_break_its_kind(string breach)
     {
         const ulong Subject = 4242;
@@ -156,7 +157,8 @@ public class ItemModifierCatalogShould
             "a shield with a damage type" => Base(Subject, ItemBaseKind.Shield, DamageType.Physical,
                 (ItemBaseStat.Armour, 5, 7), (ItemBaseStat.BlockChance, 4, 6)),
             "a unique naming a base of another kind" => UniqueOnTheSword(Subject, ItemBaseKind.Ring, level: 5),
-            _ => UniqueOnTheSword(Subject, ItemBaseKind.Sword, level: 4),
+            "a unique naming a base above its level" => UniqueOnTheSword(Subject, ItemBaseKind.Sword, level: 4),
+            _ => UniqueOnTheSword(Subject, ItemBaseKind.Sword, level: 5, DamageType.Fire),
         };
 
         // Each base links its implicit, and the unique its own row, so only the breach can leave one out.
@@ -187,14 +189,14 @@ public class ItemModifierCatalogShould
             BaseStats = [.. ranges.Select(r => new ItemTemplateBaseStat { TemplateId = id, Stat = r.Stat, Min = r.Min, Max = r.Max })],
         };
 
-    // A unique of that kind and level, made on the sword (a level-5 base); a sword names its damage type.
-    private static ItemTemplate UniqueOnTheSword(ulong id, ItemBaseKind kind, ushort level) => new()
+    // A unique of that kind and level, made on the sword (a level-5 base); it takes its damage type from the sword.
+    private static ItemTemplate UniqueOnTheSword(ulong id, ItemBaseKind kind, ushort level, DamageType? damageType = null) => new()
     {
         Id = id,
         Name = "Unique",
         Rarity = ItemRarity.Unique,
         BaseKind = kind,
-        DamageType = kind == ItemBaseKind.Sword ? DamageType.Physical : null,
+        DamageType = damageType,
         BaseTemplateId = new ItemTemplateId(CommonTemplate),
         RequiredLevel = level,
     };

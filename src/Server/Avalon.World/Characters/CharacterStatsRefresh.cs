@@ -83,7 +83,10 @@ public static class CharacterStatsRefresh
             foreach (InventoryItem item in character.Container(InventoryType.Equipment).Held)
             {
                 if (templates.Find(item.TemplateId) is { } template && EquipmentSlots.Accepts(item.Slot, template.Slot))
-                    worn.Add(character.ItemModifiers.WornOf(template, item.InstanceId));
+                {
+                    ItemTemplate? named = template.BaseTemplateId is { } baseId ? templates.Find(baseId) : null;
+                    worn.Add(character.ItemModifiers.WornOf(template, WornItem.DamageTypeOf(template, named), item.InstanceId));
+                }
             }
 
             // Auras: whatever the character holds now is folded in, so every refresh (select, gear, level-up, an aura)

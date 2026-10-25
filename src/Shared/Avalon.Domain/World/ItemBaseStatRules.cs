@@ -4,7 +4,7 @@ namespace Avalon.Domain.World;
 
 /// <summary>
 /// What base stats each base carries (#1179), the one rule the world, the API and the seed tests share: a template carries
-/// exactly the stats of its kind (<see cref="Of" />), each range sound, and a weapon its damage type
+/// exactly the stats of its kind (<see cref="Of" />), each range sound, and a Common weapon its damage type
 /// (<see cref="Problem" />); and a unique the base it names (<see cref="NamedBaseProblem" />). The world leaves out a
 /// template that breaks them (ItemsPatch.Build); the API's template edit refuses one.
 /// </summary>
@@ -46,7 +46,7 @@ public static class ItemBaseStatRules
 
     /// <summary>
     /// Why <paramref name="template" />'s base stats break its kind, or null when they hold: its ranges hold
-    /// (<see cref="RangesProblem" />) and its damage type is set exactly when it is a weapon kind
+    /// (<see cref="RangesProblem" />) and its damage type is set exactly when it is a Common weapon
     /// (<see cref="DamageTypeProblem" />).
     /// </summary>
     public static string? Problem(ItemTemplate template) => RangesProblem(template) ?? DamageTypeProblem(template);
@@ -89,18 +89,22 @@ public static class ItemBaseStatRules
     }
 
     /// <summary>
-    /// Why <paramref name="template" />'s damage type breaks its kind, or null when it holds: a template of a weapon kind
-    /// names the type of its damage, and no other template names one.
+    /// Why <paramref name="template" />'s damage type breaks its kind, or null when it holds: a Common template of a weapon
+    /// kind names the type of its damage, and no other template names one. A unique weapon deals its named base's type, as
+    /// it rolls its base's ranges, so it carries none of its own.
     /// </summary>
     public static string? DamageTypeProblem(ItemTemplate template)
     {
         string kind = template.BaseKind?.ToString() ?? "no base kind";
-        bool weapon = IsWeapon(template.BaseKind);
-        if (weapon == (template.DamageType is not null))
+        bool typed = template.Rarity == ItemRarity.Common && IsWeapon(template.BaseKind);
+        if (typed == (template.DamageType is not null))
             return null;
 
-        return weapon
-            ? $"a {kind} template has no damage type"
+        if (typed)
+            return $"a {kind} template has no damage type";
+
+        return template.Rarity == ItemRarity.Unique && IsWeapon(template.BaseKind)
+            ? $"a Unique {kind} template has a damage type, which it takes from its base"
             : $"a {kind} template has a damage type, which only a weapon has";
     }
 

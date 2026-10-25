@@ -352,6 +352,14 @@ public class CharacterService : ICharacterService
             .OfType<ItemTemplateId>();
         var templates = (await _itemTemplateRepository.GetByIdsAsync(templateIds, cancellationToken))
             .ToDictionary(t => t.Id);
+        // A worn unique deals its named base's damage type (#1179), so the bases it names load too.
+        ItemTemplateId[] named = [.. templates.Values.Select(t => t.BaseTemplateId).OfType<ItemTemplateId>()
+            .Where(baseId => !templates.ContainsKey(baseId)).Distinct()];
+        if (named.Length > 0)
+        {
+            foreach (ItemTemplate itsBase in await _itemTemplateRepository.GetByIdsAsync(named, cancellationToken))
+                templates[itsBase.Id] = itsBase;
+        }
 
         List<WornItem> result = [];
         foreach (CharacterInventory row in worn)
@@ -360,8 +368,9 @@ public class CharacterService : ICharacterService
                 && templates.TryGetValue(instance.TemplateId, out ItemTemplate? template)
                 && EquipmentSlots.Accepts(row.Slot, template.Slot))
             {
+                ItemTemplate? itsBase = template.BaseTemplateId is { } baseId ? templates.GetValueOrDefault(baseId) : null;
                 result.Add(new WornItem(template, ItemBaseStats.Of(instance.BaseStats),
-                    instance.Modifiers.Count > 0 ? instance.Modifiers : null));
+                    instance.Modifiers.Count > 0 ? instance.Modifiers : null, WornItem.DamageTypeOf(template, itsBase)));
             }
         }
 

@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 using Avalon.World.Public.Characters;
 using Avalon.World.Reload;
 
@@ -51,16 +52,17 @@ public sealed class ItemModifierStore
         modifiers.Count > 0 || !baseStats.IsEmpty;
 
     /// <summary>
-    /// The item as the stats refresh folds it, worn as <paramref name="template" />, in one lookup: its base stats by value
-    /// (none for an item without them) and its live modifier list itself, in ordinal order, read through the concrete list,
-    /// or null for an item without modifiers. Nothing may change the list.
+    /// The item as the stats refresh folds it, worn as <paramref name="template" /> dealing <paramref name="damageType" />
+    /// (its base's), in one lookup: its base stats by value (none for an item without them) and its live modifier list
+    /// itself, in ordinal order, read through the concrete list, or null for an item without modifiers. Nothing may change
+    /// the list.
     /// </summary>
-    internal WornItem WornOf(ItemTemplate template, ItemInstanceId item)
+    internal WornItem WornOf(ItemTemplate template, DamageType? damageType, ItemInstanceId item)
     {
         ref Entry entry = ref CollectionsMarshal.GetValueRefOrNullRef(_byItem, item);
         return Unsafe.IsNullRef(ref entry)
-            ? new WornItem(template, default, null)
-            : new WornItem(template, entry.BaseStats, entry.Modifiers);
+            ? new WornItem(template, default, null, damageType)
+            : new WornItem(template, entry.BaseStats, entry.Modifiers, damageType);
     }
 
     /// <summary>
