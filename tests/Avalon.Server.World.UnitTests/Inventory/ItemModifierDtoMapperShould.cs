@@ -51,6 +51,7 @@ public class ItemModifierDtoMapperShould
     [InlineData("item result")]
     [InlineData("trade")]
     [InlineData("ground")]
+    [InlineData("kept drop")]
     [InlineData("identified")]
     public void Hide_an_unidentified_items_affixes_and_name_on_every_path(string path)
     {
@@ -176,26 +177,48 @@ public class ItemModifierDtoMapperShould
             }
             case "ground":
             {
-                InventoryItem item = copy.Item;
-                var drop = new GroundLoot
-                {
-                    Guid = new ObjectGuid(ObjectType.Loot, 1),
-                    Position = Vector3.zero,
-                    ItemTemplateId = item.TemplateId,
-                    Count = 1,
-                    Rolled = new RolledItem(item.InstanceId, item.TemplateId, item.Rarity, item.ItemLevel, item.RareName,
-                        copy.BaseStats, [.. copy.Modifiers]),
-                };
+                GroundLoot drop = Ground(copy.Item, copy);
 
                 // A snapshot's drop and a kill's kept message, refilled from the pool, say the same.
                 Seen fresh = Of(RoundTrip(LootDropMapper.ToDto(drop, s_data)));
                 Assert.Equal(fresh, Of(RoundTrip(LootDropMapper.Fill(new LootDropDto(), drop, s_data, pool))));
                 return fresh;
             }
+            case "kept drop":
+            {
+                // A kill's kept message (#890), refilled from the pool: first a common drop showing all three rows, then
+                // this one, which keeps one of the three in the same list; then one that keeps none, whose list goes back
+                // to the pool for the next message.
+                var kept = new LootDropDto();
+                LootDropMapper.Fill(kept, Ground(copy.Item with { Rarity = ItemRarity.Common }, copy), s_data, pool);
+                List<ItemModifierDto> list = Assert.IsType<List<ItemModifierDto>>(kept.Modifiers);
+                Assert.Equal(3, list.Count);
+
+                LootDropMapper.Fill(kept, Ground(copy.Item, copy), s_data, pool);
+                Assert.Same(list, kept.Modifiers);
+                Seen shown = Of(RoundTrip(kept));
+
+                LootDropMapper.Fill(kept, Ground(copy.Item, copy with { Modifiers = [.. copy.Modifiers.Skip(1)] }), s_data,
+                    pool);
+                Assert.Null(kept.Modifiers);
+                Assert.Same(list, pool.Rent(copy.Modifiers, s_data.Items.Modifiers, identified: true));
+                return shown;
+            }
             default:
                 throw new ArgumentOutOfRangeException(nameof(path), path, null);
         }
     }
+
+    /// <summary><paramref name="item" /> lying on the ground as a drop rolled it, with <paramref name="rows" />' rows.</summary>
+    private static GroundLoot Ground(InventoryItem item, CarriedItem rows) => new()
+    {
+        Guid = new ObjectGuid(ObjectType.Loot, 1),
+        Position = Vector3.zero,
+        ItemTemplateId = item.TemplateId,
+        Count = 1,
+        Rolled = new RolledItem(item.InstanceId, item.TemplateId, item.Rarity, item.ItemLevel, item.RareName,
+            rows.BaseStats, [.. rows.Modifiers]),
+    };
 
     private static Seen Of(ItemSlotDto slot) => new(slot.ItemTemplateId, slot.Rarity, slot.ItemLevel, slot.Identified,
         slot.Name, Lines(slot.Modifiers), Lines(slot.BaseStats));

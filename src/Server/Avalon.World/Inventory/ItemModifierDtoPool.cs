@@ -75,40 +75,43 @@ public sealed class ItemModifierDtoPool
     /// <summary>
     /// <paramref name="current" /> (an entry's list, or null) refilled with exactly the <paramref name="modifiers" /> a
     /// client is shown: every one of an identified copy, and an unidentified copy's implicit lines only (#1179,
-    /// ItemModifierDtoMapper.Shows), looked up in <paramref name="catalog" /> for an unidentified copy alone. The list to
-    /// send, null for none, with the one it replaced kept here.
+    /// <see cref="ItemVisibility.Shows" />), each looked up once in <paramref name="catalog" />, and only for an
+    /// unidentified copy. The list to send, null for none, with the one it replaced kept here.
     /// </summary>
     public List<ItemModifierDto>? Refill(List<ItemModifierDto>? current, IReadOnlyList<ItemInstanceModifier> modifiers,
         ItemModifierCatalog catalog, bool identified)
     {
-        int count = ItemModifierDtoMapper.ShownCount(modifiers, catalog, identified);
-        if (count == 0)
-        {
-            if (current is not null)
-                Return(current);
-            return null;
-        }
-
-        List<ItemModifierDto> target = current ?? (_lists.TryPop(out List<ItemModifierDto>? kept) ? kept : []);
-        while (target.Count > count)
-        {
-            Return(target[^1]);
-            target.RemoveAt(target.Count - 1);
-        }
-
+        // Filled in one pass, then trimmed to what was kept: a list is taken from the pool only once a row is kept.
+        List<ItemModifierDto>? target = current;
         int at = 0;
         for (int i = 0; i < modifiers.Count; i++)
         {
             ItemInstanceModifier shown = modifiers[i];
-            if (!identified && !ItemModifierDtoMapper.Shows(shown, catalog))
+            if (!ItemVisibility.Shows(catalog, shown.ModifierId, identified))
                 continue;
 
+            target ??= _lists.TryPop(out List<ItemModifierDto>? kept) ? kept : [];
             if (at == target.Count)
                 target.Add(_modifiers.TryPop(out ItemModifierDto? modifier) ? modifier : new ItemModifierDto());
 
             ItemModifierDto entry = target[at++];
             entry.ModifierId = (uint)shown.ModifierId;
             RefillValues(entry.Values, shown.Values);
+        }
+
+        if (target is null)
+            return null;
+
+        if (at == 0)
+        {
+            Return(target);
+            return null;
+        }
+
+        while (target.Count > at)
+        {
+            Return(target[^1]);
+            target.RemoveAt(target.Count - 1);
         }
 
         return target;

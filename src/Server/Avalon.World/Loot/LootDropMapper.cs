@@ -18,7 +18,8 @@ public static class LootDropMapper
         LootDropDto dto = FillDrop(new LootDropDto(), drop, data);
         if (drop.Rolled is { } rolled)
         {
-            dto.Modifiers = ItemModifierDtoMapper.ToDtos(rolled.Modifiers, data.Items.Modifiers, IsIdentified(rolled));
+            dto.Modifiers = ItemModifierDtoMapper.ToDtos(rolled.Modifiers, data.Items.Modifiers,
+                ItemVisibility.IdentifiedWhenRolled(rolled.Rarity));
             dto.BaseStats = ItemModifierDtoMapper.ToBaseStatDtos(rolled.BaseStats);
         }
 
@@ -36,7 +37,8 @@ public static class LootDropMapper
         FillDrop(dto, drop, data);
         if (drop.Rolled is { } rolled)
         {
-            dto.Modifiers = pool.Refill(dto.Modifiers, rolled.Modifiers, data.Items.Modifiers, IsIdentified(rolled));
+            dto.Modifiers = pool.Refill(dto.Modifiers, rolled.Modifiers, data.Items.Modifiers,
+                ItemVisibility.IdentifiedWhenRolled(rolled.Rarity));
             dto.BaseStats = pool.RefillBaseStats(dto.BaseStats, rolled.BaseStats);
         }
         else
@@ -53,7 +55,7 @@ public static class LootDropMapper
     /// Every member but the modifiers and the base stats. A rolled copy sends its own rarity and item level (#1179); an
     /// item drop that did not roll sends Common and the item level a copy made from its template outright takes, which
     /// its pickup makes; a gold pile, Common and 0. No drop sends a name: every copy that would have one lies on the
-    /// ground unidentified.
+    /// ground unidentified (<see cref="ItemVisibility.IdentifiedWhenRolled" />, which its pickup follows too).
     /// </summary>
     private static LootDropDto FillDrop(LootDropDto dto, GroundLoot drop, StaticData data)
     {
@@ -79,12 +81,6 @@ public static class LootDropMapper
 
         return dto;
     }
-
-    /// <summary>
-    /// Whether the copy on the ground is identified (#1179): exactly when it is Common, as its pickup makes it
-    /// (TryAddRolled), so a drop's rarity tells a client and the drop carries no field for it.
-    /// </summary>
-    private static bool IsIdentified(RolledItem rolled) => rolled.Rarity == ItemRarity.Common;
 
     /// <summary>A template a reload removed since the drop was rolled cannot be made: 1, the least an item level is.</summary>
     private static uint ItemLevelOf(ItemTemplate? template) =>

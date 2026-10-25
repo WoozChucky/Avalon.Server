@@ -256,8 +256,8 @@ public sealed class CharacterInventoryService(
         if ((template.Flags & ItemTemplateFlags.Unique) != 0 && OwnedOrIncoming(item.TemplateId) + 1 > 1)
             return InventoryAddResult.UniqueAlreadyOwned;
 
-        // A copy a drop or a quest rolled is identified only when it is common (#1179).
-        PutRolled(slot, item, template, identified: item.Rarity == ItemRarity.Common);
+        // A copy a drop or a quest rolled is identified only when it is common (#1179), as it showed on the ground.
+        PutRolled(slot, item, template, identified: ItemVisibility.IdentifiedWhenRolled(item.Rarity));
         return InventoryAddResult.Ok;
     }
 

@@ -10,8 +10,10 @@ namespace Avalon.World.Inventory;
 public static class ItemModifierDtoMapper
 {
     /// <summary>
-    /// The modifiers a client is shown (<see cref="Shows" />), in list order, each one's values by index; null for none, so
-    /// an item without modifiers costs no list.
+    /// The modifiers a client is shown (<see cref="ItemVisibility.Shows" />), in list order, each one's values by index;
+    /// null for none, so an item without modifiers costs no list. Built once per message, so it counts the shown ones
+    /// first and sizes the list by that count; the pooled path (<see cref="ItemModifierDtoPool.Refill" />) looks each one
+    /// up once.
     /// </summary>
     /// <param name="catalog">The current generation's catalog: what kind each modifier of an unidentified copy is.</param>
     /// <param name="identified">Whether the copy is identified; an unidentified one shows its implicit lines only.</param>
@@ -26,7 +28,7 @@ public static class ItemModifierDtoMapper
         for (int i = 0; i < modifiers.Count; i++)
         {
             ItemInstanceModifier modifier = modifiers[i];
-            if (!identified && !Shows(modifier, catalog))
+            if (!ItemVisibility.Shows(catalog, modifier.ModifierId, identified))
                 continue;
 
             // The entry's own list, sized once: replacing it would throw away the one its initializer made.
@@ -60,9 +62,9 @@ public static class ItemModifierDtoMapper
 
     /// <summary>
     /// How many of <paramref name="modifiers" /> a client is shown: all of an identified copy's, counted without a lookup,
-    /// and an unidentified copy's implicit lines (<see cref="Shows" />).
+    /// and an unidentified copy's implicit lines (<see cref="ItemVisibility.Shows" />).
     /// </summary>
-    internal static int ShownCount(IReadOnlyList<ItemInstanceModifier> modifiers, ItemModifierCatalog catalog,
+    private static int ShownCount(IReadOnlyList<ItemInstanceModifier> modifiers, ItemModifierCatalog catalog,
         bool identified)
     {
         if (identified)
@@ -71,20 +73,12 @@ public static class ItemModifierDtoMapper
         int count = 0;
         for (int i = 0; i < modifiers.Count; i++)
         {
-            if (Shows(modifiers[i], catalog))
+            if (ItemVisibility.ShowsUnidentified(catalog.Find(modifiers[i].ModifierId)))
                 count++;
         }
 
         return count;
     }
-
-    /// <summary>
-    /// Whether an unidentified copy shows <paramref name="modifier" /> (#1179): only an implicit line, by its kind in the
-    /// catalog, never by its ordinal. A modifier the catalog does not hold is hidden, so a prefix, a suffix or a unique's
-    /// own line never reaches a client before the copy is identified.
-    /// </summary>
-    internal static bool Shows(ItemInstanceModifier modifier, ItemModifierCatalog catalog) =>
-        catalog.Find(modifier.ModifierId)?.Group.Kind == ItemModifierKind.Implicit;
 
     /// <summary>One rolled value, written over whatever <paramref name="target" /> held.</summary>
     internal static void Fill(ItemModifierValueDto target, ItemInstanceModifierValue value)

@@ -212,19 +212,20 @@ public class CharacterService : ICharacterService
     /// <summary>
     /// The copy's modifiers in the order the item shows them, by ordinal, each with its values in the order of the
     /// catalog's stat lines: the read loads the rows in no particular order. Each says what it is by the world's
-    /// catalog. An unidentified copy keeps only its implicit lines, by catalog kind; a modifier the catalog no longer
-    /// holds is hidden, as the world server hides it.
+    /// catalog. An unidentified copy keeps only its implicit lines, by the rule the world server's messages follow
+    /// (<see cref="ItemVisibility" />): a modifier the catalog no longer holds is hidden.
     /// </summary>
     private static List<CharacterInventoryModifierDto> ModifiersOf(ItemInstance instance, ItemModifierCatalog catalog,
         bool identified) =>
         instance.Modifiers
-            .Where(m => identified || catalog.Find(m.ModifierId)?.Group.Kind == Avalon.Domain.World.ItemModifierKind.Implicit)
-            .OrderBy(m => m.Ordinal)
+            .Select(m => (Rolled: m, Row: catalog.Find(m.ModifierId)))
+            .Where(m => identified || ItemVisibility.ShowsUnidentified(m.Row))
+            .OrderBy(m => m.Rolled.Ordinal)
             .Select(m => new CharacterInventoryModifierDto
             {
-                ModifierId = m.ModifierId,
-                Kind = (Avalon.Api.Contract.ItemModifierKind?)catalog.Find(m.ModifierId)?.Group.Kind,
-                Values = m.Values
+                ModifierId = m.Rolled.ModifierId,
+                Kind = (Avalon.Api.Contract.ItemModifierKind?)m.Row?.Group.Kind,
+                Values = m.Rolled.Values
                     .OrderBy(v => v.Index)
                     .Select(v => new CharacterInventoryModifierValueDto
                     {
