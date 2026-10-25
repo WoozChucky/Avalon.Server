@@ -194,6 +194,12 @@ public sealed class CharacterServiceShould : IDisposable
             (rareChest.Identified, rareChest.Name, rareChest.Rarity, rareChest.ItemLevel));
         Assert.Equal([(Avalon.Api.Contract.ItemBaseStat.Armour, 8)], rareChest.BaseStats.Select(s => (s.Stat, s.Value)));
         Assert.Equal($"{chestLife} Implicit [IncreasedMaximumLife 2 ]", Described(rareChest));
+
+        // #1180: each affix line names its Resonance theme (Ember-sung, a cold P10, is Rime; of the Owl is Veil), an
+        // implicit or unique line none, and the unidentified chest's hidden affixes show no theme either.
+        Assert.Equal([(life, (int?)null), (emberSung, 2), (owl, 8)], item.Modifiers.Select(m => (m.ModifierId, m.ThemeId)));
+        Assert.All(unique.Modifiers, m => Assert.Null(m.ThemeId));
+        Assert.Equal([(chestLife, (int?)null)], rareChest.Modifiers.Select(m => (m.ModifierId, m.ThemeId)));
     }
 
     /// <summary>A seeded base's implicit row, named by the base (#1179): no test holds an id.</summary>
@@ -485,11 +491,60 @@ public sealed class CharacterServiceShould : IDisposable
             });
     }
 
-    /// <summary>The stats the world server last saved for the character (#676).</summary>
+    /// <summary>
+    /// The stats the world server last saved for the character (#676), with the Resonance its worn items carry (#1180),
+    /// counted from the saved inventory as the world's stats refresh counts it: a ring with two Ember affixes adds Ember
+    /// once, an Ember amulet once more, a helmet's Thorn suffix Thorn once; the Rime ring in the bag adds nothing, and a
+    /// theme at 0 is not listed.
+    /// </summary>
     [Fact]
-    public async Task Return_the_characters_saved_stats()
+    public async Task Return_the_characters_saved_stats_with_the_resonance_it_wears()
     {
         var id = new CharacterId(42);
+        Dictionary<ulong, ItemTemplate> seeded;
+        using (WorldDbContext world = _world.CreateWorld(new WorldId(1)))
+            seeded = world.ItemTemplates.AsEnumerable().Where(t => t.Id.Value is 36 or 68 or 69).ToDictionary(t => t.Id.Value);
+
+        static ItemInstance Copy(CharacterId owner, ItemTemplate template, params int[] modifierIds)
+        {
+            var itemId = new ItemInstanceId(Guid.CreateVersion7());
+            return new ItemInstance
+            {
+                Identified = true,
+                Id = itemId,
+                TemplateId = template.Id,
+                CharacterId = owner,
+                Count = 1,
+                Rarity = Avalon.Common.ItemRarity.Magic,
+                ItemLevel = 30,
+                Modifiers = [.. modifierIds.Select((modifierId, ordinal) => new ItemInstanceModifier
+                {
+                    Id = Guid.CreateVersion7(), ItemInstanceId = itemId, ModifierId = modifierId, Ordinal = (byte)ordinal,
+                })],
+            };
+        }
+
+        ItemInstance ring = Copy(id, seeded[68], Seeded("P8", Avalon.Network.Packets.Combat.DamageType.Fire, 9),
+            Seeded("P10", Avalon.Network.Packets.Combat.DamageType.Fire, 9));
+        ItemInstance amulet = Copy(id, seeded[69], Seeded("S5", Avalon.Network.Packets.Combat.DamageType.Fire, 9));
+        ItemInstance helmet = Copy(id, seeded[36], Seeded("S10", null, 9));
+        ItemInstance bagRing = Copy(id, seeded[68], Seeded("P8", Avalon.Network.Packets.Combat.DamageType.Cold, 9));
+
+        ICharacterInventoryRepository slots = Substitute.For<ICharacterInventoryRepository>();
+        slots.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<CharacterInventory>
+        {
+            new() { CharacterId = id, Container = Avalon.Common.InventoryType.Equipment, Slot = EquipmentSlots.Finger1, ItemId = ring.Id },
+            new() { CharacterId = id, Container = Avalon.Common.InventoryType.Equipment, Slot = EquipmentSlots.Neck, ItemId = amulet.Id },
+            new() { CharacterId = id, Container = Avalon.Common.InventoryType.Equipment, Slot = EquipmentSlots.Head, ItemId = helmet.Id },
+            new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 0, ItemId = bagRing.Id },
+        });
+        IItemInstanceRepository items = Substitute.For<IItemInstanceRepository>();
+        items.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>())
+            .Returns(new List<ItemInstance> { ring, amulet, helmet, bagRing });
+        IItemTemplateRepository templates = Substitute.For<IItemTemplateRepository>();
+        templates.GetByIdsAsync(Arg.Any<IEnumerable<ItemTemplateId>>(), Arg.Any<CancellationToken>())
+            .Returns(seeded.Values.ToList());
+
         ICharacterStatsRepository stats = Substitute.For<ICharacterStatsRepository>();
         stats.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new CharacterStats
         {
@@ -506,7 +561,17 @@ public sealed class CharacterServiceShould : IDisposable
             CritPct = 5.5f,
         });
 
-        CharacterStatsDto? dto = await StatsService(stats).GetStatsAsync(id);
+        CharacterStatsDto? dto = await StatsService(stats, slots, items, templates).GetStatsAsync(id);
+
+        // The world's step over the same worn items and the whole seeded table.
+        var counted = new ResonanceCounts();
+        counted.Use((await Modifiers().GetCatalogAsync(CancellationToken.None)).Resonance);
+        CharacterStatsCalculator.CountResonance(
+            [.. new[] { ring, amulet, helmet }.Select(i => new WornItem(seeded[i.TemplateId.Value], default, i.Modifiers, null))],
+            counted);
+        List<(int, int)> worldCounts = [];
+        foreach (ThemeCount theme in counted)
+            worldCounts.Add((theme.ThemeId, theme.Count));
 
         Assert.NotNull(dto);
         Assert.Equal(42u, dto!.CharacterId);
@@ -520,6 +585,8 @@ public sealed class CharacterServiceShould : IDisposable
         Assert.Equal(12u, dto.Armor);
         Assert.Equal(5f, dto.BlockPct);
         Assert.Equal(5.5f, dto.CritPct);
+        Assert.Equal([(1, 2), (6, 1)], dto.Resonance.Select(r => (r.ThemeId, r.Count)));
+        Assert.Equal(worldCounts, dto.Resonance.Select(r => (r.ThemeId, r.Count)));
     }
 
     /// <summary>A character the world server has never saved stats for has none to return (#676).</summary>
@@ -529,14 +596,16 @@ public sealed class CharacterServiceShould : IDisposable
         ICharacterStatsRepository stats = Substitute.For<ICharacterStatsRepository>();
         stats.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns((CharacterStats?)null);
 
-        Assert.Null(await StatsService(stats).GetStatsAsync(new CharacterId(42)));
+        Assert.Null(await StatsService(stats, Substitute.For<ICharacterInventoryRepository>(),
+            Substitute.For<IItemInstanceRepository>(), Substitute.For<IItemTemplateRepository>()).GetStatsAsync(new CharacterId(42)));
     }
 
-    private static CharacterService StatsService(ICharacterStatsRepository stats) =>
-        new(Substitute.For<ICharacterRepository>(), Substitute.For<ICharacterInventoryRepository>(),
-            Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
-            Substitute.For<IAbilityTemplateRepository>(), Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<IItemModifierRepository>(), stats,
+    private CharacterService StatsService(ICharacterStatsRepository stats, ICharacterInventoryRepository slots,
+        IItemInstanceRepository items, IItemTemplateRepository templates) =>
+        new(Substitute.For<ICharacterRepository>(), slots,
+            items, Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<IAbilityTemplateRepository>(), templates,
+            Modifiers(), stats,
             Substitute.For<ICharacterQuestRepository>(),
             Substitute.For<ICharacterAuraRepository>(), Substitute.For<ICombatDataRepository>());
 

@@ -225,6 +225,8 @@ public class CharacterService : ICharacterService
             {
                 ModifierId = m.Rolled.ModifierId,
                 Kind = (Avalon.Api.Contract.ItemModifierKind?)m.Row?.Group.Kind,
+                // Only on the lines the read shows, so an unidentified copy names no theme of an affix it hides (#1180).
+                ThemeId = m.Row?.Group.ThemeId,
                 Values = m.Rolled.Values
                     .OrderBy(v => v.Index)
                     .Select(v => new CharacterInventoryModifierValueDto
@@ -242,6 +244,7 @@ public class CharacterService : ICharacterService
         CharacterStats? stats = await _statsRepository.GetByCharacterIdAsync(id, cancellationToken);
         if (stats is null) return null;
 
+        List<CharacterResonanceDto> resonance = await ResonanceAsync(id, cancellationToken);
         return new CharacterStatsDto
         {
             CharacterId = stats.CharacterId.Value,
@@ -261,7 +264,30 @@ public class CharacterService : ICharacterService
             ColdResistance = stats.ColdResistance,
             LightningResistance = stats.LightningResistance,
             BlightResistance = stats.BlightResistance,
+            Resonance = resonance,
         };
+    }
+
+    /// <summary>
+    /// Each Resonance theme the character's worn items carry, with how many carry it (#1180), counted from the saved
+    /// inventory through the step the world's stats refresh takes (<see cref="CharacterStatsCalculator.CountResonance" />)
+    /// over the catalog rows the worn items carry; a theme at 0 is not listed. Not saved: the world keeps no count.
+    /// </summary>
+    private async Task<List<CharacterResonanceDto>> ResonanceAsync(CharacterId id, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<WornItem> worn = await WornItemsAsync(id, cancellationToken);
+        ItemModifierCatalog catalog = await _itemModifierRepository.GetByIdsAsync(
+            [.. worn.SelectMany(w => w.Modifiers ?? []).Select(m => m.ModifierId).Distinct()], cancellationToken);
+
+        var counts = new ResonanceCounts();
+        counts.Use(catalog.Resonance);
+        CharacterStatsCalculator.CountResonance(worn, counts);
+
+        List<CharacterResonanceDto> result = [];
+        foreach (ThemeCount theme in counts)
+            result.Add(new CharacterResonanceDto { ThemeId = theme.ThemeId, Count = theme.Count });
+
+        return result;
     }
 
     public async Task<CharacterQuestLogDto> GetQuestLogAsync(CharacterId id, CancellationToken cancellationToken = default)
