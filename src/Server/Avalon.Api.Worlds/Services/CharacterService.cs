@@ -186,7 +186,7 @@ public class CharacterService : ICharacterService
             Rarity = (Avalon.Api.Contract.ItemRarity)(instance?.Rarity ?? default),
             ItemLevel = instance?.ItemLevel ?? 0,
             Modifiers = instance is null ? [] : ModifiersOf(instance, catalog, identified),
-            Name = instance is null || template is null || !identified
+            Name = instance is null || template is null || !ItemVisibility.NameShown(identified)
                 ? null
                 : ItemNames.Display(template, instance.Rarity, instance.RareName, instance.Modifiers, catalog),
             Template = template is null ? null : new CharacterInventoryItemTemplateDto

@@ -40,7 +40,7 @@ public static class ItemSlotDtoMapper
         InventoryItem item = carried.Item;
         return Slot(container, item, ItemModifierDtoMapper.ToDtos(carried.Modifiers, items.Modifiers, item.Identified),
             ItemModifierDtoMapper.ToBaseStatDtos(carried.BaseStats),
-            item.Identified ? NameOf(item.TemplateId, item.Rarity, item.RareName, carried.Modifiers, items) : null);
+            ItemVisibility.NameShown(item.Identified) ? NameOf(item.TemplateId, item.Rarity, item.RareName, carried.Modifiers, items) : null);
     }
 
     /// <summary>

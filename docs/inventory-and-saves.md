@@ -50,8 +50,9 @@ Ownership of items and gold, the inventory and wallet services, character saves,
   unidentified one keeps a modifier only when its catalog row's kind is `Implicit` (`ShowsUnidentified`; an id the
   catalog no longer holds is hidden), by kind, never by ordinal. The world's messages apply it in
   `ItemModifierDtoMapper.ToDtos` and `ItemModifierDtoPool.Rent`/`Refill` (the kept list is sized by what is kept, and is
-  null, its list back in the pool, when nothing is), the REST read in `CharacterService`. Names: `ItemModifierStore.Describe`
-  and the buyback's carried-item mapping name no unidentified copy. An unidentified unique shows its template, its
+  null, its list back in the pool, when nothing is), the REST read in `CharacterService`. Names follow it too
+  (`ItemVisibility.NameShown`, only once identified): `ItemModifierStore.Describe`, the buyback's carried-item mapping
+  and `CharacterService` ask it before working a name out, so none names an unidentified copy. An unidentified unique shows its template, its
   base's base stats (none on today's jewellery and trinkets) and its base's implicit. `ItemSlotDto.Identified` (13) and
   `TradeItemDto.Identified` (10) tell the client which it is; a drop on the ground is identified exactly when its
   `Rarity` is Common, so `LootDropDto` needs no field for it.

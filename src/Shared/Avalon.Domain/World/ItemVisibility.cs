@@ -4,9 +4,11 @@ namespace Avalon.Domain.World;
 
 /// <summary>
 /// What a client is shown of an item copy (#1179), the one rule the world server's messages and the REST inventory both
-/// follow. An identified copy shows every modifier. An unidentified one (magic, rare or unique) shows its base stats and
-/// its implicit lines only: never a prefix, a suffix or a unique's own line, and no generated name. A copy a drop or a
-/// quest rolls arrives identified exactly when it is Common.
+/// follow: every site that sends a copy's modifiers asks <see cref="Shows" /> (or <see cref="ShowsUnidentified" />), and
+/// every site that names a copy asks <see cref="NameShown" />. An identified copy shows every modifier and its name. An
+/// unidentified one (magic, rare or unique) shows its base stats and its implicit lines only: never a prefix, a suffix
+/// or a unique's own line, and no generated name. A copy a drop or a quest rolls arrives identified exactly when it is
+/// Common.
 /// </summary>
 public static class ItemVisibility
 {
@@ -30,4 +32,11 @@ public static class ItemVisibility
     /// </summary>
     public static bool Shows(ItemModifierCatalog catalog, int modifierId, bool identified) =>
         identified || ShowsUnidentified(catalog.Find(modifierId));
+
+    /// <summary>
+    /// Whether a copy is sent its generated name (a rare's, or a magic copy's prefix and suffix around its base): only
+    /// once it is identified. An unidentified copy is sent no name, so a client shows it by its base's template name,
+    /// and a name would reveal the affixes it hides. A caller asks this before working the name out.
+    /// </summary>
+    public static bool NameShown(bool identified) => identified;
 }

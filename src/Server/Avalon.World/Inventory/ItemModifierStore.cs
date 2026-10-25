@@ -77,13 +77,15 @@ public sealed class ItemModifierStore
         ref Entry entry = ref CollectionsMarshal.GetValueRefOrNullRef(_byItem, item.InstanceId);
         if (Unsafe.IsNullRef(ref entry))
         {
-            return new Held(Array.Empty<ItemInstanceModifier>(), in s_noBaseStats, item.Identified
-                ? ItemSlotDtoMapper.NameOf(item.TemplateId, item.Rarity, item.RareName, Array.Empty<ItemInstanceModifier>(), items)
-                : null);
+            return new Held(Array.Empty<ItemInstanceModifier>(), in s_noBaseStats,
+                ItemVisibility.NameShown(item.Identified)
+                    ? ItemSlotDtoMapper.NameOf(item.TemplateId, item.Rarity, item.RareName,
+                        Array.Empty<ItemInstanceModifier>(), items)
+                    : null);
         }
 
         IReadOnlyList<ItemInstanceModifier> modifiers = ModifiersOf(entry);
-        return new Held(modifiers, in entry.BaseStats, item.Identified
+        return new Held(modifiers, in entry.BaseStats, ItemVisibility.NameShown(item.Identified)
             ? entry.Name.Of(item.TemplateId, item.Rarity, item.RareName, modifiers, items)
             : null);
     }
