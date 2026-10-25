@@ -226,9 +226,9 @@ cleanup: inspect exact `crashes-test-<UUID>` names/labels before removing only t
 run's resources; never prune the user's Docker host. The protected source files
 remain untouched. The protected vertical suite runs the shipped `/app` worker executable, real pinned conversion/walking, restricted-role identity HTTP and a digest-pinned OTLP collector. Public Garage tests prove signed worker read-only original/crash access, cache writes, anonymous denial and SQL-role denials without private fixtures.
 
-The `crashes-integration.yml` workflow uses ephemeral GitHub-hosted runners for
-ordinary PR suites, and runs them only for pull requests that touch the crash pipeline (its `paths` filter: the
-three crash projects, their tests, `tools/crashes`, the workflow and the repository-wide build settings). Full native plus vertical acceptance is manual, main-only, in the protected
+The `crashes-integration.yml` workflow is manual only (Actions → Crash integration → Run workflow, on any
+branch): pull requests don't run it. Run it after changing the crash pipeline. The ordinary suites use ephemeral
+GitHub-hosted runners. Full native plus vertical acceptance is manual, main-only, in the protected
 `crashes-native` environment. Configure required reviewers and main-only deployment
 branches there, plus `CRASHES_FIXTURE_URL` (secret signed HTTPS archive URL) and
 `CRASHES_FIXTURE_SHA256` (trusted environment variable). The archive itself must
