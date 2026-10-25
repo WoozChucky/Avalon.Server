@@ -26,7 +26,7 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with: { dotnet-version: 10.0.402 }
       - uses: actions/setup-python@v7
-        with: { python-version: "3.12" }
+        with: { python-version: "3.15" }
       - name: Build Linux product image
         run: |
           dotnet publish src/Server/Avalon.Crashes.Worker/Avalon.Crashes.Worker.csproj -c Release -r linux-x64 --self-contained false -p:UseAppHost=false -o src/Server/Avalon.Crashes.Worker/out
@@ -46,7 +46,7 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with: { dotnet-version: 10.0.402 }
       - uses: actions/setup-python@v7
-        with: { python-version: "3.12" }
+        with: { python-version: "3.15" }
       - name: Build Linux product image
         run: |
           dotnet publish src/Server/Avalon.Crashes.Worker/Avalon.Crashes.Worker.csproj -c Release -r linux-x64 --self-contained false -p:UseAppHost=false -o src/Server/Avalon.Crashes.Worker/out
