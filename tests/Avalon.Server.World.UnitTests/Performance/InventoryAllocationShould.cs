@@ -164,12 +164,15 @@ public class InventoryAllocationShould
     }
 
     /// <summary>
-    /// An identify request at the Resonance Workbench (#1179), at no cost as v1 ships it, allocates nothing beyond its
-    /// one reply, whether it is refused (here AlreadyIdentified, the last rule before gold) or done: no wallet is taken
-    /// when there is no gold to ask for, and the Workbench is looked up by the guid the packet carries.
+    /// An identify request at the Resonance Workbench (#1179) allocates nothing beyond its one reply, whether it is
+    /// refused (here AlreadyIdentified, the last rule before gold) or done, at no cost as v1 ships it and at a cost: no
+    /// wallet is taken when there is no gold to ask for, the character's own is when there is, and the Workbench is
+    /// looked up by the guid the packet carries.
     /// </summary>
-    [Fact]
-    public void Answer_an_identify_request_allocating_nothing()
+    [Theory]
+    [InlineData(0UL)]
+    [InlineData(10UL)]
+    public void Answer_an_identify_request_allocating_nothing(ulong cost)
     {
         StaticData data = ScenarioReferenceData.Shared.Data;
         using MapInstance instance = TestMapInstances.Build(new QuietWorld(data));
@@ -178,7 +181,9 @@ public class InventoryAllocationShould
         instance.AddDoodad(workbench);
         _character.InstanceId = instance.InstanceId;
         var world = new QuietWorld(data, instance);
-        Assert.Equal(0UL, world.Configuration.Items.IdentifyCost);
+        world.Configuration.Items.IdentifyCost = cost;
+        // Enough for every request the windows send.
+        _character.Data!.Gold = 1_000_000;
         var handler = new ItemIdentifyHandler(NullLogger<ItemIdentifyHandler>.Instance, world, TestEconomy.Over(world));
         var identify = new CItemIdentifyPacket { RequestId = 9, WorkbenchGuid = workbench.Guid.RawValue, BagSlot = 2 };
 
@@ -193,6 +198,7 @@ public class InventoryAllocationShould
             handler.Execute(_connection, identify);
         });
         Assert.True(At(_character, InventoryType.Bag, 2).Identified);
+        Assert.Equal(1_000_000 - cost * 4 * Rounds, _character.Data.Gold);
         long refused = Allocated(() => handler.Execute(_connection, identify));
 
         Assert.Multiple(

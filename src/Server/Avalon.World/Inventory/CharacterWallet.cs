@@ -9,6 +9,9 @@ namespace Avalon.World.Inventory;
 /// </summary>
 public sealed class CharacterWallet(CharacterEntity owner, ulong maxGold) : IWallet
 {
+    /// <summary>The gold cap it was made under: an addition past it is refused.</summary>
+    public ulong MaxGold => maxGold;
+
     private Character Row => owner.Data
         ?? throw new InvalidOperationException("A character without a row has no wallet.");
 

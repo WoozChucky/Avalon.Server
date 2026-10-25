@@ -50,8 +50,8 @@ public sealed class ItemIdentifyHandler(ILogger<ItemIdentifyHandler> logger, IWo
     {
         var host = world.InstanceRegistry.GetInstanceById(character.InstanceId) as IDoodadHost;
         ulong cost = world.Configuration.Items.IdentifyCost;
-        // A wallet is made per call, so it is taken only when there is gold to ask for: at no cost (v1) a request,
-        // refused or not, allocates nothing.
+        // Taken only when there is gold to ask for; it is the character's own, kept by the economy, so a request at any
+        // cost, refused or not, allocates nothing.
         IWallet? wallet = cost > 0 ? economy.WalletOf(character) : null;
 
         ItemIdentifyResult result = IdentifyRules.Decide(character, host, packet.WorkbenchGuid, packet.BagSlot, cost,

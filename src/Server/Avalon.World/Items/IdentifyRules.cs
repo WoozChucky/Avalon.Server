@@ -17,9 +17,9 @@ namespace Avalon.World.Items;
 /// Identify); the character is beyond the Workbench's interaction range (a position that is not a number is beyond it);
 /// the Bag holds nothing in that slot (a slot past the Bag included); the item is already identified; it is offered in a
 /// trade; and, when the cost is above 0, the wallet cannot spend it (the wallet already leaves out gold a trade holds).
-/// The wallet is asked for only when the cost is above 0, so a request at no cost needs none (the handler takes one only
-/// then, and a request allocates nothing). Doodad visibility is not asked: the catalog refuses a gate or a script on an Identify template, and a town spawn row
-/// carries no gate. Tick thread only.
+/// The wallet is asked for only when the cost is above 0, so a request at no cost needs none (the handler takes the
+/// character's only then). Doodad visibility is not asked: the catalog refuses a gate or a script on an Identify
+/// template, and a town spawn row carries no gate. Tick thread only.
 /// </summary>
 public static class IdentifyRules
 {

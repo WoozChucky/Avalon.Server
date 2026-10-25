@@ -355,6 +355,14 @@ public partial class CharacterEntity : ICharacter
     internal (ICharacterEconomy? Economy, IInventoryService? Service) EconomyInventory { get; set; }
 
     /// <summary>
+    /// The wallet the economy made for this character, with the economy that made it (#1179), kept as the inventory
+    /// service is: a request that asks for gold (an identify at a cost, a vendor trade, a pickup, a quest reward) takes the
+    /// one it has rather than building one. It holds nothing but the character and the gold cap it was made under.
+    /// Tick thread only.
+    /// </summary>
+    internal (ICharacterEconomy? Economy, CharacterWallet? Wallet) EconomyWallet { get; set; }
+
+    /// <summary>
     /// The rolled rows (modifiers and base stats) of every item this character holds (#1179), by item id.
     /// World-side, never on ICharacter: the modding API sees an item only as its InventoryItem. Loaded at select;
     /// written only by the inventory service.

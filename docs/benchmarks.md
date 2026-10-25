@@ -455,10 +455,13 @@ scenarios exactly their baselines, so `perf/scenario-allocations.json` is not re
 **The identify request** (`CMSG_ITEM_IDENTIFY`, #1179, part C) is a request a client can send at will, and no scenario
 sends it. As first written it allocated 56 B per request beyond its reply, refusals included: a `CharacterWallet`
 (32 B) taken before the rules were asked, and an `ObjectGuid` (24 B, a class) built only to look the Workbench up. The
-handler now takes a wallet only when `Game:Items:IdentifyCost` is above 0 (0, the default, asks no gold), and
-`DoodadIndex.TryGet` takes the raw guid the packet carries. `InventoryAllocationShould` pins a done identify and an
-`AlreadyIdentified` refusal (the last rule before gold) at 0 B through production's `CharacterEconomy`; with the wallet
-taken again it reads 3,200 B per 100 requests. A cost above 0 takes one wallet per request, as a vendor request does.
+handler now takes a wallet only when `Game:Items:IdentifyCost` is above 0 (0, the default, asks no gold), that wallet
+is the character's own, made once and kept on it (`CharacterEntity.EconomyWallet`, with the economy that made it, as
+the inventory service is; a gold cap read differently makes a new one), and `DoodadIndex.TryGet` takes the raw guid the
+packet carries. `InventoryAllocationShould` pins a done identify and an `AlreadyIdentified` refusal (the last rule
+before gold) at 0 B through production's `CharacterEconomy`, at no cost and at a cost of 10; with a wallet made per
+request it reads 3,200 B per 100 requests. Every other `WalletOf` caller (a vendor trade, a pickup's gold, a quest
+reward, a trade's completion, an item script) now gets the kept wallet too.
 
 **The quest flusher's bag check.** `QuestFlusher.TouchedTheBag` runs for every connection on every tick, to see
 whether a Bag slot changed. It walked the changed slots through the set's interface, which boxed the set's enumerator:
@@ -571,8 +574,9 @@ add).
   the economy. The service is made once per character and kept on it (`CharacterEntity.EconomyInventory`, internal,
   with the economy that made it): it holds the character, the lookup and the id allocator and no state of its own,
   the lookup still reads the item templates as they are at each call, and it lives and dies with the character, so
-  there is nothing to clear and nothing shared between characters. The wallet and the vendor trade are still made
-  per call (the wallet carries the gold cap as it is read then).
+  there is nothing to clear and nothing shared between characters. The vendor trade is still made per call; the
+  wallet is kept the same way since #1179, part C (`CharacterEntity.EconomyWallet`, remade when the gold cap reads
+  differently, so a cap change still applies to the next operation).
 - **The inventory service.** Its add, its removal by template and its counts ran queries. The add copied the partial
   stacks, ordered by slot, into a list, and then the free slots into another, because the walk writes the Bag; both
   are walks by slot number over the Bag as it is, since a step writes only the slot it stands on and the slots still

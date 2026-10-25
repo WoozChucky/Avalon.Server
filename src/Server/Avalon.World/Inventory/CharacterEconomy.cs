@@ -8,8 +8,8 @@ namespace Avalon.World.Inventory;
 
 /// <summary>
 /// Where gameplay code (loot #460, vendors #432) gets a character's inventory service, wallet and
-/// vendor trade. Cheap objects over the character's own state (the inventory service is kept on the character, the
-/// wallet and the trade are made per call); templates, the modifier catalog (#1179) and the gold cap are read live, so a
+/// vendor trade. Cheap objects over the character's own state (the inventory service and the wallet are kept on the
+/// character, the trade is made per call); templates, the modifier catalog (#1179) and the gold cap are read live, so a
 /// reference-data reload applies to the next operation.
 /// </summary>
 public interface ICharacterEconomy
@@ -59,8 +59,22 @@ public sealed class CharacterEconomy : ICharacterEconomy
         return service;
     }
 
-    public IWallet WalletOf(CharacterEntity character) =>
-        new CharacterWallet(character, _world.Configuration.MaxGold);
+    /// <summary>
+    /// The character's one wallet from this economy, made on first use and kept on the character (#1179), as the
+    /// inventory service is: an identify request at a cost asks for it every time, refused or not. It holds the gold cap
+    /// it was made under, so a cap read differently now makes a new one.
+    /// </summary>
+    public IWallet WalletOf(CharacterEntity character)
+    {
+        ulong maxGold = _world.Configuration.MaxGold;
+        (ICharacterEconomy? economy, CharacterWallet? kept) = character.EconomyWallet;
+        if (ReferenceEquals(economy, this) && kept is not null && kept.MaxGold == maxGold)
+            return kept;
+
+        var wallet = new CharacterWallet(character, maxGold);
+        character.EconomyWallet = (this, wallet);
+        return wallet;
+    }
 
     public VendorTrade VendorOf(CharacterEntity character) =>
         new(character, InventoryOf(character), WalletOf(character), _findTemplate, _world.Configuration.MaxGold,
