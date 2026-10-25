@@ -1,0 +1,9 @@
+# Rendering-only configuration. The identity role is distinct from the worker owner role.
+crashes:
+  enabled: true
+  networkPolicy:
+    enabled: true
+    databasePeers: [{podSelector: {matchLabels: {app: crash-postgres}}}]
+    otherEgress:
+      - to: [{podSelector: {matchLabels: {app: auth-postgres}}}]
+        ports: [{protocol: TCP, port: 5432}]

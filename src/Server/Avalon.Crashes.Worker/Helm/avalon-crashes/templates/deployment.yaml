@@ -1,0 +1,109 @@
+{{- include "avalon-crashes.validate" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "avalon-crashes.fullname" . }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "avalon-crashes.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        {{- include "avalon-crashes.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/arch: amd64
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "avalon-crashes.podSecurity" . | nindent 8 }}
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["run"{{ if .Values.paused }}, "--paused"{{ end }}]
+          securityContext:
+            {{- include "avalon-crashes.containerSecurity" . | nindent 12 }}
+          resources:
+            {{- include "avalon-crashes.resources" . | nindent 12 }}
+          env:
+            - name: Database__Crashes__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret | quote }}
+                  key: database-crashes-connection-string
+            - name: Crashes__Storage__AccessKeyId
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret | quote }}
+                  key: crash-storage-access-key
+            - name: Crashes__Storage__SecretAccessKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret | quote }}
+                  key: crash-storage-secret-key
+            - name: Crashes__Storage__Endpoint
+              value: {{ .Values.storage.endpoint | quote }}
+            - name: Crashes__Storage__Region
+              value: {{ .Values.storage.region | quote }}
+            - name: Crashes__Storage__Bucket
+              value: {{ .Values.storage.bucket | quote }}
+            - name: Crashes__Symbols__OriginalBucket
+              value: {{ .Values.symbols.originalBucket | quote }}
+            - name: Crashes__Symbols__ConvertedBucket
+              value: {{ .Values.symbols.convertedBucket | quote }}
+            - name: Crashes__Symbols__PublicEnabled
+              value: {{ .Values.symbols.publicEnabled | quote }}
+            - name: Crashes__Processing__ScratchRoot
+              value: /scratch/reports
+            - name: Crashes__Processing__ScratchLimitBytes
+              value: "2147483648"
+            - name: Crashes__Symbols__CacheRoot
+              value: /symbols/cache
+            - name: Crashes__Symbols__LocalCacheBytes
+              value: "4294967296"
+            - name: DOTNET_EnableDiagnostics
+              value: "0"
+            {{- if .Values.otel.endpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otel.endpoint | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ include "avalon-crashes.fullname" . | quote }}
+            {{- end }}
+          ports:
+            - name: health
+              containerPort: 8080
+          startupProbe:
+            httpGet: {path: /alive, port: health}
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: {path: /alive, port: health}
+            periodSeconds: 15
+            failureThreshold: 4
+          readinessProbe:
+            httpGet: {path: /health, port: health}
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: scratch
+              mountPath: /scratch
+            - name: symbols
+              mountPath: /symbols
+      volumes:
+        - name: scratch
+          emptyDir:
+            sizeLimit: 2Gi
+        - name: symbols
+          emptyDir:
+            sizeLimit: 4Gi

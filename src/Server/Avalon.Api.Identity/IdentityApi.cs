@@ -1,12 +1,13 @@
 using System.Reflection;
-using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Hosting.Worlds;
+using Avalon.Api.Hosting;
 using Avalon.Api.Identity.Authentication;
 using Avalon.Api.Identity.Config;
+using Avalon.Api.Identity.Crashes;
 using Avalon.Api.Identity.Exceptions;
-using Avalon.Api.Identity.Services;
 using Avalon.Api.Identity.Services.Email;
+using Avalon.Api.Identity.Services;
 using Avalon.Infrastructure.Login;
 
 namespace Avalon.Api.Identity;
@@ -53,6 +54,7 @@ public sealed class IdentityApi : IApiService
         services.AddSingleton<IExceptionProblemMapper, IdentityProblemMapper>();
 
         services.AddIdentityAuthentication();
+        services.AddCrashAdminApi(builder.Configuration);
         services.AddIdentity(applicationConfig);
         // Application:Email (#510): no sender unless configured, and then email change is off (501).
         services.AddEmail(applicationConfig.Email, builder.Environment);
@@ -63,6 +65,7 @@ public sealed class IdentityApi : IApiService
         // First: on any port but the game workload listener's, the game workload routes do not exist (design D7.4).
         app.UseGameInternalRoutes(GameWorkloadHosting.PortOf(app.ApplicationServices.GetRequiredService<IConfiguration>()));
         app.UseMiddleware<SteamOpenIdCallbackMiddleware>();
+        app.UseCrashNoStore();
     }
 
     public void UseAfterAuthentication(IApplicationBuilder app) =>

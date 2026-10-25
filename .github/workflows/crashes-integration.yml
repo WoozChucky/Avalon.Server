@@ -1,0 +1,65 @@
+name: Crash integration
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      native:
+        description: Run protected native and complete vertical acceptance on main
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  ordinary:
+    # Untrusted PR code must never share a persistent host containing private fixtures.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [postgres, garage]
+    steps:
+      - uses: actions/checkout@v7
+        with: { submodules: recursive, persist-credentials: false }
+      - uses: actions/setup-dotnet@v6
+        with: { dotnet-version: 10.0.402 }
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - name: Build Linux product image
+        run: |
+          dotnet publish src/Server/Avalon.Crashes.Worker/Avalon.Crashes.Worker.csproj -c Release -r linux-x64 --self-contained false -p:UseAppHost=false -o src/Server/Avalon.Crashes.Worker/out
+          docker build --platform linux/amd64 -t avalon-crashes-worker:integration src/Server/Avalon.Crashes.Worker
+      - name: Run isolated integration suite
+        env: { SUITE: "${{ matrix.suite }}" }
+        run: bash tools/crashes/run-integration.sh --suite "$SUITE"
+      # No raw logs, fixture material or TRX uploads from any integration job.
+  native:
+    if: github.event_name == 'workflow_dispatch' && inputs.native && github.ref == 'refs/heads/main'
+    environment: crashes-native
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with: { submodules: recursive, persist-credentials: false }
+      - uses: actions/setup-dotnet@v6
+        with: { dotnet-version: 10.0.402 }
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - name: Build Linux product image
+        run: |
+          dotnet publish src/Server/Avalon.Crashes.Worker/Avalon.Crashes.Worker.csproj -c Release -r linux-x64 --self-contained false -p:UseAppHost=false -o src/Server/Avalon.Crashes.Worker/out
+          docker build --platform linux/amd64 -t avalon-crashes-worker:integration src/Server/Avalon.Crashes.Worker
+      - name: Provision protected fixture into ephemeral runner
+        env:
+          CRASHES_FIXTURE_URL: ${{ secrets.CRASHES_FIXTURE_URL }}
+          CRASHES_FIXTURE_SHA256: ${{ vars.CRASHES_FIXTURE_SHA256 }}
+        run: python tools/crashes/provision-private-fixture.py
+      - name: Run protected full acceptance
+        env:
+          AVALON_CRASHES_PRIVATE_PAIR: ${{ runner.temp }}/crashes-private/pair
+          AVALON_CRASHES_PRIVATE_FIXTURE: ${{ runner.temp }}/crashes-private/fixture
+        run: bash tools/crashes/run-integration.sh --suite all
+      - name: Remove protected fixture
+        if: always()
+        run: python tools/crashes/provision-private-fixture.py --cleanup

@@ -286,7 +286,8 @@ shape() {
 HOMELAB=(--values ci/homelab-values.yaml)
 # A Windows checkout holds the chart with CRLF line ends; compare what it says, not how lines end.
 render() { helm template t . "$@" | tr -d '\r'; }
-EXPECTED=$(tr -d '\r' < ci/homelab-render.txt)
+# Add the explicit disabled crash feature to the pre-feature homelab snapshot.
+EXPECTED=$({ tr -d '\r' < ci/homelab-render.txt; echo 'env Application__Crashes__Enabled="false"'; } | LC_ALL=C sort)
 
 # The release homelab runs names no services: it must render exactly what it rendered before the split
 # (ci/homelab-render.txt, taken from the chart before #794), one process running all four services, with
@@ -305,7 +306,7 @@ diff <(shape <<<"$mono") <(shape <<<"$four" | grep -v '^env Application__Service
 owners() {
   case "$1" in
     Application__StoreAuthentication__Environment|Application__StoreAuthentication__SteamIdentityPrefix) echo "identity commerce" ;;
-    Application__StoreAuthentication__*|Application__Email__*|Application__Notification__*|Application__SteamWebLink__*|Application__GameWorkloads__*|Kestrel__Endpoints__GameInternal__*|Application__RateLimiting__ClientAuthPermitsPerMinute|Application__LoadTest__*) echo identity ;;
+    Application__Crashes__*|Database__Crashes__*|Application__StoreAuthentication__*|Application__Email__*|Application__Notification__*|Application__SteamWebLink__*|Application__GameWorkloads__*|Kestrel__Endpoints__GameInternal__*|Application__RateLimiting__ClientAuthPermitsPerMinute|Application__LoadTest__*) echo identity ;;
     Application__Authentication__SigningKey|Application__Authentication__SigningKeyId|Application__GameAuth__*) echo identity ;;
     Database__Worlds__*__Characters__*) echo "identity worlds" ;;
     Database__Worlds__*__World__*|Application__Templates__*|Application__MapAssets__*|Application__Balance__*|Application__PublicWorldId|Application__PublicPopulationReference|Application__PublicSiteUrl) echo worlds ;;
@@ -421,6 +422,7 @@ diff <(echo "$table") - <<'EOF' || { echo "routes must follow the manifest (desi
 10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/crash(/|$)
 10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/launcher(/|$)
 10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/releases(/|$)
+10020 api-identity:8080 avalon-strip-api ^/api/(?i)admin/crashes(/|$)
 10020 api-identity:8080 avalon-strip-api ^/api/(?i)admin/load-test(/|$)
 10020 api-identity:8080 avalon-strip-api ^/api/(?i)client/auth(/|$)
 20020 api-worlds-next:8080 avalon-strip-api ^/api/(?i)world/1(/|$)
@@ -468,3 +470,29 @@ must_fail "a password key reusing the auth key must fail"               --set ex
 must_fail "a world key reusing the password key must fail"              --set existingSecret=x --set worlds.1.worldKey=redis-x --set worlds.1.charactersKey=c --set cache.passwordKey=redis-x
 must_fail "a user name with a space must fail"                          --set existingSecret=x "${W1[@]}" --set 'cache.username=api identity'
 echo "avalon-api chart OK"
+
+# Crash administration is opt-in and identity-only; its database role is never the worker owner.
+crash_default=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=api "${W1[@]}" --set 'services={identity}')
+grep -A1 'name: Application__Crashes__Enabled' <<<"$crash_default" | grep -q 'value: "false"' || { echo "crash API must default false"; exit 1; }
+! grep -q Database__Crashes <<<"$crash_default" || { echo "disabled crash API reads a secret"; exit 1; }
+crash_identity=$(helm template t . "${AUTHENTICATION[@]}" -f ci/crashes-values.yaml $CACHE --set existingSecret=api "${W1[@]}" --set 'services={identity}')
+grep -A1 'name: Application__Crashes__Enabled' <<<"$crash_identity" | grep -q 'value: "true"'
+grep -A4 'name: Database__Crashes__ConnectionString' <<<"$crash_identity" | grep -q 'key: database-crashes-connection-string'
+! grep -q 'crash-storage-' <<<"$crash_identity"
+grep -q 'app: crash-postgres' <<<"$crash_identity"
+for role in worlds commerce distribution; do
+  isolated=$(helm template t . "${AUTHENTICATION[@]}" -f ci/crashes-values.yaml $CACHE --set existingSecret=api "${W1[@]}" --set "services={$role}")
+  ! grep -Eq 'Application__Crashes|Database__Crashes|database-crashes-connection-string|app: crash-postgres|crash-storage-' <<<"$isolated" || { echo "crash access leaked to $role"; exit 1; }
+  isolated_secret=$(helm template t . "${AUTHENTICATION[@]}" $CACHE "${SECRETS[@]}" --set crashes.enabled=true --set database.crashes.connectionString=limited-role --set "services={$role}")
+  ! grep -Eq 'Database__Crashes|database-crashes-connection-string|limited-role' <<<"$isolated_secret" || { echo "crash secret leaked to $role"; exit 1; }
+done
+crash_secret=$(helm template t . "${AUTHENTICATION[@]}" $CACHE "${SIGNING[@]}" "${AUTH[@]}" --set worlds.1.characters.connectionString=c1 --set 'services={identity}' --set crashes.enabled=true --set database.crashes.connectionString=limited-role)
+grep -q 'database-crashes-connection-string: "limited-role"' <<<"$crash_secret"
+! grep -q 'value: "limited-role"' <<<"$crash_secret"
+must_fail "crash connection ambiguity" --set existingSecret=api "${W1[@]}" --set crashes.enabled=true --set database.crashes.connectionString=limited-role
+
+crash_no_policy=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=api "${W1[@]}" --set 'services={identity}' --set crashes.enabled=true)
+! grep -q 'kind: NetworkPolicy' <<<"$crash_no_policy" || { echo "feature flag silently enabled egress isolation"; exit 1; }
+grep -q 'app: auth-postgres' <<<"$crash_identity"
+must_fail "identity egress must preserve existing dependencies" --set existingSecret=api "${W1[@]}" --set crashes.enabled=true --set crashes.networkPolicy.enabled=true
+printf '%s\n' 'Crash identity isolation checks passed.'

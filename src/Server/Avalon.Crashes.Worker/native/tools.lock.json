@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "platform": "x86_64-unknown-linux-gnu",
+  "tools": [
+    {
+      "name": "dump_syms",
+      "version": "2.3.9",
+      "revision": "8d73615ec9ba006e0e6d703a7a3f91067d8718a7",
+      "release": "https://github.com/mozilla/dump_syms/releases/tag/v2.3.9",
+      "url": "https://github.com/mozilla/dump_syms/releases/download/v2.3.9/dump_syms-x86_64-unknown-linux-gnu.tar.xz",
+      "archiveSha256": "0fc852a86b00337407d9d423cc388a24c3b489ccaaedcf92623cad57af5ca8ad",
+      "binarySha256": "7c8de6b07be9e3260a947fe428f3b19ef200d8c939c3c9d9e1462f028281de74",
+      "archiveDirectory": "dump_syms-x86_64-unknown-linux-gnu",
+      "licenses": ["LICENSE-APACHE", "LICENSE-MIT"],
+      "spdx": "Apache-2.0 OR MIT",
+      "distribution": "upstream released prebuilt binary",
+      "arguments": ["--inlines", "--check-cfi"],
+      "features": "Upstream release default cli,http; PE/PDB, inline records and x64 CFI verified by native gate"
+    },
+    {
+      "name": "minidump-stackwalk",
+      "version": "0.27.0",
+      "revision": "4adf5555b2ab844f23c52982fc202357ff882695",
+      "release": "https://github.com/rust-minidump/rust-minidump/releases/tag/v0.27.0",
+      "url": "https://github.com/rust-minidump/rust-minidump/releases/download/v0.27.0/minidump-stackwalk-x86_64-unknown-linux-gnu.tar.xz",
+      "archiveSha256": "0020324c54cc359596e927ee907204f4c8d4da6718765536edcabaa1622122ad",
+      "binarySha256": "bccfa6806f8bc5ec96bfe6097c07fc715f8c9efd28382632d952408b0e3ce358",
+      "archiveDirectory": "minidump-stackwalk-x86_64-unknown-linux-gnu",
+      "licenses": ["LICENSE"],
+      "spdx": "MIT",
+      "distribution": "upstream released prebuilt binary",
+      "arguments": ["--json"],
+      "features": "Upstream release default; minidump-unwind debuginfo,http; stable-basic processor; no remote URLs used"
+    }
+  ]
+}

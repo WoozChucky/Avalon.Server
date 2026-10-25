@@ -69,6 +69,11 @@ jobs:
       - name: Publish Balance Service
         run: dotnet publish src/Server/Avalon.Balance.Service/Avalon.Balance.Service.csproj -c Release --no-restore -p:SourceRevisionId="$(git rev-parse HEAD)" -o src/Server/Avalon.Balance.Service/out
 
+      - name: Publish Crashes Worker
+        run: |
+          dotnet restore src/Server/Avalon.Crashes.Worker/Avalon.Crashes.Worker.csproj -r linux-x64
+          dotnet publish src/Server/Avalon.Crashes.Worker/Avalon.Crashes.Worker.csproj -c Release -r linux-x64 --self-contained false --no-restore -p:UseAppHost=false -o src/Server/Avalon.Crashes.Worker/out
+
   charts:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
@@ -76,6 +81,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: azure/setup-helm@v5
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - name: Install chart test dependencies
+        run: python -m pip install PyYAML==6.0.2
       - name: Chart tests
         run: |
           set -euo pipefail

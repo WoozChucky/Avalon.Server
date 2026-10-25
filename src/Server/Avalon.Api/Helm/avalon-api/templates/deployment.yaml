@@ -17,6 +17,7 @@ settings and Secret keys of its own services. A routes release renders no pod.
 {{- include "avalon-api.validateWorlds" (list . $parts) }}
 {{- if $identity }}
 {{- include "avalon-api.validateEmail" . }}
+{{- include "avalon-api.validateCrashes" . }}
 {{- end }}
 {{- if $commerce }}
 {{- include "avalon-api.validateCommerce" . }}
@@ -212,6 +213,17 @@ spec:
             {{- end }}
             # Secrets come from the Secret (templates/secret.yaml or existingSecret), never as
             # plain values in the pod spec (#482).
+            {{- if $identity }}
+            - name: Application__Crashes__Enabled
+              value: {{ .Values.crashes.enabled | toString | quote }}
+            {{- if .Values.crashes.enabled }}
+            - name: Database__Crashes__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-api.secretName" . }}
+                  key: database-crashes-connection-string
+            {{- end }}
+            {{- end }}
             - name: Database__Auth__ConnectionString
               valueFrom:
                 secretKeyRef:

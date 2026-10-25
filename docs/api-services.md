@@ -504,3 +504,7 @@ configure retention. See the local setup instructions below in `development-setu
 | `ApiServiceSelectionShould`, `PipelineOrderShould`, `AuthSchemaGateShould`, `WorldDatabasePartsShould`, `RouteTableShould`, `OpenApiOrderShould` | `Avalon.Api.Hosting.UnitTests` | The selection rules, the pipeline order, the schema gate, the world parts a process reads, the manifest reader, or the ordinal order of a document's paths, tags and schemas change |
 | `InternalEndpointsShould` | `Avalon.Api.Identity.UnitTests` | `/internal/game/*` answers on a port other than the workload listener's |
 | `ci/test.sh` | the chart | The homelab values render differently from before the split with the ES256 keys (#801) in place of the HS256 key, identity's private key or game-auth host key is not required, a removed HS256 value renders, a service alone renders a setting or Secret key that is not its own, the routes release's rules, priorities or refusals change, the NetworkPolicy renders without its peers, `rateLimiting.exemptSources` misses a release, or `loadTest` reaches a release without identity |
+
+## Optional private crash analysis
+
+Identity owns `/admin/crashes` behind an explicit Admin bearer session and an off-by-default feature flag. Its restricted crash SQL role never migrates, and crash database unavailability remains local to those endpoints. The separate worker has private storage credentials; identity does not. See [Private crash analysis](crash-analysis.md) for grants, retention, generated DTOs and rollout gates.

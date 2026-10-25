@@ -114,6 +114,10 @@ public sealed class RouteOwnershipShould
         ["POST /internal/game/sessions/end"] = Identity,
         ["POST /admin/load-test/accounts"] = Identity,
         ["DELETE /admin/load-test/accounts"] = Identity,
+        ["GET /admin/crashes/groups"] = Identity,
+        ["GET /admin/crashes/groups/{id}"] = Identity,
+        ["PATCH /admin/crashes/groups/{id}"] = Identity,
+        ["GET /admin/crashes/reports/{id}"] = Identity,
 
         // worlds: the world registry and maintenance, world content and its live editing, characters, presence,
         // public tooltips and previews, the balance proxy.
@@ -206,6 +210,15 @@ public sealed class RouteOwnershipShould
     public static TheoryData<string> Services => new(ApiServices.All.Select(service => service.Name));
 
     private static RouteTable Routes() => RouteTable.Load(RepositoryRoot.PathOf(Manifest));
+
+    [Fact]
+    public void Give_crash_administration_an_explicit_identity_rule()
+    {
+        RouteRule? rule = Routes().RuleFor("/admin/crashes/groups");
+        Assert.NotNull(rule);
+        Assert.Equal("/admin/crashes", rule.Prefix);
+        Assert.Equal(Identity, rule.Service);
+    }
 
     [Theory]
     [MemberData(nameof(Services))]

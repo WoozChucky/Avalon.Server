@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="SharpZipLib" />
+    <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
+  </ItemGroup>
+</Project>
