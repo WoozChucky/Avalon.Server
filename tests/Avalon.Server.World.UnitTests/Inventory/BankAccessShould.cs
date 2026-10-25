@@ -109,6 +109,7 @@ public class BankAccessShould
         InventoryItem chest = Item(4, EquipTemplates.Chestguard);
         w.Character.ItemModifiers.Load([new ItemInstance
         {
+            Identified = true,
             Id = chest.InstanceId,
             TemplateId = chest.TemplateId,
             BaseStats = [new ItemInstanceBaseStat { ItemInstanceId = chest.InstanceId, Stat = ItemBaseStat.Armour, Value = 8 }],

@@ -148,7 +148,7 @@ variant populated
 
 variant maxima
   field 1 RequestId : uint = 4294967295
-  field 2 Result : ItemRequestResult = UniqueEquipped (16)
+  field 2 Result : ItemRequestResult = Unidentified (17)
   field 3 Slots : InventorySlotUpdateDto[] = 3 elements
     element 0
       field 1 Container : InventoryType = Bank (2)
@@ -361,7 +361,7 @@ variant maxima
             field 1 Stat : BaseStat = AttackTime (6)
             field 2 Value : int = 2147483647
   bytes 1226
-    08 ff ff ff ff 0f 10 10 1a 93 03 08 02 10 ff 01
+    08 ff ff ff ff 0f 10 11 1a 93 03 08 02 10 ff 01
     1a 8b 03 08 02 10 ff 01 18 ff ff ff ff ff ff ff
     ff ff 01 22 12 09 ff ff ff ff ff ff ff ff 11 ff
     ff ff ff ff ff ff ff 28 ff ff ff ff 0f 30 ff ff
@@ -476,7 +476,7 @@ variant minima
 
 variant varint-edges
   field 1 RequestId : uint = 268435455
-  field 2 Result : ItemRequestResult = <not a declared member> (17)
+  field 2 Result : ItemRequestResult = <not a declared member> (18)
   field 3 Slots : InventorySlotUpdateDto[] = 2 elements
     element 0
       field 1 Container : InventoryType = <not a declared member> (3)
@@ -567,7 +567,7 @@ variant varint-edges
             field 1 Stat : BaseStat = <not a declared member> (7)
             field 2 Value : int = 2097152
   bytes 544
-    08 ff ff ff 7f 10 11 1a 8b 02 08 03 10 80 01 1a
+    08 ff ff ff 7f 10 12 1a 8b 02 08 03 10 80 01 1a
     83 02 08 03 10 80 01 18 80 01 22 12 09 04 03 02
     01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28 ff
     ff ff 7f 30 ff ff 7f 38 ff ff ff 7f 40 04 48 ff

@@ -24,6 +24,7 @@ public class InventoryAssemblerShould
     private static ItemInstance Instance(Guid id, ulong template = 5, uint count = 1, uint durability = 50) =>
         new()
         {
+            Identified = true,
             Id = new ItemInstanceId(id),
             TemplateId = new ItemTemplateId(template),
             CharacterId = s_owner,

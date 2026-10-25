@@ -242,6 +242,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
                     Rarity = ItemRarity.Rare,
                     ItemLevel = 9,
                     RareName = "Thorn Bite",
+                    Identified = false,
                     BaseStats =
                     [
                         new TradeRecordItemBaseStat { TradeId = tradeId, ItemInstanceId = sword.Id, Stat = ItemBaseStat.DamageMax, Value = 9 },
@@ -284,8 +285,8 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
                 .Include(i => i.Modifiers).ThenInclude(m => m.Values)
                 .Include(i => i.BaseStats)
                 .SingleAsync(i => i.TradeId == record.Id);
-            Assert.Equal((sword.Id, ItemRarity.Rare, (ushort)9, "Thorn Bite"),
-                (moved.ItemInstanceId, moved.Rarity, moved.ItemLevel, moved.RareName));
+            Assert.Equal((sword.Id, ItemRarity.Rare, (ushort)9, "Thorn Bite", false),
+                (moved.ItemInstanceId, moved.Rarity, moved.ItemLevel, moved.RareName, moved.Identified));
             Assert.Equal([(ItemBaseStat.DamageMin, 4), (ItemBaseStat.DamageMax, 9)],
                 moved.BaseStats.OrderBy(s => s.Stat).Select(s => (s.Stat, s.Value)));
             TradeRecordItemModifier modifier = Assert.Single(moved.Modifiers);
@@ -300,13 +301,14 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     /// by id updated in place under that id, and every other row gone with its values. Its base stats are replaced
     /// likewise, one row per stat however often they are written. An item the save does not rewrite keeps its modifiers,
     /// their values and its base stats. A rare item keeps the name its roll gave it (#1179), and only a rare one may carry
-    /// a name (CK_ItemInstances_RareName).
+    /// a name (CK_ItemInstances_RareName). Whether it is identified is written as the item holds it, and a common copy is
+    /// never unidentified (CK_ItemInstances_Identified).
     /// </summary>
     [Fact]
     public async Task Replace_an_items_modifier_rows_by_id_in_its_save()
     {
         CharacterRow row = await SeedCharacterAsync(1);
-        ItemInstance item = Item(row.Id, count: 1, rarity: ItemRarity.Rare, itemLevel: 7, rareName: "Thorn Bite");
+        ItemInstance item = Item(row.Id, count: 1, rarity: ItemRarity.Rare, itemLevel: 7, rareName: "Thorn Bite", identified: false);
         ItemInstance untouched = Item(row.Id, count: 1, rarity: ItemRarity.Magic, itemLevel: 4);
         ItemInstanceModifier a = Modifier(item.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5));
         ItemInstanceModifier b = Modifier(item.Id, 10103, 1, Value(0, StatType.Strength, 8, null));
@@ -317,7 +319,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
                 BaseStat(untouched.Id, ItemBaseStat.Evasion, 40)], a, b, other))]);
 
         ItemInstance saved = await SavedAsync(row.Id, item.Id);
-        Assert.Equal((ItemRarity.Rare, (ushort)7, "Thorn Bite"), (saved.Rarity, saved.ItemLevel, saved.RareName));
+        Assert.Equal((ItemRarity.Rare, (ushort)7, "Thorn Bite", false), (saved.Rarity, saved.ItemLevel, saved.RareName, saved.Identified));
         Assert.Equal(Describe(a, b), Describe([.. saved.Modifiers]));
         Assert.Equal([(ItemBaseStat.Armour, 9), (ItemBaseStat.BlockChance, 6)], BaseStatsOf(saved));
 
@@ -328,6 +330,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             modifiers: Write([BaseStat(item.Id, ItemBaseStat.Armour, 11)], kept, added))]);
 
         ItemInstance rewritten = await SavedAsync(row.Id, item.Id);
+        Assert.True(rewritten.Identified);
         Assert.Equal(Describe(added, kept), Describe([.. rewritten.Modifiers]));
         Assert.Equal([(ItemBaseStat.Armour, 11)], BaseStatsOf(rewritten));
         ItemInstance left = await SavedAsync(row.Id, untouched.Id);
@@ -340,6 +343,9 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         ItemInstance named = Item(row.Id, count: 1, rarity: ItemRarity.Magic, itemLevel: 7, rareName: "Thorn Bite");
         await Assert.ThrowsAnyAsync<DbUpdateException>(() => _saves.WriteAsync(
             [Batch(row, upsertItems: [named], upsertSlots: [Slot(row.Id, 2, named.Id)])]));
+        ItemInstance unidentifiedCommon = Item(row.Id, count: 1, identified: false);
+        await Assert.ThrowsAnyAsync<DbUpdateException>(() => _saves.WriteAsync(
+            [Batch(row, upsertItems: [unidentifiedCommon], upsertSlots: [Slot(row.Id, 2, unidentifiedCommon.Id)])]));
     }
 
     /// <summary>
@@ -453,7 +459,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     }
 
     private static ItemInstance Item(CharacterId owner, uint count, ItemInstanceId? id = null,
-        ItemRarity rarity = ItemRarity.Common, ushort itemLevel = 1, string? rareName = null) =>
+        ItemRarity rarity = ItemRarity.Common, ushort itemLevel = 1, string? rareName = null, bool identified = true) =>
         new()
         {
             Id = id ?? new ItemInstanceId(Guid.CreateVersion7()),
@@ -464,6 +470,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             Rarity = rarity,
             ItemLevel = itemLevel,
             RareName = rareName,
+            Identified = identified,
             UpdatedAt = DateTime.UtcNow,
         };
 

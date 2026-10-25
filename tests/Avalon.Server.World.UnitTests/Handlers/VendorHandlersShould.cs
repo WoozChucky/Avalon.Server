@@ -122,7 +122,7 @@ public class VendorHandlersShould : IAsyncLifetime
         inventory.TakeOut(Arg.Any<SlotRef>(), Arg.Any<uint>()).Returns(_ => throw new InvalidOperationException("boom"));
         IWallet wallet = TestEconomy.Over(_w.World).WalletOf(Me);
         ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
-        economy.VendorOf(Me).Returns(_ => new VendorTrade(Me, inventory, wallet, Find, 1_000_000, new SellFactors()));
+        economy.VendorOf(Me).Returns(_ => new VendorTrade(Me, inventory, wallet, Find, 1_000_000, new ItemConfiguration()));
 
         var buyLog = new LevelLogger<VendorBuyHandler>();
         var sellLog = new LevelLogger<VendorSellHandler>();

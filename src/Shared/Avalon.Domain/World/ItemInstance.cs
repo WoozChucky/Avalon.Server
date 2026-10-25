@@ -43,6 +43,12 @@ public class ItemInstance : IDbEntity<ItemInstanceId>
     /// </summary>
     public string? RareName { get; set; }
 
+    /// <summary>
+    /// Whether the copy is identified (#1179): a magic, rare or unique copy that drops or comes from a quest arrives
+    /// unidentified, and a common copy always is one (CK_ItemInstances_Identified). Every path that makes a copy states it.
+    /// </summary>
+    public required bool Identified { get; set; }
+
     public DateTime UpdatedAt { get; set; }
 
     /// <summary>

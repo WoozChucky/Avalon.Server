@@ -207,7 +207,9 @@ public static class InventoryMove
     /// <summary>
     /// Whether a whole <paramref name="item" /> may go to <paramref name="destination" />. Anything
     /// may go to the Bag or the Bank. Equipment takes one item of a template whose slot fits, and
-    /// never an item whose template is gone; of a UniqueEquipped template, only while no other slot wears a copy (#1179).
+    /// never an item whose template is gone; an identified one only (#1179), asked before the wearer's own checks, so an
+    /// unidentified UniqueEquipped copy is refused rather than swapped for the worn one; of a UniqueEquipped template, only
+    /// while no other slot wears a copy (#1179).
     /// </summary>
     private static ItemRequestResult CanGo(
         CharacterEntity character, ItemTemplate? template, InventoryItem item, SlotRef destination)
@@ -220,6 +222,9 @@ public static class InventoryMove
 
         if (item.Count > 1)
             return ItemRequestResult.NotStackable;
+
+        if (!item.Identified)
+            return ItemRequestResult.Unidentified;
 
         if (template.RequiredLevel is { } required && character.Level < required)
             return ItemRequestResult.LevelTooLow;

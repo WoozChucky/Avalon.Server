@@ -51,7 +51,7 @@ public class ItemUsePacketsShould
     public void Keep_every_result_number()
     {
         Assert.Equal(
-            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
             Enum.GetValues<ItemUseResult>().Select(r => (int)r));
         Assert.Equal(0, (int)ItemUseResult.Unknown);
         Assert.Equal(16, (int)ItemUseResult.InternalError);
@@ -59,6 +59,7 @@ public class ItemUsePacketsShould
         Assert.Equal(18, (int)ItemUseResult.Locked);
         Assert.Equal(19, (int)ItemUseResult.AttributesTooLow);
         Assert.Equal(20, (int)ItemUseResult.UniqueEquipped);
+        Assert.Equal(21, (int)ItemUseResult.Unidentified);
     }
 
     /// <summary>An item's cast bar names its item template beside the ability id, which is 0.</summary>

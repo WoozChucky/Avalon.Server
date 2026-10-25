@@ -165,6 +165,43 @@ public class ItemEquipShould
         Assert.Equal(count, At(_character, InventoryType.Bag, 0).Count);
     }
 
+    /// <summary>
+    /// #1179: a use wears no unidentified copy, whether into an empty slot, as a two-hander that would first move the worn
+    /// off-hand item, or as a second copy of a UniqueEquipped item that would swap the worn one out; nothing moves.
+    /// </summary>
+    [Theory]
+    [InlineData("item use")]
+    [InlineData("two-hander over a worn off hand")]
+    [InlineData("a second UniqueEquipped copy")]
+    public void Refuse_to_equip_an_unidentified_item_by_use(string route)
+    {
+        // The seed's signet is not UniqueEquipped: this row's own copy of it is, as a reload can make it.
+        ItemTemplate signet = ItemBaseSeed.Equipment().Single(t => t.Name == "Thornheart Signet");
+        signet.Flags |= ItemTemplateFlags.UniqueEquipped;
+        Func<ItemTemplateId, ItemTemplate?> find = id => id == signet.Id ? signet : EquipTemplates.Find(id);
+        _character.Level = signet.RequiredLevel!.Value;
+        ItemTemplate template = route switch
+        {
+            "item use" => Longsword,
+            "two-hander over a worn off hand" => Greatsword,
+            _ => signet,
+        };
+        InventoryItem[] worn = route switch
+        {
+            "two-hander over a worn off hand" => [Item(EquipmentSlots.OffHand, Buckler)],
+            "a second UniqueEquipped copy" => [Item(EquipmentSlots.Finger2, signet)],
+            _ => [],
+        };
+        InventoryItem unidentified = Item(0, template, identified: false) with { Rarity = ItemRarity.Magic };
+        Bag(unidentified);
+        Worn(worn);
+
+        Assert.Equal(ItemUseResult.Unidentified, Equip(0, template, find));
+        Assert.Equal(unidentified, At(_character, InventoryType.Bag, 0));
+        Assert.Equal(worn, _character.Container(InventoryType.Equipment).Items);
+        Assert.False(_character.ClientChanges.HasChanges);
+    }
+
     public static TheoryData<string, ItemUseResult> Refusals => new()
     {
         { "a stack of gear", ItemUseResult.NotUsable },   // no stack is ever worn

@@ -78,7 +78,8 @@ public class LootPickupShould
     /// <summary>
     /// #1179: a drop that rolled its copy is that copy until it is picked up. A picker with a full Bag is refused and the
     /// copy stays on the ground as it lay; the next picker gets exactly it (its id, rarity, item level, name, base stats
-    /// and modifier rows), and the next save writes it with them.
+    /// and modifier rows), and the next save writes it with them. A rare copy arrives unidentified, and a common one that
+    /// rolled its base stats identified.
     /// </summary>
     [Fact]
     public void Put_the_ground_instance_in_the_bag_exactly()
@@ -107,14 +108,14 @@ public class LootPickupShould
         Assert.Equal(new LootPickupOutcome(LootPickupResult.Ok, Removed: true), PickUp());
 
         InventoryItem bagged = At(_picker, InventoryType.Bag, 0);
-        Assert.Equal((id, chest.Id, 1u, ItemRarity.Rare, (ushort)9, "Thorn Bite"),
-            (bagged.InstanceId, bagged.TemplateId, bagged.Count, bagged.Rarity, bagged.ItemLevel, bagged.RareName));
+        Assert.Equal((id, chest.Id, 1u, ItemRarity.Rare, (ushort)9, "Thorn Bite", false),
+            (bagged.InstanceId, bagged.TemplateId, bagged.Count, bagged.Rarity, bagged.ItemLevel, bagged.RareName, bagged.Identified));
         Assert.Equal(asRolled, Describe(_picker.ItemModifiers.Of(id)));
         Assert.Equal(baseStats, _picker.ItemModifiers.BaseStatsOf(id));
 
         CharacterSaveBatch save = CharacterSaveSnapshot.Take(_picker).Batch;
         ItemInstance row = Assert.Single(save.UpsertItems);
-        Assert.Equal((id, ItemRarity.Rare, (ushort)9, "Thorn Bite"), (row.Id, row.Rarity, row.ItemLevel, row.RareName));
+        Assert.Equal((id, ItemRarity.Rare, (ushort)9, "Thorn Bite", false), (row.Id, row.Rarity, row.ItemLevel, row.RareName, row.Identified));
         ItemModifierWrite written = save.Modifiers!;
         Assert.Equal(baseStats, ItemBaseStats.Of(written.BaseStats.Where(s => s.ItemInstanceId == id)));
         Assert.Equal(asRolled, Describe([.. written.Modifiers.Where(m => m.ItemInstanceId == id).OrderBy(m => m.Ordinal)
@@ -125,6 +126,13 @@ public class LootPickupShould
                 Ordinal = m.Ordinal,
                 Values = [.. written.Values.Where(v => v.ItemInstanceModifierId == m.Id).OrderBy(v => v.Index)],
             })]));
+
+        var commonId = new ItemInstanceId(Guid.CreateVersion7());
+        var common = new RolledItem(commonId, chest.Id, ItemRarity.Common, 9, RareName: null,
+            baseStats, [Modifier(commonId, CatalogKeys.ModifierId("implicit IncreasedMaximumLife T9"), 0, (0, StatType.Health, 1, null))]);
+        Drop(item: chest.Id, owner: null, freeForAllAt: s_now, rolled: common);
+        Assert.Equal(new LootPickupOutcome(LootPickupResult.Ok, Removed: true), PickUp());
+        Assert.True(At(_picker, InventoryType.Bag, 1).Identified);
     }
 
     [Fact]

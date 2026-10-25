@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Characters;
@@ -191,6 +192,7 @@ public class InventoryMoveShould
         {
             character.ItemModifiers.Load([new ItemInstance
             {
+                Identified = true,
                 Id = rolled.InstanceId,
                 TemplateId = rolled.TemplateId,
                 Modifiers = [TestModifiers.Modifier(rolled.InstanceId, 1, 0, (0, StatType.Health, 10, null))],
@@ -281,6 +283,40 @@ public class InventoryMoveShould
         MoveDecision decision = InventoryMove.Decide(character, Find, bankAccessible: false, Bag(0), Eq(EquipmentSlots.Head), null);
 
         Assert.Equal(expected, decision.Result);
+    }
+
+    /// <summary>
+    /// #1179: a drag puts an unidentified copy into no equipment slot, an empty one or one whose worn item it would swap
+    /// out, and a refusal leaves every slot as it was; it can still be banked.
+    /// </summary>
+    [Theory]
+    [InlineData("move to its slot", ItemRequestResult.Unidentified)]
+    [InlineData("swap with the worn chest", ItemRequestResult.Unidentified)]
+    [InlineData("deposit in the bank", ItemRequestResult.Ok)]
+    public void Wear_only_an_identified_item_by_drag(string route, ItemRequestResult expected)
+    {
+        ItemTemplate chest = ItemBaseSeed.Equipment().Single(t => t.Name == "Ironbound Chestguard");
+        ItemTemplate? Find(ItemTemplateId id) => id == chest.Id ? chest : EquipTemplates.Find(id);
+        CharacterEntity character = New();
+        InventoryItem unidentified = Item(0, chest, identified: false) with { Rarity = ItemRarity.Magic };
+        InventoryItem worn = Item(EquipmentSlots.Chest, chest);
+        character.Container(InventoryType.Bag).Load([unidentified]);
+        if (route == "swap with the worn chest")
+            character.Container(InventoryType.Equipment).Load([worn]);
+        SlotRef to = route == "deposit in the bank" ? new SlotRef(InventoryType.Bank, 0) : Eq(EquipmentSlots.Chest);
+
+        Assert.Equal(expected, InventoryFor(character, Find).TryMove(Bag(0), to, count: null, bankAccessible: true));
+
+        if (expected == ItemRequestResult.Ok)
+        {
+            Assert.Equal(unidentified, TestCharacters.At(character, InventoryType.Bank, 0));
+            return;
+        }
+
+        Assert.Equal(unidentified, TestCharacters.At(character, InventoryType.Bag, 0));
+        Assert.Equal(route == "swap with the worn chest" ? new[] { worn } : [], character.Container(InventoryType.Equipment).Items);
+        Assert.False(character.SaveState.HasChanges);
+        Assert.False(character.ClientChanges.HasChanges);
     }
 
     public static IEnumerable<object?[]> DestroyCases =>

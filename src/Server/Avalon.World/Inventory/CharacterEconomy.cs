@@ -64,7 +64,7 @@ public sealed class CharacterEconomy : ICharacterEconomy
 
     public VendorTrade VendorOf(CharacterEntity character) =>
         new(character, InventoryOf(character), WalletOf(character), _findTemplate, _world.Configuration.MaxGold,
-            _world.Configuration.Items.SellFactor);
+            _world.Configuration.Items);
 
     private ItemTemplate? FindTemplate(ItemTemplateId id) =>
         _world.Data.FindItemTemplate(id);

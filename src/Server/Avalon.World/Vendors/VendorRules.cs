@@ -21,8 +21,8 @@ public readonly record struct BuyDecision(VendorResult Result, BuyPlan? Plan);
 
 /// <param name="Slot">The Bag slot the item is taken from.</param>
 /// <param name="Payment">
-/// SellPrice times the sell factor of the item's rarity times <paramref name="Count" /> (#1179), which is also the buyback
-/// price.
+/// SellPrice times the sell factor of the item's rarity, for an unidentified item times the unidentified sell percent and
+/// rounded down, times <paramref name="Count" /> (#1179), which is also the buyback price.
 /// </param>
 public sealed record SellPlan(byte Slot, uint Count, ulong Payment);
 
@@ -148,8 +148,9 @@ public static class VendorRules
     /// Sell: alive; shop open; a Bag slot; an item there, not offered in a trade (#1175); a sellable
     /// template; not damaged; the count (the whole of an item carrying rolled rows, #1179); the gold cap.
     /// Only the Bag is ever named, so nothing is sold from Equipment or the Bank. The sale pays the template's SellPrice
-    /// times <paramref name="sellFactors" />' factor for the copy's own rarity (#1179), so a magic, rare or unique
-    /// copy sells for more than a common one of the same template.
+    /// times <paramref name="items" />' sell factor for the copy's own rarity (#1179), so a magic, rare or unique
+    /// copy sells for more than a common one of the same template; an unidentified copy pays its unidentified sell percent
+    /// of that, rounded down.
     /// </summary>
     public static SellDecision DecideSell(
         CharacterEntity character,
@@ -158,7 +159,7 @@ public static class VendorRules
         uint? count,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
         ulong maxGold,
-        SellFactors sellFactors)
+        ItemConfiguration items)
     {
         if (character.IsDead)
             return new SellDecision(VendorResult.Dead, null);
@@ -196,7 +197,11 @@ public static class VendorRules
         // CharacterWallet.TryAddGold's own rule, so the apply cannot disagree: gold a completing trade is about to pay
         // (#1175) counts as already in the balance. A uint price times a uint factor fits a ulong, but times a uint count
         // it can pass one, and a payment past a ulong passes any cap.
-        ulong unitPayment = (ulong)template.SellPrice * sellFactors.For(item.Rarity);
+        ulong unitPayment = (ulong)template.SellPrice * items.SellFactor.For(item.Rarity);
+        // #1179: an unidentified copy pays its percent of that, rounded down; at most 100%, so it fits a ulong again.
+        if (!item.Identified)
+            unitPayment = (ulong)((UInt128)unitPayment * (uint)items.UnidentifiedSellPercent / 100);
+
         if (Math.BigMul(unitPayment, selling, out ulong payment) != 0
             || !character.Locks.CanReceiveGold(Balance(character), payment, maxGold))
         {

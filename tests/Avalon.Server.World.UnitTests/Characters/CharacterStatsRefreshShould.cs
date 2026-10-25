@@ -143,12 +143,14 @@ public class CharacterStatsRefreshShould
         [
             new ItemInstance
             {
+                Identified = true,
                 Id = helm.InstanceId,
                 TemplateId = helmBase.Id,
                 BaseStats = [new ItemInstanceBaseStat { ItemInstanceId = helm.InstanceId, Stat = ItemBaseStat.Armour, Value = 6 }],
             },
             new ItemInstance
             {
+                Identified = true,
                 Id = blade.InstanceId,
                 TemplateId = sword.Id,
                 BaseStats =
@@ -202,6 +204,7 @@ public class CharacterStatsRefreshShould
         [
             new ItemInstance
             {
+                Identified = true,
                 Id = blade.InstanceId,
                 TemplateId = unique.Id,
                 BaseStats =

@@ -39,7 +39,7 @@ public sealed class VendorSaveRoundTripShould : IDisposable
 
     private static VendorTrade Trade(CharacterEntity character) =>
         new(character, TestCharacters.InventoryFor(character, Find), new CharacterWallet(character, 1_000_000), Find, 1_000_000,
-            new SellFactors());
+            new ItemConfiguration());
 
     /// <summary>A character whose row and items are already in the database, loaded as select would.</summary>
     private async Task<CharacterEntity> LoadedWithAsync(params InventoryItem[] items)
@@ -60,6 +60,7 @@ public sealed class VendorSaveRoundTripShould : IDisposable
                     Flags = item.Flags,
                     Rarity = item.Rarity,
                     ItemLevel = item.ItemLevel,
+                    Identified = item.Identified,
                     UpdatedAt = DateTime.UtcNow,
                 });
                 context.CharacterInventory.Add(new CharacterInventory

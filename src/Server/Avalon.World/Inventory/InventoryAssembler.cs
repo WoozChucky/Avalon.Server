@@ -71,6 +71,7 @@ public static class InventoryAssembler
                 instance.Rarity,
                 instance.ItemLevel,
                 instance.RareName,
+                instance.Identified,
                 instance.Charges));
         }
 

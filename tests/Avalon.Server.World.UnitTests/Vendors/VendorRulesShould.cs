@@ -21,7 +21,7 @@ namespace Avalon.Server.World.UnitTests.Vendors;
 public class VendorRulesShould
 {
     public sealed record Held(SlotRef At, ItemTemplate Template, uint Count = 1, uint Durability = 0, bool Locked = false,
-        bool Rolled = false, ItemRarity? Rarity = null);
+        bool Rolled = false, ItemRarity? Rarity = null, bool Identified = true);
 
     private static SlotRef Bag(byte slot) => new(InventoryType.Bag, slot);
 
@@ -30,8 +30,8 @@ public class VendorRulesShould
     private static SlotRef Eq(byte slot) => new(InventoryType.Equipment, slot);
 
     private static Held At(SlotRef slot, ItemTemplate template, uint count = 1, uint durability = 0, bool locked = false,
-        bool rolled = false, ItemRarity? rarity = null) =>
-        new(slot, template, count, durability, locked, rolled, rarity);
+        bool rolled = false, ItemRarity? rarity = null, bool identified = true) =>
+        new(slot, template, count, durability, locked, rolled, rarity, identified);
 
     /// <summary>The durability a copy of <paramref name="template" /> is made at, which a sale pays in full for.</summary>
     private static uint Full(ItemTemplate template) => ItemInstanceDefaults.FullDurability(template);
@@ -42,8 +42,8 @@ public class VendorRulesShould
     private static Held[] FullBag => Enumerable.Range(0, 30).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
 
     /// <summary>
-    /// A Held marked Locked is offered in a trade (#1175), one marked Rolled carries a modifier, and one given a Rarity
-    /// is a copy of that rarity, else of its template's (#1179);
+    /// A Held marked Locked is offered in a trade (#1175), one marked Rolled carries a modifier, one given a Rarity
+    /// is a copy of that rarity, else of its template's, and one not Identified is held unidentified (#1179);
     /// <paramref name="heldGold" /> is gold offered. A completing trade reserves <paramref name="reserved" /> and
     /// expects <paramref name="incomingGold" /> and one <paramref name="incoming" />.
     /// </summary>
@@ -57,6 +57,7 @@ public class VendorRulesShould
                 container.Select(h => TestCharacters.Item(h.At.Slot, h.Template, h.Count, h.Durability) with
                 {
                     Rarity = h.Rarity ?? h.Template.Rarity,
+                    Identified = h.Identified,
                 }).ToList());
         }
 
@@ -71,6 +72,7 @@ public class VendorRulesShould
             Assert.True(character.Container(h.At.Container).TryGet(h.At.Slot, out InventoryItem item));
             return new ItemInstance
             {
+                Identified = true,
                 Id = item.InstanceId,
                 TemplateId = item.TemplateId,
                 Modifiers = [TestModifiers.Modifier(item.InstanceId, 1, 0, (0, StatType.Health, 10, null))],
@@ -321,7 +323,8 @@ public class VendorRulesShould
         ulong MaxGold = 1_000_000,
         bool Shop = true,
         bool Dead = false,
-        ulong IncomingGold = 0);
+        ulong IncomingGold = 0,
+        int UnidentifiedSellPercent = 50);
 
     private static readonly SellCase[] s_sellCases =
     [
@@ -340,6 +343,20 @@ public class VendorRulesShould
             0, null, VendorResult.Ok, Payment: 4 * IronwoodSword.SellPrice),
         new("Sell a unique at six times its sell price", [At(Bag(0), ThornheartSignet, durability: Full(ThornheartSignet))], 0, null,
             VendorResult.Ok, Payment: 6 * ThornheartSignet.SellPrice),
+
+        // #1179: an unidentified copy pays Game:Items:UnidentifiedSellPercent of that, rounded down.
+        new("Sell an unidentified magic copy at half",
+            [At(Bag(0), IronwoodSword, durability: Full(IronwoodSword), rarity: ItemRarity.Magic, identified: false)], 0, null,
+            VendorResult.Ok, Payment: 2 * IronwoodSword.SellPrice * 50 / 100),
+        new("Sell an unidentified rare copy at half",
+            [At(Bag(0), IronwoodSword, durability: Full(IronwoodSword), rarity: ItemRarity.Rare, identified: false)], 0, null,
+            VendorResult.Ok, Payment: 4 * IronwoodSword.SellPrice * 50 / 100),
+        new("Sell an unidentified unique at half",
+            [At(Bag(0), ThornheartSignet, durability: Full(ThornheartSignet), identified: false)], 0, null,
+            VendorResult.Ok, Payment: 6 * ThornheartSignet.SellPrice * 50 / 100),
+        new("Round an unidentified sale down",
+            [At(Bag(0), IronwoodSword, durability: Full(IronwoodSword), rarity: ItemRarity.Magic, identified: false)], 0, null,
+            VendorResult.Ok, Payment: 2 * IronwoodSword.SellPrice * 33 / 100, UnidentifiedSellPercent: 33),
 
         // 1. Alive. 2. Shop open.
         new("Answer Dead before anything else", [], 255, 0, VendorResult.Dead, Shop: false, Dead: true),
@@ -381,7 +398,8 @@ public class VendorRulesShould
         SellCase row = s_sellCases.Single(c => c.Name == name);
         CharacterEntity character = Arrange(row.Holding, row.Gold, row.Dead, incomingGold: row.IncomingGold);
 
-        SellDecision decision = VendorRules.DecideSell(character, row.Shop, row.BagSlot, row.Count, Find, row.MaxGold, new SellFactors());
+        SellDecision decision = VendorRules.DecideSell(character, row.Shop, row.BagSlot, row.Count, Find, row.MaxGold,
+            new ItemConfiguration { UnidentifiedSellPercent = row.UnidentifiedSellPercent });
 
         Assert.Equal(row.Expected, decision.Result);
         if (row.Expected == VendorResult.Ok)

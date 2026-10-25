@@ -72,6 +72,12 @@ public enum ItemRequestResult : byte
     /// is worn at a time. Moving the worn copy, or swapping it for another, is allowed.
     /// </summary>
     UniqueEquipped = 16,
+
+    /// <summary>
+    /// The item is unidentified (#1179): it goes into no equipment slot, by a move, a swap or item use, until it is
+    /// identified. It can still be moved within the Bag and the Bank, sold, traded and destroyed.
+    /// </summary>
+    Unidentified = 17,
 }
 
 /// <summary>

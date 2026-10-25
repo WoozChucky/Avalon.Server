@@ -94,6 +94,7 @@ public sealed class CharacterServiceShould : IDisposable
         {
             new()
             {
+                Identified = true,
                 Id = itemId, TemplateId = new ItemTemplateId(68), CharacterId = id, Count = 4, Durability = 7,
                 Rarity = Avalon.Common.ItemRarity.Magic, ItemLevel = 7,
                 Modifiers =
@@ -105,6 +106,7 @@ public sealed class CharacterServiceShould : IDisposable
             },
             new()
             {
+                Identified = true,
                 Id = uniqueId, TemplateId = new ItemTemplateId(65), CharacterId = id, Count = 1,
                 Rarity = Avalon.Common.ItemRarity.Unique, ItemLevel = 5,
                 Modifiers =
@@ -118,6 +120,7 @@ public sealed class CharacterServiceShould : IDisposable
             },
             new()
             {
+                Identified = true,
                 Id = chestId, TemplateId = new ItemTemplateId(37), CharacterId = id, Count = 1,
                 Rarity = Avalon.Common.ItemRarity.Common, ItemLevel = 1,
                 BaseStats = [new ItemInstanceBaseStat { ItemInstanceId = chestId, Stat = ItemBaseStat.Armour, Value = 8 }],
@@ -198,7 +201,7 @@ public sealed class CharacterServiceShould : IDisposable
         IItemInstanceRepository items = Substitute.For<IItemInstanceRepository>();
         items.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<ItemInstance>
         {
-            new() { Id = itemId, TemplateId = new ItemTemplateId(1), CharacterId = id, Count = 40 },
+            new() { Id = itemId, TemplateId = new ItemTemplateId(1), CharacterId = id, Count = 40, Identified = true },
         });
 
         IItemTemplateRepository templates = Substitute.For<IItemTemplateRepository>();
@@ -288,6 +291,7 @@ public sealed class CharacterServiceShould : IDisposable
 
         return new ItemInstance
         {
+            Identified = true,
             Id = id,
             TemplateId = template.Id,
             Count = 1,

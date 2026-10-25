@@ -76,7 +76,7 @@ public class TradeBenchmarks
     {
         Open(Math.Max(OpenTrades, 1));
         ((CharacterEntity)_offerer.Character!).Container(InventoryType.Bag).Load(
-            [new InventoryItem(0, new ItemInstanceId(Guid.CreateVersion7()), s_potion.Id, 5, 0, ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null, 0)]);
+            [new InventoryItem(0, new ItemInstanceId(Guid.CreateVersion7()), s_potion.Id, 5, 0, ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null, Identified: true, 0)]);
         _offerHandler = new TradeOfferItemHandler(_trades, NullLogger<TradeOfferItemHandler>.Instance);
         _removeHandler = new TradeRemoveItemHandler(_trades, NullLogger<TradeRemoveItemHandler>.Instance);
 

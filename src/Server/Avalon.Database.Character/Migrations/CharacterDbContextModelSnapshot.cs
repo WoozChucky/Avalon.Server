@@ -480,6 +480,9 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<long>("GiverCharacterId")
                         .HasColumnType("bigint");
 
+                    b.Property<bool>("Identified")
+                        .HasColumnType("boolean");
+
                     b.Property<short>("ItemLevel")
                         .HasColumnType("smallint");
 
@@ -499,6 +502,8 @@ namespace Avalon.Database.Character.Migrations
 
                     b.ToTable("TradeRecordItems", t =>
                         {
+                            t.HasCheckConstraint("CK_TradeRecordItems_Identified", "\"Rarity\" <> 0 OR \"Identified\"");
+
                             t.HasCheckConstraint("CK_TradeRecordItems_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
                         });
                 });
@@ -596,6 +601,9 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<int>("Flags")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("Identified")
+                        .HasColumnType("boolean");
+
                     b.Property<short>("ItemLevel")
                         .HasColumnType("smallint");
 
@@ -618,6 +626,8 @@ namespace Avalon.Database.Character.Migrations
 
                     b.ToTable("ItemInstances", t =>
                         {
+                            t.HasCheckConstraint("CK_ItemInstances_Identified", "\"Rarity\" <> 0 OR \"Identified\"");
+
                             t.HasCheckConstraint("CK_ItemInstances_ItemLevel", "\"ItemLevel\" > 0");
 
                             t.HasCheckConstraint("CK_ItemInstances_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");

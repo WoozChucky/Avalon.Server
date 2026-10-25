@@ -16,8 +16,8 @@ namespace Avalon.World.Inventory;
 /// is checked, against this same state on this same thread, before anything changes, so no client
 /// input can make a step fail part way; if one does, it throws rather than carry on. The apply
 /// order takes value from the player before giving any, so a failure caused by a bug loses value,
-/// never creates it, and is not rolled back. A sale pays by the copy's rarity (<paramref name="sellFactors" />, #1179), and
-/// its buyback costs exactly what it paid.
+/// never creates it, and is not rolled back. A sale pays by the copy's rarity, and less while it is unidentified
+/// (<paramref name="items" />, #1179), and its buyback costs exactly what it paid.
 /// </summary>
 public sealed class VendorTrade(
     CharacterEntity owner,
@@ -25,7 +25,7 @@ public sealed class VendorTrade(
     IWallet wallet,
     Func<ItemTemplateId, ItemTemplate?> findTemplate,
     ulong maxGold,
-    SellFactors sellFactors)
+    ItemConfiguration items)
 {
     /// <summary>Takes each cost item, then the gold, then adds the item, then takes the stock.</summary>
     public VendorResult TryBuy(
@@ -50,7 +50,7 @@ public sealed class VendorTrade(
     /// </summary>
     public VendorResult TrySell(bool shopOpen, byte bagSlot, uint? count)
     {
-        SellDecision decision = VendorRules.DecideSell(owner, shopOpen, bagSlot, count, findTemplate, maxGold, sellFactors);
+        SellDecision decision = VendorRules.DecideSell(owner, shopOpen, bagSlot, count, findTemplate, maxGold, items);
         if (decision.Plan is not { } plan)
             return decision.Result;
 

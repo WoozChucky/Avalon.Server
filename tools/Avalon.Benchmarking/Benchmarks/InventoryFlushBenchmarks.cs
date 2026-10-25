@@ -88,19 +88,20 @@ public class InventoryFlushBenchmarks
             if (!Rolled)
             {
                 held[slot] = new InventoryItem(slot, new ItemInstanceId(Guid.CreateVersion7()), s_potion.Id, 5, 0,
-                    ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null);
+                    ItemInstanceFlags.None, ItemRarity.Common, 1, RareName: null, Identified: true);
                 continue;
             }
 
             RolledItem copy = slot % 2 == 0 ? roller.RollPlain(chest, 1, _items) : roller.Roll(chest, magic, _items)!;
             held[slot] = new InventoryItem(slot, copy.InstanceId, copy.TemplateId, 1, 0, ItemInstanceFlags.None,
-                copy.Rarity, copy.ItemLevel, copy.RareName);
+                copy.Rarity, copy.ItemLevel, copy.RareName, Identified: true);
             var baseStats = new List<ItemInstanceBaseStat>();
             foreach ((ItemBaseStat stat, int value) in copy.BaseStats)
                 baseStats.Add(new ItemInstanceBaseStat { ItemInstanceId = copy.InstanceId, Stat = stat, Value = value });
 
             instances.Add(new ItemInstance
             {
+                Identified = true,
                 Id = copy.InstanceId,
                 TemplateId = copy.TemplateId,
                 Modifiers = copy.Modifiers,
