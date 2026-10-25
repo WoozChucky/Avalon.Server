@@ -79,4 +79,12 @@ internal static class TestCharacters
         Assert.True(character.Container(container).TryGet(slot, out InventoryItem item), $"{container} slot {slot} is empty");
         return item;
     }
+
+    /// <summary>
+    /// The character's live Resonance counts (#1180). World-side and internal, and Avalon.World is strong-named while this
+    /// assembly is not, so it is read by reflection, as the tests read the other internals.
+    /// </summary>
+    public static ResonanceCounts ResonanceOf(CharacterEntity character) => (ResonanceCounts)typeof(CharacterEntity)
+        .GetProperty("Resonance", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+        .GetValue(character)!;
 }

@@ -45,6 +45,8 @@ public sealed class ItemModifierCatalog
             _modifiers[modifier.Id] = modifier;
         }
 
+        Resonance = new ResonanceTable(_modifiers.Values);
+
         _links = [];
         foreach (IGrouping<ulong, ItemTemplateModifier> template in links
                      .GroupBy(link => link.TemplateId.Value)
@@ -78,15 +80,22 @@ public sealed class ItemModifierCatalog
     {
         _modifiers = from._modifiers;
         _candidates = from._candidates;
+        Resonance = from.Resonance;
         _links = links;
     }
 
     /// <summary>
-    /// This catalog without the links of <paramref name="templates" />: the same modifiers and candidates, shared, and
-    /// every other template's links. What the items area keeps when a template's links break its rarity.
+    /// This catalog without the links of <paramref name="templates" />: the same modifiers, candidates and Resonance table,
+    /// shared, and every other template's links. What the items area keeps when a template's links break its rarity.
     /// </summary>
     public ItemModifierCatalog WithoutLinksOf(IReadOnlySet<ulong> templates) =>
         new(this, _links.Where(pair => !templates.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value));
+
+    /// <summary>
+    /// The Resonance themes of the accepted prefix and suffix rows (#1180), built with the catalog: each theme's slot and
+    /// each affix modifier's. A reload builds a new catalog and with it a new table.
+    /// </summary>
+    public ResonanceTable Resonance { get; }
 
     /// <summary>How many modifiers the catalog accepted.</summary>
     public int Count => _modifiers.Count;

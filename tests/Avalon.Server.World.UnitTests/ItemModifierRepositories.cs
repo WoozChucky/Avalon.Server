@@ -1,5 +1,6 @@
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -9,7 +10,17 @@ namespace Avalon.Server.World.UnitTests;
 /// <summary>The modifier catalog for tests that build StaticData, World or an ItemsPatch and roll nothing.</summary>
 internal static class ItemModifierRepositories
 {
+    private static readonly Lazy<Task<ResonanceTable>> s_seededResonance = new(async () =>
+    {
+        using var database = SqliteDatabase.World();
+        return (await new ItemModifierRepository(database, NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None))
+            .Resonance;
+    });
+
     public static ItemModifierCatalog EmptyCatalog() => new([], [], NullLogger.Instance);
+
+    /// <summary>The seeded catalog's Resonance table (#1180), as the world reads it from the World database; read once.</summary>
+    public static Task<ResonanceTable> SeededResonance() => s_seededResonance.Value;
 
     /// <summary>An items generation of <paramref name="templates" /> over an empty catalog: what a flush names copies by.</summary>
     public static ItemsPatch Items(params ItemTemplate[] templates) => new(templates, EmptyCatalog());

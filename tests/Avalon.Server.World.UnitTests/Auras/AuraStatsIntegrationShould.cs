@@ -2,15 +2,19 @@ using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Maps;
 using Avalon.World.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Auras;
@@ -42,7 +46,7 @@ public class AuraStatsIntegrationShould
         CharacterEntity warrior = TestCharacters.New(905_101);
         warrior.Container(InventoryType.Equipment).Load([TestCharacters.Item(3, s_plate)]);
         Assert.True(CharacterStatsRefresh.Apply(warrior, [s_warriorOne], TestCombat.Factors,
-            id => id == s_plate.Id ? s_plate : null, CurrentValues.EnterWorld, TestCombat.Formula));
+            id => id == s_plate.Id ? s_plate : null, ResonanceTable.Empty, CurrentValues.EnterWorld, TestCombat.Formula));
         return warrior;
     }
 
@@ -54,7 +58,7 @@ public class AuraStatsIntegrationShould
 
         warrior.Auras.Add(Held(AuraTestData.Fortified()), s_t0);
         CharacterStatsRefresh.Apply(warrior, [s_warriorOne], TestCombat.Factors, id => id == s_plate.Id ? s_plate : null,
-            CurrentValues.KeepShare, TestCombat.Formula);
+            ResonanceTable.Empty, CurrentValues.KeepShare, TestCombat.Formula);
 
         Assert.Equal(38u, warrior.Stats!.Value.Armor);   // round(32 x 1.2)
         Assert.True(warrior.SaveState.StatsDirty);
@@ -81,14 +85,21 @@ public class AuraStatsIntegrationShould
     /// <summary>
     /// #1178: the refresh an aura with stat modifiers runs on a geared character (its gear's offence keys, its auras'
     /// offence) allocates nothing once its aura totals are worked out: the worn templates, the gear's stats and the main
-    /// hand are read without a list, an iterator or a closure.
+    /// hand are read without a list, an iterator or a closure. Review Focus 3 (#1180): nor does its Resonance count, over
+    /// the seeded table and then after a reload to more themes than the seed has, with ids far from their slots; the one
+    /// refresh that meets the larger table reallocates the counts, and every one after it reuses them.
     /// </summary>
     [Fact]
-    public void Refresh_a_geared_characters_stats_for_its_auras_without_allocating()
+    public async Task Refresh_a_geared_characters_stats_for_its_auras_without_allocating()
     {
         CharacterEntity warrior = TestCharacters.New(905_102);
-        warrior.Container(InventoryType.Equipment).Load(
-            [TestCharacters.Item(3, s_plate), TestCharacters.Item(EquipmentSlots.MainHand, s_sword)]);
+        InventoryItem plate = TestCharacters.Item(3, s_plate);
+        InventoryItem sword = TestCharacters.Item(EquipmentSlots.MainHand, s_sword);
+        int iron = CatalogKeys.ModifierId("P12 T9");
+        int thorn = CatalogKeys.ModifierId("P1 T9");
+        int ember = CatalogKeys.ModifierId("P2 T9");
+        warrior.ItemModifiers.Load([Copy(plate, iron), Copy(sword, thorn, ember)]);
+        warrior.Container(InventoryType.Equipment).Load([plate, sword]);
         AuraTemplate emboldened = AuraTestData.Fortified();
         emboldened.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.IncreasedDamage, Kind = AuraModifierKind.Flat, Value = 10f });
         emboldened.Modifiers.Add(new AuraStatModifier { Stat = AuraStat.IncreasedFireDamage, Kind = AuraModifierKind.More, Value = 20f });
@@ -98,11 +109,62 @@ public class AuraStatsIntegrationShould
         // The test data builds a new formula and factors on every read, so they are read once, outside the windows.
         IReadOnlyDictionary<CharacterClass, ClassStatFactors> factors = TestCombat.Factors;
         CombatFormula formula = TestCombat.Formula;
+        ResonanceTable seeded = await ItemModifierRepositories.SeededResonance();
         long allocated = ThreadAllocations.FewestOfThreeWindows(10, () => CharacterStatsRefresh.Apply(warrior, s_warriorRows,
-            factors, Worn, CurrentValues.KeepShare, formula));
+            factors, Worn, seeded, CurrentValues.KeepShare, formula));
 
         Assert.Equal(0, allocated);
         Assert.Equal(1.2d, warrior.Stats!.Value.Offence.More(OffenceStat.Fire), precision: 6);
+        Assert.Equal([new ThemeCount(1, 1), new ThemeCount(5, 1), new ThemeCount(6, 1)], Pairs(warrior));   // Ember, Iron, Thorn
+
+        // A reload to twenty themes, 1000-1019, one prefix row each; the worn affixes' rows are themed 1019, 1000 and 1007.
+        Dictionary<int, int> worn = new() { [1019] = iron, [1000] = thorn, [1007] = ember };
+        ItemModifier[] rows =
+        [
+            .. Enumerable.Range(1000, 20).Select(theme => new ItemModifier
+            {
+                Id = worn.GetValueOrDefault(theme, 905_000 + theme),
+                GroupId = theme,
+                Group = new ItemModifierGroup
+                {
+                    Id = theme, Kind = ItemModifierKind.Prefix, ThemeId = theme, Name = $"Theme {theme}",
+                },
+                Tier = 9,
+                RequiredItemLevel = 1,
+                Stats = [new ItemModifierStat { Stat = StatType.Stamina, Min = 1, Max = 1 }],
+            }),
+        ];
+        ResonanceTable reloaded = new ItemModifierCatalog(rows, [], NullLogger.Instance).Resonance;
+        CharacterStatsRefresh.Apply(warrior, s_warriorRows, factors, Worn, reloaded, CurrentValues.KeepShare, formula);
+
+        Assert.Equal(20, TestCharacters.ResonanceOf(warrior).Table.Count);
+        Assert.Equal([new ThemeCount(1000, 1), new ThemeCount(1007, 1), new ThemeCount(1019, 1)], Pairs(warrior));
+        Assert.Equal(0, ThreadAllocations.FewestOfThreeWindows(10, () => CharacterStatsRefresh.Apply(warrior, s_warriorRows,
+            factors, Worn, reloaded, CurrentValues.KeepShare, formula)));
+
+        // Each affix with its seeded line's low end as its one value.
+        static ItemInstance Copy(InventoryItem item, params int[] modifierIds) => new()
+        {
+            Identified = true,
+            Id = item.InstanceId,
+            TemplateId = item.TemplateId,
+            Modifiers =
+            [
+                .. modifierIds.Select((id, ordinal) =>
+                {
+                    ItemModifierStat line = ItemModifierSeed.Stats().First(stat => stat.ModifierId == id && stat.Index == 0);
+                    return TestModifiers.Modifier(item.InstanceId, id, (byte)ordinal, (0, line.Stat, line.Min, line.Min2));
+                }),
+            ],
+        };
+
+        static List<ThemeCount> Pairs(CharacterEntity character)
+        {
+            List<ThemeCount> pairs = [];
+            foreach (ThemeCount pair in TestCharacters.ResonanceOf(character))
+                pairs.Add(pair);
+            return pairs;
+        }
     }
 
     private static Creature Wolf() => new()

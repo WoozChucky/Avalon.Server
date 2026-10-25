@@ -44,16 +44,18 @@ public static class CharacterStatsRefresh
     /// template the lookup holds now, and the base stats and modifiers its copy rolled (#1179), so a template edited live
     /// reaches a worn copy's template lines and leaves its rolled base stats and modifiers as they were.
     /// <paramref name="formula" /> bounds the speeds (#1178) and movement speed (#627), and is required: the caller passes
-    /// the generation it read.
+    /// the generation it read. So is <paramref name="resonance" />, the table the character's Resonance counts are bound to
+    /// and counted against (#1180): <see cref="ResonanceTable.Empty" /> for a caller without a catalog.
     /// </summary>
     public static bool Apply(
         CharacterEntity character,
         IReadOnlyCollection<ClassLevelStat> classStats,
         IReadOnlyDictionary<CharacterClass, ClassStatFactors> classFactors,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
+        ResonanceTable resonance,
         CurrentValues current,
         CombatFormula formula) =>
-        Apply(character, classStats, classFactors, new Templates(findTemplate, null), current, formula);
+        Apply(character, classStats, classFactors, new Templates(findTemplate, null), resonance, current, formula);
 
     /// <summary>
     /// The refresh itself. The class row is the first of the character's class and level, and the worn items are read
@@ -63,13 +65,16 @@ public static class CharacterStatsRefresh
     /// stays: it is what the calculator, shared with the simulator and the API, is handed. It is the calling thread's one
     /// list (#1178), emptied after each refresh, so a refresh allocates nothing for it; each item's modifiers are the
     /// character's store's own list (#1179), null for an item without any, and its base stats a value read from the
-    /// same entry, so they allocate nothing either.
+    /// same entry, so they allocate nothing either. The worn items' Resonance counts (#1180) are the character's own
+    /// buffer, bound to <paramref name="resonance" /> (reallocated only when a reload changed the number of themes) and
+    /// filled in the calculation's one walk.
     /// </summary>
     private static bool Apply(
         CharacterEntity character,
         IReadOnlyCollection<ClassLevelStat> classStats,
         IReadOnlyDictionary<CharacterClass, ClassStatFactors> classFactors,
         Templates templates,
+        ResonanceTable resonance,
         CurrentValues current,
         CombatFormula formula)
     {
@@ -91,8 +96,9 @@ public static class CharacterStatsRefresh
 
             // Auras: whatever the character holds now is folded in, so every refresh (select, gear, level-up, an aura)
             // agrees with every other.
-            character.ApplyStats(CharacterStatsCalculator.Calculate(row, worn, factors, formula, character.Auras.StatTotals),
-                current, formula);
+            character.Resonance.Use(resonance);
+            character.ApplyStats(CharacterStatsCalculator.Calculate(row, worn, factors, formula, character.Auras.StatTotals,
+                character.Resonance), current, formula);
         }
         finally
         {
@@ -107,7 +113,8 @@ public static class CharacterStatsRefresh
     {
         // The combat area is read once, so the factors and the formula are one generation.
         CombatPatch combat = data.Combat;
-        return Apply(character, data.ClassLevelStats, combat.Factors, new Templates(null, data), current, combat.Formula);
+        return Apply(character, data.ClassLevelStats, combat.Factors, new Templates(null, data), data.ItemModifiers.Resonance,
+            current, combat.Formula);
     }
 
     /// <summary>The first row of that class and level, in the rows' order, or null.</summary>

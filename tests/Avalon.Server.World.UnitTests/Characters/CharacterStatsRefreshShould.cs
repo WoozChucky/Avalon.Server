@@ -1,8 +1,10 @@
 using Avalon.Combat;
 using Avalon.Common;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.Server.World.UnitTests.Seeding;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
@@ -58,7 +60,8 @@ public class CharacterStatsRefreshShould
         CharacterEntity character = New();
         character.ConsumeDirtyFields();
 
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(240u, character.Health);
         Assert.Equal(240u, character.CurrentHealth);
@@ -81,11 +84,13 @@ public class CharacterStatsRefreshShould
     public void Keep_the_share_of_health_when_gear_goes_on()
     {
         CharacterEntity character = New();
-        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
+        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula);
         character.CurrentHealth = 120;
         character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Chest, EquipTemplates.Chestguard)]);
 
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.KeepShare, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
+            ResonanceTable.Empty, CurrentValues.KeepShare, TestCombat.Formula));
 
         Assert.Equal(250u, character.Health);
         Assert.Equal(125u, character.CurrentHealth);
@@ -106,7 +111,8 @@ public class CharacterStatsRefreshShould
         ]);
         character.Container(InventoryType.Bag).Load([Item(0, EquipTemplates.Greatsword)]);
 
-        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(25u, character.Stats!.Value.Strength);
         Assert.Equal(24u, character.Stats.Value.Stamina);
@@ -135,7 +141,8 @@ public class CharacterStatsRefreshShould
         ];
 
         CharacterEntity bare = New();
-        CharacterStatsRefresh.Apply(bare, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
+        CharacterStatsRefresh.Apply(bare, s_rows, TestCombat.Factors, EquipTemplates.Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula);
         CharacterEntity character = New();
         InventoryItem helm = Item(EquipmentSlots.Head, helmBase);
         InventoryItem blade = Item(EquipmentSlots.MainHand, sword);
@@ -166,7 +173,8 @@ public class CharacterStatsRefreshShould
         (uint Armor, uint Min, uint Max, uint Time) Refresh(ItemTemplate helmNow, ItemTemplate swordNow)
         {
             CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors,
-                id => id == helmNow.Id ? helmNow : id == swordNow.Id ? swordNow : null, CurrentValues.Refill, TestCombat.Formula);
+                id => id == helmNow.Id ? helmNow : id == swordNow.Id ? swordNow : null,
+                    ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula);
             DerivedCharacterStats stats = character.Stats!.Value;
             return (stats.Armor, stats.Weapon.Min1, stats.Weapon.Max1, stats.Weapon.AttackTimeMs);
         }
@@ -218,9 +226,96 @@ public class CharacterStatsRefreshShould
         character.Container(InventoryType.Equipment).Load([blade]);
 
         Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors,
-            id => id == unique.Id ? unique : id == fireSword.Id ? fireSword : null, CurrentValues.Refill, TestCombat.Formula));
+            id => id == unique.Id ? unique : id == fireSword.Id ? fireSword : null,
+                ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(Avalon.Network.Packets.Combat.DamageType.Fire, character.Stats!.Value.Weapon.Type1);
+    }
+
+    private static readonly Dictionary<ItemTemplateId, ItemTemplate> s_equipment =
+        ItemBaseSeed.Equipment().ToDictionary(t => t.Id);
+
+    /// <summary>
+    /// Review Focus 1 (#1180): each worn item adds 1 to each theme its prefixes and suffixes carry, however many of its
+    /// affixes share it, and nothing else counts: not an implicit, not a unique's own line, not an item in the bag, not one
+    /// worn in a slot it does not fit. <paramref name="expected" /> lists the themes above 0, by slot.
+    /// </summary>
+    [Theory]
+    [InlineData("nothing", "")]
+    [InlineData("a ring with two Ember affixes", "Ember 1")]
+    [InlineData("two Ember items", "Ember 2")]
+    [InlineData("both rings", "Ember 2")]
+    [InlineData("one item of two themes", "Ember 1, Thorn 1")]
+    [InlineData("an Ember affix in the bag", "")]
+    [InlineData("an item in a slot it does not fit", "")]
+    [InlineData("implicits and a unique's lines", "")]
+    public async Task Count_each_theme_once_per_worn_item_from_its_affixes_only(string gear, string expected)
+    {
+        ResonanceTable seeded = await ItemModifierRepositories.SeededResonance();
+        int[] emberRing = [CatalogKeys.ModifierId("P8 Fire T9"), CatalogKeys.ModifierId("P10 Fire T9")];
+        int heartwoodBase = ItemModifierSeed.TemplateLinks().Single(link => link.TemplateId.Value == 112).ModifierId;
+        (InventoryType Container, byte Slot, ulong Template, int[] Modifiers)[] items = gear switch
+        {
+            "nothing" => [],
+            "a ring with two Ember affixes" => [(InventoryType.Equipment, EquipmentSlots.Finger1, 68, emberRing)],
+            "two Ember items" =>
+            [
+                (InventoryType.Equipment, EquipmentSlots.Finger1, 68, emberRing),
+                (InventoryType.Equipment, EquipmentSlots.Neck, 69, [CatalogKeys.ModifierId("S5 Fire T9")]),
+            ],
+            "both rings" =>
+            [
+                (InventoryType.Equipment, EquipmentSlots.Finger1, 68, emberRing),
+                (InventoryType.Equipment, EquipmentSlots.Finger2, 68, emberRing),
+            ],
+            "one item of two themes" =>
+            [
+                (InventoryType.Equipment, EquipmentSlots.Head, 36,
+                    [CatalogKeys.ModifierId("S5 Fire T9"), CatalogKeys.ModifierId("S10 T9")]),
+            ],
+            "an Ember affix in the bag" => [(InventoryType.Bag, 0, 68, emberRing)],
+            "an item in a slot it does not fit" => [(InventoryType.Equipment, EquipmentSlots.Head, 68, emberRing)],
+            "implicits and a unique's lines" =>
+            [
+                (InventoryType.Equipment, EquipmentSlots.Head, 36, [CatalogKeys.ModifierId("implicit FireResistance T9")]),
+                (InventoryType.Equipment, EquipmentSlots.Finger1, 64, [heartwoodBase, CatalogKeys.ModifierId("unique 64")]),
+            ],
+            _ => throw new ArgumentOutOfRangeException(nameof(gear), gear, null),
+        };
+
+        CharacterEntity character = New();
+        ILookup<int, ItemModifierStat> lines = ItemModifierSeed.Stats().ToLookup(line => line.ModifierId);
+        var held = items
+            .Select(i => (i.Container, Item: Item(i.Slot, s_equipment[new ItemTemplateId(i.Template)]), i.Modifiers))
+            .ToList();
+        character.ItemModifiers.Load(
+        [
+            .. held.Select(h => new ItemInstance
+            {
+                Identified = true,
+                Id = h.Item.InstanceId,
+                TemplateId = h.Item.TemplateId,
+                Modifiers =
+                [
+                    .. h.Modifiers.Select((id, ordinal) =>
+                    {
+                        ItemModifierStat line = lines[id].OrderBy(l => l.Index).First();
+                        return TestModifiers.Modifier(h.Item.InstanceId, id, (byte)ordinal, (0, line.Stat, line.Min, line.Min2));
+                    }),
+                ],
+            }),
+        ]);
+        foreach (InventoryType container in (InventoryType[])[InventoryType.Equipment, InventoryType.Bag])
+            character.Container(container).Load([.. held.Where(h => h.Container == container).Select(h => h.Item)]);
+
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, s_equipment.GetValueOrDefault, seeded,
+            CurrentValues.Refill, TestCombat.Formula));
+
+        Dictionary<int, string> names = ItemModifierSeed.Themes().ToDictionary(theme => theme.Id, theme => theme.Name);
+        List<string> counted = [];
+        foreach (ThemeCount pair in ResonanceOf(character))
+            counted.Add($"{names[pair.ThemeId]} {pair.Count}");
+        Assert.Equal(expected, string.Join(", ", counted));
     }
 
     [Fact]
@@ -231,7 +326,8 @@ public class CharacterStatsRefreshShould
         character.Data!.Health = 150;
         character.CurrentHealth = 150;
 
-        Assert.False(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.False(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(150u, character.Health);
         Assert.Equal(150u, character.CurrentHealth);
@@ -248,7 +344,8 @@ public class CharacterStatsRefreshShould
         CharacterEntity character = New();
         character.Data!.Class = @class;
 
-        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);
+        CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, EquipTemplates.Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula);
 
         Assert.Equal(regen, character.RegenStat);
     }
@@ -274,8 +371,10 @@ public class CharacterStatsRefreshShould
         wizard.PowerType = Avalon.Network.Packets.State.PowerType.Mana;
         wizard.CurrentPower = 0;
 
-        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.EnterWorld, TestCombat.Formula));
-        Assert.True(CharacterStatsRefresh.Apply(wizard, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.EnterWorld, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find,
+            ResonanceTable.Empty, CurrentValues.EnterWorld, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(wizard, s_rows, TestCombat.Factors, EquipTemplates.Find,
+            ResonanceTable.Empty, CurrentValues.EnterWorld, TestCombat.Formula));
 
         Assert.Equal(0u, warrior.CurrentPower);
         Assert.Equal(warrior.Health, warrior.CurrentHealth);
@@ -290,7 +389,8 @@ public class CharacterStatsRefreshShould
     {
         CharacterEntity warrior = FuryWarrior(fury: 60);
 
-        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find,
+            ResonanceTable.Empty, CurrentValues.Refill, TestCombat.Formula));
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(60u, warrior.CurrentPower);
@@ -304,7 +404,8 @@ public class CharacterStatsRefreshShould
     {
         CharacterEntity warrior = FuryWarrior(fury: 150, max: 200);
 
-        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find, current, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find,
+            ResonanceTable.Empty, current, TestCombat.Formula));
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(100u, warrior.CurrentPower);
@@ -316,7 +417,8 @@ public class CharacterStatsRefreshShould
     {
         CharacterEntity warrior = FuryWarrior(fury: 60, max: 200);
 
-        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find, CurrentValues.KeepShare, TestCombat.Formula));
+        Assert.True(CharacterStatsRefresh.Apply(warrior, s_rows, TestCombat.Factors, EquipTemplates.Find,
+            ResonanceTable.Empty, CurrentValues.KeepShare, TestCombat.Formula));
 
         Assert.Equal(100u, warrior.Power);
         Assert.Equal(60u, warrior.CurrentPower);   // a share would have been 30
