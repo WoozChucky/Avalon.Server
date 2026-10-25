@@ -8,8 +8,9 @@ namespace Avalon.Api.Worlds.Services;
 
 /// <summary>
 /// An item as the public tooltip and its link preview show it (#1179): the template with the lines every copy rolls
-/// within, and for a unique the base it names, whose base-stat ranges and implicit every copy of it rolls before the
-/// unique's own lines, as the world rolls them.
+/// within, and for a unique the base it names, whose base-stat ranges, damage type and implicit every copy of it rolls
+/// before the unique's own lines, as the world rolls them. A named base the world would not make the unique on (the rule
+/// it applies, <see cref="ItemBaseStatRules.NamedBaseProblem" />) is not shown.
 /// </summary>
 public static class PublicItems
 {
@@ -18,7 +19,8 @@ public static class PublicItems
     {
         ItemModifierCatalog catalog = await modifiers.GetLinkedToAsync(template, ct);
         if (template.Rarity != ItemRarity.Unique || template.BaseTemplateId is not { } baseId
-            || await items.FindByIdAsync(baseId, track: false, ct) is not { } named)
+            || await items.FindByIdAsync(baseId, track: false, ct) is not { } named
+            || ItemBaseStatRules.NamedBaseProblem(template, named) is not null)
         {
             return template.ToPublicDto(catalog.LinkedTo(template.Id));
         }

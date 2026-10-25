@@ -189,14 +189,38 @@ public sealed class TemplateEditService(
         Kind<TRow, TRequest> kind, TemplateEditCaller caller, ulong id, string ifMatch, TRequest request, CancellationToken ct)
         where TRow : class
     {
+        TemplateEditResult<TRow> result;
+        try
+        {
+            result = await SaveAsync(kind, caller, id, ifMatch, request, ct);
+        }
+        catch (Exception ex) when (TemplateDbErrors.Postgres(ex) is { SqlState: PostgresErrorCodes.SerializationFailure })
+        {
+            // The losing side of two concurrent edits, at a read, at the save or at the commit: the same answer as a
+            // stale version.
+            return new(TemplateEditOutcome.Conflict);
+        }
+
+        return result.Outcome == TemplateEditOutcome.Saved
+            ? result with { Reload = await RequestReloadAsync(kind.Name, caller.World, kind.Area, ct) }
+            : result;
+    }
+
+    /// <summary>The edit's transaction, and its audit line once committed; a serialization failure is thrown.</summary>
+    private async Task<TemplateEditResult<TRow>> SaveAsync<TRow, TRequest>(
+        Kind<TRow, TRequest> kind, TemplateEditCaller caller, ulong id, string ifMatch, TRequest request, CancellationToken ct)
+        where TRow : class
+    {
         List<TemplateChange> changes;
         TRow row;
         await using (WorldDbContext db = await contexts.CreateDbContextAsync(ct))
         {
-            // Repeatable read: two saves of the same version cannot both commit. In Postgres the second fails with a
-            // serialization failure, which is the same answer as a stale version.
+            // Serializable: the edit commits only if it would have, run alone. Two saves of the same version cannot both
+            // commit, and neither can two edits that each check a row the other changes (#1179): a unique pointed at a
+            // base while that base's kind or level changes, each judged against the other's old row. In Postgres the
+            // loser fails with a serialization failure, which is the same answer as a stale version.
             await using IDbContextTransaction transaction =
-                await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+                await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
             TRow? found = await kind.Find(db, ct);
             if (found is null)
@@ -232,7 +256,7 @@ public sealed class TemplateEditService(
                 kind.Name, id, caller.World.Value, caller.Account.Value, changes);
         }
 
-        return new(TemplateEditOutcome.Saved, row, await RequestReloadAsync(kind.Name, caller.World, kind.Area, ct));
+        return new(TemplateEditOutcome.Saved, row);
     }
 
     /// <summary>The fields whose stored value the request changed, as the audit line names them.</summary>
@@ -246,7 +270,7 @@ public sealed class TemplateEditService(
 
     /// <summary>
     /// Saves (only when something changed) and commits. Null once committed; otherwise the answer: a check constraint's
-    /// refusal as a field error, a serialization failure as a conflict. Any other failure is thrown.
+    /// or a foreign key's refusal as a field error. Any other failure, a serialization failure among them, is thrown.
     /// </summary>
     private async Task<TemplateEditResult<TRow>?> CommitAsync<TRow>(
         WorldDbContext db, IDbContextTransaction transaction, string kind, ulong id, bool changed, TemplateErrors errors,
@@ -277,9 +301,6 @@ public sealed class TemplateEditService(
                 errors.Add(TemplateDbErrors.FieldOf(pg), $"The database refused this value ({pg.ConstraintName}).");
                 return Invalid<TRow>(errors);
             }
-
-            if (pg.SqlState == PostgresErrorCodes.SerializationFailure)
-                return new(TemplateEditOutcome.Conflict);
 
             throw;
         }

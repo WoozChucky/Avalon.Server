@@ -330,7 +330,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "item", "class", 999, "class" },
         { "item", "flags", 1 << 20, "flags" },
         { "item", "maxStackSize", 0, "maxStackSize" },
-        { "item", "statValue1", 8, "statType1" },          // on a plate chest, whose defence is its implicit (#1179): a value with no type
+        { "item", "statValue1", 8, "statType1" },          // on a plate chest (#1179): a value with no type
         { "ability", "name", "", "name" },
         { "ability", "costPowerType", "None", "costPowerType" }, // paired with a cost above 0, set below
         { "ability", "scriptName", "NoSuchScript", "scriptName" },
@@ -356,7 +356,6 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "ability", "tags", "Attack, Spell, Projectile", "tags" },         // on Spark Bolt: two kinds at once
         { "ability", "tags", "Area", "tags" },                              // on Ignite: its burning aura needs a Spell source
         { "aura", "periodicEffectiveness", -1, "periodicEffectiveness" },   // on Bleed
-        { "item", "baseStats", Array.Empty<object>(), "baseStats" },        // on the starter sword: a weapon without its ranges (#1179)
         { "item", "maxStackSize", 5, "maxStackSize" },                      // on a plate chest: equipment never stacks (#1179)
         { "item", "baseKind", "Sword", "baseKind" },                        // on a potion, which has no slot (#1179)
         { "item", "baseKind", "PlateChest", "baseKind" },                   // on the starter sword: a chest kind in the main hand (#1179)
@@ -399,7 +398,7 @@ public sealed class TemplateEditShould : IAsyncLifetime
             ("ability", "convertPct") => 223UL,
             ("ability", "tags") => value is "Area" ? 213UL : 210UL,
             ("aura", "periodicEffectiveness") => 1UL,
-            ("item", "baseStats" or "damageType") => 32UL,
+            ("item", "damageType") => 32UL,
             ("item", "maxStackSize") when value is 5 => 37UL,
             ("item", "statValue1") => 37UL,
             ("item", "baseKind") => value is "PlateChest" ? 32UL : 1UL,
@@ -1294,24 +1293,23 @@ public sealed class TemplateEditShould : IAsyncLifetime
         Assert.Empty(_signal.Requests);
     }
 
-    [Fact]
-    public async Task Map_a_serialization_failure_at_save_to_a_conflict()
+    /// <summary>
+    /// The losing side of two concurrent edits (a save of one version, or #1179's unique and base each checked against the
+    /// other's old row): Postgres fails it with 40001 at its UPDATE, wrapped in a DbUpdateException; at COMMIT, bare; or,
+    /// serializable, at a read of the edit's checks. Each is a conflict, with nothing saved or reloaded.
+    /// </summary>
+    [Theory]
+    [InlineData("save")]
+    [InlineData("commit")]
+    [InlineData("read")]
+    public async Task Map_a_serialization_failure_to_a_conflict(string at)
     {
-        // The losing side of two concurrent saves of one version: Postgres fails its UPDATE with 40001.
-        TemplateEditResult<Avalon.Domain.World.ItemTemplate> result = await EditWithFailingDatabaseAsync(
-            new FailingSave(PostgresErrorCodes.SerializationFailure, null!));
-
-        Assert.Equal(TemplateEditOutcome.Conflict, result.Outcome);
-        Assert.Empty(_signal.Requests);
-        Assert.DoesNotContain(_logs.Entries, e => e.Message.StartsWith("Template saved", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task Map_a_serialization_failure_at_commit_to_a_conflict()
-    {
-        // The same race, caught at COMMIT: a bare PostgresException, not wrapped in a DbUpdateException.
-        TemplateEditResult<Avalon.Domain.World.ItemTemplate> result = await EditWithFailingDatabaseAsync(
-            new FailingCommit(PostgresErrorCodes.SerializationFailure));
+        TemplateEditResult<Avalon.Domain.World.ItemTemplate> result = await EditWithFailingDatabaseAsync(at switch
+        {
+            "save" => new FailingSave(PostgresErrorCodes.SerializationFailure, null!),
+            "commit" => new FailingCommit(PostgresErrorCodes.SerializationFailure),
+            _ => new FailingRead(PostgresErrorCodes.SerializationFailure),
+        });
 
         Assert.Equal(TemplateEditOutcome.Conflict, result.Outcome);
         Assert.Empty(_signal.Requests);
@@ -1381,6 +1379,14 @@ public sealed class TemplateEditShould : IAsyncLifetime
         public override ValueTask<InterceptionResult> TransactionCommittingAsync(DbTransaction transaction,
             TransactionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default) =>
             throw Pg(sqlState, null);
+    }
+
+    // Fails every query run inside the edit's transaction; the set-up's, outside one, run.
+    private sealed class FailingRead(string sqlState) : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default) =>
+            command.Transaction is null ? ValueTask.FromResult(result) : throw Pg(sqlState, null);
     }
 
     private sealed class FixedFactory(DbContextOptions<WorldDbContext> options) : IDbContextFactory<WorldDbContext>

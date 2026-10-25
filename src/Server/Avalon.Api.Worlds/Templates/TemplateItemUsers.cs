@@ -111,9 +111,14 @@ public static class TemplateItemUsers
 
         if (rarity || kind)
         {
+            // As the world judges it (ItemsPatch.Build): a unique that links nothing is kept, so only its links are held.
             ItemModifierCatalog linked = await ItemModifierQueries.LinkedToAsync(db, id, NullLogger.Instance, ct);
-            if (ItemModifierCatalog.RarityRefusal(edited.Rarity, edited.BaseKind, linked.LinkedTo(id)) is { } linkProblem)
+            IReadOnlyList<ItemModifier> links = linked.LinkedTo(id);
+            if ((edited.Rarity != ItemRarity.Unique || links.Count > 0)
+                && ItemModifierCatalog.RarityRefusal(edited.Rarity, edited.BaseKind, links) is { } linkProblem)
+            {
                 errors.Add(kind ? "baseKind" : "rarity", $"Item template {id.Value} would be left out by the world: {linkProblem}.");
+            }
         }
 
         ItemTemplate? itsBase = edited.BaseTemplateId is { } baseId && baseId != id ? await KeptAsync(db, baseId, ct) : null;
@@ -145,8 +150,10 @@ public static class TemplateItemUsers
     }
 
     /// <summary>
-    /// The template of <paramref name="id" /> as stored, or null when there is none or the world would leave it out by its
-    /// own rules (its links, its base stats, a base it names), as a unique's named base is judged only when kept.
+    /// The template of <paramref name="id" /> as stored, for a unique that names it as its base: null when there is none,
+    /// or when the world would leave it out by its own rules (its links, its base stats, a base it names itself), since the
+    /// world judges a unique's base only among the templates it keeps. A Unique template comes back as stored, unjudged:
+    /// <see cref="ItemBaseStatRules.NamedBaseProblem" /> refuses it as a base whatever its own rows.
     /// </summary>
     private static async Task<ItemTemplate?> KeptAsync(WorldDbContext db, ItemTemplateId id, CancellationToken ct)
     {
