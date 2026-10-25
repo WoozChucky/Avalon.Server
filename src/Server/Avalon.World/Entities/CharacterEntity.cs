@@ -372,10 +372,17 @@ public partial class CharacterEntity : ICharacter
 
     /// <summary>
     /// How many worn items carry an affix of each Resonance theme (#1180), as the last stats refresh counted them against
-    /// its catalog's table. Made once with the character and refilled in place by every refresh, which reallocates it only
-    /// when a reload changes the number of themes. World-side, never on ICharacter, and never saved. Tick thread only.
+    /// its catalog's table. Made once with the character and refilled in place by a refresh whose gear or table moved
+    /// (<see cref="ResonanceCountedFrom" />), reallocated only when a reload changes the number of themes. World-side,
+    /// never on ICharacter, and never saved. Tick thread only.
     /// </summary>
     internal ResonanceCounts Resonance { get; } = new();
+
+    /// <summary>
+    /// What <see cref="Resonance" /> was last counted from (#1180): a refresh that finds the same table and worn modifier
+    /// lists keeps the counts instead of counting them again. Made once with the character. Tick thread only.
+    /// </summary>
+    internal ResonanceInputs ResonanceCountedFrom { get; } = new();
 
     /// <summary>
     /// The Resonance counts the character sheet last sent (#1180), made once as <see cref="Resonance" /> is: a sheet is

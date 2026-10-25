@@ -2002,9 +2002,11 @@ affix of it, in the calculation's one walk (`ResonanceCounts.AddItem`, into a bu
 families P2 (Ember), P12 (Iron), P1 and S1 (both Thorn, which a piece counts once), S2 (Gale) and S3 (Veil), and counts
 them into one `ResonanceCounts` bound once in setup to the seeded catalog's table, as a character's buffer is; setup
 fails the run unless the health is still 770 and the counts read Ember 9, Iron 9, Thorn 9, Gale 9, Veil 9.
-`Calculate` and `CalculateModified` pass no buffer and count nothing. At `3f834400c`, one run (out of process, ten
-warmups, twenty iterations, `--affinity 4`; BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.402 / runtime
-10.0.13, concurrent workstation GC, Release), 2026-10-25, with another agent reading the same worktree in parallel:
+`Calculate` and `CalculateModified` pass no buffer and count nothing. `AddItem` makes one dictionary read per modifier,
+54 on this kit, and keeps an item from counting a theme twice with a per-slot stamp: the slot holds the number of the
+item that last counted it, so a second affix of that theme on the same item is a compare, not another read. One run
+with the stamp, on `c50afca59` (out of process, ten warmups, twenty iterations, `--affinity 4`; BenchmarkDotNet 0.15.8,
+Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, concurrent workstation GC, Release), 2026-10-25:
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemStatsBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
@@ -2012,16 +2014,17 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ItemStat
 
 | Operation | Mean / min / median | Allocated |
 |---|---:|---:|
-| `ItemStatsBenchmarks.Calculate` | 315.1 / 310.4 / 314.8 ns (± 2.2 ns) | 0 B |
-| `ItemStatsBenchmarks.CalculateModified` | 720.3 / 702.2 / 718.5 ns (± 11.3 ns) | 0 B |
-| `ItemStatsBenchmarks.CalculateThemed` | 1,270.8 / 1,246 / 1,272 ns (± 13.9 ns) | 0 B |
+| `ItemStatsBenchmarks.Calculate` | 318.1 / 315.1 / 318.0 ns (± 1.9 ns) | 0 B |
+| `ItemStatsBenchmarks.CalculateModified` | 715.6 / 709.3 / 713.6 ns (± 5.2 ns) | 0 B |
+| `ItemStatsBenchmarks.CalculateThemed` | 954.1 / 790.9 / 846.6 ns (± 158.9 ns) | 0 B |
 
-Nothing allocates, the count included. `Calculate` and `CalculateModified`, whose code this part changes only by a
-null buffer, read 21 % and 9 % above the previous wave's run (259.7 / 662.8 ns), which shows how far this run's machine state
-moves them. Counting
-costs about 550 ns on this kit, once per gear, level or aura change, never per tick or per hit: each of the 54 themed
-affixes is one dictionary read for its slot, and `AddItem` reads each earlier modifier of the same item again to keep an
-item from counting a theme twice (15 more reads on a six-affix piece), 189 reads in all.
+Nothing allocates, the count included. `CalculateThemed`'s iterations fell in two groups (BenchmarkDotNet flags the
+distribution as multimodal: 12 of 20 between 776 and 953 ns, the rest up to 1,325 ns), so its mean carries the noise;
+its minimum and median against `CalculateModified`'s put counting at about 80-130 ns on this kit, where the first cut,
+which read every earlier modifier of the same item again, cost about 550 ns. That is once per refresh that
+counts, never per tick or per hit, and since the same wave a refresh counts only when the worn gear or the table moved
+(`ResonanceInputs`, [world simulation](world-simulation.md)): an aura's or a level-up's refresh keeps the counts, at one
+reference compare per worn item.
 
 ### Item roller — `Benchmarks/ItemRollerBenchmarks.cs` (#1179)
 

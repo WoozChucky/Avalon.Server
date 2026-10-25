@@ -109,13 +109,19 @@ public class AuraStatsIntegrationShould
         // The test data builds a new formula and factors on every read, so they are read once, outside the windows.
         IReadOnlyDictionary<CharacterClass, ClassStatFactors> factors = TestCombat.Factors;
         CombatFormula formula = TestCombat.Formula;
+        // Two reads of the seeded table, taken in turn: a refresh keeps the counts over the same gear and table, so a new
+        // table each time makes every refresh in the windows count again.
         ResonanceTable seeded = await ItemModifierRepositories.SeededResonance();
+        ResonanceTable seededAgain = await ItemModifierRepositories.SeededResonance();
+        int refreshes = 0;
         long allocated = ThreadAllocations.FewestOfThreeWindows(10, () => CharacterStatsRefresh.Apply(warrior, s_warriorRows,
-            factors, Worn, seeded, CurrentValues.KeepShare, formula));
+            factors, Worn, refreshes++ % 2 == 0 ? seeded : seededAgain, CurrentValues.KeepShare, formula));
 
         Assert.Equal(0, allocated);
         Assert.Equal(1.2d, warrior.Stats!.Value.Offence.More(OffenceStat.Fire), precision: 6);
-        Assert.Equal([new ThemeCount(1, 1), new ThemeCount(5, 1), new ThemeCount(6, 1)], Pairs(warrior));   // Ember, Iron, Thorn
+        Assert.Equal(
+            [.. new[] { "Ember", "Iron", "Thorn" }.Select(name => new ThemeCount(ThemeId(name), 1)).OrderBy(pair => pair.ThemeId)],
+            Pairs(warrior));
 
         // A reload to twenty themes, 1000-1019, one prefix row each; the worn affixes' rows are themed 1019, 1000 and 1007.
         Dictionary<int, int> worn = new() { [1019] = iron, [1000] = thorn, [1007] = ember };
@@ -157,6 +163,8 @@ public class AuraStatsIntegrationShould
                 }),
             ],
         };
+
+        static int ThemeId(string name) => ItemModifierSeed.Themes().Single(theme => theme.Name == name).Id;
 
         static List<ThemeCount> Pairs(CharacterEntity character)
         {

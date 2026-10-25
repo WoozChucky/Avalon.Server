@@ -67,7 +67,8 @@ public static class CharacterStatsRefresh
     /// character's store's own list (#1179), null for an item without any, and its base stats a value read from the
     /// same entry, so they allocate nothing either. The worn items' Resonance counts (#1180) are the character's own
     /// buffer, bound to <paramref name="resonance" /> (reallocated only when a reload changed the number of themes) and
-    /// filled in the calculation's one walk.
+    /// filled in the calculation's one walk, only when the table or a worn item's modifier list changed since they were
+    /// last counted (<see cref="ResonanceInputs" />); a refresh over the same gear and table keeps them.
     /// </summary>
     private static bool Apply(
         CharacterEntity character,
@@ -94,11 +95,20 @@ public static class CharacterStatsRefresh
                 }
             }
 
+            // Resonance is counted again only when the table or a worn modifier list moved since the last count; a
+            // refresh that moved neither (an aura, a level-up) keeps the counts it has.
+            character.Resonance.Use(resonance);
+            ResonanceInputs counted = character.ResonanceCountedFrom;
+            bool recount = !counted.Match(resonance, worn);
+
             // Auras: whatever the character holds now is folded in, so every refresh (select, gear, level-up, an aura)
             // agrees with every other.
-            character.Resonance.Use(resonance);
-            character.ApplyStats(CharacterStatsCalculator.Calculate(row, worn, factors, formula, character.Auras.StatTotals,
-                character.Resonance), current, formula);
+            DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, worn, factors, formula,
+                character.Auras.StatTotals, recount ? character.Resonance : null);
+            if (recount)
+                counted.Remember(resonance, worn);
+
+            character.ApplyStats(stats, current, formula);
         }
         finally
         {

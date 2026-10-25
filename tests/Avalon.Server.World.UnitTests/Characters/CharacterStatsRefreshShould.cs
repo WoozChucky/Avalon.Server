@@ -320,11 +320,80 @@ public class CharacterStatsRefreshShould
         Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, s_equipment.GetValueOrDefault, seeded,
             CurrentValues.Refill, TestCombat.Formula));
 
+        Assert.Equal(expected, ResonanceNamed(character));
+    }
+
+    /// <summary>
+    /// #1180: a refresh over the same worn gear and table (an aura's, a level-up's) keeps the Resonance counts without
+    /// walking the items again, and anything that moves the count makes the next refresh count. To tell the two apart,
+    /// the ring's one Ember affix becomes a Thorn affix in its live list after the first count, which nothing else may do
+    /// (a held item's list never changes in place): a refresh that counts again reads Thorn or nothing, one that keeps
+    /// the counts still reads Ember.
+    /// </summary>
+    [Theory]
+    [InlineData("a refresh that moves no gear", "Ember 1")]
+    [InlineData("the ring taken off", "")]
+    [InlineData("a template edit the ring's slot no longer fits", "")]
+    [InlineData("a reload of the catalog", "Thorn 1")]
+    public async Task Count_Resonance_again_only_when_the_worn_gear_or_the_table_moved(string change, string expected)
+    {
+        ResonanceTable seeded = await ItemModifierRepositories.SeededResonance();
+        ItemTemplate ringBase = s_equipment[new ItemTemplateId(68)];
+        InventoryItem ring = Item(EquipmentSlots.Finger1, ringBase);
+        CharacterEntity character = New();
+        character.ItemModifiers.Load(
+        [
+            new ItemInstance
+            {
+                Identified = true,
+                Id = ring.InstanceId,
+                TemplateId = ring.TemplateId,
+                Modifiers =
+                [
+                    TestModifiers.Modifier(ring.InstanceId, CatalogKeys.ModifierId("P8 Fire T9"), 0,
+                        (0, StatType.FireResistance, 1, null)),
+                ],
+            },
+        ]);
+        character.Container(InventoryType.Equipment).Load([ring]);
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, s_equipment.GetValueOrDefault, seeded,
+            CurrentValues.Refill, TestCombat.Formula));
+        Assert.Equal("Ember 1", ResonanceNamed(character));
+
+        character.ItemModifiers.Of(ring.InstanceId)[0].ModifierId = CatalogKeys.ModifierId("S10 T9");
+        Func<ItemTemplateId, ItemTemplate?> find = s_equipment.GetValueOrDefault;
+        ResonanceTable table = seeded;
+        switch (change)
+        {
+            case "a refresh that moves no gear":
+                break;
+            case "the ring taken off":
+                character.Container(InventoryType.Equipment).Remove(EquipmentSlots.Finger1);
+                break;
+            case "a template edit the ring's slot no longer fits":
+                ItemTemplate edited = new() { Id = ringBase.Id, Name = ringBase.Name, Slot = ItemSlotType.Head, MaxStackSize = 1 };
+                find = id => id == ringBase.Id ? edited : s_equipment.GetValueOrDefault(id);
+                break;
+            case "a reload of the catalog":
+                table = await ItemModifierRepositories.SeededResonance();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(change), change, null);
+        }
+
+        Assert.True(CharacterStatsRefresh.Apply(character, s_rows, TestCombat.Factors, find, table, CurrentValues.KeepShare,
+            TestCombat.Formula));
+        Assert.Equal(expected, ResonanceNamed(character));
+    }
+
+    /// <summary>The character's Resonance counts above 0, by slot, as "Theme count" by the seeded theme names.</summary>
+    private static string ResonanceNamed(CharacterEntity character)
+    {
         Dictionary<int, string> names = ItemModifierSeed.Themes().ToDictionary(theme => theme.Id, theme => theme.Name);
         List<string> counted = [];
         foreach (ThemeCount pair in ResonanceOf(character))
             counted.Add($"{names[pair.ThemeId]} {pair.Count}");
-        Assert.Equal(expected, string.Join(", ", counted));
+        return string.Join(", ", counted);
     }
 
     [Fact]
