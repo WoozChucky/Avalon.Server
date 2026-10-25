@@ -5129,7 +5129,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             t.HasCheckConstraint("CK_ItemModifiers_RequiredItemLevel", "\"RequiredItemLevel\" > 0");
 
-                            t.HasCheckConstraint("CK_ItemModifiers_Tier", "\"Tier\" IS NULL OR \"Tier\" BETWEEN 1 AND 5");
+                            t.HasCheckConstraint("CK_ItemModifiers_Tier", "\"Tier\" IS NULL OR \"Tier\" BETWEEN 1 AND 9");
                         });
 
                     b.HasData(
@@ -5138,1526 +5138,924 @@ namespace Avalon.Database.World.Migrations
                             Id = 1,
                             GroupId = 1,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 2,
                             GroupId = 1,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 3,
                             GroupId = 1,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 4,
-                            GroupId = 1,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 5,
-                            GroupId = 1,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 6,
                             GroupId = 2,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 7,
                             GroupId = 2,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 8,
                             GroupId = 2,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 9,
-                            GroupId = 2,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 10,
-                            GroupId = 2,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 11,
                             GroupId = 3,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 12,
                             GroupId = 3,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 13,
                             GroupId = 3,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 14,
-                            GroupId = 3,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 15,
-                            GroupId = 3,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 16,
                             GroupId = 4,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 17,
                             GroupId = 4,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 18,
                             GroupId = 4,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 19,
-                            GroupId = 4,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 20,
-                            GroupId = 4,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 21,
                             GroupId = 5,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 22,
                             GroupId = 5,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 23,
                             GroupId = 5,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 24,
-                            GroupId = 5,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 25,
-                            GroupId = 5,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 26,
                             GroupId = 6,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 27,
                             GroupId = 6,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 28,
                             GroupId = 6,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 29,
-                            GroupId = 6,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 30,
-                            GroupId = 6,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 31,
                             GroupId = 7,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 32,
                             GroupId = 7,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 33,
                             GroupId = 7,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 34,
-                            GroupId = 7,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 35,
-                            GroupId = 7,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 36,
                             GroupId = 8,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 37,
                             GroupId = 8,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 38,
                             GroupId = 8,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 39,
-                            GroupId = 8,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 40,
-                            GroupId = 8,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 41,
                             GroupId = 9,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 42,
                             GroupId = 9,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 43,
                             GroupId = 9,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 44,
-                            GroupId = 9,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 45,
-                            GroupId = 9,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 46,
                             GroupId = 10,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 47,
                             GroupId = 10,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 48,
                             GroupId = 10,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 49,
-                            GroupId = 10,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 50,
-                            GroupId = 10,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 51,
                             GroupId = 11,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 52,
                             GroupId = 11,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 53,
                             GroupId = 11,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 54,
-                            GroupId = 11,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 55,
-                            GroupId = 11,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 56,
                             GroupId = 12,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 57,
                             GroupId = 12,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 58,
                             GroupId = 12,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 59,
-                            GroupId = 12,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 60,
-                            GroupId = 12,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 61,
                             GroupId = 13,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 62,
                             GroupId = 13,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 63,
                             GroupId = 13,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 64,
-                            GroupId = 13,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 65,
-                            GroupId = 13,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 66,
                             GroupId = 14,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 67,
                             GroupId = 14,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 68,
                             GroupId = 14,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 69,
-                            GroupId = 14,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 70,
-                            GroupId = 14,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 71,
                             GroupId = 15,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 72,
                             GroupId = 15,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 73,
                             GroupId = 15,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 74,
-                            GroupId = 15,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 75,
-                            GroupId = 15,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 76,
                             GroupId = 16,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 77,
                             GroupId = 16,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 78,
                             GroupId = 16,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 79,
-                            GroupId = 16,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 80,
-                            GroupId = 16,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 81,
                             GroupId = 17,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 82,
                             GroupId = 17,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 83,
                             GroupId = 17,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 84,
-                            GroupId = 17,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 85,
-                            GroupId = 17,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 86,
                             GroupId = 18,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 87,
                             GroupId = 18,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 88,
                             GroupId = 18,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 89,
-                            GroupId = 18,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 90,
-                            GroupId = 18,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 91,
                             GroupId = 19,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 92,
                             GroupId = 19,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 93,
                             GroupId = 19,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 94,
-                            GroupId = 19,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 95,
-                            GroupId = 19,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 96,
                             GroupId = 20,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 97,
                             GroupId = 20,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 98,
                             GroupId = 20,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 99,
-                            GroupId = 20,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 100,
-                            GroupId = 20,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 101,
                             GroupId = 21,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 102,
                             GroupId = 21,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 103,
                             GroupId = 21,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 104,
-                            GroupId = 21,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 105,
-                            GroupId = 21,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 106,
                             GroupId = 22,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 107,
                             GroupId = 22,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 108,
                             GroupId = 22,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 109,
-                            GroupId = 22,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 110,
-                            GroupId = 22,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 111,
                             GroupId = 23,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 112,
                             GroupId = 23,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 113,
                             GroupId = 23,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 114,
-                            GroupId = 23,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 115,
-                            GroupId = 23,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 116,
                             GroupId = 24,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 117,
                             GroupId = 24,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 118,
                             GroupId = 24,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 119,
-                            GroupId = 24,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 120,
-                            GroupId = 24,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 121,
                             GroupId = 25,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 122,
                             GroupId = 25,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 123,
                             GroupId = 25,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 124,
-                            GroupId = 25,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 125,
-                            GroupId = 25,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 126,
                             GroupId = 26,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 127,
                             GroupId = 26,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 128,
                             GroupId = 26,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 129,
-                            GroupId = 26,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 130,
-                            GroupId = 26,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 131,
                             GroupId = 27,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 132,
                             GroupId = 27,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 133,
                             GroupId = 27,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 134,
-                            GroupId = 27,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 135,
-                            GroupId = 27,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 136,
                             GroupId = 28,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 137,
                             GroupId = 28,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 138,
                             GroupId = 28,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 139,
-                            GroupId = 28,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 140,
-                            GroupId = 28,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 141,
                             GroupId = 29,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 142,
                             GroupId = 29,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 143,
                             GroupId = 29,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 144,
-                            GroupId = 29,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 145,
-                            GroupId = 29,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 146,
                             GroupId = 30,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 147,
                             GroupId = 30,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 148,
                             GroupId = 30,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 149,
-                            GroupId = 30,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 150,
-                            GroupId = 30,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 151,
                             GroupId = 31,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 152,
                             GroupId = 31,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 153,
                             GroupId = 31,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 154,
-                            GroupId = 31,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 155,
-                            GroupId = 31,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 156,
                             GroupId = 32,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 157,
                             GroupId = 32,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 158,
                             GroupId = 32,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 159,
-                            GroupId = 32,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 160,
-                            GroupId = 32,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 161,
                             GroupId = 33,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 162,
                             GroupId = 33,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 163,
                             GroupId = 33,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 164,
-                            GroupId = 33,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 165,
-                            GroupId = 33,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 166,
                             GroupId = 34,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 167,
                             GroupId = 34,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 168,
                             GroupId = 34,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 169,
-                            GroupId = 34,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 170,
-                            GroupId = 34,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 171,
                             GroupId = 35,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 172,
                             GroupId = 35,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 173,
                             GroupId = 35,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 174,
-                            GroupId = 35,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 175,
-                            GroupId = 35,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 176,
                             GroupId = 36,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 177,
                             GroupId = 36,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 178,
                             GroupId = 36,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 179,
-                            GroupId = 36,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 180,
-                            GroupId = 36,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 181,
                             GroupId = 37,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 182,
                             GroupId = 37,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 183,
                             GroupId = 37,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 184,
-                            GroupId = 37,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 185,
-                            GroupId = 37,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 186,
                             GroupId = 38,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 187,
                             GroupId = 38,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 188,
                             GroupId = 38,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 189,
-                            GroupId = 38,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 190,
                             GroupId = 39,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 191,
                             GroupId = 39,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 192,
                             GroupId = 39,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 193,
-                            GroupId = 39,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 194,
-                            GroupId = 39,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 195,
                             GroupId = 40,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 196,
                             GroupId = 40,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 197,
                             GroupId = 40,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 198,
-                            GroupId = 40,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 199,
-                            GroupId = 40,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 200,
                             GroupId = 41,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 201,
                             GroupId = 41,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 202,
                             GroupId = 41,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 203,
-                            GroupId = 41,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 204,
-                            GroupId = 41,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 205,
                             GroupId = 42,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 206,
                             GroupId = 42,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 207,
                             GroupId = 42,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 208,
-                            GroupId = 42,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 209,
-                            GroupId = 42,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 210,
                             GroupId = 43,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 211,
                             GroupId = 43,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 212,
                             GroupId = 43,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 213,
-                            GroupId = 43,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
-                        },
-                        new
-                        {
-                            Id = 214,
-                            GroupId = 43,
-                            RequiredItemLevel = (short)13,
-                            Tier = (byte)5
+                            Tier = (byte)7
                         },
                         new
                         {
                             Id = 215,
                             GroupId = 44,
                             RequiredItemLevel = (short)1,
-                            Tier = (byte)1
+                            Tier = (byte)9
                         },
                         new
                         {
                             Id = 216,
                             GroupId = 44,
                             RequiredItemLevel = (short)4,
-                            Tier = (byte)2
+                            Tier = (byte)8
                         },
                         new
                         {
                             Id = 217,
                             GroupId = 44,
                             RequiredItemLevel = (short)7,
-                            Tier = (byte)3
-                        },
-                        new
-                        {
-                            Id = 218,
-                            GroupId = 44,
-                            RequiredItemLevel = (short)10,
-                            Tier = (byte)4
+                            Tier = (byte)7
                         },
                         new
                         {
@@ -6691,363 +6089,570 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Id = 224,
-                            GroupId = 50,
-                            RequiredItemLevel = (short)1
+                            Id = 284,
+                            GroupId = 110,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 225,
-                            GroupId = 51,
-                            RequiredItemLevel = (short)1
+                            Id = 285,
+                            GroupId = 110,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 226,
-                            GroupId = 52,
-                            RequiredItemLevel = (short)1
+                            Id = 286,
+                            GroupId = 110,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 227,
-                            GroupId = 53,
-                            RequiredItemLevel = (short)1
+                            Id = 287,
+                            GroupId = 111,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 228,
-                            GroupId = 54,
-                            RequiredItemLevel = (short)1
+                            Id = 288,
+                            GroupId = 111,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 229,
-                            GroupId = 55,
-                            RequiredItemLevel = (short)1
+                            Id = 289,
+                            GroupId = 111,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 230,
-                            GroupId = 56,
-                            RequiredItemLevel = (short)1
+                            Id = 290,
+                            GroupId = 112,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 231,
-                            GroupId = 57,
-                            RequiredItemLevel = (short)1
+                            Id = 291,
+                            GroupId = 112,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 232,
-                            GroupId = 58,
-                            RequiredItemLevel = (short)1
+                            Id = 292,
+                            GroupId = 112,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 233,
-                            GroupId = 59,
-                            RequiredItemLevel = (short)1
+                            Id = 293,
+                            GroupId = 113,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 234,
-                            GroupId = 60,
-                            RequiredItemLevel = (short)1
+                            Id = 294,
+                            GroupId = 113,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 235,
-                            GroupId = 61,
-                            RequiredItemLevel = (short)1
+                            Id = 295,
+                            GroupId = 113,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 236,
-                            GroupId = 62,
-                            RequiredItemLevel = (short)1
+                            Id = 296,
+                            GroupId = 114,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 237,
-                            GroupId = 63,
-                            RequiredItemLevel = (short)1
+                            Id = 297,
+                            GroupId = 114,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 238,
-                            GroupId = 64,
-                            RequiredItemLevel = (short)1
+                            Id = 298,
+                            GroupId = 114,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 239,
-                            GroupId = 65,
-                            RequiredItemLevel = (short)1
+                            Id = 299,
+                            GroupId = 115,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 240,
-                            GroupId = 66,
-                            RequiredItemLevel = (short)1
+                            Id = 300,
+                            GroupId = 115,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 241,
-                            GroupId = 67,
-                            RequiredItemLevel = (short)1
+                            Id = 301,
+                            GroupId = 115,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 242,
-                            GroupId = 68,
-                            RequiredItemLevel = (short)1
+                            Id = 302,
+                            GroupId = 116,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 243,
-                            GroupId = 69,
-                            RequiredItemLevel = (short)1
+                            Id = 303,
+                            GroupId = 116,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 244,
-                            GroupId = 70,
-                            RequiredItemLevel = (short)1
+                            Id = 304,
+                            GroupId = 116,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 245,
-                            GroupId = 71,
-                            RequiredItemLevel = (short)1
+                            Id = 305,
+                            GroupId = 117,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 246,
-                            GroupId = 72,
-                            RequiredItemLevel = (short)1
+                            Id = 306,
+                            GroupId = 117,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 247,
-                            GroupId = 73,
-                            RequiredItemLevel = (short)1
+                            Id = 307,
+                            GroupId = 117,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 248,
-                            GroupId = 74,
-                            RequiredItemLevel = (short)1
+                            Id = 308,
+                            GroupId = 118,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 249,
-                            GroupId = 75,
-                            RequiredItemLevel = (short)1
+                            Id = 309,
+                            GroupId = 118,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 250,
-                            GroupId = 76,
-                            RequiredItemLevel = (short)1
+                            Id = 310,
+                            GroupId = 118,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 251,
-                            GroupId = 77,
-                            RequiredItemLevel = (short)1
+                            Id = 311,
+                            GroupId = 119,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 252,
-                            GroupId = 78,
-                            RequiredItemLevel = (short)1
+                            Id = 312,
+                            GroupId = 119,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 253,
-                            GroupId = 79,
-                            RequiredItemLevel = (short)1
+                            Id = 313,
+                            GroupId = 119,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 254,
-                            GroupId = 80,
-                            RequiredItemLevel = (short)1
+                            Id = 314,
+                            GroupId = 120,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 255,
-                            GroupId = 81,
-                            RequiredItemLevel = (short)1
+                            Id = 315,
+                            GroupId = 120,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 256,
-                            GroupId = 82,
-                            RequiredItemLevel = (short)1
+                            Id = 316,
+                            GroupId = 120,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 257,
-                            GroupId = 83,
-                            RequiredItemLevel = (short)1
+                            Id = 317,
+                            GroupId = 121,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 258,
-                            GroupId = 84,
-                            RequiredItemLevel = (short)1
+                            Id = 318,
+                            GroupId = 121,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 259,
-                            GroupId = 85,
-                            RequiredItemLevel = (short)1
+                            Id = 319,
+                            GroupId = 121,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 260,
-                            GroupId = 86,
-                            RequiredItemLevel = (short)1
+                            Id = 320,
+                            GroupId = 122,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 261,
-                            GroupId = 87,
-                            RequiredItemLevel = (short)1
+                            Id = 321,
+                            GroupId = 122,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 262,
-                            GroupId = 88,
-                            RequiredItemLevel = (short)1
+                            Id = 322,
+                            GroupId = 122,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 263,
-                            GroupId = 89,
-                            RequiredItemLevel = (short)1
+                            Id = 323,
+                            GroupId = 123,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 264,
-                            GroupId = 90,
-                            RequiredItemLevel = (short)1
+                            Id = 324,
+                            GroupId = 123,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 265,
-                            GroupId = 91,
-                            RequiredItemLevel = (short)1
+                            Id = 325,
+                            GroupId = 123,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 266,
-                            GroupId = 92,
-                            RequiredItemLevel = (short)1
+                            Id = 326,
+                            GroupId = 124,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 267,
-                            GroupId = 93,
-                            RequiredItemLevel = (short)1
+                            Id = 327,
+                            GroupId = 124,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 268,
-                            GroupId = 94,
-                            RequiredItemLevel = (short)1
+                            Id = 328,
+                            GroupId = 124,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 269,
-                            GroupId = 95,
-                            RequiredItemLevel = (short)1
+                            Id = 329,
+                            GroupId = 125,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 270,
-                            GroupId = 96,
-                            RequiredItemLevel = (short)1
+                            Id = 330,
+                            GroupId = 125,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 271,
-                            GroupId = 97,
-                            RequiredItemLevel = (short)1
+                            Id = 331,
+                            GroupId = 125,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 272,
-                            GroupId = 98,
-                            RequiredItemLevel = (short)1
+                            Id = 332,
+                            GroupId = 126,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 273,
-                            GroupId = 99,
-                            RequiredItemLevel = (short)1
+                            Id = 333,
+                            GroupId = 126,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 274,
-                            GroupId = 100,
-                            RequiredItemLevel = (short)1
+                            Id = 334,
+                            GroupId = 126,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 275,
-                            GroupId = 101,
-                            RequiredItemLevel = (short)1
+                            Id = 335,
+                            GroupId = 127,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 276,
-                            GroupId = 102,
-                            RequiredItemLevel = (short)1
+                            Id = 336,
+                            GroupId = 127,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 277,
-                            GroupId = 103,
-                            RequiredItemLevel = (short)1
+                            Id = 337,
+                            GroupId = 127,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 278,
-                            GroupId = 104,
-                            RequiredItemLevel = (short)1
+                            Id = 338,
+                            GroupId = 128,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 279,
-                            GroupId = 105,
-                            RequiredItemLevel = (short)1
+                            Id = 339,
+                            GroupId = 128,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 280,
-                            GroupId = 106,
-                            RequiredItemLevel = (short)1
+                            Id = 340,
+                            GroupId = 128,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         },
                         new
                         {
-                            Id = 281,
-                            GroupId = 107,
-                            RequiredItemLevel = (short)1
+                            Id = 341,
+                            GroupId = 129,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
                         },
                         new
                         {
-                            Id = 282,
-                            GroupId = 108,
-                            RequiredItemLevel = (short)1
+                            Id = 342,
+                            GroupId = 129,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
                         },
                         new
                         {
-                            Id = 283,
-                            GroupId = 109,
-                            RequiredItemLevel = (short)1
+                            Id = 343,
+                            GroupId = 129,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 344,
+                            GroupId = 130,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 345,
+                            GroupId = 130,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 346,
+                            GroupId = 130,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 347,
+                            GroupId = 131,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 348,
+                            GroupId = 131,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 349,
+                            GroupId = 131,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 350,
+                            GroupId = 132,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 351,
+                            GroupId = 132,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 352,
+                            GroupId = 132,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 353,
+                            GroupId = 133,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 354,
+                            GroupId = 133,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 355,
+                            GroupId = 133,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 356,
+                            GroupId = 134,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 357,
+                            GroupId = 134,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 358,
+                            GroupId = 134,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 359,
+                            GroupId = 135,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 360,
+                            GroupId = 135,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 361,
+                            GroupId = 135,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
+                        },
+                        new
+                        {
+                            Id = 362,
+                            GroupId = 136,
+                            RequiredItemLevel = (short)1,
+                            Tier = (byte)9
+                        },
+                        new
+                        {
+                            Id = 363,
+                            GroupId = 136,
+                            RequiredItemLevel = (short)4,
+                            Tier = (byte)8
+                        },
+                        new
+                        {
+                            Id = 364,
+                            GroupId = 136,
+                            RequiredItemLevel = (short)7,
+                            Tier = (byte)7
                         });
                 });
 
@@ -7445,363 +7050,166 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Id = 50,
-                            Kind = (byte)4,
-                            Name = "Barkplate Helm"
+                            Id = 110,
+                            Code = "S14",
+                            Kind = (byte)2,
+                            Name = "of Deep Roots"
                         },
                         new
                         {
-                            Id = 51,
+                            Id = 111,
                             Kind = (byte)4,
-                            Name = "Barkplate Chestguard"
+                            Name = "Fire Resistance"
                         },
                         new
                         {
-                            Id = 52,
+                            Id = 112,
                             Kind = (byte)4,
-                            Name = "Barkplate Legguards"
+                            Name = "Cold Resistance"
                         },
                         new
                         {
-                            Id = 53,
+                            Id = 113,
                             Kind = (byte)4,
-                            Name = "Barkplate Gauntlets"
+                            Name = "Lightning Resistance"
                         },
                         new
                         {
-                            Id = 54,
+                            Id = 114,
                             Kind = (byte)4,
-                            Name = "Barkplate Boots"
+                            Name = "Blight Resistance"
                         },
                         new
                         {
-                            Id = 55,
+                            Id = 115,
                             Kind = (byte)4,
-                            Name = "Mossweave Hood"
+                            Name = "Increased Armor"
                         },
                         new
                         {
-                            Id = 56,
+                            Id = 116,
                             Kind = (byte)4,
-                            Name = "Mossweave Robe"
+                            Name = "Increased Health"
                         },
                         new
                         {
-                            Id = 57,
+                            Id = 117,
                             Kind = (byte)4,
-                            Name = "Mossweave Leggings"
+                            Name = "Physical Damage to Attacks"
                         },
                         new
                         {
-                            Id = 58,
+                            Id = 118,
                             Kind = (byte)4,
-                            Name = "Mossweave Gloves"
+                            Name = "Strength"
                         },
                         new
                         {
-                            Id = 59,
+                            Id = 119,
                             Kind = (byte)4,
-                            Name = "Mossweave Slippers"
+                            Name = "Stamina"
                         },
                         new
                         {
-                            Id = 60,
+                            Id = 120,
                             Kind = (byte)4,
-                            Name = "Fernstalker Cap"
+                            Name = "Crit Multiplier"
                         },
                         new
                         {
-                            Id = 61,
+                            Id = 121,
                             Kind = (byte)4,
-                            Name = "Fernstalker Jerkin"
+                            Name = "Agility"
                         },
                         new
                         {
-                            Id = 62,
+                            Id = 122,
                             Kind = (byte)4,
-                            Name = "Fernstalker Breeches"
+                            Name = "Increased Evasion"
                         },
                         new
                         {
-                            Id = 63,
+                            Id = 123,
                             Kind = (byte)4,
-                            Name = "Fernstalker Grips"
+                            Name = "Increased Projectile Damage"
                         },
                         new
                         {
-                            Id = 64,
+                            Id = 124,
                             Kind = (byte)4,
-                            Name = "Fernstalker Boots"
+                            Name = "Movement Speed"
                         },
                         new
                         {
-                            Id = 65,
+                            Id = 125,
                             Kind = (byte)4,
-                            Name = "Ironbound Helm"
+                            Name = "Cooldown Recovery"
                         },
                         new
                         {
-                            Id = 66,
+                            Id = 126,
                             Kind = (byte)4,
-                            Name = "Ironbound Chestguard"
+                            Name = "Intellect"
                         },
                         new
                         {
-                            Id = 67,
+                            Id = 127,
                             Kind = (byte)4,
-                            Name = "Ironbound Legguards"
+                            Name = "Increased Spell Damage"
                         },
                         new
                         {
-                            Id = 68,
+                            Id = 128,
                             Kind = (byte)4,
-                            Name = "Ironbound Gauntlets"
+                            Name = "Cast Speed"
                         },
                         new
                         {
-                            Id = 69,
+                            Id = 129,
                             Kind = (byte)4,
-                            Name = "Ironbound Boots"
+                            Name = "Power"
                         },
                         new
                         {
-                            Id = 70,
+                            Id = 130,
                             Kind = (byte)4,
-                            Name = "Linen Hood"
+                            Name = "Health"
                         },
                         new
                         {
-                            Id = 71,
+                            Id = 131,
                             Kind = (byte)4,
-                            Name = "Linen Robe"
+                            Name = "Increased Physical Damage"
                         },
                         new
                         {
-                            Id = 72,
+                            Id = 132,
                             Kind = (byte)4,
-                            Name = "Linen Leggings"
+                            Name = "Lightning Damage to Attacks"
                         },
                         new
                         {
-                            Id = 73,
+                            Id = 133,
                             Kind = (byte)4,
-                            Name = "Linen Gloves"
+                            Name = "Fire Damage to Spells"
                         },
                         new
                         {
-                            Id = 74,
+                            Id = 134,
                             Kind = (byte)4,
-                            Name = "Linen Slippers"
+                            Name = "Cold Damage to Spells"
                         },
                         new
                         {
-                            Id = 75,
+                            Id = 135,
                             Kind = (byte)4,
-                            Name = "Hide Cap"
+                            Name = "Increased Damage Over Time"
                         },
                         new
                         {
-                            Id = 76,
+                            Id = 136,
                             Kind = (byte)4,
-                            Name = "Hide Jerkin"
-                        },
-                        new
-                        {
-                            Id = 77,
-                            Kind = (byte)4,
-                            Name = "Hide Breeches"
-                        },
-                        new
-                        {
-                            Id = 78,
-                            Kind = (byte)4,
-                            Name = "Hide Grips"
-                        },
-                        new
-                        {
-                            Id = 79,
-                            Kind = (byte)4,
-                            Name = "Hide Boots"
-                        },
-                        new
-                        {
-                            Id = 80,
-                            Kind = (byte)4,
-                            Name = "Oak Buckler"
-                        },
-                        new
-                        {
-                            Id = 81,
-                            Kind = (byte)4,
-                            Name = "Barkplate Shield"
-                        },
-                        new
-                        {
-                            Id = 82,
-                            Kind = (byte)4,
-                            Name = "Ironroot Kite Shield"
-                        },
-                        new
-                        {
-                            Id = 83,
-                            Kind = (byte)4,
-                            Name = "Ash Focus"
-                        },
-                        new
-                        {
-                            Id = 84,
-                            Kind = (byte)4,
-                            Name = "Thornwood Focus"
-                        },
-                        new
-                        {
-                            Id = 85,
-                            Kind = (byte)4,
-                            Name = "Gloamwood Orb"
-                        },
-                        new
-                        {
-                            Id = 86,
-                            Kind = (byte)4,
-                            Name = "Ironbound Pauldrons"
-                        },
-                        new
-                        {
-                            Id = 87,
-                            Kind = (byte)4,
-                            Name = "Hide Mantle"
-                        },
-                        new
-                        {
-                            Id = 88,
-                            Kind = (byte)4,
-                            Name = "Linen Shoulderwraps"
-                        },
-                        new
-                        {
-                            Id = 89,
-                            Kind = (byte)4,
-                            Name = "Barkplate Pauldrons"
-                        },
-                        new
-                        {
-                            Id = 90,
-                            Kind = (byte)4,
-                            Name = "Fernstalker Mantle"
-                        },
-                        new
-                        {
-                            Id = 91,
-                            Kind = (byte)4,
-                            Name = "Mossweave Shoulderwraps"
-                        },
-                        new
-                        {
-                            Id = 92,
-                            Kind = (byte)4,
-                            Name = "Ironroot Pauldrons"
-                        },
-                        new
-                        {
-                            Id = 93,
-                            Kind = (byte)4,
-                            Name = "Gloamhide Mantle"
-                        },
-                        new
-                        {
-                            Id = 94,
-                            Kind = (byte)4,
-                            Name = "Duskweave Shoulderwraps"
-                        },
-                        new
-                        {
-                            Id = 95,
-                            Kind = (byte)4,
-                            Name = "Ironroot Helm"
-                        },
-                        new
-                        {
-                            Id = 96,
-                            Kind = (byte)4,
-                            Name = "Ironroot Chestguard"
-                        },
-                        new
-                        {
-                            Id = 97,
-                            Kind = (byte)4,
-                            Name = "Ironroot Legguards"
-                        },
-                        new
-                        {
-                            Id = 98,
-                            Kind = (byte)4,
-                            Name = "Ironroot Gauntlets"
-                        },
-                        new
-                        {
-                            Id = 99,
-                            Kind = (byte)4,
-                            Name = "Ironroot Boots"
-                        },
-                        new
-                        {
-                            Id = 100,
-                            Kind = (byte)4,
-                            Name = "Gloamhide Cap"
-                        },
-                        new
-                        {
-                            Id = 101,
-                            Kind = (byte)4,
-                            Name = "Gloamhide Jerkin"
-                        },
-                        new
-                        {
-                            Id = 102,
-                            Kind = (byte)4,
-                            Name = "Gloamhide Breeches"
-                        },
-                        new
-                        {
-                            Id = 103,
-                            Kind = (byte)4,
-                            Name = "Gloamhide Grips"
-                        },
-                        new
-                        {
-                            Id = 104,
-                            Kind = (byte)4,
-                            Name = "Gloamhide Boots"
-                        },
-                        new
-                        {
-                            Id = 105,
-                            Kind = (byte)4,
-                            Name = "Duskweave Hood"
-                        },
-                        new
-                        {
-                            Id = 106,
-                            Kind = (byte)4,
-                            Name = "Duskweave Robe"
-                        },
-                        new
-                        {
-                            Id = 107,
-                            Kind = (byte)4,
-                            Name = "Duskweave Leggings"
-                        },
-                        new
-                        {
-                            Id = 108,
-                            Kind = (byte)4,
-                            Name = "Duskweave Gloves"
-                        },
-                        new
-                        {
-                            Id = 109,
-                            Kind = (byte)4,
-                            Name = "Duskweave Slippers"
+                            Name = "Increased Healing"
                         });
                 });
 
@@ -7841,7 +7249,7 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 1,
                             Index = (byte)0,
                             Max = 1,
-                            Max2 = 2,
+                            Max2 = 1,
                             Min = 1,
                             Min2 = 1,
                             Stat = (short)35
@@ -7850,90 +7258,50 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 2,
                             Index = (byte)0,
-                            Max = 3,
-                            Max2 = 4,
-                            Min = 2,
-                            Min2 = 3,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 2,
                             Stat = (short)35
                         },
                         new
                         {
                             ModifierId = 3,
                             Index = (byte)0,
-                            Max = 4,
-                            Max2 = 6,
-                            Min = 3,
-                            Min2 = 4,
-                            Stat = (short)35
-                        },
-                        new
-                        {
-                            ModifierId = 4,
-                            Index = (byte)0,
-                            Max = 6,
-                            Max2 = 8,
-                            Min = 5,
-                            Min2 = 6,
-                            Stat = (short)35
-                        },
-                        new
-                        {
-                            ModifierId = 5,
-                            Index = (byte)0,
-                            Max = 8,
-                            Max2 = 11,
-                            Min = 6,
-                            Min2 = 8,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 2,
+                            Min2 = 3,
                             Stat = (short)35
                         },
                         new
                         {
                             ModifierId = 6,
                             Index = (byte)0,
-                            Max = 2,
-                            Max2 = 3,
+                            Max = 1,
+                            Max2 = 1,
                             Min = 1,
-                            Min2 = 2,
+                            Min2 = 1,
                             Stat = (short)36
                         },
                         new
                         {
                             ModifierId = 7,
                             Index = (byte)0,
-                            Max = 3,
-                            Max2 = 5,
-                            Min = 2,
-                            Min2 = 3,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 2,
                             Stat = (short)36
                         },
                         new
                         {
                             ModifierId = 8,
                             Index = (byte)0,
-                            Max = 5,
-                            Max2 = 7,
-                            Min = 3,
-                            Min2 = 5,
-                            Stat = (short)36
-                        },
-                        new
-                        {
-                            ModifierId = 9,
-                            Index = (byte)0,
-                            Max = 7,
-                            Max2 = 10,
-                            Min = 4,
-                            Min2 = 7,
-                            Stat = (short)36
-                        },
-                        new
-                        {
-                            ModifierId = 10,
-                            Index = (byte)0,
-                            Max = 9,
-                            Max2 = 13,
-                            Min = 6,
-                            Min2 = 9,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 2,
+                            Min2 = 3,
                             Stat = (short)36
                         },
                         new
@@ -7941,7 +7309,7 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 11,
                             Index = (byte)0,
                             Max = 1,
-                            Max2 = 2,
+                            Max2 = 1,
                             Min = 1,
                             Min2 = 1,
                             Stat = (short)37
@@ -7950,48 +7318,28 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 12,
                             Index = (byte)0,
-                            Max = 3,
-                            Max2 = 4,
-                            Min = 2,
-                            Min2 = 3,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 2,
                             Stat = (short)37
                         },
                         new
                         {
                             ModifierId = 13,
                             Index = (byte)0,
-                            Max = 4,
-                            Max2 = 6,
-                            Min = 3,
-                            Min2 = 4,
-                            Stat = (short)37
-                        },
-                        new
-                        {
-                            ModifierId = 14,
-                            Index = (byte)0,
-                            Max = 6,
-                            Max2 = 8,
-                            Min = 4,
-                            Min2 = 6,
-                            Stat = (short)37
-                        },
-                        new
-                        {
-                            ModifierId = 15,
-                            Index = (byte)0,
-                            Max = 8,
-                            Max2 = 11,
-                            Min = 5,
-                            Min2 = 8,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 2,
+                            Min2 = 3,
                             Stat = (short)37
                         },
                         new
                         {
                             ModifierId = 16,
                             Index = (byte)0,
-                            Max = 2,
-                            Max2 = 4,
+                            Max = 1,
+                            Max2 = 2,
                             Min = 1,
                             Min2 = 2,
                             Stat = (short)38
@@ -8000,40 +7348,20 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 17,
                             Index = (byte)0,
-                            Max = 4,
-                            Max2 = 7,
+                            Max = 1,
+                            Max2 = 3,
                             Min = 1,
-                            Min2 = 4,
+                            Min2 = 3,
                             Stat = (short)38
                         },
                         new
                         {
                             ModifierId = 18,
                             Index = (byte)0,
-                            Max = 5,
-                            Max2 = 10,
+                            Max = 1,
+                            Max2 = 4,
                             Min = 1,
-                            Min2 = 5,
-                            Stat = (short)38
-                        },
-                        new
-                        {
-                            ModifierId = 19,
-                            Index = (byte)0,
-                            Max = 8,
-                            Max2 = 14,
-                            Min = 2,
-                            Min2 = 8,
-                            Stat = (short)38
-                        },
-                        new
-                        {
-                            ModifierId = 20,
-                            Index = (byte)0,
-                            Max = 10,
-                            Max2 = 18,
-                            Min = 2,
-                            Min2 = 10,
+                            Min2 = 4,
                             Stat = (short)38
                         },
                         new
@@ -8041,7 +7369,7 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 21,
                             Index = (byte)0,
                             Max = 1,
-                            Max2 = 2,
+                            Max2 = 1,
                             Min = 1,
                             Min2 = 1,
                             Stat = (short)39
@@ -8050,280 +7378,164 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 22,
                             Index = (byte)0,
-                            Max = 3,
-                            Max2 = 4,
-                            Min = 2,
-                            Min2 = 3,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 2,
                             Stat = (short)39
                         },
                         new
                         {
                             ModifierId = 23,
                             Index = (byte)0,
-                            Max = 4,
-                            Max2 = 6,
-                            Min = 3,
-                            Min2 = 4,
-                            Stat = (short)39
-                        },
-                        new
-                        {
-                            ModifierId = 24,
-                            Index = (byte)0,
-                            Max = 6,
-                            Max2 = 8,
-                            Min = 4,
-                            Min2 = 6,
-                            Stat = (short)39
-                        },
-                        new
-                        {
-                            ModifierId = 25,
-                            Index = (byte)0,
-                            Max = 8,
-                            Max2 = 11,
-                            Min = 5,
-                            Min2 = 8,
+                            Max = 2,
+                            Max2 = 3,
+                            Min = 2,
+                            Min2 = 3,
                             Stat = (short)39
                         },
                         new
                         {
                             ModifierId = 26,
                             Index = (byte)0,
-                            Max = 19,
-                            Min = 10,
+                            Max = 8,
+                            Min = 5,
                             Stat = (short)40
                         },
                         new
                         {
                             ModifierId = 27,
                             Index = (byte)0,
-                            Max = 34,
-                            Min = 20,
+                            Max = 12,
+                            Min = 9,
                             Stat = (short)40
                         },
                         new
                         {
                             ModifierId = 28,
                             Index = (byte)0,
-                            Max = 49,
-                            Min = 35,
-                            Stat = (short)40
-                        },
-                        new
-                        {
-                            ModifierId = 29,
-                            Index = (byte)0,
-                            Max = 64,
-                            Min = 50,
-                            Stat = (short)40
-                        },
-                        new
-                        {
-                            ModifierId = 30,
-                            Index = (byte)0,
-                            Max = 79,
-                            Min = 65,
+                            Max = 16,
+                            Min = 13,
                             Stat = (short)40
                         },
                         new
                         {
                             ModifierId = 31,
                             Index = (byte)0,
-                            Max = 12,
-                            Min = 8,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)26
                         },
                         new
                         {
                             ModifierId = 32,
                             Index = (byte)0,
-                            Max = 20,
-                            Min = 13,
+                            Max = 4,
+                            Min = 3,
                             Stat = (short)26
                         },
                         new
                         {
                             ModifierId = 33,
                             Index = (byte)0,
-                            Max = 30,
-                            Min = 21,
-                            Stat = (short)26
-                        },
-                        new
-                        {
-                            ModifierId = 34,
-                            Index = (byte)0,
-                            Max = 40,
-                            Min = 31,
-                            Stat = (short)26
-                        },
-                        new
-                        {
-                            ModifierId = 35,
-                            Index = (byte)0,
-                            Max = 50,
-                            Min = 41,
+                            Max = 6,
+                            Min = 5,
                             Stat = (short)26
                         },
                         new
                         {
                             ModifierId = 36,
                             Index = (byte)0,
-                            Max = 9,
-                            Min = 5,
+                            Max = 2,
+                            Min = 1,
                             Stat = (short)21
                         },
                         new
                         {
                             ModifierId = 37,
                             Index = (byte)0,
-                            Max = 14,
-                            Min = 10,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)21
                         },
                         new
                         {
                             ModifierId = 38,
                             Index = (byte)0,
-                            Max = 19,
-                            Min = 15,
-                            Stat = (short)21
-                        },
-                        new
-                        {
-                            ModifierId = 39,
-                            Index = (byte)0,
-                            Max = 24,
-                            Min = 20,
-                            Stat = (short)21
-                        },
-                        new
-                        {
-                            ModifierId = 40,
-                            Index = (byte)0,
-                            Max = 29,
-                            Min = 25,
+                            Max = 4,
+                            Min = 3,
                             Stat = (short)21
                         },
                         new
                         {
                             ModifierId = 41,
                             Index = (byte)0,
-                            Max = 9,
-                            Min = 5,
+                            Max = 2,
+                            Min = 1,
                             Stat = (short)22
                         },
                         new
                         {
                             ModifierId = 42,
                             Index = (byte)0,
-                            Max = 14,
-                            Min = 10,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)22
                         },
                         new
                         {
                             ModifierId = 43,
                             Index = (byte)0,
-                            Max = 19,
-                            Min = 15,
-                            Stat = (short)22
-                        },
-                        new
-                        {
-                            ModifierId = 44,
-                            Index = (byte)0,
-                            Max = 24,
-                            Min = 20,
-                            Stat = (short)22
-                        },
-                        new
-                        {
-                            ModifierId = 45,
-                            Index = (byte)0,
-                            Max = 29,
-                            Min = 25,
+                            Max = 4,
+                            Min = 3,
                             Stat = (short)22
                         },
                         new
                         {
                             ModifierId = 46,
                             Index = (byte)0,
-                            Max = 9,
-                            Min = 5,
+                            Max = 2,
+                            Min = 1,
                             Stat = (short)23
                         },
                         new
                         {
                             ModifierId = 47,
                             Index = (byte)0,
-                            Max = 14,
-                            Min = 10,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)23
                         },
                         new
                         {
                             ModifierId = 48,
                             Index = (byte)0,
-                            Max = 19,
-                            Min = 15,
-                            Stat = (short)23
-                        },
-                        new
-                        {
-                            ModifierId = 49,
-                            Index = (byte)0,
-                            Max = 24,
-                            Min = 20,
-                            Stat = (short)23
-                        },
-                        new
-                        {
-                            ModifierId = 50,
-                            Index = (byte)0,
-                            Max = 29,
-                            Min = 25,
+                            Max = 4,
+                            Min = 3,
                             Stat = (short)23
                         },
                         new
                         {
                             ModifierId = 51,
                             Index = (byte)0,
-                            Max = 9,
-                            Min = 5,
+                            Max = 2,
+                            Min = 1,
                             Stat = (short)24
                         },
                         new
                         {
                             ModifierId = 52,
                             Index = (byte)0,
-                            Max = 14,
-                            Min = 10,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)24
                         },
                         new
                         {
                             ModifierId = 53,
                             Index = (byte)0,
-                            Max = 19,
-                            Min = 15,
-                            Stat = (short)24
-                        },
-                        new
-                        {
-                            ModifierId = 54,
-                            Index = (byte)0,
-                            Max = 24,
-                            Min = 20,
-                            Stat = (short)24
-                        },
-                        new
-                        {
-                            ModifierId = 55,
-                            Index = (byte)0,
-                            Max = 29,
-                            Min = 25,
+                            Max = 4,
+                            Min = 3,
                             Stat = (short)24
                         },
                         new
@@ -8331,7 +7543,7 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 56,
                             Index = (byte)0,
                             Max = 1,
-                            Max2 = 2,
+                            Max2 = 1,
                             Min = 1,
                             Min2 = 1,
                             Stat = (short)45
@@ -8340,8 +7552,8 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 57,
                             Index = (byte)0,
-                            Max = 2,
-                            Max2 = 3,
+                            Max = 1,
+                            Max2 = 2,
                             Min = 1,
                             Min2 = 2,
                             Stat = (short)45
@@ -8350,30 +7562,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 58,
                             Index = (byte)0,
-                            Max = 3,
-                            Max2 = 4,
-                            Min = 2,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
                             Min2 = 3,
-                            Stat = (short)45
-                        },
-                        new
-                        {
-                            ModifierId = 59,
-                            Index = (byte)0,
-                            Max = 3,
-                            Max2 = 5,
-                            Min = 2,
-                            Min2 = 3,
-                            Stat = (short)45
-                        },
-                        new
-                        {
-                            ModifierId = 60,
-                            Index = (byte)0,
-                            Max = 4,
-                            Max2 = 6,
-                            Min = 3,
-                            Min2 = 4,
                             Stat = (short)45
                         },
                         new
@@ -8381,7 +7573,7 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 61,
                             Index = (byte)0,
                             Max = 1,
-                            Max2 = 2,
+                            Max2 = 1,
                             Min = 1,
                             Min2 = 1,
                             Stat = (short)46
@@ -8390,8 +7582,8 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 62,
                             Index = (byte)0,
-                            Max = 2,
-                            Max2 = 3,
+                            Max = 1,
+                            Max2 = 2,
                             Min = 1,
                             Min2 = 2,
                             Stat = (short)46
@@ -8400,30 +7592,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 63,
                             Index = (byte)0,
-                            Max = 3,
-                            Max2 = 4,
-                            Min = 2,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
                             Min2 = 3,
-                            Stat = (short)46
-                        },
-                        new
-                        {
-                            ModifierId = 64,
-                            Index = (byte)0,
-                            Max = 3,
-                            Max2 = 5,
-                            Min = 2,
-                            Min2 = 3,
-                            Stat = (short)46
-                        },
-                        new
-                        {
-                            ModifierId = 65,
-                            Index = (byte)0,
-                            Max = 4,
-                            Max2 = 6,
-                            Min = 3,
-                            Min2 = 4,
                             Stat = (short)46
                         },
                         new
@@ -8431,7 +7603,7 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 66,
                             Index = (byte)0,
                             Max = 1,
-                            Max2 = 2,
+                            Max2 = 1,
                             Min = 1,
                             Min2 = 1,
                             Stat = (short)47
@@ -8440,8 +7612,8 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 67,
                             Index = (byte)0,
-                            Max = 2,
-                            Max2 = 3,
+                            Max = 1,
+                            Max2 = 2,
                             Min = 1,
                             Min2 = 2,
                             Stat = (short)47
@@ -8450,30 +7622,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 68,
                             Index = (byte)0,
-                            Max = 3,
-                            Max2 = 4,
-                            Min = 2,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
                             Min2 = 3,
-                            Stat = (short)47
-                        },
-                        new
-                        {
-                            ModifierId = 69,
-                            Index = (byte)0,
-                            Max = 3,
-                            Max2 = 5,
-                            Min = 2,
-                            Min2 = 3,
-                            Stat = (short)47
-                        },
-                        new
-                        {
-                            ModifierId = 70,
-                            Index = (byte)0,
-                            Max = 4,
-                            Max2 = 6,
-                            Min = 3,
-                            Min2 = 4,
                             Stat = (short)47
                         },
                         new
@@ -8481,7 +7633,7 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 71,
                             Index = (byte)0,
                             Max = 1,
-                            Max2 = 2,
+                            Max2 = 1,
                             Min = 1,
                             Min2 = 1,
                             Stat = (short)48
@@ -8490,8 +7642,8 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 72,
                             Index = (byte)0,
-                            Max = 2,
-                            Max2 = 3,
+                            Max = 1,
+                            Max2 = 2,
                             Min = 1,
                             Min2 = 2,
                             Stat = (short)48
@@ -8500,30 +7652,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 73,
                             Index = (byte)0,
-                            Max = 3,
-                            Max2 = 4,
-                            Min = 2,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
                             Min2 = 3,
-                            Stat = (short)48
-                        },
-                        new
-                        {
-                            ModifierId = 74,
-                            Index = (byte)0,
-                            Max = 3,
-                            Max2 = 5,
-                            Min = 2,
-                            Min2 = 3,
-                            Stat = (short)48
-                        },
-                        new
-                        {
-                            ModifierId = 75,
-                            Index = (byte)0,
-                            Max = 4,
-                            Max2 = 6,
-                            Min = 3,
-                            Min2 = 4,
                             Stat = (short)48
                         },
                         new
@@ -8531,7 +7663,7 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 76,
                             Index = (byte)0,
                             Max = 1,
-                            Max2 = 2,
+                            Max2 = 1,
                             Min = 1,
                             Min2 = 1,
                             Stat = (short)49
@@ -8540,8 +7672,8 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 77,
                             Index = (byte)0,
-                            Max = 2,
-                            Max2 = 3,
+                            Max = 1,
+                            Max2 = 2,
                             Min = 1,
                             Min2 = 2,
                             Stat = (short)49
@@ -8550,30 +7682,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 78,
                             Index = (byte)0,
-                            Max = 3,
-                            Max2 = 4,
-                            Min = 2,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
                             Min2 = 3,
-                            Stat = (short)49
-                        },
-                        new
-                        {
-                            ModifierId = 79,
-                            Index = (byte)0,
-                            Max = 3,
-                            Max2 = 5,
-                            Min = 2,
-                            Min2 = 3,
-                            Stat = (short)49
-                        },
-                        new
-                        {
-                            ModifierId = 80,
-                            Index = (byte)0,
-                            Max = 4,
-                            Max2 = 6,
-                            Min = 3,
-                            Min2 = 4,
                             Stat = (short)49
                         },
                         new
@@ -8581,7 +7693,7 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 81,
                             Index = (byte)0,
                             Max = 1,
-                            Max2 = 2,
+                            Max2 = 1,
                             Min = 1,
                             Min2 = 1,
                             Stat = (short)50
@@ -8590,8 +7702,8 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 82,
                             Index = (byte)0,
-                            Max = 2,
-                            Max2 = 3,
+                            Max = 1,
+                            Max2 = 2,
                             Min = 1,
                             Min2 = 2,
                             Stat = (short)50
@@ -8600,30 +7712,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 83,
                             Index = (byte)0,
-                            Max = 3,
-                            Max2 = 4,
-                            Min = 2,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
                             Min2 = 3,
-                            Stat = (short)50
-                        },
-                        new
-                        {
-                            ModifierId = 84,
-                            Index = (byte)0,
-                            Max = 3,
-                            Max2 = 5,
-                            Min = 2,
-                            Min2 = 3,
-                            Stat = (short)50
-                        },
-                        new
-                        {
-                            ModifierId = 85,
-                            Index = (byte)0,
-                            Max = 4,
-                            Max2 = 6,
-                            Min = 3,
-                            Min2 = 4,
                             Stat = (short)50
                         },
                         new
@@ -8631,7 +7723,7 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 86,
                             Index = (byte)0,
                             Max = 1,
-                            Max2 = 2,
+                            Max2 = 1,
                             Min = 1,
                             Min2 = 1,
                             Stat = (short)51
@@ -8640,8 +7732,8 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 87,
                             Index = (byte)0,
-                            Max = 2,
-                            Max2 = 3,
+                            Max = 1,
+                            Max2 = 2,
                             Min = 1,
                             Min2 = 2,
                             Stat = (short)51
@@ -8650,30 +7742,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 88,
                             Index = (byte)0,
-                            Max = 3,
-                            Max2 = 4,
-                            Min = 2,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
                             Min2 = 3,
-                            Stat = (short)51
-                        },
-                        new
-                        {
-                            ModifierId = 89,
-                            Index = (byte)0,
-                            Max = 3,
-                            Max2 = 5,
-                            Min = 2,
-                            Min2 = 3,
-                            Stat = (short)51
-                        },
-                        new
-                        {
-                            ModifierId = 90,
-                            Index = (byte)0,
-                            Max = 4,
-                            Max2 = 6,
-                            Min = 3,
-                            Min2 = 4,
                             Stat = (short)51
                         },
                         new
@@ -8681,7 +7753,7 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 91,
                             Index = (byte)0,
                             Max = 1,
-                            Max2 = 2,
+                            Max2 = 1,
                             Min = 1,
                             Min2 = 1,
                             Stat = (short)52
@@ -8690,8 +7762,8 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 92,
                             Index = (byte)0,
-                            Max = 2,
-                            Max2 = 3,
+                            Max = 1,
+                            Max2 = 2,
                             Min = 1,
                             Min2 = 2,
                             Stat = (short)52
@@ -8700,397 +7772,233 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 93,
                             Index = (byte)0,
-                            Max = 3,
-                            Max2 = 4,
-                            Min = 2,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
                             Min2 = 3,
-                            Stat = (short)52
-                        },
-                        new
-                        {
-                            ModifierId = 94,
-                            Index = (byte)0,
-                            Max = 3,
-                            Max2 = 5,
-                            Min = 2,
-                            Min2 = 3,
-                            Stat = (short)52
-                        },
-                        new
-                        {
-                            ModifierId = 95,
-                            Index = (byte)0,
-                            Max = 4,
-                            Max2 = 6,
-                            Min = 3,
-                            Min2 = 4,
                             Stat = (short)52
                         },
                         new
                         {
                             ModifierId = 96,
                             Index = (byte)0,
-                            Max = 9,
-                            Min = 5,
+                            Max = 2,
+                            Min = 1,
                             Stat = (short)10
                         },
                         new
                         {
                             ModifierId = 97,
                             Index = (byte)0,
-                            Max = 19,
-                            Min = 10,
+                            Max = 4,
+                            Min = 3,
                             Stat = (short)10
                         },
                         new
                         {
                             ModifierId = 98,
                             Index = (byte)0,
-                            Max = 29,
-                            Min = 20,
-                            Stat = (short)10
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            Index = (byte)0,
-                            Max = 44,
-                            Min = 30,
-                            Stat = (short)10
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            Index = (byte)0,
-                            Max = 59,
-                            Min = 45,
+                            Max = 5,
+                            Min = 5,
                             Stat = (short)10
                         },
                         new
                         {
                             ModifierId = 101,
                             Index = (byte)0,
-                            Max = 4,
-                            Min = 2,
+                            Max = 2,
+                            Min = 1,
                             Stat = (short)4
                         },
                         new
                         {
                             ModifierId = 102,
                             Index = (byte)0,
-                            Max = 8,
-                            Min = 4,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)4
                         },
                         new
                         {
                             ModifierId = 103,
                             Index = (byte)0,
-                            Max = 14,
-                            Min = 8,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 104,
-                            Index = (byte)0,
-                            Max = 22,
-                            Min = 14,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 105,
-                            Index = (byte)0,
-                            Max = 32,
-                            Min = 22,
+                            Max = 4,
+                            Min = 3,
                             Stat = (short)4
                         },
                         new
                         {
                             ModifierId = 106,
                             Index = (byte)0,
-                            Max = 19,
-                            Min = 10,
+                            Max = 8,
+                            Min = 5,
                             Stat = (short)41
                         },
                         new
                         {
                             ModifierId = 107,
                             Index = (byte)0,
-                            Max = 34,
-                            Min = 20,
+                            Max = 12,
+                            Min = 9,
                             Stat = (short)41
                         },
                         new
                         {
                             ModifierId = 108,
                             Index = (byte)0,
-                            Max = 49,
-                            Min = 35,
-                            Stat = (short)41
-                        },
-                        new
-                        {
-                            ModifierId = 109,
-                            Index = (byte)0,
-                            Max = 64,
-                            Min = 50,
-                            Stat = (short)41
-                        },
-                        new
-                        {
-                            ModifierId = 110,
-                            Index = (byte)0,
-                            Max = 79,
-                            Min = 65,
+                            Max = 16,
+                            Min = 13,
                             Stat = (short)41
                         },
                         new
                         {
                             ModifierId = 111,
                             Index = (byte)0,
-                            Max = 19,
-                            Min = 10,
+                            Max = 8,
+                            Min = 5,
                             Stat = (short)6
                         },
                         new
                         {
                             ModifierId = 112,
                             Index = (byte)0,
-                            Max = 39,
-                            Min = 20,
+                            Max = 14,
+                            Min = 9,
                             Stat = (short)6
                         },
                         new
                         {
                             ModifierId = 113,
                             Index = (byte)0,
-                            Max = 64,
-                            Min = 40,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 114,
-                            Index = (byte)0,
-                            Max = 94,
-                            Min = 65,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 115,
-                            Index = (byte)0,
-                            Max = 129,
-                            Min = 95,
+                            Max = 20,
+                            Min = 15,
                             Stat = (short)6
                         },
                         new
                         {
                             ModifierId = 116,
                             Index = (byte)0,
-                            Max = 19,
-                            Min = 10,
+                            Max = 8,
+                            Min = 5,
                             Stat = (short)42
                         },
                         new
                         {
                             ModifierId = 117,
                             Index = (byte)0,
-                            Max = 34,
-                            Min = 20,
+                            Max = 12,
+                            Min = 9,
                             Stat = (short)42
                         },
                         new
                         {
                             ModifierId = 118,
                             Index = (byte)0,
-                            Max = 49,
-                            Min = 35,
-                            Stat = (short)42
-                        },
-                        new
-                        {
-                            ModifierId = 119,
-                            Index = (byte)0,
-                            Max = 64,
-                            Min = 50,
-                            Stat = (short)42
-                        },
-                        new
-                        {
-                            ModifierId = 120,
-                            Index = (byte)0,
-                            Max = 79,
-                            Min = 65,
+                            Max = 16,
+                            Min = 13,
                             Stat = (short)42
                         },
                         new
                         {
                             ModifierId = 121,
                             Index = (byte)0,
-                            Max = 5,
-                            Min = 3,
+                            Max = 2,
+                            Min = 1,
                             Stat = (short)14
                         },
                         new
                         {
                             ModifierId = 122,
                             Index = (byte)0,
-                            Max = 10,
-                            Min = 6,
+                            Max = 4,
+                            Min = 2,
                             Stat = (short)14
                         },
                         new
                         {
                             ModifierId = 123,
                             Index = (byte)0,
-                            Max = 17,
-                            Min = 11,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 124,
-                            Index = (byte)0,
-                            Max = 26,
-                            Min = 18,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 125,
-                            Index = (byte)0,
-                            Max = 37,
-                            Min = 27,
+                            Max = 6,
+                            Min = 4,
                             Stat = (short)14
                         },
                         new
                         {
                             ModifierId = 126,
                             Index = (byte)0,
-                            Max = 19,
-                            Min = 10,
+                            Max = 8,
+                            Min = 5,
                             Stat = (short)43
                         },
                         new
                         {
                             ModifierId = 127,
                             Index = (byte)0,
-                            Max = 34,
-                            Min = 20,
+                            Max = 12,
+                            Min = 9,
                             Stat = (short)43
                         },
                         new
                         {
                             ModifierId = 128,
                             Index = (byte)0,
-                            Max = 49,
-                            Min = 35,
-                            Stat = (short)43
-                        },
-                        new
-                        {
-                            ModifierId = 129,
-                            Index = (byte)0,
-                            Max = 64,
-                            Min = 50,
-                            Stat = (short)43
-                        },
-                        new
-                        {
-                            ModifierId = 130,
-                            Index = (byte)0,
-                            Max = 79,
-                            Min = 65,
+                            Max = 16,
+                            Min = 13,
                             Stat = (short)43
                         },
                         new
                         {
                             ModifierId = 131,
                             Index = (byte)0,
-                            Max = 10,
-                            Min = 6,
+                            Max = 1,
+                            Min = 1,
                             Stat = (short)30
                         },
                         new
                         {
                             ModifierId = 132,
                             Index = (byte)0,
-                            Max = 16,
-                            Min = 11,
+                            Max = 2,
+                            Min = 2,
                             Stat = (short)30
                         },
                         new
                         {
                             ModifierId = 133,
                             Index = (byte)0,
-                            Max = 22,
-                            Min = 17,
-                            Stat = (short)30
-                        },
-                        new
-                        {
-                            ModifierId = 134,
-                            Index = (byte)0,
-                            Max = 28,
-                            Min = 23,
-                            Stat = (short)30
-                        },
-                        new
-                        {
-                            ModifierId = 135,
-                            Index = (byte)0,
-                            Max = 34,
-                            Min = 29,
+                            Max = 3,
+                            Min = 3,
                             Stat = (short)30
                         },
                         new
                         {
                             ModifierId = 136,
                             Index = (byte)0,
-                            Max = 10,
-                            Min = 6,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)31
                         },
                         new
                         {
                             ModifierId = 137,
                             Index = (byte)0,
-                            Max = 16,
-                            Min = 11,
+                            Max = 4,
+                            Min = 3,
                             Stat = (short)31
                         },
                         new
                         {
                             ModifierId = 138,
                             Index = (byte)0,
-                            Max = 22,
-                            Min = 17,
-                            Stat = (short)31
-                        },
-                        new
-                        {
-                            ModifierId = 139,
-                            Index = (byte)0,
-                            Max = 28,
-                            Min = 23,
-                            Stat = (short)31
-                        },
-                        new
-                        {
-                            ModifierId = 140,
-                            Index = (byte)0,
-                            Max = 34,
-                            Min = 29,
+                            Max = 6,
+                            Min = 5,
                             Stat = (short)31
                         },
                         new
                         {
                             ModifierId = 141,
                             Index = (byte)0,
-                            Max = 3,
+                            Max = 1,
                             Min = 1,
                             Stat = (short)1
                         },
@@ -9098,39 +8006,23 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 142,
                             Index = (byte)0,
-                            Max = 6,
-                            Min = 4,
+                            Max = 2,
+                            Min = 2,
                             Stat = (short)1
                         },
                         new
                         {
                             ModifierId = 143,
                             Index = (byte)0,
-                            Max = 10,
-                            Min = 7,
-                            Stat = (short)1
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            Index = (byte)0,
-                            Max = 15,
-                            Min = 11,
-                            Stat = (short)1
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            Index = (byte)0,
-                            Max = 20,
-                            Min = 16,
+                            Max = 3,
+                            Min = 3,
                             Stat = (short)1
                         },
                         new
                         {
                             ModifierId = 146,
                             Index = (byte)0,
-                            Max = 3,
+                            Max = 1,
                             Min = 1,
                             Stat = (short)2
                         },
@@ -9138,39 +8030,23 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 147,
                             Index = (byte)0,
-                            Max = 6,
-                            Min = 4,
+                            Max = 2,
+                            Min = 2,
                             Stat = (short)2
                         },
                         new
                         {
                             ModifierId = 148,
                             Index = (byte)0,
-                            Max = 10,
-                            Min = 7,
-                            Stat = (short)2
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            Index = (byte)0,
-                            Max = 15,
-                            Min = 11,
-                            Stat = (short)2
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            Index = (byte)0,
-                            Max = 20,
-                            Min = 16,
+                            Max = 3,
+                            Min = 3,
                             Stat = (short)2
                         },
                         new
                         {
                             ModifierId = 151,
                             Index = (byte)0,
-                            Max = 3,
+                            Max = 1,
                             Min = 1,
                             Stat = (short)3
                         },
@@ -9178,39 +8054,23 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 152,
                             Index = (byte)0,
-                            Max = 6,
-                            Min = 4,
+                            Max = 2,
+                            Min = 2,
                             Stat = (short)3
                         },
                         new
                         {
                             ModifierId = 153,
                             Index = (byte)0,
-                            Max = 10,
-                            Min = 7,
-                            Stat = (short)3
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            Index = (byte)0,
-                            Max = 15,
-                            Min = 11,
-                            Stat = (short)3
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            Index = (byte)0,
-                            Max = 20,
-                            Min = 16,
+                            Max = 3,
+                            Min = 3,
                             Stat = (short)3
                         },
                         new
                         {
                             ModifierId = 156,
                             Index = (byte)0,
-                            Max = 3,
+                            Max = 1,
                             Min = 1,
                             Stat = (short)0
                         },
@@ -9218,304 +8078,184 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 157,
                             Index = (byte)0,
-                            Max = 6,
-                            Min = 4,
+                            Max = 2,
+                            Min = 2,
                             Stat = (short)0
                         },
                         new
                         {
                             ModifierId = 158,
                             Index = (byte)0,
-                            Max = 10,
-                            Min = 7,
-                            Stat = (short)0
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            Index = (byte)0,
-                            Max = 15,
-                            Min = 11,
-                            Stat = (short)0
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            Index = (byte)0,
-                            Max = 20,
-                            Min = 16,
+                            Max = 3,
+                            Min = 3,
                             Stat = (short)0
                         },
                         new
                         {
                             ModifierId = 161,
                             Index = (byte)0,
-                            Max = 11,
-                            Min = 6,
+                            Max = 2,
+                            Min = 1,
                             Stat = (short)15
                         },
                         new
                         {
                             ModifierId = 162,
                             Index = (byte)0,
-                            Max = 17,
-                            Min = 12,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)15
                         },
                         new
                         {
                             ModifierId = 163,
                             Index = (byte)0,
-                            Max = 23,
-                            Min = 18,
-                            Stat = (short)15
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            Index = (byte)0,
-                            Max = 29,
-                            Min = 24,
-                            Stat = (short)15
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            Index = (byte)0,
-                            Max = 35,
-                            Min = 30,
+                            Max = 4,
+                            Min = 3,
                             Stat = (short)15
                         },
                         new
                         {
                             ModifierId = 166,
                             Index = (byte)0,
-                            Max = 11,
-                            Min = 6,
+                            Max = 2,
+                            Min = 1,
                             Stat = (short)16
                         },
                         new
                         {
                             ModifierId = 167,
                             Index = (byte)0,
-                            Max = 17,
-                            Min = 12,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)16
                         },
                         new
                         {
                             ModifierId = 168,
                             Index = (byte)0,
-                            Max = 23,
-                            Min = 18,
-                            Stat = (short)16
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            Index = (byte)0,
-                            Max = 29,
-                            Min = 24,
-                            Stat = (short)16
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            Index = (byte)0,
-                            Max = 35,
-                            Min = 30,
+                            Max = 4,
+                            Min = 3,
                             Stat = (short)16
                         },
                         new
                         {
                             ModifierId = 171,
                             Index = (byte)0,
-                            Max = 11,
-                            Min = 6,
+                            Max = 2,
+                            Min = 1,
                             Stat = (short)17
                         },
                         new
                         {
                             ModifierId = 172,
                             Index = (byte)0,
-                            Max = 17,
-                            Min = 12,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)17
                         },
                         new
                         {
                             ModifierId = 173,
                             Index = (byte)0,
-                            Max = 23,
-                            Min = 18,
-                            Stat = (short)17
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            Index = (byte)0,
-                            Max = 29,
-                            Min = 24,
-                            Stat = (short)17
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            Index = (byte)0,
-                            Max = 35,
-                            Min = 30,
+                            Max = 4,
+                            Min = 3,
                             Stat = (short)17
                         },
                         new
                         {
                             ModifierId = 176,
                             Index = (byte)0,
-                            Max = 11,
-                            Min = 6,
+                            Max = 2,
+                            Min = 1,
                             Stat = (short)18
                         },
                         new
                         {
                             ModifierId = 177,
                             Index = (byte)0,
-                            Max = 17,
-                            Min = 12,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)18
                         },
                         new
                         {
                             ModifierId = 178,
                             Index = (byte)0,
-                            Max = 23,
-                            Min = 18,
-                            Stat = (short)18
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            Index = (byte)0,
-                            Max = 29,
-                            Min = 24,
-                            Stat = (short)18
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            Index = (byte)0,
-                            Max = 35,
-                            Min = 30,
+                            Max = 4,
+                            Min = 3,
                             Stat = (short)18
                         },
                         new
                         {
                             ModifierId = 181,
                             Index = (byte)0,
-                            Max = 7,
-                            Min = 5,
+                            Max = 1,
+                            Min = 1,
                             Stat = (short)44
                         },
                         new
                         {
                             ModifierId = 182,
                             Index = (byte)0,
-                            Max = 10,
-                            Min = 8,
+                            Max = 2,
+                            Min = 2,
                             Stat = (short)44
                         },
                         new
                         {
                             ModifierId = 183,
                             Index = (byte)0,
-                            Max = 13,
-                            Min = 11,
-                            Stat = (short)44
-                        },
-                        new
-                        {
-                            ModifierId = 184,
-                            Index = (byte)0,
-                            Max = 16,
-                            Min = 14,
-                            Stat = (short)44
-                        },
-                        new
-                        {
-                            ModifierId = 185,
-                            Index = (byte)0,
-                            Max = 19,
-                            Min = 17,
+                            Max = 3,
+                            Min = 3,
                             Stat = (short)44
                         },
                         new
                         {
                             ModifierId = 186,
                             Index = (byte)0,
-                            Max = 4,
-                            Min = 3,
+                            Max = 1,
+                            Min = 1,
                             Stat = (short)12
                         },
                         new
                         {
                             ModifierId = 187,
                             Index = (byte)0,
-                            Max = 6,
-                            Min = 5,
+                            Max = 2,
+                            Min = 2,
                             Stat = (short)12
                         },
                         new
                         {
                             ModifierId = 188,
                             Index = (byte)0,
-                            Max = 8,
-                            Min = 7,
-                            Stat = (short)12
-                        },
-                        new
-                        {
-                            ModifierId = 189,
-                            Index = (byte)0,
-                            Max = 10,
-                            Min = 9,
+                            Max = 3,
+                            Min = 3,
                             Stat = (short)12
                         },
                         new
                         {
                             ModifierId = 190,
                             Index = (byte)0,
-                            Max = 6,
-                            Min = 4,
+                            Max = 1,
+                            Min = 1,
                             Stat = (short)33
                         },
                         new
                         {
                             ModifierId = 191,
                             Index = (byte)0,
-                            Max = 9,
-                            Min = 7,
+                            Max = 2,
+                            Min = 2,
                             Stat = (short)33
                         },
                         new
                         {
                             ModifierId = 192,
                             Index = (byte)0,
-                            Max = 12,
-                            Min = 10,
-                            Stat = (short)33
-                        },
-                        new
-                        {
-                            ModifierId = 193,
-                            Index = (byte)0,
-                            Max = 15,
-                            Min = 13,
-                            Stat = (short)33
-                        },
-                        new
-                        {
-                            ModifierId = 194,
-                            Index = (byte)0,
-                            Max = 18,
-                            Min = 16,
+                            Max = 3,
+                            Min = 3,
                             Stat = (short)33
                         },
                         new
@@ -9544,143 +8284,95 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 198,
-                            Index = (byte)0,
-                            Max = 4,
-                            Min = 4,
-                            Stat = (short)7
-                        },
-                        new
-                        {
-                            ModifierId = 199,
-                            Index = (byte)0,
-                            Max = 5,
-                            Min = 5,
-                            Stat = (short)7
-                        },
-                        new
-                        {
                             ModifierId = 200,
                             Index = (byte)0,
-                            Max = 12,
-                            Min = 8,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)32
                         },
                         new
                         {
                             ModifierId = 201,
                             Index = (byte)0,
-                            Max = 17,
-                            Min = 13,
+                            Max = 5,
+                            Min = 4,
                             Stat = (short)32
                         },
                         new
                         {
                             ModifierId = 202,
                             Index = (byte)0,
-                            Max = 22,
-                            Min = 18,
-                            Stat = (short)32
-                        },
-                        new
-                        {
-                            ModifierId = 203,
-                            Index = (byte)0,
-                            Max = 27,
-                            Min = 23,
-                            Stat = (short)32
-                        },
-                        new
-                        {
-                            ModifierId = 204,
-                            Index = (byte)0,
-                            Max = 32,
-                            Min = 28,
+                            Max = 6,
+                            Min = 5,
                             Stat = (short)32
                         },
                         new
                         {
                             ModifierId = 205,
                             Index = (byte)0,
-                            Max = 5,
-                            Min = 5,
+                            Max = 2,
+                            Min = 2,
                             Stat = (short)13
                         },
                         new
                         {
                             ModifierId = 206,
                             Index = (byte)0,
-                            Max = 8,
-                            Min = 8,
+                            Max = 3,
+                            Min = 3,
                             Stat = (short)13
                         },
                         new
                         {
                             ModifierId = 207,
                             Index = (byte)0,
-                            Max = 11,
-                            Min = 11,
-                            Stat = (short)13
-                        },
-                        new
-                        {
-                            ModifierId = 208,
-                            Index = (byte)0,
-                            Max = 14,
-                            Min = 14,
-                            Stat = (short)13
-                        },
-                        new
-                        {
-                            ModifierId = 209,
-                            Index = (byte)0,
-                            Max = 17,
-                            Min = 17,
+                            Max = 4,
+                            Min = 4,
                             Stat = (short)13
                         },
                         new
                         {
                             ModifierId = 210,
                             Index = (byte)0,
-                            Max = 4,
-                            Min = 3,
+                            Max = 1,
+                            Min = 1,
                             Stat = (short)34
                         },
                         new
                         {
                             ModifierId = 211,
                             Index = (byte)0,
-                            Max = 6,
-                            Min = 5,
+                            Max = 2,
+                            Min = 2,
                             Stat = (short)34
                         },
                         new
                         {
                             ModifierId = 212,
                             Index = (byte)0,
-                            Max = 8,
-                            Min = 7,
-                            Stat = (short)34
-                        },
-                        new
-                        {
-                            ModifierId = 213,
-                            Index = (byte)0,
-                            Max = 10,
-                            Min = 9,
-                            Stat = (short)34
-                        },
-                        new
-                        {
-                            ModifierId = 214,
-                            Index = (byte)0,
-                            Max = 12,
-                            Min = 11,
+                            Max = 3,
+                            Min = 3,
                             Stat = (short)34
                         },
                         new
                         {
                             ModifierId = 215,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)5
+                        },
+                        new
+                        {
+                            ModifierId = 216,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)5
+                        },
+                        new
+                        {
+                            ModifierId = 217,
                             Index = (byte)0,
                             Max = 4,
                             Min = 3,
@@ -9688,41 +8380,689 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 216,
+                            ModifierId = 284,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)53
+                        },
+                        new
+                        {
+                            ModifierId = 285,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)53
+                        },
+                        new
+                        {
+                            ModifierId = 286,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)53
+                        },
+                        new
+                        {
+                            ModifierId = 287,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)15
+                        },
+                        new
+                        {
+                            ModifierId = 288,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)15
+                        },
+                        new
+                        {
+                            ModifierId = 289,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)15
+                        },
+                        new
+                        {
+                            ModifierId = 290,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)16
+                        },
+                        new
+                        {
+                            ModifierId = 291,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)16
+                        },
+                        new
+                        {
+                            ModifierId = 292,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)16
+                        },
+                        new
+                        {
+                            ModifierId = 293,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)17
+                        },
+                        new
+                        {
+                            ModifierId = 294,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)17
+                        },
+                        new
+                        {
+                            ModifierId = 295,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)17
+                        },
+                        new
+                        {
+                            ModifierId = 296,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 297,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 298,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)18
+                        },
+                        new
+                        {
+                            ModifierId = 299,
+                            Index = (byte)0,
+                            Max = 8,
+                            Min = 5,
+                            Stat = (short)41
+                        },
+                        new
+                        {
+                            ModifierId = 300,
+                            Index = (byte)0,
+                            Max = 12,
+                            Min = 9,
+                            Stat = (short)41
+                        },
+                        new
+                        {
+                            ModifierId = 301,
+                            Index = (byte)0,
+                            Max = 16,
+                            Min = 13,
+                            Stat = (short)41
+                        },
+                        new
+                        {
+                            ModifierId = 302,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)53
+                        },
+                        new
+                        {
+                            ModifierId = 303,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)53
+                        },
+                        new
+                        {
+                            ModifierId = 304,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)53
+                        },
+                        new
+                        {
+                            ModifierId = 305,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 1,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)45
+                        },
+                        new
+                        {
+                            ModifierId = 306,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)45
+                        },
+                        new
+                        {
+                            ModifierId = 307,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 3,
+                            Stat = (short)45
+                        },
+                        new
+                        {
+                            ModifierId = 308,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)1
+                        },
+                        new
+                        {
+                            ModifierId = 309,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)1
+                        },
+                        new
+                        {
+                            ModifierId = 310,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)1
+                        },
+                        new
+                        {
+                            ModifierId = 311,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)0
+                        },
+                        new
+                        {
+                            ModifierId = 312,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)0
+                        },
+                        new
+                        {
+                            ModifierId = 313,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)0
+                        },
+                        new
+                        {
+                            ModifierId = 314,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)32
+                        },
+                        new
+                        {
+                            ModifierId = 315,
+                            Index = (byte)0,
+                            Max = 5,
+                            Min = 4,
+                            Stat = (short)32
+                        },
+                        new
+                        {
+                            ModifierId = 316,
                             Index = (byte)0,
                             Max = 6,
                             Min = 5,
-                            Stat = (short)5
+                            Stat = (short)32
                         },
                         new
                         {
-                            ModifierId = 217,
+                            ModifierId = 317,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)2
+                        },
+                        new
+                        {
+                            ModifierId = 318,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)2
+                        },
+                        new
+                        {
+                            ModifierId = 319,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)2
+                        },
+                        new
+                        {
+                            ModifierId = 320,
                             Index = (byte)0,
                             Max = 8,
-                            Min = 7,
-                            Stat = (short)5
+                            Min = 5,
+                            Stat = (short)42
                         },
                         new
                         {
-                            ModifierId = 218,
+                            ModifierId = 321,
                             Index = (byte)0,
-                            Max = 10,
+                            Max = 12,
                             Min = 9,
-                            Stat = (short)5
+                            Stat = (short)42
+                        },
+                        new
+                        {
+                            ModifierId = 322,
+                            Index = (byte)0,
+                            Max = 16,
+                            Min = 13,
+                            Stat = (short)42
+                        },
+                        new
+                        {
+                            ModifierId = 323,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)28
+                        },
+                        new
+                        {
+                            ModifierId = 324,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)28
+                        },
+                        new
+                        {
+                            ModifierId = 325,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 5,
+                            Stat = (short)28
+                        },
+                        new
+                        {
+                            ModifierId = 326,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)13
+                        },
+                        new
+                        {
+                            ModifierId = 327,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)13
+                        },
+                        new
+                        {
+                            ModifierId = 328,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 4,
+                            Stat = (short)13
+                        },
+                        new
+                        {
+                            ModifierId = 329,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)34
+                        },
+                        new
+                        {
+                            ModifierId = 330,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)34
+                        },
+                        new
+                        {
+                            ModifierId = 331,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)34
+                        },
+                        new
+                        {
+                            ModifierId = 332,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)3
+                        },
+                        new
+                        {
+                            ModifierId = 333,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)3
+                        },
+                        new
+                        {
+                            ModifierId = 334,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)3
+                        },
+                        new
+                        {
+                            ModifierId = 335,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 336,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 337,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 5,
+                            Stat = (short)26
+                        },
+                        new
+                        {
+                            ModifierId = 338,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)33
+                        },
+                        new
+                        {
+                            ModifierId = 339,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)33
+                        },
+                        new
+                        {
+                            ModifierId = 340,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)33
+                        },
+                        new
+                        {
+                            ModifierId = 341,
+                            Index = (byte)0,
+                            Max = 15,
+                            Min = 10,
+                            Stat = (short)11
+                        },
+                        new
+                        {
+                            ModifierId = 342,
+                            Index = (byte)0,
+                            Max = 25,
+                            Min = 20,
+                            Stat = (short)11
+                        },
+                        new
+                        {
+                            ModifierId = 343,
+                            Index = (byte)0,
+                            Max = 40,
+                            Min = 30,
+                            Stat = (short)11
+                        },
+                        new
+                        {
+                            ModifierId = 344,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 1,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 345,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 346,
+                            Index = (byte)0,
+                            Max = 5,
+                            Min = 5,
+                            Stat = (short)10
+                        },
+                        new
+                        {
+                            ModifierId = 347,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)20
+                        },
+                        new
+                        {
+                            ModifierId = 348,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)20
+                        },
+                        new
+                        {
+                            ModifierId = 349,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 5,
+                            Stat = (short)20
+                        },
+                        new
+                        {
+                            ModifierId = 350,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 1,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)48
+                        },
+                        new
+                        {
+                            ModifierId = 351,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)48
+                        },
+                        new
+                        {
+                            ModifierId = 352,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 3,
+                            Stat = (short)48
+                        },
+                        new
+                        {
+                            ModifierId = 353,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 1,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)50
+                        },
+                        new
+                        {
+                            ModifierId = 354,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)50
+                        },
+                        new
+                        {
+                            ModifierId = 355,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 3,
+                            Stat = (short)50
+                        },
+                        new
+                        {
+                            ModifierId = 356,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 1,
+                            Min = 1,
+                            Min2 = 1,
+                            Stat = (short)51
+                        },
+                        new
+                        {
+                            ModifierId = 357,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 2,
+                            Min = 1,
+                            Min2 = 2,
+                            Stat = (short)51
+                        },
+                        new
+                        {
+                            ModifierId = 358,
+                            Index = (byte)0,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
+                            Min2 = 3,
+                            Stat = (short)51
+                        },
+                        new
+                        {
+                            ModifierId = 359,
+                            Index = (byte)0,
+                            Max = 1,
+                            Min = 1,
+                            Stat = (short)30
+                        },
+                        new
+                        {
+                            ModifierId = 360,
+                            Index = (byte)0,
+                            Max = 2,
+                            Min = 2,
+                            Stat = (short)30
+                        },
+                        new
+                        {
+                            ModifierId = 361,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 3,
+                            Stat = (short)30
+                        },
+                        new
+                        {
+                            ModifierId = 362,
+                            Index = (byte)0,
+                            Max = 3,
+                            Min = 2,
+                            Stat = (short)31
+                        },
+                        new
+                        {
+                            ModifierId = 363,
+                            Index = (byte)0,
+                            Max = 4,
+                            Min = 3,
+                            Stat = (short)31
+                        },
+                        new
+                        {
+                            ModifierId = 364,
+                            Index = (byte)0,
+                            Max = 6,
+                            Min = 5,
+                            Stat = (short)31
                         },
                         new
                         {
                             ModifierId = 219,
                             Index = (byte)0,
-                            Max = 14,
-                            Min = 10,
+                            Max = 5,
+                            Min = 4,
                             Stat = (short)10
                         },
                         new
                         {
                             ModifierId = 219,
                             Index = (byte)1,
-                            Max = 4,
+                            Max = 3,
                             Min = 2,
                             Stat = (short)1
                         },
@@ -9730,7 +9070,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 219,
                             Index = (byte)2,
-                            Max = 4,
+                            Max = 3,
                             Min = 2,
                             Stat = (short)2
                         },
@@ -9746,41 +9086,41 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 220,
                             Index = (byte)0,
-                            Max = 24,
-                            Min = 16,
+                            Max = 5,
+                            Min = 4,
                             Stat = (short)10
                         },
                         new
                         {
                             ModifierId = 220,
                             Index = (byte)1,
-                            Max = 14,
-                            Min = 10,
+                            Max = 6,
+                            Min = 5,
                             Stat = (short)18
                         },
                         new
                         {
                             ModifierId = 220,
                             Index = (byte)2,
-                            Max = 10,
-                            Min = 6,
+                            Max = 7,
+                            Min = 5,
                             Stat = (short)31
                         },
                         new
                         {
                             ModifierId = 221,
                             Index = (byte)0,
-                            Max = 36,
-                            Min = 24,
+                            Max = 5,
+                            Min = 4,
                             Stat = (short)10
                         },
                         new
                         {
                             ModifierId = 221,
                             Index = (byte)1,
-                            Max = 2,
-                            Max2 = 5,
-                            Min = 2,
+                            Max = 1,
+                            Max2 = 3,
+                            Min = 1,
                             Min2 = 3,
                             Stat = (short)45
                         },
@@ -9788,585 +9128,49 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 221,
                             Index = (byte)2,
-                            Max = 5,
+                            Max = 4,
                             Min = 3,
-                            Stat = (short)7
+                            Stat = (short)32
                         },
                         new
                         {
                             ModifierId = 222,
                             Index = (byte)0,
-                            Max = 30,
-                            Min = 20,
-                            Stat = (short)10
+                            Max = 5,
+                            Min = 4,
+                            Stat = (short)53
                         },
                         new
                         {
                             ModifierId = 222,
                             Index = (byte)1,
-                            Max = 18,
-                            Min = 12,
+                            Max = 3,
+                            Min = 2,
                             Stat = (short)30
                         },
                         new
                         {
-                            ModifierId = 222,
-                            Index = (byte)2,
-                            Max = 12,
-                            Min = 8,
-                            Stat = (short)18
-                        },
-                        new
-                        {
                             ModifierId = 223,
-                            Index = (byte)0,
-                            Max = 24,
-                            Min = 16,
-                            Stat = (short)10
-                        },
-                        new
-                        {
-                            ModifierId = 223,
-                            Index = (byte)1,
-                            Max = 7,
-                            Min = 5,
-                            Stat = (short)12
-                        },
-                        new
-                        {
-                            ModifierId = 223,
-                            Index = (byte)2,
-                            Max = 7,
-                            Min = 5,
-                            Stat = (short)33
-                        },
-                        new
-                        {
-                            ModifierId = 224,
-                            Index = (byte)0,
-                            Max = 13,
-                            Min = 9,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 225,
-                            Index = (byte)0,
-                            Max = 21,
-                            Min = 15,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 226,
-                            Index = (byte)0,
-                            Max = 16,
-                            Min = 12,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 227,
-                            Index = (byte)0,
-                            Max = 8,
-                            Min = 6,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 228,
-                            Index = (byte)0,
-                            Max = 8,
-                            Min = 6,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 229,
-                            Index = (byte)0,
-                            Max = 18,
-                            Min = 14,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 230,
-                            Index = (byte)0,
-                            Max = 30,
-                            Min = 22,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 231,
-                            Index = (byte)0,
-                            Max = 24,
-                            Min = 18,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 232,
-                            Index = (byte)0,
-                            Max = 12,
-                            Min = 9,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 233,
-                            Index = (byte)0,
-                            Max = 12,
-                            Min = 9,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 234,
-                            Index = (byte)0,
-                            Max = 62,
-                            Min = 46,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 235,
-                            Index = (byte)0,
-                            Max = 104,
-                            Min = 77,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 236,
-                            Index = (byte)0,
-                            Max = 83,
-                            Min = 61,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 237,
-                            Index = (byte)0,
-                            Max = 41,
-                            Min = 31,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 238,
-                            Index = (byte)0,
-                            Max = 41,
-                            Min = 31,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 239,
-                            Index = (byte)0,
-                            Max = 6,
-                            Min = 4,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 240,
-                            Index = (byte)0,
-                            Max = 9,
-                            Min = 7,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 241,
-                            Index = (byte)0,
-                            Max = 7,
-                            Min = 5,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 242,
-                            Index = (byte)0,
-                            Max = 3,
-                            Min = 3,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 243,
-                            Index = (byte)0,
-                            Max = 3,
-                            Min = 3,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 244,
-                            Index = (byte)0,
-                            Max = 8,
-                            Min = 6,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 245,
-                            Index = (byte)0,
-                            Max = 14,
-                            Min = 10,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 246,
-                            Index = (byte)0,
-                            Max = 12,
-                            Min = 9,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 247,
-                            Index = (byte)0,
-                            Max = 6,
-                            Min = 4,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 248,
-                            Index = (byte)0,
-                            Max = 6,
-                            Min = 4,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 249,
-                            Index = (byte)0,
-                            Max = 28,
-                            Min = 20,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 250,
-                            Index = (byte)0,
-                            Max = 46,
-                            Min = 34,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 251,
-                            Index = (byte)0,
-                            Max = 37,
-                            Min = 27,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 252,
-                            Index = (byte)0,
-                            Max = 18,
-                            Min = 14,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 253,
-                            Index = (byte)0,
-                            Max = 18,
-                            Min = 14,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 254,
-                            Index = (byte)0,
-                            Max = 7,
-                            Min = 5,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 254,
-                            Index = (byte)1,
-                            Max = 6,
-                            Min = 4,
-                            Stat = (short)5
-                        },
-                        new
-                        {
-                            ModifierId = 255,
-                            Index = (byte)0,
-                            Max = 16,
-                            Min = 12,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 255,
-                            Index = (byte)1,
-                            Max = 8,
-                            Min = 6,
-                            Stat = (short)5
-                        },
-                        new
-                        {
-                            ModifierId = 256,
-                            Index = (byte)0,
-                            Max = 28,
-                            Min = 20,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 256,
-                            Index = (byte)1,
-                            Max = 12,
-                            Min = 9,
-                            Stat = (short)5
-                        },
-                        new
-                        {
-                            ModifierId = 257,
-                            Index = (byte)0,
-                            Max = 9,
-                            Min = 7,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 257,
-                            Index = (byte)1,
-                            Max = 6,
-                            Min = 4,
-                            Stat = (short)26
-                        },
-                        new
-                        {
-                            ModifierId = 258,
-                            Index = (byte)0,
-                            Max = 21,
-                            Min = 15,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 258,
-                            Index = (byte)1,
-                            Max = 9,
-                            Min = 7,
-                            Stat = (short)26
-                        },
-                        new
-                        {
-                            ModifierId = 259,
-                            Index = (byte)0,
-                            Max = 35,
-                            Min = 26,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 259,
-                            Index = (byte)1,
-                            Max = 14,
-                            Min = 10,
-                            Stat = (short)26
-                        },
-                        new
-                        {
-                            ModifierId = 260,
                             Index = (byte)0,
                             Max = 5,
-                            Min = 3,
-                            Stat = (short)4
+                            Min = 4,
+                            Stat = (short)53
                         },
                         new
                         {
-                            ModifierId = 261,
-                            Index = (byte)0,
-                            Max = 23,
-                            Min = 17,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 262,
-                            Index = (byte)0,
+                            ModifierId = 223,
+                            Index = (byte)1,
                             Max = 7,
                             Min = 5,
-                            Stat = (short)14
+                            Stat = (short)25
                         },
                         new
                         {
-                            ModifierId = 263,
-                            Index = (byte)0,
-                            Max = 10,
-                            Min = 8,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 264,
-                            Index = (byte)0,
-                            Max = 52,
-                            Min = 38,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 265,
-                            Index = (byte)0,
-                            Max = 15,
-                            Min = 11,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 266,
-                            Index = (byte)0,
-                            Max = 18,
-                            Min = 14,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 267,
-                            Index = (byte)0,
-                            Max = 92,
-                            Min = 68,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 268,
-                            Index = (byte)0,
-                            Max = 26,
-                            Min = 20,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 269,
-                            Index = (byte)0,
-                            Max = 22,
-                            Min = 16,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 270,
-                            Index = (byte)0,
-                            Max = 37,
-                            Min = 27,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 271,
-                            Index = (byte)0,
-                            Max = 30,
-                            Min = 22,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 272,
-                            Index = (byte)0,
-                            Max = 15,
-                            Min = 11,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 273,
-                            Index = (byte)0,
-                            Max = 15,
-                            Min = 11,
-                            Stat = (short)4
-                        },
-                        new
-                        {
-                            ModifierId = 274,
-                            Index = (byte)0,
-                            Max = 110,
-                            Min = 82,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 275,
-                            Index = (byte)0,
-                            Max = 184,
-                            Min = 136,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 276,
-                            Index = (byte)0,
-                            Max = 147,
-                            Min = 109,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 277,
-                            Index = (byte)0,
-                            Max = 74,
-                            Min = 54,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 278,
-                            Index = (byte)0,
-                            Max = 74,
-                            Min = 54,
-                            Stat = (short)6
-                        },
-                        new
-                        {
-                            ModifierId = 279,
-                            Index = (byte)0,
-                            Max = 31,
-                            Min = 23,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 280,
-                            Index = (byte)0,
-                            Max = 52,
-                            Min = 38,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 281,
-                            Index = (byte)0,
-                            Max = 41,
-                            Min = 31,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 282,
-                            Index = (byte)0,
-                            Max = 21,
-                            Min = 15,
-                            Stat = (short)14
-                        },
-                        new
-                        {
-                            ModifierId = 283,
-                            Index = (byte)0,
-                            Max = 21,
-                            Min = 15,
-                            Stat = (short)14
+                            ModifierId = 223,
+                            Index = (byte)2,
+                            Max = 7,
+                            Min = 5,
+                            Stat = (short)29
                         });
                 });
 
@@ -10465,54 +9269,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 4,
-                            BaseKind = (byte)19,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 4,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 4,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 4,
-                            BaseKind = (byte)22,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 5,
-                            BaseKind = (byte)19,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 5,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 5,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 5,
-                            BaseKind = (byte)22,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 6,
                             BaseKind = (byte)19,
                             Weight = 1000
@@ -10582,54 +9338,6 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 8,
                             BaseKind = (byte)22,
                             Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 9,
-                            BaseKind = (byte)19,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 9,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 9,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 9,
-                            BaseKind = (byte)22,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 10,
-                            BaseKind = (byte)19,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 10,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 10,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 10,
-                            BaseKind = (byte)22,
-                            Weight = 200
                         },
                         new
                         {
@@ -10705,54 +9413,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 14,
-                            BaseKind = (byte)19,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 14,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 14,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 14,
-                            BaseKind = (byte)22,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 15,
-                            BaseKind = (byte)19,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 15,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 15,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 15,
-                            BaseKind = (byte)22,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 16,
                             BaseKind = (byte)19,
                             Weight = 1000
@@ -10822,54 +9482,6 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 18,
                             BaseKind = (byte)22,
                             Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 19,
-                            BaseKind = (byte)19,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 19,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 19,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 19,
-                            BaseKind = (byte)22,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 20,
-                            BaseKind = (byte)19,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 20,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 20,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 20,
-                            BaseKind = (byte)22,
-                            Weight = 200
                         },
                         new
                         {
@@ -10945,54 +9557,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 24,
-                            BaseKind = (byte)19,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 24,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 24,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 24,
-                            BaseKind = (byte)22,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 25,
-                            BaseKind = (byte)19,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 25,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 25,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 25,
-                            BaseKind = (byte)22,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 26,
                             BaseKind = (byte)19,
                             Weight = 1000
@@ -11062,54 +9626,6 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 28,
                             BaseKind = (byte)22,
                             Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 29,
-                            BaseKind = (byte)19,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 29,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 29,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 29,
-                            BaseKind = (byte)22,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 30,
-                            BaseKind = (byte)19,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 30,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 30,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 30,
-                            BaseKind = (byte)22,
-                            Weight = 200
                         },
                         new
                         {
@@ -11167,39 +9683,21 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 34,
-                            BaseKind = (byte)20,
-                            Weight = 400
+                            ModifierId = 36,
+                            BaseKind = (byte)2,
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 34,
-                            BaseKind = (byte)21,
-                            Weight = 400
+                            ModifierId = 36,
+                            BaseKind = (byte)8,
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 34,
-                            BaseKind = (byte)24,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 35,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 35,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 35,
-                            BaseKind = (byte)24,
-                            Weight = 200
+                            ModifierId = 36,
+                            BaseKind = (byte)14,
+                            Weight = 1000
                         },
                         new
                         {
@@ -11228,6 +9726,24 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 37,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 37,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 37,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 37,
                             BaseKind = (byte)21,
                             Weight = 800
                         },
@@ -11252,6 +9768,24 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 38,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 38,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 38,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 38,
                             BaseKind = (byte)21,
                             Weight = 600
                         },
@@ -11275,51 +9809,21 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 39,
-                            BaseKind = (byte)21,
-                            Weight = 400
+                            ModifierId = 41,
+                            BaseKind = (byte)2,
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 39,
-                            BaseKind = (byte)24,
-                            Weight = 400
+                            ModifierId = 41,
+                            BaseKind = (byte)8,
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 39,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 39,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 40,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 40,
-                            BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 40,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 40,
-                            BaseKind = (byte)26,
-                            Weight = 200
+                            ModifierId = 41,
+                            BaseKind = (byte)14,
+                            Weight = 1000
                         },
                         new
                         {
@@ -11348,6 +9852,24 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 42,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 42,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 42,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 42,
                             BaseKind = (byte)21,
                             Weight = 800
                         },
@@ -11372,6 +9894,24 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 43,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 43,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 43,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 43,
                             BaseKind = (byte)21,
                             Weight = 600
                         },
@@ -11395,51 +9935,21 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 44,
-                            BaseKind = (byte)21,
-                            Weight = 400
+                            ModifierId = 46,
+                            BaseKind = (byte)2,
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 44,
-                            BaseKind = (byte)24,
-                            Weight = 400
+                            ModifierId = 46,
+                            BaseKind = (byte)8,
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 44,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 44,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 45,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 45,
-                            BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 45,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 45,
-                            BaseKind = (byte)26,
-                            Weight = 200
+                            ModifierId = 46,
+                            BaseKind = (byte)14,
+                            Weight = 1000
                         },
                         new
                         {
@@ -11468,6 +9978,24 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 47,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 47,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 47,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 47,
                             BaseKind = (byte)21,
                             Weight = 800
                         },
@@ -11492,6 +10020,24 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 48,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 48,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 48,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 48,
                             BaseKind = (byte)21,
                             Weight = 600
                         },
@@ -11515,51 +10061,21 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 49,
-                            BaseKind = (byte)21,
-                            Weight = 400
+                            ModifierId = 51,
+                            BaseKind = (byte)2,
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 49,
-                            BaseKind = (byte)24,
-                            Weight = 400
+                            ModifierId = 51,
+                            BaseKind = (byte)8,
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 49,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 49,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 50,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 50,
-                            BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 50,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 50,
-                            BaseKind = (byte)26,
-                            Weight = 200
+                            ModifierId = 51,
+                            BaseKind = (byte)14,
+                            Weight = 1000
                         },
                         new
                         {
@@ -11588,6 +10104,24 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 52,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 52,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 52,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 52,
                             BaseKind = (byte)21,
                             Weight = 800
                         },
@@ -11612,6 +10146,24 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 53,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 53,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 53,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 53,
                             BaseKind = (byte)21,
                             Weight = 600
                         },
@@ -11635,54 +10187,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 54,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 54,
-                            BaseKind = (byte)24,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 54,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 54,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 55,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 55,
-                            BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 55,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 55,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 56,
                             BaseKind = (byte)4,
                             Weight = 1000
@@ -11697,18 +10201,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 56,
                             BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 56,
-                            BaseKind = (byte)25,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 56,
-                            BaseKind = (byte)26,
                             Weight = 1000
                         },
                         new
@@ -11731,18 +10223,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 57,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 57,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
                             ModifierId = 58,
                             BaseKind = (byte)4,
                             Weight = 600
@@ -11761,78 +10241,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 58,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 58,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 59,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 59,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 59,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 59,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 59,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 60,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 60,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 60,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 60,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 60,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 61,
                             BaseKind = (byte)4,
                             Weight = 1000
@@ -11847,18 +10255,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 61,
                             BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 61,
-                            BaseKind = (byte)25,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 61,
-                            BaseKind = (byte)26,
                             Weight = 1000
                         },
                         new
@@ -11881,18 +10277,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 62,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 62,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
                             ModifierId = 63,
                             BaseKind = (byte)4,
                             Weight = 600
@@ -11911,78 +10295,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 63,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 63,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 64,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 64,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 64,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 64,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 64,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 65,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 65,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 65,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 65,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 65,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 66,
                             BaseKind = (byte)4,
                             Weight = 1000
@@ -11997,18 +10309,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 66,
                             BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 66,
-                            BaseKind = (byte)25,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 66,
-                            BaseKind = (byte)26,
                             Weight = 1000
                         },
                         new
@@ -12031,18 +10331,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 67,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 67,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
                             ModifierId = 68,
                             BaseKind = (byte)4,
                             Weight = 600
@@ -12061,78 +10349,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 68,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 68,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 69,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 69,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 69,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 69,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 69,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 70,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 70,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 70,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 70,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 70,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 71,
                             BaseKind = (byte)4,
                             Weight = 1000
@@ -12147,18 +10363,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 71,
                             BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 71,
-                            BaseKind = (byte)25,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 71,
-                            BaseKind = (byte)26,
                             Weight = 1000
                         },
                         new
@@ -12181,18 +10385,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 72,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 72,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
                             ModifierId = 73,
                             BaseKind = (byte)4,
                             Weight = 600
@@ -12211,78 +10403,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 73,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 73,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 74,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 74,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 74,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 74,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 74,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 75,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 75,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 75,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 75,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 75,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 76,
                             BaseKind = (byte)4,
                             Weight = 1000
@@ -12297,18 +10417,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 76,
                             BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 76,
-                            BaseKind = (byte)25,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 76,
-                            BaseKind = (byte)26,
                             Weight = 1000
                         },
                         new
@@ -12331,18 +10439,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 77,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 77,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
                             ModifierId = 78,
                             BaseKind = (byte)4,
                             Weight = 600
@@ -12358,90 +10454,6 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 78,
                             BaseKind = (byte)16,
                             Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 78,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 78,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 79,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 79,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 79,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 79,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 79,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 80,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 80,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 80,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 80,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 80,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 81,
-                            BaseKind = (byte)24,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 81,
-                            BaseKind = (byte)25,
-                            Weight = 1000
                         },
                         new
                         {
@@ -12452,86 +10464,14 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 82,
-                            BaseKind = (byte)24,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 82,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 82,
                             BaseKind = (byte)26,
                             Weight = 800
                         },
                         new
                         {
                             ModifierId = 83,
-                            BaseKind = (byte)24,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 83,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 83,
                             BaseKind = (byte)26,
                             Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 84,
-                            BaseKind = (byte)24,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 84,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 84,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 85,
-                            BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 85,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 85,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 86,
-                            BaseKind = (byte)24,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 86,
-                            BaseKind = (byte)25,
-                            Weight = 1000
                         },
                         new
                         {
@@ -12542,86 +10482,14 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 87,
-                            BaseKind = (byte)24,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 87,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 87,
                             BaseKind = (byte)26,
                             Weight = 800
                         },
                         new
                         {
                             ModifierId = 88,
-                            BaseKind = (byte)24,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 88,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 88,
                             BaseKind = (byte)26,
                             Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 89,
-                            BaseKind = (byte)24,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 89,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 89,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 90,
-                            BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 90,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 90,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 91,
-                            BaseKind = (byte)24,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 91,
-                            BaseKind = (byte)25,
-                            Weight = 1000
                         },
                         new
                         {
@@ -12632,74 +10500,14 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 92,
-                            BaseKind = (byte)24,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 92,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 92,
                             BaseKind = (byte)26,
                             Weight = 800
                         },
                         new
                         {
                             ModifierId = 93,
-                            BaseKind = (byte)24,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 93,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 93,
                             BaseKind = (byte)26,
                             Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 94,
-                            BaseKind = (byte)24,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 94,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 94,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 95,
-                            BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 95,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 95,
-                            BaseKind = (byte)26,
-                            Weight = 200
                         },
                         new
                         {
@@ -12710,19 +10518,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 96,
-                            BaseKind = (byte)2,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 96,
                             BaseKind = (byte)3,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 96,
-                            BaseKind = (byte)4,
                             Weight = 1000
                         },
                         new
@@ -12746,19 +10542,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 96,
-                            BaseKind = (byte)8,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 96,
                             BaseKind = (byte)9,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 96,
-                            BaseKind = (byte)10,
                             Weight = 1000
                         },
                         new
@@ -12782,19 +10566,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 96,
-                            BaseKind = (byte)14,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 96,
                             BaseKind = (byte)15,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 96,
-                            BaseKind = (byte)16,
                             Weight = 1000
                         },
                         new
@@ -12823,12 +10595,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 96,
-                            BaseKind = (byte)26,
-                            Weight = 1000
-                        },
-                        new
-                        {
                             ModifierId = 97,
                             BaseKind = (byte)1,
                             Weight = 800
@@ -12836,19 +10602,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 97,
-                            BaseKind = (byte)2,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 97,
                             BaseKind = (byte)3,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 97,
-                            BaseKind = (byte)4,
                             Weight = 800
                         },
                         new
@@ -12872,19 +10626,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 97,
-                            BaseKind = (byte)8,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 97,
                             BaseKind = (byte)9,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 97,
-                            BaseKind = (byte)10,
                             Weight = 800
                         },
                         new
@@ -12908,19 +10650,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 97,
-                            BaseKind = (byte)14,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 97,
                             BaseKind = (byte)15,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 97,
-                            BaseKind = (byte)16,
                             Weight = 800
                         },
                         new
@@ -12949,12 +10679,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 97,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
                             ModifierId = 98,
                             BaseKind = (byte)1,
                             Weight = 600
@@ -12962,19 +10686,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 98,
-                            BaseKind = (byte)2,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 98,
                             BaseKind = (byte)3,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 98,
-                            BaseKind = (byte)4,
                             Weight = 600
                         },
                         new
@@ -12998,19 +10710,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 98,
-                            BaseKind = (byte)8,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 98,
                             BaseKind = (byte)9,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 98,
-                            BaseKind = (byte)10,
                             Weight = 600
                         },
                         new
@@ -13034,19 +10734,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 98,
-                            BaseKind = (byte)14,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 98,
                             BaseKind = (byte)15,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 98,
-                            BaseKind = (byte)16,
                             Weight = 600
                         },
                         new
@@ -13075,264 +10763,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 98,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)1,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)2,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)3,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)5,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)6,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)7,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)8,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)9,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)11,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)12,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)13,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)14,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)15,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)17,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)18,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)23,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 99,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)1,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)2,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)3,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)5,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)6,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)7,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)8,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)9,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)11,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)12,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)13,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)14,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)15,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)17,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)18,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)23,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 100,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 101,
                             BaseKind = (byte)1,
                             Weight = 1000
@@ -13459,90 +10889,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 104,
-                            BaseKind = (byte)1,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 104,
-                            BaseKind = (byte)2,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 104,
-                            BaseKind = (byte)3,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 104,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 104,
-                            BaseKind = (byte)5,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 104,
-                            BaseKind = (byte)6,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 104,
-                            BaseKind = (byte)23,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 105,
-                            BaseKind = (byte)1,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 105,
-                            BaseKind = (byte)2,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 105,
-                            BaseKind = (byte)3,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 105,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 105,
-                            BaseKind = (byte)5,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 105,
-                            BaseKind = (byte)6,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 105,
-                            BaseKind = (byte)23,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 106,
                             BaseKind = (byte)1,
                             Weight = 1000
@@ -13666,90 +11012,6 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 108,
                             BaseKind = (byte)23,
                             Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 109,
-                            BaseKind = (byte)1,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 109,
-                            BaseKind = (byte)2,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 109,
-                            BaseKind = (byte)3,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 109,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 109,
-                            BaseKind = (byte)5,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 109,
-                            BaseKind = (byte)6,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 109,
-                            BaseKind = (byte)23,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 110,
-                            BaseKind = (byte)1,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 110,
-                            BaseKind = (byte)2,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 110,
-                            BaseKind = (byte)3,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 110,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 110,
-                            BaseKind = (byte)5,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 110,
-                            BaseKind = (byte)6,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 110,
-                            BaseKind = (byte)23,
-                            Weight = 200
                         },
                         new
                         {
@@ -13861,78 +11123,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 114,
-                            BaseKind = (byte)7,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 114,
-                            BaseKind = (byte)8,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 114,
-                            BaseKind = (byte)9,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 114,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 114,
-                            BaseKind = (byte)11,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 114,
-                            BaseKind = (byte)12,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 115,
-                            BaseKind = (byte)7,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 115,
-                            BaseKind = (byte)8,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 115,
-                            BaseKind = (byte)9,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 115,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 115,
-                            BaseKind = (byte)11,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 115,
-                            BaseKind = (byte)12,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 116,
                             BaseKind = (byte)7,
                             Weight = 1000
@@ -14041,78 +11231,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 119,
-                            BaseKind = (byte)7,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 119,
-                            BaseKind = (byte)8,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 119,
-                            BaseKind = (byte)9,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 119,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 119,
-                            BaseKind = (byte)11,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 119,
-                            BaseKind = (byte)12,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 120,
-                            BaseKind = (byte)7,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 120,
-                            BaseKind = (byte)8,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 120,
-                            BaseKind = (byte)9,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 120,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 120,
-                            BaseKind = (byte)11,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 120,
-                            BaseKind = (byte)12,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 121,
                             BaseKind = (byte)13,
                             Weight = 1000
@@ -14239,90 +11357,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 124,
-                            BaseKind = (byte)13,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 124,
-                            BaseKind = (byte)14,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 124,
-                            BaseKind = (byte)15,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 124,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 124,
-                            BaseKind = (byte)17,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 124,
-                            BaseKind = (byte)18,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 124,
-                            BaseKind = (byte)24,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 125,
-                            BaseKind = (byte)13,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 125,
-                            BaseKind = (byte)14,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 125,
-                            BaseKind = (byte)15,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 125,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 125,
-                            BaseKind = (byte)17,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 125,
-                            BaseKind = (byte)18,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 125,
-                            BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 126,
                             BaseKind = (byte)13,
                             Weight = 1000
@@ -14446,90 +11480,6 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 128,
                             BaseKind = (byte)24,
                             Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 129,
-                            BaseKind = (byte)13,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 129,
-                            BaseKind = (byte)14,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 129,
-                            BaseKind = (byte)15,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 129,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 129,
-                            BaseKind = (byte)17,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 129,
-                            BaseKind = (byte)18,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 129,
-                            BaseKind = (byte)24,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 130,
-                            BaseKind = (byte)13,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 130,
-                            BaseKind = (byte)14,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 130,
-                            BaseKind = (byte)15,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 130,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 130,
-                            BaseKind = (byte)17,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 130,
-                            BaseKind = (byte)18,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 130,
-                            BaseKind = (byte)24,
-                            Weight = 200
                         },
                         new
                         {
@@ -14587,42 +11537,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 134,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 134,
-                            BaseKind = (byte)24,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 134,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 135,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 135,
-                            BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 135,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 136,
                             BaseKind = (byte)20,
                             Weight = 1000
@@ -14695,98 +11609,8 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 139,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 139,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 139,
-                            BaseKind = (byte)24,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 139,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 140,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 140,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 140,
-                            BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 140,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 141,
-                            BaseKind = (byte)1,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 141,
-                            BaseKind = (byte)2,
-                            Weight = 1000
-                        },
-                        new
-                        {
                             ModifierId = 141,
                             BaseKind = (byte)3,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 141,
-                            BaseKind = (byte)4,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 141,
-                            BaseKind = (byte)5,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 141,
-                            BaseKind = (byte)6,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 141,
-                            BaseKind = (byte)7,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 141,
-                            BaseKind = (byte)8,
                             Weight = 1000
                         },
                         new
@@ -14798,3577 +11622,433 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 141,
-                            BaseKind = (byte)10,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 141,
-                            BaseKind = (byte)11,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 141,
-                            BaseKind = (byte)12,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 141,
-                            BaseKind = (byte)13,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 141,
-                            BaseKind = (byte)14,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 141,
                             BaseKind = (byte)15,
                             Weight = 1000
                         },
                         new
                         {
                             ModifierId = 141,
-                            BaseKind = (byte)16,
+                            BaseKind = (byte)26,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 141,
+                            ModifierId = 142,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 142,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 143,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 146,
                             BaseKind = (byte)17,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 141,
+                            ModifierId = 146,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 147,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)17,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 148,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 151,
+                            BaseKind = (byte)26,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 152,
+                            BaseKind = (byte)26,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 153,
+                            BaseKind = (byte)26,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)6,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
+                            BaseKind = (byte)12,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 156,
                             BaseKind = (byte)18,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 141,
-                            BaseKind = (byte)19,
+                            ModifierId = 157,
+                            BaseKind = (byte)6,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)12,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 157,
+                            BaseKind = (byte)18,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)6,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)12,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 158,
+                            BaseKind = (byte)18,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 161,
+                            BaseKind = (byte)1,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 141,
-                            BaseKind = (byte)20,
+                            ModifierId = 161,
+                            BaseKind = (byte)7,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 141,
-                            BaseKind = (byte)22,
+                            ModifierId = 161,
+                            BaseKind = (byte)13,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 141,
+                            ModifierId = 161,
                             BaseKind = (byte)23,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 141,
-                            BaseKind = (byte)25,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 141,
-                            BaseKind = (byte)26,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)1,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)2,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)3,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)4,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)5,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)6,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)7,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)8,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)9,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)10,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)11,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)12,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)13,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)14,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)15,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)16,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)17,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)18,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)19,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)20,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)22,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)23,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 142,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)1,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)2,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)3,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)4,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)5,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)6,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)7,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)8,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)9,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)10,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)11,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)12,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)13,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)14,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)15,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)16,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)17,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)18,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)19,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)20,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)22,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)23,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 143,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)1,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)2,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)3,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)5,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)6,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)7,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)8,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)9,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)11,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)12,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)13,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)14,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)15,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)17,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)18,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)19,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)22,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)23,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 144,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)1,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)2,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)3,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)5,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)6,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)7,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)8,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)9,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)11,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)12,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)13,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)14,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)15,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)17,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)18,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)19,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)22,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)23,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 145,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)1,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)2,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)3,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)4,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)5,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)6,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)7,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)8,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)9,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)10,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)11,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)12,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)13,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)14,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)15,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)17,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)18,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)19,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)21,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)22,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)25,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 146,
-                            BaseKind = (byte)26,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)1,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)2,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)3,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)4,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)5,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)6,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)7,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)8,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)9,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)10,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)11,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)12,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)13,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)14,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)15,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)16,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)17,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)18,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)19,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)21,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)22,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 147,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)1,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)2,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)3,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)4,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)5,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)6,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)7,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)8,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)9,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)10,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)11,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)12,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)13,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)14,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)15,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)16,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)17,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)18,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)19,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)21,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)22,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 148,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)1,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)2,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)3,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)5,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)6,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)7,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)8,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)9,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)11,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)12,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)13,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)14,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)15,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)17,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)18,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)19,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)22,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 149,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)1,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)2,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)3,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)5,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)6,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)7,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)8,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)9,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)11,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)12,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)13,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)14,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)15,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)17,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)18,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)19,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)22,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 150,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)1,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)2,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)3,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)4,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)5,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)6,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)7,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)8,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)9,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)10,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)11,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)12,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)13,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)14,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)15,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)17,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)18,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)19,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)20,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
-                            BaseKind = (byte)21,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 151,
+                            ModifierId = 161,
                             BaseKind = (byte)24,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 151,
+                            ModifierId = 161,
                             BaseKind = (byte)25,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 151,
-                            BaseKind = (byte)26,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 152,
+                            ModifierId = 162,
                             BaseKind = (byte)1,
                             Weight = 800
                         },
                         new
                         {
-                            ModifierId = 152,
-                            BaseKind = (byte)2,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)3,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)4,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)5,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)6,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
+                            ModifierId = 162,
                             BaseKind = (byte)7,
                             Weight = 800
                         },
                         new
                         {
-                            ModifierId = 152,
-                            BaseKind = (byte)8,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)9,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)10,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)11,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)12,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
+                            ModifierId = 162,
                             BaseKind = (byte)13,
                             Weight = 800
                         },
                         new
                         {
-                            ModifierId = 152,
-                            BaseKind = (byte)14,
+                            ModifierId = 162,
+                            BaseKind = (byte)23,
                             Weight = 800
                         },
                         new
                         {
-                            ModifierId = 152,
-                            BaseKind = (byte)15,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)16,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)17,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)18,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)19,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)20,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
-                            BaseKind = (byte)21,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 152,
+                            ModifierId = 162,
                             BaseKind = (byte)24,
                             Weight = 800
                         },
                         new
                         {
-                            ModifierId = 152,
+                            ModifierId = 162,
                             BaseKind = (byte)25,
                             Weight = 800
                         },
                         new
                         {
-                            ModifierId = 152,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 153,
+                            ModifierId = 163,
                             BaseKind = (byte)1,
                             Weight = 600
                         },
                         new
                         {
-                            ModifierId = 153,
-                            BaseKind = (byte)2,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)3,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)4,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)5,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)6,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
+                            ModifierId = 163,
                             BaseKind = (byte)7,
                             Weight = 600
                         },
                         new
                         {
-                            ModifierId = 153,
-                            BaseKind = (byte)8,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)9,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)10,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)11,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)12,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
+                            ModifierId = 163,
                             BaseKind = (byte)13,
                             Weight = 600
                         },
                         new
                         {
-                            ModifierId = 153,
-                            BaseKind = (byte)14,
+                            ModifierId = 163,
+                            BaseKind = (byte)23,
                             Weight = 600
                         },
                         new
                         {
-                            ModifierId = 153,
-                            BaseKind = (byte)15,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)16,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)17,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)18,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)19,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)20,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
-                            BaseKind = (byte)21,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 153,
+                            ModifierId = 163,
                             BaseKind = (byte)24,
                             Weight = 600
                         },
                         new
                         {
-                            ModifierId = 153,
+                            ModifierId = 163,
                             BaseKind = (byte)25,
                             Weight = 600
                         },
                         new
                         {
-                            ModifierId = 153,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)1,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)2,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)3,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)5,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
+                            ModifierId = 166,
                             BaseKind = (byte)6,
-                            Weight = 400
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 154,
-                            BaseKind = (byte)7,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)8,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)9,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)11,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
+                            ModifierId = 166,
                             BaseKind = (byte)12,
-                            Weight = 400
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 154,
-                            BaseKind = (byte)13,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)14,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)15,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)17,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
+                            ModifierId = 166,
                             BaseKind = (byte)18,
-                            Weight = 400
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 154,
-                            BaseKind = (byte)19,
-                            Weight = 400
+                            ModifierId = 166,
+                            BaseKind = (byte)23,
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 154,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 154,
+                            ModifierId = 166,
                             BaseKind = (byte)24,
-                            Weight = 400
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 154,
+                            ModifierId = 166,
                             BaseKind = (byte)25,
-                            Weight = 400
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 154,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)1,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)2,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)3,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)5,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
+                            ModifierId = 167,
                             BaseKind = (byte)6,
-                            Weight = 200
+                            Weight = 800
                         },
                         new
                         {
-                            ModifierId = 155,
-                            BaseKind = (byte)7,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)8,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)9,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)11,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
+                            ModifierId = 167,
                             BaseKind = (byte)12,
-                            Weight = 200
+                            Weight = 800
                         },
                         new
                         {
-                            ModifierId = 155,
-                            BaseKind = (byte)13,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)14,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)15,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)17,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
+                            ModifierId = 167,
                             BaseKind = (byte)18,
-                            Weight = 200
+                            Weight = 800
                         },
                         new
                         {
-                            ModifierId = 155,
-                            BaseKind = (byte)19,
-                            Weight = 200
+                            ModifierId = 167,
+                            BaseKind = (byte)23,
+                            Weight = 800
                         },
                         new
                         {
-                            ModifierId = 155,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
+                            ModifierId = 167,
                             BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 155,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)1,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)2,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)3,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)4,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)5,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)6,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)7,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)8,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)9,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)10,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)11,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)12,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)13,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)14,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)15,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)17,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)18,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)23,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)25,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 156,
-                            BaseKind = (byte)26,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)1,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)2,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)3,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)4,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)5,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)6,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)7,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)8,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)9,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)10,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)11,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)12,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)13,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)14,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)15,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)16,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)17,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)18,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)23,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 157,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)1,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)2,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)3,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)4,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)5,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)6,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)7,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)8,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)9,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)10,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)11,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)12,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)13,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)14,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)15,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)16,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)17,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)18,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)23,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 158,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)1,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)2,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)3,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)5,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)6,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)7,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)8,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)9,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)11,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)12,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)13,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)14,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)15,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)17,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)18,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)23,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 159,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)1,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)2,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)3,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)5,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)6,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)7,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)8,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)9,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)11,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)12,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)13,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)14,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)15,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)17,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)18,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)23,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 160,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)1,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)2,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)3,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)4,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)5,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)6,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)7,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)8,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)9,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)10,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)11,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)12,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)13,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)14,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)15,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)17,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)18,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)23,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)25,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 161,
-                            BaseKind = (byte)26,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)1,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)2,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)3,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)4,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)5,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)6,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)7,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)8,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)9,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)10,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)11,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)12,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)13,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)14,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)15,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)16,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)17,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)18,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)23,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 162,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)1,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)2,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)3,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)4,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)5,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)6,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)7,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)8,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)9,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)10,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)11,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)12,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)13,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)14,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)15,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)16,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)17,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)18,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)23,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 163,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)1,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)2,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)3,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)5,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)6,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)7,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)8,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)9,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)11,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)12,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)13,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)14,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)15,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)17,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)18,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)23,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 164,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)1,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)2,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)3,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)5,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)6,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)7,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)8,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)9,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)11,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)12,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)13,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)14,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)15,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)17,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)18,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)23,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 165,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)1,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)2,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)3,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)4,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)5,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)6,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)7,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)8,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)9,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)10,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)11,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)12,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)13,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)14,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)15,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)17,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)18,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)23,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)25,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 166,
-                            BaseKind = (byte)26,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)1,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)2,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)3,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)4,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)5,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)6,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)7,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)8,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)9,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)10,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)11,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)12,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)13,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)14,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)15,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)16,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)17,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)18,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 167,
-                            BaseKind = (byte)23,
                             Weight = 800
                         },
                         new
@@ -18379,42 +12059,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 167,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)1,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)2,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)3,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)4,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)5,
-                            Weight = 600
-                        },
-                        new
-                        {
                             ModifierId = 168,
                             BaseKind = (byte)6,
                             Weight = 600
@@ -18422,67 +12066,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 168,
-                            BaseKind = (byte)7,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)8,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)9,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)10,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)11,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
                             BaseKind = (byte)12,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)13,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)14,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)15,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)16,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 168,
-                            BaseKind = (byte)17,
                             Weight = 600
                         },
                         new
@@ -18500,325 +12084,19 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 168,
-                            BaseKind = (byte)25,
+                            BaseKind = (byte)24,
                             Weight = 600
                         },
                         new
                         {
                             ModifierId = 168,
-                            BaseKind = (byte)26,
+                            BaseKind = (byte)25,
                             Weight = 600
                         },
                         new
                         {
-                            ModifierId = 169,
-                            BaseKind = (byte)1,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)2,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)3,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)5,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)6,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)7,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)8,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)9,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)11,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)12,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)13,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)14,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)15,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)17,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)18,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)23,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 169,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)1,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)2,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)3,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)5,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)6,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)7,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)8,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)9,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)11,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)12,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)13,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)14,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)15,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)17,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)18,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)23,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 170,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)1,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)2,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)3,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)4,
-                            Weight = 1000
-                        },
-                        new
-                        {
                             ModifierId = 171,
                             BaseKind = (byte)5,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)6,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)7,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)8,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)9,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)10,
                             Weight = 1000
                         },
                         new
@@ -18830,43 +12108,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 171,
-                            BaseKind = (byte)12,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)13,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)14,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)15,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
                             BaseKind = (byte)17,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 171,
-                            BaseKind = (byte)18,
                             Weight = 1000
                         },
                         new
@@ -18878,73 +12120,19 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 171,
-                            BaseKind = (byte)25,
+                            BaseKind = (byte)24,
                             Weight = 1000
                         },
                         new
                         {
                             ModifierId = 171,
-                            BaseKind = (byte)26,
+                            BaseKind = (byte)25,
                             Weight = 1000
                         },
                         new
                         {
                             ModifierId = 172,
-                            BaseKind = (byte)1,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)2,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)3,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)4,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
                             BaseKind = (byte)5,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)6,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)7,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)8,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)9,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)10,
                             Weight = 800
                         },
                         new
@@ -18956,43 +12144,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 172,
-                            BaseKind = (byte)12,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)13,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)14,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)15,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)16,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
                             BaseKind = (byte)17,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 172,
-                            BaseKind = (byte)18,
                             Weight = 800
                         },
                         new
@@ -19004,73 +12156,19 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 172,
-                            BaseKind = (byte)25,
+                            BaseKind = (byte)24,
                             Weight = 800
                         },
                         new
                         {
                             ModifierId = 172,
-                            BaseKind = (byte)26,
+                            BaseKind = (byte)25,
                             Weight = 800
                         },
                         new
                         {
                             ModifierId = 173,
-                            BaseKind = (byte)1,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)2,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)3,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)4,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
                             BaseKind = (byte)5,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)6,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)7,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)8,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)9,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)10,
                             Weight = 600
                         },
                         new
@@ -19082,43 +12180,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 173,
-                            BaseKind = (byte)12,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)13,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)14,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)15,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)16,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
                             BaseKind = (byte)17,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 173,
-                            BaseKind = (byte)18,
                             Weight = 600
                         },
                         new
@@ -19130,313 +12192,19 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 173,
-                            BaseKind = (byte)25,
+                            BaseKind = (byte)24,
                             Weight = 600
                         },
                         new
                         {
                             ModifierId = 173,
-                            BaseKind = (byte)26,
+                            BaseKind = (byte)25,
                             Weight = 600
                         },
                         new
                         {
-                            ModifierId = 174,
-                            BaseKind = (byte)1,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)2,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)3,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)5,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)6,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)7,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)8,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)9,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)11,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)12,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)13,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)14,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)15,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)17,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)18,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)23,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 174,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)1,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)2,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)3,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)5,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)6,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)7,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)8,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)9,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)11,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)12,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)13,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)14,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)15,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)17,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)18,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)23,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 175,
-                            BaseKind = (byte)26,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)1,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)2,
-                            Weight = 1000
-                        },
-                        new
-                        {
                             ModifierId = 176,
                             BaseKind = (byte)3,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)4,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)5,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)6,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)7,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)8,
                             Weight = 1000
                         },
                         new
@@ -19448,55 +12216,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 176,
-                            BaseKind = (byte)10,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)11,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)12,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)13,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)14,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
                             BaseKind = (byte)15,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)17,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 176,
-                            BaseKind = (byte)18,
                             Weight = 1000
                         },
                         new
@@ -19508,61 +12228,19 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 176,
-                            BaseKind = (byte)25,
+                            BaseKind = (byte)24,
                             Weight = 1000
                         },
                         new
                         {
                             ModifierId = 176,
-                            BaseKind = (byte)26,
+                            BaseKind = (byte)25,
                             Weight = 1000
                         },
                         new
                         {
                             ModifierId = 177,
-                            BaseKind = (byte)1,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)2,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
                             BaseKind = (byte)3,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)4,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)5,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)6,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)7,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)8,
                             Weight = 800
                         },
                         new
@@ -19574,55 +12252,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 177,
-                            BaseKind = (byte)10,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)11,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)12,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)13,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)14,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
                             BaseKind = (byte)15,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)16,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)17,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 177,
-                            BaseKind = (byte)18,
                             Weight = 800
                         },
                         new
@@ -19634,61 +12264,19 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 177,
-                            BaseKind = (byte)25,
+                            BaseKind = (byte)24,
                             Weight = 800
                         },
                         new
                         {
                             ModifierId = 177,
-                            BaseKind = (byte)26,
+                            BaseKind = (byte)25,
                             Weight = 800
                         },
                         new
                         {
                             ModifierId = 178,
-                            BaseKind = (byte)1,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)2,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
                             BaseKind = (byte)3,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)4,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)5,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)6,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)7,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)8,
                             Weight = 600
                         },
                         new
@@ -19700,55 +12288,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 178,
-                            BaseKind = (byte)10,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)11,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)12,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)13,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)14,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
                             BaseKind = (byte)15,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)16,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)17,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 178,
-                            BaseKind = (byte)18,
                             Weight = 600
                         },
                         new
@@ -19760,266 +12300,14 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 178,
-                            BaseKind = (byte)25,
+                            BaseKind = (byte)24,
                             Weight = 600
                         },
                         new
                         {
                             ModifierId = 178,
-                            BaseKind = (byte)26,
+                            BaseKind = (byte)25,
                             Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)1,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)2,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)3,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)4,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)5,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)6,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)7,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)8,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)9,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)10,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)11,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)12,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)13,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)14,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)15,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)17,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)18,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)23,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 179,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)1,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)2,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)3,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)4,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)5,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)6,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)7,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)8,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)9,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)10,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)11,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)12,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)13,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)14,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)15,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)16,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)17,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)18,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)23,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 180,
-                            BaseKind = (byte)26,
-                            Weight = 200
                         },
                         new
                         {
@@ -20095,54 +12383,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 184,
-                            BaseKind = (byte)19,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 184,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 184,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 184,
-                            BaseKind = (byte)22,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 185,
-                            BaseKind = (byte)19,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 185,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 185,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 185,
-                            BaseKind = (byte)22,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 186,
                             BaseKind = (byte)4,
                             Weight = 1000
@@ -20157,12 +12397,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 186,
                             BaseKind = (byte)16,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 186,
-                            BaseKind = (byte)26,
                             Weight = 1000
                         },
                         new
@@ -20185,12 +12419,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 187,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
                             ModifierId = 188,
                             BaseKind = (byte)4,
                             Weight = 600
@@ -20209,38 +12437,20 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 188,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 189,
+                            ModifierId = 190,
                             BaseKind = (byte)4,
-                            Weight = 400
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 189,
+                            ModifierId = 190,
                             BaseKind = (byte)10,
-                            Weight = 400
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 189,
+                            ModifierId = 190,
                             BaseKind = (byte)16,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 189,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 190,
-                            BaseKind = (byte)20,
                             Weight = 1000
                         },
                         new
@@ -20257,135 +12467,81 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 190,
-                            BaseKind = (byte)25,
+                            ModifierId = 191,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 191,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 191,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 191,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 191,
+                            BaseKind = (byte)24,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 192,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 192,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 192,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 192,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 192,
+                            BaseKind = (byte)24,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 195,
+                            BaseKind = (byte)4,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 190,
-                            BaseKind = (byte)26,
+                            ModifierId = 195,
+                            BaseKind = (byte)10,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 191,
-                            BaseKind = (byte)20,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 191,
-                            BaseKind = (byte)21,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 191,
-                            BaseKind = (byte)24,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 191,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 191,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 192,
-                            BaseKind = (byte)20,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 192,
-                            BaseKind = (byte)21,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 192,
-                            BaseKind = (byte)24,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 192,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 192,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 193,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 193,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 193,
-                            BaseKind = (byte)24,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 193,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 193,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 194,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 194,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 194,
-                            BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 194,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 194,
-                            BaseKind = (byte)26,
-                            Weight = 200
+                            ModifierId = 195,
+                            BaseKind = (byte)16,
+                            Weight = 1000
                         },
                         new
                         {
@@ -20413,189 +12569,123 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 195,
-                            BaseKind = (byte)24,
+                            ModifierId = 196,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)19,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)20,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)21,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 196,
+                            BaseKind = (byte)22,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)19,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)20,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)21,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 197,
+                            BaseKind = (byte)22,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 200,
+                            BaseKind = (byte)1,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 195,
-                            BaseKind = (byte)25,
+                            ModifierId = 200,
+                            BaseKind = (byte)4,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 195,
-                            BaseKind = (byte)26,
+                            ModifierId = 200,
+                            BaseKind = (byte)7,
                             Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 196,
-                            BaseKind = (byte)19,
-                            Weight = 800
+                            ModifierId = 200,
+                            BaseKind = (byte)10,
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 196,
-                            BaseKind = (byte)20,
-                            Weight = 800
+                            ModifierId = 200,
+                            BaseKind = (byte)13,
+                            Weight = 1000
                         },
                         new
                         {
-                            ModifierId = 196,
-                            BaseKind = (byte)21,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 196,
-                            BaseKind = (byte)22,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 196,
-                            BaseKind = (byte)24,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 196,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 196,
-                            BaseKind = (byte)26,
-                            Weight = 800
-                        },
-                        new
-                        {
-                            ModifierId = 197,
-                            BaseKind = (byte)19,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 197,
-                            BaseKind = (byte)20,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 197,
-                            BaseKind = (byte)21,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 197,
-                            BaseKind = (byte)22,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 197,
-                            BaseKind = (byte)24,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 197,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 197,
-                            BaseKind = (byte)26,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 198,
-                            BaseKind = (byte)19,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 198,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 198,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 198,
-                            BaseKind = (byte)22,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 198,
-                            BaseKind = (byte)24,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 198,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 198,
-                            BaseKind = (byte)26,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 199,
-                            BaseKind = (byte)19,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 199,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 199,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 199,
-                            BaseKind = (byte)22,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 199,
-                            BaseKind = (byte)24,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 199,
-                            BaseKind = (byte)25,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 199,
-                            BaseKind = (byte)26,
-                            Weight = 200
+                            ModifierId = 200,
+                            BaseKind = (byte)16,
+                            Weight = 1000
                         },
                         new
                         {
@@ -20624,12 +12714,48 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 200,
-                            BaseKind = (byte)25,
+                            BaseKind = (byte)24,
                             Weight = 1000
                         },
                         new
                         {
                             ModifierId = 201,
+                            BaseKind = (byte)1,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 201,
+                            BaseKind = (byte)4,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 201,
+                            BaseKind = (byte)7,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 201,
+                            BaseKind = (byte)10,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 201,
+                            BaseKind = (byte)13,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 201,
+                            BaseKind = (byte)16,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 201,
                             BaseKind = (byte)19,
                             Weight = 800
                         },
@@ -20654,12 +12780,48 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 201,
-                            BaseKind = (byte)25,
+                            BaseKind = (byte)24,
                             Weight = 800
                         },
                         new
                         {
                             ModifierId = 202,
+                            BaseKind = (byte)1,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 202,
+                            BaseKind = (byte)4,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 202,
+                            BaseKind = (byte)7,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 202,
+                            BaseKind = (byte)10,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 202,
+                            BaseKind = (byte)13,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 202,
+                            BaseKind = (byte)16,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 202,
                             BaseKind = (byte)19,
                             Weight = 600
                         },
@@ -20684,68 +12846,8 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             ModifierId = 202,
-                            BaseKind = (byte)25,
+                            BaseKind = (byte)24,
                             Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 203,
-                            BaseKind = (byte)19,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 203,
-                            BaseKind = (byte)20,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 203,
-                            BaseKind = (byte)21,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 203,
-                            BaseKind = (byte)22,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 203,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 204,
-                            BaseKind = (byte)19,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 204,
-                            BaseKind = (byte)20,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 204,
-                            BaseKind = (byte)21,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 204,
-                            BaseKind = (byte)22,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 204,
-                            BaseKind = (byte)25,
-                            Weight = 200
                         },
                         new
                         {
@@ -20803,42 +12905,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 208,
-                            BaseKind = (byte)6,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 208,
-                            BaseKind = (byte)12,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 208,
-                            BaseKind = (byte)18,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 209,
-                            BaseKind = (byte)6,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 209,
-                            BaseKind = (byte)12,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 209,
-                            BaseKind = (byte)18,
-                            Weight = 200
-                        },
-                        new
-                        {
                             ModifierId = 210,
                             BaseKind = (byte)1,
                             Weight = 1000
@@ -20871,12 +12937,6 @@ namespace Avalon.Database.World.Migrations
                         {
                             ModifierId = 210,
                             BaseKind = (byte)14,
-                            Weight = 1000
-                        },
-                        new
-                        {
-                            ModifierId = 210,
-                            BaseKind = (byte)25,
                             Weight = 1000
                         },
                         new
@@ -20917,12 +12977,6 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 211,
-                            BaseKind = (byte)25,
-                            Weight = 800
-                        },
-                        new
-                        {
                             ModifierId = 212,
                             BaseKind = (byte)1,
                             Weight = 600
@@ -20956,96 +13010,6 @@ namespace Avalon.Database.World.Migrations
                             ModifierId = 212,
                             BaseKind = (byte)14,
                             Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 212,
-                            BaseKind = (byte)25,
-                            Weight = 600
-                        },
-                        new
-                        {
-                            ModifierId = 213,
-                            BaseKind = (byte)1,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 213,
-                            BaseKind = (byte)2,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 213,
-                            BaseKind = (byte)7,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 213,
-                            BaseKind = (byte)8,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 213,
-                            BaseKind = (byte)13,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 213,
-                            BaseKind = (byte)14,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 213,
-                            BaseKind = (byte)25,
-                            Weight = 400
-                        },
-                        new
-                        {
-                            ModifierId = 214,
-                            BaseKind = (byte)1,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 214,
-                            BaseKind = (byte)2,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 214,
-                            BaseKind = (byte)7,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 214,
-                            BaseKind = (byte)8,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 214,
-                            BaseKind = (byte)13,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 214,
-                            BaseKind = (byte)14,
-                            Weight = 200
-                        },
-                        new
-                        {
-                            ModifierId = 214,
-                            BaseKind = (byte)25,
-                            Weight = 200
                         },
                         new
                         {
@@ -21067,9 +13031,165 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            ModifierId = 218,
-                            BaseKind = (byte)23,
-                            Weight = 400
+                            ModifierId = 284,
+                            BaseKind = (byte)2,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 284,
+                            BaseKind = (byte)3,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 284,
+                            BaseKind = (byte)5,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 284,
+                            BaseKind = (byte)8,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 284,
+                            BaseKind = (byte)9,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 284,
+                            BaseKind = (byte)11,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 284,
+                            BaseKind = (byte)14,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 284,
+                            BaseKind = (byte)15,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 284,
+                            BaseKind = (byte)17,
+                            Weight = 1000
+                        },
+                        new
+                        {
+                            ModifierId = 285,
+                            BaseKind = (byte)2,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 285,
+                            BaseKind = (byte)3,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 285,
+                            BaseKind = (byte)5,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 285,
+                            BaseKind = (byte)8,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 285,
+                            BaseKind = (byte)9,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 285,
+                            BaseKind = (byte)11,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 285,
+                            BaseKind = (byte)14,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 285,
+                            BaseKind = (byte)15,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 285,
+                            BaseKind = (byte)17,
+                            Weight = 800
+                        },
+                        new
+                        {
+                            ModifierId = 286,
+                            BaseKind = (byte)2,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 286,
+                            BaseKind = (byte)3,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 286,
+                            BaseKind = (byte)5,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 286,
+                            BaseKind = (byte)8,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 286,
+                            BaseKind = (byte)9,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 286,
+                            BaseKind = (byte)11,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 286,
+                            BaseKind = (byte)14,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 286,
+                            BaseKind = (byte)15,
+                            Weight = 600
+                        },
+                        new
+                        {
+                            ModifierId = 286,
+                            BaseKind = (byte)17,
+                            Weight = 600
                         });
                 });
 
@@ -21082,11 +13202,11 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired()
                         .HasColumnType("smallint[]");
 
-                    b.Property<long?>("AttackTimeMs")
-                        .HasColumnType("bigint");
-
                     b.Property<byte?>("BaseKind")
                         .HasColumnType("smallint");
+
+                    b.Property<decimal?>("BaseTemplateId")
+                        .HasColumnType("numeric(20,0)");
 
                     b.Property<long>("BuyPrice")
                         .HasColumnType("bigint");
@@ -21094,22 +13214,7 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("Class")
                         .HasColumnType("integer");
 
-                    b.Property<long?>("DamageMax1")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("DamageMax2")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("DamageMin1")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("DamageMin2")
-                        .HasColumnType("bigint");
-
-                    b.Property<int?>("DamageType1")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("DamageType2")
+                    b.Property<int?>("DamageType")
                         .HasColumnType("integer");
 
                     b.Property<long>("DisplayId")
@@ -21229,11 +13334,13 @@ namespace Avalon.Database.World.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BaseTemplateId");
+
                     b.ToTable("ItemTemplates", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ItemTemplates_AttackTimeMs", "\"AttackTimeMs\" IS NULL OR \"AttackTimeMs\" > 0");
-
                             t.HasCheckConstraint("CK_ItemTemplates_BaseKind", "\"BaseKind\" IS NULL OR \"BaseKind\" BETWEEN 1 AND 27");
+
+                            t.HasCheckConstraint("CK_ItemTemplates_BaseTemplate", "(\"Rarity\" = 3) = (\"BaseTemplateId\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_ItemTemplates_Rarity", "\"Rarity\" IN (0, 3)");
                         });
@@ -22352,13 +14459,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 32m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 792L,
                             BaseKind = (byte)19,
                             BuyPrice = 120L,
                             Class = 1,
-                            DamageMax1 = 7L,
-                            DamageMin1 = 4L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 32L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -22374,13 +14478,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 7m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 792L,
                             BaseKind = (byte)19,
                             BuyPrice = 240L,
                             Class = 1,
-                            DamageMax1 = 11L,
-                            DamageMin1 = 7L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 7L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -22397,13 +14498,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 100m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 792L,
                             BaseKind = (byte)19,
                             BuyPrice = 480L,
                             Class = 1,
-                            DamageMax1 = 17L,
-                            DamageMin1 = 11L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 100L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -22420,13 +14518,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 35m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 784L,
                             BaseKind = (byte)20,
                             BuyPrice = 120L,
                             Class = 1,
-                            DamageMax1 = 7L,
-                            DamageMin1 = 4L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 35L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -22442,13 +14537,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 8m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 784L,
                             BaseKind = (byte)20,
                             BuyPrice = 240L,
                             Class = 1,
-                            DamageMax1 = 11L,
-                            DamageMin1 = 7L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 8L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -22466,13 +14558,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 101m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 784L,
                             BaseKind = (byte)20,
                             BuyPrice = 480L,
                             Class = 1,
-                            DamageMax1 = 17L,
-                            DamageMin1 = 11L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 101L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -22490,13 +14579,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 33m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 800L,
                             BaseKind = (byte)21,
                             BuyPrice = 120L,
                             Class = 1,
-                            DamageMax1 = 7L,
-                            DamageMin1 = 4L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 33L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -22512,13 +14598,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 5m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 800L,
                             BaseKind = (byte)21,
                             BuyPrice = 240L,
                             Class = 1,
-                            DamageMax1 = 11L,
-                            DamageMin1 = 7L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 5L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -22535,13 +14618,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 102m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 800L,
                             BaseKind = (byte)21,
                             BuyPrice = 480L,
                             Class = 1,
-                            DamageMax1 = 17L,
-                            DamageMin1 = 11L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 102L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -22558,13 +14638,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 34m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 801L,
                             BaseKind = (byte)22,
                             BuyPrice = 120L,
                             Class = 1,
-                            DamageMax1 = 7L,
-                            DamageMin1 = 4L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 34L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -22580,13 +14657,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 6m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 801L,
                             BaseKind = (byte)22,
                             BuyPrice = 240L,
                             Class = 1,
-                            DamageMax1 = 11L,
-                            DamageMin1 = 7L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 6L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -22603,13 +14677,10 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 103m,
                             AllowedClasses = new byte[0],
-                            AttackTimeMs = 801L,
                             BaseKind = (byte)22,
                             BuyPrice = 480L,
                             Class = 1,
-                            DamageMax1 = 17L,
-                            DamageMin1 = 11L,
-                            DamageType1 = 0,
+                            DamageType = 0,
                             DisplayId = 103L,
                             Flags = 0,
                             MaxStackSize = 1L,
@@ -22754,6 +14825,474 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            Id = 104m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 104L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Oakbark Band",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 105m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 105L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Elmroot Band",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 106m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 106L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Thornwire Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 107m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 107L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Briarsteel Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 108m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 108L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Bramblefang Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 109m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 109L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Emberknot Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 110m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 110L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Cinderknot Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 111m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 111L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Ashcoil Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 112m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 112L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Hearthstone Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 113m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 113L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Kilnstone Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 114m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 114L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Forgeheart Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 115m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 115L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Rimeglass Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 116m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 116L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Frostglass Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 117m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 117L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Winterglass Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 118m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 118L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Lodestone Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 119m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 119L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Stormlode Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 120m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 120L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Thunderlode Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 121m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 121L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Willowbark Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 122m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 122L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Fenwillow Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 123m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 123L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Elderwillow Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 124m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 124L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Sparkthorn Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 125m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 125L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Stormthorn Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 126m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 126L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Thunderthorn Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 127m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 127L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Frostbud Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 128m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 128L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Rimebud Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
+                            Id = 129m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)26,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 129L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Winterbud Ring",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 7,
+                            SubClass = 207
+                        },
+                        new
+                        {
                             Id = 69m,
                             AllowedClasses = new byte[0],
                             BaseKind = (byte)25,
@@ -22772,9 +15311,406 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
+                            Id = 130m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 130L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Tusk Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 131m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 131L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Horn Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 132m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 132L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Antler Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 133m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 133L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Hartsong Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 134m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 134L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Stagcrown Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 135m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 135L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Hollowfeather Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 136m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 136L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Owlquill Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 137m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 137L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Nightplume Charm",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 138m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 138L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Gloam Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 139m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 139L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Mirk Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 140m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 140L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Nightmire Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 141m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 141L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Mossheart Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 142m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 142L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Fernheart Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 143m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 143L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Elderheart Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 144m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 144L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Foxtooth Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 145m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 145L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Wolfstooth Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 146m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 146L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Bearclaw Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 147m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 147L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Dewdrop Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 148m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 400L,
+                            Class = 2,
+                            DisplayId = 148L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Rainbead Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 5,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 100L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 149m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)25,
+                            BuyPrice = 800L,
+                            Class = 2,
+                            DisplayId = 149L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Wellspring Pendant",
+                            Rarity = (byte)0,
+                            RequiredLevel = 10,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 200L,
+                            Slot = 1,
+                            SubClass = 206
+                        },
+                        new
+                        {
+                            Id = 150m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)27,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 150L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Withered Seed",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 11,
+                            SubClass = 210
+                        },
+                        new
+                        {
+                            Id = 151m,
+                            AllowedClasses = new byte[0],
+                            BaseKind = (byte)27,
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 151L,
+                            Flags = 0,
+                            MaxStackSize = 1L,
+                            Name = "Carved Idol",
+                            Rarity = (byte)0,
+                            RequiredLevel = 1,
+                            RequiresAnyAttribute = false,
+                            SellPrice = 50L,
+                            Slot = 11,
+                            SubClass = 210
+                        },
+                        new
+                        {
                             Id = 58m,
                             AllowedClasses = new byte[0],
                             BaseKind = (byte)25,
+                            BaseTemplateId = 144m,
                             BuyPrice = 200L,
                             Class = 2,
                             DisplayId = 58L,
@@ -22793,6 +15729,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 64m,
                             AllowedClasses = new byte[0],
                             BaseKind = (byte)26,
+                            BaseTemplateId = 112m,
                             BuyPrice = 400L,
                             Class = 2,
                             DisplayId = 64L,
@@ -22811,6 +15748,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 65m,
                             AllowedClasses = new byte[0],
                             BaseKind = (byte)26,
+                            BaseTemplateId = 125m,
                             BuyPrice = 800L,
                             Class = 2,
                             DisplayId = 65L,
@@ -22829,6 +15767,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 66m,
                             AllowedClasses = new byte[0],
                             BaseKind = (byte)27,
+                            BaseTemplateId = 150m,
                             BuyPrice = 800L,
                             Class = 2,
                             DisplayId = 66L,
@@ -22847,6 +15786,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 67m,
                             AllowedClasses = new byte[0],
                             BaseKind = (byte)27,
+                            BaseTemplateId = 151m,
                             BuyPrice = 400L,
                             Class = 2,
                             DisplayId = 67L,
@@ -22971,6 +15911,725 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ItemTemplateBaseStat", b =>
+                {
+                    b.Property<decimal>("TemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<byte>("Stat")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("Max")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Min")
+                        .HasColumnType("integer");
+
+                    b.HasKey("TemplateId", "Stat");
+
+                    b.ToTable("ItemTemplateBaseStats", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ItemTemplateBaseStats_Range", "\"Min\" >= 0 AND \"Min\" <= \"Max\"");
+
+                            t.HasCheckConstraint("CK_ItemTemplateBaseStats_Stat", "\"Stat\" BETWEEN 0 AND 6");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            TemplateId = 5m,
+                            Stat = (byte)4,
+                            Max = 10,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 5m,
+                            Stat = (byte)5,
+                            Max = 18,
+                            Min = 12
+                        },
+                        new
+                        {
+                            TemplateId = 5m,
+                            Stat = (byte)6,
+                            Max = 1050,
+                            Min = 950
+                        },
+                        new
+                        {
+                            TemplateId = 6m,
+                            Stat = (byte)4,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 6m,
+                            Stat = (byte)5,
+                            Max = 13,
+                            Min = 9
+                        },
+                        new
+                        {
+                            TemplateId = 6m,
+                            Stat = (byte)6,
+                            Max = 840,
+                            Min = 760
+                        },
+                        new
+                        {
+                            TemplateId = 7m,
+                            Stat = (byte)4,
+                            Max = 7,
+                            Min = 5
+                        },
+                        new
+                        {
+                            TemplateId = 7m,
+                            Stat = (byte)5,
+                            Max = 12,
+                            Min = 8
+                        },
+                        new
+                        {
+                            TemplateId = 7m,
+                            Stat = (byte)6,
+                            Max = 735,
+                            Min = 665
+                        },
+                        new
+                        {
+                            TemplateId = 8m,
+                            Stat = (byte)4,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 8m,
+                            Stat = (byte)5,
+                            Max = 17,
+                            Min = 11
+                        },
+                        new
+                        {
+                            TemplateId = 8m,
+                            Stat = (byte)6,
+                            Max = 945,
+                            Min = 855
+                        },
+                        new
+                        {
+                            TemplateId = 12m,
+                            Stat = (byte)0,
+                            Max = 13,
+                            Min = 9
+                        },
+                        new
+                        {
+                            TemplateId = 13m,
+                            Stat = (byte)0,
+                            Max = 22,
+                            Min = 14
+                        },
+                        new
+                        {
+                            TemplateId = 14m,
+                            Stat = (byte)0,
+                            Max = 17,
+                            Min = 11
+                        },
+                        new
+                        {
+                            TemplateId = 15m,
+                            Stat = (byte)0,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 16m,
+                            Stat = (byte)0,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 17m,
+                            Stat = (byte)2,
+                            Max = 19,
+                            Min = 13
+                        },
+                        new
+                        {
+                            TemplateId = 18m,
+                            Stat = (byte)2,
+                            Max = 31,
+                            Min = 21
+                        },
+                        new
+                        {
+                            TemplateId = 19m,
+                            Stat = (byte)2,
+                            Max = 25,
+                            Min = 17
+                        },
+                        new
+                        {
+                            TemplateId = 20m,
+                            Stat = (byte)2,
+                            Max = 12,
+                            Min = 8
+                        },
+                        new
+                        {
+                            TemplateId = 21m,
+                            Stat = (byte)2,
+                            Max = 12,
+                            Min = 8
+                        },
+                        new
+                        {
+                            TemplateId = 22m,
+                            Stat = (byte)1,
+                            Max = 65,
+                            Min = 43
+                        },
+                        new
+                        {
+                            TemplateId = 23m,
+                            Stat = (byte)1,
+                            Max = 108,
+                            Min = 72
+                        },
+                        new
+                        {
+                            TemplateId = 24m,
+                            Stat = (byte)1,
+                            Max = 86,
+                            Min = 58
+                        },
+                        new
+                        {
+                            TemplateId = 25m,
+                            Stat = (byte)1,
+                            Max = 43,
+                            Min = 29
+                        },
+                        new
+                        {
+                            TemplateId = 26m,
+                            Stat = (byte)1,
+                            Max = 43,
+                            Min = 29
+                        },
+                        new
+                        {
+                            TemplateId = 32m,
+                            Stat = (byte)4,
+                            Max = 4,
+                            Min = 2
+                        },
+                        new
+                        {
+                            TemplateId = 32m,
+                            Stat = (byte)5,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 32m,
+                            Stat = (byte)6,
+                            Max = 735,
+                            Min = 665
+                        },
+                        new
+                        {
+                            TemplateId = 33m,
+                            Stat = (byte)4,
+                            Max = 6,
+                            Min = 4
+                        },
+                        new
+                        {
+                            TemplateId = 33m,
+                            Stat = (byte)5,
+                            Max = 11,
+                            Min = 7
+                        },
+                        new
+                        {
+                            TemplateId = 33m,
+                            Stat = (byte)6,
+                            Max = 1050,
+                            Min = 950
+                        },
+                        new
+                        {
+                            TemplateId = 34m,
+                            Stat = (byte)4,
+                            Max = 5,
+                            Min = 3
+                        },
+                        new
+                        {
+                            TemplateId = 34m,
+                            Stat = (byte)5,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 34m,
+                            Stat = (byte)6,
+                            Max = 840,
+                            Min = 760
+                        },
+                        new
+                        {
+                            TemplateId = 35m,
+                            Stat = (byte)4,
+                            Max = 5,
+                            Min = 3
+                        },
+                        new
+                        {
+                            TemplateId = 35m,
+                            Stat = (byte)5,
+                            Max = 11,
+                            Min = 7
+                        },
+                        new
+                        {
+                            TemplateId = 35m,
+                            Stat = (byte)6,
+                            Max = 945,
+                            Min = 855
+                        },
+                        new
+                        {
+                            TemplateId = 36m,
+                            Stat = (byte)0,
+                            Max = 6,
+                            Min = 4
+                        },
+                        new
+                        {
+                            TemplateId = 37m,
+                            Stat = (byte)0,
+                            Max = 10,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 38m,
+                            Stat = (byte)0,
+                            Max = 7,
+                            Min = 5
+                        },
+                        new
+                        {
+                            TemplateId = 39m,
+                            Stat = (byte)0,
+                            Max = 4,
+                            Min = 2
+                        },
+                        new
+                        {
+                            TemplateId = 40m,
+                            Stat = (byte)0,
+                            Max = 4,
+                            Min = 2
+                        },
+                        new
+                        {
+                            TemplateId = 41m,
+                            Stat = (byte)2,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 42m,
+                            Stat = (byte)2,
+                            Max = 14,
+                            Min = 10
+                        },
+                        new
+                        {
+                            TemplateId = 43m,
+                            Stat = (byte)2,
+                            Max = 12,
+                            Min = 8
+                        },
+                        new
+                        {
+                            TemplateId = 44m,
+                            Stat = (byte)2,
+                            Max = 6,
+                            Min = 4
+                        },
+                        new
+                        {
+                            TemplateId = 45m,
+                            Stat = (byte)2,
+                            Max = 6,
+                            Min = 4
+                        },
+                        new
+                        {
+                            TemplateId = 46m,
+                            Stat = (byte)1,
+                            Max = 29,
+                            Min = 19
+                        },
+                        new
+                        {
+                            TemplateId = 47m,
+                            Stat = (byte)1,
+                            Max = 48,
+                            Min = 32
+                        },
+                        new
+                        {
+                            TemplateId = 48m,
+                            Stat = (byte)1,
+                            Max = 38,
+                            Min = 26
+                        },
+                        new
+                        {
+                            TemplateId = 49m,
+                            Stat = (byte)1,
+                            Max = 19,
+                            Min = 13
+                        },
+                        new
+                        {
+                            TemplateId = 50m,
+                            Stat = (byte)1,
+                            Max = 19,
+                            Min = 13
+                        },
+                        new
+                        {
+                            TemplateId = 70m,
+                            Stat = (byte)0,
+                            Max = 7,
+                            Min = 5
+                        },
+                        new
+                        {
+                            TemplateId = 70m,
+                            Stat = (byte)3,
+                            Max = 6,
+                            Min = 4
+                        },
+                        new
+                        {
+                            TemplateId = 71m,
+                            Stat = (byte)0,
+                            Max = 17,
+                            Min = 11
+                        },
+                        new
+                        {
+                            TemplateId = 71m,
+                            Stat = (byte)3,
+                            Max = 8,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 72m,
+                            Stat = (byte)0,
+                            Max = 29,
+                            Min = 19
+                        },
+                        new
+                        {
+                            TemplateId = 72m,
+                            Stat = (byte)3,
+                            Max = 12,
+                            Min = 8
+                        },
+                        new
+                        {
+                            TemplateId = 73m,
+                            Stat = (byte)2,
+                            Max = 10,
+                            Min = 6
+                        },
+                        new
+                        {
+                            TemplateId = 74m,
+                            Stat = (byte)2,
+                            Max = 22,
+                            Min = 14
+                        },
+                        new
+                        {
+                            TemplateId = 75m,
+                            Stat = (byte)2,
+                            Max = 36,
+                            Min = 24
+                        },
+                        new
+                        {
+                            TemplateId = 76m,
+                            Stat = (byte)0,
+                            Max = 5,
+                            Min = 3
+                        },
+                        new
+                        {
+                            TemplateId = 77m,
+                            Stat = (byte)1,
+                            Max = 24,
+                            Min = 16
+                        },
+                        new
+                        {
+                            TemplateId = 78m,
+                            Stat = (byte)2,
+                            Max = 7,
+                            Min = 5
+                        },
+                        new
+                        {
+                            TemplateId = 79m,
+                            Stat = (byte)0,
+                            Max = 11,
+                            Min = 7
+                        },
+                        new
+                        {
+                            TemplateId = 80m,
+                            Stat = (byte)1,
+                            Max = 54,
+                            Min = 36
+                        },
+                        new
+                        {
+                            TemplateId = 81m,
+                            Stat = (byte)2,
+                            Max = 16,
+                            Min = 10
+                        },
+                        new
+                        {
+                            TemplateId = 82m,
+                            Stat = (byte)0,
+                            Max = 19,
+                            Min = 13
+                        },
+                        new
+                        {
+                            TemplateId = 83m,
+                            Stat = (byte)1,
+                            Max = 96,
+                            Min = 64
+                        },
+                        new
+                        {
+                            TemplateId = 84m,
+                            Stat = (byte)2,
+                            Max = 28,
+                            Min = 18
+                        },
+                        new
+                        {
+                            TemplateId = 85m,
+                            Stat = (byte)0,
+                            Max = 23,
+                            Min = 15
+                        },
+                        new
+                        {
+                            TemplateId = 86m,
+                            Stat = (byte)0,
+                            Max = 38,
+                            Min = 26
+                        },
+                        new
+                        {
+                            TemplateId = 87m,
+                            Stat = (byte)0,
+                            Max = 31,
+                            Min = 21
+                        },
+                        new
+                        {
+                            TemplateId = 88m,
+                            Stat = (byte)0,
+                            Max = 16,
+                            Min = 10
+                        },
+                        new
+                        {
+                            TemplateId = 89m,
+                            Stat = (byte)0,
+                            Max = 16,
+                            Min = 10
+                        },
+                        new
+                        {
+                            TemplateId = 90m,
+                            Stat = (byte)1,
+                            Max = 115,
+                            Min = 77
+                        },
+                        new
+                        {
+                            TemplateId = 91m,
+                            Stat = (byte)1,
+                            Max = 192,
+                            Min = 128
+                        },
+                        new
+                        {
+                            TemplateId = 92m,
+                            Stat = (byte)1,
+                            Max = 154,
+                            Min = 102
+                        },
+                        new
+                        {
+                            TemplateId = 93m,
+                            Stat = (byte)1,
+                            Max = 77,
+                            Min = 51
+                        },
+                        new
+                        {
+                            TemplateId = 94m,
+                            Stat = (byte)1,
+                            Max = 77,
+                            Min = 51
+                        },
+                        new
+                        {
+                            TemplateId = 95m,
+                            Stat = (byte)2,
+                            Max = 32,
+                            Min = 22
+                        },
+                        new
+                        {
+                            TemplateId = 96m,
+                            Stat = (byte)2,
+                            Max = 54,
+                            Min = 36
+                        },
+                        new
+                        {
+                            TemplateId = 97m,
+                            Stat = (byte)2,
+                            Max = 43,
+                            Min = 29
+                        },
+                        new
+                        {
+                            TemplateId = 98m,
+                            Stat = (byte)2,
+                            Max = 22,
+                            Min = 14
+                        },
+                        new
+                        {
+                            TemplateId = 99m,
+                            Stat = (byte)2,
+                            Max = 22,
+                            Min = 14
+                        },
+                        new
+                        {
+                            TemplateId = 100m,
+                            Stat = (byte)4,
+                            Max = 11,
+                            Min = 7
+                        },
+                        new
+                        {
+                            TemplateId = 100m,
+                            Stat = (byte)5,
+                            Max = 19,
+                            Min = 13
+                        },
+                        new
+                        {
+                            TemplateId = 100m,
+                            Stat = (byte)6,
+                            Max = 735,
+                            Min = 665
+                        },
+                        new
+                        {
+                            TemplateId = 101m,
+                            Stat = (byte)4,
+                            Max = 14,
+                            Min = 10
+                        },
+                        new
+                        {
+                            TemplateId = 101m,
+                            Stat = (byte)5,
+                            Max = 25,
+                            Min = 17
+                        },
+                        new
+                        {
+                            TemplateId = 101m,
+                            Stat = (byte)6,
+                            Max = 945,
+                            Min = 855
+                        },
+                        new
+                        {
+                            TemplateId = 102m,
+                            Stat = (byte)4,
+                            Max = 16,
+                            Min = 10
+                        },
+                        new
+                        {
+                            TemplateId = 102m,
+                            Stat = (byte)5,
+                            Max = 26,
+                            Min = 18
+                        },
+                        new
+                        {
+                            TemplateId = 102m,
+                            Stat = (byte)6,
+                            Max = 1050,
+                            Min = 950
+                        },
+                        new
+                        {
+                            TemplateId = 103m,
+                            Stat = (byte)4,
+                            Max = 13,
+                            Min = 9
+                        },
+                        new
+                        {
+                            TemplateId = 103m,
+                            Stat = (byte)5,
+                            Max = 20,
+                            Min = 14
+                        },
+                        new
+                        {
+                            TemplateId = 103m,
+                            Stat = (byte)6,
+                            Max = 840,
+                            Min = 760
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ItemTemplateModifier", b =>
                 {
                     b.Property<decimal>("TemplateId")
@@ -22989,6 +16648,234 @@ namespace Avalon.Database.World.Migrations
                     b.ToTable("ItemTemplateModifiers", (string)null);
 
                     b.HasData(
+                        new
+                        {
+                            TemplateId = 5m,
+                            Index = (byte)0,
+                            ModifierId = 336
+                        },
+                        new
+                        {
+                            TemplateId = 6m,
+                            Index = (byte)0,
+                            ModifierId = 324
+                        },
+                        new
+                        {
+                            TemplateId = 7m,
+                            Index = (byte)0,
+                            ModifierId = 315
+                        },
+                        new
+                        {
+                            TemplateId = 8m,
+                            Index = (byte)0,
+                            ModifierId = 348
+                        },
+                        new
+                        {
+                            TemplateId = 12m,
+                            Index = (byte)0,
+                            ModifierId = 288
+                        },
+                        new
+                        {
+                            TemplateId = 13m,
+                            Index = (byte)0,
+                            ModifierId = 303
+                        },
+                        new
+                        {
+                            TemplateId = 14m,
+                            Index = (byte)0,
+                            ModifierId = 309
+                        },
+                        new
+                        {
+                            TemplateId = 15m,
+                            Index = (byte)0,
+                            ModifierId = 306
+                        },
+                        new
+                        {
+                            TemplateId = 16m,
+                            Index = (byte)0,
+                            ModifierId = 312
+                        },
+                        new
+                        {
+                            TemplateId = 17m,
+                            Index = (byte)0,
+                            ModifierId = 330
+                        },
+                        new
+                        {
+                            TemplateId = 18m,
+                            Index = (byte)0,
+                            ModifierId = 336
+                        },
+                        new
+                        {
+                            TemplateId = 19m,
+                            Index = (byte)0,
+                            ModifierId = 342
+                        },
+                        new
+                        {
+                            TemplateId = 20m,
+                            Index = (byte)0,
+                            ModifierId = 339
+                        },
+                        new
+                        {
+                            TemplateId = 21m,
+                            Index = (byte)0,
+                            ModifierId = 291
+                        },
+                        new
+                        {
+                            TemplateId = 22m,
+                            Index = (byte)0,
+                            ModifierId = 315
+                        },
+                        new
+                        {
+                            TemplateId = 23m,
+                            Index = (byte)0,
+                            ModifierId = 321
+                        },
+                        new
+                        {
+                            TemplateId = 24m,
+                            Index = (byte)0,
+                            ModifierId = 294
+                        },
+                        new
+                        {
+                            TemplateId = 25m,
+                            Index = (byte)0,
+                            ModifierId = 324
+                        },
+                        new
+                        {
+                            TemplateId = 26m,
+                            Index = (byte)0,
+                            ModifierId = 327
+                        },
+                        new
+                        {
+                            TemplateId = 32m,
+                            Index = (byte)0,
+                            ModifierId = 314
+                        },
+                        new
+                        {
+                            TemplateId = 33m,
+                            Index = (byte)0,
+                            ModifierId = 335
+                        },
+                        new
+                        {
+                            TemplateId = 34m,
+                            Index = (byte)0,
+                            ModifierId = 323
+                        },
+                        new
+                        {
+                            TemplateId = 35m,
+                            Index = (byte)0,
+                            ModifierId = 347
+                        },
+                        new
+                        {
+                            TemplateId = 36m,
+                            Index = (byte)0,
+                            ModifierId = 287
+                        },
+                        new
+                        {
+                            TemplateId = 37m,
+                            Index = (byte)0,
+                            ModifierId = 302
+                        },
+                        new
+                        {
+                            TemplateId = 38m,
+                            Index = (byte)0,
+                            ModifierId = 308
+                        },
+                        new
+                        {
+                            TemplateId = 39m,
+                            Index = (byte)0,
+                            ModifierId = 305
+                        },
+                        new
+                        {
+                            TemplateId = 40m,
+                            Index = (byte)0,
+                            ModifierId = 311
+                        },
+                        new
+                        {
+                            TemplateId = 41m,
+                            Index = (byte)0,
+                            ModifierId = 329
+                        },
+                        new
+                        {
+                            TemplateId = 42m,
+                            Index = (byte)0,
+                            ModifierId = 335
+                        },
+                        new
+                        {
+                            TemplateId = 43m,
+                            Index = (byte)0,
+                            ModifierId = 341
+                        },
+                        new
+                        {
+                            TemplateId = 44m,
+                            Index = (byte)0,
+                            ModifierId = 338
+                        },
+                        new
+                        {
+                            TemplateId = 45m,
+                            Index = (byte)0,
+                            ModifierId = 290
+                        },
+                        new
+                        {
+                            TemplateId = 46m,
+                            Index = (byte)0,
+                            ModifierId = 314
+                        },
+                        new
+                        {
+                            TemplateId = 47m,
+                            Index = (byte)0,
+                            ModifierId = 320
+                        },
+                        new
+                        {
+                            TemplateId = 48m,
+                            Index = (byte)0,
+                            ModifierId = 293
+                        },
+                        new
+                        {
+                            TemplateId = 49m,
+                            Index = (byte)0,
+                            ModifierId = 323
+                        },
+                        new
+                        {
+                            TemplateId = 50m,
+                            Index = (byte)0,
+                            ModifierId = 326
+                        },
                         new
                         {
                             TemplateId = 58m,
@@ -23021,363 +16908,507 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            TemplateId = 12m,
+                            TemplateId = 68m,
                             Index = (byte)0,
-                            ModifierId = 224
+                            ModifierId = 344
                         },
                         new
                         {
-                            TemplateId = 13m,
+                            TemplateId = 69m,
                             Index = (byte)0,
-                            ModifierId = 225
-                        },
-                        new
-                        {
-                            TemplateId = 14m,
-                            Index = (byte)0,
-                            ModifierId = 226
-                        },
-                        new
-                        {
-                            TemplateId = 15m,
-                            Index = (byte)0,
-                            ModifierId = 227
-                        },
-                        new
-                        {
-                            TemplateId = 16m,
-                            Index = (byte)0,
-                            ModifierId = 228
-                        },
-                        new
-                        {
-                            TemplateId = 17m,
-                            Index = (byte)0,
-                            ModifierId = 229
-                        },
-                        new
-                        {
-                            TemplateId = 18m,
-                            Index = (byte)0,
-                            ModifierId = 230
-                        },
-                        new
-                        {
-                            TemplateId = 19m,
-                            Index = (byte)0,
-                            ModifierId = 231
-                        },
-                        new
-                        {
-                            TemplateId = 20m,
-                            Index = (byte)0,
-                            ModifierId = 232
-                        },
-                        new
-                        {
-                            TemplateId = 21m,
-                            Index = (byte)0,
-                            ModifierId = 233
-                        },
-                        new
-                        {
-                            TemplateId = 22m,
-                            Index = (byte)0,
-                            ModifierId = 234
-                        },
-                        new
-                        {
-                            TemplateId = 23m,
-                            Index = (byte)0,
-                            ModifierId = 235
-                        },
-                        new
-                        {
-                            TemplateId = 24m,
-                            Index = (byte)0,
-                            ModifierId = 236
-                        },
-                        new
-                        {
-                            TemplateId = 25m,
-                            Index = (byte)0,
-                            ModifierId = 237
-                        },
-                        new
-                        {
-                            TemplateId = 26m,
-                            Index = (byte)0,
-                            ModifierId = 238
-                        },
-                        new
-                        {
-                            TemplateId = 36m,
-                            Index = (byte)0,
-                            ModifierId = 239
-                        },
-                        new
-                        {
-                            TemplateId = 37m,
-                            Index = (byte)0,
-                            ModifierId = 240
-                        },
-                        new
-                        {
-                            TemplateId = 38m,
-                            Index = (byte)0,
-                            ModifierId = 241
-                        },
-                        new
-                        {
-                            TemplateId = 39m,
-                            Index = (byte)0,
-                            ModifierId = 242
-                        },
-                        new
-                        {
-                            TemplateId = 40m,
-                            Index = (byte)0,
-                            ModifierId = 243
-                        },
-                        new
-                        {
-                            TemplateId = 41m,
-                            Index = (byte)0,
-                            ModifierId = 244
-                        },
-                        new
-                        {
-                            TemplateId = 42m,
-                            Index = (byte)0,
-                            ModifierId = 245
-                        },
-                        new
-                        {
-                            TemplateId = 43m,
-                            Index = (byte)0,
-                            ModifierId = 246
-                        },
-                        new
-                        {
-                            TemplateId = 44m,
-                            Index = (byte)0,
-                            ModifierId = 247
-                        },
-                        new
-                        {
-                            TemplateId = 45m,
-                            Index = (byte)0,
-                            ModifierId = 248
-                        },
-                        new
-                        {
-                            TemplateId = 46m,
-                            Index = (byte)0,
-                            ModifierId = 249
-                        },
-                        new
-                        {
-                            TemplateId = 47m,
-                            Index = (byte)0,
-                            ModifierId = 250
-                        },
-                        new
-                        {
-                            TemplateId = 48m,
-                            Index = (byte)0,
-                            ModifierId = 251
-                        },
-                        new
-                        {
-                            TemplateId = 49m,
-                            Index = (byte)0,
-                            ModifierId = 252
-                        },
-                        new
-                        {
-                            TemplateId = 50m,
-                            Index = (byte)0,
-                            ModifierId = 253
+                            ModifierId = 308
                         },
                         new
                         {
                             TemplateId = 70m,
                             Index = (byte)0,
-                            ModifierId = 254
+                            ModifierId = 344
                         },
                         new
                         {
                             TemplateId = 71m,
                             Index = (byte)0,
-                            ModifierId = 255
+                            ModifierId = 345
                         },
                         new
                         {
                             TemplateId = 72m,
                             Index = (byte)0,
-                            ModifierId = 256
+                            ModifierId = 346
                         },
                         new
                         {
                             TemplateId = 73m,
                             Index = (byte)0,
-                            ModifierId = 257
+                            ModifierId = 335
                         },
                         new
                         {
                             TemplateId = 74m,
                             Index = (byte)0,
-                            ModifierId = 258
+                            ModifierId = 336
                         },
                         new
                         {
                             TemplateId = 75m,
                             Index = (byte)0,
-                            ModifierId = 259
+                            ModifierId = 337
                         },
                         new
                         {
                             TemplateId = 76m,
                             Index = (byte)0,
-                            ModifierId = 260
+                            ModifierId = 299
                         },
                         new
                         {
                             TemplateId = 77m,
                             Index = (byte)0,
-                            ModifierId = 261
+                            ModifierId = 317
                         },
                         new
                         {
                             TemplateId = 78m,
                             Index = (byte)0,
-                            ModifierId = 262
+                            ModifierId = 332
                         },
                         new
                         {
                             TemplateId = 79m,
                             Index = (byte)0,
-                            ModifierId = 263
+                            ModifierId = 300
                         },
                         new
                         {
                             TemplateId = 80m,
                             Index = (byte)0,
-                            ModifierId = 264
+                            ModifierId = 318
                         },
                         new
                         {
                             TemplateId = 81m,
                             Index = (byte)0,
-                            ModifierId = 265
+                            ModifierId = 333
                         },
                         new
                         {
                             TemplateId = 82m,
                             Index = (byte)0,
-                            ModifierId = 266
+                            ModifierId = 301
                         },
                         new
                         {
                             TemplateId = 83m,
                             Index = (byte)0,
-                            ModifierId = 267
+                            ModifierId = 319
                         },
                         new
                         {
                             TemplateId = 84m,
                             Index = (byte)0,
-                            ModifierId = 268
+                            ModifierId = 334
                         },
                         new
                         {
                             TemplateId = 85m,
                             Index = (byte)0,
-                            ModifierId = 269
+                            ModifierId = 289
                         },
                         new
                         {
                             TemplateId = 86m,
                             Index = (byte)0,
-                            ModifierId = 270
+                            ModifierId = 304
                         },
                         new
                         {
                             TemplateId = 87m,
                             Index = (byte)0,
-                            ModifierId = 271
+                            ModifierId = 310
                         },
                         new
                         {
                             TemplateId = 88m,
                             Index = (byte)0,
-                            ModifierId = 272
+                            ModifierId = 307
                         },
                         new
                         {
                             TemplateId = 89m,
                             Index = (byte)0,
-                            ModifierId = 273
+                            ModifierId = 313
                         },
                         new
                         {
                             TemplateId = 90m,
                             Index = (byte)0,
-                            ModifierId = 274
+                            ModifierId = 316
                         },
                         new
                         {
                             TemplateId = 91m,
                             Index = (byte)0,
-                            ModifierId = 275
+                            ModifierId = 322
                         },
                         new
                         {
                             TemplateId = 92m,
                             Index = (byte)0,
-                            ModifierId = 276
+                            ModifierId = 295
                         },
                         new
                         {
                             TemplateId = 93m,
                             Index = (byte)0,
-                            ModifierId = 277
+                            ModifierId = 325
                         },
                         new
                         {
                             TemplateId = 94m,
                             Index = (byte)0,
-                            ModifierId = 278
+                            ModifierId = 328
                         },
                         new
                         {
                             TemplateId = 95m,
                             Index = (byte)0,
-                            ModifierId = 279
+                            ModifierId = 331
                         },
                         new
                         {
                             TemplateId = 96m,
                             Index = (byte)0,
-                            ModifierId = 280
+                            ModifierId = 337
                         },
                         new
                         {
                             TemplateId = 97m,
                             Index = (byte)0,
-                            ModifierId = 281
+                            ModifierId = 343
                         },
                         new
                         {
                             TemplateId = 98m,
                             Index = (byte)0,
-                            ModifierId = 282
+                            ModifierId = 340
                         },
                         new
                         {
                             TemplateId = 99m,
                             Index = (byte)0,
-                            ModifierId = 283
+                            ModifierId = 292
+                        },
+                        new
+                        {
+                            TemplateId = 100m,
+                            Index = (byte)0,
+                            ModifierId = 316
+                        },
+                        new
+                        {
+                            TemplateId = 101m,
+                            Index = (byte)0,
+                            ModifierId = 349
+                        },
+                        new
+                        {
+                            TemplateId = 102m,
+                            Index = (byte)0,
+                            ModifierId = 337
+                        },
+                        new
+                        {
+                            TemplateId = 103m,
+                            Index = (byte)0,
+                            ModifierId = 325
+                        },
+                        new
+                        {
+                            TemplateId = 104m,
+                            Index = (byte)0,
+                            ModifierId = 345
+                        },
+                        new
+                        {
+                            TemplateId = 105m,
+                            Index = (byte)0,
+                            ModifierId = 346
+                        },
+                        new
+                        {
+                            TemplateId = 106m,
+                            Index = (byte)0,
+                            ModifierId = 305
+                        },
+                        new
+                        {
+                            TemplateId = 107m,
+                            Index = (byte)0,
+                            ModifierId = 306
+                        },
+                        new
+                        {
+                            TemplateId = 108m,
+                            Index = (byte)0,
+                            ModifierId = 307
+                        },
+                        new
+                        {
+                            TemplateId = 109m,
+                            Index = (byte)0,
+                            ModifierId = 353
+                        },
+                        new
+                        {
+                            TemplateId = 110m,
+                            Index = (byte)0,
+                            ModifierId = 354
+                        },
+                        new
+                        {
+                            TemplateId = 111m,
+                            Index = (byte)0,
+                            ModifierId = 355
+                        },
+                        new
+                        {
+                            TemplateId = 112m,
+                            Index = (byte)0,
+                            ModifierId = 287
+                        },
+                        new
+                        {
+                            TemplateId = 113m,
+                            Index = (byte)0,
+                            ModifierId = 288
+                        },
+                        new
+                        {
+                            TemplateId = 114m,
+                            Index = (byte)0,
+                            ModifierId = 289
+                        },
+                        new
+                        {
+                            TemplateId = 115m,
+                            Index = (byte)0,
+                            ModifierId = 290
+                        },
+                        new
+                        {
+                            TemplateId = 116m,
+                            Index = (byte)0,
+                            ModifierId = 291
+                        },
+                        new
+                        {
+                            TemplateId = 117m,
+                            Index = (byte)0,
+                            ModifierId = 292
+                        },
+                        new
+                        {
+                            TemplateId = 118m,
+                            Index = (byte)0,
+                            ModifierId = 293
+                        },
+                        new
+                        {
+                            TemplateId = 119m,
+                            Index = (byte)0,
+                            ModifierId = 294
+                        },
+                        new
+                        {
+                            TemplateId = 120m,
+                            Index = (byte)0,
+                            ModifierId = 295
+                        },
+                        new
+                        {
+                            TemplateId = 121m,
+                            Index = (byte)0,
+                            ModifierId = 296
+                        },
+                        new
+                        {
+                            TemplateId = 122m,
+                            Index = (byte)0,
+                            ModifierId = 297
+                        },
+                        new
+                        {
+                            TemplateId = 123m,
+                            Index = (byte)0,
+                            ModifierId = 298
+                        },
+                        new
+                        {
+                            TemplateId = 124m,
+                            Index = (byte)0,
+                            ModifierId = 350
+                        },
+                        new
+                        {
+                            TemplateId = 125m,
+                            Index = (byte)0,
+                            ModifierId = 351
+                        },
+                        new
+                        {
+                            TemplateId = 126m,
+                            Index = (byte)0,
+                            ModifierId = 352
+                        },
+                        new
+                        {
+                            TemplateId = 127m,
+                            Index = (byte)0,
+                            ModifierId = 356
+                        },
+                        new
+                        {
+                            TemplateId = 128m,
+                            Index = (byte)0,
+                            ModifierId = 357
+                        },
+                        new
+                        {
+                            TemplateId = 129m,
+                            Index = (byte)0,
+                            ModifierId = 358
+                        },
+                        new
+                        {
+                            TemplateId = 130m,
+                            Index = (byte)0,
+                            ModifierId = 309
+                        },
+                        new
+                        {
+                            TemplateId = 131m,
+                            Index = (byte)0,
+                            ModifierId = 310
+                        },
+                        new
+                        {
+                            TemplateId = 132m,
+                            Index = (byte)0,
+                            ModifierId = 317
+                        },
+                        new
+                        {
+                            TemplateId = 133m,
+                            Index = (byte)0,
+                            ModifierId = 318
+                        },
+                        new
+                        {
+                            TemplateId = 134m,
+                            Index = (byte)0,
+                            ModifierId = 319
+                        },
+                        new
+                        {
+                            TemplateId = 135m,
+                            Index = (byte)0,
+                            ModifierId = 332
+                        },
+                        new
+                        {
+                            TemplateId = 136m,
+                            Index = (byte)0,
+                            ModifierId = 333
+                        },
+                        new
+                        {
+                            TemplateId = 137m,
+                            Index = (byte)0,
+                            ModifierId = 334
+                        },
+                        new
+                        {
+                            TemplateId = 138m,
+                            Index = (byte)0,
+                            ModifierId = 359
+                        },
+                        new
+                        {
+                            TemplateId = 139m,
+                            Index = (byte)0,
+                            ModifierId = 360
+                        },
+                        new
+                        {
+                            TemplateId = 140m,
+                            Index = (byte)0,
+                            ModifierId = 361
+                        },
+                        new
+                        {
+                            TemplateId = 141m,
+                            Index = (byte)0,
+                            ModifierId = 362
+                        },
+                        new
+                        {
+                            TemplateId = 142m,
+                            Index = (byte)0,
+                            ModifierId = 363
+                        },
+                        new
+                        {
+                            TemplateId = 143m,
+                            Index = (byte)0,
+                            ModifierId = 364
+                        },
+                        new
+                        {
+                            TemplateId = 144m,
+                            Index = (byte)0,
+                            ModifierId = 314
+                        },
+                        new
+                        {
+                            TemplateId = 145m,
+                            Index = (byte)0,
+                            ModifierId = 315
+                        },
+                        new
+                        {
+                            TemplateId = 146m,
+                            Index = (byte)0,
+                            ModifierId = 316
+                        },
+                        new
+                        {
+                            TemplateId = 147m,
+                            Index = (byte)0,
+                            ModifierId = 329
+                        },
+                        new
+                        {
+                            TemplateId = 148m,
+                            Index = (byte)0,
+                            ModifierId = 330
+                        },
+                        new
+                        {
+                            TemplateId = 149m,
+                            Index = (byte)0,
+                            ModifierId = 331
+                        },
+                        new
+                        {
+                            TemplateId = 150m,
+                            Index = (byte)0,
+                            ModifierId = 362
+                        },
+                        new
+                        {
+                            TemplateId = 151m,
+                            Index = (byte)0,
+                            ModifierId = 329
                         });
                 });
 
@@ -27301,6 +21332,23 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ItemTemplate", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("BaseTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemTemplateBaseStat", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemTemplate", null)
+                        .WithMany("BaseStats")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ItemTemplateModifier", b =>
                 {
                     b.HasOne("Avalon.Domain.World.ItemModifier", null)
@@ -27668,6 +21716,11 @@ namespace Avalon.Database.World.Migrations
                     b.Navigation("Stats");
 
                     b.Navigation("Weights");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemTemplate", b =>
+                {
+                    b.Navigation("BaseStats");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.LootTable", b =>

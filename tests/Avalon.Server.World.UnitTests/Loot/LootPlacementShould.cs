@@ -1,7 +1,10 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Loot;
 using Avalon.World;
+using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Public.Maps;
 using NSubstitute;
@@ -103,6 +106,9 @@ public class LootPlacementShould
         StaticData data = await TestStaticData.LoadAsync();
         GroundLoot sword = Place([RolledDrop.Item(new ItemTemplateId(4), 1)], new LootAllocation(7, s_freeAt), OpenGround())[0];
         GroundLoot pile = Place([RolledDrop.GoldPile(25)], new LootAllocation(null, s_freeAt), OpenGround())[0];
+        // A plate chest copy carries its rolled armour (#1179); a ring has no base stats.
+        GroundLoot chest = Place([Rolled(37, new ItemBaseStats { Armour = 8 })], new LootAllocation(7, s_freeAt), OpenGround())[0];
+        GroundLoot ring = Place([Rolled(68, default)], new LootAllocation(7, s_freeAt), OpenGround())[0];
 
         LootDropDto swordDto = LootDropMapper.ToDto(sword, data);
         LootDropDto pileDto = LootDropMapper.ToDto(pile, data);
@@ -117,5 +123,22 @@ public class LootPlacementShould
         Assert.Null(pileDto.ItemTemplateId);
         Assert.Equal(25UL, pileDto.Gold);
         Assert.Null(pileDto.OwnerCharacterId);
+
+        Assert.Equal("Armour 8", Shown(LootDropMapper.ToDto(chest, data)));
+        Assert.All([ring, pile], d => Assert.Null(LootDropMapper.ToDto(d, data).BaseStats));
+
+        // A kill's kept message, refilled from the pool: the ring keeps nothing of the chest, and the chest comes back.
+        var pool = new ItemModifierDtoPool();
+        var kept = new LootDropDto();
+        Assert.Equal("Armour 8", Shown(LootDropMapper.Fill(kept, chest, data, pool)));
+        Assert.Null(LootDropMapper.Fill(kept, ring, data, pool).BaseStats);
+        Assert.Equal("Armour 8", Shown(LootDropMapper.Fill(kept, chest, data, pool)));
     }
+
+    private static RolledDrop Rolled(ulong template, ItemBaseStats baseStats) =>
+        new(new ItemTemplateId(template), 1, 0,
+            new RolledItem(new ItemInstanceId(Guid.NewGuid()), new ItemTemplateId(template), ItemRarity.Common, 1, null, baseStats, []));
+
+    private static string Shown(LootDropDto dto) =>
+        string.Join(", ", (dto.BaseStats ?? []).Select(b => $"{b.Stat} {b.Value}"));
 }

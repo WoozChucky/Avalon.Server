@@ -163,6 +163,15 @@ enum AuthResult {
    AuthResult_BANNED = 7;
    AuthResult_DEACTIVATED = 8;
 }
+enum BaseStat {
+   BaseStat_Armour = 0;
+   BaseStat_Evasion = 1;
+   BaseStat_Ward = 2;
+   BaseStat_BlockChance = 3;
+   BaseStat_DamageMin = 4;
+   BaseStat_DamageMax = 5;
+   BaseStat_AttackTime = 6;
+}
 message CAuraCancelPacket {
    uint32 AuraId = 1;
    optional uint32 InstanceKey = 2;
@@ -513,6 +522,10 @@ enum InventoryType {
    InventoryType_Bag = 1;
    InventoryType_Bank = 2;
 }
+message ItemBaseStatDto {
+   BaseStat Stat = 1;
+   int32 Value = 2;
+}
 message ItemModifierDto {
    uint32 ModifierId = 1;
    repeated ItemModifierValueDto Values = 2;
@@ -559,6 +572,7 @@ message ItemSlotDto {
    uint32 ItemLevel = 9;
    repeated ItemModifierDto Modifiers = 10;
    optional string Name = 11;
+   repeated ItemBaseStatDto BaseStats = 12;
 }
 enum ItemStat {
    ItemStat_Stamina = 0;
@@ -612,6 +626,7 @@ enum ItemStat {
    ItemStat_AddedFireDamageToSpells = 50;
    ItemStat_AddedColdDamageToSpells = 51;
    ItemStat_AddedLightningDamageToSpells = 52;
+   ItemStat_IncreasedMaximumLife = 53;
 }
 enum ItemUseResult {
    ItemUseResult_Unknown = 0;
@@ -648,6 +663,7 @@ message LootDropDto {
    uint32 ItemLevel = 9;
    repeated ItemModifierDto Modifiers = 10;
    optional string Name = 11;
+   repeated ItemBaseStatDto BaseStats = 12;
 }
 enum LootPickupResult {
    LootPickupResult_Ok = 0;
@@ -1527,6 +1543,7 @@ message TradeItemDto {
    uint32 ItemLevel = 6;
    repeated ItemModifierDto Modifiers = 7;
    optional string Name = 8;
+   repeated ItemBaseStatDto BaseStats = 9;
 }
 enum TradeResult {
    TradeResult_Unknown = 0;

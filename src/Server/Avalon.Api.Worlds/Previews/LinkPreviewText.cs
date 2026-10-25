@@ -26,10 +26,7 @@ public static partial class LinkPreviewText
         List<string> parts = [SplitWords(item.Rarity.ToString())];
         if (item.Slot is { } slot) parts.Add(SplitWords(slot.ToString()));
         parts.Add(SplitWords(item.SubClass.ToString()));
-        parts.AddRange(item.Damage.Select(d =>
-            string.Join(' ', new[] { d.Min == d.Max ? Num(d.Max) : $"{Num(d.Min)} – {Num(d.Max)}", d.Type?.ToString(), "Damage" }
-                .Where(p => !string.IsNullOrEmpty(p)))));
-        if (AttackTime(item.AttackTimeMs) is { } attackTime) parts.Add(attackTime);
+        parts.AddRange(BaseStats(item));
         parts.AddRange(item.ModifierSpans.Select(s => FormatSpan(s.Stat, s.Min, s.Max, s.Min2, s.Max2)));
         parts.AddRange(item.Stats.Where(s => s.Type == StatType.Armor).Select(s => FormatStat(s.Type, s.Value)));
         parts.AddRange(item.Stats.Where(s => s.Type != StatType.Armor).Select(s => FormatStat(s.Type, s.Value)));
@@ -132,8 +129,8 @@ public static partial class LinkPreviewText
     /// One item stat as the tooltip writes it (#1189): armour as a plain <c>8 Armor</c>; the <c>…Pct</c> stats, the
     /// resistances, the crit multiplier, attack, cast and movement speed and cooldown recovery as percent points
     /// (<c>+2% Crit</c>, <c>+5% Fire Resistance</c>, <c>+5% Movement Speed</c>); the <c>Increased…</c> stats as
-    /// <c>+10% increased Fire Damage</c>, and the item-local ones (#1179) alike (<c>+5% increased Armor</c>, <c>+5% increased
-    /// Attack Speed</c>); added damage as <c>Adds 5 Fire Damage</c>, <c>Adds 5 Cold Damage to Attacks</c> or <c>Adds 5
+    /// <c>+10% increased Fire Damage</c> (increased maximum life as <c>+5% increased Health</c>), and the item-local ones
+    /// (#1179) alike (<c>+5% increased Armor</c>, <c>+5% increased Attack Speed</c>); added damage as <c>Adds 5 Fire Damage</c>, <c>Adds 5 Cold Damage to Attacks</c> or <c>Adds 5
     /// Lightning Damage to Spells</c>; the rest, Evasion and Ward among them, as a plain rating (<c>+12 Evasion</c>).
     /// A negative value keeps its own sign (<c>-3% Cold Resistance</c>), and armour never gets a plus. The Dashboard's
     /// packages/shared/src/items/stat-wording.json holds a row for every stat; both sides test against it (#460).
@@ -155,6 +152,51 @@ public static partial class LinkPreviewText
     }
 
     /// <summary>
+    /// A base stat every copy rolls within (#1179), its range as the item's own number: <c>4-6 Armor</c>,
+    /// <c>19-29 Evasion</c>, <c>6-8 Ward</c>, <c>4-6% Block</c>, an attack time in seconds at both ends
+    /// (<c>0.95-1.05 sec attack time</c>); one number when both ends are equal. A weapon's damage ends are worded
+    /// together, by <see cref="FormatDamage" />. The shared wording file's <c>baseStats</c> rows hold it.
+    /// </summary>
+    public static string FormatBaseStat(ItemBaseStat stat, int min, int max) => stat switch
+    {
+        ItemBaseStat.Armour => $"{Range(min, max)} Armor",
+        ItemBaseStat.Evasion => $"{Range(min, max)} Evasion",
+        ItemBaseStat.Ward => $"{Range(min, max)} Ward",
+        ItemBaseStat.BlockChance => $"{Range(min, max)}% Block",
+        ItemBaseStat.AttackTime => min == max
+            ? $"{SecondsNumber(min)} sec attack time"
+            : $"{SecondsNumber(min)}-{SecondsNumber(max)} sec attack time",
+        _ => throw new ArgumentOutOfRangeException(nameof(stat), stat, "A weapon's damage ends are worded by FormatDamage."),
+    };
+
+    /// <summary>
+    /// A weapon's damage every copy rolls within (#1179): its low end's range, then its high end's, then its type,
+    /// <c>2-4 to 6-8 Physical Damage</c>; one number for a range whose ends are equal. The shared wording file's
+    /// <c>baseStats</c> rows hold it.
+    /// </summary>
+    public static string FormatDamage(int min, int max, int min2, int max2, DamageType? type) =>
+        type is { } damageType
+            ? $"{Range(min, max)} to {Range(min2, max2)} {damageType} Damage"
+            : $"{Range(min, max)} to {Range(min2, max2)} Damage";
+
+    /// <summary>
+    /// The base stats every copy rolls within (#1179), in <see cref="ItemBaseStat" /> order: a weapon's two damage ends
+    /// as one part where its low end stands, and its attack time after it. A lone damage end, which the world refuses,
+    /// says nothing.
+    /// </summary>
+    private static IEnumerable<string> BaseStats(PublicItemDto item)
+    {
+        PublicItemBaseStatDto? high = item.BaseStats.Find(s => s.Stat == ItemBaseStat.DamageMax);
+        foreach (PublicItemBaseStatDto stat in item.BaseStats.OrderBy(s => s.Stat))
+        {
+            if (stat.Stat == ItemBaseStat.DamageMin && high is not null)
+                yield return FormatDamage(stat.Min, stat.Max, high.Min, high.Max, item.DamageType);
+            else if (stat.Stat is not (ItemBaseStat.DamageMin or ItemBaseStat.DamageMax))
+                yield return FormatBaseStat(stat.Stat, stat.Min, stat.Max);
+        }
+    }
+
+    /// <summary>
     /// The stat's wording around <paramref name="amount" />, the number as written: a plus before it unless
     /// <paramref name="negative" /> (its own sign is in it), never on armour or added damage.
     /// </summary>
@@ -163,6 +205,8 @@ public static partial class LinkPreviewText
         string name = type.ToString();
         if (type == StatType.Armor) return $"{amount} Armor";
         string signed = negative ? amount : $"+{amount}";
+        // The shared wording calls life Health (#1179).
+        if (type == StatType.IncreasedMaximumLife) return $"{signed}% increased Health";
         if (name.EndsWith("Pct", StringComparison.Ordinal)) return $"{signed}% {SplitWords(name[..^3])}";
         if (name.EndsWith("Resistance", StringComparison.Ordinal) || IsPercentPoints(type))
             return $"{signed}% {SplitWords(name)}";
@@ -183,12 +227,6 @@ public static partial class LinkPreviewText
     }
 
     /// <summary>
-    /// A weapon's pace before attack speed (#1178) as <c>2.6 sec attack time</c>, on its damage line; null, so left out,
-    /// for no attack time or 0.
-    /// </summary>
-    public static string? AttackTime(uint? ms) => ms is > 0 ? $"{Seconds(ms.Value)} attack time" : null;
-
-    /// <summary>
     /// The stats without a <c>Pct</c> or <c>Resistance</c> in their name that the world adds as percent points (#1178;
     /// movement speed into MovementSpeedPct, #1189), written with a % and their own name.
     /// </summary>
@@ -205,8 +243,11 @@ public static partial class LinkPreviewText
     /// Milliseconds as <c>1.5 sec</c>, as the tooltip writes them: to the hundredth, a half rounded up (<c>1005</c> is
     /// <c>1.01 sec</c>), with no trailing zeros. Decimal, so a tie is a tie, never a binary fraction either side of one.
     /// </summary>
-    private static string Seconds(uint ms) =>
-        $"{Math.Round(ms / 1000m, 2, MidpointRounding.AwayFromZero).ToString("0.##", CultureInfo.InvariantCulture)} sec";
+    private static string Seconds(uint ms) => $"{SecondsNumber(ms)} sec";
+
+    /// <summary>Milliseconds as the number of seconds <see cref="Seconds" /> writes: <c>1.5</c>, <c>0.95</c>.</summary>
+    private static string SecondsNumber(long ms) =>
+        Math.Round(ms / 1000m, 2, MidpointRounding.AwayFromZero).ToString("0.##", CultureInfo.InvariantCulture);
 
     private static string Num(uint value) => value.ToString(CultureInfo.InvariantCulture);
 

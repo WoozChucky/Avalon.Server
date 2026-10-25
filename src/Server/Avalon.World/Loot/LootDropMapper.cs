@@ -8,37 +8,51 @@ namespace Avalon.World.Loot;
 public static class LootDropMapper
 {
     /// <summary>
-    /// <paramref name="drop" /> on the wire, its modifiers in lists of its own: for a snapshot, built once for every
-    /// connection it is sent to. FreeForAllAt goes out as UTC ticks, the clock SPingPacket.ServerTimestamp carries.
+    /// <paramref name="drop" /> on the wire, its modifiers and base stats in lists of their own: for a snapshot, built
+    /// once for every connection it is sent to. FreeForAllAt goes out as UTC ticks, the clock SPingPacket.ServerTimestamp
+    /// carries.
     /// </summary>
     /// <param name="data">Gives an item drop that did not roll its template's item level.</param>
     public static LootDropDto ToDto(GroundLoot drop, StaticData data)
     {
         LootDropDto dto = FillDrop(new LootDropDto(), drop, data);
-        dto.Modifiers = drop.Rolled is { } rolled ? ItemModifierDtoMapper.ToDtos(rolled.Modifiers) : null;
+        if (drop.Rolled is { } rolled)
+        {
+            dto.Modifiers = ItemModifierDtoMapper.ToDtos(rolled.Modifiers);
+            dto.BaseStats = ItemModifierDtoMapper.ToBaseStatDtos(rolled.BaseStats);
+        }
+
         return dto;
     }
 
     /// <summary>
     /// Writes <paramref name="drop" /> over <paramref name="dto" />, every member of it, so a message kept from an
-    /// earlier drop (a kill refills the ones its instance keeps, #890) carries nothing of that drop: its modifiers are
-    /// refilled in place through <paramref name="pool" /> (#1179), which keeps what a smaller drop leaves over.
+    /// earlier drop (a kill refills the ones its instance keeps, #890) carries nothing of that drop: its modifiers and base
+    /// stats are refilled in place through <paramref name="pool" /> (#1179), which keeps what a smaller drop leaves over.
     /// </summary>
     /// <param name="data">Gives an item drop that did not roll its template's item level.</param>
     public static LootDropDto Fill(LootDropDto dto, GroundLoot drop, StaticData data, ItemModifierDtoPool pool)
     {
         FillDrop(dto, drop, data);
-        // Each branch its own call: under one conditional the empty collection would be made a new list, one per drop.
-        dto.Modifiers = drop.Rolled is { } rolled
-            ? pool.Refill(dto.Modifiers, rolled.Modifiers)
-            : pool.Refill(dto.Modifiers, []);
+        if (drop.Rolled is { } rolled)
+        {
+            dto.Modifiers = pool.Refill(dto.Modifiers, rolled.Modifiers);
+            dto.BaseStats = pool.RefillBaseStats(dto.BaseStats, rolled.BaseStats);
+        }
+        else
+        {
+            // Not under one conditional with the branch above: the empty collection would be made a new list, one per drop.
+            dto.Modifiers = pool.Refill(dto.Modifiers, []);
+            dto.BaseStats = pool.RefillBaseStats(dto.BaseStats, default);
+        }
+
         return dto;
     }
 
     /// <summary>
-    /// Every member but the modifiers. A rolled copy sends its own rarity, item level and name (#1179); an item drop that
-    /// did not roll sends Common, the item level a copy made from its template outright takes, which its pickup makes,
-    /// and no name; a gold pile, Common and 0.
+    /// Every member but the modifiers and the base stats. A rolled copy sends its own rarity, item level and name (#1179);
+    /// an item drop that did not roll sends Common, the item level a copy made from its template outright takes, which its
+    /// pickup makes, and no name; a gold pile, Common and 0.
     /// </summary>
     private static LootDropDto FillDrop(LootDropDto dto, GroundLoot drop, StaticData data)
     {

@@ -65,6 +65,13 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     /// </summary>
     public ItemBaseKind? BaseKind { get; set; }
 
+    /// <summary>
+    /// The base a Unique template is made on (#1179): a Common template of its own kind, at or under its required level,
+    /// whose base-stat ranges and implicit every copy of the unique rolls before its own modifier. Set on every Unique
+    /// template and on no other.
+    /// </summary>
+    public ItemTemplateId? BaseTemplateId { get; set; }
+
     public uint BuyPrice { get; set; }
 
     public uint SellPrice { get; set; }
@@ -94,23 +101,18 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
     /// </summary>
     public bool RequiresAnyAttribute { get; set; }
 
-    public uint? DamageMin1 { get; set; }
-
-    public uint? DamageMax1 { get; set; }
-
-    public DamageType? DamageType1 { get; set; }
-
-    public uint? DamageMin2 { get; set; }
-
-    public uint? DamageMax2 { get; set; }
-
-    public DamageType? DamageType2 { get; set; }
+    /// <summary>
+    /// The type of a weapon's damage (#1178): set on a template of a weapon kind and on no other (#1179,
+    /// <see cref="ItemBaseStatRules" />). A weapon's damage range and attack time are base stats, which every copy rolls.
+    /// </summary>
+    public DamageType? DamageType { get; set; }
 
     /// <summary>
-    /// Milliseconds between a weapon's basic attacks before attack speed (#1178), above 0; null for an item that is not
-    /// a weapon.
+    /// The base stats every copy rolls (#1179), one authored range per stat: exactly what
+    /// <see cref="ItemBaseStatRules.Of" /> asks of the template's kind and rarity, so empty for jewellery, a trinket, a
+    /// unique and an item that is no base. Loaded with the template.
     /// </summary>
-    public uint? AttackTimeMs { get; set; }
+    public List<ItemTemplateBaseStat> BaseStats { get; set; } = [];
 
     public StatType? StatType1 { get; set; }
 
@@ -235,6 +237,9 @@ public enum StatType
     AddedFireDamageToSpells = 50,
     AddedColdDamageToSpells = 51,
     AddedLightningDamageToSpells = 52,
+
+    // A percentage of increased maximum life: it scales the flat life from base, Stamina and gear (#1179).
+    IncreasedMaximumLife = 53,
 }
 
 [Flags]

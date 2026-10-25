@@ -194,6 +194,14 @@ public class CharacterService : ICharacterService
                 SlotType = (Avalon.Api.Contract.ItemSlotType?)template.Slot,
                 RequiredLevel = template.RequiredLevel ?? 0,
             },
+            // The read loads the rows in no particular order; by stat, as every reader of base stats shows them.
+            BaseStats = instance is null
+                ? []
+                : [.. instance.BaseStats.OrderBy(s => s.Stat).Select(s => new CharacterInventoryBaseStatDto
+                {
+                    Stat = (Avalon.Api.Contract.ItemBaseStat)s.Stat,
+                    Value = s.Value,
+                })],
         };
     }
 
@@ -336,7 +344,7 @@ public class CharacterService : ICharacterService
             .ToList();
         if (worn.Count == 0) return [];
 
-        // Loaded with their modifiers and the modifiers' values.
+        // Loaded with their base stats, their modifiers and the modifiers' values.
         var instances = (await _itemInstanceRepository.GetByCharacterIdAsync(id, cancellationToken))
             .ToDictionary(i => i.Id);
         IEnumerable<ItemTemplateId> templateIds = worn
@@ -344,6 +352,14 @@ public class CharacterService : ICharacterService
             .OfType<ItemTemplateId>();
         var templates = (await _itemTemplateRepository.GetByIdsAsync(templateIds, cancellationToken))
             .ToDictionary(t => t.Id);
+        // A worn unique deals its named base's damage type (#1179), so the bases it names load too.
+        ItemTemplateId[] named = [.. templates.Values.Select(t => t.BaseTemplateId).OfType<ItemTemplateId>()
+            .Where(baseId => !templates.ContainsKey(baseId)).Distinct()];
+        if (named.Length > 0)
+        {
+            foreach (ItemTemplate itsBase in await _itemTemplateRepository.GetByIdsAsync(named, cancellationToken))
+                templates[itsBase.Id] = itsBase;
+        }
 
         List<WornItem> result = [];
         foreach (CharacterInventory row in worn)
@@ -352,7 +368,9 @@ public class CharacterService : ICharacterService
                 && templates.TryGetValue(instance.TemplateId, out ItemTemplate? template)
                 && EquipmentSlots.Accepts(row.Slot, template.Slot))
             {
-                result.Add(new WornItem(template, instance.Modifiers.Count > 0 ? instance.Modifiers : null));
+                ItemTemplate? itsBase = template.BaseTemplateId is { } baseId ? templates.GetValueOrDefault(baseId) : null;
+                result.Add(new WornItem(template, ItemBaseStats.Of(instance.BaseStats),
+                    instance.Modifiers.Count > 0 ? instance.Modifiers : null, WornItem.DamageTypeOf(template, itsBase)));
             }
         }
 

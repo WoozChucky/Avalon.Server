@@ -579,12 +579,13 @@ public sealed partial class TradeService(IOptions<GameConfiguration> options, Ti
             entry.ItemTemplateId = item.TemplateId.Value;
             entry.ItemInstanceId = item.InstanceId.Value;
             entry.Count = item.Count;
-            // An offered item stays in its owner's Bag, locked, until the swap, so the store still holds its modifiers.
-            IReadOnlyList<ItemInstanceModifier> modifiers = side.Character.ItemModifiers.Of(item.InstanceId);
+            // An offered item stays in its owner's Bag, locked, until the swap, so the store still holds its rolled rows.
+            ItemModifierStore.Held held = side.Character.ItemModifiers.Describe(item, generation);
             entry.Rarity = item.Rarity;
             entry.ItemLevel = item.ItemLevel;
-            entry.Modifiers = _modifierDtos.Refill(entry.Modifiers, modifiers);
-            entry.Name = side.Character.ItemModifiers.NameOf(item, generation);
+            entry.Modifiers = _modifierDtos.Refill(entry.Modifiers, held.Modifiers);
+            entry.BaseStats = _modifierDtos.RefillBaseStats(entry.BaseStats, in held.BaseStats);
+            entry.Name = held.Name;
             items.Add(entry);
         }
 

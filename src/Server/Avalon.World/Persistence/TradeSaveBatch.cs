@@ -20,8 +20,9 @@ public static class TradeSaveBatch
     /// (unless an incoming item lands there) and whatever its snapshot held for the item, its row or its modifier write,
     /// and the receiver's side writes it. Each incoming item is upserted as this character's (an update of its owner when
     /// the row exists, an insert when it was never saved), stamped <paramref name="now" />, with a slot row at its
-    /// destination and its whole modifier set, copied here on the tick. The row is a new copy with the gold given and
-    /// received. Each item id and each slot key appears at most once, as the repository requires.
+    /// destination and its whole set of rolled rows (base stats and modifiers), copied here on the tick. The row is a new
+    /// copy with the gold given and received. Each item id and each slot key appears at most once, as the repository
+    /// requires.
     /// </summary>
     /// <exception cref="OverflowException">The side gives more gold than the row holds: the plan was not checked.</exception>
     public static CharacterSaveBatch Apply(CharacterSaveBatch batch, TradeSidePlan side, DateTime now)
@@ -66,9 +67,9 @@ public static class TradeSaveBatch
                 ItemId = item.InstanceId,
             });
 
-            // Every incoming item, one without modifiers too: its set as the giver holds it, which the giver's own saves
-            // may not have written yet.
-            modifiers.Add(item.InstanceId, carried.Modifiers);
+            // Every incoming item, one without rolled rows too: its base stats and modifiers as the giver holds them, which
+            // the giver's own saves may not have written yet.
+            modifiers.Add(item.InstanceId, carried.BaseStats, carried.Modifiers);
         }
 
         foreach (CarriedItem carried in side.Outgoing)

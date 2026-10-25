@@ -20,4 +20,25 @@ internal static class ItemModifierRepositories
         repository.GetCatalogAsync(Arg.Any<CancellationToken>()).Returns(_ => EmptyCatalog());
         return repository;
     }
+
+    /// <summary>
+    /// A catalog of one implicit row (+1 Health), which each of <paramref name="bases" /> links: a common base links
+    /// exactly one implicit, or the items area leaves it out (#1179). For tests that load a base through StaticData.
+    /// </summary>
+    public static IItemModifierRepository ImplicitFor(params ItemTemplate[] bases)
+    {
+        var row = new ItemModifier
+        {
+            Id = 1,
+            GroupId = 1,
+            Group = new ItemModifierGroup { Id = 1, Kind = ItemModifierKind.Implicit, Name = "Health" },
+            Tier = 9,
+            RequiredItemLevel = 1,
+            Stats = [new ItemModifierStat { ModifierId = 1, Index = 0, Stat = StatType.Health, Min = 1, Max = 1 }],
+        };
+        ItemTemplateModifier[] links = [.. bases.Select(b => new ItemTemplateModifier { TemplateId = b.Id, Index = 0, ModifierId = 1 })];
+        IItemModifierRepository repository = Substitute.For<IItemModifierRepository>();
+        repository.GetCatalogAsync(Arg.Any<CancellationToken>()).Returns(_ => new ItemModifierCatalog([row], links, NullLogger.Instance));
+        return repository;
+    }
 }

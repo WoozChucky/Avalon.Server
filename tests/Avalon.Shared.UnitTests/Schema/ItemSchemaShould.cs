@@ -41,7 +41,7 @@ public class ItemSchemaShould
         foreach (string name in new[]
                  {
                      "ItemRarity", "ItemSlotType", "ItemClass", "ItemSubClass",
-                     "DamageType", "StatType", "ItemTemplateFlags", "CharacterClass", "ItemBaseKind",
+                     "DamageType", "StatType", "ItemTemplateFlags", "CharacterClass", "ItemBaseKind", "ItemBaseStat",
                  })
         {
             Assert.True(enums.TryGetProperty(name, out JsonElement values), $"{name} is missing");
@@ -65,6 +65,15 @@ public class ItemSchemaShould
         Assert.Equal("array", allowedClasses.GetProperty("type").GetString());
         Assert.Equal("enum", allowedClasses.GetProperty("element").GetString());
         Assert.Equal("CharacterClass", allowedClasses.GetProperty("enum").GetString());
+
+        // #1179: a base's base-stat ranges are rows of their own, described field by field, without their link back to
+        // the template they are nested under.
+        JsonElement baseStats = fields.EnumerateArray().Single(f => f.GetProperty("name").GetString() == "BaseStats");
+        Assert.Equal(("array", "object"), (baseStats.GetProperty("type").GetString(), baseStats.GetProperty("element").GetString()));
+        Assert.Equal(
+            [("Stat", "enum", "ItemBaseStat"), ("Min", "int32", null), ("Max", "int32", null)],
+            baseStats.GetProperty("fields").EnumerateArray().Select(f => (f.GetProperty("name").GetString(),
+                f.GetProperty("type").GetString(), f.TryGetProperty("enum", out JsonElement e) ? e.GetString() : null)));
     }
 
     [Fact]
@@ -87,5 +96,9 @@ public class ItemSchemaShould
 
         JsonElement id = fields.EnumerateArray().Single(f => f.GetProperty("name").GetString() == "Id");
         Assert.False(id.GetProperty("nullable").GetBoolean());
+
+        // A template id declared ItemTemplateId? (the base a unique names, #1179) is optional; the Id is not.
+        JsonElement baseTemplate = fields.EnumerateArray().Single(f => f.GetProperty("name").GetString() == "BaseTemplateId");
+        Assert.Equal(("uint64", true), (baseTemplate.GetProperty("type").GetString(), baseTemplate.GetProperty("nullable").GetBoolean()));
     }
 }

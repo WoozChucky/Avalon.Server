@@ -149,7 +149,8 @@ crowd's separation) could move it. See [creature-system.md](creature-system.md).
 character's is fixed at its last stats refresh), through `AbilityPace`, the one rule: the cast time is
 `CastTime / (1 + cast speed / 100)`, and the cooldown the cast sets when it fires is worked out then and kept on
 the cast (`AbilityInstance.CooldownSeconds`). A basic Attack (Cleave, Quick Shot) waits its weapon's
-`AttackTimeMs` (the formula's `UnarmedAttackTimeMs`, 816, with no weapon) over attack speed; a basic Spell (Spark
+attack time (`WeaponDamage.AttackTimeMs`: the attack time the main hand's copy rolled, a base stat since #1179, after its
+local attack speed; the formula's `UnarmedAttackTimeMs`, 816, with no weapon) over attack speed; a basic Spell (Spark
 Bolt, Smite) its row's `Cooldown` (800 ms) over cast speed, still instant and with no cast bar (owner decision
 D1); every other skill its row's `Cooldown` over cooldown recovery. Each speed is percentage points, from 0 to its
 cap (`AttackSpeedCap`, `CastSpeedCap`, `CooldownRecoveryCap`, 50 each), so a negative one never lengthens a time.
@@ -201,8 +202,10 @@ refused: its cost and cooldown are spent all the same.
   restored, so overheal adds none (#531).
 - **The base (#1178, the offence model; `OffenceMath`, `Avalon.Combat`, shared with the API's amounts and the
   simulator).** The tags decide it (`OffenceMath.DirectBase`, `HealBase`):
-  - **An Attack** rolls its caster's weapon: the main hand's range 1, then its range 2 when it has one (each typed by
-    the item's `DamageType1`/`DamageType2`, else the hit's type), then the weapon's own added damage by type
+  - **An Attack** rolls its caster's weapon: the main hand's damage range, the one its copy rolled (#1179, its
+    `DamageMin` and `DamageMax` base stats, [item modifiers](item-modifiers.md#base-stats)), typed by the item's
+    `DamageType` (`WeaponDamage` keeps a second range, which no character's weapon fills; a creature's natural range is
+    untyped and takes the hit's type), then the weapon's own added damage by type
     (`WeaponDamage.Added`, Physical to Blight: the main hand's local "adds X to Y" lines, #1179), then the attacker's
     added damage to attacks by type (`AttackerCombat.AddedToAttacks`, beside the offence block, Physical to Blight: the
     sum of every worn item's "adds X to Y to Attacks" lines; a range's mask names the types that add anything, and only
@@ -214,7 +217,7 @@ refused: its cost and cooldown are spent all the same.
     speed shortens its attack time, each rounded half away from zero ([inventory](inventory-and-saves.md)); a local line
     on any other item adds nothing. Each part is multiplied by `DamageEffectiveness / 100` (worked out as
     `roll x effectiveness / 100`, so whole percentages stay exact) and by its scale. A character with no main hand
-    (every new character: its starting items are potions and a scroll), or with one whose first range deals nothing,
+    (every new character: its starting items are potions and a scroll), or with one whose copy rolled no damage above 0,
     rolls the formula's unarmed range, `UnarmedDamageMin..UnarmedDamageMax` (3-6), as physical damage, at the unarmed
     pace. A creature's weapon is its natural `DamageMin..DamageMax`, untyped, so it takes the hit's type.
   - **A Spell** rolls `SpellBaseMin..SpellBaseMax`, inclusive, times `1 + SpellBasePerLevelPct / 100 x (level - 1)`,

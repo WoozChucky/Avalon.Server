@@ -155,7 +155,7 @@ singletons as in every host. Only their context factories differ in the API, whi
   them for it. A world's World database migrates through `AddOffenceModel` (`AbilityTemplates` gains `Tags`,
   `DamageEffectiveness`, `SpellBaseMin`, `SpellBaseMax`, `SpellBasePerLevelPct`, `ConvertToType`, `ConvertPct`,
   `AddedType`, `AddedMin` and `AddedMax`; `AuraTemplates` gains `PeriodicEffectiveness`; `ItemTemplates` gains
-  `AttackTimeMs`; `CombatFormula` gains the attribute conversions, `LifePerStamina`, `BaseCritPct`, the three speed caps
+  `AttackTimeMs`, which #1179 part B2 drops again; `CombatFormula` gains the attribute conversions, `LifePerStamina`, `BaseCritPct`, the three speed caps
   and the unarmed range and attack time; aura modifiers gain stats 16-32 and the kind More), then
   `SplitAttackAndCastSpeed` (drops `CombatFormula.HasteCap`), then `ClassNeutralAttributes` (drops
   `ClassStatFactors.HpPerStamina` and `BaseCrit` and rebalances `ClassLevelStats`), then `RetireOldOffence` (drops
@@ -232,6 +232,44 @@ singletons as in every host. Only their context factories differ in the API, whi
   naming an implicit (their values by cascade; a trade record's own copies, `TradeRecordItemModifiers`, keep theirs) and
   narrows the modifier ids back. A rolled copy keeps its rarity, item level and affix rows, and a unique copy its unique
   modifier row, which part A reads as stat lines like any other. No world or API does that by itself.
+  **Migration order, #1179 (part B2).** Base stats, shared implicits, jewellery lines and the starting-zone values are
+  not additive either (no backward compatibility, owner, 2026-10-23). A world's Character database migrates through
+  `WipeOwnedEquipmentForBaseStats` first: it deletes every owned copy of the 79 equipment templates of the time (the
+  74 bases and 5 uniques, 5-8, 12-26, 32-50, 58 and 64-103), in bags, banks and worn slots, with its slot, modifier and
+  value rows by cascade (owner, 2026-10-24, as part A's `WipeOwnedEquipment`); consumables, scrolls and quest items
+  stay, and the trade records are left as they are, still naming the wiped copies, their templates and their rolled
+  rows as history (`TradeRecordItems` has no foreign key to an item). It is **irreversible**: its Down restores
+  nothing. Then `AddItemInstanceBaseStats` (the tables `ItemInstanceBaseStats` and `TradeRecordItemBaseStats`, each
+  keyed by item and stat, `CK_..._Stat` 0-6 and `CK_..._Value` at least 0). Its World database migrates through
+  `AddItemTemplateBaseStats` (the table `ItemTemplateBaseStats`, `CK_ItemTemplateBaseStats_Stat` and `_Range`, seeded
+  with every base's ranges), then `RetireDefenceImplicits` (part B's 60 per-base implicits, groups 50-109 and rows
+  224-283, with their stat lines and links, deleted; their ids are never reused), then
+  `RevalueAffixesForTheStartingZone` (`CK_ItemModifiers_Tier` widened to 1-9; the first three tiers renumbered T9, T8
+  and T7 at item levels 1, 4 and 7 with the starting zone's values, the fourth and fifth tiers deleted, the families'
+  weights narrowed to their slots, and the new family S14, group 110, rows 284-286), then
+  `AddThemedImplicitsAndJewellery` (the 26 shared implicit groups 111-136, rows 287-364, one link per base; the ring
+  and amulet lines and the two trinket bases, templates 104-151; `ItemTemplates.BaseTemplateId` with
+  `CK_ItemTemplates_BaseTemplate` and a restricting foreign key to `ItemTemplates`, every unique pointed at its base
+  and its own lines re-authored), then `DropTemplateWeaponColumns` (`DamageMin1`, `DamageMax1`, `DamageMin2`,
+  `DamageMax2`, `DamageType2`, `AttackTimeMs` and `CK_ItemTemplates_AttackTimeMs` dropped, `DamageType1` renamed
+  `DamageType`). Each world applies them at its start, before it serves (`WorldStartup`: its Character database, then
+  its World database); neither set reads the other database. The order is: the worlds go first, each migrating at its
+  next start (start any stopped world once, so it migrates too), and then the API release with the change is cut. The
+  released API is broken in between, which the owner accepted: an older API reading a migrated world fails with
+  Postgres 42703 on the dropped and renamed template columns, so every item template read fails (the worlds service's
+  item template list, get and `PUT`, the public item tooltips and link previews, a character's inventory as soon as it
+  holds an item, and its abilities once it wears one). An API with the change reading a world that has not migrated
+  fails with Postgres 42P01 or 42703 on the missing tables and columns: every item template read (the base-stat ranges
+  load with each template, `BaseTemplateId`, `DamageType`), and a character's inventory and abilities on
+  `ItemInstanceBaseStats`. To roll a world back to a build without the change, first run
+  `dotnet ef database update SeedUniqueAndBossDrops` against its World database and
+  `dotnet ef database update AddRareName` against its Character database. The World rollback restores the template
+  columns with the weapons' part B values, drops `BaseTemplateId`, the new implicits and templates 104-151, restores the
+  old unique lines, the fourth and fifth tiers and the old values, and puts part B's 60 implicits and their links back;
+  the Character rollback drops both base-stat tables, every copy's and every trade record's base stats with them. The
+  wiped equipment never comes back. A copy made by a world running this part keeps its implicit row, whose modifier
+  the rolled-back catalog no longer holds (null in the inventory read), and a copy of templates 104-151 stays as a row
+  whose template is gone. No world or API does that by itself.
 
 ## How a request reaches its world
 
@@ -322,7 +360,7 @@ reads admit the owner or a game master (`CharacterReadHandler`), character write
 |---|---|---|---|
 | `/world/{worldId}/character/paginate` | GET | GameMaster | |
 | `/world/{worldId}/character/{id}` | GET, PATCH | Player | Owner, or game master (read) or admin (write) |
-| `/world/{worldId}/character/{id}/inventory`, `/abilities`, `/stats`, `/quests`, `/auras` | GET | Player | Owner or game master. An inventory item carries its copy's `rarity`, `itemLevel`, `name` and `modifiers` (each `modifierId` with its `kind`, `Prefix`, `Suffix`, `Unique` or `Implicit` from the world's modifier catalog, null for a modifier the catalog no longer holds, and its `values`: `stat`, `value` and, on an "adds X to Y" line, `value2`), in the order the item shows them (#1179); `name` is a magic copy's prefix and suffix around the template's name or a rare copy's two words, null where the template's name is the item's; that is the only rarity the read shows, and its `template` carries none |
+| `/world/{worldId}/character/{id}/inventory`, `/abilities`, `/stats`, `/quests`, `/auras` | GET | Player | Owner or game master. An inventory item carries its copy's `rarity`, `itemLevel`, `name` and `modifiers` (each `modifierId` with its `kind`, `Prefix`, `Suffix`, `Unique` or `Implicit` from the world's modifier catalog, null for a modifier the catalog no longer holds, and its `values`: `stat`, `value` and, on an "adds X to Y" line, `value2`), in the order the item shows them (#1179), and `baseStats`, the base stats the copy rolled (`stat`, an `ItemBaseStat` name, and `value`), by stat, empty for a copy that has none (#1179, part B2); `name` is a magic copy's prefix and suffix around the template's name or a rare copy's two words, null where the template's name is the item's; that is the only rarity the read shows, and its `template` carries none |
 | `/world/{worldId}/map-template`, `/{id}` | GET | Player | |
 | `/world/{worldId}/map-template/{id}/preview-layout` | GET | GameMaster | Runs the procedural generator against that world's data; see [Map Generation](map-generation.md) |
 | `/world/{worldId}/map-template/chunk-asset/{*filename}` | GET | GameMaster | Whitelisted against the world's `ChunkTemplate.GeometryFile` values; the bytes come from the API's own copy of `Maps/` (`Application:MapAssets:ChunkAssetRoot`), not from the world |
@@ -350,7 +388,7 @@ outside `/world/{worldId}/`.
 | Route | Answer |
 |---|---|
 | `GET /public/world` | `{ defaultWorldId, worlds: [{ id, name, type, status, population, queueLength, maintenanceDeadlineUtc, lore }] }`: the configured, available worlds the caller may read, in id order, each with its live state. `Cache-Control: private, no-cache`, since the list depends on the caller |
-| `GET /public/world/{worldId}/item/{id}` | `PublicItemDto`; its `modifierSpans` are the lines every copy rolls within (#1179): a base's implicits or a unique's own modifier, each `kind`, `stat`, `min`, `max` and, on an "adds X to Y" line, `min2` and `max2`, from the world's modifier catalog (`IItemModifierRepository`) |
+| `GET /public/world/{worldId}/item/{id}` | `PublicItemDto` (`PublicItems.ToPublicAsync`); its `baseStats` are the base-stat ranges every copy rolls within (#1179, part B2: `stat`, `min`, `max`, by stat; a weapon's attack time in milliseconds before attack speed), the item's own or, for a unique, its base's; `damageType` is a weapon's damage type (null otherwise), and `baseItemId` the base a unique names (null for any other item); its `modifierSpans` are the lines every copy rolls within (#1179): a base's implicit, or a unique's base's implicit and then its own modifier, each `kind`, `stat`, `min`, `max` and, on an "adds X to Y" line, `min2` and `max2`, from the world's modifier catalog (`IItemModifierRepository`). The template's `damage` and `attackTimeMs` are gone |
 | `GET /public/world/{worldId}/ability/{id}` | `PublicAbilityDto` |
 
 - **The caller** (`PublicCaller.AccessLevelAsync`) is authenticated through the default policy: a signed-in caller
@@ -396,9 +434,11 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
 - **The link** is `<PublicSiteUrl>/item/{id}` (or `/ability/{id}`), with `?world=N` only when the request named a
   world. With no `PublicSiteUrl`, `og:url` is left out and the link is relative.
 - **The description** (`LinkPreviewText.Describe`) reads like the site's tooltips: for an item its rarity, slot,
-  subclass, damage, a weapon's attack time after its damage (`0.78 sec attack time`, before attack speed, #1189),
-  the lines every copy rolls within (#1179, `ModifierSpans`: `7-9 Armor` on a plate chest, `+24-36 Health` and `Adds 2
-  to 3-5 Physical Damage to Attacks` on a unique), armour, other stats, required level, required attributes (`Requires 12 Strength`, #1178; one part, `Requires 30
+  subclass, the base-stat ranges every copy rolls within, in `ItemBaseStat` order (#1179, part B2, below: `6-10 Armor`
+  on the Ironbound Chestguard, `2-4 to 6-8 Physical Damage` and then `0.67-0.74 sec attack time` on the Ironwood
+  Sword, before attack speed), the lines every copy rolls within (#1179, `ModifierSpans`: `+1-2% increased Health`, the
+  Ironbound Chestguard's implicit, `+4-5 Health` and `Adds 1 to 3 Physical Damage to Attacks` on a unique), armour,
+  other stats, required level, required attributes (`Requires 12 Strength`, #1178; one part, `Requires 30
   Strength or 30 Intellect`, when any one is enough, #1179) and allowed classes (only when restricted to some; an
   empty list means every class, #1171); for an ability its classes, cost, cast time, cooldown and what one hit deals
   or heals (#1178): an Attack as its weapon damage (`315 % of weapon damage`, then `converts 50 % to cold` or `adds
@@ -413,11 +453,12 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   `MovementSpeed` (the world adds it to `MovementSpeedPct`) as percent points (`+2% Crit`, `+5% Fire Resistance`,
   `+5% Movement Speed`); the `Increased…` stats as `+10% increased Fire Damage`; the rest, Evasion and Ward among
   them, as a plain rating (`+12 Evasion`); a negative value keeps its own sign (`-3% Cold Resistance`, `-2 Strength`).
-  Times (`LinkPreviewText.AttackTime`, and an ability's cast time and cooldown) are seconds to the hundredth, a half
-  rounded up and computed in decimal so a tie is exact, with no trailing zeros (`2.6 sec attack time`, `2 sec`,
-  `0.78 sec`, `1005` ms as `1.01 sec`; the tie cases are pinned here once Avalon.Dashboard#462 adds them to the shared
-  file). In JavaScript the shared rule is `Math.round(ms / 10) / 100`, which the public site adopts through
-  Avalon.Dashboard#460. An attack time of 0 or none is left out. The one wording table is the Dashboard's
+  Times (a base's attack time, `LinkPreviewText.FormatBaseStat`, and an ability's cast time and cooldown) are seconds to
+  the hundredth, a half rounded up and computed in decimal so a tie is exact, with no trailing zeros (`2.6 sec attack
+  time`, `2 sec`, `0.78 sec`, `1005` ms as `1.01 sec`; the tie cases are pinned here once Avalon.Dashboard#462 adds them
+  to the shared file). In JavaScript the shared rule is `Math.round(ms / 10) / 100`, which the public site adopts
+  through Avalon.Dashboard#460. An item without an attack time says none (a base's starts at 1 ms). The one wording
+  table is the Dashboard's
   `packages/shared/src/items/stat-wording.json` (a row per `StatType`, negative values, attack times), which the
   site's formatter tests against; a verbatim copy sits in
   `tests/Avalon.Api.Worlds.UnitTests/Worlds/stat-wording.json`, refreshed from there and never edited here.
@@ -429,6 +470,13 @@ on `CurrentWorld` itself, so the ordinary repositories read it.
   file's `spans` rows (`type`, `min`, `max`, and `min2` and `max2` on a two-range line, with the `text`) hold it, and
   `StatWordingShould` checks each. These rows run ahead in the copy here until the Dashboard's file takes them; the
   copy is then checked byte-identical again.
+- **Base-stat ranges** (#1179, part B2) are worded before the spans, in `ItemBaseStat` order:
+  `LinkPreviewText.FormatBaseStat` writes `4-6 Armor`, `19-29 Evasion`, `6-8 Ward`, `4-6% Block` and an attack time's
+  two ends in seconds as times are written (`0.95-1.05 sec attack time`), and `FormatDamage` a weapon's two damage
+  ranges and its type as one part where its low end stands (`2-4 to 6-8 Physical Damage`); one number for a range whose
+  ends are equal. The wording file's `baseStats` rows (`stat`, `min`, `max`, and on the damage row `min2`, `max2` and
+  `type`, with the `text`) hold it, and `StatWordingShould` checks each; they run ahead of the Dashboard's file as the
+  `spans` rows do, and so does the `IncreasedMaximumLife` row (`+5% increased Health`).
 - **Colours:** an item's `theme-color` is its rarity's colour, an ability's `AbilityColour`. A missing or malformed
   colour leaves `theme-color` out; it never fails the request.
 - **Not-found and unavailable pages** are titled "Not found · {SiteName}" and "Unavailable · {SiteName}" (or just

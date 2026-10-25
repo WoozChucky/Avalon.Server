@@ -17,8 +17,13 @@ public enum TemplateEditOutcome
 {
     Saved,
     NotFound,
-    /// <summary>The row is not at the version the caller read, or a concurrent save won.</summary>
+    /// <summary>The row is not at the version the caller read.</summary>
     Conflict,
+    /// <summary>
+    /// Another template edit committed at the same moment and the database refused this one (a serialization failure,
+    /// #1179): nothing was written, and the same request may simply be sent again.
+    /// </summary>
+    ConcurrentSave,
     Invalid,
 }
 
@@ -60,13 +65,16 @@ public sealed class TemplateEditService(
             "Item", TemplateReloadArea.Items, TemplateFields.Item,
             async (db, ct2) =>
             {
-                ItemTemplate? found = await db.ItemTemplates.FindAsync([new ItemTemplateId(id)], ct2);
+                // A query, not Find: its base-stat ranges (#1179) load with it (the model auto-includes them), so the
+                // version covers them and the edit replaces the rows it read.
+                ItemTemplate? found = await db.ItemTemplates.FirstOrDefaultAsync(t => t.Id == new ItemTemplateId(id), ct2);
                 stored = found?.UseScript;
                 return found;
             },
             TemplateVersion.Of, TemplateValidation.Item,
             async (db, row, errors, ct2) =>
             {
+                TemplateValidation.ItemWorldRules(errors, row);
                 await TemplateItemUsers.ValidateAsync(db, row, errors, ct2);
                 ScriptCatalogSnapshot? catalog = await scripts.GetAsync(caller.World, ct2);
                 TemplateValidation.ScriptKnown(errors, row.UseScript, stored, catalog, c => c.Item, "useScript");
@@ -186,14 +194,41 @@ public sealed class TemplateEditService(
         Kind<TRow, TRequest> kind, TemplateEditCaller caller, ulong id, string ifMatch, TRequest request, CancellationToken ct)
         where TRow : class
     {
+        TemplateEditResult<TRow> result;
+        try
+        {
+            result = await SaveAsync(kind, caller, id, ifMatch, request, ct);
+        }
+        catch (Exception ex) when (TemplateDbErrors.Postgres(ex) is { SqlState: PostgresErrorCodes.SerializationFailure })
+        {
+            // The losing side of two concurrent edits, at a read, at the save or at the commit (the transaction rolled
+            // back, so nothing was written): a 409 the caller retries, worded apart from a stale version. Two saves of
+            // one version land here too; the retry then answers the stale version.
+            logger.LogInformation(ex, "A {Kind} template save {TemplateId} lost to a concurrent edit", kind.Name, id);
+            return new(TemplateEditOutcome.ConcurrentSave);
+        }
+
+        return result.Outcome == TemplateEditOutcome.Saved
+            ? result with { Reload = await RequestReloadAsync(kind.Name, caller.World, kind.Area, ct) }
+            : result;
+    }
+
+    /// <summary>The edit's transaction, and its audit line once committed; a serialization failure is thrown.</summary>
+    private async Task<TemplateEditResult<TRow>> SaveAsync<TRow, TRequest>(
+        Kind<TRow, TRequest> kind, TemplateEditCaller caller, ulong id, string ifMatch, TRequest request, CancellationToken ct)
+        where TRow : class
+    {
         List<TemplateChange> changes;
         TRow row;
         await using (WorldDbContext db = await contexts.CreateDbContextAsync(ct))
         {
-            // Repeatable read: two saves of the same version cannot both commit. In Postgres the second fails with a
-            // serialization failure, which is the same answer as a stale version.
+            // Serializable: the edit commits only if it would have, run alone. Two saves of the same version cannot both
+            // commit, and neither can two edits that each check a row the other changes (#1179): a unique pointed at a
+            // base while that base's kind or level changes, each judged against the other's old row. In Postgres the
+            // loser fails with a serialization failure (RunAsync answers it as a concurrent save). Two edits of unrelated
+            // item templates can collide too, as the item checks read the whole table.
             await using IDbContextTransaction transaction =
-                await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+                await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
             TRow? found = await kind.Find(db, ct);
             if (found is null)
@@ -229,7 +264,7 @@ public sealed class TemplateEditService(
                 kind.Name, id, caller.World.Value, caller.Account.Value, changes);
         }
 
-        return new(TemplateEditOutcome.Saved, row, await RequestReloadAsync(kind.Name, caller.World, kind.Area, ct));
+        return new(TemplateEditOutcome.Saved, row);
     }
 
     /// <summary>The fields whose stored value the request changed, as the audit line names them.</summary>
@@ -243,7 +278,7 @@ public sealed class TemplateEditService(
 
     /// <summary>
     /// Saves (only when something changed) and commits. Null once committed; otherwise the answer: a check constraint's
-    /// refusal as a field error, a serialization failure as a conflict. Any other failure is thrown.
+    /// or a foreign key's refusal as a field error. Any other failure, a serialization failure among them, is thrown.
     /// </summary>
     private async Task<TemplateEditResult<TRow>?> CommitAsync<TRow>(
         WorldDbContext db, IDbContextTransaction transaction, string kind, ulong id, bool changed, TemplateErrors errors,
@@ -274,9 +309,6 @@ public sealed class TemplateEditService(
                 errors.Add(TemplateDbErrors.FieldOf(pg), $"The database refused this value ({pg.ConstraintName}).");
                 return Invalid<TRow>(errors);
             }
-
-            if (pg.SqlState == PostgresErrorCodes.SerializationFailure)
-                return new(TemplateEditOutcome.Conflict);
 
             throw;
         }
@@ -320,8 +352,21 @@ public sealed class TemplateEditService(
 /// <summary>Reads the Postgres error out of a failed save, for the template save only.</summary>
 public static class TemplateDbErrors
 {
-    public static PostgresException? Postgres(Exception ex) =>
-        ex as PostgresException ?? (ex as DbUpdateException)?.InnerException as PostgresException;
+    /// <summary>
+    /// The first <see cref="PostgresException" /> in <paramref name="ex" />'s chain of inner exceptions, or null: Npgsql's
+    /// execution strategy wraps a transient failure (a serialization failure among them) in an
+    /// InvalidOperationException around the DbUpdateException or the query's own exception.
+    /// </summary>
+    public static PostgresException? Postgres(Exception ex)
+    {
+        for (Exception? current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException postgres)
+                return postgres;
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// The request field a constraint is about: <c>CK_AbilityTemplates_ThreatMultiplier_NonNegative</c> is

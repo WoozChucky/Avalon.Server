@@ -123,13 +123,10 @@ internal static class TemplateFields
         I("requiredAgility", e => e.RequiredAgility, (e, r) => e.RequiredAgility = r.RequiredAgility),
         I("requiredIntellect", e => e.RequiredIntellect, (e, r) => e.RequiredIntellect = r.RequiredIntellect),
         I("requiresAnyAttribute", e => e.RequiresAnyAttribute, (e, r) => e.RequiresAnyAttribute = r.RequiresAnyAttribute),
-        I("attackTimeMs", e => e.AttackTimeMs, (e, r) => e.AttackTimeMs = r.AttackTimeMs),
-        I("damageMin1", e => e.DamageMin1, (e, r) => e.DamageMin1 = r.DamageMin1),
-        I("damageMax1", e => e.DamageMax1, (e, r) => e.DamageMax1 = r.DamageMax1),
-        I("damageType1", e => e.DamageType1, (e, r) => e.DamageType1 = ConvN(r.DamageType1, e.DamageType1)),
-        I("damageMin2", e => e.DamageMin2, (e, r) => e.DamageMin2 = r.DamageMin2),
-        I("damageMax2", e => e.DamageMax2, (e, r) => e.DamageMax2 = r.DamageMax2),
-        I("damageType2", e => e.DamageType2, (e, r) => e.DamageType2 = ConvN(r.DamageType2, e.DamageType2)),
+        I("damageType", e => e.DamageType, (e, r) => e.DamageType = ConvN(r.DamageType, e.DamageType)),
+        I("baseTemplateId", e => e.BaseTemplateId?.Value,
+            (e, r) => e.BaseTemplateId = r.BaseTemplateId is { } named ? new ItemTemplateId(named) : null),
+        I("baseStats", e => BaseStatText(e.BaseStats), (e, r) => MergeBaseStats(e, r.BaseStats ?? [])),
         I("statType1", e => e.StatType1, (e, r) => e.StatType1 = ConvN(r.StatType1, e.StatType1)),
         I("statValue1", e => e.StatValue1, (e, r) => e.StatValue1 = r.StatValue1),
         I("statType2", e => e.StatType2, (e, r) => e.StatType2 = ConvN(r.StatType2, e.StatType2)),
@@ -175,6 +172,39 @@ internal static class TemplateFields
         U("scriptName", e => e.ScriptName, (e, r) => e.ScriptName = NullIfBlank(r.ScriptName)),
         U("modifiers", e => ModifierText(e.Modifiers), (e, r) => MergeModifiers(e, r.Modifiers ?? [])),
     ];
+
+    /// <summary>The base-stat ranges as the audit line shows them: stat:min-max by stat (#1179).</summary>
+    private static string BaseStatText(IEnumerable<ItemTemplateBaseStat> stats) =>
+        string.Join(",", stats.OrderBy(s => s.Stat).Select(s =>
+            $"{s.Stat}:{s.Min.ToString(CultureInfo.InvariantCulture)}-{s.Max.ToString(CultureInfo.InvariantCulture)}"));
+
+    /// <summary>
+    /// Makes the row's base-stat ranges the request's, the whole list (#1179), by stat: a stat no longer listed is removed
+    /// (EF deletes the orphan), a listed one updated in place, a new one added, so EF never tracks two rows with one key.
+    /// </summary>
+    private static void MergeBaseStats(ItemTemplate row, IReadOnlyList<ItemTemplateBaseStatDto> wanted)
+    {
+        foreach (ItemTemplateBaseStat held in row.BaseStats.ToList())
+        {
+            if (!wanted.Any(w => (int)w.Stat == (int)held.Stat))
+                row.BaseStats.Remove(held);
+        }
+
+        foreach (ItemTemplateBaseStatDto w in wanted)
+        {
+            var stat = (Avalon.Domain.World.ItemBaseStat)(int)w.Stat;
+            ItemTemplateBaseStat? held = row.BaseStats.Find(s => s.Stat == stat);
+            if (held is null)
+            {
+                row.BaseStats.Add(new ItemTemplateBaseStat { TemplateId = row.Id, Stat = stat, Min = w.Min, Max = w.Max });
+            }
+            else
+            {
+                held.Min = w.Min;
+                held.Max = w.Max;
+            }
+        }
+    }
 
     /// <summary>The modifiers as the audit line shows them: stat:kind:value by stat.</summary>
     private static string ModifierText(IEnumerable<Avalon.Domain.World.AuraStatModifier> modifiers) =>

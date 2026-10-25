@@ -73,6 +73,7 @@ public class AuraTemplateController(
         {
             TemplateEditOutcome.NotFound => NotFound(),
             TemplateEditOutcome.Conflict => TemplateProblems.Conflict(),
+            TemplateEditOutcome.ConcurrentSave => TemplateProblems.ConcurrentSave(),
             TemplateEditOutcome.Invalid => ValidationProblem(new ValidationProblemDetails(result.Errors!)),
             _ => Ok(new TemplateSaveResultDto<AuraTemplateDto>
             {

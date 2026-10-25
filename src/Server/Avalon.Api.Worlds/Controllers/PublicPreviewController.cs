@@ -1,6 +1,7 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Hosting.Worlds;
+using Avalon.Api.Worlds.Services;
 using Avalon.Api.Worlds.Previews;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
@@ -48,8 +49,7 @@ public class PublicPreviewController(
         ItemTemplate? template = await items.FindByIdAsync(new ItemTemplateId(id), track: false, ct);
         if (template is null) return NotFoundPage();
 
-        ItemModifierCatalog catalog = await modifiers.GetLinkedToAsync(template, ct);
-        PublicItemDto item = template.ToPublicDto(catalog.LinkedTo(template.Id));
+        PublicItemDto item = await PublicItems.ToPublicAsync(template, items, modifiers, ct);
         return Page(open, LinkPreviewPage.Render(item.Name, LinkPreviewText.Describe(item),
             PagePath("item", id, world, chosen), site.Base, previews.Value.ColourOf(item.Rarity), previews.Value.Site));
     }

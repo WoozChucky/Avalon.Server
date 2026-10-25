@@ -21,8 +21,17 @@ public sealed class PublicItemDto
     public ushort? RequiredIntellect { get; set; }
     /// <summary>Whether any one of the set attribute requirements is enough (#1179, a mace's Strength or Intellect).</summary>
     public bool RequiresAnyAttribute { get; set; }
-    /// <summary>Milliseconds between a weapon's basic attacks before attack speed (#1178), above 0; null for an item that is not a weapon.</summary>
-    public uint? AttackTimeMs { get; set; }
+    /// <summary>
+    /// The type of a weapon's damage (#1178), a unique weapon's its base's (#1179); null for an item that is not a weapon.
+    /// </summary>
+    public DamageType? DamageType { get; set; }
+    /// <summary>The base a unique is made on (#1179), whose ranges and implicit every copy rolls; null for any other item.</summary>
+    public ulong? BaseItemId { get; set; }
+    /// <summary>
+    /// The base stats every copy rolls within (#1179), by stat: the item's own ranges, or a unique's base's; a weapon's
+    /// attack time in milliseconds before attack speed. Empty for an item that has none.
+    /// </summary>
+    public List<PublicItemBaseStatDto> BaseStats { get; set; } = [];
     /// <summary>Empty when every class may use it.</summary>
     public List<CharacterClass> AllowedClasses { get; set; } = [];
     public uint MaxStackSize { get; set; }
@@ -31,12 +40,11 @@ public sealed class PublicItemDto
     public bool CannotBeSold { get; set; }
     public ItemAttunement Attunes { get; set; }
     public ItemUniqueness Unique { get; set; }
-    public List<PublicItemDamageDto> Damage { get; set; } = [];
-    /// <summary>The template's stat pairs that are set, in slot order. Armor is one of them.</summary>
+    /// <summary>The template's stat pairs that are set, in slot order.</summary>
     public List<PublicItemStatDto> Stats { get; set; } = [];
     /// <summary>
-    /// The lines every copy rolls within (#1179): a base's implicits or a unique's own modifier, each line a range, in
-    /// the order the item shows them; empty for an item that links none.
+    /// The lines every copy rolls within (#1179), each line a range, in the order the item shows them: a base's implicit,
+    /// or a unique's base's implicit and then its own modifier; empty for an item that links none.
     /// </summary>
     public List<PublicItemSpanDto> ModifierSpans { get; set; } = [];
 }
@@ -55,11 +63,12 @@ public sealed class PublicItemSpanDto
     public int? Max2 { get; set; }
 }
 
-public sealed class PublicItemDamageDto
+/// <summary>One base stat every copy of the item rolls within (#1179): <see cref="Min" /> to <see cref="Max" />.</summary>
+public sealed class PublicItemBaseStatDto
 {
-    public uint Min { get; set; }
-    public uint Max { get; set; }
-    public DamageType? Type { get; set; }
+    public ItemBaseStat Stat { get; set; }
+    public int Min { get; set; }
+    public int Max { get; set; }
 }
 
 public sealed class PublicItemStatDto

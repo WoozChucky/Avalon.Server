@@ -8,34 +8,49 @@ public static class PublicMapping
 {
     /// <param name="linked">
     /// The modifiers every copy of the template rolls (#1179), in link order: the world catalog's
-    /// <c>LinkedTo(t.Id)</c>, a base's implicits or a unique's own modifier.
+    /// <c>LinkedTo(t.Id)</c>, a base's implicit or a unique's own modifier.
     /// </param>
-    public static PublicItemDto ToPublicDto(this ItemTemplate t, IReadOnlyList<ItemModifier> linked) => new()
+    /// <param name="named">
+    /// A unique's named base (#1179), whose base-stat ranges and damage type every copy has; null for any other template,
+    /// or a unique whose base is not found.
+    /// </param>
+    /// <param name="inherited">The named base's links, its implicit, which a unique's copy rolls before its own lines.</param>
+    public static PublicItemDto ToPublicDto(this ItemTemplate t, IReadOnlyList<ItemModifier> linked,
+        ItemTemplate? named = null, IReadOnlyList<ItemModifier>? inherited = null)
     {
-        Id = t.Id.Value,
-        Name = t.Name ?? "",
-        Rarity = (ItemRarity)t.Rarity,
-        Class = (ItemClass)t.Class,
-        SubClass = (ItemSubClass)t.SubClass,
-        Slot = (ItemSlotType?)t.Slot,
-        RequiredLevel = t.RequiredLevel,
-        RequiredStrength = t.RequiredStrength,
-        RequiredAgility = t.RequiredAgility,
-        RequiredIntellect = t.RequiredIntellect,
-        RequiresAnyAttribute = t.RequiresAnyAttribute,
-        AttackTimeMs = t.AttackTimeMs,
-        AllowedClasses = t.AllowedClasses?.ToList() ?? [],
-        MaxStackSize = t.MaxStackSize,
-        SellPrice = t.SellPrice,
-        CannotBeSold = t.Flags.HasFlag(DomainFlags.NoSell),
-        Attunes = AttunementOf(t.Flags),
-        Unique = t.Flags.HasFlag(DomainFlags.UniqueEquipped) ? ItemUniqueness.UniqueEquipped
-            : t.Flags.HasFlag(DomainFlags.Unique) ? ItemUniqueness.Unique
-            : ItemUniqueness.None,
-        Damage = DamageOf(t).ToList(),
-        Stats = StatsOf(t).ToList(),
-        ModifierSpans = [.. linked.SelectMany(SpansOf)],
-    };
+        return new PublicItemDto
+        {
+            Id = t.Id.Value,
+            Name = t.Name ?? "",
+            Rarity = (ItemRarity)t.Rarity,
+            Class = (ItemClass)t.Class,
+            SubClass = (ItemSubClass)t.SubClass,
+            Slot = (ItemSlotType?)t.Slot,
+            RequiredLevel = t.RequiredLevel,
+            RequiredStrength = t.RequiredStrength,
+            RequiredAgility = t.RequiredAgility,
+            RequiredIntellect = t.RequiredIntellect,
+            RequiresAnyAttribute = t.RequiresAnyAttribute,
+            DamageType = (DamageType?)(named ?? t).DamageType,
+            BaseItemId = t.BaseTemplateId?.Value,
+            BaseStats = [.. (named ?? t).BaseStats.OrderBy(s => s.Stat).Select(s => new PublicItemBaseStatDto
+            {
+                Stat = (ItemBaseStat)s.Stat,
+                Min = s.Min,
+                Max = s.Max,
+            })],
+            AllowedClasses = t.AllowedClasses?.ToList() ?? [],
+            MaxStackSize = t.MaxStackSize,
+            SellPrice = t.SellPrice,
+            CannotBeSold = t.Flags.HasFlag(DomainFlags.NoSell),
+            Attunes = AttunementOf(t.Flags),
+            Unique = t.Flags.HasFlag(DomainFlags.UniqueEquipped) ? ItemUniqueness.UniqueEquipped
+                : t.Flags.HasFlag(DomainFlags.Unique) ? ItemUniqueness.Unique
+                : ItemUniqueness.None,
+            Stats = StatsOf(t).ToList(),
+            ModifierSpans = [.. (inherited ?? []).Concat(linked).SelectMany(SpansOf)],
+        };
+    }
 
     public static PublicAbilityDto ToPublicDto(this AbilityTemplate t) => new()
     {
@@ -67,24 +82,6 @@ public static class PublicMapping
         : flags.HasFlag(DomainFlags.AttuneOnEquip) ? ItemAttunement.OnEquip
         : flags.HasFlag(DomainFlags.AttuneOnUse) ? ItemAttunement.OnUse
         : ItemAttunement.None;
-
-    private static IEnumerable<PublicItemDamageDto> DamageOf(ItemTemplate t)
-    {
-        foreach ((uint? min, uint? max, Avalon.Network.Packets.Combat.DamageType? type) in new[]
-                 {
-                     (t.DamageMin1, t.DamageMax1, t.DamageType1),
-                     (t.DamageMin2, t.DamageMax2, t.DamageType2),
-                 })
-        {
-            if (max is not > 0) continue;
-            yield return new PublicItemDamageDto
-            {
-                Min = Math.Min(min ?? 0, max.Value),
-                Max = max.Value,
-                Type = (DamageType?)type,
-            };
-        }
-    }
 
     private static IEnumerable<PublicItemSpanDto> SpansOf(ItemModifier modifier) =>
         modifier.Stats.OrderBy(line => line.Index).Select(line => new PublicItemSpanDto

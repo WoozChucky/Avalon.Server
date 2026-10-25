@@ -12,10 +12,10 @@ public readonly record struct ItemModifierCandidate(ItemModifier Modifier, int W
 /// index order, and per base kind the prefix and suffix rows that may roll there. Built once, never changed; a reload
 /// builds a new one. A row it cannot trust is logged and left out:
 /// <list type="bullet">
-/// <item>a modifier with no group or no stat line, a prefix or suffix row without a tier, a unique or implicit row with
+/// <item>a modifier with no group or no stat line, a prefix, suffix or implicit row without a tier, a unique row with
 /// one, or a unique or implicit modifier that carries a weight;</item>
 /// <item>a template's links when one names a modifier left out or a prefix or suffix, or when they mix a unique
-/// modifier with any other link (a unique template links its one Unique modifier, a common one only Implicits). The
+/// modifier with any other link (a unique template links its one Unique modifier, a common base its one Implicit). The
 /// template is then left with no links at all, never with part of them.</item>
 /// </list>
 /// Which template is unique is the template's own fact: <see cref="RarityRefusal" /> holds the links against it, and the
@@ -102,18 +102,20 @@ public sealed class ItemModifierCatalog
         (int)kind >= 0 && (int)kind < _candidates.Length ? _candidates[(int)kind] : [];
 
     /// <summary>
-    /// Why a template of <paramref name="rarity" /> may not link <paramref name="linked" /> (the half of the link rules that needs the
-    /// template, which the catalog cannot see), or null when it may: a Unique template links exactly one Unique modifier,
-    /// a Common one only Implicit modifiers (none is fine), and a template of any other rarity links nothing. The world's
+    /// Why a template of <paramref name="rarity" /> and <paramref name="kind" /> may not link <paramref name="linked" />
+    /// (the half of the link rules that needs the template, which the catalog cannot see), or null when it may: a Unique
+    /// template links exactly one Unique modifier, a Common base (one with a kind) exactly one Implicit modifier, a Common
+    /// template without a kind (a consumable, a quest item) none, and a template of any other rarity none. The world's
     /// items area leaves out a template whose links break it (ItemsPatch.Build), the API's reads drop its links, and a
     /// template edit that would break it is refused.
     /// </summary>
-    public static string? RarityRefusal(ItemRarity rarity, IReadOnlyList<ItemModifier> linked) => rarity switch
+    public static string? RarityRefusal(ItemRarity rarity, ItemBaseKind? kind, IReadOnlyList<ItemModifier> linked) => rarity switch
     {
         ItemRarity.Unique when linked is not [{ Group.Kind: ItemModifierKind.Unique }] =>
             "a unique template links exactly one unique modifier",
-        ItemRarity.Common when linked.Any(m => m.Group.Kind != ItemModifierKind.Implicit) =>
-            "a common template links only implicit modifiers",
+        ItemRarity.Common when kind is not null && linked is not [{ Group.Kind: ItemModifierKind.Implicit }] =>
+            "a common base links exactly one implicit modifier",
+        ItemRarity.Common when kind is null && linked.Count > 0 => "a common template without a base kind links no modifier",
         ItemRarity.Unique or ItemRarity.Common => null,
         _ => linked.Count > 0 ? $"a {rarity} template links no modifier" : null,
     };
@@ -137,12 +139,12 @@ public sealed class ItemModifierCatalog
         if (modifier.Stats.Count == 0)
             return "it has no stat line";
 
-        bool affix = modifier.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix;
-        if (affix != modifier.Tier is not null)
+        bool tiered = modifier.Group.Kind is ItemModifierKind.Prefix or ItemModifierKind.Suffix or ItemModifierKind.Implicit;
+        if (tiered != modifier.Tier is not null)
         {
-            return affix
-                ? "a prefix or suffix row has no tier"
-                : $"a {modifier.Group.Kind} row has a tier, which only prefix and suffix rows have";
+            return tiered
+                ? $"a {modifier.Group.Kind} row has no tier"
+                : "a unique row has a tier, which only prefix, suffix and implicit rows have";
         }
 
         if (modifier.Group.Kind is ItemModifierKind.Unique or ItemModifierKind.Implicit && modifier.Weights.Count > 0)

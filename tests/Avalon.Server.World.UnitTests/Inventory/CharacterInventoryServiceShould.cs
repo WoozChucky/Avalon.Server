@@ -16,10 +16,12 @@ using Avalon.World.Handlers;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Inventory;
 using Avalon.World.Items;
+using Avalon.World.Loot;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Quests;
+using Avalon.World.Reload;
 using Avalon.World.Respawn;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -65,8 +67,9 @@ public class CharacterInventoryServiceShould
     }
 
     /// <summary>
-    /// Two potions with room for one: past a partial stack and no slot free, or, for a potion that rolls a modifier
-    /// (#1179: a copy carrying modifiers is one item in a slot of its own, whatever its template stacks to), one slot free.
+    /// Two items with room for one: two potions past a partial stack and no slot free, or two copies of a ring base that
+    /// rolls its implicit, with one slot free (#1179: a copy carrying modifiers is one item in a slot of its own, whatever
+    /// its template stacks to, and this ring's says 20).
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -78,10 +81,12 @@ public class CharacterInventoryServiceShould
         if (!rolls)
             bag.Add(Item(29, Potion, count: 19));
         character.Container(InventoryType.Bag).Load(bag);
-        ItemModifierCatalog? linked = rolls ? PotionLinkingAnImplicit() : null;
+        ItemModifierCatalog? linked = rolls ? RingLinkingAnImplicit() : null;
+        ItemTemplate added = rolls ? s_stackedRing : Potion;
+        ItemTemplate? Find(ItemTemplateId id) => id == s_stackedRing.Id ? s_stackedRing : TestCharacters.Find(id);
 
-        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character, modifiers: linked).CanAdd(Potion.Id, 2));
-        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character, modifiers: linked).TryAdd(Potion.Id, 2));
+        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character, Find, modifiers: linked).CanAdd(added.Id, 2));
+        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character, Find, modifiers: linked).TryAdd(added.Id, 2));
 
         Assert.Equal(rolls ? 29 : 30, character.Container(InventoryType.Bag).Items.Count());
         if (!rolls)
@@ -90,20 +95,33 @@ public class CharacterInventoryServiceShould
         Assert.False(character.ClientChanges.HasChanges);
     }
 
-    /// <summary>A catalog with one implicit modifier, which the potion links.</summary>
-    private static ItemModifierCatalog PotionLinkingAnImplicit()
+    // A Common ring base whose template says it stacks to 20.
+    private static readonly ItemTemplate s_stackedRing = new()
     {
-        var group = new ItemModifierGroup { Id = 1, Kind = ItemModifierKind.Implicit, Name = Potion.Name };
+        Id = new ItemTemplateId(600),
+        Name = "Ring",
+        Class = ItemClass.Armor,
+        Slot = ItemSlotType.Finger,
+        BaseKind = ItemBaseKind.Ring,
+        Rarity = ItemRarity.Common,
+        MaxStackSize = 20,
+    };
+
+    /// <summary>A catalog with one implicit modifier, which the ring base links.</summary>
+    private static ItemModifierCatalog RingLinkingAnImplicit()
+    {
+        var group = new ItemModifierGroup { Id = 1, Kind = ItemModifierKind.Implicit, Name = s_stackedRing.Name };
         var modifier = new ItemModifier
         {
             Id = 1,
             GroupId = 1,
             Group = group,
+            Tier = 9,
             RequiredItemLevel = 1,
             Stats = [new ItemModifierStat { ModifierId = 1, Index = 0, Stat = StatType.Health, Min = 1, Max = 2 }],
         };
         return new ItemModifierCatalog([modifier],
-            [new ItemTemplateModifier { TemplateId = Potion.Id, Index = 0, ModifierId = 1 }], NullLogger.Instance);
+            [new ItemTemplateModifier { TemplateId = s_stackedRing.Id, Index = 0, ModifierId = 1 }], NullLogger.Instance);
     }
 
     [Theory]
@@ -314,18 +332,19 @@ public class CharacterInventoryServiceShould
     }
 
     /// <summary>
-    /// Review Focus 1 (#1179): however a copy of a base is made (bought, given by an item script, paid as a quest's
-    /// reward, or handed to a new character), it carries its base's implicits: one modifier per link, in link order,
-    /// ordinals from 0, every value within its line's range, and the write that stores the copy writes them. A quest's
-    /// reward is rolled Magic, so its affixes follow the implicits; every other copy carries the implicits alone.
-    /// Potion 1, made the same way, carries none.
+    /// #1179: however a copy of a base is made (bought, given by an item script, paid as a quest's reward, or handed to a
+    /// new character), it carries its base stats, exactly the stats its template has a range for, each rolled within
+    /// its range, and its base's implicits: one modifier per link, in link order, ordinals from 0, every value within its
+    /// line's range. The copy is marked, and the write that stores it writes both. A quest's reward is rolled Magic, so its
+    /// affixes follow the implicits; every other copy carries the implicits alone. Potion 1, made the same way, carries
+    /// neither and is not marked.
     /// </summary>
     [Theory]
     [InlineData("vendor purchase")]
     [InlineData("item script add")]
     [InlineData("quest reward")]
     [InlineData("starting item")]
-    public async Task Give_every_copy_of_a_base_its_implicits_however_it_is_made(string how)
+    public async Task Give_every_copy_its_base_stats_and_implicits_however_it_is_made(string how)
     {
         const uint QuestId = 7901, KillId = 79011;
         using var seed = SqliteDatabase.World();
@@ -382,12 +401,25 @@ public class CharacterInventoryServiceShould
                 break;
         }
 
-        // The base's copy carries its links, the potion none.
+        // The base's copy carries its base stats and its links, the potion neither.
         Assert.Equal(new[] { made.Value, potion.Value }.Order(), copies.Select(copy => copy.Template.Value).Order());
         foreach (MadeCopy copy in copies)
         {
+            List<ItemTemplateBaseStat> ranges = w.Data.FindItemTemplate(copy.Template)!.BaseStats;
+            Assert.Equal(copy.Template == made, ranges.Count > 0);
+            Assert.Equal(copy.Template == made, copy.Marked);
+            Assert.Equal(ranges.Select(range => range.Stat).Order(), Stats(copy.BaseStats));
+            foreach ((ItemBaseStat stat, int value) in copy.BaseStats)
+            {
+                ItemTemplateBaseStat range = ranges.Single(r => r.Stat == stat);
+                Assert.InRange(value, range.Min, range.Max);
+            }
+
+            Assert.Equal(copy.BaseStats, copy.WrittenBaseStats);
+
+            // A base links its one implicit, the potion nothing.
             IReadOnlyList<ItemModifier> links = w.Data.ItemModifiers.LinkedTo(copy.Template);
-            Assert.Equal(copy.Template == made, links.Count > 0);
+            Assert.Equal(copy.Template == made ? 1 : 0, links.Count);
             List<ItemInstanceModifier> implicits = [.. copy.Held.Take(links.Count)];
             if (how != "quest reward" || copy.Template != made)
                 Assert.Equal(links.Count, copy.Held.Count);
@@ -404,9 +436,22 @@ public class CharacterInventoryServiceShould
         }
     }
 
-    /// <summary>A copy as it was made: its template, its modifiers as held, and as the write that stores it carries them.</summary>
+    /// <summary>
+    /// A copy as it was made: its template, its modifiers and base stats as held, and as the write that stores it carries
+    /// them, and whether that write rewrites its rolled rows at all (its save mark).
+    /// </summary>
     private sealed record MadeCopy(
-        ItemTemplateId Template, IReadOnlyList<ItemInstanceModifier> Held, IReadOnlyList<ItemInstanceModifier> Written);
+        ItemTemplateId Template, IReadOnlyList<ItemInstanceModifier> Held, IReadOnlyList<ItemInstanceModifier> Written,
+        ItemBaseStats BaseStats, ItemBaseStats WrittenBaseStats, bool Marked);
+
+    private static List<ItemBaseStat> Stats(ItemBaseStats baseStats)
+    {
+        List<ItemBaseStat> stats = [];
+        foreach ((ItemBaseStat stat, _) in baseStats)
+            stats.Add(stat);
+
+        return stats;
+    }
 
     /// <summary>A warrior's create info, listing <paramref name="items" /> as its starting items.</summary>
     private static ICharacterCreateInfoRepository StartingWith(params ItemTemplateId[] items)
@@ -418,8 +463,8 @@ public class CharacterInventoryServiceShould
     }
 
     /// <summary>
-    /// Every Bag item's modifiers in the store, and what the next save writes of them: the write's rows for the item, its
-    /// values put back on each, or none when the save does not rewrite the item's set.
+    /// Every Bag item's modifiers and base stats in the store, and what the next save writes of them: the write's rows for
+    /// the item, its values put back on each, or none when the save does not rewrite the item's set.
     /// </summary>
     private static List<MadeCopy> HeldAndWritten(CharacterEntity character)
     {
@@ -438,12 +483,18 @@ public class CharacterInventoryServiceShould
 
         return
         [
-            .. character.Container(InventoryType.Bag).Items.Select(item =>
-                new MadeCopy(item.TemplateId, character.ItemModifiers.Of(item.InstanceId), WrittenFor(item.InstanceId))),
+            .. character.Container(InventoryType.Bag).Items.Select(item => new MadeCopy(item.TemplateId,
+                character.ItemModifiers.Of(item.InstanceId), WrittenFor(item.InstanceId),
+                character.ItemModifiers.BaseStatsOf(item.InstanceId),
+                ItemBaseStats.Of((write?.BaseStats ?? []).Where(s => s.ItemInstanceId == item.InstanceId)),
+                write?.Items.Contains(item.InstanceId) == true)),
         ];
     }
 
-    /// <summary>A warrior created through the handler: each starting item as the creation inserts it, its modifiers with it.</summary>
+    /// <summary>
+    /// A warrior created through the handler: each starting item as its roll made it (held), and the rows the creation
+    /// inserts with it (written). The insert is the write, so a copy counts as marked when it carries rows of either kind.
+    /// </summary>
     private static async Task<List<MadeCopy>> CreatedAsync(IWorld world)
     {
         ICharacterRepository characters = Substitute.For<ICharacterRepository>();
@@ -460,12 +511,40 @@ public class CharacterInventoryServiceShould
         connection.IsConnected.Returns(true);
         connection.Character.Returns((ICharacter?)null!);
 
-        new CharacterCreateHandler(NullLogger<CharacterCreateHandler>.Instance, characters, TestEconomy.Roller(new ItemIdAllocator()),
-            world).Execute(connection, new CCharacterCreatePacket { Name = "Starter", Class = CharacterClass.Warrior });
+        var roller = new RecordingRoller(TestEconomy.Roller(new ItemIdAllocator()));
+        new CharacterCreateHandler(NullLogger<CharacterCreateHandler>.Instance, characters, roller, world)
+            .Execute(connection, new CCharacterCreatePacket { Name = "Starter", Class = CharacterClass.Warrior });
         await (Task)connection.ReceivedCalls()
             .Single(call => call.GetMethodInfo().Name == nameof(IWorldConnection.EnqueueContinuation)).GetArguments()[0]!;
 
         Assert.NotNull(created);
-        return [.. created.Items.Select(item => new MadeCopy(item.TemplateId, item.Modifiers, item.Modifiers))];
+        return
+        [
+            .. created.Items.Select(item =>
+            {
+                RolledItem rolled = roller.Made.Single(made => made.InstanceId == item.Id);
+                return new MadeCopy(item.TemplateId, rolled.Modifiers, item.Modifiers, rolled.BaseStats,
+                    ItemBaseStats.Of(item.BaseStats), item.Modifiers.Count > 0 || item.BaseStats.Count > 0);
+            }),
+        ];
+    }
+
+    /// <summary>The roller the handler is given, keeping every plain copy it made, as the roll made it.</summary>
+    private sealed class RecordingRoller(IItemRoller inner) : IItemRoller
+    {
+        public List<RolledItem> Made { get; } = [];
+
+        public RolledItem RollPlain(ItemTemplate template, ushort itemLevel, ItemsPatch items)
+        {
+            RolledItem rolled = inner.RollPlain(template, itemLevel, items);
+            Made.Add(rolled);
+            return rolled;
+        }
+
+        public RolledItem? Roll(ItemTemplate template, in DropContext context, ItemsPatch items) =>
+            inner.Roll(template, context, items);
+
+        public void RollDrops(List<RolledDrop> drops, in DropContext context, ItemsPatch items) =>
+            inner.RollDrops(drops, context, items);
     }
 }

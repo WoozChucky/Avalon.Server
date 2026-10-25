@@ -1,8 +1,8 @@
 namespace Avalon.Network.Packets.Combat;
 
 /// <summary>
-/// A hit's damage type (#1178): physical, or one of the three elements, or blight. The stored item columns
-/// (<c>ItemTemplates.DamageType1/2</c>) hold these numbers. Append-only.
+/// A hit's damage type (#1178): physical, or one of the three elements, or blight. The stored item column
+/// (<c>ItemTemplates.DamageType</c>) holds these numbers. Append-only.
 /// </summary>
 public enum DamageType
 {

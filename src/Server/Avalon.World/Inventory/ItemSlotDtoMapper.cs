@@ -12,25 +12,29 @@ namespace Avalon.World.Inventory;
 public static class ItemSlotDtoMapper
 {
     /// <summary>
-    /// A held item: its modifiers from the character's <see cref="ItemModifierStore" />, their entries taken from
-    /// <paramref name="pool" /> (#1179), and the name the store holds for it. The caller gives the entries back
+    /// A held item: its modifiers and base stats from the character's <see cref="ItemModifierStore" />, their entries
+    /// taken from <paramref name="pool" /> (#1179), and the name the store holds for it. The caller gives the entries back
     /// (<see cref="ItemModifierDtoPool.Return(ItemSlotDto?)" />) once the message carrying them is encoded, so a message
-    /// sent again and again (the tick's inventory update) makes no modifier garbage.
+    /// sent again and again (the tick's inventory update) makes no modifier or base-stat garbage.
     /// </summary>
     /// <param name="items">
     /// The current items generation: the template and catalog a magic copy's name is worked out from, once per
     /// generation, so a rename reaches every copy. A common or unique copy's name is its template's, and is not sent.
     /// </param>
     public static ItemSlotDto ToDto(InventoryType container, InventoryItem item, ItemModifierStore modifiers,
-        ItemsPatch items, ItemModifierDtoPool pool) =>
-        Slot(container, item, pool.Rent(modifiers.Of(item.InstanceId)), modifiers.NameOf(item, items));
+        ItemsPatch items, ItemModifierDtoPool pool)
+    {
+        ItemModifierStore.Held held = modifiers.Describe(item, items);
+        return Slot(container, item, pool.Rent(held.Modifiers), pool.RentBaseStats(in held.BaseStats), held.Name);
+    }
 
     /// <summary>
-    /// An item outside every container (a sale kept for buyback), for a message built once: its modifiers in entries of
-    /// their own, and its name worked out now.
+    /// An item outside every container (a sale kept for buyback), for a message built once: its modifiers and base stats
+    /// in entries of their own, and its name worked out now.
     /// </summary>
     public static ItemSlotDto ToDto(InventoryType container, CarriedItem carried, ItemsPatch items) =>
         Slot(container, carried.Item, ItemModifierDtoMapper.ToDtos(carried.Modifiers),
+            ItemModifierDtoMapper.ToBaseStatDtos(carried.BaseStats),
             NameOf(carried.Item.TemplateId, carried.Item.Rarity, carried.Item.RareName, carried.Modifiers, items));
 
     /// <summary>
@@ -50,7 +54,7 @@ public static class ItemSlotDtoMapper
         };
 
     private static ItemSlotDto Slot(InventoryType container, InventoryItem item, List<ItemModifierDto>? modifiers,
-        string? name) => new()
+        List<ItemBaseStatDto>? baseStats, string? name) => new()
         {
             Container = container,
             Slot = item.Slot,
@@ -63,5 +67,6 @@ public static class ItemSlotDtoMapper
             ItemLevel = item.ItemLevel,
             Modifiers = modifiers,
             Name = name,
+            BaseStats = baseStats,
         };
 }

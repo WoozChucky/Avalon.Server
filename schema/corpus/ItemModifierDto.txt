@@ -29,37 +29,37 @@ variant populated
   field 1 ModifierId : uint = 7
   field 2 Values : List<ItemModifierValueDto> = 2 elements
     element 0
-      field 1 Stat : ItemStat = CritMultiplier (32)
+      field 1 Stat : ItemStat = FireResistance (15)
       field 2 Value : int = 70000
       field 3 Value2 : int? = -9
     element 1
-      field 1 Stat : ItemStat = MovementSpeed (13)
+      field 1 Stat : ItemStat = IncreasedDamage (19)
       field 2 Value : int = 1000
       field 3 Value2 : int? = -3
   bytes 39
-    08 07 12 11 08 20 10 f0 a2 04 18 f7 ff ff ff ff
-    ff ff ff ff 01 12 10 08 0d 10 e8 07 18 fd ff ff
+    08 07 12 11 08 0f 10 f0 a2 04 18 f7 ff ff ff ff
+    ff ff ff ff 01 12 10 08 13 10 e8 07 18 fd ff ff
     ff ff ff ff ff ff 01
 
 variant maxima
   field 1 ModifierId : uint = 4294967295
   field 2 Values : List<ItemModifierValueDto> = 3 elements
     element 0
-      field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+      field 1 Stat : ItemStat = IncreasedMaximumLife (53)
       field 2 Value : int = 2147483647
       field 3 Value2 : int? = 2147483647
     element 1
-      field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+      field 1 Stat : ItemStat = IncreasedMaximumLife (53)
       field 2 Value : int = 2147483647
       field 3 Value2 : int? = 2147483647
     element 2
-      field 1 Stat : ItemStat = AddedLightningDamageToSpells (52)
+      field 1 Stat : ItemStat = IncreasedMaximumLife (53)
       field 2 Value : int = 2147483647
       field 3 Value2 : int? = 2147483647
   bytes 54
-    08 ff ff ff ff 0f 12 0e 08 34 10 ff ff ff ff 07
-    18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff 07
-    18 ff ff ff ff 07 12 0e 08 34 10 ff ff ff ff 07
+    08 ff ff ff ff 0f 12 0e 08 35 10 ff ff ff ff 07
+    18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07
+    18 ff ff ff ff 07 12 0e 08 35 10 ff ff ff ff 07
     18 ff ff ff ff 07
 
 variant minima
@@ -77,13 +77,13 @@ variant varint-edges
   field 1 ModifierId : uint = 16383
   field 2 Values : List<ItemModifierValueDto> = 2 elements
     element 0
-      field 1 Stat : ItemStat = <not a declared member> (53)
+      field 1 Stat : ItemStat = <not a declared member> (54)
       field 2 Value : int = 268435455
       field 3 Value2 : int? = 2097151
     element 1
-      field 1 Stat : ItemStat = <not a declared member> (53)
+      field 1 Stat : ItemStat = <not a declared member> (54)
       field 2 Value : int = 2097152
       field 3 Value2 : int? = 16384
   bytes 29
-    08 ff 7f 12 0b 08 35 10 ff ff ff 7f 18 ff ff 7f
-    12 0b 08 35 10 80 80 80 01 18 80 80 01
+    08 ff 7f 12 0b 08 36 10 ff ff ff 7f 18 ff ff 7f
+    12 0b 08 36 10 80 80 80 01 18 80 80 01

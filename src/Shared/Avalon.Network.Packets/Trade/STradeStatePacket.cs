@@ -35,6 +35,12 @@ public class TradeItemDto
     /// (the two words its roll gave it); null where the template's name is the item's.
     /// </summary>
     [ProtoMember(8)] public string? Name { get; set; }
+
+    /// <summary>
+    /// The base stats the copy rolled (#1179), in base-stat order; null for an item without any (jewellery, a consumable),
+    /// which is what an empty repeated field reads back as.
+    /// </summary>
+    [ProtoMember(9)] public List<ItemBaseStatDto>? BaseStats { get; set; }
 }
 
 /// <summary>One side of a trade: its items in trade-slot order, its gold, and whether it confirmed this revision.</summary>

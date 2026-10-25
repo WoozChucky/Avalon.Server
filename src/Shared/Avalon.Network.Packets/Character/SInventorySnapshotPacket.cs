@@ -82,4 +82,10 @@ public class ItemSlotDto
     /// (the two words its roll gave it); null where the template's name is the item's.
     /// </summary>
     [ProtoMember(11)] public string? Name { get; set; }
+
+    /// <summary>
+    /// The base stats the copy rolled (#1179), in base-stat order; null for an item without any (jewellery, a consumable),
+    /// which is what an empty repeated field reads back as.
+    /// </summary>
+    [ProtoMember(12)] public List<ItemBaseStatDto>? BaseStats { get; set; }
 }

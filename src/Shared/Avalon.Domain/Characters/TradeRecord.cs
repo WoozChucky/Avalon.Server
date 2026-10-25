@@ -48,8 +48,20 @@ public class TradeRecordItem
     /// <summary>A rare item's name as it was when it moved (#1179); null for every other item.</summary>
     public string? RareName { get; set; }
 
+    /// <summary>The item's base stats as they were when it moved (#1179): the record's own copy, one row per stat.</summary>
+    public List<TradeRecordItemBaseStat> BaseStats { get; set; } = [];
+
     /// <summary>The item's modifiers as they were when it moved: the record's own copy, since it outlives the item.</summary>
     public List<TradeRecordItemModifier> Modifiers { get; set; } = [];
+}
+
+/// <summary>One base stat of a traded item, as it was when the trade completed (#1179), keyed by the trade, the item and the stat.</summary>
+public class TradeRecordItemBaseStat
+{
+    public Guid TradeId { get; set; }
+    public ItemInstanceId ItemInstanceId { get; set; } = default!;
+    public ItemBaseStat Stat { get; set; }
+    public int Value { get; set; }
 }
 
 /// <summary>

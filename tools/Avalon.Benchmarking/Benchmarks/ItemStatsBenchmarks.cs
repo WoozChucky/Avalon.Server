@@ -62,10 +62,7 @@ public class ItemStatsBenchmarks
             Slot = ItemSlotType.MainHand,
             AllowedClasses = [CharacterClass.Warrior],
             RequiredLevel = 1,
-            DamageMin1 = 5,
-            DamageMax1 = 7,
-            DamageType1 = DamageType.Physical,
-            AttackTimeMs = 792,
+            DamageType = DamageType.Physical,
             StatType1 = StatType.Strength,
             StatValue1 = 1,
         },
@@ -77,11 +74,11 @@ public class ItemStatsBenchmarks
             stamina: 5, armor: 4),
     ];
 
-    // Each piece as a copy that rolled no modifiers, as the kit was measured before #1179.
-    private readonly List<WornItem> _worn = [.. s_kit.Select(t => new WornItem(t, null))];
+    // Each piece as a copy that rolled no modifiers, as the kit was measured before #1179, with its base stats.
+    private readonly List<WornItem> _worn = [.. s_kit.Select(t => new WornItem(t, BaseStatsFor(t), null, t.DamageType))];
 
     // The same pieces, each with six modifiers of one value each.
-    private readonly List<WornItem> _wornModified = [.. s_kit.Select(t => new WornItem(t, ModifiersFor(t)))];
+    private readonly List<WornItem> _wornModified = [.. s_kit.Select(t => new WornItem(t, BaseStatsFor(t), ModifiersFor(t), t.DamageType))];
 
     private readonly ClassStatFactors _factors = CombatSeed.ClassFactors().Single(f => f.Class == CharacterClass.Warrior);
     private readonly CombatFormula _formula = CombatSeed.Formula();
@@ -108,6 +105,13 @@ public class ItemStatsBenchmarks
     [Benchmark]
     public DerivedCharacterStats CalculateModified() =>
         CharacterStatsCalculator.Calculate(s_warriorLevel10, _wornModified, _factors, _formula);
+
+    // The sword's copy rolled the damage and attack time its template carried before base stats (5-7 at 792 ms); each
+    // Barkplate piece's copy rolled the armour its template line gave, from its one-value range, as a seeded base's
+    // copy carries its defence. The jewellery keeps its template lines: a ring or an amulet carries no base stats.
+    private static ItemBaseStats BaseStatsFor(ItemTemplate template) => template.Slot == ItemSlotType.MainHand
+        ? new ItemBaseStats(null, null, null, null, DamageMin: 5, DamageMax: 7, AttackTime: 792)
+        : template.BaseStats is [{ Stat: ItemBaseStat.Armour } armour] ? new ItemBaseStats { Armour = armour.Min } : default;
 
     // Six modifiers by kind of piece: the sword's local damage and speed, armour's local increased armour, jewellery's
     // added damage to spells; every piece has 2 Stamina and some global lines.
@@ -181,10 +185,9 @@ public class ItemStatsBenchmarks
             RequiredLevel = 1,
             StatType1 = StatType.Strength,
             StatValue1 = strength,
-            StatType2 = StatType.Armor,
-            StatValue2 = armor,
-            StatType3 = StatType.Stamina,
-            StatValue3 = stamina,
+            StatType2 = StatType.Stamina,
+            StatValue2 = stamina,
+            BaseStats = [new ItemTemplateBaseStat { TemplateId = id, Stat = ItemBaseStat.Armour, Min = (int)armor, Max = (int)armor }],
         };
 
     private static ItemTemplate Jewellery(ulong id, string name, ItemSubClass subClass, ItemSlotType slot,

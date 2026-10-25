@@ -1,11 +1,14 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.World;
 using Avalon.World.Dialogue;
 using Avalon.World.Inventory;
+using Avalon.World.Public.Characters;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -102,7 +105,15 @@ public class BankAccessShould
     public async Task Describe_every_bank_slot_in_one_snapshot()
     {
         BankerWorld w = await BankerWorld.CreateAsync();
-        w.Character.Container(InventoryType.Bank).Load([Item(2, Potion, count: 7)]);
+        // A chest copy carrying its rolled armour (#1179), and a ring, which has no base stats.
+        InventoryItem chest = Item(4, EquipTemplates.Chestguard);
+        w.Character.ItemModifiers.Load([new ItemInstance
+        {
+            Id = chest.InstanceId,
+            TemplateId = chest.TemplateId,
+            BaseStats = [new ItemInstanceBaseStat { ItemInstanceId = chest.InstanceId, Stat = ItemBaseStat.Armour, Value = 8 }],
+        }]);
+        w.Character.Container(InventoryType.Bank).Load([Item(2, Potion, count: 7), chest, Item(5, EquipTemplates.Band)]);
 
         InventorySlotUpdateDto[] snapshot = BankAccess.Snapshot(w.Character, w.Data.Items, new ItemModifierDtoPool());
 
@@ -110,6 +121,8 @@ public class BankAccessShould
         Assert.All(snapshot, s => Assert.Equal(InventoryType.Bank, s.Container));
         Assert.Equal(Enumerable.Range(0, 30).Select(i => (byte)i), snapshot.Select(s => s.Slot));
         Assert.Equal(7u, snapshot[2].Item!.Count);
-        Assert.Equal(29, snapshot.Count(s => s.Item is null));
+        Assert.Equal(27, snapshot.Count(s => s.Item is null));
+        Assert.Equal((BaseStat.Armour, 8), snapshot[4].Item!.BaseStats!.Select(b => (b.Stat, b.Value)).Single());
+        Assert.Null(snapshot[5].Item!.BaseStats);
     }
 }

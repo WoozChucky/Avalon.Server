@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Exporter;
 using Avalon.Network.Packets.Combat;
@@ -67,19 +68,22 @@ public class ItemCatalogShould
     [Fact]
     public void Render_A_Representative_Damage_And_Stat_Field()
     {
-        ItemTemplate template = Template(1, "Rusted Sword");
-        template.DamageMin1 = 4;
-        template.DamageMax1 = 9;
-        template.DamageType1 = DamageType.Physical;
+        // The seeded Ironwood Sword (#1179): its damage and attack time are base-stat ranges, its template names the type.
+        ItemTemplate template = ItemBaseSeed.Equipment().Single(t => t.Id.Value == 32);
+        template.BaseStats = [.. ItemBaseSeed.BaseStats().Where(s => s.TemplateId.Value == 32)];
         template.StatType1 = StatType.Strength;
         template.StatValue1 = 7;
 
         using var document = JsonDocument.Parse(ItemCatalog.Render([template]));
         JsonElement item = document.RootElement.GetProperty("items").EnumerateArray().Single();
 
-        Assert.Equal(4u, item.GetProperty("damageMin1").GetUInt32());
-        Assert.Equal(9u, item.GetProperty("damageMax1").GetUInt32());
-        Assert.Equal((int)DamageType.Physical, item.GetProperty("damageType1").GetInt32());
+        // Written under the template, by number, in stat order, without the link back to it.
+        Assert.Equal(
+            [((int)ItemBaseStat.DamageMin, 2, 4), ((int)ItemBaseStat.DamageMax, 6, 8), ((int)ItemBaseStat.AttackTime, 665, 735)],
+            item.GetProperty("baseStats").EnumerateArray().Select(s =>
+                (s.GetProperty("stat").GetInt32(), s.GetProperty("min").GetInt32(), s.GetProperty("max").GetInt32())));
+        Assert.False(item.GetProperty("baseStats")[0].TryGetProperty("templateId", out _));
+        Assert.Equal((int)DamageType.Physical, item.GetProperty("damageType").GetInt32());
         Assert.Equal((int)StatType.Strength, item.GetProperty("statType1").GetInt32());
         Assert.Equal(7u, item.GetProperty("statValue1").GetUInt32());
     }
@@ -96,13 +100,13 @@ public class ItemCatalogShould
         JsonElement item = document.RootElement.GetProperty("items").EnumerateArray().Single();
 
         Assert.False(item.TryGetProperty("slot", out _));
-        Assert.False(item.TryGetProperty("damageMin1", out _));
+        Assert.False(item.TryGetProperty("baseTemplateId", out _));
     }
 
     /// <summary>
     /// item-schema-v1.json describes AllowedClasses as an array of the numeric CharacterClass
     /// vocabulary, matching every other enum field the catalog emits (class, subClass, rarity,
-    /// flags, damageType1, statType1). CharacterClass itself carries
+    /// flags, damageType, statType1). CharacterClass itself carries
     /// [JsonConverter(typeof(JsonStringEnumConverter))] for Avalon.Api's REST responses, which
     /// ItemCatalog.Render's reflection-driven serializer would otherwise inherit -- a type-level
     /// [JsonConverter] attribute beats anything in JsonSerializerOptions.Converters, so a client

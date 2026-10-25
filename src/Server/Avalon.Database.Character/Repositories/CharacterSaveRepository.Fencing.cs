@@ -65,9 +65,9 @@ public partial class CharacterSaveRepository
     }
 
     /// <summary>
-    /// #1179: one save mark per item keeps an item and its modifiers in the same save, so a modifier write names only items
-    /// its own batch upserts (which <see cref="GuardAsync" /> holds to the batch's character), each modifier sits on one
-    /// of them, and each value row on one of those modifiers.
+    /// #1179: one save mark per item keeps an item and its rolled rows in the same save, so a modifier write names only
+    /// items its own batch upserts (which <see cref="GuardAsync" /> holds to the batch's character), each modifier and
+    /// each base-stat row sits on one of them, and each value row on one of those modifiers.
     /// </summary>
     private static bool ModifiersFollowTheirItems(CharacterSaveBatch batch, ItemModifierWrite write)
     {
@@ -76,7 +76,8 @@ public partial class CharacterSaveRepository
         var modifiers = write.Modifiers.Select(m => m.Id).ToHashSet();
         return items.All(upserted.Contains) &&
             write.Modifiers.All(m => items.Contains(m.ItemInstanceId)) &&
-            write.Values.All(v => modifiers.Contains(v.ItemInstanceModifierId));
+            write.Values.All(v => modifiers.Contains(v.ItemInstanceModifierId)) &&
+            write.BaseStats.All(s => items.Contains(s.ItemInstanceId));
     }
 
     private async Task CheckDeadlineAsync(CharacterDbContext db, AccountGameplayFence[] guards, CancellationToken cancellationToken)

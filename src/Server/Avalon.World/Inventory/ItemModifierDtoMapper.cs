@@ -3,7 +3,9 @@ using Avalon.Network.Packets.Items;
 
 namespace Avalon.World.Inventory;
 
-/// <summary>An item's modifiers on the wire (#1179), the same for a slot and a trade window entry.</summary>
+/// <summary>
+/// An item's modifiers and base stats on the wire (#1179), the same for a slot, a trade window entry and a drop.
+/// </summary>
 public static class ItemModifierDtoMapper
 {
     /// <summary>
@@ -30,6 +32,19 @@ public static class ItemModifierDtoMapper
 
             dtos.Add(dto);
         }
+
+        return dtos;
+    }
+
+    /// <summary>The base stats in base-stat order; null for none, so an item without them costs no list.</summary>
+    public static List<ItemBaseStatDto>? ToBaseStatDtos(in ItemBaseStats baseStats)
+    {
+        if (baseStats.IsEmpty)
+            return null;
+
+        var dtos = new List<ItemBaseStatDto>();
+        foreach ((ItemBaseStat stat, int value) in baseStats)
+            dtos.Add(new ItemBaseStatDto { Stat = (BaseStat)stat, Value = value });
 
         return dtos;
     }

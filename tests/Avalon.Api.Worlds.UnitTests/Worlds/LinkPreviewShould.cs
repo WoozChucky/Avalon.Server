@@ -6,6 +6,7 @@ using Avalon.Api.Testing;
 using Avalon.Api.Worlds.Controllers;
 using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Worlds.Previews;
+using Avalon.Api.Worlds.Services;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -23,6 +24,7 @@ using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using DamageType = Avalon.Network.Packets.Combat.DamageType;
 using ItemRarity = Avalon.Common.ItemRarity;
+using PublicItemDto = Avalon.Api.Contract.PublicItemDto;
 using ItemSlotType = Avalon.Domain.World.ItemSlotType;
 using ItemSubClass = Avalon.Domain.World.ItemSubClass;
 using StatType = Avalon.Domain.World.StatType;
@@ -113,12 +115,12 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
             StatValue9 = 1,
             StatType10 = StatType.Power,
             StatValue10 = 1,
-            DamageMin1 = 100000,
-            DamageMax1 = 200000,
-            DamageType1 = DamageType.Lightning,
-            DamageMin2 = 100000,
-            DamageMax2 = 200000,
-            DamageType2 = DamageType.Blight,
+            DamageType = DamageType.Lightning,
+            BaseStats =
+            [
+                new ItemTemplateBaseStat { TemplateId = new ItemTemplateId(16), Stat = ItemBaseStat.DamageMin, Min = 100000, Max = 200000 },
+                new ItemTemplateBaseStat { TemplateId = new ItemTemplateId(16), Stat = ItemBaseStat.DamageMax, Min = 300000, Max = 400000 },
+            ],
         });
 
         _abilities.FindByIdAsync(new AbilityId(210), Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -281,25 +283,34 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     }
 
     /// <summary>
-    /// What every copy of a seeded item rolls within (#1179), read through the world's catalog: a base's implicit (the
-    /// plate chest's armour) and a unique's own lines, each as a range, an "adds X to Y" line with both.
+    /// What every copy of a seeded item rolls within (#1179), read through the world's catalog, in the order the
+    /// description writes it: a base's own ranges, then its implicit; a unique's base's implicit, then its own lines,
+    /// each as a range, an "adds X to Y" line with both.
     /// </summary>
     [Theory]
-    [InlineData(65UL, new[] { "Unique", "+24-36 Health", "Adds 2 to 3-5 Physical Damage to Attacks", "+3-5% Crit" })]
-    [InlineData(37UL, new[] { "Common", "7-9 Armor" })]
+    [InlineData(37UL, new[] { "6-10 Armor", "+1-2% increased Health" })]
+    [InlineData(65UL, new[]
+    {
+        "Unique", "Adds 1 to 2 Lightning Damage to Attacks", "+4-5 Health", "Adds 1 to 3 Physical Damage to Attacks",
+        "+3-4% Crit Multiplier",
+    })]
     public async Task Describe_what_every_copy_of_a_seeded_item_rolls_within(ulong id, string[] expected)
     {
+        string[] parts = await DescribeSeededAsync(id);
+
+        Assert.Equal(expected, parts.Where(expected.Contains));
+    }
+
+    /// <summary>A seeded item's description, its parts, read as the preview reads it (#1179): with a unique's base.</summary>
+    private static async Task<string[]> DescribeSeededAsync(ulong id)
+    {
         using var sqlite = new SqliteWorlds(Open);
-        using WorldDbContext world = sqlite.CreateWorld(new WorldId(Open));
-        ItemTemplate template = world.ItemTemplates.AsEnumerable().Single(t => t.Id.Value == id);
-        ItemModifierCatalog catalog = await new ItemModifierRepository(
-                new DelegateDbContextFactory<WorldDbContext>(() => sqlite.CreateWorld(new WorldId(Open))),
-                NullLoggerFactory.Instance)
-            .GetLinkedToAsync(template, CancellationToken.None);
-
-        string[] parts = LinkPreviewText.Describe(template.ToPublicDto(catalog.LinkedTo(template.Id))).Split(" · ");
-
-        Assert.All(expected, part => Assert.Contains(part, parts));
+        var factory = new DelegateDbContextFactory<WorldDbContext>(() => sqlite.CreateWorld(new WorldId(Open)));
+        var items = new ItemTemplateRepository(factory);
+        ItemTemplate template = (await items.FindByIdAsync(new ItemTemplateId(id), track: false))!;
+        PublicItemDto item = await PublicItems.ToPublicAsync(template, items,
+            new ItemModifierRepository(factory, NullLoggerFactory.Instance), CancellationToken.None);
+        return LinkPreviewText.Describe(item).Split(" · ");
     }
 
     [Fact]
@@ -394,32 +405,17 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         Assert.StartsWith("Unique", description, StringComparison.Ordinal);
     }
 
-    /// <summary>A weapon's attack time follows its damage, as on the tooltip's damage line (#1189).</summary>
+    /// <summary>
+    /// A weapon's attack time follows its damage, as on the tooltip's damage line (#1189), both the ranges every copy
+    /// rolls within (#1179), before the lines: the seeded Ash Staff.
+    /// </summary>
     [Fact]
-    public void Put_a_weapons_attack_time_after_its_damage()
+    public async Task Put_a_weapons_attack_time_after_its_damage()
     {
-        var weapon = new ItemTemplate
-        {
-            Id = new ItemTemplateId(30),
-            Name = "Ember Blade",
-            Rarity = ItemRarity.Unique,
-            Slot = ItemSlotType.MainHand,
-            SubClass = ItemSubClass.OneHanded,
-            AttackTimeMs = 784,
-            DamageMin1 = 12,
-            DamageMax1 = 18,
-            DamageType1 = DamageType.Physical,
-            DamageMin2 = 3,
-            DamageMax2 = 5,
-            DamageType2 = DamageType.Fire,
-            StatType1 = StatType.IncreasedFireDamage,
-            StatValue1 = 10,
-        };
+        string[] parts = await DescribeSeededAsync(33);
 
-        Assert.Equal(
-            "Unique · Main Hand · One Handed · 12 – 18 Physical Damage · 3 – 5 Fire Damage · 0.78 sec attack time · " +
-            "+10% increased Fire Damage",
-            LinkPreviewText.Describe(weapon.ToPublicDto([])));
+        Assert.Equal(["Common", "Main Hand", "Two Handed", "4-6 to 7-11 Physical Damage", "0.95-1.05 sec attack time"],
+            parts.Take(5));
     }
 
     [Fact]

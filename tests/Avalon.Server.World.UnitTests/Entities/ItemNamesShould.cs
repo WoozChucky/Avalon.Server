@@ -17,13 +17,13 @@ public class ItemNamesShould
     private static readonly StaticData s_data = ScenarioReferenceData.Shared.Data;
 
     [Theory]
+    [InlineData(37UL, ItemRarity.Magic, new[] { "implicit IncreasedMaximumLife T9", "P11 T9" }, null, "Hale Ironbound Chestguard")]
     [InlineData(32UL, ItemRarity.Common, new string[0], null, null)]
-    [InlineData(32UL, ItemRarity.Magic, new[] { "P2 T2", "S6 T3" }, null, "Smouldering Ironwood Sword of Haste")]
-    [InlineData(32UL, ItemRarity.Magic, new[] { "P2 T2" }, null, "Smouldering Ironwood Sword")]
-    [InlineData(32UL, ItemRarity.Magic, new[] { "S6 T3" }, null, "Ironwood Sword of Haste")]
-    [InlineData(32UL, ItemRarity.Magic, new[] { "P8 Fire T1" }, null, "Ashen Ironwood Sword")]
-    [InlineData(32UL, ItemRarity.Rare, new[] { "P1 T1", "P2 T2", "S6 T3" }, "Thorn Bite", "Thorn Bite")]
-    [InlineData(37UL, ItemRarity.Magic, new[] { "implicit 37", "P11 T1" }, null, "Hale Ironbound Chestguard")]
+    [InlineData(32UL, ItemRarity.Magic, new[] { "P2 T8", "S6 T7" }, null, "Smouldering Ironwood Sword of Haste")]
+    [InlineData(32UL, ItemRarity.Magic, new[] { "P2 T8" }, null, "Smouldering Ironwood Sword")]
+    [InlineData(32UL, ItemRarity.Magic, new[] { "S6 T7" }, null, "Ironwood Sword of Haste")]
+    [InlineData(32UL, ItemRarity.Magic, new[] { "P8 Fire T9" }, null, "Ashen Ironwood Sword")]
+    [InlineData(32UL, ItemRarity.Rare, new[] { "P1 T9", "P2 T8", "S6 T7" }, "Thorn Bite", "Thorn Bite")]
     public void Name_an_item_from_its_rarity_and_affixes(
         ulong template, ItemRarity rarity, string[] modifiers, string? rareName, string? expected)
     {

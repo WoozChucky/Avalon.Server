@@ -242,6 +242,11 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
                     Rarity = ItemRarity.Rare,
                     ItemLevel = 9,
                     RareName = "Thorn Bite",
+                    BaseStats =
+                    [
+                        new TradeRecordItemBaseStat { TradeId = tradeId, ItemInstanceId = sword.Id, Stat = ItemBaseStat.DamageMax, Value = 9 },
+                        new TradeRecordItemBaseStat { TradeId = tradeId, ItemInstanceId = sword.Id, Stat = ItemBaseStat.DamageMin, Value = 4 },
+                    ],
                     Modifiers =
                     [
                         new TradeRecordItemModifier
@@ -277,9 +282,12 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         {
             TradeRecordItem moved = await read.TradeRecordItems.AsNoTracking()
                 .Include(i => i.Modifiers).ThenInclude(m => m.Values)
+                .Include(i => i.BaseStats)
                 .SingleAsync(i => i.TradeId == record.Id);
             Assert.Equal((sword.Id, ItemRarity.Rare, (ushort)9, "Thorn Bite"),
                 (moved.ItemInstanceId, moved.Rarity, moved.ItemLevel, moved.RareName));
+            Assert.Equal([(ItemBaseStat.DamageMin, 4), (ItemBaseStat.DamageMax, 9)],
+                moved.BaseStats.OrderBy(s => s.Stat).Select(s => (s.Stat, s.Value)));
             TradeRecordItemModifier modifier = Assert.Single(moved.Modifiers);
             Assert.Equal((modifierId, (byte)0, 202), (modifier.ItemInstanceModifierId, modifier.Ordinal, modifier.ModifierId));
             Assert.Equal([(StatType.AddedFireDamage, 2, (int?)5), (StatType.Strength, 4, null)],
@@ -289,9 +297,10 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
 
     /// <summary>
     /// An item's modifiers change over its life (crafting, #1180): its save leaves exactly the set it carries, a row kept
-    /// by id updated in place under that id, and every other row gone with its values. An item the save does not rewrite
-    /// keeps its modifiers and their values. A rare item keeps the name its roll gave it (#1179), and only a rare one may
-    /// carry a name (CK_ItemInstances_RareName).
+    /// by id updated in place under that id, and every other row gone with its values. Its base stats are replaced
+    /// likewise, one row per stat however often they are written. An item the save does not rewrite keeps its modifiers,
+    /// their values and its base stats. A rare item keeps the name its roll gave it (#1179), and only a rare one may carry
+    /// a name (CK_ItemInstances_RareName).
     /// </summary>
     [Fact]
     public async Task Replace_an_items_modifier_rows_by_id_in_its_save()
@@ -303,19 +312,27 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         ItemInstanceModifier b = Modifier(item.Id, 10103, 1, Value(0, StatType.Strength, 8, null));
         ItemInstanceModifier other = Modifier(untouched.Id, 10103, 0, Value(0, StatType.Strength, 5, null));
         await _saves.WriteAsync([Batch(row, upsertItems: [item, untouched],
-            upsertSlots: [Slot(row.Id, 0, item.Id), Slot(row.Id, 1, untouched.Id)], modifiers: Write(a, b, other))]);
+            upsertSlots: [Slot(row.Id, 0, item.Id), Slot(row.Id, 1, untouched.Id)],
+            modifiers: Write([BaseStat(item.Id, ItemBaseStat.BlockChance, 6), BaseStat(item.Id, ItemBaseStat.Armour, 9),
+                BaseStat(untouched.Id, ItemBaseStat.Evasion, 40)], a, b, other))]);
 
         ItemInstance saved = await SavedAsync(row.Id, item.Id);
         Assert.Equal((ItemRarity.Rare, (ushort)7, "Thorn Bite"), (saved.Rarity, saved.ItemLevel, saved.RareName));
         Assert.Equal(Describe(a, b), Describe([.. saved.Modifiers]));
+        Assert.Equal([(ItemBaseStat.Armour, 9), (ItemBaseStat.BlockChance, 6)], BaseStatsOf(saved));
 
         ItemInstanceModifier kept = Modifier(item.Id, 202, 1, Value(0, StatType.AddedFireDamage, 3, 6), a.Id);
         ItemInstanceModifier added = Modifier(item.Id, 203, 0, Value(0, StatType.AddedColdDamage, 1, 4));
         ItemInstance again = Item(row.Id, count: 1, item.Id, ItemRarity.Rare, 7, "Thorn Bite");
-        await _saves.WriteAsync([Batch(row, upsertItems: [again], modifiers: Write(kept, added))]);
+        await _saves.WriteAsync([Batch(row, upsertItems: [again],
+            modifiers: Write([BaseStat(item.Id, ItemBaseStat.Armour, 11)], kept, added))]);
 
-        Assert.Equal(Describe(added, kept), Describe([.. (await SavedAsync(row.Id, item.Id)).Modifiers]));
-        Assert.Equal(Describe(other), Describe([.. (await SavedAsync(row.Id, untouched.Id)).Modifiers]));
+        ItemInstance rewritten = await SavedAsync(row.Id, item.Id);
+        Assert.Equal(Describe(added, kept), Describe([.. rewritten.Modifiers]));
+        Assert.Equal([(ItemBaseStat.Armour, 11)], BaseStatsOf(rewritten));
+        ItemInstance left = await SavedAsync(row.Id, untouched.Id);
+        Assert.Equal(Describe(other), Describe([.. left.Modifiers]));
+        Assert.Equal([(ItemBaseStat.Evasion, 40)], BaseStatsOf(left));
         await using CharacterDbContext read = _database.CreateDbContext();
         Assert.Equal(new[] { added.Id, kept.Id, other.Id }.Order(), (await read.Set<ItemInstanceModifierValue>().AsNoTracking().ToListAsync())
             .Select(v => v.ItemInstanceModifierId).Order());
@@ -328,8 +345,8 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     /// <summary>
     /// One save mark per item keeps an item and its modifiers in the same save, so a modifier write for an item the batch
     /// does not upsert, another character's or one of its own left unchanged, is refused, and nothing is written. So are a
-    /// modifier on no item the write names, a value row for a modifier it does not carry, and a modifier id already stored
-    /// under another item, which would otherwise move that row.
+    /// modifier on no item the write names, a value row for a modifier it does not carry, a modifier id already stored
+    /// under another item, which would otherwise move that row, and a base-stat row for an item the batch does not upsert.
     /// </summary>
     [Fact]
     public async Task Refuse_a_modifier_write_for_an_item_its_batch_does_not_upsert()
@@ -358,6 +375,8 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
             }),
             Batch(row, upsertItems: [Item(row.Id, count: 1, own.Id)],
                 modifiers: Write(Modifier(own.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5), stored.Id))),
+            Batch(row, upsertItems: [Item(row.Id, count: 1, own.Id)],
+                modifiers: onOwn with { BaseStats = [BaseStat(theirs.Id, ItemBaseStat.Armour, 9)] }),
         ];
 
         foreach (CharacterSaveBatch batch in refused)
@@ -368,6 +387,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         ItemInstanceModifier left = Assert.Single(await read.Set<ItemInstanceModifier>().AsNoTracking().ToListAsync());
         Assert.Equal((stored.Id, theirs.Id), (left.Id, left.ItemInstanceId));
         Assert.Equal(stored.Id, Assert.Single(await read.Set<ItemInstanceModifierValue>().AsNoTracking().ToListAsync()).ItemInstanceModifierId);
+        Assert.Empty(await read.ItemInstanceBaseStats.AsNoTracking().ToListAsync());
     }
 
     [Fact]
@@ -460,10 +480,24 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         new() { Index = index, Stat = stat, Value = value, Value2 = value2 };
 
     /// <summary>The flat rows a save writes for <paramref name="modifiers" />: each item's whole set, then every value row.</summary>
-    private static ItemModifierWrite Write(params ItemInstanceModifier[] modifiers) => new(
-        [.. modifiers.Select(m => m.ItemInstanceId).Distinct()],
+    private static ItemModifierWrite Write(params ItemInstanceModifier[] modifiers) => Write([], modifiers);
+
+    /// <summary>
+    /// The flat rows a save writes for <paramref name="baseStats" /> and <paramref name="modifiers" />: each item's whole
+    /// set of both.
+    /// </summary>
+    private static ItemModifierWrite Write(ItemInstanceBaseStat[] baseStats, params ItemInstanceModifier[] modifiers) => new(
+        [.. modifiers.Select(m => m.ItemInstanceId).Concat(baseStats.Select(s => s.ItemInstanceId)).Distinct()],
         [.. modifiers.Select(m => new ItemInstanceModifier { Id = m.Id, ItemInstanceId = m.ItemInstanceId, ModifierId = m.ModifierId, Ordinal = m.Ordinal })],
-        [.. modifiers.SelectMany(m => m.Values)]);
+        [.. modifiers.SelectMany(m => m.Values)],
+        baseStats);
+
+    private static ItemInstanceBaseStat BaseStat(ItemInstanceId item, ItemBaseStat stat, int value) =>
+        new() { ItemInstanceId = item, Stat = stat, Value = value };
+
+    /// <summary>The item's stored base stats, by stat.</summary>
+    private static (ItemBaseStat, int)[] BaseStatsOf(ItemInstance item) =>
+        [.. item.BaseStats.OrderBy(s => s.Stat).Select(s => (s.Stat, s.Value))];
 
     /// <summary>The saved item, with its modifiers and their values, as the character's items are read.</summary>
     private async Task<ItemInstance> SavedAsync(CharacterId owner, ItemInstanceId id) =>

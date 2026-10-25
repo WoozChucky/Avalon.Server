@@ -50,4 +50,10 @@ public class ItemInstance : IDbEntity<ItemInstanceId>
     /// rows (<c>ItemModifierWrite</c>), so an item row handed to a save carries none.
     /// </summary>
     public List<ItemInstanceModifier> Modifiers { get; set; } = [];
+
+    /// <summary>
+    /// The base stats this copy rolled when it was made (#1179), one row per stat: filled by the read and by the creation
+    /// graph, as <see cref="Modifiers" /> is, and saved, like them, as their own rows (<c>ItemModifierWrite.BaseStats</c>).
+    /// </summary>
+    public List<ItemInstanceBaseStat> BaseStats { get; set; } = [];
 }

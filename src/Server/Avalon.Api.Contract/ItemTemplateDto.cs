@@ -32,14 +32,19 @@ public sealed class ItemTemplateDto
     /// every set one is needed.
     /// </summary>
     public bool RequiresAnyAttribute { get; set; }
-    /// <summary>Milliseconds between a weapon's basic attacks before attack speed (#1178), above 0; null for an item that is not a weapon.</summary>
-    public uint? AttackTimeMs { get; set; }
-    public uint? DamageMin1 { get; set; }
-    public uint? DamageMax1 { get; set; }
-    public DamageType? DamageType1 { get; set; }
-    public uint? DamageMin2 { get; set; }
-    public uint? DamageMax2 { get; set; }
-    public DamageType? DamageType2 { get; set; }
+    /// <summary>The type of a weapon's damage (#1178), set on a weapon kind and on no other base (#1179).</summary>
+    public DamageType? DamageType { get; set; }
+    /// <summary>
+    /// The base a unique is made on (#1179): a Common template of its kind at or under its required level, whose base
+    /// stats and implicit every copy rolls. Set on every Unique template and on no other.
+    /// </summary>
+    public ulong? BaseTemplateId { get; set; }
+    /// <summary>
+    /// The base-stat ranges every copy rolls within (#1179), by stat: exactly the stats its kind carries (armour, evasion
+    /// or ward on armour, armour and block on a shield, ward on a caster off-hand, damage and attack time on a weapon),
+    /// none on jewellery, a trinket, a unique or an item that is no base.
+    /// </summary>
+    public List<ItemTemplateBaseStatDto> BaseStats { get; set; } = [];
     public StatType? StatType1 { get; set; }
     public uint? StatValue1 { get; set; }
     public StatType? StatType2 { get; set; }
@@ -74,4 +79,12 @@ public sealed class ItemTemplateDto
 
     /// <summary>Whether this world's templates can be edited; false on a read-only world.</summary>
     public bool Editable { get; set; }
+}
+
+/// <summary>One base-stat range of a template (#1179): every copy rolls a value from <see cref="Min" /> to <see cref="Max" />.</summary>
+public sealed class ItemTemplateBaseStatDto
+{
+    public ItemBaseStat Stat { get; set; }
+    public int Min { get; set; }
+    public int Max { get; set; }
 }

@@ -63,6 +63,11 @@
       "enum": "ItemBaseKind"
     },
     {
+      "name": "BaseTemplateId",
+      "type": "uint64",
+      "nullable": true
+    },
+    {
       "name": "BuyPrice",
       "type": "uint32",
       "nullable": false
@@ -111,41 +116,34 @@
       "nullable": false
     },
     {
-      "name": "DamageMin1",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "DamageMax1",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "DamageType1",
+      "name": "DamageType",
       "type": "enum",
       "nullable": true,
       "enum": "DamageType"
     },
     {
-      "name": "DamageMin2",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "DamageMax2",
-      "type": "uint32",
-      "nullable": true
-    },
-    {
-      "name": "DamageType2",
-      "type": "enum",
-      "nullable": true,
-      "enum": "DamageType"
-    },
-    {
-      "name": "AttackTimeMs",
-      "type": "uint32",
-      "nullable": true
+      "name": "BaseStats",
+      "type": "array",
+      "nullable": false,
+      "element": "object",
+      "fields": [
+        {
+          "name": "Stat",
+          "type": "enum",
+          "nullable": false,
+          "enum": "ItemBaseStat"
+        },
+        {
+          "name": "Min",
+          "type": "int32",
+          "nullable": false
+        },
+        {
+          "name": "Max",
+          "type": "int32",
+          "nullable": false
+        }
+      ]
     },
     {
       "name": "StatType1",
@@ -686,6 +684,10 @@
       {
         "name": "AddedLightningDamageToSpells",
         "value": 52
+      },
+      {
+        "name": "IncreasedMaximumLife",
+        "value": 53
       }
     ],
     "ItemTemplateFlags": [
@@ -868,6 +870,36 @@
       {
         "name": "Trinket",
         "value": 27
+      }
+    ],
+    "ItemBaseStat": [
+      {
+        "name": "Armour",
+        "value": 0
+      },
+      {
+        "name": "Evasion",
+        "value": 1
+      },
+      {
+        "name": "Ward",
+        "value": 2
+      },
+      {
+        "name": "BlockChance",
+        "value": 3
+      },
+      {
+        "name": "DamageMin",
+        "value": 4
+      },
+      {
+        "name": "DamageMax",
+        "value": 5
+      },
+      {
+        "name": "AttackTime",
+        "value": 6
       }
     ]
   }

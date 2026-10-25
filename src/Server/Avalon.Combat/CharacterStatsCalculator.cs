@@ -12,12 +12,14 @@ public static class CharacterStatsCalculator
     /// <summary>
     /// Where a class's power factor is fractional, the whole sum of the factored terms is truncated to a whole number once,
     /// not each product on its own. Health and crit are the same for every class (#1178): BaseHp plus Stamina times <paramref name="formula" />'s life per
-    /// Stamina plus gear health, and the formula's base crit plus gear crit; only power still reads the class's factors.
+    /// Stamina plus gear health, scaled by gear's increased maximum life (#1179, <c>max(0, 1 + x / 100)</c>, whole numbers, half
+    /// away from zero), and the formula's base crit plus gear crit; only power still reads the class's factors.
     /// Defence is the same for every class (#1178): armour, evasion and ward are gear plus Strength, Agility and Intellect
     /// times <paramref name="formula" />'s conversions, each product truncated once; block and resistances are gear's alone.
-    /// Every worn item gives its template's lines and its modifiers' (#1179); a defence line is its own item's: each item's
-    /// armour is <c>round(its Armor lines x max(0, 1 + its LocalIncreasedArmor / 100))</c>, half away from zero, and the
-    /// same for evasion and ward, so increased armour on one piece never scales another's. Weapon is the main hand's damage
+    /// Every worn item gives its template's lines, its copy's base stats and its modifiers' lines (#1179); a defence line is
+    /// its own item's: each item's armour is <c>round((its base Armour + its Armor lines) x max(0, 1 + its
+    /// LocalIncreasedArmor / 100))</c>, half away from zero, and the same for evasion and ward, so increased armour on one
+    /// piece never scales another's. A copy's base block chance adds to block unscaled. Weapon is the main hand's damage
     /// and attack time (the bare hand's with none) with its own local lines and Offence the offence block (#1178), each
     /// attribute with gear. <paramref name="auras" />, when given, is folded in after gear: the result is what the
     /// character has now. The offence block takes them through CharacterOffence alone, so they count once there.
@@ -37,15 +39,16 @@ public static class CharacterStatsCalculator
         long agility = row.Agility + gear.Agility;
         long intellect = row.Intellect + gear.Intellect;
 
-        long maxHealth = row.BaseHp + stamina * formula.LifePerStamina + gear.Health;
+        long flatLife = LocalScaling.Saturate((Int128)row.BaseHp + ((Int128)stamina * formula.LifePerStamina) + gear.Health);
+        long maxHealth = LocalScaling.Increase(flatLife, gear.IncreasedMaximumLife);
         long maxPower = factors.FixedPower is { } fixedPower
             ? fixedPower
             : row.BaseMana
               + (long)(intellect * factors.PowerPerIntellect + agility * factors.PowerPerAgility)
               + gear.Power;
-        long armor = gear.Armor + (long)(strength * (double)formula.ArmorPerStrength);
-        long evasion = gear.Evasion + (long)(agility * (double)formula.EvasionPerAgility);
-        long ward = gear.Ward + (long)(intellect * (double)formula.WardPerIntellect);
+        long armor = LocalScaling.Add(gear.Armor, (long)(strength * (double)formula.ArmorPerStrength));
+        long evasion = LocalScaling.Add(gear.Evasion, (long)(agility * (double)formula.EvasionPerAgility));
+        long ward = LocalScaling.Add(gear.Ward, (long)(intellect * (double)formula.WardPerIntellect));
 
         // #506, #1178: the main hand, what an Attack rolls; the bare hand's range with none.
         WornItem? weapon = MainHandOf(worn);
@@ -111,20 +114,23 @@ public static class CharacterStatsCalculator
         return null;
     }
 
-    /// <summary>Stats are summed in long, so no amount of authored gear can wrap a uint.</summary>
+    /// <summary>
+    /// Stats are summed in long, and a product or an item's scaled defence that could pass a long is held to its range
+    /// (<see cref="LocalScaling" />), so no amount of authored gear can wrap a uint.
+    /// </summary>
     private static uint Clamp(long value) => (uint)Math.Clamp(value, 0L, uint.MaxValue);
 
     private struct GearTotals
     {
-        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, Health, Power;
+        public long Stamina, Strength, Agility, Intellect, Armor, Evasion, Ward, Health, IncreasedMaximumLife, Power;
         public float BlockPct, CritPct, MovementSpeedPct;
         public float FireResistance, ColdResistance, LightningResistance, BlightResistance;
 
         /// <summary>
-        /// Every line of every worn item, read by index and through <see cref="ItemLines" />: nothing is allocated. Each
-        /// item's defence lines are summed apart and scaled by its own local increased defence before they join the total;
-        /// every other line also goes to the offence block's sums (<see cref="CharacterOffence.Add" />), so the walk is the
-        /// only one.
+        /// Every line of every worn item, read by index and through <see cref="ItemLines" />, and its copy's base stats, read
+        /// in place: nothing is allocated. Each item's base defence and defence lines are summed apart and scaled by its own
+        /// local increased defence before they join the total; its base block chance joins block as it is; every other line
+        /// also goes to the offence block's sums (<see cref="CharacterOffence.Add" />), so the walk is the only one.
         /// </summary>
         public static GearTotals Of(IReadOnlyList<WornItem> worn, ref OffenceStats offence, ref DamageRanges toAttacks,
             ref DamageRanges toSpells)
@@ -133,7 +139,8 @@ public static class CharacterStatsCalculator
             for (int i = 0; i < worn.Count; i++)
             {
                 WornItem item = worn[i];
-                ItemDefence defence = default;
+                var defence = ItemDefence.Of(item.BaseStats);
+                totals.BlockPct += item.BaseStats.BlockChance.GetValueOrDefault();
                 foreach (ItemLine line in ItemLines.Of(item))
                 {
                     if (defence.Add(line))
@@ -143,9 +150,9 @@ public static class CharacterStatsCalculator
                     CharacterOffence.Add(ref offence, ref toAttacks, ref toSpells, line);
                 }
 
-                totals.Armor += defence.Armor;
-                totals.Evasion += defence.Evasion;
-                totals.Ward += defence.Ward;
+                totals.Armor = LocalScaling.Add(totals.Armor, defence.Armor);
+                totals.Evasion = LocalScaling.Add(totals.Evasion, defence.Evasion);
+                totals.Ward = LocalScaling.Add(totals.Ward, defence.Ward);
             }
 
             return totals;
@@ -162,6 +169,7 @@ public static class CharacterStatsCalculator
                 case StatType.BlockPct: BlockPct += value; break;
                 case StatType.CritPct: CritPct += value; break;
                 case StatType.Health: Health += value; break;
+                case StatType.IncreasedMaximumLife: IncreasedMaximumLife += value; break;
                 case StatType.Power: Power += value; break;
                 // #627: a percentage, summed raw; the entity applies the combat formula's bounds. Attack speed, cast speed
                 // and cooldown recovery are the offence block's (#1178), CharacterOffence's to sum.
@@ -175,10 +183,21 @@ public static class CharacterStatsCalculator
         }
     }
 
-    /// <summary>One item's own defence (#1179, A-R13): its flat armour, evasion and ward lines and its local increases.</summary>
+    /// <summary>
+    /// One item's own defence (#1179, A-R13): its copy's base armour, evasion and ward, its flat armour, evasion and ward
+    /// lines, and its local increases, which scale both.
+    /// </summary>
     private struct ItemDefence
     {
         private long _armor, _evasion, _ward, _increasedArmor, _increasedEvasion, _increasedWard;
+
+        /// <summary>An item's defence before its lines: the base stats its copy rolled.</summary>
+        public static ItemDefence Of(in ItemBaseStats baseStats) => new()
+        {
+            _armor = baseStats.Armour.GetValueOrDefault(),
+            _evasion = baseStats.Evasion.GetValueOrDefault(),
+            _ward = baseStats.Ward.GetValueOrDefault(),
+        };
 
         public readonly long Armor => Scaled(_armor, _increasedArmor);
 

@@ -15,9 +15,9 @@ namespace Avalon.World.Trading;
 public readonly record struct TradeOffer(CharacterEntity Character, IReadOnlyList<InventoryItem> Items, ulong Gold);
 
 /// <summary>What a completed trade does to one character.</summary>
-/// <param name="Outgoing">Its own items, with their Bag slots and their modifiers (#1179).</param>
+/// <param name="Outgoing">Its own items, with their Bag slots and their rolled rows (#1179).</param>
 /// <param name="Incoming">
-/// The partner's items, each with Slot set to its destination slot in this character's Bag, and its modifiers.
+/// The partner's items, each with Slot set to its destination slot in this character's Bag, and its rolled rows.
 /// </param>
 public sealed record TradeSidePlan(IReadOnlyList<CarriedItem> Outgoing, IReadOnlyList<CarriedItem> Incoming, ulong GoldOut, ulong GoldIn);
 
@@ -61,8 +61,8 @@ public static class TradeRules
     /// counting the slots its own outgoing items free (incoming items are placed whole, never merged into a stack);
     /// no receiver may end up owning two of a Unique item, counted across Equipment, Bag and Bank after its outgoing
     /// items leave; and no receiver's balance may pass <paramref name="maxGold" />. Destination slots are the lowest
-    /// free ones, ascending, given to incoming items in offer order. Each item carries its giver's live list of
-    /// modifiers, which the paired save copies and the swap hands over.
+    /// free ones, ascending, given to incoming items in offer order. Each item carries its giver's base stats and live
+    /// list of modifiers, which the paired save copies and the swap hands over.
     /// </summary>
     public static TradeDecision Plan(
         TradeOffer first, TradeOffer second, Func<ItemTemplateId, ItemTemplate?> findTemplate, ulong maxGold)
@@ -119,7 +119,8 @@ public static class TradeRules
                 return null;
             }
 
-            items[i] = new CarriedItem(held, offer.Character.ItemModifiers.Of(held.InstanceId));
+            items[i] = new CarriedItem(held, offer.Character.ItemModifiers.BaseStatsOf(held.InstanceId),
+                offer.Character.ItemModifiers.Of(held.InstanceId));
         }
 
         return items;

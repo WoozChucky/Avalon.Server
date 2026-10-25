@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Avalon.Common;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 
@@ -40,11 +41,20 @@ public static class ItemSchema
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    private static IEnumerable<SchemaField> Fields()
+    /// <summary>
+    /// True for a child row's link back to the template it belongs to (an ItemTemplateBaseStat's TemplateId): the
+    /// nesting already says which template a row is of, so neither this schema nor the catalog carries it.
+    /// </summary>
+    public static bool IsTemplateLink(PropertyInfo property) =>
+        property.DeclaringType != typeof(ItemTemplate) && property.PropertyType == typeof(ItemTemplateId);
+
+    private static IEnumerable<SchemaField> Fields() => FieldsOf(typeof(ItemTemplate));
+
+    private static IEnumerable<SchemaField> FieldsOf(Type owner)
     {
-        foreach (PropertyInfo property in typeof(ItemTemplate)
+        foreach (PropertyInfo property in owner
                      .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                     .Where(p => p.GetIndexParameters().Length == 0)
+                     .Where(p => p.GetIndexParameters().Length == 0 && !IsTemplateLink(p))
                      .OrderBy(p => p.MetadataToken))
         {
             Type type = property.PropertyType;
@@ -60,36 +70,53 @@ public static class ItemSchema
             // Building the array shape here instead keeps Element (the element's shape) and Enum
             // (the element's vocabulary, when it has one) as separate fields on the same record, so
             // no information is lost and no future collection field needs its own special case.
+            //
+            // An element that is a row of its own (an ItemTemplateBaseStat) is an "object", and its own fields are listed
+            // under Fields, read off its type the same way.
             if (actual.IsGenericType && actual.GetGenericTypeDefinition() == typeof(List<>))
             {
                 Type element = actual.GetGenericArguments()[0];
+                bool row = element.IsClass && element != typeof(string);
                 yield return new SchemaField(
                     Name: property.Name,
                     Type: "array",
                     Nullable: nullable is not null,
-                    Element: TypeNameOf(element),
-                    Enum: element.IsEnum ? element.Name : null);
+                    Element: row ? "object" : TypeNameOf(element),
+                    Enum: element.IsEnum ? element.Name : null,
+                    Fields: row ? [.. FieldsOf(element)] : null);
                 continue;
             }
 
             // Nullable means the declaration says the value may be absent: `T?` on a value type, or
-            // `string?` on a string (UseScript, UseCooldownGroup), read from the nullable
-            // annotation. Other reference types are not inferred -- a ValueObject wrapper like
-            // ItemTemplateId is a class but is never absent, and saying otherwise would tell the
-            // client that a primary key is optional. Name is a plain string, so it stays required:
-            // the catalog coalesces a missing one to "" rather than describing it as optional.
+            // `string?` on a string (UseScript, UseCooldownGroup) or `ItemTemplateId?` on a ValueObject
+            // wrapper (a unique's BaseTemplateId), read from the nullable annotation. A wrapper declared
+            // without one (the Id) is never absent, and saying otherwise would tell the client that a
+            // primary key is optional. Name is a plain string, so it stays required: the catalog
+            // coalesces a missing one to "" rather than describing it as optional.
             yield return new SchemaField(
                 Name: property.Name,
                 Type: TypeNameOf(actual),
-                Nullable: nullable is not null || IsNullableString(property),
+                Nullable: nullable is not null || IsNullableReference(property),
                 Element: null,
-                Enum: actual.IsEnum ? actual.Name : null);
+                Enum: actual.IsEnum ? actual.Name : null,
+                Fields: null);
         }
     }
 
-    private static bool IsNullableString(PropertyInfo property) =>
-        property.PropertyType == typeof(string)
+    private static bool IsNullableReference(PropertyInfo property) =>
+        (property.PropertyType == typeof(string) || IsValueObject(property.PropertyType))
         && new NullabilityInfoContext().Create(property).WriteState == NullabilityState.Nullable;
+
+    private static bool IsValueObject(Type type)
+    {
+        for (Type? baseType = type.BaseType; baseType is not null; baseType = baseType.BaseType)
+        {
+            if (baseType.IsGenericType && baseType.Name.StartsWith("ValueObject", StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
 
     // Scalar shapes only -- List<T> is handled in Fields(), not here. See the comment there.
     private static string TypeNameOf(Type type)
@@ -97,6 +124,7 @@ public static class ItemSchema
         if (type.IsEnum) return "enum";
         if (type == typeof(string)) return "string";
         if (type == typeof(bool)) return "bool";
+        if (type == typeof(int)) return "int32";
         if (type == typeof(uint)) return "uint32";
         if (type == typeof(ushort)) return "uint16";
         if (type == typeof(ulong)) return "uint64";
@@ -119,7 +147,7 @@ public static class ItemSchema
         [
             typeof(ItemRarity), typeof(ItemSlotType), typeof(ItemClass),
             typeof(ItemSubClass), typeof(DamageType), typeof(StatType), typeof(ItemTemplateFlags),
-            typeof(CharacterClass), typeof(ItemBaseKind),
+            typeof(CharacterClass), typeof(ItemBaseKind), typeof(ItemBaseStat),
         ];
 
         // CharacterClass.None is no class an item can allow (it is what a chat line carries when no character sent
@@ -143,7 +171,8 @@ public static class ItemSchema
         List<SchemaField> Fields,
         Dictionary<string, List<EnumValue>> Enums);
 
-    private sealed record SchemaField(string Name, string Type, bool Nullable, string? Element, string? Enum);
+    private sealed record SchemaField(
+        string Name, string Type, bool Nullable, string? Element, string? Enum, List<SchemaField>? Fields);
 
     private sealed record EnumValue(string Name, long Value);
 }

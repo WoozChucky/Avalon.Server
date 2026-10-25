@@ -146,7 +146,7 @@ public static class VendorRules
 
     /// <summary>
     /// Sell: alive; shop open; a Bag slot; an item there, not offered in a trade (#1175); a sellable
-    /// template; not damaged; the count (the whole of an item carrying modifiers, #1179); the gold cap.
+    /// template; not damaged; the count (the whole of an item carrying rolled rows, #1179); the gold cap.
     /// Only the Bag is ever named, so nothing is sold from Equipment or the Bank. The sale pays the template's SellPrice
     /// times <paramref name="sellFactors" />' factor for the copy's own rarity (#1179), so a magic, rare or unique
     /// copy sells for more than a common one of the same template.
@@ -188,8 +188,9 @@ public static class VendorRules
         if (selling == 0 || selling > item.Count)
             return new SellDecision(VendorResult.InvalidCount, null);
 
-        // #1179: an item carrying modifiers is one of a kind and is sold whole (TakeOut refuses to split it).
-        if (selling < item.Count && character.ItemModifiers.Of(item.InstanceId).Count > 0)
+        // #1179: an item carrying rolled rows (modifiers or base stats) is one of a kind and is sold whole (TakeOut refuses
+        // to split it).
+        if (selling < item.Count && character.ItemModifiers.IsOneOfAKind(item.InstanceId))
             return new SellDecision(VendorResult.InvalidCount, null);
 
         // CharacterWallet.TryAddGold's own rule, so the apply cannot disagree: gold a completing trade is about to pay

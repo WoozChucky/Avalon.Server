@@ -10,6 +10,7 @@ using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Public.Characters;
+using Avalon.World.Reload;
 using Avalon.World.Testing.Fakes;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -67,9 +68,9 @@ public class ItemRequestBenchmarks
         _connection = new QuietConnection(_character);
 
         var ids = new ItemIdAllocator();
-        var catalog = new ItemModifierCatalog([], [], NullLogger.Instance);
+        var items = new ItemsPatch([s_potion], new ItemModifierCatalog([], [], NullLogger.Instance));
         var economy = new OneCharacterEconomy(new CharacterInventoryService(_character, static _ => s_potion, ids,
-            new ItemRoller(new LootRandom(new Random(0)), ids, Options.Create(new GameConfiguration())), () => catalog));
+            new ItemRoller(new LootRandom(new Random(0)), ids, Options.Create(new GameConfiguration())), () => items));
         var world = new QuietWorld(null!);
         _move = new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, world, economy);
         _destroy = new ItemDestroyHandler(NullLogger<ItemDestroyHandler>.Instance, world, economy);

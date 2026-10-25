@@ -25,6 +25,15 @@ public sealed class CharacterInventoryItemDto
     /// </summary>
     public string? Name { get; set; }
     public CharacterInventoryItemTemplateDto? Template { get; set; }
+    /// <summary>The base stats this copy rolled, by stat; empty for a copy that has none (#1179).</summary>
+    public List<CharacterInventoryBaseStatDto> BaseStats { get; set; } = [];
+}
+
+/// <summary>One base stat an item copy rolled (#1179): its own number, which its local modifiers scale.</summary>
+public sealed class CharacterInventoryBaseStatDto
+{
+    public ItemBaseStat Stat { get; set; }
+    public int Value { get; set; }
 }
 
 /// <summary>One modifier an item copy carries (#1179).</summary>

@@ -69,6 +69,7 @@ public class WorldDbContext : DbContext
 
     public DbSet<CreatureTemplate> CreatureTemplates { get; set; } = null!;
     public DbSet<ItemTemplate> ItemTemplates { get; set; } = null!;
+    public DbSet<ItemTemplateBaseStat> ItemTemplateBaseStats { get; set; } = null!;
     public DbSet<ItemModifierGroup> ItemModifierGroups { get; set; } = null!;
     public DbSet<ItemModifier> ItemModifiers { get; set; } = null!;
     public DbSet<ItemModifierStat> ItemModifierStats { get; set; } = null!;
@@ -135,6 +136,7 @@ public class WorldDbContext : DbContext
     {
         Configure(modelBuilder.Entity<CreatureTemplate>());
         Configure(modelBuilder.Entity<ItemTemplate>());
+        Configure(modelBuilder.Entity<ItemTemplateBaseStat>());
         Configure(modelBuilder.Entity<ItemModifierGroup>());
         Configure(modelBuilder.Entity<ItemModifier>());
         Configure(modelBuilder.Entity<ItemModifierStat>());
@@ -1556,14 +1558,15 @@ public class WorldDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<ItemTemplate> builder)
     {
-        // #1178: a weapon's basic attack time is above 0; an item that is not a weapon has none. #1179: a template is
-        // Common or Unique (Magic and Rare exist only on an instance); its base kind is one of the 27 kinds, or null
-        // for an item that is no base.
+        // #1179: a template is Common or Unique (Magic and Rare exist only on an instance); its base kind is one of the
+        // 27 kinds, or null for an item that is no base; a Unique template names the base it is made on, and no other
+        // template names one. A weapon's damage range and attack time are its base stats (ItemTemplateBaseStats); the
+        // template keeps only the type of its damage.
         builder.ToTable("ItemTemplates", t =>
         {
-            t.HasCheckConstraint("CK_ItemTemplates_AttackTimeMs", "\"AttackTimeMs\" IS NULL OR \"AttackTimeMs\" > 0");
             t.HasCheckConstraint("CK_ItemTemplates_Rarity", "\"Rarity\" IN (0, 3)");
             t.HasCheckConstraint("CK_ItemTemplates_BaseKind", "\"BaseKind\" IS NULL OR \"BaseKind\" BETWEEN 1 AND 27");
+            t.HasCheckConstraint("CK_ItemTemplates_BaseTemplate", "(\"Rarity\" = 3) = (\"BaseTemplateId\" IS NOT NULL)");
         });
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id)
@@ -1575,6 +1578,18 @@ public class WorldDbContext : DbContext
 
         // AllowedClasses maps by convention to smallint[], the class numbers, as AbilityTemplates.AllowedClasses does
         // (#921, #922): the class names never reach the database (#1142).
+
+        // A template's base-stat ranges (#1179) load with it on every read, whichever path makes it (the world, the API's
+        // template edit and previews, the exporters): a template read without them would break ItemBaseStatRules and be
+        // left out whole. Their order is not kept; readers index them by stat.
+        builder.HasMany(b => b.BaseStats).WithOne().HasForeignKey(s => s.TemplateId).OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(b => b.BaseStats).AutoInclude();
+
+        // A unique's base (#1179): another template, which cannot be deleted while a unique names it. That it is a Common
+        // base of the unique's kind, at or under its level, spans two rows: ItemsPatch.Build leaves out a unique that
+        // breaks it, and SeedIntegrityShould holds the seed to it.
+        builder.Property(b => b.BaseTemplateId).HasConversion(v => v!.Value, v => new ItemTemplateId(v));
+        builder.HasOne<ItemTemplate>().WithMany().HasForeignKey(b => b.BaseTemplateId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasData(
             new ItemTemplate
@@ -1674,9 +1689,10 @@ public class WorldDbContext : DbContext
                 Slot = null
             });
 
-        // The equipment (#1179): 74 bases and 5 uniques, ItemBaseSeed's. Ids 5-8, 12-26 and 32-50 are bases under
-        // their old ids, 58, 64 and 65 uniques, 66-103 new; 4, 27-31 and 51-55 are gone. None carries a stat line: a
-        // base's defence is its implicit modifier, a unique's stats its unique modifier (ItemModifierSeed).
+        // The equipment (#1179): 122 bases and 5 uniques, ItemBaseSeed's. Ids 5-8, 12-26 and 32-50 are bases under
+        // their old ids, 58, 64 and 65 uniques, 66-103 and 104-151 (the jewellery lines and the trinket bases) new; 4,
+        // 27-31 and 51-55 are gone. None carries a stat line: a base's defence and a weapon's damage are its base stats
+        // (ItemBaseSeed.BaseStats), its implicit and a unique's stats modifiers (ItemModifierSeed).
         builder.HasData(ItemBaseSeed.Equipment());
 
         // Item 56 (#432): Tobin's Greater Health Potion, sold for gold plus two Health Potions. A use restores
@@ -1758,9 +1774,28 @@ public class WorldDbContext : DbContext
     };
 
     /// <summary>
+    /// A base's authored base-stat ranges (#1179), one row per stat its kind carries (ItemBaseStatRules), gone with the
+    /// template. Stat 0-6 (ItemBaseStat); a range runs from at least 0 up to its maximum. A balance table: ItemBaseSeed's
+    /// drafted values, spread.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<ItemTemplateBaseStat> builder)
+    {
+        builder.ToTable("ItemTemplateBaseStats", t =>
+        {
+            t.HasCheckConstraint("CK_ItemTemplateBaseStats_Stat", "\"Stat\" BETWEEN 0 AND 6");
+            t.HasCheckConstraint("CK_ItemTemplateBaseStats_Range", "\"Min\" >= 0 AND \"Min\" <= \"Max\"");
+        });
+        builder.HasKey(s => new { s.TemplateId, s.Stat });
+        builder.Property(s => s.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
+        builder.Property(s => s.Stat).HasColumnType("smallint");
+
+        builder.HasData(ItemBaseSeed.BaseStats());
+    }
+
+    /// <summary>
     /// The modifier catalog's groups (#1179): one row per exclusive group, an affix family (each element of a split family
-    /// its own), a unique or a base's implicits. A code and an element name one group; uniques and implicits have neither,
-    /// so the unique index covers the coded rows only.
+    /// its own), a unique, or an implicit stat whose tiers the bases link. A code and an element name one group; uniques and
+    /// implicits have neither, so the unique index covers the coded rows only.
     /// </summary>
     private static void Configure(EntityTypeBuilder<ItemModifierGroup> builder)
     {
@@ -1782,16 +1817,16 @@ public class WorldDbContext : DbContext
     }
 
     /// <summary>
-    /// The catalog rows (#1179): a tier of an affix group, or a unique's or implicit group's single row with no tier. Kind
-    /// and name live on the group only; that a prefix or suffix row has a tier and a unique or implicit row none spans the
-    /// two tables, so no column check can: ItemModifierCatalog leaves out a row that breaks it, and SeedIntegrityShould
-    /// holds the seed to it.
+    /// The catalog rows (#1179): a tier of an affix or implicit group (1 to 9, counting down: T9 the weakest), or a
+    /// unique's single row with no tier. Kind and name live on the group only; that a prefix, suffix or implicit row
+    /// has a tier and a unique row none spans the two tables, so no column check can: ItemModifierCatalog leaves out a
+    /// row that breaks it, and SeedIntegrityShould holds the seed to it.
     /// </summary>
     private static void Configure(EntityTypeBuilder<ItemModifier> builder)
     {
         builder.ToTable("ItemModifiers", t =>
         {
-            t.HasCheckConstraint("CK_ItemModifiers_Tier", "\"Tier\" IS NULL OR \"Tier\" BETWEEN 1 AND 5");
+            t.HasCheckConstraint("CK_ItemModifiers_Tier", "\"Tier\" IS NULL OR \"Tier\" BETWEEN 1 AND 9");
             t.HasCheckConstraint("CK_ItemModifiers_RequiredItemLevel", "\"RequiredItemLevel\" > 0");
         });
         builder.HasKey(m => m.Id);
@@ -1830,8 +1865,9 @@ public class WorldDbContext : DbContext
     }
 
     /// <summary>
-    /// What every copy of a template rolls when it is made (#1179): a base's implicits or a unique's own modifier, in
-    /// index order. Gone with the template; a linked modifier cannot be deleted.
+    /// What every copy of a template rolls when it is made (#1179): a base's implicit row at its tier or a unique's own
+    /// modifier, in index order (a unique's copy rolls its base's implicit first). Gone with the template; a linked
+    /// modifier cannot be deleted.
     /// </summary>
     private static void Configure(EntityTypeBuilder<ItemTemplateModifier> builder)
     {

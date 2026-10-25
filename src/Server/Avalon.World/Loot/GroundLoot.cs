@@ -12,9 +12,10 @@ namespace Avalon.World.Loot;
 /// </summary>
 /// <remarks>
 /// Never persisted, and not an ItemInstance. A copy the drop rolled (#1179, <see cref="Rolled" />) was made whole at the
-/// drop, its id, rarity, item level, name and modifiers included, and the picker gets exactly that copy; any other item
-/// becomes an instance only when someone picks it up, through IInventoryService. Either way a drop nobody takes costs no
-/// database rows. It lasts until it is picked up or its instance is disposed; there is no despawn timer.
+/// drop, its id, rarity, item level, name, base stats and modifiers included, and the picker gets exactly that copy;
+/// any other item becomes an instance only when someone picks it up, through IInventoryService. Either way a drop
+/// nobody takes costs no database rows. It lasts until it is picked up or its instance is disposed; there is no
+/// despawn timer.
 /// </remarks>
 public sealed class GroundLoot
 {

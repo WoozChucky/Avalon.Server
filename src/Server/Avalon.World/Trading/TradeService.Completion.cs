@@ -331,9 +331,9 @@ public sealed partial class TradeService
 
     /// <summary>
     /// Applies the committed plan: every item out of each giver, then every item into each receiver at its planned
-    /// slot, with the modifiers its giver's take-out handed over (#1179), then each side's gold spent, then received. A
-    /// refusal is logged at Critical; what a giver did not lose its receiver does not gain, so memory never holds more
-    /// than the database. The audit line says whether every step applied.
+    /// slot, with the rolled rows its giver's take-out handed over (#1179), then each side's gold spent, then
+    /// received. A refusal is logged at Critical; what a giver did not lose its receiver does not gain, so memory never
+    /// holds more than the database. The audit line says whether every step applied.
     /// </summary>
     private void Swap(Trade trade, TradePlan plan)
     {
@@ -424,7 +424,8 @@ public sealed partial class TradeService
                 continue;
 
             // The item at its planned slot, with what the giver's take-out handed over: the paired save wrote both.
-            InventoryAddResult added = inventory.TryAddInstanceAt(new CarriedItem(item, handed.Modifiers), item.Slot);
+            InventoryAddResult added = inventory.TryAddInstanceAt(new CarriedItem(item, handed.BaseStats, handed.Modifiers),
+                item.Slot);
             if (added != InventoryAddResult.Ok)
             {
                 logger.LogCritical(
@@ -496,7 +497,7 @@ public sealed partial class TradeService
         return record;
     }
 
-    /// <summary>Each item as it moved, with a copy of its modifiers (#1179): the record outlives the item.</summary>
+    /// <summary>Each item as it moved, with a copy of its base stats and modifiers (#1179): the record outlives the item.</summary>
     private static void AddItems(TradeRecord record, CharacterId giver, IReadOnlyList<CarriedItem> outgoing)
     {
         foreach (CarriedItem carried in outgoing)
@@ -513,6 +514,17 @@ public sealed partial class TradeService
                 ItemLevel = item.ItemLevel,
                 RareName = item.RareName,
             };
+
+            foreach ((ItemBaseStat stat, int value) in carried.BaseStats)
+            {
+                recorded.BaseStats.Add(new TradeRecordItemBaseStat
+                {
+                    TradeId = record.Id,
+                    ItemInstanceId = item.InstanceId,
+                    Stat = stat,
+                    Value = value,
+                });
+            }
 
             foreach (ItemInstanceModifier modifier in carried.Modifiers)
             {

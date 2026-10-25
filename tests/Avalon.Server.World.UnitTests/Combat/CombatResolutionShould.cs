@@ -18,6 +18,7 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
@@ -76,11 +77,19 @@ public class CombatResolutionShould
     private static readonly ClassLevelStat[] s_rows = [s_warriorLevel1, s_warriorLevel2, s_wizardLevel1];
 
     /// <summary>A starter-range sword with no stats of its own, so Strength stays 23.</summary>
-    private static readonly ItemTemplate s_sword = Weapon(506_001, 4, 7);
+    private static readonly ItemTemplate s_sword = Weapon(506_001);
 
-    private static readonly ItemTemplate s_bigSword = Weapon(506_002, 20, 20);
+    private static readonly ItemTemplate s_bigSword = Weapon(506_002);
 
-    private static readonly ItemTemplate s_staff = Weapon(506_003, 4, 7);
+    private static readonly ItemTemplate s_staff = Weapon(506_003);
+
+    // The damage each weapon's copy rolled (#1179): a weapon's damage is its copy's base stats.
+    private static readonly Dictionary<ItemTemplateId, ItemBaseStats> s_rolled = new()
+    {
+        [s_sword.Id] = new ItemBaseStats { DamageMin = 4, DamageMax = 7 },
+        [s_bigSword.Id] = new ItemBaseStats { DamageMin = 20, DamageMax = 20 },
+        [s_staff.Id] = new ItemBaseStats { DamageMin = 4, DamageMax = 7 },
+    };
 
     /// <summary>Chest armour 24, the plan's worked example.</summary>
     private static readonly ItemTemplate s_plate = new()
@@ -96,7 +105,7 @@ public class CombatResolutionShould
     private static readonly Dictionary<ItemTemplateId, ItemTemplate> s_templates =
         new[] { s_sword, s_bigSword, s_staff, s_plate }.ToDictionary(t => t.Id);
 
-    private static ItemTemplate Weapon(ulong id, uint min, uint max) => new()
+    private static ItemTemplate Weapon(ulong id) => new()
     {
         Id = new ItemTemplateId(id),
         Name = $"Weapon {id}",
@@ -104,8 +113,6 @@ public class CombatResolutionShould
         SubClass = ItemSubClass.OneHanded,
         Slot = ItemSlotType.MainHand,
         MaxStackSize = 1,
-        DamageMin1 = min,
-        DamageMax1 = max,
     };
 
     /// <summary>Cleave as seeded (#1178): an Attack at 315 % of a weapon roll, 8 Fury per unit damaged.</summary>
@@ -137,13 +144,25 @@ public class CombatResolutionShould
         warrior.Character.PowerType = PowerType.Fury;
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);
         if (weapon is not null)
-            warrior.Character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.MainHand, weapon)]);
+            Wield(warrior.Character, weapon);
         Assert.True(CharacterStatsRefresh.Apply(warrior.Character, s_rows, TestCombat.Factors, Find, CurrentValues.Refill, TestCombat.Formula));
         warrior.Character.Spells.Load(abilities.Select(AbilityTestData.Game).ToArray());
         return warrior;
     }
 
     private static ItemTemplate? Find(ItemTemplateId id) => s_templates.GetValueOrDefault(id);
+
+    /// <summary>A copy of <paramref name="weapon" /> in the main hand, carrying the base stats its copy rolled.</summary>
+    private static void Wield(CharacterEntity character, ItemTemplate weapon)
+    {
+        InventoryItem item = Item(EquipmentSlots.MainHand, weapon);
+        List<ItemInstanceBaseStat> rows = [];
+        foreach ((ItemBaseStat stat, int value) in s_rolled[weapon.Id])
+            rows.Add(new ItemInstanceBaseStat { ItemInstanceId = item.InstanceId, Stat = stat, Value = value });
+
+        character.ItemModifiers.Load([new ItemInstance { Id = item.InstanceId, TemplateId = weapon.Id, BaseStats = rows }]);
+        character.Container(InventoryType.Equipment).Load([item]);
+    }
 
     private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, uint health = 100,
         uint armor = 0, uint evasion = 0, float block = 0f, ushort level = 1, Resistances resistances = default,
@@ -290,7 +309,7 @@ public class CombatResolutionShould
         { Data = row };
         MapInstanceClient caster = Join(instance, wizard);
         wizard.PowerType = PowerType.Mana;
-        wizard.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.MainHand, s_staff)]);
+        Wield(wizard, s_staff);
         Assert.True(CharacterStatsRefresh.Apply(wizard, s_rows, TestCombat.Factors, Find, CurrentValues.Refill, TestCombat.Formula));
         wizard.Spells.Load([AbilityTestData.Game(SparkCone())]);
         Creature target = AddCreature(instance, 506_921, new Vector3(0f, 0f, 2f));
@@ -495,7 +514,7 @@ public class CombatResolutionShould
         instance.CombatService.ApplyDamage(warrior.Character, target, cleave);
         Assert.Equal(1000u - 28u, target.CurrentHealth);   // floor(5 x 3.15 x 1.805)
 
-        warrior.Character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.MainHand, s_bigSword)]);
+        Wield(warrior.Character, s_bigSword);
         Assert.True(CharacterStatsRefresh.Apply(warrior.Character, s_rows, TestCombat.Factors, Find, CurrentValues.KeepShare, TestCombat.Formula));
         instance.CombatService.ApplyDamage(warrior.Character, target, cleave);
 

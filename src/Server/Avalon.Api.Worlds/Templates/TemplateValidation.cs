@@ -32,9 +32,10 @@ public sealed class TemplateErrors
 /// the columns an edit cannot reach too, so an already-bad row is refused rather than re-saved). Rules that the
 /// shared <c>Avalon.Combat</c> loaders own are called, not copied: <see cref="AbilityRules.Problem"/>,
 /// <see cref="AuraRules.Problem"/>, <see cref="AuraRules.LinkProblem"/>, <see cref="AuraRules.DamageTypeProblem"/>,
-/// <see cref="AuraRules.SourceProblem"/> and <see cref="CreatureTemplateRules.Validate"/>. The world loads items with no
-/// validation of its own, so items get sanity rules, plus the ItemTemplates table's checks as request fields (a weapon's
-/// attack time, #1178; a template's rarity and base kind, #1179), so a bad value is a 400 rather than a database error.
+/// <see cref="AuraRules.SourceProblem"/> and <see cref="CreatureTemplateRules.Validate"/>. Items get sanity rules and the
+/// ItemTemplates table's checks as request fields (a template's rarity and base kind, #1179), so a bad value is a 400
+/// rather than a database error, and the rules the world's Items reload applies (<see cref="ItemWorldRules"/>,
+/// <see cref="TemplateItemUsers"/>, #1179), so the world never leaves out an item an edit was accepted for.
 /// </summary>
 public static class TemplateValidation
 {
@@ -77,10 +78,13 @@ public static class TemplateValidation
         else if (r.Slot is not null && r.MaxStackSize > 1) e.Add("maxStackSize", "Equipment never stacks: its max stack size is 1.");
         Classes(e, r.AllowedClasses);
 
-        Damage(e, 1, r.DamageMin1, r.DamageMax1, r.DamageType1);
-        Damage(e, 2, r.DamageMin2, r.DamageMax2, r.DamageType2);
-        // CK_ItemTemplates_AttackTimeMs: a weapon's pace is above 0; an item that is not a weapon has none.
-        if (r.AttackTimeMs == 0) e.Add("attackTimeMs", "Attack time must be above 0, or null for an item that is not a weapon.");
+        if (r.DamageType is { } damageType) Defined(e, "damageType", damageType);
+        // ItemTemplateBaseStats (#1179): one range per stat, keyed by it (CK_ItemTemplateBaseStats_Stat). Which stats the
+        // kind carries and whether each range holds are the world's rule, checked on the row (ItemWorldRules).
+        foreach (ItemTemplateBaseStatDto stat in r.BaseStats ?? [])
+            Defined(e, "baseStats", stat.Stat);
+        if (r.BaseStats is { } baseStats && baseStats.Select(s => s.Stat).Distinct().Count() != baseStats.Count)
+            e.Add("baseStats", "A base stat is listed more than once.");
 
         (Contract.StatType? Type, uint? Value)[] stats =
         [
@@ -181,6 +185,20 @@ public static class TemplateValidation
         if (r.BodyRemoveTimerSecs < 0) e.Add("bodyRemoveTimerSecs", "Must be 0 or more.");
         // BaseAttackTime is the world loader's rule: CreatureTemplateRules, run by CreatureWorldRules.
         return e;
+    }
+
+    /// <summary>
+    /// The world's rule on an item's own base stats (#1179, <see cref="ItemBaseStatRules"/>, which the Items reload
+    /// applies) on the row as it would be stored: its ranges keyed <c>baseStats</c>, its damage type <c>damageType</c>.
+    /// The rules that read other rows (its links, its named base, the uniques made on it) are
+    /// <see cref="TemplateItemUsers"/>'.
+    /// </summary>
+    public static void ItemWorldRules(TemplateErrors errors, ItemTemplate row)
+    {
+        if (ItemBaseStatRules.RangesProblem(row) is { } ranges)
+            errors.Add("baseStats", $"The world would leave this item out: {ranges}.");
+        if (ItemBaseStatRules.DamageTypeProblem(row) is { } type)
+            errors.Add("damageType", $"The world would leave this item out: {type}.");
     }
 
     /// <summary>
@@ -348,16 +366,5 @@ public static class TemplateValidation
         }
 
         if (classes.Distinct().Count() != classes.Count) e.Add("allowedClasses", "A class is listed more than once.");
-    }
-
-    private static void Damage(TemplateErrors e, int n, uint? min, uint? max, Contract.DamageType? type)
-    {
-        if (type is { } t) Defined(e, $"damageType{n}", t);
-        // A weapon's damage is always typed (#1179): its local physical scaling applies to its Physical ranges only.
-        else if (min is not null || max is not null) e.Add($"damageType{n}", $"Damage {n} needs a damage type.");
-        if (min is null != max is null)
-            e.Add(min is null ? $"damageMin{n}" : $"damageMax{n}", $"Damage {n} needs both a minimum and a maximum.");
-        else if (min > max)
-            e.Add($"damageMax{n}", $"Damage {n} maximum must not be below its minimum.");
     }
 }

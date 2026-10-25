@@ -130,7 +130,7 @@ public class FightSimulatorShould
         Assert.Equal(Fury.FromDamageTaken(lost, warrior.Health, warrior.Health, 50f), warrior.CurrentPower);
     }
 
-    [Fact]
+    [Fact(Skip = BalancePause.Reason)]
     public void Scale_cooldowns_by_haste()
     {
         SimCreature dummy = Dummy();

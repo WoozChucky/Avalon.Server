@@ -1,10 +1,11 @@
 # Item modifiers
 
-An item template is a **base** (#1179): a kind of item with its own damage or defence, requirements and price. Each copy
-of a base carries its own **modifiers**, rolled when the copy is made and kept on the copy as rows of the Character
-database (`ItemInstanceModifiers`, [inventory and saves](inventory-and-saves.md)). This page is the modifier catalog:
-what can roll, where, at which item level and how likely. Its tables are generated from the seed and checked against it
-by `ItemModifierDocShould`; the prose around them is hand-written.
+An item template is a **base** (#1179): a kind of item with its own base-stat ranges (its defence, or a weapon's damage
+and attack time), requirements and price. Each copy of a base carries its own **base stats** and **modifiers**, rolled
+when the copy is made and kept on the copy as rows of the Character database (`ItemInstanceBaseStats`,
+`ItemInstanceModifiers`, [inventory and saves](inventory-and-saves.md)). This page is the modifier catalog and the
+bases: what can roll, where, at which item level and how likely. Its tables are generated from the seed and checked
+against it by `ItemModifierDocShould`; the prose around them is hand-written.
 
 ## The catalog
 
@@ -12,16 +13,16 @@ Five World database tables, all balance tables (seeded with `HasData`, changed o
 `/reload items` reads them again with the templates):
 
 - `ItemModifierGroups`: one row per **exclusive group**. An item never carries two modifiers of one group. A group is an
-  affix family (`Code` such as `P8` or `S13`, and `Element` for a family split by element), a unique's own modifier, or
-  one base's implicits. Kind and name live here only.
-- `ItemModifiers`: one row per tier of a group (`Tier` 1-5, `RequiredItemLevel`), or a unique's or implicit group's
-  single row with no tier.
+  affix family (`Code` such as `P8` or `S13`, and `Element` for a family split by element), an implicit stat (shared by
+  every base whose implicit gives it), or a unique's own modifier. Kind and name live here only.
+- `ItemModifiers`: one row per tier of an affix or implicit group (`Tier` 1-9, counting down, and `RequiredItemLevel`),
+  or a unique's single row with no tier.
 - `ItemModifierStats`: a row's stat lines, each a range (`Min`-`Max`), and for an "adds X to Y" line a second range
   (`Min2`-`Max2`) for its high end. A row may have several lines.
 - `ItemModifierWeights`: how likely a prefix or suffix row is on each base kind. No row, or weight 0, means it never
   rolls there.
-- `ItemTemplateModifiers`: the modifiers every copy of a template rolls when it is made, in order: a base's implicits, or
-  a unique's own modifier.
+- `ItemTemplateModifiers`: the modifiers every copy of a template rolls when it is made: a base's one implicit row (its
+  implicit group at the base's tier), or a unique's own modifier.
 
 Ids are surrogate numbers that mean nothing. Each group and each row has its id written as a literal in the seed table
 (`ItemModifierSeed`); none is computed from where a row sits. An item names a catalog row by `ModifierId` (`integer`), so
@@ -30,13 +31,15 @@ to the id committed in `tests/Avalon.Server.World.UnitTests/Seeding/item-modifie
 Nothing computes meaning from an id; a tier, a group or a kind is always read from its column.
 
 `ItemModifierCatalog` loads the catalog for the world server and the REST API. It logs and leaves out a row with no stat
-line, a prefix or suffix row without a tier or a unique or implicit row with one, a unique or implicit row that carries
+line, a prefix, suffix or implicit row without a tier or a unique row with one, a unique or implicit row that carries
 a weight, and a template's links when they name a missing row, a prefix or a suffix, or mix a unique modifier with
-anything else. Each template's links are also held against its rarity (`ItemModifierCatalog.RarityRefusal`): a unique
-template links exactly its one unique modifier, a common base only implicits. The world's items area (`ItemsPatch.Build`)
-logs and leaves out a template whose links break this, whole, so no copy of it is ever made (a stat-less unique, or a
-unique standing in its line as a base); a unique template whose one modifier the catalog left out is kept, and its
-drops are removed when they roll.
+anything else. Each template's links are also held against its rarity and kind (`ItemModifierCatalog.RarityRefusal`): a
+unique template links exactly its one unique modifier, a common base exactly one implicit, and a template that is no
+base (a consumable, a quest item) nothing. The world's items area (`ItemsPatch.Build`) logs and leaves out a template
+whose links break this, whole, so no copy of it is ever made (a stat-less unique, a unique standing in its line as a
+base, a base without its implicit), and a unique whose named base is missing, left out, not a common base of its kind or
+above its level (`ItemBaseStatRules.NamedBaseProblem`); a unique template whose one modifier the catalog left out is kept, and
+its drops are removed when they roll.
 
 The REST API never reads the whole catalog. A tooltip or a link preview reads one template's links and the rows they
 name, with their groups and stat lines and no weights (`IItemModifierRepository.GetLinkedToAsync`), held to the same
@@ -48,28 +51,69 @@ item's rarity is refused, keyed `rarity`, when the template's links would break 
 
 ## Rarity
 
-- **Common**: the base and its implicits, nothing else.
+- **Common**: the base, its base stats and its implicit, nothing else.
 - **Magic**: one or two affixes, at most one prefix and one suffix.
 - **Rare**: three to six affixes, at most three prefixes and three suffixes.
-- **Unique**: hand-made; its stats are its one unique modifier, every line a range each copy rolls in.
+- **Unique**: hand-made on a named base: the base's base stats and implicit, then its one unique modifier, every line a
+  range each copy rolls in.
+
+## Base stats
+
+A base's defence and a weapon's numbers are not modifiers but its **base stats** (`ItemBaseStat`: `Armour`, `Evasion`,
+`Ward`, `BlockChance`, `DamageMin`, `DamageMax` and `AttackTime`, in points, rating, points, percentage points, points,
+points and milliseconds before attack speed). Each base authors a range per stat in the World table
+`ItemTemplateBaseStats` (`TemplateId`, `Stat`, `Min`, `Max`; a balance table, loaded with its template), and each copy
+rolls one value per stat, uniform within the range, when it is made, kept in the Character table
+`ItemInstanceBaseStats` ([inventory and saves](inventory-and-saves.md)). A base carries exactly its kind's stats
+(`ItemBaseStatRules.Of`): plate armour, leather evasion, cloth ward, a shield armour and block, a caster off-hand ward,
+a sword, mace, staff or bow its damage range and attack time; a ring, an amulet or a trinket none. A weapon's template
+names only the type of its damage (`ItemTemplates.DamageType`). A unique's template carries none of its own: it rolls
+its base's ([implicits](#implicits)), and a unique weapon deals its base's damage type, so its template names none
+either (the stats fold reads it through `WornItem.DamageType`, which the world's refresh and the API's worn read take
+from the named base).
+
+`ItemsPatch.Build` logs and leaves out, whole, a template that breaks `ItemBaseStatRules.Problem`: base stats other than
+exactly its kind's, a range below 0 or with its minimum above its maximum, an attack time below 1 ms, a weapon whose
+highest minimum damage passes its lowest maximum, or a damage type anywhere but on a Common weapon (or none on one; a
+unique weapon with one of its own is refused too). A live template edit refuses the same, keyed `baseStats` or `damageType` ([live template editing](live-template-editing.md)).
+
+The seeded ranges come from one drafted value per base and stat (`ItemBaseSeed.Drafted`), spread by 20 % each way, or
+5 % for an attack time, each end rounded half away from zero and at least 1: a chest's armour 8 / 18 / 32 (plate),
+evasion 40 / 90 / 160 (leather) and ward 12 / 26 / 45 (cloth) by tier, the other slots a share of it (legs 80 %, head
+60 %, shoulders 50 %, hands and feet 40 %); a shield's armour 6 / 14 / 24 and block 5 / 7 / 10; a caster off-hand's ward
+8 / 18 / 30; a weapon its kind's damage by tier and its pace (sword 700, bow 800, mace 900 and staff 1000 ms). Each
+range is then its own row, retuned on its own; the Bases table below lists them all.
+
+A copy's base stats are that item's own: the stats fold adds its armour, evasion and ward to the item's defence, which
+the item's local "% increased" lines scale, and its block chance to block, unscaled; a main hand's damage range and
+attack time are what an Attack rolls, which its local increased physical damage and attack speed lines scale ([inventory
+and saves](inventory-and-saves.md), [the skill system](spell-system.md#4-hit-resolution)). An edit of a base's ranges
+reaches only the copies made after it, never one already made. Base stats count toward no affix limit and are outside
+the starting-zone budget.
 
 ## Implicits
 
-Every base that gives a defence has one implicit modifier: an armour piece's armour, evasion or ward, a shield's armour
-and block, a caster off-hand's ward and increased spell damage. Each line is the base's drafted value ±15 %, rounded half
-away from zero and at least 1, and every copy rolls it, however the copy is made (a drop, a vendor, a quest, a starting
-item). Implicits count toward neither affix limit and never block an affix: an armour implicit and the flat armour prefix
-sit on one piece. Weapons keep their damage and attack time on the base; rings, amulets and trinkets have no implicit.
+Every base carries exactly one implicit, themed by its kind (plate leans on life, armour and toughness, leather on
+evasion, speed and crit, cloth on ward, mana and spells; each weapon kind, shield, off-hand, ring line and amulet line
+its own) and matched to its tier. The catalog has one implicit group per stat, 26 in all, each with rows T9, T8 and T7
+whose ranges are the affix family's of the same stat at the same tier (P7's for increased projectile and physical
+damage, which no family gives; maximum power its own); a base links the row of its own tier, required level 1, 5 and 10
+being T9, T8 and T7. The generated tables below list every group and every base's implicit.
 
-A base's template carries no defence line of its own (World migration `MoveBaseStatsToImplicits`): the stats fold reads
-the copy's implicit values as that item's own defence, scaled by its local increases like any other armour, evasion or
-ward line. A copy made outright goes through `IItemRoller.RollPlain`: `IInventoryService.TryAdd` (a vendor purchase, an
-item script's add, a quest reward that is not a base, a pickup of a drop that did not roll) and
-`CharacterCreateHandler` (a starting item). A drop rolls its copy, implicits first, when it drops ([drops](#drops)),
-and its pickup adds that copy. Either way the rows enter the character's `ItemModifierStore` marked for the save that
-inserts the copy, or are inserted with a new character. The copies owned before implicits existed got theirs at the
-drafted value (Character migration `AddImplicitsToOwnedItems`, [inventory and saves](inventory-and-saves.md)), so none
-lost defence.
+Every copy rolls its [base stats](#base-stats) and then its implicit, however it is made (a drop, a vendor, a quest, a
+starting item). Implicits count toward neither affix limit and never block an affix: a resistance implicit and the same
+resistance suffix sit on one piece, and the [starting-zone budget](#the-starting-zone-budget) counts both.
+
+A copy made outright goes through `IItemRoller.RollPlain`: `IInventoryService.TryAdd` (a vendor purchase, an item
+script's add, a quest reward that is not a base, a pickup of a drop that did not roll) and `CharacterCreateHandler` (a
+starting item). A drop rolls its copy, its base stats and implicit first, when it drops ([drops](#drops)), and its pickup adds that
+copy. Either way the rows enter the character's `ItemModifierStore` marked for the save that inserts the copy, or are
+inserted with a new character.
+
+A **unique** names its base (`ItemTemplates.BaseTemplateId`): a common base of its own kind at or under its required
+level. Its copy rolls that base's base stats and implicit (ordinal 0), then its own modifier (ordinal 1); the unique's
+template carries no base stats or implicit of its own. The trinket uniques are made on two trinket bases (150, 151) that
+exist only for them: no loot table, vendor, quest or starting item hands one out.
 
 ## Rolling
 
@@ -88,14 +132,18 @@ A creature's or a chest's drops roll when they drop, on the tick, in the kill or
 - **Item level:** a creature's level; a chest's or a barrel's is drawn within its depth band, else the map's level range,
   else 1. The roll holds every item level at least 1 (`DropContext`), whatever its maker passes, since a copy at 0 could
   not be saved.
-- **Base tier:** a base becomes the best tier of its line the item level reaches (item level 4 a tier-1 base, 5 the
-  tier-2), and rolls that tier's implicits.
+- **Line:** a line is the common bases of one kind that link the same implicit group (`ItemsPatch.LineOf`, `LinesOf`).
+  A ring or an amulet drop, whose kind has several lines, first draws one of them uniformly, whichever line its loot
+  entry names (the tables name the first tiers, the Copper Band and the Bone Charm); every other kind has one line and
+  draws nothing. Only a drop draws: a quest reward or a named roll keeps its own line.
+- **Base tier:** a base becomes the best tier of its line the item level reaches (item level 4 a T9 base, 5 the
+  T8), and rolls that tier's base stats and implicit.
 - **Rarity:** drawn by the creature's rarity (`Game:Items:Rarity`; a chest or a barrel by the Normal odds). A unique
-  rolls its own modifier.
+  rolls its base's base stats and implicit, then its own modifier.
 - **The boss's rare:** a Boss kill none of whose drops rolled Rare has its first drop that rolled a rarity rolled again,
   whole, as Rare. A unique is never touched.
 
-The copy lies on the ground whole, its id, rarity, item level, name and modifiers included, and whoever picks it up gets
+The copy lies on the ground whole, its id, rarity, item level, name, base stats and modifiers included, and whoever picks it up gets
 exactly that copy. A quest drop and any item that is not a base or a unique do not roll.
 
 The odds by the dropping creature's rarity are configuration (`Game:Items:Rarity`, [configuration
@@ -111,34 +159,78 @@ reference](configuration-reference.md)), checked at startup:
 ## Quest rewards and vendors
 
 - **A quest reward** that is a base rolls Magic at turn-in, once the room check has passed: its item level is the
-  quest's level requirement (at least 1), its tier the best its line reaches there, which the turn-in's Unique and room
+  quest's level requirement (at least 1), its tier the best its own line reaches there, which the turn-in's Unique and room
   checks judge too, and the offer shows it as Magic with the tier it is paid as (`QuestRewardItemDto.Rarity` and
   `PaidItemTemplateId`, [quests](quests.md)). Any other reward is a plain copy.
 - **A vendor** sells only Common items (`VendorCatalog` refuses any other row, and a row whose item a `/reload items`
-  made Unique since is hidden and refused, `VendorRules.IsSoldNew`), each a plain copy with its implicits. A
+  made Unique since is hidden and refused, `VendorRules.IsSoldNew`), each a plain copy with its base stats and implicit. A
   sale pays the template's `SellPrice` times the copy's rarity factor (`Game:Items:SellFactor`: Magic 2, Rare 4,
   Unique 6, Common 1; [vendors](inventory-and-saves.md)).
 
 ## Weights
 
-Every prefix and suffix row weighs **1000, 800, 600, 400 and 200** for tiers 1 to 5 on each base kind its family rolls
-on, and has no weight anywhere else. The families' "Rolls on" column below is that table: "armour" is all eighteen armour
-kinds, "plate", "leather" and "cloth" an armour type's six, and "helmets", "shoulders", "gloves" and "boots" that slot in
-all three types. Trinkets roll nothing.
+Every prefix and suffix row weighs **1000, 800 and 600** for T9, T8 and T7 on each base kind its group rolls on, and
+has no weight anywhere else. The families' "Rolls on" column below is that table: "armour" is all eighteen armour kinds,
+"plate", "leather" and "cloth" an armour type's six, and "helmets", "shoulders", "chests", "gloves", "legs" and "boots"
+that slot in all three types. Trinkets roll nothing.
+
+Each family rolls on a few fitting slots only, so a slot has an identity and a roll stays readable, and so that one
+full set of the best level-10 items stays within the [starting-zone budget](#the-starting-zone-budget). A split family
+may roll some of its elements on a slot and not others: each resistance rolls on one armour slot of its own (fire on
+helmets, cold on boots, lightning on legs, blight on chests) besides the shield, the caster off-hand and the amulet.
+
+## The starting-zone budget
+
+The starting zone takes a character to about level 10. Every T9-T7 affix value, every implicit and every unique line
+is sized so that one full best-in-slot level-10 set gives at most:
+
+| Stat | Ceiling |
+| --- | --- |
+| Each resistance | 25 % |
+| Attack speed (attack speed and local attack speed lines, and 0.1 % per point of Agility from gear) | 10 % |
+| Cast speed | 10 % |
+| Movement speed | 8 % |
+| Crit chance | +6 % |
+| Life | +75 flat (Stamina's life included) and +26 % increased: the guard checks each class's share, 40-60 % above its level-10 base |
+| Strength, Agility, Intellect | +15 each |
+| Crit multiplier | +50 % |
+| Cooldown recovery | 15 % |
+| Increased healing | 45 % |
+| Block (a shield's base block chance and block lines) | 20 % |
+| Maximum power (power lines, and the Wizard's power per Intellect and Agility from gear) | +35 % of a level-10 Wizard's pool |
+| Added damage to attacks, each type, and to spells, each element (the average of an "adds" line's two ends) | 8.4 |
+
+A set is counted at its worst case. Every slot (head, shoulders, chest, hands, legs, feet, amulet, two rings, two
+trinkets, and either a one-handed weapon with an off-hand or a two-handed weapon, whichever gives more) holds whichever
+level-10 item gives the stat most: a base rolled rare (its template's own stat lines, its implicit, plus each affix group
+of the stat that rolls on its kind, at its best tier) or a unique (its template's lines, its base's implicit and its own
+lines), every line at its maximum (an "adds" line's high end). Implicits and unique lines stack with an affix of the
+same stat, so a slot can count twice. Attack speed reads the formula's `AttackSpeedPerAgility`. Life is (a class's
+level-10 base + flat life + Stamina's life) x (1 + increased maximum life / 100), rounded as the stats fold rounds it,
+each slot's flat and increased life taken from the one item it holds, at the set that gives most.
+`SeedIntegrityShould.Fit_the_starting_zone_budget` works each of these totals out from the seed and fails when one
+passes its ceiling, or when a class's life share leaves 40-60 %. The values were also sized to the design's ceilings
+that need a model of a whole hit (increased damage on one hit summed 60 %, a weapon's own affixes +60 % of its average,
+flat and increased defence +50 % of the set's base), which no test holds. Base stats are not part of the budget, but
+for block, whose ceiling counts the shield's. The tables below give every value.
 
 ## Local and global
 
 A **local** modifier applies to the item it sits on: added damage, increased physical damage and attack speed on a
 weapon change that weapon's hits only, and an armour piece's flat or increased defence changes that piece's defence only.
-Every other modifier is **global** and applies to the character, among them the added damage "to attacks" (rings,
-amulets, gloves) and "to spells" (rings, amulets, caster off-hands).
+Every other modifier is **global** and applies to the character, among them the added damage "to attacks" (gloves)
+and "to spells" (rings).
 
 ## Tiers
 
-Tiers unlock at item level **1, 4, 7, 10 and 13**; the level cap is 15. S7 (global attack speed) and S13 (block) have
-four tiers. An "adds X to Y" line rolls twice: the copy rolls its low end and its high end within the tier, and every hit
-then rolls between them. The tier's drafted range X-Y is seeded as the low end's range X to m and the high end's m to Y,
-with m the floor of their mean.
+Tiers count down: **T9 is the weakest and T1 the best.** Every family has T9, T8 and T7, the starting zone's, unlocking
+at item level **1, 4 and 7**; T6 to T1 are kept for higher item levels and later content. Each tier beats the one below
+at its best value (`SeedIntegrityShould.Beat_the_tier_below_at_its_best_value`). The fourth and fifth tiers of the
+first catalog are gone (World migration `RevalueAffixesForTheStartingZone`), their ids never reused; its first three
+tiers kept their ids as T9, T8 and T7.
+
+An "adds X to Y" line names its two ends exactly: its low end X and its high end Y are seeded as fixed numbers (`Min` =
+`Max` = X, `Min2` = `Max2` = Y), and every hit rolls between them. "adds 1" is 1 to 1.
 
 ## Naming
 
@@ -159,8 +251,8 @@ with m the floor of their mean.
   generation it was worked out in, so describing the same copy again builds no string, a reload's rename reaches it at
   its next describe, and a copy whose modifiers change is a new entry. A rare copy keeps its stored name even when a
   reload removed its template.
-- A family has one name for all its tiers (the tier shows as a number), one per element on a split family. Implicits and
-  unique modifiers never name an item.
+- A family has one name for all its tiers (the tier shows as a number), one per element on a split family. Implicits
+  (a unique's inherited one too) and unique modifiers never name an item.
 
 ## The tables
 
@@ -178,19 +270,19 @@ with m the floor of their mean.
 | P5 |  | Festering | Prefix | AddedBlightDamage | Sword, Mace, Staff, Bow |
 | P6 |  | Honed | Prefix | LocalIncreasedPhysicalDamage | Sword, Mace, Staff, Bow |
 | P7 |  | Whispering | Prefix | IncreasedSpellDamage | Mace, Staff, CasterOffHand |
-| P8 | Fire | Ashen | Prefix | IncreasedFireDamage | Staff, CasterOffHand, Amulet, Ring |
-| P8 | Cold | Hoarfrost | Prefix | IncreasedColdDamage | Staff, CasterOffHand, Amulet, Ring |
-| P8 | Lightning | Galvanic | Prefix | IncreasedLightningDamage | Staff, CasterOffHand, Amulet, Ring |
-| P8 | Blight | Mouldering | Prefix | IncreasedBlightDamage | Staff, CasterOffHand, Amulet, Ring |
-| P9 | Physical | Thorn-tipped | Prefix | AddedPhysicalDamageToAttacks | gloves, Amulet, Ring |
-| P9 | Fire | Thorn-tipped | Prefix | AddedFireDamageToAttacks | gloves, Amulet, Ring |
-| P9 | Cold | Thorn-tipped | Prefix | AddedColdDamageToAttacks | gloves, Amulet, Ring |
-| P9 | Lightning | Thorn-tipped | Prefix | AddedLightningDamageToAttacks | gloves, Amulet, Ring |
-| P9 | Blight | Thorn-tipped | Prefix | AddedBlightDamageToAttacks | gloves, Amulet, Ring |
-| P10 | Fire | Ember-sung | Prefix | AddedFireDamageToSpells | CasterOffHand, Amulet, Ring |
-| P10 | Cold | Ember-sung | Prefix | AddedColdDamageToSpells | CasterOffHand, Amulet, Ring |
-| P10 | Lightning | Ember-sung | Prefix | AddedLightningDamageToSpells | CasterOffHand, Amulet, Ring |
-| P11 |  | Hale | Prefix | Health | armour, Shield, Amulet, Ring |
+| P8 | Fire | Ashen | Prefix | IncreasedFireDamage | shoulders, Staff, CasterOffHand, Amulet, Ring |
+| P8 | Cold | Hoarfrost | Prefix | IncreasedColdDamage | shoulders, Staff, CasterOffHand, Amulet, Ring |
+| P8 | Lightning | Galvanic | Prefix | IncreasedLightningDamage | shoulders, Staff, CasterOffHand, Amulet, Ring |
+| P8 | Blight | Mouldering | Prefix | IncreasedBlightDamage | shoulders, Staff, CasterOffHand, Amulet, Ring |
+| P9 | Physical | Thorn-tipped | Prefix | AddedPhysicalDamageToAttacks | gloves |
+| P9 | Fire | Thorn-tipped | Prefix | AddedFireDamageToAttacks | gloves |
+| P9 | Cold | Thorn-tipped | Prefix | AddedColdDamageToAttacks | gloves |
+| P9 | Lightning | Thorn-tipped | Prefix | AddedLightningDamageToAttacks | gloves |
+| P9 | Blight | Thorn-tipped | Prefix | AddedBlightDamageToAttacks | gloves |
+| P10 | Fire | Ember-sung | Prefix | AddedFireDamageToSpells | Ring |
+| P10 | Cold | Ember-sung | Prefix | AddedColdDamageToSpells | Ring |
+| P10 | Lightning | Ember-sung | Prefix | AddedLightningDamageToSpells | Ring |
+| P11 |  | Hale | Prefix | Health | helmets, chests, legs, boots, Shield, Amulet |
 | P12 |  | Barkbound | Prefix | Armor | plate, Shield |
 | P13 |  | Ironbark | Prefix | LocalIncreasedArmor | plate, Shield |
 | P14 |  | Fleet-footed | Prefix | Evasion | leather |
@@ -199,147 +291,248 @@ with m the floor of their mean.
 | P17 |  | Glamoured | Prefix | LocalIncreasedWard | cloth, CasterOffHand |
 | P18 |  | Lingering | Prefix | IncreasedDamageOverTime | Staff, CasterOffHand, Amulet |
 | P19 |  | Mending | Prefix | IncreasedHealing | Mace, Staff, CasterOffHand, Amulet |
-| S1 |  | of the Ox-root | Suffix | Strength | armour, Sword, Mace, Bow, Shield, Amulet, Ring |
-| S2 |  | of the Hare | Suffix | Agility | armour, Sword, Staff, Bow, Amulet, Ring |
-| S3 |  | of the Owl | Suffix | Intellect | armour, Sword, Mace, Staff, CasterOffHand, Amulet, Ring |
-| S4 |  | of the Old Oak | Suffix | Stamina | armour, Shield, Amulet, Ring |
-| S5 | Fire | of the Hearth | Suffix | FireResistance | armour, Shield, Amulet, Ring |
-| S5 | Cold | of the Thaw | Suffix | ColdResistance | armour, Shield, Amulet, Ring |
-| S5 | Lightning | of Grounding | Suffix | LightningResistance | armour, Shield, Amulet, Ring |
-| S5 | Blight | of the Clean Spring | Suffix | BlightResistance | armour, Shield, Amulet, Ring |
+| S1 |  | of the Ox-root | Suffix | Strength | chests, Ring |
+| S2 |  | of the Hare | Suffix | Agility | legs, Ring |
+| S3 |  | of the Owl | Suffix | Intellect | shoulders, Ring |
+| S4 |  | of the Old Oak | Suffix | Stamina | boots |
+| S5 | Fire | of the Hearth | Suffix | FireResistance | helmets, Shield, CasterOffHand, Amulet |
+| S5 | Cold | of the Thaw | Suffix | ColdResistance | boots, Shield, CasterOffHand, Amulet |
+| S5 | Lightning | of Grounding | Suffix | LightningResistance | legs, Shield, CasterOffHand, Amulet |
+| S5 | Blight | of the Clean Spring | Suffix | BlightResistance | chests, Shield, CasterOffHand, Amulet |
 | S6 |  | of Haste | Suffix | LocalAttackSpeed | Sword, Mace, Staff, Bow |
-| S7 |  | of Quick Hands | Suffix | AttackSpeed | gloves, Ring |
-| S8 |  | of Cadence | Suffix | CastSpeed | Mace, Staff, CasterOffHand, Amulet, Ring |
-| S9 |  | of the Keen Eye | Suffix | CritPct | Sword, Mace, Staff, Bow, CasterOffHand, Amulet, Ring |
-| S10 |  | of Ruin | Suffix | CritMultiplier | Sword, Mace, Staff, Bow, Amulet |
+| S7 |  | of Quick Hands | Suffix | AttackSpeed | gloves |
+| S8 |  | of Cadence | Suffix | CastSpeed | gloves, Staff, CasterOffHand |
+| S9 |  | of the Keen Eye | Suffix | CritPct | gloves, Sword, Mace, Staff, Bow |
+| S10 |  | of Ruin | Suffix | CritMultiplier | helmets, gloves, Sword, Mace, Staff, Bow, CasterOffHand |
 | S11 |  | of the Wanderer | Suffix | MovementSpeed | boots |
-| S12 |  | of Renewal | Suffix | CooldownRecovery | helmets, shoulders, Amulet |
+| S12 |  | of Renewal | Suffix | CooldownRecovery | helmets, shoulders |
 | S13 |  | of the Bulwark | Suffix | BlockPct | Shield |
+| S14 |  | of Deep Roots | Suffix | IncreasedMaximumLife | shoulders, chests, legs |
 
 ### Tiers
 
-Each cell is the tier's range, then its weight on every base kind the family rolls on. An "adds" line reads as the range of its low end, then "to" and the range of its high end. A dash marks a tier the family does not have.
+Each cell is the tier's range, then its weight on every base kind the family rolls on. An "adds" line reads as its low end, then "to" and its high end. Tiers count down: T9 is the weakest.
 
-| Code | Element | T1 | T2 | T3 | T4 | T5 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Item level | | 1 | 4 | 7 | 10 | 13 |
-| P1 |  | 1 to 1-2 · 1000 | 2-3 to 3-4 · 800 | 3-4 to 4-6 · 600 | 5-6 to 6-8 · 400 | 6-8 to 8-11 · 200 |
-| P2 |  | 1-2 to 2-3 · 1000 | 2-3 to 3-5 · 800 | 3-5 to 5-7 · 600 | 4-7 to 7-10 · 400 | 6-9 to 9-13 · 200 |
-| P3 |  | 1 to 1-2 · 1000 | 2-3 to 3-4 · 800 | 3-4 to 4-6 · 600 | 4-6 to 6-8 · 400 | 5-8 to 8-11 · 200 |
-| P4 |  | 1-2 to 2-4 · 1000 | 1-4 to 4-7 · 800 | 1-5 to 5-10 · 600 | 2-8 to 8-14 · 400 | 2-10 to 10-18 · 200 |
-| P5 |  | 1 to 1-2 · 1000 | 2-3 to 3-4 · 800 | 3-4 to 4-6 · 600 | 4-6 to 6-8 · 400 | 5-8 to 8-11 · 200 |
-| P6 |  | 10-19 · 1000 | 20-34 · 800 | 35-49 · 600 | 50-64 · 400 | 65-79 · 200 |
-| P7 |  | 8-12 · 1000 | 13-20 · 800 | 21-30 · 600 | 31-40 · 400 | 41-50 · 200 |
-| P8 | Fire | 5-9 · 1000 | 10-14 · 800 | 15-19 · 600 | 20-24 · 400 | 25-29 · 200 |
-| P8 | Cold | 5-9 · 1000 | 10-14 · 800 | 15-19 · 600 | 20-24 · 400 | 25-29 · 200 |
-| P8 | Lightning | 5-9 · 1000 | 10-14 · 800 | 15-19 · 600 | 20-24 · 400 | 25-29 · 200 |
-| P8 | Blight | 5-9 · 1000 | 10-14 · 800 | 15-19 · 600 | 20-24 · 400 | 25-29 · 200 |
-| P9 | Physical | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P9 | Fire | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P9 | Cold | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P9 | Lightning | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P9 | Blight | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P10 | Fire | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P10 | Cold | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P10 | Lightning | 1 to 1-2 · 1000 | 1-2 to 2-3 · 800 | 2-3 to 3-4 · 600 | 2-3 to 3-5 · 400 | 3-4 to 4-6 · 200 |
-| P11 |  | 5-9 · 1000 | 10-19 · 800 | 20-29 · 600 | 30-44 · 400 | 45-59 · 200 |
-| P12 |  | 2-4 · 1000 | 4-8 · 800 | 8-14 · 600 | 14-22 · 400 | 22-32 · 200 |
-| P13 |  | 10-19 · 1000 | 20-34 · 800 | 35-49 · 600 | 50-64 · 400 | 65-79 · 200 |
-| P14 |  | 10-19 · 1000 | 20-39 · 800 | 40-64 · 600 | 65-94 · 400 | 95-129 · 200 |
-| P15 |  | 10-19 · 1000 | 20-34 · 800 | 35-49 · 600 | 50-64 · 400 | 65-79 · 200 |
-| P16 |  | 3-5 · 1000 | 6-10 · 800 | 11-17 · 600 | 18-26 · 400 | 27-37 · 200 |
-| P17 |  | 10-19 · 1000 | 20-34 · 800 | 35-49 · 600 | 50-64 · 400 | 65-79 · 200 |
-| P18 |  | 6-10 · 1000 | 11-16 · 800 | 17-22 · 600 | 23-28 · 400 | 29-34 · 200 |
-| P19 |  | 6-10 · 1000 | 11-16 · 800 | 17-22 · 600 | 23-28 · 400 | 29-34 · 200 |
-| S1 |  | 1-3 · 1000 | 4-6 · 800 | 7-10 · 600 | 11-15 · 400 | 16-20 · 200 |
-| S2 |  | 1-3 · 1000 | 4-6 · 800 | 7-10 · 600 | 11-15 · 400 | 16-20 · 200 |
-| S3 |  | 1-3 · 1000 | 4-6 · 800 | 7-10 · 600 | 11-15 · 400 | 16-20 · 200 |
-| S4 |  | 1-3 · 1000 | 4-6 · 800 | 7-10 · 600 | 11-15 · 400 | 16-20 · 200 |
-| S5 | Fire | 6-11 · 1000 | 12-17 · 800 | 18-23 · 600 | 24-29 · 400 | 30-35 · 200 |
-| S5 | Cold | 6-11 · 1000 | 12-17 · 800 | 18-23 · 600 | 24-29 · 400 | 30-35 · 200 |
-| S5 | Lightning | 6-11 · 1000 | 12-17 · 800 | 18-23 · 600 | 24-29 · 400 | 30-35 · 200 |
-| S5 | Blight | 6-11 · 1000 | 12-17 · 800 | 18-23 · 600 | 24-29 · 400 | 30-35 · 200 |
-| S6 |  | 5-7 · 1000 | 8-10 · 800 | 11-13 · 600 | 14-16 · 400 | 17-19 · 200 |
-| S7 |  | 3-4 · 1000 | 5-6 · 800 | 7-8 · 600 | 9-10 · 400 | - |
-| S8 |  | 4-6 · 1000 | 7-9 · 800 | 10-12 · 600 | 13-15 · 400 | 16-18 · 200 |
-| S9 |  | 1 · 1000 | 2 · 800 | 3 · 600 | 4 · 400 | 5 · 200 |
-| S10 |  | 8-12 · 1000 | 13-17 · 800 | 18-22 · 600 | 23-27 · 400 | 28-32 · 200 |
-| S11 |  | 5 · 1000 | 8 · 800 | 11 · 600 | 14 · 400 | 17 · 200 |
-| S12 |  | 3-4 · 1000 | 5-6 · 800 | 7-8 · 600 | 9-10 · 400 | 11-12 · 200 |
-| S13 |  | 3-4 · 1000 | 5-6 · 800 | 7-8 · 600 | 9-10 · 400 | - |
+| Code | Element | T9 | T8 | T7 |
+| --- | --- | --- | --- | --- |
+| Item level | | 1 | 4 | 7 |
+| P1 |  | 1 to 1 · 1000 | 1 to 2 · 800 | 2 to 3 · 600 |
+| P2 |  | 1 to 1 · 1000 | 1 to 2 · 800 | 2 to 3 · 600 |
+| P3 |  | 1 to 1 · 1000 | 1 to 2 · 800 | 2 to 3 · 600 |
+| P4 |  | 1 to 2 · 1000 | 1 to 3 · 800 | 1 to 4 · 600 |
+| P5 |  | 1 to 1 · 1000 | 1 to 2 · 800 | 2 to 3 · 600 |
+| P6 |  | 5-8 · 1000 | 9-12 · 800 | 13-16 · 600 |
+| P7 |  | 2-3 · 1000 | 3-4 · 800 | 5-6 · 600 |
+| P8 | Fire | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| P8 | Cold | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| P8 | Lightning | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| P8 | Blight | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| P9 | Physical | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P9 | Fire | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P9 | Cold | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P9 | Lightning | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P9 | Blight | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P10 | Fire | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P10 | Cold | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P10 | Lightning | 1 to 1 · 1000 | 1 to 2 · 800 | 1 to 3 · 600 |
+| P11 |  | 1-2 · 1000 | 3-4 · 800 | 5 · 600 |
+| P12 |  | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| P13 |  | 5-8 · 1000 | 9-12 · 800 | 13-16 · 600 |
+| P14 |  | 5-8 · 1000 | 9-14 · 800 | 15-20 · 600 |
+| P15 |  | 5-8 · 1000 | 9-12 · 800 | 13-16 · 600 |
+| P16 |  | 1-2 · 1000 | 2-4 · 800 | 4-6 · 600 |
+| P17 |  | 5-8 · 1000 | 9-12 · 800 | 13-16 · 600 |
+| P18 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| P19 |  | 2-3 · 1000 | 3-4 · 800 | 5-6 · 600 |
+| S1 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S2 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S3 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S4 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S5 | Fire | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| S5 | Cold | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| S5 | Lightning | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| S5 | Blight | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| S6 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S7 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S8 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S9 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S10 |  | 2-3 · 1000 | 4-5 · 800 | 5-6 · 600 |
+| S11 |  | 2 · 1000 | 3 · 800 | 4 · 600 |
+| S12 |  | 1 · 1000 | 2 · 800 | 3 · 600 |
+| S13 |  | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
+| S14 |  | 1-2 · 1000 | 2-3 · 800 | 3-4 · 600 |
 
 ### Implicits
 
-| Template | Base | Kind | Lines |
-| --- | --- | --- | --- |
-| 12 | Barkplate Helm | PlateHead | Armor 9-13 |
-| 13 | Barkplate Chestguard | PlateChest | Armor 15-21 |
-| 14 | Barkplate Legguards | PlateLegs | Armor 12-16 |
-| 15 | Barkplate Gauntlets | PlateHands | Armor 6-8 |
-| 16 | Barkplate Boots | PlateFeet | Armor 6-8 |
-| 17 | Mossweave Hood | ClothHead | Ward 14-18 |
-| 18 | Mossweave Robe | ClothChest | Ward 22-30 |
-| 19 | Mossweave Leggings | ClothLegs | Ward 18-24 |
-| 20 | Mossweave Gloves | ClothHands | Ward 9-12 |
-| 21 | Mossweave Slippers | ClothFeet | Ward 9-12 |
-| 22 | Fernstalker Cap | LeatherHead | Evasion 46-62 |
-| 23 | Fernstalker Jerkin | LeatherChest | Evasion 77-104 |
-| 24 | Fernstalker Breeches | LeatherLegs | Evasion 61-83 |
-| 25 | Fernstalker Grips | LeatherHands | Evasion 31-41 |
-| 26 | Fernstalker Boots | LeatherFeet | Evasion 31-41 |
-| 36 | Ironbound Helm | PlateHead | Armor 4-6 |
-| 37 | Ironbound Chestguard | PlateChest | Armor 7-9 |
-| 38 | Ironbound Legguards | PlateLegs | Armor 5-7 |
-| 39 | Ironbound Gauntlets | PlateHands | Armor 3 |
-| 40 | Ironbound Boots | PlateFeet | Armor 3 |
-| 41 | Linen Hood | ClothHead | Ward 6-8 |
-| 42 | Linen Robe | ClothChest | Ward 10-14 |
-| 43 | Linen Leggings | ClothLegs | Ward 9-12 |
-| 44 | Linen Gloves | ClothHands | Ward 4-6 |
-| 45 | Linen Slippers | ClothFeet | Ward 4-6 |
-| 46 | Hide Cap | LeatherHead | Evasion 20-28 |
-| 47 | Hide Jerkin | LeatherChest | Evasion 34-46 |
-| 48 | Hide Breeches | LeatherLegs | Evasion 27-37 |
-| 49 | Hide Grips | LeatherHands | Evasion 14-18 |
-| 50 | Hide Boots | LeatherFeet | Evasion 14-18 |
-| 70 | Oak Buckler | Shield | Armor 5-7, BlockPct 4-6 |
-| 71 | Barkplate Shield | Shield | Armor 12-16, BlockPct 6-8 |
-| 72 | Ironroot Kite Shield | Shield | Armor 20-28, BlockPct 9-12 |
-| 73 | Ash Focus | CasterOffHand | Ward 7-9, IncreasedSpellDamage 4-6 |
-| 74 | Thornwood Focus | CasterOffHand | Ward 15-21, IncreasedSpellDamage 7-9 |
-| 75 | Gloamwood Orb | CasterOffHand | Ward 26-35, IncreasedSpellDamage 10-14 |
-| 76 | Ironbound Pauldrons | PlateShoulders | Armor 3-5 |
-| 77 | Hide Mantle | LeatherShoulders | Evasion 17-23 |
-| 78 | Linen Shoulderwraps | ClothShoulders | Ward 5-7 |
-| 79 | Barkplate Pauldrons | PlateShoulders | Armor 8-10 |
-| 80 | Fernstalker Mantle | LeatherShoulders | Evasion 38-52 |
-| 81 | Mossweave Shoulderwraps | ClothShoulders | Ward 11-15 |
-| 82 | Ironroot Pauldrons | PlateShoulders | Armor 14-18 |
-| 83 | Gloamhide Mantle | LeatherShoulders | Evasion 68-92 |
-| 84 | Duskweave Shoulderwraps | ClothShoulders | Ward 20-26 |
-| 85 | Ironroot Helm | PlateHead | Armor 16-22 |
-| 86 | Ironroot Chestguard | PlateChest | Armor 27-37 |
-| 87 | Ironroot Legguards | PlateLegs | Armor 22-30 |
-| 88 | Ironroot Gauntlets | PlateHands | Armor 11-15 |
-| 89 | Ironroot Boots | PlateFeet | Armor 11-15 |
-| 90 | Gloamhide Cap | LeatherHead | Evasion 82-110 |
-| 91 | Gloamhide Jerkin | LeatherChest | Evasion 136-184 |
-| 92 | Gloamhide Breeches | LeatherLegs | Evasion 109-147 |
-| 93 | Gloamhide Grips | LeatherHands | Evasion 54-74 |
-| 94 | Gloamhide Boots | LeatherFeet | Evasion 54-74 |
-| 95 | Duskweave Hood | ClothHead | Ward 23-31 |
-| 96 | Duskweave Robe | ClothChest | Ward 38-52 |
-| 97 | Duskweave Leggings | ClothLegs | Ward 31-41 |
-| 98 | Duskweave Gloves | ClothHands | Ward 15-21 |
-| 99 | Duskweave Slippers | ClothFeet | Ward 15-21 |
+Each implicit group gives one stat; a base links the row of its own tier. Its ranges are the source family's at the same tier, or its own.
+
+| Group | Stat | Source | T9 | T8 | T7 |
+| --- | --- | --- | --- | --- | --- |
+| 111 | FireResistance | S5 | 1-2 | 2-3 | 3-4 |
+| 112 | ColdResistance | S5 | 1-2 | 2-3 | 3-4 |
+| 113 | LightningResistance | S5 | 1-2 | 2-3 | 3-4 |
+| 114 | BlightResistance | S5 | 1-2 | 2-3 | 3-4 |
+| 115 | LocalIncreasedArmor | P13 | 5-8 | 9-12 | 13-16 |
+| 116 | IncreasedMaximumLife | S14 | 1-2 | 2-3 | 3-4 |
+| 117 | AddedPhysicalDamageToAttacks | P9 | 1 to 1 | 1 to 2 | 1 to 3 |
+| 118 | Strength | S1 | 1 | 2 | 3 |
+| 119 | Stamina | S4 | 1 | 2 | 3 |
+| 120 | CritMultiplier | S10 | 2-3 | 4-5 | 5-6 |
+| 121 | Agility | S2 | 1 | 2 | 3 |
+| 122 | LocalIncreasedEvasion | P15 | 5-8 | 9-12 | 13-16 |
+| 123 | IncreasedProjectileDamage | P7 | 2-3 | 3-4 | 5-6 |
+| 124 | MovementSpeed | S11 | 2 | 3 | 4 |
+| 125 | CooldownRecovery | S12 | 1 | 2 | 3 |
+| 126 | Intellect | S3 | 1 | 2 | 3 |
+| 127 | IncreasedSpellDamage | P7 | 2-3 | 3-4 | 5-6 |
+| 128 | CastSpeed | S8 | 1 | 2 | 3 |
+| 129 | Power | own | 10-15 | 20-25 | 30-40 |
+| 130 | Health | P11 | 1-2 | 3-4 | 5 |
+| 131 | IncreasedPhysicalDamage | P7 | 2-3 | 3-4 | 5-6 |
+| 132 | AddedLightningDamageToAttacks | P9 | 1 to 1 | 1 to 2 | 1 to 3 |
+| 133 | AddedFireDamageToSpells | P10 | 1 to 1 | 1 to 2 | 1 to 3 |
+| 134 | AddedColdDamageToSpells | P10 | 1 to 1 | 1 to 2 | 1 to 3 |
+| 135 | IncreasedDamageOverTime | P18 | 1 | 2 | 3 |
+| 136 | IncreasedHealing | P19 | 2-3 | 3-4 | 5-6 |
+
+### Bases
+
+Each kind's lines, by their first tier's id. A base's base stats are the ranges every copy rolls; its implicit is its line's group at the base's tier. A trinket base has no tier: only a unique is made on it.
+
+| Kind | Template | Name | Tier | Level | Base stats | Implicit |
+| --- | --- | --- | --- | --- | --- | --- |
+| PlateHead | 36 | Ironbound Helm | T9 | 1 | Armour 4-6 | FireResistance 1-2 |
+| PlateHead | 12 | Barkplate Helm | T8 | 5 | Armour 9-13 | FireResistance 2-3 |
+| PlateHead | 85 | Ironroot Helm | T7 | 10 | Armour 15-23 | FireResistance 3-4 |
+| PlateShoulders | 76 | Ironbound Pauldrons | T9 | 1 | Armour 3-5 | LocalIncreasedArmor 5-8 |
+| PlateShoulders | 79 | Barkplate Pauldrons | T8 | 5 | Armour 7-11 | LocalIncreasedArmor 9-12 |
+| PlateShoulders | 82 | Ironroot Pauldrons | T7 | 10 | Armour 13-19 | LocalIncreasedArmor 13-16 |
+| PlateChest | 37 | Ironbound Chestguard | T9 | 1 | Armour 6-10 | IncreasedMaximumLife 1-2 |
+| PlateChest | 13 | Barkplate Chestguard | T8 | 5 | Armour 14-22 | IncreasedMaximumLife 2-3 |
+| PlateChest | 86 | Ironroot Chestguard | T7 | 10 | Armour 26-38 | IncreasedMaximumLife 3-4 |
+| PlateHands | 39 | Ironbound Gauntlets | T9 | 1 | Armour 2-4 | AddedPhysicalDamageToAttacks 1 to 1 |
+| PlateHands | 15 | Barkplate Gauntlets | T8 | 5 | Armour 6-8 | AddedPhysicalDamageToAttacks 1 to 2 |
+| PlateHands | 88 | Ironroot Gauntlets | T7 | 10 | Armour 10-16 | AddedPhysicalDamageToAttacks 1 to 3 |
+| PlateLegs | 38 | Ironbound Legguards | T9 | 1 | Armour 5-7 | Strength 1 |
+| PlateLegs | 14 | Barkplate Legguards | T8 | 5 | Armour 11-17 | Strength 2 |
+| PlateLegs | 87 | Ironroot Legguards | T7 | 10 | Armour 21-31 | Strength 3 |
+| PlateFeet | 40 | Ironbound Boots | T9 | 1 | Armour 2-4 | Stamina 1 |
+| PlateFeet | 16 | Barkplate Boots | T8 | 5 | Armour 6-8 | Stamina 2 |
+| PlateFeet | 89 | Ironroot Boots | T7 | 10 | Armour 10-16 | Stamina 3 |
+| LeatherHead | 46 | Hide Cap | T9 | 1 | Evasion 19-29 | CritMultiplier 2-3 |
+| LeatherHead | 22 | Fernstalker Cap | T8 | 5 | Evasion 43-65 | CritMultiplier 4-5 |
+| LeatherHead | 90 | Gloamhide Cap | T7 | 10 | Evasion 77-115 | CritMultiplier 5-6 |
+| LeatherShoulders | 77 | Hide Mantle | T9 | 1 | Evasion 16-24 | Agility 1 |
+| LeatherShoulders | 80 | Fernstalker Mantle | T8 | 5 | Evasion 36-54 | Agility 2 |
+| LeatherShoulders | 83 | Gloamhide Mantle | T7 | 10 | Evasion 64-96 | Agility 3 |
+| LeatherChest | 47 | Hide Jerkin | T9 | 1 | Evasion 32-48 | LocalIncreasedEvasion 5-8 |
+| LeatherChest | 23 | Fernstalker Jerkin | T8 | 5 | Evasion 72-108 | LocalIncreasedEvasion 9-12 |
+| LeatherChest | 91 | Gloamhide Jerkin | T7 | 10 | Evasion 128-192 | LocalIncreasedEvasion 13-16 |
+| LeatherHands | 49 | Hide Grips | T9 | 1 | Evasion 13-19 | IncreasedProjectileDamage 2-3 |
+| LeatherHands | 25 | Fernstalker Grips | T8 | 5 | Evasion 29-43 | IncreasedProjectileDamage 3-4 |
+| LeatherHands | 93 | Gloamhide Grips | T7 | 10 | Evasion 51-77 | IncreasedProjectileDamage 5-6 |
+| LeatherLegs | 48 | Hide Breeches | T9 | 1 | Evasion 26-38 | LightningResistance 1-2 |
+| LeatherLegs | 24 | Fernstalker Breeches | T8 | 5 | Evasion 58-86 | LightningResistance 2-3 |
+| LeatherLegs | 92 | Gloamhide Breeches | T7 | 10 | Evasion 102-154 | LightningResistance 3-4 |
+| LeatherFeet | 50 | Hide Boots | T9 | 1 | Evasion 13-19 | MovementSpeed 2 |
+| LeatherFeet | 26 | Fernstalker Boots | T8 | 5 | Evasion 29-43 | MovementSpeed 3 |
+| LeatherFeet | 94 | Gloamhide Boots | T7 | 10 | Evasion 51-77 | MovementSpeed 4 |
+| ClothHead | 41 | Linen Hood | T9 | 1 | Ward 6-8 | CooldownRecovery 1 |
+| ClothHead | 17 | Mossweave Hood | T8 | 5 | Ward 13-19 | CooldownRecovery 2 |
+| ClothHead | 95 | Duskweave Hood | T7 | 10 | Ward 22-32 | CooldownRecovery 3 |
+| ClothShoulders | 78 | Linen Shoulderwraps | T9 | 1 | Ward 5-7 | Intellect 1 |
+| ClothShoulders | 81 | Mossweave Shoulderwraps | T8 | 5 | Ward 10-16 | Intellect 2 |
+| ClothShoulders | 84 | Duskweave Shoulderwraps | T7 | 10 | Ward 18-28 | Intellect 3 |
+| ClothChest | 42 | Linen Robe | T9 | 1 | Ward 10-14 | IncreasedSpellDamage 2-3 |
+| ClothChest | 18 | Mossweave Robe | T8 | 5 | Ward 21-31 | IncreasedSpellDamage 3-4 |
+| ClothChest | 96 | Duskweave Robe | T7 | 10 | Ward 36-54 | IncreasedSpellDamage 5-6 |
+| ClothHands | 44 | Linen Gloves | T9 | 1 | Ward 4-6 | CastSpeed 1 |
+| ClothHands | 20 | Mossweave Gloves | T8 | 5 | Ward 8-12 | CastSpeed 2 |
+| ClothHands | 98 | Duskweave Gloves | T7 | 10 | Ward 14-22 | CastSpeed 3 |
+| ClothLegs | 43 | Linen Leggings | T9 | 1 | Ward 8-12 | Power 10-15 |
+| ClothLegs | 19 | Mossweave Leggings | T8 | 5 | Ward 17-25 | Power 20-25 |
+| ClothLegs | 97 | Duskweave Leggings | T7 | 10 | Ward 29-43 | Power 30-40 |
+| ClothFeet | 45 | Linen Slippers | T9 | 1 | Ward 4-6 | ColdResistance 1-2 |
+| ClothFeet | 21 | Mossweave Slippers | T8 | 5 | Ward 8-12 | ColdResistance 2-3 |
+| ClothFeet | 99 | Duskweave Slippers | T7 | 10 | Ward 14-22 | ColdResistance 3-4 |
+| Sword | 32 | Ironwood Sword | T9 | 1 | DamageMin 2-4, DamageMax 6-8, AttackTime 665-735 | CritMultiplier 2-3 |
+| Sword | 7 | Bramblesteel Sword | T8 | 5 | DamageMin 5-7, DamageMax 8-12, AttackTime 665-735 | CritMultiplier 4-5 |
+| Sword | 100 | Ironroot Sword | T7 | 10 | DamageMin 7-11, DamageMax 13-19, AttackTime 665-735 | CritMultiplier 5-6 |
+| Mace | 35 | Oak Mace | T9 | 1 | DamageMin 3-5, DamageMax 7-11, AttackTime 855-945 | IncreasedPhysicalDamage 2-3 |
+| Mace | 8 | Rootknot Mace | T8 | 5 | DamageMin 6-8, DamageMax 11-17, AttackTime 855-945 | IncreasedPhysicalDamage 3-4 |
+| Mace | 101 | Ironroot Mace | T7 | 10 | DamageMin 10-14, DamageMax 17-25, AttackTime 855-945 | IncreasedPhysicalDamage 5-6 |
+| Staff | 33 | Ash Staff | T9 | 1 | DamageMin 4-6, DamageMax 7-11, AttackTime 950-1050 | IncreasedSpellDamage 2-3 |
+| Staff | 5 | Thornwood Staff | T8 | 5 | DamageMin 6-10, DamageMax 12-18, AttackTime 950-1050 | IncreasedSpellDamage 3-4 |
+| Staff | 102 | Gloamwood Staff | T7 | 10 | DamageMin 10-16, DamageMax 18-26, AttackTime 950-1050 | IncreasedSpellDamage 5-6 |
+| Bow | 34 | Hunter's Shortbow | T9 | 1 | DamageMin 3-5, DamageMax 6-8, AttackTime 760-840 | IncreasedProjectileDamage 2-3 |
+| Bow | 6 | Briarstring Bow | T8 | 5 | DamageMin 6-8, DamageMax 9-13, AttackTime 760-840 | IncreasedProjectileDamage 3-4 |
+| Bow | 103 | Duskstring Bow | T7 | 10 | DamageMin 9-13, DamageMax 14-20, AttackTime 760-840 | IncreasedProjectileDamage 5-6 |
+| Shield | 70 | Oak Buckler | T9 | 1 | Armour 5-7, BlockChance 4-6 | Health 1-2 |
+| Shield | 71 | Barkplate Shield | T8 | 5 | Armour 11-17, BlockChance 6-8 | Health 3-4 |
+| Shield | 72 | Ironroot Kite Shield | T7 | 10 | Armour 19-29, BlockChance 8-12 | Health 5 |
+| CasterOffHand | 73 | Ash Focus | T9 | 1 | Ward 6-10 | IncreasedSpellDamage 2-3 |
+| CasterOffHand | 74 | Thornwood Focus | T8 | 5 | Ward 14-22 | IncreasedSpellDamage 3-4 |
+| CasterOffHand | 75 | Gloamwood Orb | T7 | 10 | Ward 24-36 | IncreasedSpellDamage 5-6 |
+| Amulet | 69 | Bone Charm | T9 | 1 | none | Strength 1 |
+| Amulet | 130 | Tusk Charm | T8 | 5 | none | Strength 2 |
+| Amulet | 131 | Horn Charm | T7 | 10 | none | Strength 3 |
+| Amulet | 132 | Antler Charm | T9 | 1 | none | Agility 1 |
+| Amulet | 133 | Hartsong Charm | T8 | 5 | none | Agility 2 |
+| Amulet | 134 | Stagcrown Charm | T7 | 10 | none | Agility 3 |
+| Amulet | 135 | Hollowfeather Charm | T9 | 1 | none | Intellect 1 |
+| Amulet | 136 | Owlquill Charm | T8 | 5 | none | Intellect 2 |
+| Amulet | 137 | Nightplume Charm | T7 | 10 | none | Intellect 3 |
+| Amulet | 138 | Gloam Pendant | T9 | 1 | none | IncreasedDamageOverTime 1 |
+| Amulet | 139 | Mirk Pendant | T8 | 5 | none | IncreasedDamageOverTime 2 |
+| Amulet | 140 | Nightmire Pendant | T7 | 10 | none | IncreasedDamageOverTime 3 |
+| Amulet | 141 | Mossheart Pendant | T9 | 1 | none | IncreasedHealing 2-3 |
+| Amulet | 142 | Fernheart Pendant | T8 | 5 | none | IncreasedHealing 3-4 |
+| Amulet | 143 | Elderheart Pendant | T7 | 10 | none | IncreasedHealing 5-6 |
+| Amulet | 144 | Foxtooth Pendant | T9 | 1 | none | CritMultiplier 2-3 |
+| Amulet | 145 | Wolfstooth Pendant | T8 | 5 | none | CritMultiplier 4-5 |
+| Amulet | 146 | Bearclaw Pendant | T7 | 10 | none | CritMultiplier 5-6 |
+| Amulet | 147 | Dewdrop Pendant | T9 | 1 | none | CooldownRecovery 1 |
+| Amulet | 148 | Rainbead Pendant | T8 | 5 | none | CooldownRecovery 2 |
+| Amulet | 149 | Wellspring Pendant | T7 | 10 | none | CooldownRecovery 3 |
+| Ring | 68 | Copper Band | T9 | 1 | none | Health 1-2 |
+| Ring | 104 | Oakbark Band | T8 | 5 | none | Health 3-4 |
+| Ring | 105 | Elmroot Band | T7 | 10 | none | Health 5 |
+| Ring | 106 | Thornwire Ring | T9 | 1 | none | AddedPhysicalDamageToAttacks 1 to 1 |
+| Ring | 107 | Briarsteel Ring | T8 | 5 | none | AddedPhysicalDamageToAttacks 1 to 2 |
+| Ring | 108 | Bramblefang Ring | T7 | 10 | none | AddedPhysicalDamageToAttacks 1 to 3 |
+| Ring | 109 | Emberknot Ring | T9 | 1 | none | AddedFireDamageToSpells 1 to 1 |
+| Ring | 110 | Cinderknot Ring | T8 | 5 | none | AddedFireDamageToSpells 1 to 2 |
+| Ring | 111 | Ashcoil Ring | T7 | 10 | none | AddedFireDamageToSpells 1 to 3 |
+| Ring | 112 | Hearthstone Ring | T9 | 1 | none | FireResistance 1-2 |
+| Ring | 113 | Kilnstone Ring | T8 | 5 | none | FireResistance 2-3 |
+| Ring | 114 | Forgeheart Ring | T7 | 10 | none | FireResistance 3-4 |
+| Ring | 115 | Rimeglass Ring | T9 | 1 | none | ColdResistance 1-2 |
+| Ring | 116 | Frostglass Ring | T8 | 5 | none | ColdResistance 2-3 |
+| Ring | 117 | Winterglass Ring | T7 | 10 | none | ColdResistance 3-4 |
+| Ring | 118 | Lodestone Ring | T9 | 1 | none | LightningResistance 1-2 |
+| Ring | 119 | Stormlode Ring | T8 | 5 | none | LightningResistance 2-3 |
+| Ring | 120 | Thunderlode Ring | T7 | 10 | none | LightningResistance 3-4 |
+| Ring | 121 | Willowbark Ring | T9 | 1 | none | BlightResistance 1-2 |
+| Ring | 122 | Fenwillow Ring | T8 | 5 | none | BlightResistance 2-3 |
+| Ring | 123 | Elderwillow Ring | T7 | 10 | none | BlightResistance 3-4 |
+| Ring | 124 | Sparkthorn Ring | T9 | 1 | none | AddedLightningDamageToAttacks 1 to 1 |
+| Ring | 125 | Stormthorn Ring | T8 | 5 | none | AddedLightningDamageToAttacks 1 to 2 |
+| Ring | 126 | Thunderthorn Ring | T7 | 10 | none | AddedLightningDamageToAttacks 1 to 3 |
+| Ring | 127 | Frostbud Ring | T9 | 1 | none | AddedColdDamageToSpells 1 to 1 |
+| Ring | 128 | Rimebud Ring | T8 | 5 | none | AddedColdDamageToSpells 1 to 2 |
+| Ring | 129 | Winterbud Ring | T7 | 10 | none | AddedColdDamageToSpells 1 to 3 |
+| Trinket | 150 | Withered Seed | - | 1 | none | IncreasedHealing 2-3 |
+| Trinket | 151 | Carved Idol | - | 1 | none | CooldownRecovery 1 |
 
 ### Uniques
 
-| Template | Unique | Kind | Lines |
-| --- | --- | --- | --- |
-| 58 | Alpha's Fang Pendant | Amulet | Health 10-14, Strength 2-4, Agility 2-4, IncreasedAttackDamage 6-10 |
-| 64 | Heartwood Band | Ring | Health 16-24, BlightResistance 10-14, IncreasedHealing 6-10 |
-| 65 | Thornheart Signet | Ring | Health 24-36, AddedPhysicalDamageToAttacks 2 to 3-5, CritPct 3-5 |
-| 66 | Bramble Mother's Seed | Trinket | Health 20-30, IncreasedDamageOverTime 12-18, BlightResistance 8-12 |
-| 67 | Tuskroot Idol | Trinket | Health 16-24, AttackSpeed 5-7, CastSpeed 5-7 |
+A unique's copy rolls its base's base stats and implicit, then its own lines.
+
+| Template | Unique | Kind | Base | Lines |
+| --- | --- | --- | --- | --- |
+| 58 | Alpha's Fang Pendant | Amulet | 144 Foxtooth Pendant | Health 4-5, Strength 2-3, Agility 2-3, IncreasedAttackDamage 6-10 |
+| 64 | Heartwood Band | Ring | 112 Hearthstone Ring | Health 4-5, BlightResistance 5-6, IncreasedHealing 5-7 |
+| 65 | Thornheart Signet | Ring | 125 Stormthorn Ring | Health 4-5, AddedPhysicalDamageToAttacks 1 to 3, CritMultiplier 3-4 |
+| 66 | Bramble Mother's Seed | Trinket | 150 Withered Seed | IncreasedMaximumLife 4-5, IncreasedDamageOverTime 2-3 |
+| 67 | Tuskroot Idol | Trinket | 151 Carved Idol | IncreasedMaximumLife 4-5, IncreasedAttackDamage 5-7, IncreasedMeleeDamage 5-7 |
 <!-- item-modifiers:end -->

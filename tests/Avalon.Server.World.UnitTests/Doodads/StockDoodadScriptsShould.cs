@@ -5,6 +5,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auras;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Loot;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.State;
@@ -221,6 +222,15 @@ public class StockDoodadScriptsShould
         BaseKind = ItemBaseKind.Sword,
         RequiredLevel = 1,
         MaxStackSize = 1,
+
+        // A sound sword (#1179, ItemBaseStatRules): a damage type and its base-stat ranges, or the items area leaves it out.
+        DamageType = DamageType.Physical,
+        BaseStats =
+        [
+            new ItemTemplateBaseStat { TemplateId = 210, Stat = ItemBaseStat.DamageMin, Min = 2, Max = 4 },
+            new ItemTemplateBaseStat { TemplateId = 210, Stat = ItemBaseStat.DamageMax, Min = 6, Max = 8 },
+            new ItemTemplateBaseStat { TemplateId = 210, Stat = ItemBaseStat.AttackTime, Min = 665, Max = 735 },
+        ],
     };
 
     private static DoodadTemplateView Template(uint id, Type script, int? loot = null, int gold = 0, float radius = 0f,
@@ -287,10 +297,13 @@ public class StockDoodadScriptsShould
         public static async Task<Fixture> CreateAsync(uint? owner = null, PartyId? ownerParty = null,
             ICombatRandom? draws = null, PartyService? parties = null)
         {
-            StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
+            // The blade is a base, so it links an implicit (#1179) or the items area leaves it out.
+            TestStaticDataRepositories repositories = TestStaticData.Repositories(
                 items: () => [.. Items, s_blade],
                 loot: LootRepositories.Of(() => [Table(1, Item(1, s_blade))]),
-                auras: () => [AuraTestData.Fortified(8), AuraTestData.Fortified(9), AuraTestData.Fortified(10)]));
+                auras: () => [AuraTestData.Fortified(8), AuraTestData.Fortified(9), AuraTestData.Fortified(10)]);
+            StaticData data = await TestStaticData.LoadAsync(
+                repositories with { ItemModifiers = ItemModifierRepositories.ImplicitFor(s_blade) });
             return new Fixture(data, owner, ownerParty, draws, parties);
         }
 

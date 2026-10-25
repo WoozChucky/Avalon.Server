@@ -2,8 +2,9 @@ namespace Avalon.Domain.World;
 
 /// <summary>
 /// What kind of base an item template is (#1179): an armour family in one of its six slots, a weapon type, an off-hand,
-/// a piece of jewellery or a trinket. A line of tiers is every Common template of one kind. An item that is no base (a
-/// consumable, a quest item) has none: <see cref="ItemTemplate.BaseKind" /> is null.
+/// a piece of jewellery or a trinket. A line of tiers is the Common templates of one kind that link the same implicit
+/// group (a ring or an amulet kind has several lines, every other kind one). An item that is no base (a consumable, a
+/// quest item) has none: <see cref="ItemTemplate.BaseKind" /> is null.
 /// </summary>
 public enum ItemBaseKind : byte
 {

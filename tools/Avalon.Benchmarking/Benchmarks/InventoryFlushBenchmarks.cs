@@ -25,13 +25,14 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// The tick's inventory update for one connection whose character's inventory changed (#883): <see cref="Slots" /> Bag
 /// slots, each holding an item, marked changed and sent as one <c>SInventoryUpdatePacket</c>; with no slot, a tick
 /// where only the gold changed. With <see cref="Rolled" /> (#1179) the items are seeded plate chests the roller made over
-/// the real catalog, every other one a plain copy carrying its implicit and the rest Magic copies carrying their implicit,
-/// their affixes and a name; without it, common potions with no modifiers. <see cref="Queried" /> is the flush as it was
-/// before #883, the changed slots filtered, ordered and read by a query; <see cref="Unpooled" /> is the flush as it was
-/// before #1179's last review, each modifier entry made afresh and each magic name built again at every describe;
-/// <see cref="Flusher" /> is <c>InventoryUpdateFlusher.Flush</c>, its modifier entries from a pool and its names held
-/// on the store. The connection counts what it is sent and gives the payload back to the pool, so what is left is the
-/// flush, the packet's entries and the encode.
+/// the real catalog, every other one a plain copy carrying its base stats and its implicit and the rest Magic copies
+/// carrying their base stats, their implicit, their affixes and a name; without it, common potions with no modifiers.
+/// <see cref="Queried" /> is the flush as it was before #883, the changed slots filtered, ordered and read by a query;
+/// <see cref="Unpooled" /> is the flush as it was before #1179's last review, each modifier and base-stat entry made
+/// afresh and each magic name built again at every describe; <see cref="Flusher" /> is
+/// <c>InventoryUpdateFlusher.Flush</c>, its modifier and base-stat entries from a pool and its names held on the store.
+/// The connection counts what it is sent and gives the payload back to the pool, so what is left is the flush, the
+/// packet's entries and the encode.
 /// </summary>
 [MemoryDiagnoser]
 public class InventoryFlushBenchmarks
@@ -91,16 +92,28 @@ public class InventoryFlushBenchmarks
                 continue;
             }
 
-            RolledItem copy = slot % 2 == 0 ? roller.RollPlain(chest, 1, _items.Modifiers) : roller.Roll(chest, magic, _items)!;
+            RolledItem copy = slot % 2 == 0 ? roller.RollPlain(chest, 1, _items) : roller.Roll(chest, magic, _items)!;
             held[slot] = new InventoryItem(slot, copy.InstanceId, copy.TemplateId, 1, 0, ItemInstanceFlags.None,
                 copy.Rarity, copy.ItemLevel, copy.RareName);
-            instances.Add(new ItemInstance { Id = copy.InstanceId, TemplateId = copy.TemplateId, Modifiers = copy.Modifiers });
+            var baseStats = new List<ItemInstanceBaseStat>();
+            foreach ((ItemBaseStat stat, int value) in copy.BaseStats)
+                baseStats.Add(new ItemInstanceBaseStat { ItemInstanceId = copy.InstanceId, Stat = stat, Value = value });
+
+            instances.Add(new ItemInstance
+            {
+                Id = copy.InstanceId,
+                TemplateId = copy.TemplateId,
+                Modifiers = copy.Modifiers,
+                BaseStats = baseStats,
+            });
         }
 
         _character.Container(InventoryType.Bag).Load(held);
         _character.ItemModifiers.Load(instances);
         _connection = new QuietConnection(_character);
 
+        if (Rolled && Slots > 0 && _character.ItemModifiers.BaseStatsOf(held[0].InstanceId).IsEmpty)
+            throw new InvalidOperationException("A rolled chest carries no base stats.");
         if (Queried() != 1 || Unpooled() != 2 || Flusher() != 3)
             throw new InvalidOperationException("A flush with changes sent nothing.");
     }
@@ -182,6 +195,7 @@ public class InventoryFlushBenchmarks
             ItemLevel = item.ItemLevel,
             Modifiers = ItemModifierDtoMapper.ToDtos(modifiers),
             Name = ItemSlotDtoMapper.NameOf(item.TemplateId, item.Rarity, item.RareName, modifiers, _items),
+            BaseStats = ItemModifierDtoMapper.ToBaseStatDtos(_character.ItemModifiers.BaseStatsOf(item.InstanceId)),
         };
     }
 

@@ -45,7 +45,7 @@ public sealed class VendorTrade(
     }
 
     /// <summary>
-    /// Takes the item out, pays for it, and puts what left (the instance with its modifiers, or for a
+    /// Takes the item out, pays for it, and puts what left (the instance with its rolled rows, or for a
     /// partial sale a copy with a new id) at the front of the buyback list.
     /// </summary>
     public VendorResult TrySell(bool shopOpen, byte bagSlot, uint? count)
@@ -61,7 +61,9 @@ public sealed class VendorTrade(
         return VendorResult.Ok;
     }
 
-    /// <summary>Charges what it sold for and re-adds the exact instance, under its own id, with its modifiers.</summary>
+    /// <summary>
+    /// Charges what it sold for and re-adds the exact instance, under its own id, with its rolled rows.
+    /// </summary>
     public VendorResult TryBuyback(bool shopOpen, uint index)
     {
         BuybackDecision decision = VendorRules.DecideBuyback(owner, shopOpen, index, findTemplate);
