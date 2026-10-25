@@ -16,6 +16,15 @@ public sealed class SmokeCoverageShould
 
     private static readonly string[] s_auth = ["none", "pat"];
 
+    [Theory]
+    [InlineData("401", "none")]
+    [InlineData("403", "pat")]
+    public void Check_crash_authentication_without_reading_report_data(string expected, string auth)
+    {
+        Assert.Contains($"identity\tGET\t/admin/crashes/groups\t{expected}\t{auth}",
+            File.ReadAllLines(RepositoryRoot.PathOf(Requests)));
+    }
+
     [Fact]
     public void Send_a_request_through_every_rule_from_the_group_of_its_service()
     {

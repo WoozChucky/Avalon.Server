@@ -40,6 +40,8 @@
     <ProjectReference Include="..\Avalon.Api.Contract\Avalon.Api.Contract.csproj"/>
     <ProjectReference Include="..\Avalon.Api.Hosting\Avalon.Api.Hosting.csproj"/>
     <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj"/>
+    <ProjectReference Include="..\Avalon.Database.Crashes\Avalon.Database.Crashes.csproj"/>
+    <ProjectReference Include="..\Avalon.Crashes\Avalon.Crashes.csproj"/>
     <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj"/>
     <ProjectReference Include="..\Avalon.Database.Character\Avalon.Database.Character.csproj"/>
     <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj"/>

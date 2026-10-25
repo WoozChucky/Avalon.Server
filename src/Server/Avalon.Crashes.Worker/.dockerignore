@@ -1,0 +1,6 @@
+*
+!Dockerfile
+!native/
+!native/**
+!out/
+!out/**

@@ -9,6 +9,11 @@ runs:
   using: composite
   steps:
     - uses: azure/setup-helm@v5
+    - uses: actions/setup-python@v7
+      with: { python-version: "3.12" }
+    - name: Install chart test dependencies
+      shell: bash
+      run: python -m pip install PyYAML==6.0.2
     - name: Package and push the charts
       shell: bash
       env: { VERSION: "${{ inputs.version }}", TOKEN: "${{ inputs.token }}" }
@@ -20,6 +25,7 @@ runs:
         # avalon-world last: its tag is what the nightly skip and Flux look for.
         for chart in src/Server/Avalon.Api/Helm/avalon-api \
                      src/Server/Avalon.Balance.Service/Helm/avalon-balance \
+                     src/Server/Avalon.Crashes.Worker/Helm/avalon-crashes \
                      src/Server/Avalon.Server.World/Helm/avalon-world; do
           bash "$chart/ci/test.sh"
           helm package "$chart" --version "$VERSION" --app-version "$VERSION" -d dist/charts

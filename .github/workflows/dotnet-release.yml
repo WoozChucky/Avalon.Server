@@ -41,6 +41,7 @@ jobs:
           set -euo pipefail
           echo "$TOKEN" | crane auth login ghcr.io -u "${{ github.actor }}" --password-stdin
           tags="$(crane ls ghcr.io/woozchucky/charts/avalon-world)"
+          mapfile -t tag_list <<< "$tags"
           revision() { crane config "ghcr.io/woozchucky/avalon-server/world:$1" | jq -r '.config.Labels["org.opencontainers.image.revision"]'; }
 
           if [[ "$EVENT" == workflow_dispatch ]]; then
@@ -49,7 +50,7 @@ jobs:
             if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
               echo "::error::$tag already exists"; exit 1
             fi
-            build="${BUILD:-$(tools/release/channel-version.sh newest-nightly $tags)}"
+            build="${BUILD:-$(tools/release/channel-version.sh newest-nightly "${tag_list[@]}")}"
             [[ "$build" =~ ^[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]+$ ]] || { echo "::error::no PTR build to release ('$build')"; exit 1; }
             grep -qx "$build" <<< "$tags" || { echo "::error::$build is not a PTR build in the registry"; exit 1; }
             commit="$(revision "$build")"
@@ -65,11 +66,11 @@ jobs:
               echo "::warning::$tag is marked [hotfix]: releasing $commit without checking it against PTR"
             else
               tested=""
-              for n in $(tools/release/channel-version.sh nightlies $tags); do
+              for n in $(tools/release/channel-version.sh nightlies "${tag_list[@]}"); do
                 if [[ "$(revision "$n")" == "$commit" ]]; then tested="$n"; break; fi
               done
               if [[ -z "$tested" ]]; then
-                newest="$(tools/release/channel-version.sh newest-nightly $tags)"
+                newest="$(tools/release/channel-version.sh newest-nightly "${tag_list[@]}")"
                 echo "::error::$tag is on $commit, which no PTR build in the registry was made from. PTR runs ${newest:-nothing yet}${newest:+ from $(revision "$newest")}. Delete the tag and tag a PTR build's commit (or use Run workflow), or tag again with an annotated message containing [hotfix]."
                 exit 1
               fi
@@ -109,7 +110,9 @@ jobs:
       # No build or tests: the commit is a PTR build's, whose pull request ran them (dotnet-pr.yml). Each publish
       # compiles its own server.
       - name: Restore dependencies
-        run: dotnet restore
+        run: |
+          dotnet restore
+          dotnet restore src/Server/Avalon.Crashes.Worker/Avalon.Crashes.Worker.csproj -r linux-x64
       - name: Version
         id: version
         env: { TAG: "${{ needs.resolve.outputs.tag }}" }

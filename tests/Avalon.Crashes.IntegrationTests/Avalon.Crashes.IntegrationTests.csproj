@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Avalon.Crashes.UnitTests/CrashFixture.cs" Link="CrashFixture.cs" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" PrivateAssets="all" />
+    <ProjectReference Include="../../src/Server/Avalon.Database.Crashes/Avalon.Database.Crashes.csproj" />
+    <ProjectReference Include="../../src/Server/Avalon.Crashes.Worker/Avalon.Crashes.Worker.csproj" />
+    <ProjectReference Include="../Avalon.Api.Testing/Avalon.Api.Testing.csproj" />
+  </ItemGroup>
+  <!-- TestServer supplies its own configuration; the actual worker runs from /app. -->
+  <Target Name="RemoveHostedApplicationConfiguration" BeforeTargets="_HandleFileConflictsForPublish">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'appsettings.json' Or '%(Filename)%(Extension)' == 'Avalon.Api.runtimeconfig.json'" />
+    </ItemGroup>
+  </Target>
+</Project>

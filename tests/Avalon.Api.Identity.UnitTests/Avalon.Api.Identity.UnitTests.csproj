@@ -36,6 +36,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Server\Avalon.Database.Crashes\Avalon.Database.Crashes.csproj"/>
+    <ProjectReference Include="..\..\src\Server\Avalon.Crashes\Avalon.Crashes.csproj"/>
     <!-- ApiTestHost, which runs every service the API runs, the SQLite auth database, and the Auth tests' counter fake
          and stale-read repository. -->
     <ProjectReference Include="..\Avalon.Api.Testing\Avalon.Api.Testing.csproj"/>

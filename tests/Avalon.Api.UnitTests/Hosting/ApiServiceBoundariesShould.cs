@@ -27,6 +27,16 @@ public sealed class ApiServiceBoundariesShould
         Assert.True(crossings.Length == 0, "References between the API's services: " + string.Join(", ", crossings));
     }
 
+    [Fact]
+    public void Keep_crash_worker_code_out_of_every_api_library()
+    {
+        string[] projects = ApiServices.All.Select(service => service.ControllerAssembly.GetName().Name!)
+            .Concat(s_shared).ToArray();
+        Assert.All(projects, project => Assert.DoesNotContain("Avalon.Crashes.Worker", References(project)));
+        Assert.DoesNotContain("Avalon.Api.Distribution", References("Avalon.Crashes"));
+        Assert.DoesNotContain("Avalon.Api.Distribution", References("Avalon.Database.Crashes"));
+    }
+
     /// <summary>The projects <paramref name="project"/> references, directly or through the projects it references.</summary>
     private static HashSet<string> References(string project)
     {

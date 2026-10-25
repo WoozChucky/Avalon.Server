@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -14,6 +15,21 @@ def version(id, days_old, *tags):
 
 
 class SelectDeletions(unittest.TestCase):
+    def test_crashes_image_and_chart_are_in_cleanup_scope(self):
+        self.assertIn("avalon-server/crashes", registry_cleanup.PACKAGES)
+        self.assertIn("charts/avalon-crashes", registry_cleanup.PACKAGES)
+
+    def test_worker_participates_in_every_promotion_channel(self):
+        root = Path(__file__).resolve().parents[2]
+        publish = (root / ".github/actions/publish-server/action.yml").read_text()
+        charts = (root / ".github/actions/push-charts/action.yml").read_text()
+        nightly = (root / ".github/workflows/dotnet-nightly.yml").read_text()
+        self.assertIn("crashes:Avalon.Crashes.Worker", publish)
+        self.assertIn("Avalon.Crashes.Worker.csproj -c Release -r linux-x64", publish)
+        self.assertLess(charts.index("Helm/avalon-crashes"), charts.index("Helm/avalon-world"))
+        self.assertIn("for c in world api balance crashes; do", nightly)
+        self.assertIn("for chart in avalon-api avalon-balance avalon-crashes avalon-world; do", nightly)
+
     def test_deletes_old_prereleases_beyond_the_newest_ten_of_each_kind(self):
         versions = [version(n, 30 + 16 - n, f"0.8.1-dev.{n}") for n in range(1, 16)]
         self.assertEqual(sorted(select_deletions(versions, NOW)), [1, 2, 3, 4, 5])

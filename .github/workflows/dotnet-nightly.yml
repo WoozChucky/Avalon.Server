@@ -25,7 +25,8 @@ jobs:
         run: |
           set -euo pipefail
           tags="$(crane ls ghcr.io/woozchucky/charts/avalon-world)"
-          dev="$(tools/release/channel-version.sh newest-dev $tags)"
+          mapfile -t tag_list <<< "$tags"
+          dev="$(tools/release/channel-version.sh newest-dev "${tag_list[@]}")"
           if [[ -z "$dev" ]]; then echo "no dev build yet"; echo "promote=false" >> "$GITHUB_OUTPUT"; exit 0; fi
           nightly="$(tools/release/channel-version.sh nightly-of "$dev")"
           if grep -qx "$nightly" <<< "$tags"; then echo "PTR already has $dev ($nightly)"; echo "promote=false" >> "$GITHUB_OUTPUT"; exit 0; fi
@@ -36,7 +37,7 @@ jobs:
         if: steps.pick.outputs.promote == 'true'
         run: |
           set -euo pipefail
-          for c in world api balance; do
+          for c in world api balance crashes; do
             crane tag "ghcr.io/woozchucky/avalon-server/$c:${{ steps.pick.outputs.dev }}" "${{ steps.pick.outputs.nightly }}"
           done
       # Charts are pushed after all images, with avalon-world last. Its tag is the skip and Flux marker.
@@ -46,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p work out
-          for chart in avalon-api avalon-balance avalon-world; do
+          for chart in avalon-api avalon-balance avalon-crashes avalon-world; do
             helm pull "oci://ghcr.io/woozchucky/charts/$chart" --version "$DEV" --untar -d "work/$chart"
             helm package "work/$chart/$chart" --version "$NIGHTLY" --app-version "$NIGHTLY" -d out
             helm push "out/$chart-$NIGHTLY.tgz" oci://ghcr.io/woozchucky/charts

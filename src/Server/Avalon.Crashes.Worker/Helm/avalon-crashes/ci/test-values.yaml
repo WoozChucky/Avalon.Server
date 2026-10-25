@@ -1,0 +1,10 @@
+existingSecret: crashes-worker-test
+storage:
+  endpoint: https://garage.example.test
+networkPolicy:
+  database:
+    peers: [{podSelector: {matchLabels: {app: crash-postgres}}}]
+  garage:
+    peers: [{podSelector: {matchLabels: {app: garage}}}]
+  dnsPeers: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}, podSelector: {matchLabels: {k8s-app: kube-dns}}}]
+  healthPeers: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}}]

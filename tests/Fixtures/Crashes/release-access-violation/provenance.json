@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "publication": "controlled-private-fixture; dump and symbols are not committed",
+  "client": {
+    "revision": "2bb3f61db09af720dcd9a7dcd9a8e27d7a475a18",
+    "version": "0.4.0",
+    "configuration": "Release",
+    "architecture": "x64",
+    "compiler": "MSVC 19.51.36260 (Visual Studio 18 2026)",
+    "compileFlags": "/O2 /Ob2 /DNDEBUG /Zi; AVALON_DEV_TOOLS=1",
+    "devTools": true,
+    "sourceRevisionAtCapture": "f46d2326db79dd4800b48cf0c833fc9c8fce4f0a",
+    "revisionNote": "Existing optimized Release binary; embedded gitHash is authoritative, working checkout may be newer",
+    "linkFlags": "/DEBUG /guard:cf /OPT:REF,ICF /PDBALTPATH:runtime.pdb"
+  },
+  "capture": {
+    "command": "runtime.exe --channel dev --no-log-file --crash access-violation",
+    "profile": "fresh isolated LOCALAPPDATA and APPDATA; no account or network session",
+    "exitCode": -1073741819,
+    "date": "2026-10-23"
+  },
+  "module": "MODULE windows x86_64 E4B4BCD3AA284519805DCBC59F3D27C112 runtime.pdb",
+  "identity": {
+    "debugId": "E4B4BCD3AA284519805DCBC59F3D27C112",
+    "timestamp": "6ADBA341",
+    "imageSize": "c34000"
+  },
+  "crash": {
+    "reason": "EXCEPTION_ACCESS_VIOLATION_WRITE",
+    "threadIndex": 0,
+    "threadId": 23952
+  },
+  "tools": {
+    "dump_syms": "2.3.9",
+    "minidump-stackwalk": "0.27.0",
+    "lockSha256": "590a582bed8b828a87896e2e77889eac425d0677281e9dcfd1bdc67b4c26d7c6"
+  },
+  "sha256": {
+    "dump.dmp": "c11dcd3d0a1b83ab25a473ff4eb2dde5bff05b68c2b52ff3bea037b75993a7f1",
+    "runtime.sym": "c9f5e35b640688a40db2faac0574b095d59ae648009e5313f282bd0d9f9b2922",
+    "runtime.exe": "1b5148bea613b6b45567d3193002a1655c97b4ebd19fbebcc7da040cab589ad9",
+    "runtime.pdb": "800ab2f61fb71f916b4ec757cd9d3ef1baea163f633379eac3dcf913677dc961"
+  },
+  "symbolRecords": {
+    "FUNC": 15292,
+    "STACK CFI INIT": 22842,
+    "INLINE": 168000,
+    "INLINE_ORIGIN": 35072
+  },
+  "evidence": [
+    {
+      "source": "CrashHandler.cpp",
+      "line": 240,
+      "trust": "context"
+    },
+    {
+      "source": "Application.cpp",
+      "line": 224,
+      "trust": "cfi"
+    },
+    {
+      "source": "main.cpp",
+      "line": 194,
+      "trust": "cfi"
+    }
+  ],
+  "privacyReview": {
+    "dumpBytes": 86705,
+    "absolutePathStrings": 62,
+    "credentialMarkerStrings": 0,
+    "decision": "Keep raw dump private: stack memory, absolute module paths and process information cannot be certified safe for publication. FILE records in runtime.sym reduced to basenames; inline and CFI records preserved."
+  }
+}

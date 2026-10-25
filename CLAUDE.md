@@ -114,6 +114,7 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 - [Redis keys](docs/redis-cache-keys.md) (most literals live in `CacheKeys`), [session management](docs/security-session-management.md), [email verification](docs/email-verification.md), Steam: [authentication](docs/steam-authentication.md), [workloads](docs/steam-authentication-workloads.md), [account links](docs/steam-account-links.md).
 
 ### REST API
+- [Private crash analysis](docs/crash-analysis.md): optional Linux worker, separate crash database, Admin-only identity API, retention and companion rollout gates (#1141).
 - [API services](docs/api-services.md): identity, worlds, commerce and distribution, one binary; `Application:Services`; the route manifest (a new endpoint needs an owner in `RouteOwnershipShould`); the chart's `services`, `routes`, `networkPolicy` and per-service Redis users; the rollout (#802, done).
 - [API reference](docs/api-reference.md) and the published OpenAPI document (the Avalon.Dashboard repository generates its client from it).
 - [Multi-world API](docs/api-worlds.md): `/world/{worldId}/...` routes on `[WorldScoped]` controllers, `WorldRouteMiddleware` (non-disclosing 404 before 503), per-world databases, public routes and link previews.

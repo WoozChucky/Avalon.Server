@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" />
+    <ProjectReference Include="../Avalon.Crashes/Avalon.Crashes.csproj" />
+    <ProjectReference Include="../Avalon.Database.Crashes/Avalon.Database.Crashes.csproj" />
+    <ProjectReference Include="../Avalon.ServiceDefaults/Avalon.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>

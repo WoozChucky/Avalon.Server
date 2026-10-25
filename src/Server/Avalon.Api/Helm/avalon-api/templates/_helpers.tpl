@@ -371,7 +371,7 @@ are checked, and a release whose services read no world database ignores worlds.
 {{- if not $root.Values.worlds }}
 {{- fail "worlds lists no world: the API needs at least one, keyed by its id in the auth Worlds table. Give worlds.<id>.world.connectionString and worlds.<id>.characters.connectionString (--set-file), or with existingSecret the keys worlds.<id>.worldKey and worlds.<id>.charactersKey." }}
 {{- end }}
-{{- $used := dict "jwt-signing-private-key" "authentication.signingKey" "game-auth-host-key" "gameAuth.hostKey" "database-auth-connection-string" "database.auth.connectionString" "cache-password" "cache.password" "notification-private-key" "notification.privateKey" "distribution-secret-key" "distribution.secretAccessKey" }}
+{{- $used := dict "jwt-signing-private-key" "authentication.signingKey" "game-auth-host-key" "gameAuth.hostKey" "database-auth-connection-string" "database.auth.connectionString" "database-crashes-connection-string" "database.crashes.connectionString" "cache-password" "cache.password" "notification-private-key" "notification.privateKey" "distribution-secret-key" "distribution.secretAccessKey" }}
 {{- $cacheKey := include "avalon-api.cachePasswordKey" $root }}
 {{- if ne $cacheKey "cache-password" }}{{ $_ := set $used $cacheKey "cache.passwordKey" }}{{ end }}
 {{- range $id, $entry := $root.Values.worlds }}
@@ -431,7 +431,7 @@ manage, so it needs existingSecret, and it must be a valid key name that no othe
 {{- if not (regexMatch "^[-._a-zA-Z0-9]+$" $key) }}
 {{- fail (printf "cache.passwordKey is %q: a Secret key is letters, digits, '-', '_' and '.' only." $key) }}
 {{- end }}
-{{- $used := dict "jwt-signing-private-key" "authentication.signingKey" "game-auth-host-key" "gameAuth.hostKey" "database-auth-connection-string" "database.auth.connectionString" "notification-private-key" "notification.privateKey" "distribution-secret-key" "distribution.secretAccessKey" "balance-shared-secret" "balance.sharedSecret" }}
+{{- $used := dict "jwt-signing-private-key" "authentication.signingKey" "game-auth-host-key" "gameAuth.hostKey" "database-auth-connection-string" "database.auth.connectionString" "database-crashes-connection-string" "database.crashes.connectionString" "notification-private-key" "notification.privateKey" "distribution-secret-key" "distribution.secretAccessKey" "balance-shared-secret" "balance.sharedSecret" }}
 {{- if hasKey $used $key }}
 {{- fail (printf "cache.passwordKey is %q, the key %s already reads: two settings on one key would read the same value." $key (get $used $key)) }}
 {{- end }}
@@ -506,4 +506,12 @@ major.minor.patch, major and minor at most 255 and patch at most 65535, as ident
 {{- fail $refusal }}
 {{- end }}
 {{- end }}
+{{- end -}}
+
+{{- define "avalon-api.validateCrashes" -}}
+{{- if not (kindIs "bool" .Values.crashes.enabled) }}{{ fail "crashes.enabled must be a boolean" }}{{ end -}}
+{{- if and .Values.crashes.enabled (not .Values.existingSecret) (not (.Values.database.crashes.connectionString | default "" | toString | trim)) }}{{ fail "database.crashes.connectionString is required for enabled identity unless existingSecret is set" }}{{ end -}}
+{{- if and .Values.crashes.enabled .Values.crashes.networkPolicy.enabled -}}
+{{- if or (not .Values.crashes.networkPolicy.databasePeers) (not .Values.crashes.networkPolicy.otherEgress) }}{{ fail "crashes.networkPolicy requires databasePeers and deliberate otherEgress rules for identity dependencies" }}{{ end -}}
+{{- end -}}
 {{- end -}}

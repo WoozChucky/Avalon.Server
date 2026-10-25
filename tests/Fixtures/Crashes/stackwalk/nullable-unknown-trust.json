@@ -1,0 +1,11 @@
+{
+  "crash_info": { "type": "EXCEPTION_UNKNOWN (0xe0000001)", "address": null, "crashing_thread": 0 },
+  "system_info": null,
+  "threads": [{ "thread_id": null, "frames": [
+    { "module": "runtime.exe", "offset": "0x1010", "function": null, "file": null, "line": null, "inlines": null, "trust": "future-unwinder" },
+    { "module": null, "offset": null, "trust": null }
+  ] }],
+  "modules": null,
+  "environment": { "unrecognized": "discard this synthetic value" },
+  "crashing_thread": { "frames": [{ "registers": { "rax": "0x1234" } }] }
+}

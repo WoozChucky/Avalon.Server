@@ -1,7 +1,11 @@
 using System.Reflection;
 using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Worlds;
+using Avalon.Api.Identity.Crashes;
+using Avalon.Crashes.Queries;
+using Avalon.Crashes.Triage;
 using Avalon.Database.Character;
+using Avalon.Database.Crashes;
 using Avalon.Database.World;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -31,8 +35,20 @@ public sealed class ApiHostGraphShould
     public async Task Build_the_service_alone_and_serve_its_own_routes_and_no_others(string name)
     {
         IApiService service = ApiServices.All.Single(candidate => candidate.Name == name);
-        await using WebApplication process = ApiProcess.Build(service);
+        // Controller construction resolves the lazy factory, but never opens the inert database.
+        // Other services must still build and resolve their entire graph without any crash configuration.
+        await using WebApplication process = ApiProcess.Build(service, settings: name == "identity"
+            ? new Dictionary<string, string?> { ["Database:Crashes:ConnectionString"] = "Host=crashes-graph" }
+            : null);
         using IServiceScope request = process.Services.CreateScope();
+
+        if (name != "identity")
+        {
+            Assert.Null(request.ServiceProvider.GetService<ICrashReadStore>());
+            Assert.Null(request.ServiceProvider.GetService<ICrashTriageStore>());
+            Assert.Null(request.ServiceProvider.GetService<ICrashSchemaReadiness>());
+            Assert.Null(request.ServiceProvider.GetService<IDbContextFactory<CrashesDbContext>>());
+        }
 
         ControllerActionDescriptor[] actions = ApiProcess.Endpoints(process)
             .Select(endpoint => endpoint.Metadata.GetMetadata<ControllerActionDescriptor>())
