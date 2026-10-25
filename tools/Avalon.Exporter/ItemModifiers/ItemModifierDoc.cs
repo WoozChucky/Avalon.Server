@@ -11,7 +11,7 @@ namespace Avalon.Exporter;
 /// The generated block of <c>docs/item-modifiers.md</c> (#1179): the modifier catalog as <see cref="ItemModifierSeed" />
 /// seeds it, between two markers in a hand-written page. <c>item-modifier-doc</c> writes it, and ItemModifierDocShould
 /// fails when the committed block and the seed disagree. It lists the Resonance themes (#1180) and the families each one
-/// carries, the affix families (code, element, name, kind, theme, stat and the base kinds they roll on), the tier table
+/// carries, each theme's effects (<see cref="ResonanceSeed" />: count, trigger, chance, cooldown, aura and target), the affix families (code, element, name, kind, theme, stat and the base kinds they roll on), the tier table
 /// (each line's range and weight, by tier), the implicit groups (their ranges by tier and where they come from), every
 /// base by kind and line (its tier, level, base-stat ranges and implicit) and the uniques with the bases they are made on.
 /// </summary>
@@ -133,6 +133,20 @@ public static class ItemModifierDoc
                 .OrderBy(g => g.Kind).ThenBy(g => int.Parse(g.Code![1..], CultureInfo.InvariantCulture)).ThenBy(g => g.Element)
                 .Select(g => g.Element is { } element ? $"{g.Code} {element}" : g.Code!);
             text.Append(CultureInfo.InvariantCulture, $"| {theme.Id} | {theme.Name} | {string.Join(" ", families)} |\n");
+        }
+
+        Dictionary<uint, string> auraNames = ResonanceSeed.Auras().ToDictionary(a => a.Id.Value, a => a.Name);
+        text.Append("\n### Theme effects\n\n");
+        text.Append("A theme runs the rows of the highest count it reaches. The effect is the aura it applies to the unit ");
+        text.Append("under On; a chain also applies it to that many further creatures within 8 m of the hit target.\n\n");
+        text.Append("| Theme | Count | Trigger | Chance | Cooldown | Effect | On | Chain | Life |\n");
+        text.Append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n");
+        foreach (ItemThemeEffect effect in ResonanceSeed.Effects().OrderBy(e => e.Id))
+        {
+            string chain = effect.ChainTargets > 0 ? effect.ChainTargets.ToString(CultureInfo.InvariantCulture) : "-";
+            string life = effect.AtOrBelowLifePct is { } pct ? $"≤ {pct.ToString(CultureInfo.InvariantCulture)} %" : "-";
+            text.Append(CultureInfo.InvariantCulture,
+                $"| {themeNames[effect.ThemeId]} | {effect.Count} | {effect.Trigger} | {effect.ChancePct} % | {effect.CooldownMs / 1000d} s | {auraNames[effect.AuraId.Value]} | {effect.Target} | {chain} | {life} |\n");
         }
 
         text.Append("\n### Families\n\n");

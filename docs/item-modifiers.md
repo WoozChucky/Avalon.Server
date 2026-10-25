@@ -322,6 +322,42 @@ count yet: the effects a count turns on arrive with #1180's next part.
 | 7 | Gale | P14 P15 S2 S6 S7 S11 |
 | 8 | Veil | P7 P16 P17 S3 S8 S12 |
 
+### Theme effects
+
+A theme runs the rows of the highest count it reaches. The effect is the aura it applies to the unit under On; a chain also applies it to that many further creatures within 8 m of the hit target.
+
+| Theme | Count | Trigger | Chance | Cooldown | Effect | On | Chain | Life |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Ember | 2 | Hit | 20 % | 2 s | Burning I | HitTarget | - | - |
+| Ember | 3 | Hit | 25 % | 2 s | Burning II | HitTarget | - | - |
+| Ember | 4 | Hit | 30 % | 2 s | Burning III | HitTarget | - | - |
+| Rime | 2 | Hit | 20 % | 3 s | Chilled I | HitTarget | - | - |
+| Rime | 3 | Hit | 25 % | 3 s | Chilled II | HitTarget | - | - |
+| Rime | 4 | Hit | 30 % | 3 s | Chilled III | HitTarget | - | - |
+| Rime | 4 | Crit | 25 % | 10 s | Rimebound | HitTarget | - | - |
+| Storm | 2 | Crit | 100 % | 2 s | Jolt I | HitTarget | - | - |
+| Storm | 3 | Crit | 100 % | 2 s | Jolt II | HitTarget | 1 | - |
+| Storm | 4 | Crit | 100 % | 2 s | Jolt III | HitTarget | 2 | - |
+| Wild | 2 | Kill | 100 % | 4 s | Regrowth I | Wearer | - | - |
+| Wild | 3 | Kill | 100 % | 4 s | Regrowth II | Wearer | - | - |
+| Wild | 4 | Kill | 100 % | 4 s | Regrowth III | Wearer | - | - |
+| Wild | 4 | Struck | 100 % | 20 s | Rootsurge | Wearer | - | ≤ 35 % |
+| Iron | 2 | Struck | 20 % | 6 s | Guard I | Wearer | - | - |
+| Iron | 3 | Struck | 25 % | 6 s | Guard II | Wearer | - | - |
+| Iron | 4 | Struck | 30 % | 6 s | Guard III | Wearer | - | - |
+| Thorn | 2 | Struck | 100 % | 2 s | Barbs I | Attacker | - | - |
+| Thorn | 3 | Struck | 100 % | 2 s | Barbs II | Attacker | - | - |
+| Thorn | 4 | Struck | 100 % | 2 s | Barbs III | Attacker | - | - |
+| Thorn | 4 | Crit | 100 % | 4 s | Bleeding | HitTarget | - | - |
+| Gale | 2 | Kill | 100 % | 5 s | Tailwind I | Wearer | - | - |
+| Gale | 3 | Kill | 100 % | 5 s | Tailwind II | Wearer | - | - |
+| Gale | 4 | Kill | 100 % | 5 s | Tailwind III | Wearer | - | - |
+| Gale | 4 | Evaded | 100 % | 8 s | Slipstream | Wearer | - | - |
+| Veil | 2 | WardBroken | 100 % | 12 s | Veiled I | Wearer | - | - |
+| Veil | 3 | WardBroken | 100 % | 12 s | Veiled II | Wearer | - | - |
+| Veil | 4 | WardBroken | 100 % | 12 s | Veiled III | Wearer | - | - |
+| Veil | 4 | Crit | 100 % | 8 s | Lucid | Wearer | - | - |
+
 ### Families
 
 | Code | Element | Name | Kind | Theme | Stat | Rolls on |
