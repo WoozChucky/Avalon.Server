@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Avalon.Api.Worlds.Controllers;
 
-/// <summary>Item and ability tooltips for anyone (the Dashboard's Wowhead-style tooltips).</summary>
+/// <summary>Item and ability tooltips for anyone: the Dashboard shows them when a reader hovers a linked item or ability.</summary>
 [AllowAnonymous]
 [ApiController]
 [PublicWorldScoped]
