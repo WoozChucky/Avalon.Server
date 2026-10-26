@@ -362,8 +362,11 @@ public sealed class ScenarioWorld : IDisposable
 
             // The Awakening flush (a world with reference data has the character economy it wakes through), first, as
             // WorldServer runs it: each character a kill or a moved bar made due settles its points into its worn seals and
-            // is sent the progress. A character with no seal worn is never due, so it costs two reads. Production contains
-            // a throw per connection and logs it; here it reaches the caller and ends the scenario.
+            // is sent the progress. Without it a scenario would never settle a bar or send its progress (a scenario has no
+            // saves and no equipment moves, the other settle points), so forest-awakening would measure the meter's adds
+            // and none of what follows them. A character with no seal worn is never due, so the other scenarios pay two
+            // reads per connection and their figures do not move. Production contains a throw per connection and logs it;
+            // here it reaches the caller and ends the scenario.
             if (_awakening is not null)
             {
                 StaticData data = _reference!.Data;
@@ -614,11 +617,13 @@ public sealed class ScenarioWorld : IDisposable
 
     /// <summary>
     /// <paramref name="character" /> wearing the sealed kit (#1180 part B): one identified rare amulet (69) at its neck, at
-    /// item level <see cref="SealedKitItemLevel" />, carrying a sealed T9 "S5 Fire" (progress 0) and an awake T9 "S1", every
-    /// line at its low end, loaded as character select loads a character's equipment; then its stats refreshed as it
-    /// enters the world, which counts the seal for its Awakening meter. At that item level the bar's threshold is 10,040
-    /// points, which no fight of a few minutes fills, so the seal never wakes: what its kills and damage earn is settled
-    /// into the row and sent, and nothing else changes. The amulet's ids are made from the character's id, so the same
+    /// item level <see cref="SealedKitItemLevel" />, carrying one affix, a sealed T9 "S5 Fire" (progress 0) at its low end,
+    /// loaded as character select loads a character's equipment; then its stats refreshed as it enters the world, which
+    /// counts the seal for its Awakening meter. A sealed affix adds nothing to stats or Resonance, and the amulet carries
+    /// nothing else (no awake affix, no implicit), so the kit leaves the character's fight as it was: a scenario fought in
+    /// it fights the same fight as without it, and what it adds is the meter's cost alone. At that item level the bar's
+    /// threshold is 10,040 points, which no fight of a few minutes fills, so the seal never wakes: what its kills and
+    /// damage earn is settled into the row and sent, and nothing else changes. The amulet's ids are made from the character's id, so the same
     /// character always wears the same item. Setup only: before the character joins, and before anything is put in its
     /// bag (the load replaces every item's modifiers).
     /// </summary>
@@ -633,11 +638,7 @@ public sealed class ScenarioWorld : IDisposable
                                 ?? throw new InvalidOperationException($"The seed has no item template {SealedKitTemplate}");
         int owner = checked((int)character.Data!.Id.Value);
         var id = new ItemInstanceId(new Guid(owner, slot, 0, 0, 0, 0, 0, 0, 0, 0, 5));
-        List<ItemInstanceModifier> modifiers =
-        [
-            KitModifier(data, owner, slot, id, 0, T9Of("S5", DamageType.Fire), sealProgress: 0),
-            KitModifier(data, owner, slot, id, 1, T9Of("S1", null), sealProgress: null),
-        ];
+        List<ItemInstanceModifier> modifiers = [KitModifier(data, owner, slot, id, 0, T9Of("S5", DamageType.Fire), sealProgress: 0)];
 
         character.ItemModifiers.Load([new ItemInstance { Id = id, TemplateId = template.Id, Identified = true, Modifiers = modifiers }]);
         character.Container(InventoryType.Equipment).Load(
