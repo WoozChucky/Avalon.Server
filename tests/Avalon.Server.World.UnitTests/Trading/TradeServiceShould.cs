@@ -142,18 +142,24 @@ public class TradeServiceShould
         Trader a = w.Online(1, gold: 100);
         Trader b = w.Online(2);
         InventoryItem sword = Item(0, Sword);
-        // #1180: a woken copy is bound; a sealed rare that has not woken yet trades freely.
-        InventoryItem sealedRare = Item(7, Sword) with { Rarity = ItemRarity.Rare, ItemLevel = 9 };
-        ItemInstanceModifier sealedRow = Modifier(sealedRare.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5));
-        sealedRow.SealProgress = 9;
-        a.Character.ItemModifiers.Load(
-            [new ItemInstance { Id = sealedRare.InstanceId, TemplateId = Sword.Id, Identified = true, Modifiers = [sealedRow] }]);
-        a.Character.Container(InventoryType.Bag).Load(
+        InventoryItem[] held =
         [
             sword, Item(1, TradeTestWorld.Contraband), Item(2, TradeTestWorld.Token),
             Item(3, new ItemTemplate { Id = new ItemTemplateId(999), Name = "Gone" }), Item(4, Potion, count: 5),
-            Item(5, Sword) with { Flags = ItemInstanceFlags.Attuned }, sealedRare,
-        ]);
+            Item(5, Sword) with { Flags = ItemInstanceFlags.Attuned },
+        ];
+        if (name == "attuned item")
+        {
+            // #1180: a woken copy is bound; a sealed rare that has not woken yet trades freely.
+            InventoryItem sealedRare = Item(7, Sword) with { Rarity = ItemRarity.Rare, ItemLevel = 9 };
+            ItemInstanceModifier sealedRow = Modifier(sealedRare.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5));
+            sealedRow.SealProgress = 9;
+            a.Character.ItemModifiers.Load(
+                [new ItemInstance { Id = sealedRare.InstanceId, TemplateId = Sword.Id, Identified = true, Modifiers = [sealedRow] }]);
+            held = [.. held, sealedRare];
+        }
+
+        a.Character.Container(InventoryType.Bag).Load(held);
 
         if (name != "not trading")
             w.Open(a, b);

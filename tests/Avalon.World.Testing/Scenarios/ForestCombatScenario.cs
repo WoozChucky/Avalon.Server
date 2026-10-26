@@ -51,8 +51,9 @@ namespace Avalon.World.Testing.Scenarios;
 /// is sealed and never wakes (<see cref="ScenarioWorld.WearSealedKit" />), so every hit it lands on a creature feeds its
 /// Awakening meter, every kill it is credited with makes the meter due, and the tick's Awakening flush settles the points
 /// into the row and sends the progress. A sealed affix adds nothing to stats, so this is <c>forest-combat</c>'s fight,
-/// kill for kill, and what its figure adds to that one's is the meter's cost alone. Its check adds one floor: every fighter's sealed row gained progress during the measured
-/// ticks (<see cref="AwakeningProgress" />), which the report lists (<see cref="Notes" />).
+/// kill for kill (<c>ForestCombatScenarioShould</c> checks it), and what its figure adds to that one's is the meter's cost
+/// alone. Its check adds one floor: every fighter's sealed row gained progress during the measured ticks
+/// (<see cref="AwakeningProgress" />), which the report lists (<see cref="Notes" />).
 /// </para>
 /// </remarks>
 public sealed class ForestCombatScenario : IScenario

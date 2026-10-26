@@ -313,7 +313,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         ItemInstance item = Item(row.Id, count: 1, rarity: ItemRarity.Rare, itemLevel: 7, rareName: "Thorn Bite", identified: false);
         ItemInstance untouched = Item(row.Id, count: 1, rarity: ItemRarity.Magic, itemLevel: 4);
         ItemInstanceModifier a = Modifier(item.Id, 202, 0, Value(0, StatType.AddedFireDamage, 2, 5));
-        a.SealProgress = 12;
+        a.SealProgress = 0;   // every seal starts at 0 (B-R4): the check accepts it
         ItemInstanceModifier b = Modifier(item.Id, 10103, 1, Value(0, StatType.Strength, 8, null));
         ItemInstanceModifier other = Modifier(untouched.Id, 10103, 0, Value(0, StatType.Strength, 5, null));
         await _saves.WriteAsync([Batch(row, upsertItems: [item, untouched],
@@ -324,7 +324,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         ItemInstance saved = await SavedAsync(row.Id, item.Id);
         Assert.Equal((ItemRarity.Rare, (ushort)7, "Thorn Bite", false), (saved.Rarity, saved.ItemLevel, saved.RareName, saved.Identified));
         Assert.Equal(Describe(a, b), Describe([.. saved.Modifiers]));
-        Assert.Equal([12, null], saved.Modifiers.OrderBy(m => m.Ordinal).Select(m => m.SealProgress));
+        Assert.Equal([0, null], saved.Modifiers.OrderBy(m => m.Ordinal).Select(m => m.SealProgress));
         Assert.Equal([(ItemBaseStat.Armour, 9), (ItemBaseStat.BlockChance, 6)], BaseStatsOf(saved));
 
         ItemInstanceModifier kept = Modifier(item.Id, 202, 1, Value(0, StatType.AddedFireDamage, 3, 6), a.Id);

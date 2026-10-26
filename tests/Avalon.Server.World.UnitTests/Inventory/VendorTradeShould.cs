@@ -114,13 +114,18 @@ public class VendorTradeShould
 
     /// <summary>
     /// A rare copy sells for four times its sell price (#1179), and its buyback costs exactly what the sale paid. Its
-    /// rolled rows come back as they left, a sealed row with its bar where it stood (#1180).
+    /// rolled rows come back as they left, a sealed row with its bar where it stood, and an attuned copy comes back
+    /// attuned: a sale and its buyback are no trade (#1180).
     /// </summary>
     [Fact]
     public void Buy_back_the_exact_instance_and_take_it_off_the_list()
     {
         CharacterEntity character = TestCharacters.New(gold: 30);
-        InventoryItem blade = TestCharacters.Item(4, Blade, durability: 42) with { Rarity = ItemRarity.Rare };
+        InventoryItem blade = TestCharacters.Item(4, Blade, durability: 42) with
+        {
+            Rarity = ItemRarity.Rare,
+            Flags = ItemInstanceFlags.Attuned,
+        };
         ItemInstanceModifier sealedRow = TestModifiers.Modifier(blade.InstanceId, 202, 0, (0, StatType.AddedFireDamage, 2, 5));
         sealedRow.SealProgress = 23;
         character.ItemModifiers.Load(
@@ -134,7 +139,7 @@ public class VendorTradeShould
         Assert.Equal(VendorResult.Ok, trade.TryBuyback(true, 0));
 
         Assert.Equal(30UL, character.Data!.Gold);
-        Assert.Equal(blade with { Slot = 1 }, At(character, 1));      // the lowest free slot, same id and durability
+        Assert.Equal(blade with { Slot = 1 }, At(character, 1));      // the lowest free slot, same id, durability and flags
         Assert.Equal("202@0: 0 AddedFireDamage 2..5 sealed 23", TestModifiers.DescribeRolls(character.ItemModifiers.Of(blade.InstanceId)));
         Assert.Empty(character.Buyback.Entries);
         Assert.Equal(SaveState.New, character.SaveState.ItemState(blade.InstanceId));

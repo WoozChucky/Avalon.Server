@@ -40,6 +40,15 @@ public sealed class ForestCombatScenarioShould(ITestOutputHelper output)
         Assert.Equal(firstRun.Progress, secondRun.Progress);
         Assert.Equal(sealedKit, firstRun.Progress.Count > 0);
         Assert.Equal(first.BytesPerWindow, second.BytesPerWindow);
+
+        // A sealed affix adds nothing to stats, so the sealed fight is forest-combat's, kill for kill: its figure over that
+        // one's is the meter's cost alone.
+        if (sealedKit)
+        {
+            var plain = new Counted(new ForestCombatScenario("forest-combat", themed: false));
+            ScenarioMeasurement.Run(plain, TimeSpan.FromSeconds(5), measureTicks: 0);
+            Assert.Equal(plain.Last!.Outcome, firstRun.Outcome);
+        }
     }
 
     /// <summary>

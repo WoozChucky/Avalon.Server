@@ -626,9 +626,9 @@ public sealed class ScenarioWorld : IDisposable
     /// nothing else (no awake affix, no implicit), so the kit leaves the character's fight as it was: a scenario fought in
     /// it fights the same fight as without it, and what it adds is the meter's cost alone. At that item level the bar's
     /// threshold is 10,040 points, which no fight of a few minutes fills, so the seal never wakes: what its kills and
-    /// damage earn is settled into the row and sent, and nothing else changes. The amulet's ids are made from the character's id, so the same
-    /// character always wears the same item. Setup only: before the character joins, and before anything is put in its
-    /// bag (the load replaces every item's modifiers).
+    /// damage earn is settled into the row and sent, and nothing else changes. The amulet's ids are made from the
+    /// character's id, so the same character always wears the same item. Setup only: before the character joins, and
+    /// before anything is put in its bag (the load replaces every item's modifiers).
     /// </summary>
     /// <returns>The amulet's sealed row, as the character's modifier store holds it.</returns>
     public static ItemInstanceModifier WearSealedKit(CharacterEntity character, StaticData data)
