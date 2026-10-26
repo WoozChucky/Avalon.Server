@@ -131,7 +131,7 @@ public class ItemModifierDtoMapperShould
             Modifier(id, CatalogKeys.ModifierId("implicit IncreasedMaximumLife T9"), 0, (0, StatType.IncreasedMaximumLife, 2, null)),
             sealedPrefix,
             Modifier(id, CatalogKeys.ModifierId("S14 T9"), 2, (0, StatType.IncreasedMaximumLife, 1, null)),
-        ]);
+        ], 0);
     }
 
     /// <summary>A Thornheart Signet: its base's implicit, then its own line, and no base stats.</summary>
@@ -147,7 +147,7 @@ public class ItemModifierDtoMapperShould
             Modifier(id, CatalogKeys.ModifierId("unique 65"), 1,
                 (0, StatType.Health, 5, null), (1, StatType.AddedPhysicalDamageToAttacks, 1, 3),
                 (2, StatType.CritMultiplier, 4, null)),
-        ]);
+        ], 0);
     }
 
     /// <summary>The copy as <paramref name="path" />'s message carries it to a client.</summary>

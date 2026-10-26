@@ -189,8 +189,9 @@ public sealed class CharacterInventoryService(
         SettleIfWorn(slot.Container);
         if (count == item.Count)
         {
-            (ItemBaseStats baseStats, IReadOnlyList<ItemInstanceModifier> modifiers) = Delete(slot.Container, item);
-            return new CarriedItem(item, baseStats, modifiers);
+            (ItemBaseStats baseStats, IReadOnlyList<ItemInstanceModifier> modifiers, ushort instability) =
+                Delete(slot.Container, item);
+            return new CarriedItem(item, baseStats, modifiers, instability);
         }
 
         // #1179: an item carrying rolled rows (modifiers or base stats) is one of a kind and never splits, as the move
@@ -202,7 +203,7 @@ public sealed class CharacterInventoryService(
         }
 
         Replace(slot.Container, item with { Count = item.Count - count });
-        return new CarriedItem(item with { InstanceId = itemIds.Next(), Count = count }, default, []);
+        return new CarriedItem(item with { InstanceId = itemIds.Next(), Count = count }, default, [], 0);
     }
 
     public InventoryAddResult TryAddInstance(CarriedItem carried)
@@ -219,7 +220,7 @@ public sealed class CharacterInventoryService(
         if (IsUnique(item.TemplateId) && OwnedOrIncoming(item.TemplateId) + item.Count > 1)
             return InventoryAddResult.UniqueAlreadyOwned;
 
-        Create(InventoryType.Bag, item with { Slot = slot }, carried.BaseStats, carried.Modifiers);
+        Create(InventoryType.Bag, item with { Slot = slot }, carried.BaseStats, carried.Modifiers, carried.Instability);
 
         // Its rows may be gone (a sale saved before the buyback deleted them, modifiers, base stats and all), so the save
         // that upserts it writes them again.
@@ -246,7 +247,7 @@ public sealed class CharacterInventoryService(
             return InventoryAddResult.UniqueAlreadyOwned;
 
         // Its rolled rows unmarked: the paired save wrote them as this character's.
-        Create(InventoryType.Bag, item with { Slot = bagSlot }, carried.BaseStats, carried.Modifiers);
+        Create(InventoryType.Bag, item with { Slot = bagSlot }, carried.BaseStats, carried.Modifiers, carried.Instability);
         return InventoryAddResult.Ok;
     }
 
@@ -514,13 +515,13 @@ public sealed class CharacterInventoryService(
     }
 
     /// <summary>
-    /// An instance arriving in the slot with its rolled rows: <paramref name="baseStats" /> and
-    /// <paramref name="modifiers" /> enter the store with it.
+    /// An instance arriving in the slot with its rolled rows: <paramref name="baseStats" />, <paramref name="modifiers" />
+    /// and the <paramref name="instability" /> their imprints added (#1180) enter the store with it.
     /// </summary>
     private void Create(InventoryType container, InventoryItem item, in ItemBaseStats baseStats,
-        IReadOnlyList<ItemInstanceModifier> modifiers)
+        IReadOnlyList<ItemInstanceModifier> modifiers, ushort instability)
     {
-        owner.ItemModifiers.Put(item.InstanceId, baseStats, modifiers);
+        owner.ItemModifiers.Put(item.InstanceId, baseStats, modifiers, instability);
         Create(container, item);
     }
 
@@ -541,9 +542,11 @@ public sealed class CharacterInventoryService(
         owner.ClientChanges.RecordSlot(container, item.Slot);
     }
 
-    /// <summary>The instance leaves the character: its rolled rows leave the store with it, and are returned.</summary>
-    private (ItemBaseStats BaseStats, IReadOnlyList<ItemInstanceModifier> Modifiers) Delete(InventoryType container,
-        InventoryItem item)
+    /// <summary>
+    /// The instance leaves the character: its rolled rows and its instability leave the store with it, and are returned.
+    /// </summary>
+    private (ItemBaseStats BaseStats, IReadOnlyList<ItemInstanceModifier> Modifiers, ushort Instability) Delete(
+        InventoryType container, InventoryItem item)
     {
         owner.Container(container).Remove(item.Slot);
         owner.SaveState.ItemRemoved(item.InstanceId);

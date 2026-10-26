@@ -155,11 +155,15 @@ public partial class CharacterDbContext : DbContext
         builder.Property(i => i.TemplateId).HasConversion(v => v.Value, v => new ItemTemplateId(v)).IsRequired();
         builder.Property(i => i.ItemLevel).HasColumnType("smallint");
         builder.Property(i => i.RareName).HasMaxLength(32);
-        // As on the item itself: a rare copy, and only a rare one, carries its two words, and a common copy is identified.
+        builder.Property(i => i.Instability).HasColumnType("smallint");
+        // As on the item itself: a rare copy, and only a rare one, carries its two words, a common copy is identified, and
+        // a copy is Tainted exactly when its instability reached the brick (#1180).
         builder.ToTable(t =>
         {
             t.HasCheckConstraint("CK_TradeRecordItems_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
             t.HasCheckConstraint("CK_TradeRecordItems_Identified", "\"Rarity\" <> 0 OR \"Identified\"");
+            t.HasCheckConstraint("CK_TradeRecordItems_Instability", InstabilityCheckSql);
+            t.HasCheckConstraint("CK_TradeRecordItems_Tainted", TaintedCheckSql);
         });
         builder.HasIndex(i => i.ItemInstanceId);
         // The record's own copy of the item's base stats and modifiers (#1179), written with it as one graph.
@@ -258,6 +262,15 @@ public partial class CharacterDbContext : DbContext
 
     /// <summary>The check constraint's expression on Postgres, and the migration's fill.</summary>
     public const string NameKeyCheckSqlPostgres = "\"NameKey\" = upper(\"Name\" COLLATE \"C\")";
+
+    /// <summary>An item's hidden instability (#1180) is never negative, on the item and on its trade record.</summary>
+    private const string InstabilityCheckSql = "\"Instability\" >= 0";
+
+    /// <summary>
+    /// An item is Tainted exactly when its instability reached the brick (#1180), on the item and on its trade record. 100
+    /// is <see cref="ItemInstability.BrickAt" />, which a constant string cannot interpolate.
+    /// </summary>
+    private const string TaintedCheckSql = "\"Tainted\" = (\"Instability\" >= 100)";
 
     /// <summary>The check constraint that holds <c>Characters.Name</c> to the name rule, <see cref="CharacterName" /> (#944).</summary>
     public const string NameRuleConstraint = "CK_Characters_NameRule";
@@ -378,15 +391,19 @@ public partial class CharacterDbContext : DbContext
         builder.HasIndex(b => b.CharacterId);
 
         // Facts of every copy (#1179), like its count and flags. A rare copy, and only a rare one (Rarity 2), carries the two
-        // words its roll gave it, and a common copy (Rarity 0) is always identified.
+        // words its roll gave it, and a common copy (Rarity 0) is always identified. Its hidden instability (#1180) is never
+        // negative, and the copy is Tainted exactly when that reached the brick (ItemInstability.BrickAt).
         builder.Property(b => b.ItemLevel).HasColumnType("smallint");
         builder.Property(b => b.RareName).HasMaxLength(32);
+        builder.Property(b => b.Instability).HasColumnType("smallint");
         builder.ToTable(t =>
         {
             t.HasCheckConstraint("CK_ItemInstances_Rarity", "\"Rarity\" BETWEEN 0 AND 3");
             t.HasCheckConstraint("CK_ItemInstances_ItemLevel", "\"ItemLevel\" > 0");
             t.HasCheckConstraint("CK_ItemInstances_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
             t.HasCheckConstraint("CK_ItemInstances_Identified", "\"Rarity\" <> 0 OR \"Identified\"");
+            t.HasCheckConstraint("CK_ItemInstances_Instability", InstabilityCheckSql);
+            t.HasCheckConstraint("CK_ItemInstances_Tainted", TaintedCheckSql);
         });
 
         // Its modifiers and base stats are its own rows, gone with it.

@@ -10,7 +10,12 @@ namespace Avalon.World.Inventory;
 /// <param name="Item">The item as it was held; its Slot is where it was, or where a trade will put it.</param>
 /// <param name="BaseStats">Its rolled base stats, by value; none (default) for an item without them.</param>
 /// <param name="Modifiers">Its modifiers in ordinal order, empty for none.</param>
-public readonly record struct CarriedItem(InventoryItem Item, ItemBaseStats BaseStats, IReadOnlyList<ItemInstanceModifier> Modifiers)
+/// <param name="Instability">
+/// Its hidden instability (#1180, <see cref="ItemModifierStore.InstabilityOf" />), 0 for an item never imprinted: it travels
+/// with the rows, never on <see cref="InventoryItem" />, the modding API's view. No default, so no site drops it.
+/// </param>
+public readonly record struct CarriedItem(InventoryItem Item, ItemBaseStats BaseStats, IReadOnlyList<ItemInstanceModifier> Modifiers,
+    ushort Instability)
 {
     /// <summary>
     /// Whether it carries rolled rows, modifiers or base stats (<see cref="ItemModifierStore.HasRolledRows" />).

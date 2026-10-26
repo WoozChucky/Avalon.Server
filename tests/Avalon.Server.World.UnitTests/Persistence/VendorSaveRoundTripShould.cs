@@ -41,16 +41,25 @@ public sealed class VendorSaveRoundTripShould : IDisposable
         new(character, TestCharacters.InventoryFor(character, Find), new CharacterWallet(character, 1_000_000), Find, 1_000_000,
             new ItemConfiguration());
 
-    /// <summary>A character whose row and items are already in the database, loaded as select would.</summary>
-    private async Task<CharacterEntity> LoadedWithAsync(params InventoryItem[] items)
+    private Task<CharacterEntity> LoadedWithAsync(params InventoryItem[] items) => LoadedWithAsync(items, null);
+
+    /// <summary>
+    /// A character whose row and items are already in the database, loaded as select would: each item with its modifier
+    /// rows in <paramref name="modifiers" /> (by index, none when absent) and the instability and Tainted flag of
+    /// <paramref name="taint" /> (#1180), its store loaded from the same rows.
+    /// </summary>
+    private async Task<CharacterEntity> LoadedWithAsync(InventoryItem[] items, IReadOnlyList<ItemInstanceModifier>?[]? modifiers,
+        (ushort Instability, bool Tainted) taint = default)
     {
         CharacterEntity character = TestCharacters.New(id: 1, gold: 100);
+        List<ItemInstance> instances = [];
         await using (CharacterDbContext context = _database.CreateDbContext())
         {
             context.Characters.Add(character.Data!);
-            foreach (InventoryItem item in items)
+            for (int i = 0; i < items.Length; i++)
             {
-                context.ItemInstances.Add(new ItemInstance
+                InventoryItem item = items[i];
+                var instance = new ItemInstance
                 {
                     Id = item.InstanceId,
                     TemplateId = item.TemplateId,
@@ -60,9 +69,15 @@ public sealed class VendorSaveRoundTripShould : IDisposable
                     Flags = item.Flags,
                     Rarity = item.Rarity,
                     ItemLevel = item.ItemLevel,
+                    RareName = item.RareName,
                     Identified = item.Identified,
+                    Instability = taint.Instability,
+                    Tainted = taint.Tainted,
                     UpdatedAt = DateTime.UtcNow,
-                });
+                    Modifiers = [.. modifiers?[i] ?? []],
+                };
+                instances.Add(instance);
+                context.ItemInstances.Add(instance);
                 context.CharacterInventory.Add(new CharacterInventory
                 {
                     CharacterId = character.Data!.Id,
@@ -76,6 +91,7 @@ public sealed class VendorSaveRoundTripShould : IDisposable
         }
 
         character.Container(InventoryType.Bag).Load(items);
+        character.ItemModifiers.Load(instances);
         await AdmittedCharacter.BindAsync(_database, character);
         return character;
     }
@@ -99,11 +115,22 @@ public sealed class VendorSaveRoundTripShould : IDisposable
         return await read.CharacterInventory.AsNoTracking().ToListAsync();
     }
 
+    /// <summary>
+    /// The blade is a Tainted rare carrying an imprinted row (#1180): its instability, its Tainted flag and the row's
+    /// Imprinted flag come back with it.
+    /// </summary>
     [Fact]
     public async Task Bring_a_sold_item_back_under_its_own_id_after_the_sale_was_saved()
     {
-        InventoryItem blade = TestCharacters.Item(0, Blade, durability: 42);
-        CharacterEntity character = await LoadedWithAsync(blade);
+        InventoryItem blade = TestCharacters.Item(0, Blade, durability: 42) with
+        {
+            Rarity = ItemRarity.Rare,
+            RareName = "Thorn Bite",
+            Tainted = true,
+        };
+        ItemInstanceModifier imprinted = TestModifiers.Modifier(blade.InstanceId, 10103, 0, (0, StatType.Strength, 8, null));
+        imprinted.Imprinted = true;
+        CharacterEntity character = await LoadedWithAsync([blade], [[imprinted]], (130, true));
         VendorTrade trade = Trade(character);
 
         Assert.Equal(VendorResult.Ok, trade.TrySell(true, 0, null));
@@ -116,7 +143,13 @@ public sealed class VendorSaveRoundTripShould : IDisposable
         await SaveAsync(character);
 
         ItemInstance row = Assert.Single(await ItemsAsync(), i => i.Id == blade.InstanceId);
-        Assert.Equal((42u, 1u), (row.Durability, row.Count));
+        Assert.Equal((42u, 1u, (ushort)130, true), (row.Durability, row.Count, row.Instability, row.Tainted));
+        await using (CharacterDbContext read = _database.CreateDbContext())
+        {
+            ItemInstanceModifier stored = await read.ItemInstanceModifiers.AsNoTracking().SingleAsync();
+            Assert.Equal((imprinted.Id, true), (stored.Id, stored.Imprinted));
+        }
+
         List<CharacterInventory> slots = await SlotsAsync();
         Assert.Equal(2, slots.Count);
         Assert.Equal(blade.InstanceId, slots.Single(s => s.Slot == 1).ItemId);

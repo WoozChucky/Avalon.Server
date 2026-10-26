@@ -483,6 +483,9 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<bool>("Identified")
                         .HasColumnType("boolean");
 
+                    b.Property<short>("Instability")
+                        .HasColumnType("smallint");
+
                     b.Property<short>("ItemLevel")
                         .HasColumnType("smallint");
 
@@ -492,6 +495,9 @@ namespace Avalon.Database.Character.Migrations
 
                     b.Property<byte>("Rarity")
                         .HasColumnType("smallint");
+
+                    b.Property<bool>("Tainted")
+                        .HasColumnType("boolean");
 
                     b.Property<decimal>("TemplateId")
                         .HasColumnType("numeric(20,0)");
@@ -504,7 +510,11 @@ namespace Avalon.Database.Character.Migrations
                         {
                             t.HasCheckConstraint("CK_TradeRecordItems_Identified", "\"Rarity\" <> 0 OR \"Identified\"");
 
+                            t.HasCheckConstraint("CK_TradeRecordItems_Instability", "\"Instability\" >= 0");
+
                             t.HasCheckConstraint("CK_TradeRecordItems_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_TradeRecordItems_Tainted", "\"Tainted\" = (\"Instability\" >= 100)");
                         });
                 });
 
@@ -539,6 +549,9 @@ namespace Avalon.Database.Character.Migrations
 
                     b.Property<Guid>("ItemInstanceModifierId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("Imprinted")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("ItemInstanceId")
                         .HasColumnType("uuid");
@@ -610,6 +623,9 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<bool>("Identified")
                         .HasColumnType("boolean");
 
+                    b.Property<short>("Instability")
+                        .HasColumnType("smallint");
+
                     b.Property<short>("ItemLevel")
                         .HasColumnType("smallint");
 
@@ -619,6 +635,9 @@ namespace Avalon.Database.Character.Migrations
 
                     b.Property<byte>("Rarity")
                         .HasColumnType("smallint");
+
+                    b.Property<bool>("Tainted")
+                        .HasColumnType("boolean");
 
                     b.Property<decimal>("TemplateId")
                         .HasColumnType("numeric(20,0)");
@@ -634,11 +653,15 @@ namespace Avalon.Database.Character.Migrations
                         {
                             t.HasCheckConstraint("CK_ItemInstances_Identified", "\"Rarity\" <> 0 OR \"Identified\"");
 
+                            t.HasCheckConstraint("CK_ItemInstances_Instability", "\"Instability\" >= 0");
+
                             t.HasCheckConstraint("CK_ItemInstances_ItemLevel", "\"ItemLevel\" > 0");
 
                             t.HasCheckConstraint("CK_ItemInstances_RareName", "(\"Rarity\" = 2) = (\"RareName\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_ItemInstances_Rarity", "\"Rarity\" BETWEEN 0 AND 3");
+
+                            t.HasCheckConstraint("CK_ItemInstances_Tainted", "\"Tainted\" = (\"Instability\" >= 100)");
                         });
                 });
 
@@ -667,6 +690,9 @@ namespace Avalon.Database.Character.Migrations
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("Imprinted")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("ItemInstanceId")
                         .HasColumnType("uuid");

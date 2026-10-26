@@ -15,7 +15,8 @@ namespace Avalon.World.Inventory;
 /// reaches them. Loaded at select, and otherwise written only by <see cref="CharacterInventoryService" />, beside the
 /// container it changes, so an entry lives exactly as long as its item is held; a copy has an entry when it has
 /// modifiers or base stats, and is then one of a kind. Each entry also holds the name its modifiers give a magic copy
-/// (<see cref="DescribedName" />), worked out at the copy's first describe in an items generation. An item outside every
+/// (<see cref="DescribedName" />), worked out at the copy's first describe in an items generation, and the copy's hidden
+/// instability (#1180), which only an entry holds, since every imprinted copy carries its imprint. An item outside every
 /// container (taken out, in the buyback list, in a trade's plan) carries its rows as a <see cref="CarriedItem" />. Tick
 /// thread only.
 /// </summary>
@@ -36,6 +37,16 @@ public sealed class ItemModifierStore
     {
         ref Entry entry = ref CollectionsMarshal.GetValueRefOrNullRef(_byItem, item);
         return Unsafe.IsNullRef(ref entry) ? default : entry.BaseStats;
+    }
+
+    /// <summary>
+    /// The item's hidden instability (#1180), the running total of its imprints' rolls; 0 for an item without an entry.
+    /// World-side only: never sent, shown, logged or exported.
+    /// </summary>
+    public ushort InstabilityOf(ItemInstanceId item)
+    {
+        ref Entry entry = ref CollectionsMarshal.GetValueRefOrNullRef(_byItem, item);
+        return Unsafe.IsNullRef(ref entry) ? (ushort)0 : entry.Instability;
     }
 
     /// <summary>
@@ -91,8 +102,8 @@ public sealed class ItemModifierStore
     }
 
     /// <summary>
-    /// At select: every loaded item's modifiers, in ordinal order, each one's values in index order, and its base stats.
-    /// It keeps the loaded objects and marks nothing: they are what the database holds.
+    /// At select: every loaded item's modifiers, in ordinal order, each one's values in index order, its base stats and its
+    /// instability. It keeps the loaded objects and marks nothing: they are what the database holds.
     /// </summary>
     public void Load(IReadOnlyCollection<ItemInstance> instances)
     {
@@ -117,29 +128,34 @@ public sealed class ItemModifierStore
                     modifier.Values.Sort(static (a, b) => a.Index.CompareTo(b.Index));
             }
 
-            _byItem[instance.Id] = new Entry(modifiers, baseStats);
+            _byItem[instance.Id] = new Entry(modifiers, baseStats, instance.Instability);
         }
     }
 
     /// <summary>
-    /// The item arrives with <paramref name="baseStats" /> and <paramref name="modifiers" />: a copy of the list is kept,
-    /// and nothing for none of either.
+    /// The item arrives with <paramref name="baseStats" />, <paramref name="modifiers" /> and its
+    /// <paramref name="instability" /> (#1180): a copy of the list is kept, and nothing for none of either. Throws for an
+    /// instability above 0 with no rolled rows: an imprinted item always carries its imprint.
     /// </summary>
-    internal void Put(ItemInstanceId item, ItemBaseStats baseStats, IReadOnlyList<ItemInstanceModifier> modifiers)
+    internal void Put(ItemInstanceId item, ItemBaseStats baseStats, IReadOnlyList<ItemInstanceModifier> modifiers,
+        ushort instability)
     {
         if (!HasRolledRows(baseStats, modifiers))
         {
+            if (instability > 0)
+                throw new ArgumentException($"Item {item} carries instability but no rolled rows.", nameof(instability));
+
             _byItem.Remove(item);
             return;
         }
 
-        _byItem[item] = new Entry(modifiers.Count == 0 ? null : [.. modifiers], baseStats);
+        _byItem[item] = new Entry(modifiers.Count == 0 ? null : [.. modifiers], baseStats, instability);
     }
 
     /// <summary>
     /// A copy made just now arrives with the base stats and the modifiers its roll made for it alone (#1179, RolledItem):
     /// the roll hands that list over, so it becomes the item's own entry, not copied, and a making allocates its rows and
-    /// their lists only. Nothing for none of either.
+    /// their lists only. Nothing for none of either. A copy made just now was never imprinted: its instability is 0.
     /// </summary>
     internal void PutMade(ItemInstanceId item, ItemBaseStats baseStats, List<ItemInstanceModifier> made)
     {
@@ -149,7 +165,7 @@ public sealed class ItemModifierStore
             return;
         }
 
-        _byItem[item] = new Entry(made.Count == 0 ? null : made, baseStats);
+        _byItem[item] = new Entry(made.Count == 0 ? null : made, baseStats, 0);
     }
 
     /// <summary>
@@ -158,8 +174,25 @@ public sealed class ItemModifierStore
     /// new list and a new row, never a field written inside the list the item holds: a stats refresh recounts Resonance
     /// only for a worn list it has not seen (Characters.ResonanceInputs, by reference). So the list must not be the one
     /// held, and the caller keeps no use of it. Throws for an item without an entry, and for the list it already holds.
+    /// The item keeps its instability.
     /// </summary>
     internal void ReplaceModifiers(ItemInstanceId item, List<ItemInstanceModifier> modifiers)
+    {
+        ref Entry entry = ref EntryToReplace(item, modifiers);
+        entry = new Entry(modifiers, entry.BaseStats, entry.Instability);
+    }
+
+    /// <summary>
+    /// As the overload above, and the item's instability becomes <paramref name="instability" /> (#1180: an imprint's new
+    /// total, beside the list it made).
+    /// </summary>
+    internal void ReplaceModifiers(ItemInstanceId item, List<ItemInstanceModifier> modifiers, ushort instability)
+    {
+        ref Entry entry = ref EntryToReplace(item, modifiers);
+        entry = new Entry(modifiers, entry.BaseStats, instability);
+    }
+
+    private ref Entry EntryToReplace(ItemInstanceId item, List<ItemInstanceModifier> modifiers)
     {
         ref Entry entry = ref CollectionsMarshal.GetValueRefOrNullRef(_byItem, item);
         if (Unsafe.IsNullRef(ref entry))
@@ -168,17 +201,17 @@ public sealed class ItemModifierStore
         if (ReferenceEquals(entry.Modifiers, modifiers))
             throw new ArgumentException($"Item {item}'s modifiers are replaced by a new list, never by the one it holds.", nameof(modifiers));
 
-        entry = new Entry(modifiers, entry.BaseStats);
+        return ref entry;
     }
 
     /// <summary>
-    /// The item leaves: its base stats and its list go with it, and the entry is gone. None and an empty list for an item
-    /// without them.
+    /// The item leaves: its base stats, its list and its instability go with it, and the entry is gone. None, an empty list
+    /// and 0 for an item without them.
     /// </summary>
-    internal (ItemBaseStats BaseStats, IReadOnlyList<ItemInstanceModifier> Modifiers) Take(ItemInstanceId item) =>
+    internal (ItemBaseStats BaseStats, IReadOnlyList<ItemInstanceModifier> Modifiers, ushort Instability) Take(ItemInstanceId item) =>
         _byItem.Remove(item, out Entry entry)
-            ? (entry.BaseStats, ModifiersOf(entry))
-            : (default, Array.Empty<ItemInstanceModifier>());
+            ? (entry.BaseStats, ModifiersOf(entry), entry.Instability)
+            : (default, Array.Empty<ItemInstanceModifier>(), (ushort)0);
 
     private static readonly ItemBaseStats s_noBaseStats = default;
 
@@ -186,13 +219,14 @@ public sealed class ItemModifierStore
         entry.Modifiers is { } modifiers ? modifiers : Array.Empty<ItemInstanceModifier>();
 
     /// <summary>
-    /// One held item's modifiers (null for none), its base stats and the name they give it; a struct in the dictionary, so
-    /// an entry costs no object.
+    /// One held item's modifiers (null for none), its base stats, its hidden instability (#1180) and the name they give it;
+    /// a struct in the dictionary, so an entry costs no object.
     /// </summary>
-    private struct Entry(List<ItemInstanceModifier>? modifiers, ItemBaseStats baseStats)
+    private struct Entry(List<ItemInstanceModifier>? modifiers, ItemBaseStats baseStats, ushort instability)
     {
         public readonly List<ItemInstanceModifier>? Modifiers = modifiers;
         public readonly ItemBaseStats BaseStats = baseStats;
+        public readonly ushort Instability = instability;
         public DescribedName Name;
     }
 

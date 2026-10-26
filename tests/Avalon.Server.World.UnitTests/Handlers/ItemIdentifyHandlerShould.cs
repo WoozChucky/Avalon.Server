@@ -247,7 +247,7 @@ public class ItemIdentifyHandlerShould
                     (0, StatType.IncreasedMaximumLife, 2, null)),
                 Modifier(id, CatalogKeys.ModifierId("P11 T7"), 1, (0, StatType.Health, 5, null)),
                 Modifier(id, CatalogKeys.ModifierId("S14 T9"), 2, (0, StatType.IncreasedMaximumLife, 1, null)),
-            ]);
+            ], 0);
         }
     }
 }

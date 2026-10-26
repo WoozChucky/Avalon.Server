@@ -33,6 +33,12 @@ public class ItemInstanceModifier
     public bool Sealed => SealProgress is not null;
 
     /// <summary>
+    /// Whether this row came onto the item from a glyph (#1180), rather than from its roll. An imprinted row is never
+    /// sealed. No count is kept: nothing caps the imprints an item takes but its affix room and its instability.
+    /// </summary>
+    public bool Imprinted { get; set; }
+
+    /// <summary>
     /// A copy of the row alone, its <see cref="Values" /> its own empty list: what a save takes on the tick beside copies
     /// of the value rows (<see cref="ItemInstanceModifierValue.Copy" />), so the write shares nothing the tick changes and
     /// every value is a row of its own.
@@ -44,7 +50,36 @@ public class ItemInstanceModifier
         ModifierId = ModifierId,
         Ordinal = Ordinal,
         SealProgress = SealProgress,
+        Imprinted = Imprinted,
     };
+
+    /// <summary>
+    /// A new row of the same catalog modifier and values, under <paramref name="id" /> on <paramref name="item" /> at
+    /// <paramref name="ordinal" />, unsealed (#1180): what extraction makes of an affix for its glyph and what an imprint
+    /// makes of a glyph's row for its target. Rows are always copied, never moved, since a save refuses a row moving
+    /// between items. Its values are copies of this row's, each naming the new id.
+    /// </summary>
+    public ItemInstanceModifier CopyAs(Guid id, ItemInstanceId item, byte ordinal, bool imprinted)
+    {
+        var copy = new ItemInstanceModifier
+        {
+            Id = id,
+            ItemInstanceId = item,
+            ModifierId = ModifierId,
+            Ordinal = ordinal,
+            Imprinted = imprinted,
+            Values = new List<ItemInstanceModifierValue>(Values.Count),
+        };
+
+        foreach (ItemInstanceModifierValue value in Values)
+        {
+            ItemInstanceModifierValue row = value.Copy();
+            row.ItemInstanceModifierId = id;
+            copy.Values.Add(row);
+        }
+
+        return copy;
+    }
 }
 
 /// <summary>

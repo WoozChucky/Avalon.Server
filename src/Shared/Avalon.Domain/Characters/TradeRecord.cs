@@ -51,6 +51,15 @@ public class TradeRecordItem
     /// <summary>Whether the item was identified when it moved (#1179); a common item always was.</summary>
     public required bool Identified { get; set; }
 
+    /// <summary>
+    /// The item's hidden instability when it moved (#1180, <see cref="ItemInstance.Instability" />): kept so the record is
+    /// the whole copy, and never shown.
+    /// </summary>
+    public ushort Instability { get; set; }
+
+    /// <summary>Whether the item was Tainted when it moved (#1180): exactly when its instability had reached the brick.</summary>
+    public bool Tainted { get; set; }
+
     /// <summary>The item's base stats as they were when it moved (#1179): the record's own copy, one row per stat.</summary>
     public List<TradeRecordItemBaseStat> BaseStats { get; set; } = [];
 
@@ -86,6 +95,9 @@ public class TradeRecordItemModifier
 
     /// <summary>A sealed affix's progress when the trade completed (<see cref="ItemInstanceModifier.SealProgress" />, #1180); null on an awake one.</summary>
     public int? SealProgress { get; set; }
+
+    /// <summary>Whether the modifier came from a glyph (<see cref="ItemInstanceModifier.Imprinted" />, #1180).</summary>
+    public bool Imprinted { get; set; }
 
     public List<TradeRecordItemModifierValue> Values { get; set; } = [];
 }

@@ -57,7 +57,7 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
             // Memory is authoritative: an item no longer held is deleted, whatever its mark says.
             if (mark.State != SaveState.Removed && held.TryGetValue(id, out InventoryItem item))
             {
-                upsertItems.Add(ItemRow(item, row.Id, now));
+                upsertItems.Add(ItemRow(item, row.Id, now, character.ItemModifiers.InstabilityOf(id)));
 
                 // #1179: only an item this batch upserts carries its rolled rows, so a deleted one never names them.
                 if (mark.Modifiers)
@@ -147,8 +147,11 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
             marks);
     }
 
-    /// <summary>The item's row as <paramref name="owner" />'s, with its current values.</summary>
-    internal static ItemInstance ItemRow(InventoryItem item, CharacterId owner, DateTime now) => new()
+    /// <summary>
+    /// The item's row as <paramref name="owner" />'s, with its current values and <paramref name="instability" />, the
+    /// hidden total (#1180) its holder keeps beside it (the store, or a carried item), never on the item itself.
+    /// </summary>
+    internal static ItemInstance ItemRow(InventoryItem item, CharacterId owner, DateTime now, ushort instability) => new()
     {
         Id = item.InstanceId,
         TemplateId = item.TemplateId,
@@ -161,6 +164,8 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
         ItemLevel = item.ItemLevel,
         RareName = item.RareName,
         Identified = item.Identified,
+        Instability = instability,
+        Tainted = item.Tainted,
         UpdatedAt = now,
     };
 
