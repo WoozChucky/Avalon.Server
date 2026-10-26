@@ -2169,23 +2169,25 @@ window off the themed fight, and about 20 B off the unthemed one.
 ### Awakening meter — `Benchmarks/AwakeningMeterBenchmarks.cs` (#1180)
 
 What a worn sealed affix's bar (#1180 part B, [world simulation](world-simulation.md), Awakening) adds to a direct hit.
-Both rows are a level 1 warrior's raw hit of 10 (`CombatService.ApplyDamage`) on a dummy creature with no script,
-through a real `MapInstance` over the scenario reference data (`ScenarioReferenceData`), on a fixed random (0.15) and a
-fixed clock, as [Resonance procs](#resonance-procs--benchmarksresonanceprocbenchmarkscs-1180) are measured.
+Both rows are a level 1 warrior's raw hit of 10 (`CombatService.ApplyDamage`) on a dummy creature, through a real
+`MapInstance` over the scenario reference data (`ScenarioReferenceData`), on a fixed random (0.15) and a fixed clock, as
+[Resonance procs](#resonance-procs--benchmarksresonanceprocbenchmarkscs-1180) are measured.
 
 - `Hit_NoSeal` (the baseline): a warrior with nothing worn, whose hit pays the meter's one compare (`SealedWorn` is 0).
 - `Hit_SealedWorn`: a warrior wearing the `forest-awakening` kit (`ScenarioWorld.WearSealedKit`: one identified rare
   amulet at item level 1000 carrying only a sealed T9 "S5 Fire", whose threshold, 10,040 points, is never reached), so
-  every hit takes the meter's branch: the creature type test, its `Level` and `Metadata.Rarity`, the weight's `switch`,
-  and `AddDamage`'s 64-bit multiply, divide and add.
+  every hit takes the meter's branch: the health removed (above 0 only for a creature, which `Hit` hands out, so the
+  target is not tested again), its `Level` and `Metadata.Rarity`, the weight's `switch`, and `AddDamage`'s 64-bit
+  multiply, divide and add.
 
 The dummy's **maximum health is 1 and its current health `uint.MaxValue`**: the hit then adds whole points (with a
-maximum of `uint.MaxValue`, one hit of 10 is worth 0 thousandths, and the setup check could not pass), and the dummy
-never dies, since it has no script to lower its health. The meter does the same integer operations either way, and
-nothing else on the raw-hit path reads the creature's maximum health. Setup fails the run unless one sealed hit moves
-the store's sealed row once settled and a save snapshot of the warrior carries the same value, then puts the row back.
-One run, at `c5a2016fe` (out of process, ten warmups, twenty iterations, `--affinity 4`; BenchmarkDotNet 0.15.8,
-Windows 11, i9-12900K, runtime 10.0.14, Release), 2026-10-26:
+maximum of `uint.MaxValue`, one hit of 10 is worth 0 thousandths, and the setup check could not pass). The meter reads
+the health a creature actually lost, so the dummy's script takes each hit off its health, and puts it back to
+`uint.MaxValue` once it falls below half, so it never dies; both rows pay that script. The meter does the same integer
+operations either way, and nothing else on the raw-hit path reads the creature's maximum health. Setup fails the run
+unless one sealed hit moves the store's sealed row once settled and a save snapshot of the warrior carries the same
+value, then puts the row back. One run, at `697565008` (out of process, ten warmups, twenty iterations,
+`--affinity 4`; BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, runtime 10.0.14, Release), 2026-10-26:
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AwakeningMeterBenchmarks*" --warmupCount 10 --iterationCount 20 --affinity 4
@@ -2193,22 +2195,29 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Awakenin
 
 | Operation | Mean (± StdDev) | Allocated |
 |---|---:|---:|
-| `Hit_NoSeal` (baseline) | 94.33 ns (± 0.54 ns) | 0 B |
-| `Hit_SealedWorn` | 104.94 ns (± 1.00 ns) | 0 B |
+| `Hit_NoSeal` (baseline) | 103.11 ns (± 5.21 ns) | 0 B |
+| `Hit_SealedWorn` | 96.74 ns (± 1.29 ns) | 0 B |
 
-**Nothing allocates on either row**, and a sealed hit writes no row, no save mark and no client change. **A sealed hit
-costs 10.6 ns more than one with no seal**, just past the 10 ns the design expected (5 to 10 ns): the difference is the
-branch above, whose 64-bit divide is most of it, once per direct hit or aura tick a sealed wearer deals to a creature,
+**Nothing allocates on either row**, and a sealed hit writes no row, no save mark and no client change. **The sealed
+hit reads no slower than the baseline in this run** (6.4 ns faster, inside the baseline's 5.2 ns spread): the meter's
+branch is now below what one run can tell apart. The first run, at `c5a2016fe` (before the hit stopped testing its
+target twice, and with a dummy that had no script), read 94.33 ns (± 0.54 ns) and 104.94 ns (± 1.00 ns), 10.6 ns for the
+branch, most of it the 64-bit divide. It is paid once per direct hit or aura tick a sealed wearer deals to a creature,
 never per tick. A character with no seal worn pays only the compare, which the baseline includes.
 
 **Per window in a fight.** `forest-awakening`, `forest-combat`'s fight with every fighter in the sealed kit
-([scenario baseline](#scenario-baseline)), reads 14,193 B per window where `forest-combat` read 14,127 B in the same
-runner pass (Release, at `30de126a3`; 14,122 B committed), **+66 B per window**, about 0.5 %. The kit carries only the
-seal, which adds nothing to stats or Resonance, so the two fights are the same fight, kill for kill: 121 kills, 4
-deaths, 20 heals, 227 pickups, 120 items destroyed and 75 quest credits each. The difference is the meter's settles
-and its `SMSG_AWAKENING_PROGRESS` sends, one small packet per fighter on a tick with a kill, from reused entries; the
-hits themselves allocate nothing (above). The scenario's fighters gained 518 points in the measured minute (between 27
-and 55 each), and its check floors every fighter's gain above 0.
+([scenario baseline](#scenario-baseline)), reads 14,187 to 14,195 B per window where `forest-combat` reads 14,119 to
+14,127 B in the same runner pass (Release, at `41a430a99` and at `697565008`; 14,122 B committed), **+66 to +68 B
+per window**, about 0.5 %. The kit carries only the seal, which adds nothing to stats or Resonance, so the two fights
+are the same fight, kill for kill (121 kills, 4 deaths, 20 heals, 227 pickups, 120 items destroyed and 75 quest
+credits each; `ForestCombatScenarioShould` checks the outcomes match). **The difference is one-off growth, not a cost per kill,
+settle or packet.** Measured once: `forest-combat` with one extra save mark per fighter at setup (the mark the sealed
+amulet's first settle leaves in `SaveStateTracker`, which the scenario, having no saves, never clears) reads 14,185 B,
++58 B, so most of it is that dictionary's growth shifting a resize into the measured minute; switching the
+`SMSG_AWAKENING_PROGRESS` sends off moves `forest-awakening` by 4 B, inside the run-to-run spread (the same build reads
+`forest-combat` from 14,119 to 14,127 B across passes), so the packets allocate nothing per send. The settles, from
+reused state, and the hits allocate nothing (above). The scenario's fighters gained 518 points in the measured minute
+(between 27 and 55 each), and its check floors every fighter's gain above 0.
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
@@ -4580,8 +4589,11 @@ with the committed figure, in every build (Debug and Release, see below) and for
   from its first entry, its row then added alone); the file was regenerated once for it, and `forest-combat` moved with
   it (below), no other row (the procs' share is in [Resonance procs](#resonance-procs--benchmarksresonanceprocbenchmarkscs-1180)).
   `forest-awakening` reads 14,193 B per window from its first entry (#1180 part B, at `30de126a3`), its row added
-  alone, no other row regenerated: +66 B over `forest-combat` in the same pass, the meter's share
-  ([Awakening meter](#awakening-meter--benchmarksawakeningmeterbenchmarkscs-1180)).
+  alone, no other row regenerated: +66 B over `forest-combat` in the same pass, one-off growth (mostly the save mark
+  the sealed amulet's first settle leaves, which shifts a dictionary resize into the measured minute), not a cost per
+  kill or packet ([Awakening meter](#awakening-meter--benchmarksawakeningmeterbenchmarkscs-1180)). The final fixes of
+  part B (the stage's queue, the sealed-slot walks, the hit's health lost) left every row where it was, within the
+  run-to-run spread, so none was regenerated.
   `town-social` reads 728 B per window since #973 (3,904 B from #972), all of it its events' own, one of each kind a
   window ([a social town, quieter](#results--a-social-town-quieter-973-2026-10-15)): the floor decides for it too (1% is
   7 B), so it fails above 984 B, and one more 40 B enumerator on each of its seven events (280 B) fails it. Its Debug

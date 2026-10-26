@@ -310,7 +310,8 @@ sealed row gives no stat line (`ItemLines` skips it, so the world's stats refres
 and counts for no Resonance theme (`ResonanceCounts.AddItem` skips it). It still takes its affix slot and its group, so
 the rolling rules see it. An unidentified copy does not say it is sealed: the seal is on an affix, and an unidentified
 copy shows none ([identification](#identification)); once identified, the sealed line shows with its progress and its
-threshold. An unidentified copy cannot be worn, so its bar stays at 0 until then.
+threshold. An unidentified copy cannot be worn, so its bar stays at 0 until then; and only an identified copy's seal
+fills (`Awakening.Fills`), so one in the Equipment by any other route would neither fill nor send its progress.
 
 **The bar.** Points come from creatures, and only to the sealed affixes of items **worn** (in the Equipment container):
 an item in the bag or the bank gains nothing, keeps its progress when it is taken off, and goes on from it when worn
@@ -342,13 +343,16 @@ A bar never passes its threshold, and nothing caps the item level it reads.
 
 - **a miss** wakes it as it was sealed: the same tier and values (`Woken`);
 - **a rise** moves it to its group's next better tier (`ItemModifierCatalog.NextTier`: of the same group, the largest
-  tier number below its own, the lowest id among equals), when that tier's `RequiredItemLevel` is at most the copy's
-  item level plus the **reach**, `ItemAwakening.TierReach` (3). Its values roll anew within that tier, as a drop rolls
-  them (`TierRaised`). Today a T9 rises to T8 (item level 4, within reach of item level 1) and a T8 to T7 (item level
-  7, within reach of 4);
-- **a polish** is a rise with no better tier in reach: a T7 always, since T6 to T1 are not in the catalog yet, and a T8
-  below item level 4. Each line rolls again within its own tier and the line whose two ends sum higher is kept, the old
-  one on a tie (`Polished`), so a successful draw always improves or keeps the line.
+  tier number below its own, the lowest id among that tier's rows that roll on every base kind the affix rolls on, so a
+  rise never lands on a row the base could not roll; none when no row of that tier does), when that tier's
+  `RequiredItemLevel` is at most the copy's item level plus the **reach**, `ItemAwakening.TierReach` (3). Its values
+  roll anew within that tier, as a drop rolls them (`TierRaised`). Today a T9 rises to T8 (item level 4, within reach
+  of item level 1) and a T8 to T7 (item level 7, within reach of 4); every tier of a seeded group rolls on the same
+  kinds;
+- **a polish** is a rise with no better tier in reach, or none on the affix's base kinds: a T7 always, since T6 to T1
+  are not in the catalog yet, and a T8 below item level 4. Each line rolls again within its own tier and the line whose
+  two ends sum higher is kept, the old one on a tie (`Polished`), so a successful draw always improves or keeps the
+  line.
 
 A sealed row the catalog no longer holds (a reload left it out) wakes as it was, with no draw. The woken row keeps its
 id and its ordinal, loses its seal and counts for stats and Resonance from then on. Waking binds the item: it becomes

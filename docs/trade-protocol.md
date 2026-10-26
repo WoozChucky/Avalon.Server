@@ -258,7 +258,7 @@ A client that loses its connection or leaves the world forgets the window; nothi
 ## 5. What can be traded
 
 - Items from the **Bag** only: never Equipment or the Bank. A stack goes in whole; split it in the Bag first.
-- Every item is tradeable unless its template is NoTrade or a quest item, or the copy is attuned (#1180, `ItemSlotDto.Flags` bit 1) (`NotTradeable`). A sealed rare that has not woken trades like any other, with its bar.
+- Every item is tradeable unless its template is NoTrade or a quest item, or the copy is attuned (#1180, `ItemSlotDto.Flags` value 1) (`NotTradeable`). A sealed rare that has not woken trades like any other, with its bar.
 - Up to 15 items a side, and any gold amount from 0 to the player's balance. A balance may not pass the gold cap after
   the trade (`GoldCapReached`), and no one may end up with two copies of a Unique item (`UniqueAlreadyOwned`).
 
