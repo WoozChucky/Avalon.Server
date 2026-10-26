@@ -175,8 +175,8 @@ public sealed class DoodadCatalog
                 return $"{name}: a solid doodad cannot despawn, since its box stays in the navmesh";
         }
 
-        if (t.Service == DoodadService.Identify && IdentifyProblem(t) is { } identify)
-            return $"{name}: {identify}";
+        if (t.Service == DoodadService.Workbench && WorkbenchProblem(t) is { } workbench)
+            return $"{name}: {workbench}";
 
         if (t.RespawnSeconds == 0)
             return $"{name}: RespawnSeconds is 0; null never respawns";
@@ -215,24 +215,24 @@ public sealed class DoodadCatalog
     }
 
     /// <summary>
-    /// The first rule an Identify doodad (the Resonance Workbench) breaks, or null: it is clicked and never spent, and
+    /// The first rule a Workbench doodad (the Resonance Workbench) breaks, or null: it is clicked and never spent, and
     /// runs no script, drops no loot and has no gate, so it is never hidden, spent or despawned and a use does nothing
     /// but open the client's window.
     /// </summary>
-    private static string? IdentifyProblem(DoodadTemplate t)
+    private static string? WorkbenchProblem(DoodadTemplate t)
     {
         if (t.Interaction != DoodadInteraction.Click)
-            return "an Identify doodad must be clicked";
+            return "a Workbench doodad must be clicked";
         if (t.UseLimit != DoodadUseLimit.Unlimited)
-            return "an Identify doodad must be Unlimited";
+            return "a Workbench doodad must be Unlimited";
         if (t.ScriptName is { Length: > 0 })
-            return "an Identify doodad cannot run a script";
+            return "a Workbench doodad cannot run a script";
         if (t.LootTableId is not null)
-            return "an Identify doodad cannot drop loot";
+            return "a Workbench doodad cannot drop loot";
         if (HasGate(t.VisibleQuestId, t.VisibleCondition, t.VisibleObjectiveId)
             || HasGate(t.UsableQuestId, t.UsableCondition, t.UsableObjectiveId))
         {
-            return "an Identify doodad cannot be gated";
+            return "a Workbench doodad cannot be gated";
         }
 
         return null;

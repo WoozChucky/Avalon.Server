@@ -329,6 +329,12 @@ public enum ItemSubClass
     QuestItem = 300,
     // Crafting Subclasses
     CraftingMaterial = 400,
+
+    /// <summary>
+    /// A glyph (#1180 part C): one affix kept from an item destroyed at the Resonance Workbench, carried as the copy's one
+    /// modifier row and imprinted onto another item there. The seed holds one template of it, found by this subclass.
+    /// </summary>
+    Glyph = 401,
     // Junk Subclasses
     JunkItem = 500
 }

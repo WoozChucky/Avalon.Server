@@ -454,6 +454,10 @@
         "value": 400
       },
       {
+        "name": "Glyph",
+        "value": 401
+      },
+      {
         "name": "JunkItem",
         "value": 500
       }

@@ -60,7 +60,7 @@ Ownership of items and gold, the inventory and wallet services, character saves,
   a swap with the worn item, an item use, a two-hander over a worn off hand, a second copy of a UniqueEquipped
   template), and it can be moved in the Bag, banked, traded, destroyed and sold (for `Game:Items:UnidentifiedSellPercent`
   of its price, [vendors](#inventory-gold-and-character-saves)).
-- **The Workbench.** The Resonance Workbench is doodad template 7, the one seeded doodad whose `Service` is `Identify`,
+- **The Workbench.** The Resonance Workbench is doodad template 7, the one seeded doodad whose `Service` is `Workbench`,
   placed in Glimmerdell's market (`MapDoodadSpawns` row 2, [doodads](doodads.md)). A click on it goes through
   `CMSG_INTERACT` and `DoodadUseService` like any click (it ends the user's casts and arrival protection) and does
   nothing else on the server: the client opens its identify window when the player clicks a doodad whose catalog
@@ -69,9 +69,10 @@ Ownership of items and gold, the inventory and wallet services, character saves,
   accepted by `MapSessionFilter`, identifies one Bag item; an "identify all" is the client sending one request per item.
   `ItemIdentifyHandler` answers each with exactly one `SMSG_ITEM_IDENTIFY_RESULT` (`0x3092`,
   `SItemIdentifyResultPacket`: `RequestId`, `ItemIdentifyResult`), and a connection with no character gets nothing
-  (logged at Debug). `IdentifyRules.Decide`, which reads and never changes, asks in this order: `Dead` (1); `Stunned`
-  (2, `ControlGates.CanAct`); `NotFound` (3: no instance, no doodad of that guid in it, a despawned one, or one whose
-  template's service is not Identify); `TooFar` (4: beyond the Workbench's `InteractionRange`, 5 m, written so a
+  (logged at Debug). `IdentifyRules.Decide`, which reads and never changes, asks in this order, its first four the
+  Workbench's shared prefix (`WorkbenchRules.Access`, which extraction and imprinting ask too, #1180 part C): `Dead`
+  (1); `Stunned` (2, `ControlGates.CanAct`); `NotFound` (3: no instance, no doodad of that guid in it, a despawned one,
+  or one whose template's service is not Workbench); `TooFar` (4: beyond the Workbench's `InteractionRange`, 5 m, written so a
   position that is not a number is beyond it; a doodad has no conversation to leash, so walking away after opening the
   window is caught by the next request); `NoItem` (5: nothing in that Bag slot, a slot past the Bag included);
   `AlreadyIdentified` (6); `Locked` (7: the item is offered in a trade); `NotEnoughGold` (8: only when the cost is above

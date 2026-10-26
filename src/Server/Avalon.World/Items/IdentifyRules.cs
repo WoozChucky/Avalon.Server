@@ -1,8 +1,6 @@
+using System.Diagnostics;
 using Avalon.Common;
-using Avalon.Common.Mathematics;
-using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
-using Avalon.World.Auras;
 using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
@@ -12,14 +10,12 @@ namespace Avalon.World.Items;
 
 /// <summary>
 /// Whether a character may identify the item in one Bag slot at a Resonance Workbench now (#1179). It reads and never
-/// changes: ItemIdentifyHandler applies an Ok. The checks, in order: the character is dead; it is stunned; the Workbench
-/// is not found (no instance, no doodad of that guid in it, a despawned one, or one whose template's service is not
-/// Identify); the character is beyond the Workbench's interaction range (a position that is not a number is beyond it);
-/// the Bag holds nothing in that slot (a slot past the Bag included); the item is already identified; it is offered in a
-/// trade; and, when the cost is above 0, the wallet cannot spend it (the wallet already leaves out gold a trade holds).
-/// The wallet is asked for only when the cost is above 0, so a request at no cost needs none (the handler takes the
-/// character's only then). Doodad visibility is not asked: the catalog refuses a gate or a script on an Identify
-/// template, and a town spawn row carries no gate. Tick thread only.
+/// changes: ItemIdentifyHandler applies an Ok. The checks, in order: the Workbench's shared prefix
+/// (<see cref="WorkbenchRules.Access" />: dead, stunned, the Workbench not found, beyond its range); the Bag holds nothing
+/// in that slot (a slot past the Bag included); the item is already identified; it is offered in a trade; and, when the
+/// cost is above 0, the wallet cannot spend it (the wallet already leaves out gold a trade holds). The wallet is asked
+/// for only when the cost is above 0, so a request at no cost needs none (the handler takes the character's only then).
+/// Tick thread only.
 /// </summary>
 public static class IdentifyRules
 {
@@ -31,22 +27,18 @@ public static class IdentifyRules
         if (cost > 0 && wallet is null)
             throw new ArgumentNullException(nameof(wallet), "A cost above 0 is paid from a wallet.");
 
-        if (character.IsDead)
-            return ItemIdentifyResult.Dead;
-
-        if (!ControlGates.CanAct(character))
-            return ItemIdentifyResult.Stunned;
-
-        if (host is null || !host.Doodads.TryGet(workbench, out Doodad? doodad)
-            || doodad.State == DoodadState.Despawned || doodad.Template.Service != DoodadService.Identify)
+        WorkbenchAccess access = WorkbenchRules.Access(character, host, workbench);
+        if (access != WorkbenchAccess.Ok)
         {
-            return ItemIdentifyResult.NotFound;
+            return access switch
+            {
+                WorkbenchAccess.Dead => ItemIdentifyResult.Dead,
+                WorkbenchAccess.Stunned => ItemIdentifyResult.Stunned,
+                WorkbenchAccess.NotFound => ItemIdentifyResult.NotFound,
+                WorkbenchAccess.TooFar => ItemIdentifyResult.TooFar,
+                _ => throw new UnreachableException($"WorkbenchAccess {access} has no identify result"),
+            };
         }
-
-        // Written so a distance that is not a number refuses. Asked on every request: a doodad has no conversation to
-        // leash, so walking away after opening the window is caught here.
-        if (!(Vector3.Distance(character.Position, doodad.Position) <= doodad.Template.InteractionRange))
-            return ItemIdentifyResult.TooFar;
 
         if (!character.Container(InventoryType.Bag).TryGet(bagSlot, out InventoryItem item))
             return ItemIdentifyResult.NoItem;

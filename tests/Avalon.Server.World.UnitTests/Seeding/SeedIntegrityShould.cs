@@ -2093,8 +2093,8 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// #1179: the one service doodad is the Resonance Workbench, an Identify doodad clicked within 5 m, never spent and
-    /// walk-through (its box is the town piece's), placed once, in Glimmerdell; the catalog loads it as Identify.
+    /// #1179: the one service doodad is the Resonance Workbench, a Workbench doodad clicked within 5 m, never spent and
+    /// walk-through (its box is the town piece's), placed once, in Glimmerdell; the catalog loads it as Workbench.
     /// </summary>
     [Fact]
     public void Seed_one_resonance_workbench_in_glimmerdell()
@@ -2103,7 +2103,7 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         DoodadTemplate t = Assert.Single(context.DoodadTemplates.AsNoTracking().AsEnumerable(), d => d.Service is not null);
-        Assert.Equal(("Resonance Workbench", "props-kit", "Workbench", DoodadService.Identify),
+        Assert.Equal(("Resonance Workbench", "props-kit", "Workbench", DoodadService.Workbench),
             (t.Name, t.ModelKit, t.ModelKey, t.Service));
         Assert.Equal(((string?)null, (string?)null, (string?)null, (string?)null),
             (t.UsedModelKey, t.ReadyClip, t.UseClip, t.UsedClip));
@@ -2116,7 +2116,7 @@ public class SeedIntegrityShould
 
         // Load_every_seeded_doodad_through_the_catalog_without_refusing_any holds that none is refused; this, its service.
         Assert.True(SeededDoodadCatalog(context).TryGet(t.Id, out DoodadTemplateView? view));
-        Assert.Equal(DoodadService.Identify, view.Service);
+        Assert.Equal(DoodadService.Workbench, view.Service);
     }
 
     /// <summary>The seeded doodads loaded as the world loads them, against the seeded loot, auras, quests and scripts.</summary>
@@ -2722,6 +2722,31 @@ public class SeedIntegrityShould
         Assert.Equal((ItemRarity.Common, made.BaseKind), (named.Rarity, named.BaseKind));
         Assert.True(named.RequiredLevel <= made.RequiredLevel, $"{named.Name} asks a higher level than {made.Name}");
         Assert.Empty(made.BaseStats);
+    }
+
+    /// <summary>
+    /// #1180 part C (C-R1, C-R2): the Glyph is one seeded template, a Common crafting item of its own subclass that never
+    /// stacks, sells or buys for nothing (so a vendor refuses it) and can be destroyed; it is no base, carries no base
+    /// stats and links no modifier, since each glyph's one modifier row is its own. The patch finds it by subclass.
+    /// </summary>
+    [Fact]
+    public async Task Seed_the_glyph_as_one_crafting_template_and_price_every_tier_it_can_carry()
+    {
+        using var database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+        var templates = context.ItemTemplates.AsNoTracking().ToList();
+
+        ItemTemplate glyph = Assert.Single(templates, t => t.SubClass == ItemSubClass.Glyph);
+        Assert.Equal((ItemClass.Crafting, ItemRarity.Common, 1u, 0u, 0u),
+            (glyph.Class, glyph.Rarity, glyph.MaxStackSize, glyph.SellPrice, glyph.BuyPrice));
+        Assert.False(glyph.Flags.HasFlag(ItemTemplateFlags.NoDestroy));
+        Assert.Equal(((ItemBaseKind?)null, (ItemSlotType?)null), (glyph.BaseKind, glyph.Slot));
+        Assert.Empty(glyph.BaseStats);
+        Assert.DoesNotContain(context.ItemTemplateModifiers.AsNoTracking().ToList(), l => l.TemplateId.Value == glyph.Id.Value);
+
+        var items = ItemsPatch.Build(templates, await new ItemModifierRepository(database,
+            NullLoggerFactory.Instance).GetCatalogAsync(CancellationToken.None), [], AuraCatalog.Empty, NullLogger.Instance);
+        Assert.Same(glyph, items.Glyph);
     }
 
     /// <summary>

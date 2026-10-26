@@ -57,12 +57,12 @@ public class DoodadCatalogShould
     }
 
     /// <summary>
-    /// An Identify template that keeps every Identify rule: clicked, Unlimited, no script, loot or gate. The rest of the
+    /// A Workbench template that keeps every Workbench rule: clicked, Unlimited, no script, loot or gate. The rest of the
     /// template it is made from stays, inert without a script.
     /// </summary>
-    private static DoodadTemplate Identify(DoodadTemplate t)
+    private static DoodadTemplate Workbench(DoodadTemplate t)
     {
-        t.Service = DoodadService.Identify;
+        t.Service = DoodadService.Workbench;
         t.UseLimit = DoodadUseLimit.Unlimited;
         t.ScriptName = null;
         t.LootTableId = null;
@@ -126,16 +126,16 @@ public class DoodadCatalogShould
             case "min gold above max": t.MinGold = 30; break;
             case "restore 101%": t.RestorePct = 101; break;
             case "outcome weight 0": t.AuraOutcomes[0].Weight = 0; break;
-            case "identify without click": Identify(t).Interaction = DoodadInteraction.None; break;
-            case "identify once per instance": Identify(t).UseLimit = DoodadUseLimit.OncePerInstance; break;
-            case "identify with script": Identify(t).ScriptName = nameof(TestDoodadScript); break;
-            case "identify with loot table": Identify(t).LootTableId = 1; break;
-            case "identify with visible gate":
-                Identify(t).VisibleQuestId = 1;
+            case "workbench without click": Workbench(t).Interaction = DoodadInteraction.None; break;
+            case "workbench once per instance": Workbench(t).UseLimit = DoodadUseLimit.OncePerInstance; break;
+            case "workbench with script": Workbench(t).ScriptName = nameof(TestDoodadScript); break;
+            case "workbench with loot table": Workbench(t).LootTableId = 1; break;
+            case "workbench with visible gate":
+                Workbench(t).VisibleQuestId = 1;
                 t.VisibleCondition = DoodadGateCondition.NotCompleted;
                 break;
-            case "identify with usable gate":
-                Identify(t).UsableQuestId = 1;
+            case "workbench with usable gate":
+                Workbench(t).UsableQuestId = 1;
                 t.UsableCondition = DoodadGateCondition.Completed;
                 break;
             case "unknown service": t.Service = (DoodadService)9; break;
@@ -177,12 +177,12 @@ public class DoodadCatalogShould
     [InlineData("restore 101%", "RestorePct 101 is above 100")]
     [InlineData("outcome aura missing", "an outcome names aura 999, which is not loaded")]
     [InlineData("outcome weight 0", "the outcome of aura 901 has weight 0")]
-    [InlineData("identify without click", "an Identify doodad must be clicked")]
-    [InlineData("identify once per instance", "an Identify doodad must be Unlimited")]
-    [InlineData("identify with script", "an Identify doodad cannot run a script")]
-    [InlineData("identify with loot table", "an Identify doodad cannot drop loot")]
-    [InlineData("identify with visible gate", "an Identify doodad cannot be gated")]
-    [InlineData("identify with usable gate", "an Identify doodad cannot be gated")]
+    [InlineData("workbench without click", "a Workbench doodad must be clicked")]
+    [InlineData("workbench once per instance", "a Workbench doodad must be Unlimited")]
+    [InlineData("workbench with script", "a Workbench doodad cannot run a script")]
+    [InlineData("workbench with loot table", "a Workbench doodad cannot drop loot")]
+    [InlineData("workbench with visible gate", "a Workbench doodad cannot be gated")]
+    [InlineData("workbench with usable gate", "a Workbench doodad cannot be gated")]
     [InlineData("unknown service", "Service 9 is unknown")]
     public void Refuse_a_template_that_breaks_a_rule(string mutation, string reason)
     {

@@ -91,7 +91,7 @@ public class ScriptHotReloadPollingShould
             .Returns(Array.Empty<Avalon.Domain.World.CharacterLevelExperience>());
         IItemTemplateRepository items = Substitute.For<IItemTemplateRepository>();
         items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(new List<Avalon.Domain.World.ItemTemplate>());
+            .Returns(new List<Avalon.Domain.World.ItemTemplate> { TestStaticData.Glyph() });
         IAbilityTemplateRepository abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new List<Avalon.Domain.World.AbilityTemplate>());

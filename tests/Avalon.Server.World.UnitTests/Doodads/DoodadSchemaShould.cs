@@ -40,7 +40,7 @@ public class DoodadSchemaShould
         await using (WorldDbContext context = database.CreateDbContext())
         {
             DoodadTemplate chest = Chest();
-            chest.Service = DoodadService.Identify;
+            chest.Service = DoodadService.Workbench;
             context.DoodadTemplates.Add(chest);
             await context.SaveChangesAsync();
         }
@@ -52,7 +52,7 @@ public class DoodadSchemaShould
         Assert.Equal(1, read.LootTableId!.Value);
         Assert.Equal((1u, DoodadGateCondition.OnObjective, 101u), (read.UsableQuestId, read.UsableCondition, read.UsableObjectiveId));
         Assert.Null(read.VisibleCondition);
-        Assert.Equal(DoodadService.Identify, read.Service);
+        Assert.Equal(DoodadService.Workbench, read.Service);
         DoodadAuraOutcome outcome = Assert.Single(read.AuraOutcomes);
         Assert.Equal((4u, 3u), (outcome.AuraId.Value, outcome.Weight));
     }

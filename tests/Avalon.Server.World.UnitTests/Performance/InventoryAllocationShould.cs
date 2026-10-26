@@ -177,7 +177,7 @@ public class InventoryAllocationShould
         StaticData data = ScenarioReferenceData.Shared.Data;
         using MapInstance instance = TestMapInstances.Build(new QuietWorld(data));
         var workbench = new Doodad(new ObjectGuid(ObjectType.Doodad, 1),
-            data.Doodads.Templates.Single(t => t.Service == DoodadService.Identify), _character.Position, 0f);
+            data.Doodads.Templates.Single(t => t.Service == DoodadService.Workbench), _character.Position, 0f);
         instance.AddDoodad(workbench);
         _character.InstanceId = instance.InstanceId;
         var world = new QuietWorld(data, instance);

@@ -47,8 +47,11 @@ public enum DoodadCollision : byte
 /// </summary>
 public enum DoodadService : byte
 {
-    /// <summary>The Resonance Workbench: identifies the user's unidentified items, one per request.</summary>
-    Identify = 1,
+    /// <summary>
+    /// The Resonance Workbench: identifies the user's unidentified items, extracts an affix as a glyph and imprints a glyph
+    /// onto another item, one item per request.
+    /// </summary>
+    Workbench = 1,
 }
 
 /// <summary>
@@ -165,7 +168,7 @@ public class DoodadTemplate : IDbEntity<DoodadTemplateId>
     public uint? UsableObjectiveId { get; set; }
 
     /// <summary>
-    /// The service window a click opens on the client, or null for none. The catalog keeps an Identify doodad clicked and
+    /// The service window a click opens on the client, or null for none. The catalog keeps a Workbench doodad clicked and
     /// Unlimited, with no script, loot table or gate, so it is never hidden, spent or despawned.
     /// </summary>
     public DoodadService? Service { get; set; }

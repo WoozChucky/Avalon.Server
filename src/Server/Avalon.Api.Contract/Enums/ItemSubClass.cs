@@ -24,5 +24,6 @@ public enum ItemSubClass
     Trinket = 210,
     QuestItem = 300,
     CraftingMaterial = 400,
+    Glyph = 401,
     JunkItem = 500
 }
