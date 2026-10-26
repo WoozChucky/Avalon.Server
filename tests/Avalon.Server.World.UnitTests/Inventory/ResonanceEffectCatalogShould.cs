@@ -1,12 +1,15 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Auras;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Items;
+using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Inventory;
 
@@ -104,6 +107,35 @@ public class ResonanceEffectCatalogShould
 
         Assert.Equal(Sound, Assert.Single(catalog.Effects).Id);
         Assert.Equal(errors, log.Errors.Select(e => e.Message));
+    }
+
+    /// <summary>
+    /// A row the rules refuse is logged once per load: once at startup, where the Items area holds the effects against the
+    /// auras and the Auras area, read from the same database, leaves them as they are; and once more by a reload that
+    /// holds them again, a /reload auras here.
+    /// </summary>
+    [Fact]
+    public async Task Log_a_refused_row_once_per_load()
+    {
+        AuraTemplate stunned = AuraTestData.Stunned();
+        ItemThemeEffect row = Row(Subject);
+        (row.AuraId, row.DamageType) = (stunned.Id, null);
+        IReadOnlyCollection<ItemThemeEffect> rows = [row];
+        IItemModifierRepository modifiers = Substitute.For<IItemModifierRepository>();
+        modifiers.GetCatalogAsync(Arg.Any<CancellationToken>()).Returns(_ => ItemModifierRepositories.EmptyCatalog());
+        modifiers.GetThemeEffectsAsync(Arg.Any<CancellationToken>()).Returns(_ => rows);
+        var log = new TestLog();
+        var data = (TestStaticData.Repositories(auras: () => [AuraTestData.Burn(), stunned]) with
+        {
+            ItemModifiers = modifiers,
+        }).ToStaticData(log);
+        string refusal = $"Resonance effect {Subject} is left out: an aura that stuns";
+
+        await data.LoadAsync();
+        Assert.Single(log.Errors, e => e.Message == refusal);
+
+        data.Apply(await data.PrepareAsync(ReloadArea.Auras));
+        Assert.Equal(2, log.Errors.Count(e => e.Message == refusal));
     }
 
     /// <summary>A sound row: Burn on the hit target of a Hit at count 2, typed Fire.</summary>
