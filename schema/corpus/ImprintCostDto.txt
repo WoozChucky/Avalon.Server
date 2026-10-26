@@ -1,0 +1,50 @@
+# ImprintCostDto - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message ImprintCostDto
+
+variant absent
+  field 1 Tier : uint = 0
+  field 2 Gold : ulong = 0
+  bytes 0
+
+variant empty
+  field 1 Tier : uint = 0
+  field 2 Gold : ulong = 0
+  bytes 0
+
+variant populated
+  field 1 Tier : uint = 1000000
+  field 2 Gold : ulong = 42
+  bytes 6
+    08 c0 84 3d 10 2a
+
+variant maxima
+  field 1 Tier : uint = 4294967295
+  field 2 Gold : ulong = 18446744073709551615
+  bytes 17
+    08 ff ff ff ff 0f 10 ff ff ff ff ff ff ff ff ff
+    01
+
+variant minima
+  field 1 Tier : uint = 0
+  field 2 Gold : ulong = 0
+  bytes 0
+
+variant varint-edges
+  field 1 Tier : uint = 16383
+  field 2 Gold : ulong = 16383
+  bytes 6
+    08 ff 7f 10 ff 7f

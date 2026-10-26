@@ -13,6 +13,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Abilities;
@@ -594,6 +595,33 @@ public class CharacterSelectHandlerShould
         Assert.Equal(("Town", "The town's description"), (selected.Map.Name, selected.Map.Description));
         var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
         Assert.Equal(4.4f, entity.GetMovementSpeed(), precision: 5);
+    }
+
+    /// <summary>
+    /// The client shows a Workbench price before it asks and an unidentified item's real sell price, so the select
+    /// carries the world's configured prices, every priced imprint tier in order of tier (#1221).
+    /// </summary>
+    [Fact]
+    public async Task Send_the_worlds_item_prices_at_select()
+    {
+        var game = new GameConfiguration
+        {
+            Items = new ItemConfiguration
+            {
+                IdentifyCost = 40,
+                UnidentifiedSellPercent = 30,
+                ImprintCost = new Dictionary<byte, ulong> { [7] = 200, [9] = 25, [6] = 500, [8] = 75 },
+            },
+        };
+        Fixture f = await BuildAsync(game: game);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
+
+        OutboundPacket packet = Assert.Single(f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_SELECTED);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
+        ItemPricesDto prices = Serializer.Deserialize<SCharacterSelectedPacket>(stream).ItemPrices;
+        Assert.Equal((40ul, 30u), (prices.IdentifyCost, prices.UnidentifiedSellPercent));
+        Assert.Equal([(6u, 500ul), (7u, 200ul), (8u, 75ul), (9u, 25ul)], prices.ImprintCosts.Select(c => (c.Tier, c.Gold)));
     }
 
     /// <summary>

@@ -1,0 +1,86 @@
+# ItemPricesDto - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message ItemPricesDto
+
+variant absent
+  field 1 IdentifyCost : ulong = 0
+  field 2 ImprintCosts : List<ImprintCostDto> = null
+  field 3 UnidentifiedSellPercent : uint = 0
+  bytes 0
+
+variant empty
+  field 1 IdentifyCost : ulong = 0
+  field 2 ImprintCosts : List<ImprintCostDto> = 0 elements
+  field 3 UnidentifiedSellPercent : uint = 0
+  bytes 0
+
+variant populated
+  field 1 IdentifyCost : ulong = 1000000
+  field 2 ImprintCosts : List<ImprintCostDto> = 2 elements
+    element 0
+      field 1 Tier : uint = 1000000
+      field 2 Gold : ulong = 42
+    element 1
+      field 1 Tier : uint = 4000000000
+      field 2 Gold : ulong = 19
+  field 3 UnidentifiedSellPercent : uint = 1000000
+  bytes 26
+    08 c0 84 3d 12 06 08 c0 84 3d 10 2a 12 08 08 80
+    d0 ac f3 0e 10 13 18 c0 84 3d
+
+variant maxima
+  field 1 IdentifyCost : ulong = 18446744073709551615
+  field 2 ImprintCosts : List<ImprintCostDto> = 3 elements
+    element 0
+      field 1 Tier : uint = 4294967295
+      field 2 Gold : ulong = 18446744073709551615
+    element 1
+      field 1 Tier : uint = 4294967295
+      field 2 Gold : ulong = 18446744073709551615
+    element 2
+      field 1 Tier : uint = 4294967295
+      field 2 Gold : ulong = 18446744073709551615
+  field 3 UnidentifiedSellPercent : uint = 4294967295
+  bytes 74
+    08 ff ff ff ff ff ff ff ff ff 01 12 11 08 ff ff
+    ff ff 0f 10 ff ff ff ff ff ff ff ff ff 01 12 11
+    08 ff ff ff ff 0f 10 ff ff ff ff ff ff ff ff ff
+    01 12 11 08 ff ff ff ff 0f 10 ff ff ff ff ff ff
+    ff ff ff 01 18 ff ff ff ff 0f
+
+variant minima
+  field 1 IdentifyCost : ulong = 0
+  field 2 ImprintCosts : List<ImprintCostDto> = 1 element
+    element 0
+      field 1 Tier : uint = 0
+      field 2 Gold : ulong = 0
+  field 3 UnidentifiedSellPercent : uint = 0
+  bytes 2
+    12 00
+
+variant varint-edges
+  field 1 IdentifyCost : ulong = 268435455
+  field 2 ImprintCosts : List<ImprintCostDto> = 2 elements
+    element 0
+      field 1 Tier : uint = 16383
+      field 2 Gold : ulong = 16383
+    element 1
+      field 1 Tier : uint = 2097152
+      field 2 Gold : ulong = 128
+  field 3 UnidentifiedSellPercent : uint = 127
+  bytes 25
+    08 ff ff ff 7f 12 06 08 ff 7f 10 ff 7f 12 08 08
+    80 80 80 01 10 80 01 18 7f

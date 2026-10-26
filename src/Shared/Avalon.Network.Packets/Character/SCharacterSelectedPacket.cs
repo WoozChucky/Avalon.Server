@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 
@@ -14,11 +15,15 @@ public class SCharacterSelectedPacket : Packet
     [ProtoMember(1)] public CharacterInfo Character { get; set; }
     [ProtoMember(2)] public MapInfo Map { get; set; }
 
-    public static OutboundPacket Create(CharacterInfo character, MapInfo map, PacketEncoder encoder)
+    /// <summary>The world's item prices, so the client shows a Workbench price before it asks (#1221).</summary>
+    [ProtoMember(3)] public ItemPricesDto ItemPrices { get; set; }
+
+    public static OutboundPacket Create(CharacterInfo character, MapInfo map, ItemPricesDto itemPrices, PacketEncoder encoder)
     {
         SCharacterSelectedPacket message = PacketEncoder.Scratch<SCharacterSelectedPacket>();
         message.Character = character;
         message.Map = map;
+        message.ItemPrices = itemPrices;
         return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 }

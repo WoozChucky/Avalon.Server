@@ -15,6 +15,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Items;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
@@ -69,6 +70,10 @@ public class CharacterSelectHandler(
 
     // The snapshot's modifier entries (#1179), given back once it is encoded; the select's steps run on the tick.
     private readonly ItemModifierDtoPool _modifierDtos = new();
+
+    // The world's item prices as the client is told them, built on the first select: Game:Items is read at startup and
+    // never replaced, so later selects allocate nothing for them. Never mutated once built, since every select shares it.
+    private ItemPricesDto? _prices;
     private Activity? _parentActivity;
 
     /// <summary>
@@ -605,7 +610,9 @@ public class CharacterSelectHandler(
             Description = townTemplate.Description
         };
 
-        connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, PacketEncoder.Shared));
+        _prices ??= PricesOf(world.Configuration.Items);
+        connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, _prices,
+            PacketEncoder.Shared));
 
         // The chunk layout, so the client can compose the stitched map and bake its local navmesh: as every arrival
         // sends it, behind this handler's own answer where the others send a transition.
@@ -872,5 +879,21 @@ public class CharacterSelectHandler(
         {
             logger.LogError(e, "Recounting the quest items of character {CharacterId} at select failed", entity.Guid.Id);
         }
+    }
+
+    /// <summary>
+    /// The world's item prices as the client is told them: the imprint costs by tier ascending, as Game:Items:ImprintCost
+    /// holds them after binding.
+    /// </summary>
+    private static ItemPricesDto PricesOf(ItemConfiguration items)
+    {
+        ItemPricesDto prices = new()
+        {
+            IdentifyCost = items.IdentifyCost,
+            UnidentifiedSellPercent = (uint)items.UnidentifiedSellPercent,
+        };
+        foreach ((byte tier, ulong gold) in items.ImprintCost.OrderBy(cost => cost.Key))
+            prices.ImprintCosts.Add(new ImprintCostDto { Tier = tier, Gold = gold });
+        return prices;
     }
 }
