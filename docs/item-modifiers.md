@@ -433,7 +433,7 @@ catalog holds T9, T8 and T7 today, which are its three weakest tiers, so today a
 tiers the item's level allows; it becomes a real downgrade once stronger tiers exist. The item level gate means a brick
 never gives an item a tier it could not have dropped with. A family that offers no row at an item level it rolls at
 (a catalog whose weakest three tiers all weigh 0 on that base kind, say) never keeps the affix's own tier: the roller
-throws before anything is written, and the imprint is answered `InternalError`.
+throws before anything is written, and the imprint is answered `InternalError` with its gold given back.
 `SeedIntegrityShould.Brick_every_seeded_affix_within_its_familys_three_weakest_tiers_and_its_item_level` holds the
 seed to offering at least one row for every affix, base kind and item level, exactly each allowed tier's lowest id.
 

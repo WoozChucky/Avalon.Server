@@ -463,17 +463,27 @@ public class ItemExtractionShould
     }
 
     /// <summary>
-    /// #1180 part C: an imprint is all or nothing. When the inventory service refuses an imprint ImprintRules allowed (here
-    /// a magic chest whose copy carries no rolled rows, which no game path makes), it has written nothing, and the handler
-    /// gives the gold it spent back: the answer is InternalError, and neither item, nor the store, nor the gold has changed.
+    /// #1180 part C: an imprint is all or nothing. When the inventory service refuses an imprint ImprintRules allowed, or
+    /// its roll throws, it has written nothing, and the handler gives the gold it spent back: the answer is InternalError,
+    /// and neither item, nor the store's lists, nor the instability, nor the gold has changed. The refusal is a magic chest
+    /// whose copy carries no rolled rows; the throw a rare at 99 carrying "S5 Fire T9", which never rolls on a chest, so
+    /// the brick the imprint brings finds no tier to offer it. No game path makes either.
     /// </summary>
-    [Fact]
-    public void Give_back_the_gold_of_an_imprint_the_inventory_service_refuses_after_the_rules_allowed_it()
+    [Theory]
+    [InlineData("the service refuses: a copy carrying no rolled rows")]
+    [InlineData("the roll throws: a brick finds no tier for S5 Fire on a chest")]
+    public void Give_back_the_gold_of_an_imprint_that_fails_after_the_rules_allowed_it(string @case)
     {
-        CarriedItem target = TestCharacters.Carried(new InventoryItem(Slot, new ItemInstanceId(Guid.CreateVersion7()), s_chest.Id, 1,
-            0, ItemInstanceFlags.None, ItemRarity.Magic, 9, RareName: null, Identified: true, Tainted: false));
+        CarriedItem target = @case.StartsWith("the service refuses", StringComparison.Ordinal)
+            ? TestCharacters.Carried(new InventoryItem(Slot, new ItemInstanceId(Guid.CreateVersion7()), s_chest.Id, 1, 0,
+                ItemInstanceFlags.None, ItemRarity.Magic, 9, RareName: null, Identified: true, Tainted: false))
+            : Target(s_chest, ItemRarity.Rare, 9, identified: true, tainted: false, ItemInstanceFlags.None, instability: 99,
+                "implicit IncreasedMaximumLife T9", "P11 T7", "S5 Fire T9");
         using var f = new Fixture(s_data, target, Glyph("S14 T9"), Gold);
         CharacterEntity character = f.Client.Character;
+        ItemInstanceId id = target.Item.InstanceId;
+        IReadOnlyList<ItemInstanceModifier> rows = character.ItemModifiers.Of(id);
+        ushort instability = character.ItemModifiers.InstabilityOf(id);
         InventoryItem held = TestCharacters.At(character, InventoryType.Bag, GlyphSlot);
         IReadOnlyList<ItemInstanceModifier> heldRows = character.ItemModifiers.Of(held.InstanceId);
 
@@ -481,9 +491,9 @@ public class ItemExtractionShould
 
         Assert.Equal(target.Item, TestCharacters.At(character, InventoryType.Bag, Slot));
         Assert.Equal(held, TestCharacters.At(character, InventoryType.Bag, GlyphSlot));
+        Assert.Same(rows, character.ItemModifiers.Of(id));
         Assert.Same(heldRows, character.ItemModifiers.Of(held.InstanceId));
-        Assert.False(character.ItemModifiers.IsOneOfAKind(target.Item.InstanceId));
-        Assert.Equal(0, character.ItemModifiers.InstabilityOf(target.Item.InstanceId));
+        Assert.Equal(instability, character.ItemModifiers.InstabilityOf(id));
         Assert.Equal(Gold, character.Data!.Gold);
         SaveMarks marks = character.SaveState.TakeMarks();
         Assert.Empty(marks.Items);

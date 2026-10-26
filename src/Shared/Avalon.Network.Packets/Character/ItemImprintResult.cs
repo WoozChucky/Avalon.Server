@@ -70,9 +70,8 @@ public enum ItemImprintResult : byte
     Bricked = 16,
 
     /// <summary>
-    /// Something on the server failed after the request was allowed; it is logged, and the glyph and the item are left as
-    /// they were. An imprint the server refused having changed nothing gives the gold back; only an unexpected fault after
-    /// it was spent keeps it.
+    /// Something on the server failed after the request was allowed; it is logged, and nothing changed: the glyph and the
+    /// item are left as they were, and any gold spent on the imprint is given back.
     /// </summary>
     InternalError = 17,
 }

@@ -221,12 +221,11 @@ modifiers](item-modifiers.md#extraction); this section is how the world decides,
   neither room nor group. **No rule reads instability**, so no refusal says anything of it. On `Ok` the handler spends
   the cost through `IWallet.TrySpend` (nothing at 0), then calls `IInventoryService.TryImprint(glyphSlot, targetSlot)`
   and answers what it returns, `Ok` (0) or `Bricked` (16), a success too. An imprint is all or nothing. When
-  `TryImprint` answers null after the rules allowed it, it has written nothing, and the handler gives the cost back
-  through `IWallet.TryAddGold`, logs at Error (a generated `[LoggerMessage]` method, naming the request, the cost and
-  the refund's result, never the total) and answers `InternalError` 17: the request changed nothing, gold included. A
-  throw (a bug, logged at Error and answered `InternalError`) keeps the gold already spent, so it loses value and never
-  makes it; `TryImprint` makes its new list and flags before it writes anything, so the glyph and the item are left as
-  they were.
+  `TryImprint` answers null or throws after the rules allowed it, it has written nothing (it throws only before its
+  first write, below), and the handler catches the throw, gives the cost back through `IWallet.TryAddGold`, logs at
+  Error (generated `[LoggerMessage]` methods, naming the request, the cost and the refund's result, and the exception
+  for a throw, never the total) and answers `InternalError` 17, its one reply: the request changed nothing, gold
+  included. A brick that finds an affix offered no tier is such a throw.
 - **`TryImprint`.** It answers null and changes nothing unless both slots are held and differ, the glyph is a glyph
   holding one row of a tiered prefix or suffix the catalog holds (`ImprintRules.GlyphAffix`, the rules' own check), and
   the target is an item `ItemModification.Allowed` accepts of a rolled base, carrying rolled rows (an entry in the
@@ -235,13 +234,16 @@ modifiers](item-modifiers.md#extraction); this section is how the world decides,
   `Imprinted`), draws the instability and, when the total bricks the item, rerolls its affixes as new row objects ([item
   modifiers](item-modifiers.md#extraction)); neither the held list nor any row in it is written. The item's new flags
   are made too: a bricked item `Tainted` with `Attuned` cleared; any other `Attuned`, or, already attuned, unchanged.
-  Only then does it write, all or nothing: the new list and total **replace** the item's
+  These rolls and builds are the only steps that may throw, so any throw comes before the first write. Only then does it
+  write, and no write can throw: the new list and total **replace** the item's
   (`ItemModifierStore.ReplaceModifiers(item, list, instability)`, whose refusals, an item without an entry and the list
   it holds, are ruled out) and, in the same step with nothing between them that can throw, the item is replaced with its
   new flags (an unchanged one only has its slot recorded for the client), so no item ever holds a bricking total
-  untainted; the item is marked for the save, and last the glyph is deleted (marked Removed). It answers `Bricked` or
-  `Ok`. It never logs, and never throws with the total in a message. The item, the emptied glyph slot and the gold reach
-  the client in the tick's `SMSG_INVENTORY_UPDATE`; the brick itself is told only by the `Bricked` answer.
+  untainted (the container's `Put` refuses only a slot past its end, and this one was just found held); the item is
+  marked for the save (dictionary writes), and last the glyph is deleted (marked Removed), from a slot just found held.
+  It answers `Bricked` or `Ok`. It never logs, and never throws with the total in a message. The item, the emptied glyph
+  slot and the gold reach the client in the tick's `SMSG_INVENTORY_UPDATE`; the brick itself is told only by the
+  `Bricked` answer.
 - **The columns** (Character migration `AddImprintsAndInstability`). `ItemInstances.Instability` (`smallint NOT NULL`,
   `ushort` in the domain as `ItemLevel` is; `CK_ItemInstances_Instability`: `"Instability" >= 0`), the hidden running
   total; `ItemInstances.Tainted` (`boolean NOT NULL`), held equal to the brick by `CK_ItemInstances_Tainted`:

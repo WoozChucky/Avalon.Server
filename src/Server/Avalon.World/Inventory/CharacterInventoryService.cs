@@ -357,8 +357,10 @@ public sealed class CharacterInventoryService(
             return null;
         }
 
-        // All or nothing: the new list and the item's new flags are made in full first, so whatever throws here leaves the
-        // glyph and the item as they were. A bricked item is Tainted and never bound again; any other imprint binds it.
+        // All or nothing: every roll is made first, with the new list and the item's new flags, and only these steps may
+        // throw (the roller, a brick offered no tier among them), so a throw always comes before the first write and
+        // leaves the glyph and the item as they were. A bricked item is Tainted and never bound again; any other imprint
+        // binds it.
         ImprintedRows imprinted = roller.Imprint(owner.ItemModifiers.Of(target.InstanceId), glyphRow, target.InstanceId,
             template.BaseKind!.Value, target.ItemLevel, owner.ItemModifiers.InstabilityOf(target.InstanceId),
             items.Modifiers);
@@ -368,9 +370,10 @@ public sealed class CharacterInventoryService(
                 ? target with { Flags = target.Flags | ItemInstanceFlags.Attuned }
                 : null;
 
-        // The store's replace (whose refusals are ruled out: the item has an entry, checked above, and the roller's list is
-        // always new) and the item's Tainted are written in one step, with nothing between them that can throw, so no item
-        // ever holds a bricking total untainted. The glyph goes after.
+        // The writes, none of which can throw: the store's replace (its refusals are ruled out: the item has an entry,
+        // checked above, and the roller's list is always new) and the item's Tainted in one step, so no item ever holds a
+        // bricking total untainted (the container's Put refuses only a slot past its end, and this one was just found
+        // held); then the save and client marks, dictionary writes; then the glyph's delete, a slot just found held.
         owner.ItemModifiers.ReplaceModifiers(target.InstanceId, imprinted.Modifiers, imprinted.Instability);
         if (changed is { } item)
             Replace(InventoryType.Bag, item);
