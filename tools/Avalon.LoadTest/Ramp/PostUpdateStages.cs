@@ -17,7 +17,7 @@ public enum PostUpdateReadout
 }
 
 /// <summary>One stage after the world update over a step's judged window, in microseconds per tick.</summary>
-/// <param name="Stage">The <c>stage</c> tag: <c>quests</c>, <c>inventory</c>, ..., <c>outbox</c>, <c>continuations</c>.</param>
+/// <param name="Stage">The <c>stage</c> tag: <c>awakening</c>, <c>quests</c>, <c>inventory</c>, ..., <c>outbox</c>, <c>continuations</c>.</param>
 /// <param name="MeanUs">The mean time of the stage per tick; null when Prometheus gave none.</param>
 /// <param name="P99Us">The 99th percentile, interpolated within the histogram's buckets; null when Prometheus gave none.</param>
 public sealed record StageTiming(string Stage, double? MeanUs, double? P99Us);
@@ -30,7 +30,8 @@ public sealed record PostUpdateStages(PostUpdateReadout Readout, IReadOnlyList<S
 {
     /// <summary>The stages in the order <c>WorldServer.Update</c> runs them; a stage not listed here follows, by name.</summary>
     private static readonly string[] s_tickOrder =
-        ["quests", "inventory", "sheet", "ability_amounts", "party_status", "presence", "pings", "outbox", "continuations"];
+        ["awakening", "quests", "inventory", "sheet", "ability_amounts", "party_status", "presence", "pings", "outbox",
+         "continuations"];
 
     private static readonly IReadOnlyDictionary<string, double> s_none = new Dictionary<string, double>(StringComparer.Ordinal);
 
