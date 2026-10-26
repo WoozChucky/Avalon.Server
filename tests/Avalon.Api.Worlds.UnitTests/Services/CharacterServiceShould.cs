@@ -507,9 +507,9 @@ public sealed class CharacterServiceShould : IDisposable
         Assert.Equal((Avalon.Api.Contract.AbilityAmountKind.Damage, 9u, 18u), (amount.Kind, amount.Min, amount.Max));
     }
 
-    /// <summary>A character's abilities carry the pool each cost is spent from (#652).</summary>
+    /// <summary>A character's abilities carry each one's cost, in mana (#1181).</summary>
     [Fact]
-    public async Task Return_each_abilitys_cost_power_type()
+    public async Task Return_each_abilitys_cost()
     {
         var id = new CharacterId(42);
 
@@ -529,11 +529,7 @@ public sealed class CharacterServiceShould : IDisposable
             .Returns(new List<AbilityTemplate>
             {
                 new() { Id = new AbilityId(210), Name = "Firebolt", Cost = 0 },
-                new()
-                {
-                    Id = new AbilityId(211), Name = "Flame Burst", Cost = 20,
-                    CostPowerType = Avalon.Network.Packets.State.PowerType.Mana,
-                },
+                new() { Id = new AbilityId(211), Name = "Flame Burst", Cost = 20 },
             });
 
         ICombatDataRepository combat = Substitute.For<ICombatDataRepository>();
@@ -547,16 +543,8 @@ public sealed class CharacterServiceShould : IDisposable
         CharacterAbilitiesDto? result = await service.GetAbilitiesAsync(id);
 
         Assert.Collection(result!.Abilities,
-            free =>
-            {
-                Assert.Equal(0u, free.Template!.Cost);
-                Assert.Equal(PowerType.None, free.Template.CostPowerType);
-            },
-            costed =>
-            {
-                Assert.Equal(20u, costed.Template!.Cost);
-                Assert.Equal(PowerType.Mana, costed.Template.CostPowerType);
-            });
+            free => Assert.Equal(0u, free.Template!.Cost),
+            costed => Assert.Equal(20u, costed.Template!.Cost));
     }
 
     /// <summary>

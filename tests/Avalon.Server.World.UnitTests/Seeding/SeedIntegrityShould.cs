@@ -699,8 +699,7 @@ public class SeedIntegrityShould
             (a.Name, a.Shape, a.Reach, a.Radius, a.ArcDegrees, a.ProjectileSpeed, a.Pierce, a.CastTime, a.Cooldown,
                 a.DamageEffectiveness));
         Assert.Empty(a.AllowedClasses);
-        Assert.Equal((0u, 0), (a.Cost, a.PowerGainPerHit));
-        Assert.Equal(PowerType.None, a.CostPowerType);
+        Assert.Equal(0u, a.Cost);
         Assert.Equal(AbilityAffects.Hostile, a.Affects);
         Assert.Equal(AbilityAnchor.Caster, a.Anchor);
         Assert.Equal(shape == AbilityShape.Projectile ? AbilityAimMode.Cursor : AbilityAimMode.Movement, a.AimMode);
@@ -865,17 +864,6 @@ public class SeedIntegrityShould
         }, a.ScriptName));
     }
 
-    /// <summary>#526: Cleave is the one builder, at 8 per unit damaged; every other ability gains nothing.</summary>
-    [Fact]
-    public void Seed_a_power_gain_per_hit_on_cleave_only()
-    {
-        using var database = SqliteDatabase.World();
-        using WorldDbContext context = database.CreateDbContext();
-
-        Assert.All(context.AbilityTemplates.AsNoTracking().ToList(),
-            a => Assert.Equal(a.Id.Value == 200 ? 8 : 0, a.PowerGainPerHit));
-    }
-
     /// <summary>#770: each class's basic attack, the one ability a silence spares, is flagged Basic; nothing else is.</summary>
     [Fact]
     public void Flag_each_classs_basic_attack_and_no_other_ability_as_basic()
@@ -960,28 +948,28 @@ public class SeedIntegrityShould
     /// of #770, which a dodge or a miss lands no control from: Hush (235) deals nothing and is pure silence (#1164).
     /// </summary>
     [Theory]
-    [InlineData(203u, "Rend", AbilityShape.Cone, AbilityAimMode.Movement, 2.5f, 0f, 90f, 0f, 6000u, 10u, PowerType.Fury, SpellEffect.Damage, 1u)]
-    [InlineData(213u, "Ignite", AbilityShape.Circle, AbilityAimMode.Cursor, 18f, 3f, 0f, 0f, 6000u, 20u, PowerType.Mana, SpellEffect.Debuff, 2u)]
-    [InlineData(223u, "Crippling Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, 25f, 0f, 0f, 14f, 8000u, 15u, PowerType.Energy, SpellEffect.Damage, 3u)]
-    [InlineData(233u, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, 15f, 4f, 0f, 0f, 6000u, 15u, PowerType.Mana, SpellEffect.Buff, 4u)]
-    [InlineData(234u, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, 0f, 8f, 0f, 0f, 20000u, 20u, PowerType.Mana, SpellEffect.Buff, 5u)]
-    [InlineData(204u, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, 2.5f, 0f, 90f, 0f, 15000u, 15u, PowerType.Fury, SpellEffect.Damage, 12u)]
-    [InlineData(214u, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, 18f, 3f, 0f, 0f, 20000u, 25u, PowerType.Mana, SpellEffect.Damage, 14u)]
-    [InlineData(224u, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, 25f, 0f, 0f, 14f, 15000u, 20u, PowerType.Energy, SpellEffect.Damage, 13u)]
-    [InlineData(235u, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, 18f, 0f, 0f, 17f, 20000u, 20u, PowerType.Mana, SpellEffect.Debuff, 15u)]
-    [InlineData(317u, "Venom Spit", AbilityShape.Projectile, AbilityAimMode.Cursor, 10f, 0f, 0f, 14f, 8000u, 0u, PowerType.None, SpellEffect.Damage, 6u)]
-    [InlineData(318u, "Sundering Howl", AbilityShape.Circle, AbilityAimMode.Movement, 0f, 6f, 0f, 0f, 18000u, 0u, PowerType.None, SpellEffect.Debuff, 7u)]
+    [InlineData(203u, "Rend", AbilityShape.Cone, AbilityAimMode.Movement, 2.5f, 0f, 90f, 0f, 6000u, 10u, SpellEffect.Damage, 1u)]
+    [InlineData(213u, "Ignite", AbilityShape.Circle, AbilityAimMode.Cursor, 18f, 3f, 0f, 0f, 6000u, 20u, SpellEffect.Debuff, 2u)]
+    [InlineData(223u, "Crippling Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, 25f, 0f, 0f, 14f, 8000u, 15u, SpellEffect.Damage, 3u)]
+    [InlineData(233u, "Renew", AbilityShape.Circle, AbilityAimMode.Cursor, 15f, 4f, 0f, 0f, 6000u, 15u, SpellEffect.Buff, 4u)]
+    [InlineData(234u, "Fortify", AbilityShape.Circle, AbilityAimMode.Movement, 0f, 8f, 0f, 0f, 20000u, 20u, SpellEffect.Buff, 5u)]
+    [InlineData(204u, "Shield Bash", AbilityShape.Cone, AbilityAimMode.Movement, 2.5f, 0f, 90f, 0f, 15000u, 15u, SpellEffect.Damage, 12u)]
+    [InlineData(214u, "Frost Bind", AbilityShape.Circle, AbilityAimMode.Cursor, 18f, 3f, 0f, 0f, 20000u, 25u, SpellEffect.Damage, 14u)]
+    [InlineData(224u, "Binding Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, 25f, 0f, 0f, 14f, 15000u, 20u, SpellEffect.Damage, 13u)]
+    [InlineData(235u, "Hush", AbilityShape.Projectile, AbilityAimMode.Cursor, 18f, 0f, 0f, 17f, 20000u, 20u, SpellEffect.Debuff, 15u)]
+    [InlineData(317u, "Venom Spit", AbilityShape.Projectile, AbilityAimMode.Cursor, 10f, 0f, 0f, 14f, 8000u, 0u, SpellEffect.Damage, 6u)]
+    [InlineData(318u, "Sundering Howl", AbilityShape.Circle, AbilityAimMode.Movement, 0f, 6f, 0f, 0f, 18000u, 0u, SpellEffect.Debuff, 7u)]
     public void Seed_each_aura_ability_as_designed(uint id, string name, AbilityShape shape, AbilityAimMode aim, float reach,
-        float radius, float arc, float speed, uint cooldown, uint cost, PowerType pool, SpellEffect effects, uint aura)
+        float radius, float arc, float speed, uint cooldown, uint cost, SpellEffect effects, uint aura)
     {
         using var database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         AbilityTemplate a = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(t => t.Id.Value == id);
 
-        Assert.Equal((name, shape, aim, reach, radius, arc, speed, 0u, cooldown, cost, pool, effects, (uint?)aura),
+        Assert.Equal((name, shape, aim, reach, radius, arc, speed, 0u, cooldown, cost, effects, (uint?)aura),
             (a.Name, a.Shape, a.AimMode, a.Reach, a.Radius, a.ArcDegrees, a.ProjectileSpeed, a.CastTime, a.Cooldown, a.Cost,
-                a.CostPowerType, a.Effects, a.AuraId?.Value));
+                a.Effects, a.AuraId?.Value));
     }
 
     /// <summary>
@@ -1981,7 +1969,7 @@ public class SeedIntegrityShould
     /// <summary>Item use: the potions and the Town Portal Scroll are the seeded usable items.</summary>
     [Theory]
     [InlineData(1ul, "RestoreHealth", null, 30000u, "potion", 30u)]
-    [InlineData(2ul, "RestorePower", null, 30000u, "potion", 30u)]
+    [InlineData(2ul, "RestorePower", null, 30000u, "mana-potion", 30u)]
     [InlineData(3ul, "TownPortalScroll", 3000u, 30000u, null, null)]
     [InlineData(56ul, "RestoreHealth", null, 30000u, "potion", 60u)]
     public void Give_the_usable_items_their_use_data(

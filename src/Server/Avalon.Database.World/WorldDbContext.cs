@@ -16,7 +16,6 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using PowerType = Avalon.Network.Packets.State.PowerType;
 
 namespace Avalon.Database.World;
 
@@ -1607,7 +1606,7 @@ public class WorldDbContext : DbContext
                 Slot = null,
                 UseScript = "RestorePower",
                 UseCooldownMs = 30000,
-                UseCooldownGroup = "potion",
+                UseCooldownGroup = "mana-potion",
                 UseValue = 30
             },
             new ItemTemplate
@@ -3113,11 +3112,6 @@ public class WorldDbContext : DbContext
                 "\"ThreatMultiplier\" >= 0 AND \"ThreatMultiplier\" < 'Infinity'");
             t.HasCheckConstraint("CK_AbilityTemplates_HealThreatPerHp_NonNegative",
                 "\"HealThreatPerHp\" >= 0 AND \"HealThreatPerHp\" < 'Infinity'");
-            // #526: a negative gain would drain the caster's pool on every hit.
-            t.HasCheckConstraint("CK_AbilityTemplates_PowerGainPerHit_NonNegative", "\"PowerGainPerHit\" >= 0");
-            // #652: a cost names the pool it is spent from (Mana 1, Fury 2, Energy 3); only a cost of 0 may name none.
-            t.HasCheckConstraint("CK_AbilityTemplates_CostPowerType",
-                "\"CostPowerType\" BETWEEN 0 AND 3 AND (\"Cost\" = 0 OR \"CostPowerType\" <> 0)");
             // #1178: none (the caster's base type), or a DamageType from Physical 0 to Blight 4.
             t.HasCheckConstraint("CK_AbilityTemplates_DamageType",
                 "\"DamageType\" IS NULL OR \"DamageType\" BETWEEN 0 AND 4");
@@ -3166,7 +3160,7 @@ public class WorldDbContext : DbContext
         // Shot) is paced by its weapon's attack time over attack speed, so its Cooldown is 0; a spell basic (Spark Bolt,
         // Smite) keeps 800 ms, shortened by cast speed (#1178, owner decision D1).
         builder.HasData(
-            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 0, cost: 0, range: SpellRange.Melee, powerGainPerHit: 8, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 315f),
+            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 0, cost: 0, range: SpellRange.Melee, flags: AbilityFlags.Basic, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 315f),
             Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, range: SpellRange.Short, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Melee | AbilityTags.Area, effectiveness: 614f),
             Kit(202, CharacterClass.Warrior, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 9f, cooldown: 3000, cost: 10, range: SpellRange.Medium, damageType: DamageType.Physical, tags: AbilityTags.Attack | AbilityTags.Projectile, effectiveness: 492f),
             Kit(210, CharacterClass.Wizard, "Spark Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 11f, cooldown: 800, cost: 0, range: SpellRange.Long, flags: AbilityFlags.Basic, damageType: DamageType.Lightning, tags: AbilityTags.Spell | AbilityTags.Projectile, spellBase: (14, 20), growth: 0.70f),
@@ -3275,27 +3269,14 @@ public class WorldDbContext : DbContext
             ProjectileSpeed = speed,
             Pierce = pierce,
             Affects = AbilityAffects.Hostile,
-            PowerGainPerHit = 0,
             AuraId = aura is { } a ? new AuraId(a) : null,
             DamageType = damageType,
         };
 
-    /// <summary>
-    /// The pool a class spends from (#652), as the World's <c>ClassPowerType</c> gives a character at select: a kit
-    /// ability's cost is spent from its own class's pool.
-    /// </summary>
-    private static PowerType ClassPool(CharacterClass cls) => cls switch
-    {
-        CharacterClass.Warrior => PowerType.Fury,
-        CharacterClass.Wizard or CharacterClass.Cleric => PowerType.Mana,
-        CharacterClass.Hunter => PowerType.Energy,
-        _ => PowerType.None,
-    };
-
     private static AbilityTemplate Kit(uint id, CharacterClass cls, string name, AbilityShape shape, AbilityAimMode aim,
         SpellRange range, uint cooldown, uint cost, AbilityAnchor anchor = AbilityAnchor.Caster,
         float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false, uint castTime = 0,
-        AbilityAffects affects = AbilityAffects.Hostile, int powerGainPerHit = 0, SpellEffect? effects = null,
+        AbilityAffects affects = AbilityAffects.Hostile, SpellEffect? effects = null,
         uint? aura = null, AbilityFlags flags = AbilityFlags.None, DamageType? damageType = null,
         AbilityTags tags = AbilityTags.None, float effectiveness = 100f, (uint Min, uint Max) spellBase = default,
         float growth = 0f, DamageType? convertTo = null, float convertPct = 0f,
@@ -3307,7 +3288,6 @@ public class WorldDbContext : DbContext
             Cooldown = cooldown,
             Cost = cost,
             Flags = flags,
-            CostPowerType = cost == 0 ? PowerType.None : ClassPool(cls),
             Range = range,
             Effects = effects ?? (affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage),
             AllowedClasses = [cls],
@@ -3328,7 +3308,6 @@ public class WorldDbContext : DbContext
             ProjectileSpeed = speed,
             Pierce = pierce,
             Affects = affects,
-            PowerGainPerHit = powerGainPerHit,
             AuraId = aura is { } a ? new AuraId(a) : null,
             DamageType = damageType,
             Tags = tags,

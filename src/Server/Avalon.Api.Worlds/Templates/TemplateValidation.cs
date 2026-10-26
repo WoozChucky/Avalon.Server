@@ -113,10 +113,6 @@ public static class TemplateValidation
         if (string.IsNullOrWhiteSpace(r.ScriptName)) e.Add("scriptName", "Script name is required.");
         Defined(e, "range", r.Range);
         Flags(e, "effects", r.Effects);
-        Defined(e, "costPowerType", r.CostPowerType);
-        // CK_AbilityTemplates_CostPowerType: only a cost of 0 may name no pool.
-        if (r.Cost > 0 && r.CostPowerType == Contract.PowerType.None)
-            e.Add("costPowerType", "A cost needs the pool it is spent from (Mana, Fury or Energy).");
         if (r.DamageType is { } damageType) Defined(e, "damageType", damageType);
         Flags(e, "tags", r.Tags);
         if (r.ConvertToType is { } convertTo) Defined(e, "convertToType", convertTo);
@@ -267,8 +263,6 @@ public static class TemplateValidation
     public static string AbilityField(string problem) => problem switch
     {
         _ when problem.Contains("must use", StringComparison.Ordinal) => "scriptName",
-        _ when problem.Contains("power type", StringComparison.OrdinalIgnoreCase) => "costPowerType",
-        _ when problem.StartsWith("Cost ", StringComparison.Ordinal) => "costPowerType",
         _ when problem.StartsWith("the ability does nothing", StringComparison.Ordinal) => "effects",
         _ when problem.StartsWith("unknown AddedType", StringComparison.Ordinal) => "addedType",
         _ when problem.Contains("damage type", StringComparison.Ordinal) => "damageType",

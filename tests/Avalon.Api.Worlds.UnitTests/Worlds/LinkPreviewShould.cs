@@ -15,7 +15,6 @@ using Avalon.Database.World;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.World;
-using Avalon.Network.Packets.State;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -129,7 +128,6 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
                 Id = new AbilityId(210),
                 Name = "Cleave",
                 Cost = 30,
-                CostPowerType = PowerType.Mana,
                 CastTime = 2500,
                 Cooldown = 8000,
                 AllowedClasses = [CharacterClass.Warrior],

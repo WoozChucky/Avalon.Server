@@ -235,9 +235,7 @@ public static partial class LinkPreviewText
             or StatType.MovementSpeed;
 
     private static string Cost(PublicAbilityDto ability) =>
-        ability.Cost == 0
-            ? "Free"
-            : $"{Num(ability.Cost)} {(ability.CostPowerType is PowerType.Mana or PowerType.Fury or PowerType.Energy ? ability.CostPowerType.ToString() : "power")}";
+        ability.Cost == 0 ? "Free" : $"{Num(ability.Cost)} Mana";
 
     /// <summary>
     /// Milliseconds as <c>1.5 sec</c>, as the tooltip writes them: to the hundredth, a half rounded up (<c>1005</c> is

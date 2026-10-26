@@ -8,8 +8,8 @@ public sealed class PublicAbilityDto
 {
     public uint Id { get; set; }
     public string Name { get; set; } = "";
+    /// <summary>Cost in mana.</summary>
     public uint Cost { get; set; }
-    public PowerType CostPowerType { get; set; }
     public SpellRange Range { get; set; }
     /// <summary>In milliseconds.</summary>
     public uint CastTime { get; set; }

@@ -332,7 +332,6 @@ public sealed class TemplateEditShould : IAsyncLifetime
         { "item", "maxStackSize", 0, "maxStackSize" },
         { "item", "statValue1", 8, "statType1" },          // on a plate chest (#1179): a value with no type
         { "ability", "name", "", "name" },
-        { "ability", "costPowerType", "None", "costPowerType" }, // paired with a cost above 0, set below
         { "ability", "scriptName", "NoSuchScript", "scriptName" },
         { "creature", "baseAttackTime", 0.1, "baseAttackTime" },
         { "creature", "maxLevel", -5, "maxLevel" },
@@ -373,7 +372,6 @@ public sealed class TemplateEditShould : IAsyncLifetime
         ulong id = await RefusalTargetAsync(kind, field, value);
         (JsonObject json, string version) = await ReadAsync(kind, id);
         json[field] = value is null ? null : JsonSerializer.SerializeToNode(value);
-        if (kind == "ability" && field == "costPowerType") json["cost"] = 10;
 
         HttpResponseMessage response = await PutAsync(Editable, kind, id, json, Tag(version));
 
